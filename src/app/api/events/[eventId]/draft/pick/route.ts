@@ -42,6 +42,18 @@ export async function POST(
 
   const teamOrder: number[] = JSON.parse(event.draftOrder);
 
+  // Validate all teams in draft order still exist
+  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eId));
+  const existingTeamIds = new Set(eventTeams.map(t => t.id));
+  const invalidTeams = teamOrder.filter(id => !existingTeamIds.has(id));
+
+  if (invalidTeams.length > 0) {
+    return NextResponse.json({
+      error: 'Draft order contains teams that no longer exist. Please reset and reconfigure the draft order.',
+      invalidTeamIds: invalidTeams,
+    }, { status: 400 });
+  }
+
   // Determine current pick
   const eventPlayers = await db
     .select()

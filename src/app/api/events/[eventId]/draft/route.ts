@@ -104,6 +104,20 @@ export async function POST(
       if (!event.draftOrder) {
         return NextResponse.json({ error: 'Draft order must be set before starting' }, { status: 400 });
       }
+
+      // Validate all teams in draft order still exist
+      const draftTeamOrder: number[] = JSON.parse(event.draftOrder);
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+      const existingTeamIds = new Set(eventTeams.map(t => t.id));
+      const invalidTeams = draftTeamOrder.filter(tid => !existingTeamIds.has(tid));
+
+      if (invalidTeams.length > 0) {
+        return NextResponse.json({
+          error: 'Draft order contains teams that no longer exist. Please reset the draft order.',
+          invalidTeamIds: invalidTeams,
+        }, { status: 400 });
+      }
+
       const poolCount = await db
         .select()
         .from(players)
