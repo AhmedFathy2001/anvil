@@ -1,0 +1,176 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/db';
+import { events, players, teams } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { verifyAdmin } from '@/lib/auth';
+import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const { eventId } = await params;
+  const id = parseInt(eventId, 10);
+
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, id),
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  const eventPlayers = await db
+    .select()
+    .from(players)
+    .where(eq(players.eventId, id));
+
+  const eventTeams = await db
+    .select({
+      id: teams.id,
+      eventId: teams.eventId,
+      name: teams.name,
+      color: teams.color,
+    })
+    .from(teams)
+    .where(eq(teams.eventId, id));
+
+  const teamOrder: number[] = event.draftOrder ? JSON.parse(event.draftOrder) : [];
+  const pickedPlayers = eventPlayers.filter((p) => p.teamId !== null);
+  const currentPickNumber = pickedPlayers.length;
+  const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
+
+  let currentTeamId: number | null = null;
+  let round = 0;
+  let pickInRound = 0;
+  if (event.draftStatus === 'active' && teamOrder.length > 0 && poolPlayers.length > 0) {
+    currentTeamId = getTeamForPick(teamOrder, currentPickNumber);
+    round = getRoundForPick(teamOrder.length, currentPickNumber);
+    pickInRound = getPickInRound(teamOrder.length, currentPickNumber);
+  }
+
+  return NextResponse.json({
+    status: event.draftStatus,
+    teamOrder,
+    players: eventPlayers,
+    teams: eventTeams,
+    currentPickNumber,
+    currentTeamId,
+    round,
+    pickInRound,
+    totalPicked: pickedPlayers.length,
+    poolRemaining: poolPlayers.length,
+  });
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { eventId } = await params;
+  const id = parseInt(eventId, 10);
+  const body = await request.json();
+  const { action } = body;
+
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, id),
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  switch (action) {
+    case 'set-order': {
+      const { teamOrder } = body;
+      if (!Array.isArray(teamOrder) || teamOrder.length === 0) {
+        return NextResponse.json({ error: 'teamOrder must be a non-empty array of team IDs' }, { status: 400 });
+      }
+      await db
+        .update(events)
+        .set({ draftOrder: JSON.stringify(teamOrder) })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, teamOrder });
+    }
+
+    case 'start': {
+      if (event.draftStatus !== 'none' && event.draftStatus !== 'paused') {
+        return NextResponse.json({ error: `Cannot start draft from status "${event.draftStatus}"` }, { status: 400 });
+      }
+      if (!event.draftOrder) {
+        return NextResponse.json({ error: 'Draft order must be set before starting' }, { status: 400 });
+      }
+      const poolCount = await db
+        .select()
+        .from(players)
+        .where(eq(players.eventId, id));
+      const unpicked = poolCount.filter((p) => p.teamId === null);
+      if (unpicked.length === 0) {
+        return NextResponse.json({ error: 'No unpicked players in pool' }, { status: 400 });
+      }
+      await db
+        .update(events)
+        .set({ draftStatus: 'active' })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, status: 'active' });
+    }
+
+    case 'pause': {
+      if (event.draftStatus !== 'active') {
+        return NextResponse.json({ error: 'Draft is not active' }, { status: 400 });
+      }
+      await db
+        .update(events)
+        .set({ draftStatus: 'paused' })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, status: 'paused' });
+    }
+
+    case 'resume': {
+      if (event.draftStatus !== 'paused') {
+        return NextResponse.json({ error: 'Draft is not paused' }, { status: 400 });
+      }
+      await db
+        .update(events)
+        .set({ draftStatus: 'active' })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, status: 'active' });
+    }
+
+    case 'end': {
+      if (event.draftStatus !== 'active' && event.draftStatus !== 'paused') {
+        return NextResponse.json({ error: 'Draft is not in progress' }, { status: 400 });
+      }
+      await db
+        .update(events)
+        .set({ draftStatus: 'completed' })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, status: 'completed' });
+    }
+
+    case 'reset': {
+      // Clear all picks and reset draft status
+      const eventPlayers = await db
+        .select()
+        .from(players)
+        .where(eq(players.eventId, id));
+      for (const p of eventPlayers) {
+        await db
+          .update(players)
+          .set({ teamId: null, pickNumber: null, pickedAt: null })
+          .where(eq(players.id, p.id));
+      }
+      await db
+        .update(events)
+        .set({ draftStatus: 'none', draftOrder: null })
+        .where(eq(events.id, id));
+      return NextResponse.json({ success: true, status: 'none' });
+    }
+
+    default:
+      return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+  }
+}

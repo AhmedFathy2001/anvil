@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --background: #1a1410;
+  --foreground: #e8dcc8;
+  --card-bg: #241e17;
+  --card-bg-hover: #2e271e;
+  --card-border: #3d3226;
+  --gold: #d4a017;
+  --gold-light: #f0c940;
+  --gold-dark: #8a6d1b;
+  --brown-light: #352c22;
+  --brown-dark: #161210;
+  --accent-green: #2d8544;
+  --accent-green-light: #34d058;
+  --accent-red: #c0392b;
+  --text-muted: #8a7e6c;
+  --tile-bg: #2a231b;
+  --tile-border: #4a3d2e;
+  --tile-completed: #1a3a1a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card-bg: var(--card-bg);
+  --color-card-bg-hover: var(--card-bg-hover);
+  --color-card-border: var(--card-border);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-dark: var(--gold-dark);
+  --color-brown-light: var(--brown-light);
+  --color-brown-dark: var(--brown-dark);
+  --color-accent-green: var(--accent-green);
+  --color-accent-green-light: var(--accent-green-light);
+  --color-accent-red: var(--accent-red);
+  --color-text-muted: var(--text-muted);
+  --color-tile-bg: var(--tile-bg);
+  --color-tile-border: var(--tile-border);
+  --color-tile-completed: var(--tile-completed);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--brown-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dark);
+}
+
+/* Selection color */
+::selection {
+  background: var(--gold-dark);
+  color: var(--foreground);
+}
