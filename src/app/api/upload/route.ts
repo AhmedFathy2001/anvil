@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
-import { writeFile } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 import crypto from 'crypto';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -32,11 +31,9 @@ export async function POST(request: Request) {
   }
 
   const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const uploadPath = path.join(process.cwd(), 'public', 'uploads', filename);
+  const filename = `submissions/${crypto.randomUUID()}.${ext}`;
 
-  await writeFile(uploadPath, buffer);
+  const { url } = await put(filename, file, { access: 'public' });
 
-  return NextResponse.json({ url: `/uploads/${filename}` });
+  return NextResponse.json({ url });
 }
