@@ -458,6 +458,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           {/* Event Dates */}
           <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
             <h3 className="text-sm font-bold text-gold">Event Dates</h3>
+            <p className="text-xs text-text-muted mb-2">Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-text-muted mb-1">Start Date</label>

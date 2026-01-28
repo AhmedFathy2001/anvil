@@ -182,3 +182,41 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
 
   return sendDiscordWebhook({ embeds: [embed] });
 }
+
+interface TeamWithPlayers {
+  name: string;
+  color: string;
+  players: string[];
+}
+
+interface DraftCompleteNotifyParams {
+  eventName: string;
+  teams: TeamWithPlayers[];
+}
+
+export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Promise<boolean> {
+  const { eventName, teams } = params;
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [];
+
+  for (const team of teams) {
+    const playerList = team.players.length > 0
+      ? team.players.map(p => `• ${p}`).join('\n')
+      : '• No players';
+    fields.push({
+      name: team.name,
+      value: playerList,
+      inline: true,
+    });
+  }
+
+  const embed: DiscordEmbed = {
+    title: '🏆 Draft Complete!',
+    description: `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xffd700, // Gold
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendDiscordWebhook({ embeds: [embed] });
+}

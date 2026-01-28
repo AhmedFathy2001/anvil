@@ -100,6 +100,15 @@ export async function GET(request: Request) {
 
       try {
         const currentStats = await getStatsByGamemode(player.name) as Snapshot;
+
+        // Cache the stats
+        await db.update(players)
+          .set({
+            cachedStats: JSON.stringify(currentStats),
+            lastStatsFetch: new Date().toISOString(),
+          })
+          .where(eq(players.id, player.id));
+
         eventResult.playersChecked++;
 
         // Check each stat tile

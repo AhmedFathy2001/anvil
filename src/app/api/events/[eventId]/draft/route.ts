@@ -4,6 +4,7 @@ import { events, players, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
+import { notifyDraftComplete } from '@/lib/discord';
 
 export async function GET(
   _request: Request,
@@ -148,6 +149,24 @@ export async function POST(
         .update(events)
         .set({ draftStatus: 'completed' })
         .where(eq(events.id, id));
+
+      // Send Discord notification for draft completion
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+
+      const teamsWithPlayers = eventTeams.map(team => ({
+        name: team.name,
+        color: team.color,
+        players: eventPlayers
+          .filter(p => p.teamId === team.id)
+          .map(p => p.name),
+      }));
+
+      notifyDraftComplete({
+        eventName: event.name,
+        teams: teamsWithPlayers,
+      }).catch(() => {}); // Silently ignore errors
+
       return NextResponse.json({ success: true, status: 'completed' });
     }
 

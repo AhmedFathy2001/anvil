@@ -46,6 +46,8 @@ interface Event {
   name: string;
   boardSize: number;
   createdAt: string;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 interface Submission {
@@ -83,8 +85,86 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastFetch, setLastFetch] = useState<string | null>(null);
+  const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
+  const [eventCountdown, setEventCountdown] = useState<string>('');
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
+  const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
+
+  // Event countdown timer
+  useEffect(() => {
+    if (!event.startDate || eventStarted) {
+      setEventCountdown('');
+      return;
+    }
+    const updateCountdown = () => {
+      const now = new Date();
+      const start = new Date(event.startDate!);
+      const diff = start.getTime() - now.getTime();
+      if (diff <= 0) {
+        setEventCountdown('');
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      if (days > 0) {
+        setEventCountdown(`${days}d ${hours}h ${mins}m`);
+      } else if (hours > 0) {
+        setEventCountdown(`${hours}h ${mins}m ${secs}s`);
+      } else {
+        setEventCountdown(`${mins}m ${secs}s`);
+      }
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [event.startDate, eventStarted]);
+
+  // Refresh countdown timer
+  useEffect(() => {
+    if (!nextRefresh) {
+      setCountdown('');
+      return;
+    }
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diff = nextRefresh.getTime() - now.getTime();
+      if (diff <= 0) {
+        setCountdown('');
+        setNextRefresh(null);
+      } else {
+        const min = Math.floor(diff / 60000);
+        const sec = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${min}:${sec.toString().padStart(2, '0')}`);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [nextRefresh]);
+
+  async function refreshMyStats() {
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLastFetch(data.lastFetch);
+        await fetchGains();
+      } else if (res.status === 429 && data.nextRefresh) {
+        setNextRefresh(new Date(data.nextRefresh));
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const fetchSubmissions = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
@@ -118,13 +198,17 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
                 gained,
                 current,
               });
+              // Get my lastFetch time
+              if (p.id === playerId && playerData.lastFetch) {
+                setLastFetch(playerData.lastFetch);
+              }
             }
           }
         }
       }
       setGains(gainsMap);
     }
-  }, [event.id, team.id, tiles, teamPlayers]);
+  }, [event.id, team.id, tiles, teamPlayers, playerId]);
 
   useEffect(() => {
     fetchSubmissions();
@@ -188,8 +272,21 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
       </div>
       <p className="text-text-muted text-sm mb-2">{event.name}</p>
 
+      {/* Event Countdown */}
+      {eventCountdown && (
+        <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
+          <p className="text-xs text-text-muted mb-1">Event starts in</p>
+          <p className="text-lg font-bold text-gold">{eventCountdown}</p>
+          {event.startDate && (
+            <p className="text-xs text-text-muted mt-1">
+              {new Date(event.startDate).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Progress bar */}
-      <div className="mb-6 max-w-md">
+      <div className="mb-4 max-w-md">
         <div className="flex justify-between text-sm mb-1">
           <span className="text-text-muted">{completed}/{total} completed</span>
           <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
@@ -203,6 +300,22 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
             }}
           />
         </div>
+      </div>
+
+      {/* Refresh Stats */}
+      <div className="mb-6 flex items-center gap-3 flex-wrap">
+        <button
+          onClick={refreshMyStats}
+          disabled={refreshing || !!countdown}
+          className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+        >
+          {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : 'Refresh My Stats'}
+        </button>
+        {lastFetch && (
+          <span className="text-xs text-text-muted">
+            Last updated: {new Date(lastFetch).toLocaleString()}
+          </span>
+        )}
       </div>
 
       <BingoBoard

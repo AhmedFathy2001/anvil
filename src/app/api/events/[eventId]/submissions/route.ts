@@ -87,6 +87,22 @@ export async function POST(
     }
   }
 
+  // Get event and check start date
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  // Block submissions before event starts (admin can bypass)
+  if (!isAdmin && event.startDate) {
+    const now = new Date().toISOString();
+    if (now < event.startDate) {
+      return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
+    }
+  }
+
   // Verify tile belongs to event and is a drop tile
   const tile = await db.query.tiles.findFirst({
     where: and(eq(tiles.id, tileId), eq(tiles.eventId, eId)),
@@ -104,6 +120,24 @@ export async function POST(
   });
   if (!team) {
     return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
+  }
+
+  // Check if tile is already complete (prevent over-submitting)
+  if (tile.requiredAmount) {
+    const currentSubmissions = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    const currentTotal = Number(currentSubmissions[0]?.total ?? 0);
+    const submitAmount = amount || 1;
+
+    if (currentTotal >= tile.requiredAmount) {
+      return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
+    }
+    if (currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
+      const remaining = tile.requiredAmount - currentTotal;
+      return NextResponse.json({ error: `Can only submit ${remaining} more (tile needs ${tile.requiredAmount}, has ${currentTotal})` }, { status: 400 });
+    }
   }
 
   // Determine uploader playerId
@@ -145,11 +179,6 @@ export async function POST(
 
   // Sync completion
   const syncResult = await syncDropTileCompletion(tileId, teamId);
-
-  // Send Discord notification for the submission
-  const event = await db.query.events.findFirst({
-    where: eq(events.id, eId),
-  });
 
   // Get current total submissions for progress
   const totalResult = await db

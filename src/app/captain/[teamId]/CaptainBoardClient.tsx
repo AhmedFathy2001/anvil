@@ -46,6 +46,8 @@ interface Event {
   name: string;
   boardSize: number;
   createdAt: string;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 interface Submission {
@@ -86,8 +88,87 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(team.name);
   const [savingName, setSavingName] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastFetch, setLastFetch] = useState<string | null>(null);
+  const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
+  const [playerFetchStatus, setPlayerFetchStatus] = useState<Record<number, string | null>>({});
+  const [eventCountdown, setEventCountdown] = useState<string>('');
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
+  const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
+
+  // Event countdown timer
+  useEffect(() => {
+    if (!event.startDate || eventStarted) {
+      setEventCountdown('');
+      return;
+    }
+    const updateCountdown = () => {
+      const now = new Date();
+      const start = new Date(event.startDate!);
+      const diff = start.getTime() - now.getTime();
+      if (diff <= 0) {
+        setEventCountdown('');
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      if (days > 0) {
+        setEventCountdown(`${days}d ${hours}h ${mins}m`);
+      } else if (hours > 0) {
+        setEventCountdown(`${hours}h ${mins}m ${secs}s`);
+      } else {
+        setEventCountdown(`${mins}m ${secs}s`);
+      }
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [event.startDate, eventStarted]);
+
+  // Refresh countdown timer
+  useEffect(() => {
+    if (!nextRefresh) {
+      setCountdown('');
+      return;
+    }
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diff = nextRefresh.getTime() - now.getTime();
+      if (diff <= 0) {
+        setCountdown('');
+        setNextRefresh(null);
+      } else {
+        const min = Math.floor(diff / 60000);
+        const sec = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${min}:${sec.toString().padStart(2, '0')}`);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [nextRefresh]);
+
+  async function refreshTeamStats() {
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: team.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLastFetch(data.lastFetch);
+        await fetchGains();
+      } else if (res.status === 429 && data.nextRefresh) {
+        setNextRefresh(new Date(data.nextRefresh));
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const fetchSubmissions = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
@@ -111,6 +192,9 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       const data = await res.json();
       // Build gains map by tileId
       const gainsMap: Record<number, PlayerGain[]> = {};
+      const fetchStatus: Record<number, string | null> = {};
+      let latestFetch: string | null = null;
+
       for (const tile of tiles) {
         if (tile.trackedStat) {
           gainsMap[tile.id] = [];
@@ -125,11 +209,17 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
                 gained,
                 current,
               });
+              fetchStatus[p.id] = playerData.lastFetch;
+              if (playerData.lastFetch && (!latestFetch || playerData.lastFetch > latestFetch)) {
+                latestFetch = playerData.lastFetch;
+              }
             }
           }
         }
       }
       setGains(gainsMap);
+      setPlayerFetchStatus(fetchStatus);
+      if (latestFetch) setLastFetch(latestFetch);
     }
   }, [event.id, team.id, tiles, teamPlayers]);
 
@@ -287,8 +377,21 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       </div>
       <p className="text-text-muted text-sm mb-2">{event.name} · Click tiles to toggle or submit</p>
 
+      {/* Event Countdown */}
+      {eventCountdown && (
+        <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
+          <p className="text-xs text-text-muted mb-1">Event starts in</p>
+          <p className="text-lg font-bold text-gold">{eventCountdown}</p>
+          {event.startDate && (
+            <p className="text-xs text-text-muted mt-1">
+              {new Date(event.startDate).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Progress bar */}
-      <div className="mb-6 max-w-md">
+      <div className="mb-4 max-w-md">
         <div className="flex justify-between text-sm mb-1">
           <span className="text-text-muted">{completed}/{total} completed</span>
           <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
@@ -303,6 +406,41 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           />
         </div>
         <p className="text-xs text-text-muted mt-1">{tilesLeft} remaining</p>
+      </div>
+
+      {/* Refresh Team Stats */}
+      <div className="mb-6 p-3 border border-card-border rounded-lg bg-card-bg">
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          <button
+            onClick={refreshTeamStats}
+            disabled={refreshing || !!countdown}
+            className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+          >
+            {refreshing ? 'Refreshing Team...' : countdown ? `Wait ${countdown}` : 'Refresh Team Stats'}
+          </button>
+          {lastFetch && (
+            <span className="text-xs text-text-muted">
+              Last updated: {new Date(lastFetch).toLocaleString()}
+            </span>
+          )}
+        </div>
+        {teamPlayers.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {teamPlayers.map((p) => (
+              <span
+                key={p.id}
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  playerFetchStatus[p.id]
+                    ? 'bg-accent-green/20 text-accent-green-light'
+                    : 'bg-red-400/20 text-red-400'
+                }`}
+                title={playerFetchStatus[p.id] ? `Fetched: ${new Date(playerFetchStatus[p.id]!).toLocaleString()}` : 'Not fetched'}
+              >
+                {p.name} {playerFetchStatus[p.id] ? '✓' : '✗'}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <BingoBoard

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
 
 interface Tile {
@@ -93,6 +93,15 @@ export default function TileDetailModal({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState('');
+
+  // Reset form when tile changes or modal opens
+  useEffect(() => {
+    setAmount('1');
+    setImageUrl('');
+    setNote('');
+    setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
+    setError('');
+  }, [tile.id, currentPlayerId]);
 
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';

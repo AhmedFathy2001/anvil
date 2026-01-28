@@ -46,6 +46,22 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Get event and check start date
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  // Block completions before event starts (admin can bypass)
+  if (!isAdmin && event.startDate) {
+    const now = new Date().toISOString();
+    if (now < event.startDate) {
+      return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
+    }
+  }
+
   // Verify team belongs to this event
   const team = await db.query.teams.findFirst({
     where: and(eq(teams.id, teamId), eq(teams.eventId, eId)),
@@ -84,10 +100,6 @@ export async function POST(
     const [completion] = await db.insert(completions).values({ teamId, tileId }).returning();
 
     // Send Discord notification for tile completion
-    const event = await db.query.events.findFirst({
-      where: eq(events.id, eId),
-    });
-
     notifyTileCompletion({
       eventName: event?.name || 'Unknown Event',
       tileLabel: tile.label,

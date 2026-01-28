@@ -56,6 +56,8 @@ export const players = sqliteTable('players', {
   statsSnapshot: text('stats_snapshot'),
   snapshotAt: text('snapshot_at'),
   playerToken: text('player_token'),
+  cachedStats: text('cached_stats'),
+  lastStatsFetch: text('last_stats_fetch'),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
 ]);
