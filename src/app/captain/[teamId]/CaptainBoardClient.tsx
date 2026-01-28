@@ -413,10 +413,10 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
         <div className="flex items-center gap-3 flex-wrap mb-2">
           <button
             onClick={refreshTeamStats}
-            disabled={refreshing || !!countdown}
+            disabled={refreshing || !!countdown || !eventStarted}
             className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshing ? 'Refreshing Team...' : countdown ? `Wait ${countdown}` : 'Refresh Team Stats'}
+            {refreshing ? 'Refreshing Team...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh Team Stats'}
           </button>
           {lastFetch && (
             <span className="text-xs text-text-muted">
@@ -460,9 +460,9 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={selectedTile.tileType === 'drop'}
-          canManage={selectedTile.tileType === 'drop'}
-          canToggle={!selectedTile.trackedStat && selectedTile.tileType !== 'drop'}
+          canSubmit={selectedTile.tileType === 'drop' && eventStarted}
+          canManage={selectedTile.tileType === 'drop' && eventStarted}
+          canToggle={!selectedTile.trackedStat && selectedTile.tileType !== 'drop' && eventStarted}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onToggle={handleToggle}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, teams } from '@/db/schema';
+import { players, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
@@ -26,6 +26,22 @@ export async function POST(
 
   if (!isAdmin && !captain && !player) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check event exists and start date
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  // Block stat refresh before event starts (admin can bypass)
+  if (!isAdmin && event.startDate) {
+    const nowStr = new Date().toISOString();
+    if (nowStr < event.startDate) {
+      return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
+    }
   }
 
   const now = new Date();

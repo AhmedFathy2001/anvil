@@ -306,10 +306,10 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
       <div className="mb-6 flex items-center gap-3 flex-wrap">
         <button
           onClick={refreshMyStats}
-          disabled={refreshing || !!countdown}
+          disabled={refreshing || !!countdown || !eventStarted}
           className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
         >
-          {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : 'Refresh My Stats'}
+          {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh My Stats'}
         </button>
         {lastFetch && (
           <span className="text-xs text-text-muted">
@@ -349,7 +349,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={selectedTile.tileType === 'drop'}
+          canSubmit={selectedTile.tileType === 'drop' && eventStarted}
           canManage={false}
           canToggle={false}
           onSubmit={handleSubmit}

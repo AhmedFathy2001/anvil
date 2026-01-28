@@ -186,6 +186,74 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         dropProgress={dropProgress}
       />
 
+      {/* Team Roster */}
+      {teamPlayers.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
+            Team Roster
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {teamPlayers.map((player) => (
+              <span
+                key={player.id}
+                className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-card-bg"
+              >
+                {player.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Player Activity */}
+      {submissions.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
+            Player Activity
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(() => {
+              // Group submissions by creditPlayerId and count
+              const activityByPlayer = new Map<number, { name: string; submissions: number; totalAmount: number }>();
+              for (const s of submissions) {
+                if (s.creditPlayerId) {
+                  const existing = activityByPlayer.get(s.creditPlayerId);
+                  if (existing) {
+                    existing.submissions++;
+                    existing.totalAmount += s.amount;
+                  } else {
+                    activityByPlayer.set(s.creditPlayerId, {
+                      name: s.creditPlayerName || 'Unknown',
+                      submissions: 1,
+                      totalAmount: s.amount,
+                    });
+                  }
+                }
+              }
+
+              // Sort by total amount descending
+              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].totalAmount - a[1].totalAmount);
+
+              return sorted.map(([playerId, data]) => (
+                <div key={playerId} className="border border-card-border rounded-lg p-3 bg-card-bg">
+                  <div className="font-medium text-foreground mb-1">{data.name}</div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-accent-green-light font-medium">
+                      {data.totalAmount} drops
+                    </span>
+                    <span className="text-text-muted">
+                      ({data.submissions} submission{data.submissions !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* View-only Tile Detail Modal */}
       {selectedTile && (
         <TileDetailModal

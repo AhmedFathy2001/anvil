@@ -37,6 +37,19 @@ interface Event {
   createdAt: string;
   draftStatus: string;
   draftOrder: string | null;
+  womCompetitionId?: number | null;
+}
+
+interface WomTeamStanding {
+  rank: number;
+  womTeamName: string;
+  localTeamId: number | null;
+  localTeamName: string | null;
+  color: string | null;
+  playerCount: number;
+  totalGained: number;
+  averageGained: number;
+  mvp: string;
 }
 
 interface Submission {
@@ -55,12 +68,25 @@ interface Props {
 
 export default function ScoreboardClient({ event, tiles, teams, completions }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [womStandings, setWomStandings] = useState<WomTeamStanding[]>([]);
+  const [womLoading, setWomLoading] = useState(false);
 
   useEffect(() => {
     fetch(`/api/events/${event.id}/submissions`)
       .then((r) => r.ok ? r.json() : [])
       .then(setSubmissions);
   }, [event.id]);
+
+  useEffect(() => {
+    if (!event.womCompetitionId) return;
+    setWomLoading(true);
+    fetch(`/api/events/${event.id}/wom`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.teams) setWomStandings(data.teams);
+      })
+      .finally(() => setWomLoading(false));
+  }, [event.id, event.womCompetitionId]);
 
   const completionCounts = new Map<number, number>();
   for (const c of completions) {
@@ -124,6 +150,55 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             eventId={event.id}
             dropProgressByTeam={dropProgressByTeam}
           />
+
+          {/* WOM Standings */}
+          {event.womCompetitionId && (
+            <div className="mt-6">
+              <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
+                <span className="w-1 h-4 bg-indigo-400 rounded-full" />
+                XP Gains (WOM)
+              </h3>
+              {womLoading ? (
+                <p className="text-sm text-text-muted">Loading WOM data...</p>
+              ) : womStandings.length > 0 ? (
+                <div className="space-y-2">
+                  {womStandings.map((ws) => (
+                    <div
+                      key={ws.rank}
+                      className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
+                        {ws.color && (
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
+                        )}
+                        <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-indigo-400">
+                          {ws.totalGained.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-text-muted ml-1">XP</span>
+                        <div className="text-xs text-text-muted">
+                          MVP: {ws.mvp}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-text-muted">No WOM data available</p>
+              )}
+              <a
+                href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
+              >
+                View on Wise Old Man →
+              </a>
+            </div>
+          )}
         </div>
         <div>
           <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">

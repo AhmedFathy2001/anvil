@@ -203,6 +203,66 @@ export async function POST(
       return NextResponse.json({ success: true, status: 'none' });
     }
 
+    case 'resend-roster': {
+      // Resend the draft complete notification to Discord
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+
+      const teamsWithPlayers = eventTeams.map(team => ({
+        name: team.name,
+        color: team.color,
+        players: eventPlayers
+          .filter(p => p.teamId === team.id)
+          .map(p => p.name),
+      }));
+
+      const success = await notifyDraftComplete({
+        eventName: event.name,
+        teams: teamsWithPlayers,
+      });
+
+      if (success) {
+        return NextResponse.json({ success: true, message: 'Roster notification sent!' });
+      } else {
+        return NextResponse.json({ error: 'Failed to send notification. Check webhook configuration.' }, { status: 400 });
+      }
+    }
+
+    case 'undo-pick': {
+      // Only allow undo when draft is paused
+      if (event.draftStatus !== 'paused') {
+        return NextResponse.json({ error: 'Draft must be paused to undo picks' }, { status: 400 });
+      }
+
+      // Find the player with the highest pickNumber
+      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+      const pickedPlayers = eventPlayers.filter(p => p.pickNumber !== null);
+
+      if (pickedPlayers.length === 0) {
+        return NextResponse.json({ error: 'No picks to undo' }, { status: 400 });
+      }
+
+      // Find the last picked player
+      const lastPicked = pickedPlayers.reduce((max, p) =>
+        (p.pickNumber ?? -1) > (max.pickNumber ?? -1) ? p : max
+      );
+
+      // Reset their pick
+      await db
+        .update(players)
+        .set({ teamId: null, pickNumber: null, pickedAt: null })
+        .where(eq(players.id, lastPicked.id));
+
+      return NextResponse.json({
+        success: true,
+        undone: {
+          playerId: lastPicked.id,
+          playerName: lastPicked.name,
+          pickNumber: lastPicked.pickNumber,
+        },
+      });
+    }
+
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }

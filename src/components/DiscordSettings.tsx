@@ -117,7 +117,7 @@ export default function DiscordSettings() {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <button
           onClick={handleSave}
           disabled={saving || !hasChanges}
@@ -132,6 +132,12 @@ export default function DiscordSettings() {
         >
           {testing ? 'Testing...' : 'Test Webhook'}
         </button>
+        {originalUrl && !hasChanges && (
+          <span className="text-xs text-green-400">Saved</span>
+        )}
+        {hasChanges && webhookUrl && (
+          <span className="text-xs text-yellow-400">Unsaved changes</span>
+        )}
       </div>
     </div>
   );

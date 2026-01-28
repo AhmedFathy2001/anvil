@@ -17,27 +17,42 @@ interface DiscordWebhookPayload {
 }
 
 async function getWebhookUrl(): Promise<string | null> {
-  const setting = await db.query.settings.findFirst({
-    where: eq(settings.key, 'discord_webhook_url'),
-  });
-  return setting?.value || null;
+  try {
+    const setting = await db.query.settings.findFirst({
+      where: eq(settings.key, 'discord_webhook_url'),
+    });
+    if (!setting?.value) {
+      console.log('[Discord] No webhook URL configured');
+    }
+    return setting?.value || null;
+  } catch (error) {
+    console.error('[Discord] Failed to fetch webhook URL from database:', error);
+    return null;
+  }
 }
 
 export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) {
+    console.log('[Discord] Skipping webhook - no URL configured');
     return false;
   }
 
   try {
+    console.log('[Discord] Sending webhook...');
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (!response.ok) {
+      console.error('[Discord] Webhook failed with status:', response.status, await response.text());
+    } else {
+      console.log('[Discord] Webhook sent successfully');
+    }
     return response.ok;
   } catch (error) {
-    console.error('Failed to send Discord webhook:', error);
+    console.error('[Discord] Failed to send webhook:', error);
     return false;
   }
 }
@@ -215,6 +230,30 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
     description: `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xffd700, // Gold
     fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendDiscordWebhook({ embeds: [embed] });
+}
+
+interface TeamWinNotifyParams {
+  eventName: string;
+  teamName: string;
+  teamColor: string;
+  totalTiles: number;
+}
+
+export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolean> {
+  const { eventName, teamName, teamColor, totalTiles } = params;
+
+  const embed: DiscordEmbed = {
+    title: '🎉 BLACKOUT! 🎉',
+    description: `**${teamName}** has completed all ${totalTiles} tiles!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: teamColorToDecimal(teamColor),
+    fields: [
+      { name: 'Event', value: eventName, inline: true },
+      { name: 'Winner', value: teamName, inline: true },
+    ],
     timestamp: new Date().toISOString(),
   };
 

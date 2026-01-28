@@ -50,6 +50,7 @@ interface Event {
   draftOrder: string | null;
   startDate: string | null;
   endDate: string | null;
+  womCompetitionId: number | null;
 }
 
 interface Player {
@@ -143,6 +144,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [startDate, setStartDate] = useState(event.startDate || '');
   const [endDate, setEndDate] = useState(event.endDate || '');
   const [savingDates, setSavingDates] = useState(false);
+  const [womCompetitionId, setWomCompetitionId] = useState(event.womCompetitionId?.toString() || '');
+  const [savingWom, setSavingWom] = useState(false);
+  const [womError, setWomError] = useState<string | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
   const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; failed: string[] } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -150,6 +154,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>(tiles);
   const [resettingSnapshot, setResettingSnapshot] = useState<number | null>(null);
+  const [resendingRoster, setResendingRoster] = useState(false);
+  const [rosterMessage, setRosterMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const [lastUndone, setLastUndone] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<{
     id: number;
     tileId: number;
@@ -300,6 +308,30 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     router.refresh();
   }
 
+  async function saveWomCompetitionId() {
+    setSavingWom(true);
+    setWomError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/wom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setWomError(data.error || 'Failed to save');
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setWomError('Failed to save');
+    } finally {
+      setSavingWom(false);
+    }
+  }
+
   async function takeSnapshot() {
     setSnapshotting(true);
     setSnapshotResult(null);
@@ -338,6 +370,47 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       router.refresh();
     } finally {
       setResettingSnapshot(null);
+    }
+  }
+
+  async function resendRosterToDiscord() {
+    setResendingRoster(true);
+    setRosterMessage(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resend-roster' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRosterMessage({ type: 'success', text: data.message || 'Roster sent to Discord!' });
+      } else {
+        setRosterMessage({ type: 'error', text: data.error || 'Failed to send roster' });
+      }
+    } catch {
+      setRosterMessage({ type: 'error', text: 'Failed to send roster' });
+    } finally {
+      setResendingRoster(false);
+    }
+  }
+
+  async function undoLastPick() {
+    setUndoing(true);
+    setLastUndone(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo-pick' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLastUndone(data.undone?.playerName || 'Player');
+        await fetchDraft();
+      }
+    } finally {
+      setUndoing(false);
     }
   }
 
@@ -531,6 +604,36 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
             {lastStatsRefresh && (
               <p className="text-xs text-text-muted">
                 Last refreshed: {lastStatsRefresh.toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+
+          {/* WOM Competition */}
+          <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
+            <h3 className="text-sm font-bold text-gold">Wise Old Man Integration</h3>
+            <p className="text-xs text-text-muted">
+              Link a WOM competition to automatically track gains. Get the ID from your WOM competition URL.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={womCompetitionId}
+                onChange={(e) => setWomCompetitionId(e.target.value.replace(/\D/g, ''))}
+                placeholder="Competition ID (e.g. 124032)"
+                className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              <button
+                onClick={saveWomCompetitionId}
+                disabled={savingWom}
+                className="px-4 py-2 text-sm font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
+              >
+                {savingWom ? '...' : 'Save'}
+              </button>
+            </div>
+            {womError && <p className="text-xs text-red-400">{womError}</p>}
+            {event.womCompetitionId && (
+              <p className="text-xs text-accent-green-light">
+                Linked to WOM competition #{event.womCompetitionId}
               </p>
             )}
           </div>
@@ -817,13 +920,29 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                 </button>
               )}
               {draft.status === 'paused' && (
-                <button
-                  onClick={() => doDraftAction('resume')}
-                  disabled={!!draftAction}
-                  className="text-sm font-medium bg-accent-green/10 text-accent-green-light border border-accent-green/20 px-4 py-2 rounded-lg hover:bg-accent-green/20 transition-colors disabled:opacity-50"
-                >
-                  {draftAction === 'resume' ? '...' : 'Resume Draft'}
-                </button>
+                <>
+                  <button
+                    onClick={() => doDraftAction('resume')}
+                    disabled={!!draftAction}
+                    className="text-sm font-medium bg-accent-green/10 text-accent-green-light border border-accent-green/20 px-4 py-2 rounded-lg hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+                  >
+                    {draftAction === 'resume' ? '...' : 'Resume Draft'}
+                  </button>
+                  {draft.totalPicked > 0 && (
+                    <button
+                      onClick={undoLastPick}
+                      disabled={undoing}
+                      className="text-sm font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-4 py-2 rounded-lg hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
+                    >
+                      {undoing ? 'Undoing...' : 'Undo Last Pick'}
+                    </button>
+                  )}
+                  {lastUndone && (
+                    <span className="text-sm text-yellow-400">
+                      Returned {lastUndone} to pool
+                    </span>
+                  )}
+                </>
               )}
               <button
                 onClick={() => doDraftAction('end')}
@@ -871,7 +990,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
         {/* Completed Draft */}
         {draft.status === 'completed' && (
           <div className="space-y-6">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <button
                 onClick={() => doDraftAction('reset')}
                 disabled={!!draftAction}
@@ -879,6 +998,18 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
               >
                 {draftAction === 'reset' ? '...' : 'Reset Draft'}
               </button>
+              <button
+                onClick={resendRosterToDiscord}
+                disabled={resendingRoster}
+                className="text-sm font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-4 py-2 rounded-lg hover:bg-indigo-500/20 transition-colors disabled:opacity-50"
+              >
+                {resendingRoster ? 'Sending...' : 'Send Roster to Discord'}
+              </button>
+              {rosterMessage && (
+                <span className={`text-sm ${rosterMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                  {rosterMessage.text}
+                </span>
+              )}
             </div>
 
             {/* Player tokens for drafted players */}

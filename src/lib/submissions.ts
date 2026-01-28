@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { submissions, tiles, completions, teams, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { notifyTileCompletion } from '@/lib/discord';
+import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 
 export async function syncDropTileCompletion(tileId: number, teamId: number) {
   // Get the tile to check requiredAmount
@@ -49,6 +49,25 @@ export async function syncDropTileCompletion(tileId: number, teamId: number) {
         trackedStat: tile.trackedStat,
         statType: tile.statType,
       }).catch(() => {}); // Silently ignore errors
+
+      // Check for blackout win
+      const eventTiles = await db.query.tiles.findMany({
+        where: eq(tiles.eventId, event.id),
+      });
+      const teamCompletions = await db.query.completions.findMany({
+        where: eq(completions.teamId, teamId),
+      });
+      const eventTileIds = new Set(eventTiles.map(t => t.id));
+      const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
+
+      if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+        notifyTeamWin({
+          eventName: event.name,
+          teamName: team.name,
+          teamColor: team.color,
+          totalTiles: eventTiles.length,
+        }).catch(() => {}); // Silently ignore errors
+      }
     }
   } else if (!isComplete && existing) {
     // Revert completion

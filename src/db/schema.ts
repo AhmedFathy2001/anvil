@@ -10,6 +10,7 @@ export const events = sqliteTable('events', {
   draftOrder: text('draft_order'),
   startDate: text('start_date'),
   endDate: text('end_date'),
+  womCompetitionId: integer('wom_competition_id'),
 });
 
 export const tiles = sqliteTable('tiles', {
