@@ -14,6 +14,10 @@ interface Tile {
   description?: string | null;
   tileType?: string;
   requiredAmount?: number | null;
+  trackedStat?: string | null;
+  statType?: string | null;
+  statGoal?: number | null;
+  trackingMode?: string;
 }
 
 interface Team {
@@ -70,6 +74,14 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [womStandings, setWomStandings] = useState<WomTeamStanding[]>([]);
   const [womLoading, setWomLoading] = useState(false);
+  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [hideStandings, setHideStandings] = useState(false);
+
+  const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
+  const selectedTileCompletions = selectedTileId
+    ? completions.filter((c) => c.tileId === selectedTileId)
+    : [];
 
   useEffect(() => {
     fetch(`/api/events/${event.id}/submissions`)
@@ -135,84 +147,211 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             Draft in Progress — Watch Live
           </Link>
         )}
+
+        {/* View controls */}
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              expanded
+                ? 'bg-gold/20 border-gold text-gold'
+                : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
+            }`}
+          >
+            {expanded ? 'Collapse Board' : 'Expand Board'}
+          </button>
+          <button
+            onClick={() => setHideStandings(!hideStandings)}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              hideStandings
+                ? 'bg-gold/20 border-gold text-gold'
+                : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
+            }`}
+          >
+            {hideStandings ? 'Show Standings' : 'Hide Standings'}
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
-        <div>
-          <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Standings
-          </h2>
-          <Scoreboard
-            teams={teams}
-            totalTiles={tiles.length}
-            completionCounts={completionCounts}
-            eventId={event.id}
-            dropProgressByTeam={dropProgressByTeam}
-          />
+      <div className={`grid gap-8 items-start ${hideStandings ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
+        {!hideStandings && (
+          <div>
+            <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              Standings
+            </h2>
+            <Scoreboard
+              teams={teams}
+              totalTiles={tiles.length}
+              completionCounts={completionCounts}
+              eventId={event.id}
+              dropProgressByTeam={dropProgressByTeam}
+            />
 
-          {/* WOM Standings */}
-          {event.womCompetitionId && (
-            <div className="mt-6">
-              <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
-                <span className="w-1 h-4 bg-indigo-400 rounded-full" />
-                XP Gains (WOM)
-              </h3>
-              {womLoading ? (
-                <p className="text-sm text-text-muted">Loading WOM data...</p>
-              ) : womStandings.length > 0 ? (
-                <div className="space-y-2">
-                  {womStandings.map((ws) => (
-                    <div
-                      key={ws.rank}
-                      className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
-                        {ws.color && (
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
-                        )}
-                        <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-indigo-400">
-                          {ws.totalGained.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-text-muted ml-1">XP</span>
-                        <div className="text-xs text-text-muted">
-                          MVP: {ws.mvp}
+            {/* WOM Standings */}
+            {event.womCompetitionId && (
+              <div className="mt-6">
+                <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
+                  <span className="w-1 h-4 bg-indigo-400 rounded-full" />
+                  XP Gains (WOM)
+                </h3>
+                {womLoading ? (
+                  <p className="text-sm text-text-muted">Loading WOM data...</p>
+                ) : womStandings.length > 0 ? (
+                  <div className="space-y-2">
+                    {womStandings.map((ws) => (
+                      <div
+                        key={ws.rank}
+                        className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
+                          {ws.color && (
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
+                          )}
+                          <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-indigo-400">
+                            {ws.totalGained.toLocaleString()}
+                          </span>
+                          <span className="text-xs text-text-muted ml-1">XP</span>
+                          <div className="text-xs text-text-muted">
+                            MVP: {ws.mvp}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-text-muted">No WOM data available</p>
-              )}
-              <a
-                href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
-              >
-                View on Wise Old Man →
-              </a>
-            </div>
-          )}
-        </div>
-        <div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-muted">No WOM data available</p>
+                )}
+                <a
+                  href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  View on Wise Old Man →
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+        <div className={expanded ? 'max-w-none' : ''}>
           <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
             Board Overview
+            <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
-          <BingoBoard
-            tiles={tiles}
-            boardSize={event.boardSize}
-            completions={completions}
-            teams={teams}
-          />
+          <div className={expanded ? 'max-w-5xl mx-auto' : ''}>
+            <BingoBoard
+              tiles={tiles}
+              boardSize={event.boardSize}
+              completions={completions}
+              teams={teams}
+              onTileClick={setSelectedTileId}
+            />
+          </div>
         </div>
       </div>
+
+      {/* Tile Detail Modal */}
+      {selectedTile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedTileId(null)}
+        >
+          <div
+            className="bg-brown-dark border border-card-border rounded-xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gold">{selectedTile.label}</h3>
+                <span className="text-xs text-text-muted">Tile #{selectedTile.position + 1}</span>
+              </div>
+              <button
+                onClick={() => setSelectedTileId(null)}
+                className="text-text-muted hover:text-foreground transition-colors text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {selectedTile.description && (
+              <p className="text-sm text-foreground mb-4">{selectedTile.description}</p>
+            )}
+
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-text-muted">Type:</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  selectedTile.tileType === 'drop'
+                    ? 'bg-accent-green/20 text-accent-green-light'
+                    : 'bg-gold/15 text-gold'
+                }`}>
+                  {selectedTile.tileType === 'drop' ? 'Drop' : 'Standard'}
+                </span>
+              </div>
+
+              {selectedTile.tileType === 'drop' && selectedTile.requiredAmount && (
+                <div className="flex items-center gap-2">
+                  <span className="text-text-muted">Required:</span>
+                  <span className="text-accent-green-light font-medium">{selectedTile.requiredAmount}</span>
+                </div>
+              )}
+
+              {selectedTile.trackedStat && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-muted">Tracked:</span>
+                    <span className="text-gold font-medium capitalize">{selectedTile.trackedStat}</span>
+                  </div>
+                  {selectedTile.statGoal && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-muted">Goal:</span>
+                      <span className="text-foreground">{selectedTile.statGoal.toLocaleString()} {selectedTile.statType === 'skill' ? 'XP' : 'KC'}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-muted">Mode:</span>
+                    <span className="text-foreground capitalize">{selectedTile.trackingMode || 'team'}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Completions */}
+            <div className="mt-4 pt-4 border-t border-card-border">
+              <h4 className="text-sm font-semibold text-foreground mb-2">
+                Completed by ({selectedTileCompletions.length})
+              </h4>
+              {selectedTileCompletions.length > 0 ? (
+                <div className="space-y-1.5">
+                  {selectedTileCompletions.map((c) => {
+                    const team = teams.find((t) => t.id === c.teamId);
+                    return (
+                      <div key={c.id} className="flex items-center gap-2 text-sm">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: team?.color || '#888' }}
+                        />
+                        <span className="text-foreground">{team?.name || 'Unknown'}</span>
+                        <span className="text-text-muted text-xs ml-auto">
+                          {new Date(c.completedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-text-muted">No completions yet</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

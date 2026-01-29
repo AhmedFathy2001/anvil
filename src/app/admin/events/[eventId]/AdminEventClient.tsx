@@ -11,6 +11,7 @@ import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 
 interface Tile {
   id: number;
@@ -170,8 +171,21 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     creditPlayerName?: string | null;
     createdAt: string;
   }[]>([]);
+  const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
 
   const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
+
+  // Real-time updates via smart polling
+  const { connected: streamConnected } = useEventStream(event.id, {
+    onUpdate: useCallback((data: EventStreamData) => {
+      setLiveCompletions(data.completions);
+      setSubmissions(data.submissions.map((s) => ({
+        ...s,
+        uploaderName: null,
+      })));
+      setLocalTiles(data.tiles);
+    }, []),
+  });
 
   const [draft, setDraft] = useState<DraftState>({
     status: event.draftStatus,
@@ -201,12 +215,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     return () => clearInterval(interval);
   }, [draft.status, fetchDraft]);
 
-  // Fetch submissions for activity tracking
-  useEffect(() => {
-    fetch(`/api/events/${event.id}/submissions`)
-      .then((r) => r.ok ? r.json() : [])
-      .then(setSubmissions);
-  }, [event.id]);
 
   async function deleteTeam(teamId: number) {
     setDeleting(teamId);
@@ -451,6 +459,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
         </span>
         <span>{tiles.length} tiles</span>
         <span>{teams.length} team{teams.length !== 1 ? 's' : ''}</span>
+        <span className={`flex items-center gap-1.5 ${streamConnected ? 'text-accent-green-light' : 'text-text-muted'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${streamConnected ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
+          {streamConnected ? 'Live' : 'Connecting...'}
+        </span>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
@@ -462,7 +474,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           {teams.length > 0 ? (
             <div className="space-y-2 mb-8">
               {teams.map((team) => {
-                const completed = completions.filter((c) => c.teamId === team.id).length;
+                const completed = liveCompletions.filter((c) => c.teamId === team.id).length;
                 const pct = tiles.length > 0 ? Math.round((completed / tiles.length) * 100) : 0;
                 return (
                   <div
@@ -514,9 +526,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
             Board Preview
           </h2>
           <BingoBoard
-            tiles={tiles}
+            tiles={localTiles}
             boardSize={event.boardSize}
-            completions={completions}
+            completions={liveCompletions}
             teams={teams}
           />
         </div>
