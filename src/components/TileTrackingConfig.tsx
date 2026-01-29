@@ -212,6 +212,7 @@ export default function TileTrackingConfig({
           statType: updated.statType,
           statGoal: updated.statGoal,
           trackingMode: updated.trackingMode,
+          womCompetitionId: updated.womCompetitionId,
         });
       }
     } finally {
