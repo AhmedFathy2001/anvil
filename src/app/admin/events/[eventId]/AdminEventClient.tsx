@@ -25,6 +25,7 @@ interface Tile {
   statType?: string | null;
   statGoal?: number | null;
   trackingMode: string;
+  womCompetitionId?: number | null;
 }
 
 interface Team {
@@ -423,6 +424,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     statType: string | null;
     statGoal: number | null;
     trackingMode: string;
+    womCompetitionId?: number | null;
   }) {
     setLocalTiles((prev) =>
       prev.map((t) => (t.id === tileId ? { ...t, ...updated } : t))
@@ -700,6 +702,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         statType: tile.statType ?? null,
                         statGoal: tile.statGoal ?? null,
                         trackingMode: tile.trackingMode || 'team',
+                        womCompetitionId: tile.womCompetitionId ?? null,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}

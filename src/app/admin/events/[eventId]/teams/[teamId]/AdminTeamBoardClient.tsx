@@ -15,6 +15,11 @@ interface Tile {
   description?: string | null;
   tileType: string;
   requiredAmount?: number | null;
+  trackedStat?: string | null;
+  statType?: string | null;
+  statGoal?: number | null;
+  trackingMode?: string | null;
+  womCompetitionId?: number | null;
 }
 
 interface Team {

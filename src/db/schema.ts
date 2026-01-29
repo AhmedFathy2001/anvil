@@ -26,6 +26,7 @@ export const tiles = sqliteTable('tiles', {
   statType: text('stat_type'),
   statGoal: integer('stat_goal'),
   trackingMode: text('tracking_mode').default('team').notNull(),
+  womCompetitionId: integer('wom_competition_id'),
 });
 
 export const teams = sqliteTable('teams', {

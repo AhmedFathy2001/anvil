@@ -1,0 +1,1 @@
+ALTER TABLE `tiles` ADD `wom_competition_id` integer;

@@ -15,6 +15,25 @@ interface Tile {
   statType?: string | null;
   statGoal?: number | null;
   trackingMode?: string | null;
+  womCompetitionId?: number | null;
+}
+
+interface WomTeamStanding {
+  rank: number;
+  womTeamName: string;
+  localTeamName: string | null;
+  color: string | null;
+  totalGained: number;
+  mvp: string;
+}
+
+interface WomPlayerStanding {
+  rank: number;
+  womPlayerName: string;
+  localPlayerName: string | null;
+  localTeamName: string | null;
+  color: string | null;
+  gained: number;
 }
 
 interface Submission {
@@ -79,6 +98,7 @@ export default function TileDetailModal({
   onDelete,
   onToggle,
   onClose,
+  eventId,
   teamId,
   dropProgress,
   teamPlayers,
@@ -93,6 +113,10 @@ export default function TileDetailModal({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState('');
+  const [womTeams, setWomTeams] = useState<WomTeamStanding[]>([]);
+  const [womPlayers, setWomPlayers] = useState<WomPlayerStanding[]>([]);
+  const [womLoading, setWomLoading] = useState(false);
+  const [showWomPlayers, setShowWomPlayers] = useState(false);
 
   // Reset form when tile changes or modal opens
   useEffect(() => {
@@ -101,7 +125,27 @@ export default function TileDetailModal({
     setNote('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
+    setShowWomPlayers(false);
   }, [tile.id, currentPlayerId]);
+
+  // Fetch WOM data if tile has a competition linked
+  useEffect(() => {
+    if (!tile.womCompetitionId) {
+      setWomTeams([]);
+      setWomPlayers([]);
+      return;
+    }
+    setWomLoading(true);
+    fetch(`/api/events/${eventId}/tiles/${tile.id}/wom`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setWomTeams(data.teams || []);
+          setWomPlayers(data.players || []);
+        }
+      })
+      .finally(() => setWomLoading(false));
+  }, [eventId, tile.id, tile.womCompetitionId]);
 
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';
@@ -300,6 +344,88 @@ export default function TileDetailModal({
           {isStatTile && (!statProgress || statProgress.length === 0) && (
             <div className="text-center py-4 text-text-muted text-sm">
               No stat progress data available yet.
+            </div>
+          )}
+
+          {/* WOM Standings */}
+          {tile.womCompetitionId && (
+            <div>
+              <h3 className="text-sm font-semibold text-indigo-400 mb-2 flex items-center gap-2">
+                WOM Competition
+                <a
+                  href={`https://wiseoldman.net/competitions/${tile.womCompetitionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-text-muted hover:text-indigo-400 underline"
+                >
+                  View on WOM
+                </a>
+              </h3>
+              {womLoading ? (
+                <p className="text-sm text-text-muted">Loading WOM data...</p>
+              ) : womTeams.length > 0 ? (
+                <div className="space-y-2">
+                  {/* Team standings */}
+                  <div className="space-y-1.5">
+                    {womTeams.slice(0, 5).map((wt) => (
+                      <div
+                        key={wt.rank}
+                        className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-brown-dark/50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-indigo-400 w-5">#{wt.rank}</span>
+                          {wt.color && (
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: wt.color }} />
+                          )}
+                          <span className="text-sm font-medium">{wt.localTeamName || wt.womTeamName}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-indigo-400">
+                            {wt.totalGained.toLocaleString()}
+                          </span>
+                          <div className="text-[10px] text-text-muted">MVP: {wt.mvp}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Toggle to show individual players */}
+                  {womPlayers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowWomPlayers(!showWomPlayers)}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+                    >
+                      {showWomPlayers ? 'Hide players' : `Show top players (${womPlayers.length})`}
+                    </button>
+                  )}
+
+                  {/* Individual player standings */}
+                  {showWomPlayers && womPlayers.length > 0 && (
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {womPlayers.slice(0, 20).map((wp) => (
+                        <div
+                          key={wp.rank}
+                          className="flex items-center justify-between text-xs border border-card-border/50 rounded px-2 py-1 bg-brown-dark/30"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-text-muted w-4">#{wp.rank}</span>
+                            {wp.color && (
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: wp.color }} />
+                            )}
+                            <span>{wp.localPlayerName || wp.womPlayerName}</span>
+                          </div>
+                          <span className="text-indigo-400 font-medium">
+                            +{wp.gained.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-text-muted">No WOM data available</p>
+              )}
             </div>
           )}
 

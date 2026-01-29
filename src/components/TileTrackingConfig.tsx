@@ -11,6 +11,7 @@ interface TileConfig {
   statType: string | null;
   statGoal: number | null;
   trackingMode: string;
+  womCompetitionId: number | null;
 }
 
 interface Props {
@@ -174,7 +175,13 @@ export default function TileTrackingConfig({
   const [trackingMode, setTrackingMode] = useState<string>(
     initial.trackingMode || "team",
   );
+  const [womCompetitionId, setWomCompetitionId] = useState<string>(
+    initial.womCompetitionId?.toString() || "",
+  );
   const [saving, setSaving] = useState(false);
+  const [savingWom, setSavingWom] = useState(false);
+  const [womError, setWomError] = useState<string | null>(null);
+  const [womSuccess, setWomSuccess] = useState(false);
 
   async function handleSave() {
     setSaving(true);
@@ -217,6 +224,35 @@ export default function TileTrackingConfig({
     setTrackedStat("");
     setStatGoal("");
     setTrackingMode("team");
+  }
+
+  async function handleSaveWom() {
+    setSavingWom(true);
+    setWomError(null);
+    setWomSuccess(false);
+    try {
+      const res = await fetch(`/api/events/${eventId}/tiles/${tileId}/wom`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
+        }),
+      });
+      if (res.ok) {
+        setWomSuccess(true);
+        onSaved({
+          ...initial,
+          womCompetitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
+        });
+      } else {
+        const data = await res.json();
+        setWomError(data.error || "Failed to save");
+      }
+    } catch {
+      setWomError("Failed to save");
+    } finally {
+      setSavingWom(false);
+    }
   }
 
   function handleStatTypeChange(newType: string) {
@@ -431,6 +467,42 @@ export default function TileTrackingConfig({
       >
         {saving ? "Saving..." : "Save Configuration"}
       </button>
+
+      {/* WOM Integration */}
+      <div className="pt-3 mt-3 border-t border-card-border">
+        <h4 className="text-sm font-semibold text-indigo-400 mb-2">Wise Old Man Tracking</h4>
+        <p className="text-[10px] text-text-muted mb-2">
+          Link a WOM competition to track XP gains for this tile. Get the ID from the competition URL.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={womCompetitionId}
+            onChange={(e) => {
+              setWomCompetitionId(e.target.value.replace(/\D/g, ""));
+              setWomError(null);
+              setWomSuccess(false);
+            }}
+            placeholder="Competition ID (e.g. 124043)"
+            className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+          />
+          <button
+            type="button"
+            onClick={handleSaveWom}
+            disabled={savingWom}
+            className="px-4 py-2 text-xs font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
+          >
+            {savingWom ? "..." : "Link"}
+          </button>
+        </div>
+        {womError && <p className="text-xs text-red-400 mt-1">{womError}</p>}
+        {womSuccess && <p className="text-xs text-green-400 mt-1">WOM competition linked!</p>}
+        {initial.womCompetitionId && !womSuccess && (
+          <p className="text-xs text-indigo-400 mt-1">
+            Currently linked to WOM #{initial.womCompetitionId}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

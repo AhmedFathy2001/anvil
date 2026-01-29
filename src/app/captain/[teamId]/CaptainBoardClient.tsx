@@ -18,6 +18,7 @@ interface Tile {
   statType?: string | null;
   statGoal?: number | null;
   trackingMode?: string | null;
+  womCompetitionId?: number | null;
 }
 
 interface PlayerGain {
