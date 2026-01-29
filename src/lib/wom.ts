@@ -12,109 +12,103 @@ export interface WomTeamData {
 export interface WomPlayerData {
   rank: number;
   player: string;
+  displayName: string;
   team: string;
   gained: number;
+}
+
+interface WomCompetitionResponse {
+  id: number;
+  title: string;
+  metric: string;
+  startsAt: string;
+  endsAt: string;
+  participations: {
+    teamName: string;
+    player: {
+      username: string;
+      displayName: string;
+    };
+    progress: {
+      gained: number;
+    };
+  }[];
+}
+
+/**
+ * Fetch competition data from WOM API
+ */
+async function fetchCompetition(competitionId: number): Promise<WomCompetitionResponse> {
+  const url = `https://api.wiseoldman.net/v2/competitions/${competitionId}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`WOM API error: ${res.status}`);
+  }
+
+  return res.json();
 }
 
 /**
  * Fetch team standings from WOM competition
  */
 export async function fetchWomTeams(competitionId: number): Promise<WomTeamData[]> {
-  const url = `https://api.wiseoldman.net/v2/competitions/${competitionId}/csv?table=teams`;
+  const data = await fetchCompetition(competitionId);
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`WOM API error: ${res.status}`);
+  // Group participations by team
+  const teamMap = new Map<string, { players: string[]; totalGained: number; gains: { name: string; gained: number }[] }>();
+
+  for (const p of data.participations) {
+    const teamName = p.teamName || 'No Team';
+    const existing = teamMap.get(teamName) || { players: [], totalGained: 0, gains: [] };
+
+    existing.players.push(p.player.displayName);
+    existing.totalGained += p.progress.gained;
+    existing.gains.push({ name: p.player.displayName, gained: p.progress.gained });
+
+    teamMap.set(teamName, existing);
   }
 
-  const csv = await res.text();
-  return parseWomTeamsCsv(csv);
+  // Convert to array and sort by total gained
+  const teams = Array.from(teamMap.entries())
+    .map(([name, data]) => {
+      // Find MVP (player with highest gains)
+      const mvp = data.gains.reduce((best, curr) =>
+        curr.gained > best.gained ? curr : best,
+        { name: 'N/A', gained: -1 }
+      );
+
+      return {
+        name,
+        players: data.players.length,
+        totalGained: data.totalGained,
+        averageGained: data.players.length > 0 ? data.totalGained / data.players.length : 0,
+        mvp: mvp.name,
+      };
+    })
+    .sort((a, b) => b.totalGained - a.totalGained)
+    .map((team, index) => ({ ...team, rank: index + 1 }));
+
+  return teams;
 }
 
 /**
  * Fetch individual player standings from WOM competition
  */
 export async function fetchWomPlayers(competitionId: number): Promise<WomPlayerData[]> {
-  const url = `https://api.wiseoldman.net/v2/competitions/${competitionId}/csv?table=participants`;
+  const data = await fetchCompetition(competitionId);
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`WOM API error: ${res.status}`);
-  }
+  // Sort by gained descending
+  const sorted = [...data.participations]
+    .sort((a, b) => b.progress.gained - a.progress.gained);
 
-  const csv = await res.text();
-  return parseWomPlayersCsv(csv);
-}
-
-/**
- * Parse WOM teams CSV
- * Format: Rank,Name,Players,Total Gained,Average Gained,MVP
- */
-function parseWomTeamsCsv(csv: string): WomTeamData[] {
-  const lines = csv.trim().split('\n');
-  if (lines.length < 2) return [];
-
-  // Skip header row
-  const dataLines = lines.slice(1);
-
-  return dataLines.map(line => {
-    const parts = parseCSVLine(line);
-    return {
-      rank: parseInt(parts[0], 10),
-      name: parts[1],
-      players: parseInt(parts[2], 10),
-      totalGained: parseFloat(parts[3]),
-      averageGained: parseFloat(parts[4]),
-      mvp: parts[5],
-    };
-  });
-}
-
-/**
- * Parse WOM participants CSV
- * Format: Rank,Player,Team,Gained
- */
-function parseWomPlayersCsv(csv: string): WomPlayerData[] {
-  const lines = csv.trim().split('\n');
-  if (lines.length < 2) return [];
-
-  // Skip header row
-  const dataLines = lines.slice(1);
-
-  return dataLines.map(line => {
-    const parts = parseCSVLine(line);
-    return {
-      rank: parseInt(parts[0], 10),
-      player: parts[1],
-      team: parts[2],
-      gained: parseFloat(parts[3]),
-    };
-  });
-}
-
-/**
- * Parse a CSV line, handling potential quoted fields
- */
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  result.push(current.trim());
-  return result;
+  return sorted.map((p, index) => ({
+    rank: index + 1,
+    player: p.player.username,
+    displayName: p.player.displayName,
+    team: p.teamName || 'No Team',
+    gained: p.progress.gained,
+  }));
 }
 
 /**
@@ -149,7 +143,7 @@ export function matchTeamName(womTeamName: string, localTeamNames: string[]): st
 }
 
 /**
- * Match WOM player names to local player names (case-insensitive, spaces/hyphens normalized)
+ * Match WOM player names to local player names (case-insensitive)
  */
 export function matchPlayerName(womPlayerName: string, localPlayerNames: string[]): string | null {
   const normalizedWom = normalizeRsn(womPlayerName);

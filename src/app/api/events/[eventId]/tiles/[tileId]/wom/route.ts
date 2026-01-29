@@ -56,12 +56,12 @@ export async function GET(
 
     const playerStandings = womPlayers.map(wp => {
       const matchedName = matchPlayerName(wp.player, localPlayerNames);
-      const localPlayer = matchedName ? localPlayers.find(p => p.name === matchedName) : null;
+      const localPlayer = matchedName ? localPlayers.find(p => p.name.toLowerCase() === matchedName.toLowerCase()) : null;
       const localTeam = localPlayer?.teamId ? localTeams.find(t => t.id === localPlayer.teamId) : null;
 
       return {
         rank: wp.rank,
-        womPlayerName: wp.player,
+        womPlayerName: wp.displayName || wp.player,
         womTeamName: wp.team,
         localPlayerId: localPlayer?.id ?? null,
         localPlayerName: localPlayer?.name ?? null,
