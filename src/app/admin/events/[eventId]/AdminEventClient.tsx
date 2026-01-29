@@ -12,6 +12,7 @@ import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
+import PlayerEditor from '@/components/PlayerEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 
 interface Tile {
@@ -174,6 +175,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [showStatTracking, setShowStatTracking] = useState(false);
   const [editingBaselinePlayer, setEditingBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<{ id: number; name: string; discord: string | null; timezone: string | null } | null>(null);
 
   const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
 
@@ -824,6 +826,13 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                             {copiedToken === player.id ? 'Copied!' : 'Copy Link'}
                           </button>
                         )}
+                        <button
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
+                          className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded"
+                          title="Edit player details"
+                        >
+                          Edit
+                        </button>
                         {player.teamId && (
                           <button
                             onClick={() => resetPlayerSnapshot(player.id)}
@@ -1123,6 +1132,19 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           playerName={editingBaselinePlayer.name}
           onClose={() => setEditingBaselinePlayer(null)}
           onSaved={() => router.refresh()}
+        />
+      )}
+
+      {/* Player Editor Modal */}
+      {editingPlayer && (
+        <PlayerEditor
+          eventId={event.id}
+          player={editingPlayer}
+          onClose={() => setEditingPlayer(null)}
+          onSaved={() => {
+            fetchDraft();
+            router.refresh();
+          }}
         />
       )}
     </div>

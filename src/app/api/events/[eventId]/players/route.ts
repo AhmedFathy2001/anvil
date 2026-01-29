@@ -110,3 +110,61 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const { playerId, name, discord, timezone } = await request.json();
+
+  if (!playerId) {
+    return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
+  }
+
+  const pId = parseInt(playerId, 10);
+
+  const player = await db.query.players.findFirst({
+    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  });
+
+  if (!player) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  const updateData: { name?: string; discord?: string | null; timezone?: string | null } = {};
+
+  if (name !== undefined) {
+    if (typeof name === 'string' && name.trim()) {
+      updateData.name = name.trim();
+    } else {
+      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+    }
+  }
+
+  if (discord !== undefined) {
+    updateData.discord = discord?.trim() || null;
+  }
+
+  if (timezone !== undefined) {
+    updateData.timezone = timezone?.trim() || null;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
+  const [updated] = await db
+    .update(players)
+    .set(updateData)
+    .where(eq(players.id, pId))
+    .returning();
+
+  return NextResponse.json(updated);
+}
