@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     eventId: number;
     eventName: string;
     playersChecked: number;
+    playersSnapshotted: number;
     tilesCompleted: { tileLabel: string; teamName: string; playerName: string }[];
     errors: string[];
   }[] = [];
@@ -52,9 +53,41 @@ export async function GET(request: Request) {
       eventId: event.id,
       eventName: event.name,
       playersChecked: 0,
+      playersSnapshotted: 0,
       tilesCompleted: [] as { tileLabel: string; teamName: string; playerName: string }[],
       errors: [] as string[],
     };
+
+    // Get all players for this event
+    const eventPlayers = await db.query.players.findMany({
+      where: eq(players.eventId, event.id),
+    });
+
+    // Auto-snapshot: Check if any players need snapshots (event started but no snapshot yet)
+    const playersNeedingSnapshot = eventPlayers.filter(p => p.teamId && !p.statsSnapshot);
+
+    for (const player of playersNeedingSnapshot) {
+      try {
+        const stats = await getStatsByGamemode(player.name) as Snapshot;
+        await db.update(players)
+          .set({
+            statsSnapshot: JSON.stringify(stats),
+            cachedStats: JSON.stringify(stats),
+            lastStatsFetch: new Date().toISOString(),
+          })
+          .where(eq(players.id, player.id));
+
+        eventResult.playersSnapshotted++;
+        await delay(1200);
+      } catch {
+        eventResult.errors.push(`Failed to snapshot ${player.name}`);
+      }
+    }
+
+    // Re-fetch players after snapshotting
+    const updatedPlayers = playersNeedingSnapshot.length > 0
+      ? await db.query.players.findMany({ where: eq(players.eventId, event.id) })
+      : eventPlayers;
 
     // Get stat-tracked tiles for this event
     const eventTiles = await db.query.tiles.findMany({
@@ -79,15 +112,10 @@ export async function GET(request: Request) {
       existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)
     );
 
-    // Get all players with snapshots
-    const eventPlayers = await db.query.players.findMany({
-      where: eq(players.eventId, event.id),
-    });
-
     // Track gains per team per tile for team-mode tiles
     const teamGains = new Map<string, number>(); // "teamId-tileId" -> total gained
 
-    for (const player of eventPlayers) {
+    for (const player of updatedPlayers) {
       if (!player.statsSnapshot || !player.teamId) continue;
 
       let snapshot: Snapshot;
