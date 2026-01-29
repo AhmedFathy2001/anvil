@@ -243,8 +243,8 @@ export default function PlayersPoolClient() {
                               <span
                                 className="text-xs px-1.5 py-0.5 rounded"
                                 style={{
-                                  backgroundColor: player.teamColor + '20',
-                                  color: player.teamColor
+                                  backgroundColor: (player.teamColor || '#888') + '20',
+                                  color: player.teamColor || '#888'
                                 }}
                               >
                                 {player.teamName}
