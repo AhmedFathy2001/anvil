@@ -27,6 +27,7 @@ interface Tile {
   statGoal?: number | null;
   trackingMode: string;
   womCompetitionId?: number | null;
+  optional?: number | null;
 }
 
 interface Team {
@@ -433,9 +434,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     statGoal: number | null;
     trackingMode: string;
     womCompetitionId?: number | null;
+    optional?: boolean;
   }) {
     setLocalTiles((prev) =>
-      prev.map((t) => (t.id === tileId ? { ...t, ...updated } : t))
+      prev.map((t) => (t.id === tileId ? { ...t, ...updated, optional: updated.optional ? 1 : 0 } : t))
     );
   }
 
@@ -474,8 +476,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           {teams.length > 0 ? (
             <div className="space-y-2 mb-8">
               {teams.map((team) => {
-                const completed = liveCompletions.filter((c) => c.teamId === team.id).length;
-                const pct = tiles.length > 0 ? Math.round((completed / tiles.length) * 100) : 0;
+                const requiredTiles = localTiles.filter((t) => !t.optional);
+                const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+                const completed = liveCompletions.filter((c) => c.teamId === team.id && requiredTileIds.has(c.tileId)).length;
+                const pct = requiredTiles.length > 0 ? Math.round((completed / requiredTiles.length) * 100) : 0;
                 return (
                   <div
                     key={team.id}
@@ -485,7 +489,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                       <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: team.color }} />
                       <div>
                         <span className="font-semibold">{team.name}</span>
-                        <span className="text-text-muted text-xs ml-2">{completed}/{tiles.length} ({pct}%)</span>
+                        <span className="text-text-muted text-xs ml-2">{completed}/{requiredTiles.length} ({pct}%)</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -669,6 +673,11 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold truncate">{tile.label}</span>
                   <div className="flex items-center gap-1.5">
+                    {tile.optional ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
+                        Optional
+                      </span>
+                    ) : null}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                       tile.tileType === 'drop'
                         ? 'bg-accent-green/20 text-accent-green-light'
@@ -715,6 +724,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         statGoal: tile.statGoal ?? null,
                         trackingMode: tile.trackingMode || 'team',
                         womCompetitionId: tile.womCompetitionId ?? null,
+                        optional: !!tile.optional,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}

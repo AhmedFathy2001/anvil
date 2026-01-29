@@ -15,7 +15,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -46,6 +46,8 @@ export async function PUT(
     statType: statType !== undefined ? (statType || null) : tile.statType,
     statGoal: statGoal !== undefined ? (statGoal || null) : tile.statGoal,
     trackingMode: trackingMode !== undefined ? trackingMode : tile.trackingMode,
+    // optional is always editable
+    optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,
   };
 
   // label, tileType, requiredAmount only editable before event start

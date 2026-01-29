@@ -257,5 +257,68 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  // Tag @everyone for team win
+  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
+}
+
+const BINGO_ROLE_ID = '1466184936934609008';
+
+interface EventStartNotifyParams {
+  eventName: string;
+  startDate: string;
+  endDate?: string | null;
+}
+
+export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
+  const { eventName, startDate, endDate } = params;
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Started', value: new Date(startDate).toLocaleString(), inline: true },
+  ];
+
+  if (endDate) {
+    fields.push({ name: 'Ends', value: new Date(endDate).toLocaleString(), inline: true });
+  }
+
+  const embed: DiscordEmbed = {
+    title: '🚀 Bingo Event Started!',
+    description: `**${eventName}** has begun! Good luck to all teams!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0x00ff00, // Green
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Tag bingo role
+  return sendDiscordWebhook({ content: `<@&${BINGO_ROLE_ID}>`, embeds: [embed] });
+}
+
+interface EventEndNotifyParams {
+  eventName: string;
+  standings: { teamName: string; tilesCompleted: number }[];
+  totalTiles: number;
+}
+
+export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
+  const { eventName, standings, totalTiles } = params;
+
+  const standingsText = standings
+    .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
+    .map((s, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} tiles`;
+    })
+    .join('\n');
+
+  const embed: DiscordEmbed = {
+    title: '🏁 Bingo Event Ended!',
+    description: `**${eventName}** has concluded!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xffd700, // Gold
+    fields: [
+      { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  // Tag @everyone for event end
+  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
 }

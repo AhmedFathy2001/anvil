@@ -367,9 +367,9 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           </div>
         ) : (
           <h1
-            className="text-2xl sm:text-3xl font-bold cursor-pointer hover:text-gold transition-colors"
-            onClick={() => setEditingName(true)}
-            title="Click to edit team name"
+            className={`text-2xl sm:text-3xl font-bold ${!eventStarted ? 'cursor-pointer hover:text-gold' : ''} transition-colors`}
+            onClick={() => !eventStarted && setEditingName(true)}
+            title={eventStarted ? 'Team name locked after event start' : 'Click to edit team name'}
           >
             {team.name}
           </h1>

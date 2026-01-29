@@ -12,6 +12,7 @@ interface TileConfig {
   statGoal: number | null;
   trackingMode: string;
   womCompetitionId: number | null;
+  optional: boolean;
 }
 
 interface Props {
@@ -178,6 +179,7 @@ export default function TileTrackingConfig({
   const [womCompetitionId, setWomCompetitionId] = useState<string>(
     initial.womCompetitionId?.toString() || "",
   );
+  const [optional, setOptional] = useState<boolean>(initial.optional || false);
   const [saving, setSaving] = useState(false);
   const [savingWom, setSavingWom] = useState(false);
   const [womError, setWomError] = useState<string | null>(null);
@@ -199,6 +201,7 @@ export default function TileTrackingConfig({
           statType: statType || null,
           statGoal: statGoal ? parseInt(statGoal, 10) : null,
           trackingMode,
+          optional,
         }),
       });
       if (res.ok) {
@@ -213,6 +216,7 @@ export default function TileTrackingConfig({
           statGoal: updated.statGoal,
           trackingMode: updated.trackingMode,
           womCompetitionId: updated.womCompetitionId,
+          optional: !!updated.optional,
         });
       }
     } finally {
@@ -347,6 +351,26 @@ export default function TileTrackingConfig({
           />
         </div>
       )}
+
+      {/* Optional toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOptional(!optional)}
+          className={`relative w-10 h-5 rounded-full transition-colors ${
+            optional ? 'bg-gold' : 'bg-card-border'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              optional ? 'translate-x-5' : ''
+            }`}
+          />
+        </button>
+        <span className="text-xs text-text-muted">
+          Optional tile (doesn&apos;t count towards total)
+        </span>
+      </div>
 
       <h4 className="text-sm font-semibold text-gold pt-2">Stat Tracking</h4>
 

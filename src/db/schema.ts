@@ -11,6 +11,8 @@ export const events = sqliteTable('events', {
   startDate: text('start_date'),
   endDate: text('end_date'),
   womCompetitionId: integer('wom_competition_id'),
+  startNotified: integer('start_notified').default(0),
+  endNotified: integer('end_notified').default(0),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -27,6 +29,7 @@ export const tiles = sqliteTable('tiles', {
   statGoal: integer('stat_goal'),
   trackingMode: text('tracking_mode').default('team').notNull(),
   womCompetitionId: integer('wom_competition_id'),
+  optional: integer('optional').default(0),
 });
 
 export const teams = sqliteTable('teams', {

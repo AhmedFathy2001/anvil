@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players, tiles, teams, completions, events } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
-import { notifyTileCompletion } from '@/lib/discord';
+import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
 
 // Vercel Cron protection - only allow requests from Vercel's cron system
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -36,10 +36,50 @@ export async function GET(request: Request) {
     errors: string[];
   }[] = [];
 
-  // Get all active events (with start date in the past and end date in the future or no end date)
+  // Get all events
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
 
+  // Check for events that just started (need start notification)
+  for (const event of allEvents) {
+    if (event.startDate && event.startDate <= now && !event.startNotified) {
+      await notifyEventStart({
+        eventName: event.name,
+        startDate: event.startDate,
+        endDate: event.endDate,
+      });
+      await db.update(events)
+        .set({ startNotified: 1 })
+        .where(eq(events.id, event.id));
+    }
+  }
+
+  // Check for events that just ended (need end notification)
+  for (const event of allEvents) {
+    if (event.endDate && event.endDate < now && !event.endNotified) {
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
+      const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+      const allCompletions = await db.select().from(completions);
+
+      const standings = eventTeams.map(team => {
+        const teamCompletions = allCompletions.filter(c =>
+          c.teamId === team.id && eventTiles.some(t => t.id === c.tileId)
+        );
+        return { teamName: team.name, tilesCompleted: teamCompletions.length };
+      });
+
+      await notifyEventEnd({
+        eventName: event.name,
+        standings,
+        totalTiles: eventTiles.length,
+      });
+      await db.update(events)
+        .set({ endNotified: 1 })
+        .where(eq(events.id, event.id));
+    }
+  }
+
+  // Filter to only active events for stat tracking
   const activeEvents = allEvents.filter((e) => {
     // Event has started
     if (e.startDate && e.startDate > now) return false;
@@ -236,6 +276,34 @@ export async function GET(request: Request) {
             tileType: tile.tileType,
             trackedStat: tile.trackedStat,
             statType: tile.statType,
+          }).catch(() => {});
+        }
+      }
+    }
+
+    // Check if any team completed ALL required (non-optional) tiles (blackout/win)
+    const requiredTiles = eventTiles.filter((t) => !t.optional);
+    const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+    const totalRequiredTiles = requiredTiles.length;
+
+    for (const team of eventTeams) {
+      // Only count completions of required tiles
+      const teamCompletionCount = Array.from(completionSet).filter(key => {
+        if (!key.startsWith(`${team.id}-`)) return false;
+        const tileId = parseInt(key.split('-')[1], 10);
+        return requiredTileIds.has(tileId);
+      }).length;
+
+      if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
+        // Check if we already notified for this team's win (check if they had all tiles before this run)
+        // We do this by checking if any tile was completed in this run for this team
+        const justCompletedTile = eventResult.tilesCompleted.some(tc => tc.teamName === team.name);
+        if (justCompletedTile) {
+          notifyTeamWin({
+            eventName: event.name,
+            teamName: team.name,
+            teamColor: team.color,
+            totalTiles: totalRequiredTiles,
           }).catch(() => {});
         }
       }

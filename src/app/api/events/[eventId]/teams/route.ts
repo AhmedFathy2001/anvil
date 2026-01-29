@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { teams } from '@/db/schema';
+import { teams, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, hashPassword } from '@/lib/auth';
 
@@ -103,8 +103,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 
+  // Check if event has started
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+  const now = new Date();
+  const eventStarted = event?.startDate && new Date(event.startDate) <= now;
+
   const updateData: { name?: string } = {};
   if (name && typeof name === 'string' && name.trim()) {
+    if (eventStarted) {
+      return NextResponse.json({ error: 'Cannot change team name after event has started' }, { status: 400 });
+    }
     updateData.name = name.trim();
   }
 

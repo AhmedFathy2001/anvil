@@ -19,6 +19,7 @@ interface Tile {
   statGoal?: number | null;
   trackingMode?: string;
   womCompetitionId?: number | null;
+  optional?: number | null;
 }
 
 interface TileWomTeamStanding {
@@ -62,6 +63,8 @@ interface Event {
   draftStatus: string;
   draftOrder: string | null;
   womCompetitionId?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 interface WomTeamStanding {
@@ -90,21 +93,72 @@ interface Props {
   completions: Completion[];
 }
 
+function formatTimeLeft(ms: number): string {
+  if (ms <= 0) return 'Now';
+
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h ${minutes % 60}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    return `${seconds}s`;
+  }
+}
+
 export default function ScoreboardClient({ event, tiles, teams, completions }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [womStandings, setWomStandings] = useState<WomTeamStanding[]>([]);
   const [womLoading, setWomLoading] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [hideStandings, setHideStandings] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [tileWomTeams, setTileWomTeams] = useState<TileWomTeamStanding[]>([]);
   const [tileWomPlayers, setTileWomPlayers] = useState<TileWomPlayerStanding[]>([]);
   const [tileWomLoading, setTileWomLoading] = useState(false);
+  const [timeDisplay, setTimeDisplay] = useState<string>('');
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
+
+  // Countdown / time remaining timer
+  useEffect(() => {
+    const updateTime = () => {
+      const now = Date.now();
+
+      if (event.startDate) {
+        const start = new Date(event.startDate).getTime();
+        if (now < start) {
+          setTimeDisplay(`Starts in ${formatTimeLeft(start - now)}`);
+          return;
+        }
+      }
+
+      if (event.endDate) {
+        const end = new Date(event.endDate).getTime();
+        if (now < end) {
+          setTimeDisplay(`${formatTimeLeft(end - now)} remaining`);
+          return;
+        } else {
+          setTimeDisplay('Event ended');
+          return;
+        }
+      }
+
+      setTimeDisplay('');
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [event.startDate, event.endDate]);
 
   // Fetch tile-level WOM data when selecting a tile with WOM linked
   useEffect(() => {
@@ -143,14 +197,21 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
       .finally(() => setWomLoading(false));
   }, [event.id, event.womCompetitionId]);
 
+  // Exclude optional tiles from completion counts
+  const requiredTiles = tiles.filter((t) => !t.optional);
+  const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+
   const completionCounts = new Map<number, number>();
   for (const c of completions) {
-    completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + 1);
+    // Only count completions of required (non-optional) tiles
+    if (requiredTileIds.has(c.tileId)) {
+      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + 1);
+    }
   }
 
-  // Build drop progress by team
+  // Build drop progress by team (only for required tiles)
   const dropProgressByTeam = new Map<number, { inProgress: number; total: number }>();
-  const dropTiles = tiles.filter((t) => t.tileType === 'drop' && t.requiredAmount);
+  const dropTiles = tiles.filter((t) => t.tileType === 'drop' && t.requiredAmount && !t.optional);
   for (const team of teams) {
     let inProgress = 0;
     for (const tile of dropTiles) {
@@ -191,33 +252,34 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
           </Link>
         )}
 
-        {/* View controls */}
-        <div className="flex items-center gap-2 mt-4">
+        {/* Time display and view controls */}
+        <div className="flex items-center gap-3 mt-4">
+          {timeDisplay && (
+            <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${
+              timeDisplay.includes('Starts')
+                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25'
+                : timeDisplay.includes('remaining')
+                ? 'bg-accent-green/15 text-accent-green-light border border-accent-green/25'
+                : 'bg-red-500/15 text-red-400 border border-red-500/25'
+            }`}>
+              {timeDisplay}
+            </span>
+          )}
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => setFullscreen(!fullscreen)}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-              expanded
+              fullscreen
                 ? 'bg-gold/20 border-gold text-gold'
                 : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
             }`}
           >
-            {expanded ? 'Collapse Board' : 'Expand Board'}
-          </button>
-          <button
-            onClick={() => setHideStandings(!hideStandings)}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-              hideStandings
-                ? 'bg-gold/20 border-gold text-gold'
-                : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
-            }`}
-          >
-            {hideStandings ? 'Show Standings' : 'Hide Standings'}
+            {fullscreen ? 'Show Standings' : 'Fullscreen Board'}
           </button>
         </div>
       </div>
 
-      <div className={`grid gap-8 items-start ${hideStandings ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
-        {!hideStandings && (
+      <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
+        {!fullscreen && (
           <div>
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
@@ -225,7 +287,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             </h2>
             <Scoreboard
               teams={teams}
-              totalTiles={tiles.length}
+              totalTiles={requiredTiles.length}
               completionCounts={completionCounts}
               eventId={event.id}
               dropProgressByTeam={dropProgressByTeam}
@@ -293,7 +355,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             completions={completions}
             teams={teams}
             onTileClick={setSelectedTileId}
-            expanded={expanded}
+            expanded={fullscreen}
           />
         </div>
       </div>
