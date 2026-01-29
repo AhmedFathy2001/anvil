@@ -281,21 +281,20 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             )}
           </div>
         )}
-        <div className={expanded ? 'max-w-none' : ''}>
+        <div>
           <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
             Board Overview
             <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
-          <div className={expanded ? 'max-w-5xl mx-auto' : ''}>
-            <BingoBoard
-              tiles={tiles}
-              boardSize={event.boardSize}
-              completions={completions}
-              teams={teams}
-              onTileClick={setSelectedTileId}
-            />
-          </div>
+          <BingoBoard
+            tiles={tiles}
+            boardSize={event.boardSize}
+            completions={completions}
+            teams={teams}
+            onTileClick={setSelectedTileId}
+            expanded={expanded}
+          />
         </div>
       </div>
 

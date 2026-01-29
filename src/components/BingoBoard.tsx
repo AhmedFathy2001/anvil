@@ -32,6 +32,7 @@ interface BingoBoardProps {
   interactive?: boolean;
   onTileClick?: (tileId: number) => void;
   dropProgress?: Map<number, { current: number; required: number }>;
+  expanded?: boolean;
 }
 
 export default function BingoBoard({
@@ -43,13 +44,16 @@ export default function BingoBoard({
   interactive,
   onTileClick,
   dropProgress,
+  expanded,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
 
   return (
     <div
-      className="grid gap-1.5 sm:gap-2 w-full max-w-4xl mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border"
+      className={`grid gap-1.5 sm:gap-2 w-full mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border ${
+        expanded ? 'max-w-6xl' : 'max-w-4xl'
+      }`}
       style={{
         gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
       }}
