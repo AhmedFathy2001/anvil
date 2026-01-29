@@ -15,6 +15,28 @@ import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 
+// Convert UTC ISO string to local datetime-local input format
+function utcToLocal(utcString: string | null): string {
+  if (!utcString) return '';
+  const date = new Date(utcString);
+  if (isNaN(date.getTime())) return '';
+  // Format as YYYY-MM-DDTHH:mm for datetime-local input
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Convert local datetime-local input to UTC ISO string
+function localToUtc(localString: string): string | null {
+  if (!localString) return null;
+  const date = new Date(localString);
+  if (isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 interface Tile {
   id: number;
   eventId: number;
@@ -146,8 +168,8 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [picking, setPicking] = useState(false);
   const [copiedToken, setCopiedToken] = useState<number | null>(null);
 
-  const [startDate, setStartDate] = useState(event.startDate || '');
-  const [endDate, setEndDate] = useState(event.endDate || '');
+  const [startDate, setStartDate] = useState(() => utcToLocal(event.startDate));
+  const [endDate, setEndDate] = useState(() => utcToLocal(event.endDate));
   const [savingDates, setSavingDates] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
   const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[] } | null>(null);
@@ -313,8 +335,8 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        startDate: startDate || null,
-        endDate: endDate || null,
+        startDate: localToUtc(startDate),
+        endDate: localToUtc(endDate),
       }),
     });
     setSavingDates(false);
