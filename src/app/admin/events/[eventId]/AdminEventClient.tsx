@@ -147,9 +147,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [startDate, setStartDate] = useState(event.startDate || '');
   const [endDate, setEndDate] = useState(event.endDate || '');
   const [savingDates, setSavingDates] = useState(false);
-  const [womCompetitionId, setWomCompetitionId] = useState(event.womCompetitionId?.toString() || '');
-  const [savingWom, setSavingWom] = useState(false);
-  const [womError, setWomError] = useState<string | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
   const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; failed: string[] } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -316,30 +313,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     });
     setSavingDates(false);
     router.refresh();
-  }
-
-  async function saveWomCompetitionId() {
-    setSavingWom(true);
-    setWomError(null);
-    try {
-      const res = await fetch(`/api/events/${event.id}/wom`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          competitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setWomError(data.error || 'Failed to save');
-      } else {
-        router.refresh();
-      }
-    } catch {
-      setWomError('Failed to save');
-    } finally {
-      setSavingWom(false);
-    }
   }
 
   async function takeSnapshot() {
@@ -579,19 +552,28 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
             </button>
           </div>
 
-          {/* Snapshot */}
+          {/* Hiscores Management */}
           <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
-            <h3 className="text-sm font-bold text-gold">Hiscores Snapshot</h3>
+            <h3 className="text-sm font-bold text-gold">Hiscores Management</h3>
             <p className="text-xs text-text-muted">
-              Take a snapshot of all players&apos; hiscores to use as the baseline for gains tracking.
+              Take a baseline snapshot before the event starts, then refresh stats to track gains.
             </p>
-            <button
-              onClick={takeSnapshot}
-              disabled={snapshotting}
-              className="w-full py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
-            >
-              {snapshotting ? 'Snapshotting players...' : 'Take Snapshot'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={takeSnapshot}
+                disabled={snapshotting}
+                className="flex-1 py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
+              >
+                {snapshotting ? 'Snapshotting...' : 'Take Snapshot'}
+              </button>
+              <button
+                onClick={refreshStats}
+                disabled={refreshingStats}
+                className="flex-1 py-2 text-sm font-semibold rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+              >
+                {refreshingStats ? 'Refreshing...' : 'Refresh Stats'}
+              </button>
+            </div>
             {snapshotResult && (
               <div className="text-xs space-y-1">
                 <p className="text-accent-green-light">
@@ -604,54 +586,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                 )}
               </div>
             )}
-          </div>
-
-          {/* Refresh Stats */}
-          <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
-            <h3 className="text-sm font-bold text-gold">Refresh Stats</h3>
-            <p className="text-xs text-text-muted">
-              Fetch latest stats from Jagex hiscores for all players. This pulls live data with ~1.2s delay between players to avoid rate limits.
-            </p>
-            <button
-              onClick={refreshStats}
-              disabled={refreshingStats}
-              className="w-full py-2 text-sm font-semibold rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
-            >
-              {refreshingStats ? 'Fetching stats...' : 'Refresh Stats Now'}
-            </button>
             {lastStatsRefresh && (
               <p className="text-xs text-text-muted">
                 Last refreshed: {lastStatsRefresh.toLocaleTimeString()}
-              </p>
-            )}
-          </div>
-
-          {/* WOM Competition */}
-          <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
-            <h3 className="text-sm font-bold text-gold">Wise Old Man Integration</h3>
-            <p className="text-xs text-text-muted">
-              Link a WOM competition to automatically track gains. Get the ID from your WOM competition URL.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={womCompetitionId}
-                onChange={(e) => setWomCompetitionId(e.target.value.replace(/\D/g, ''))}
-                placeholder="Competition ID (e.g. 124032)"
-                className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-              />
-              <button
-                onClick={saveWomCompetitionId}
-                disabled={savingWom}
-                className="px-4 py-2 text-sm font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
-              >
-                {savingWom ? '...' : 'Save'}
-              </button>
-            </div>
-            {womError && <p className="text-xs text-red-400">{womError}</p>}
-            {event.womCompetitionId && (
-              <p className="text-xs text-accent-green-light">
-                Linked to WOM competition #{event.womCompetitionId}
               </p>
             )}
           </div>

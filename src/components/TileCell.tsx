@@ -11,9 +11,10 @@ interface TileCellProps {
   size: number;
   tileType?: string;
   progress?: { current: number; required: number };
+  expanded?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, expanded }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   const isDrop = tileType === 'drop';
@@ -78,11 +79,17 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         className={cn(
           'leading-tight font-medium px-0.5',
           icon ? 'mt-0.5' : '',
-          size <= 3
-            ? 'text-[11px] sm:text-sm'
-            : size <= 5
-              ? 'text-[9px] sm:text-xs'
-              : 'text-[7px] sm:text-[9px]',
+          expanded
+            ? size <= 3
+              ? 'text-sm sm:text-base'
+              : size <= 5
+                ? 'text-xs sm:text-sm'
+                : 'text-[10px] sm:text-xs'
+            : size <= 3
+              ? 'text-[11px] sm:text-sm'
+              : size <= 5
+                ? 'text-[9px] sm:text-xs'
+                : 'text-[7px] sm:text-[9px]',
           isCompleted ? 'text-foreground' : 'text-text-muted',
         )}
       >

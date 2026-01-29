@@ -32,11 +32,15 @@ export async function POST(
   for (const player of eventPlayers) {
     try {
       const stats = await getStatsByGamemode(player.name);
+      const statsJson = JSON.stringify(stats);
       await db
         .update(players)
         .set({
-          statsSnapshot: JSON.stringify(stats),
+          statsSnapshot: statsJson,
           snapshotAt: now,
+          // Also set cachedStats so gains can be calculated immediately
+          cachedStats: statsJson,
+          lastStatsFetch: now,
         })
         .where(eq(players.id, player.id));
       snapshotted++;

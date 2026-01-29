@@ -136,7 +136,11 @@ export default function TileDetailModal({
       return;
     }
     setWomLoading(true);
-    fetch(`/api/events/${eventId}/tiles/${tile.id}/wom`)
+    // Pass teamId to filter WOM data to just this team (for captain view)
+    const url = teamId
+      ? `/api/events/${eventId}/tiles/${tile.id}/wom?teamId=${teamId}`
+      : `/api/events/${eventId}/tiles/${tile.id}/wom`;
+    fetch(url)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) {
@@ -145,7 +149,7 @@ export default function TileDetailModal({
         }
       })
       .finally(() => setWomLoading(false));
-  }, [eventId, tile.id, tile.womCompetitionId]);
+  }, [eventId, tile.id, tile.womCompetitionId, teamId]);
 
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';

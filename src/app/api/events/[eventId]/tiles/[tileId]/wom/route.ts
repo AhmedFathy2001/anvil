@@ -6,12 +6,17 @@ import { fetchWomTeams, fetchWomPlayers, matchTeamName, matchPlayerName } from '
 import { verifyAdmin } from '@/lib/auth';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> }
 ) {
   const { eventId, tileId } = await params;
   const eId = parseInt(eventId, 10);
   const tId = parseInt(tileId, 10);
+
+  // Optional teamId filter - only show that team's data
+  const { searchParams } = new URL(request.url);
+  const teamIdFilter = searchParams.get('teamId');
+  const filterTeamId = teamIdFilter ? parseInt(teamIdFilter, 10) : null;
 
   const tile = await db.query.tiles.findFirst({
     where: eq(tiles.id, tId),
@@ -72,10 +77,19 @@ export async function GET(
       };
     });
 
+    // Filter by team if teamId provided
+    let filteredTeams = teamStandings;
+    let filteredPlayers = playerStandings;
+
+    if (filterTeamId) {
+      filteredTeams = teamStandings.filter(t => t.localTeamId === filterTeamId);
+      filteredPlayers = playerStandings.filter(p => p.localTeamId === filterTeamId);
+    }
+
     return NextResponse.json({
       competitionId: tile.womCompetitionId,
-      teams: teamStandings,
-      players: playerStandings,
+      teams: filteredTeams,
+      players: filteredPlayers,
     });
   } catch (error) {
     console.error('WOM API error:', error);

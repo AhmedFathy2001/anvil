@@ -84,6 +84,7 @@ export default function BingoBoard({
             size={boardSize}
             tileType={tile.tileType}
             progress={progress}
+            expanded={expanded}
           />
         );
       })}

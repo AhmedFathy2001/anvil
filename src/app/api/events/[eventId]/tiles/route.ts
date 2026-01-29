@@ -4,6 +4,20 @@ import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+
+  const eventTiles = await db.query.tiles.findMany({
+    where: eq(tiles.eventId, eId),
+  });
+
+  return NextResponse.json(eventTiles);
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
