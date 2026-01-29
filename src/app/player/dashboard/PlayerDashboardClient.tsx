@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import PlayerContributions from '@/components/PlayerContributions';
+import LocalTime from '@/components/LocalTime';
 
 interface Tile {
   id: number;
@@ -280,7 +281,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
           <p className="text-lg font-bold text-gold">{eventCountdown}</p>
           {event.startDate && (
             <p className="text-xs text-text-muted mt-1">
-              {new Date(event.startDate).toLocaleString()}
+              <LocalTime date={event.startDate} />
             </p>
           )}
         </div>
@@ -314,7 +315,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
         </button>
         {lastFetch && (
           <span className="text-xs text-text-muted">
-            Last updated: {new Date(lastFetch).toLocaleString()}
+            Last updated: <LocalTime date={lastFetch} />
           </span>
         )}
       </div>

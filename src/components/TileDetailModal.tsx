@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
+import LocalTime from '@/components/LocalTime';
 
 interface Tile {
   id: number;
@@ -477,7 +478,7 @@ export default function TileDetailModal({
                             </span>
                           )}
                           <span className="text-text-muted">
-                            {new Date(s.createdAt).toLocaleDateString()}
+                            <LocalTime date={s.createdAt} format="date" />
                           </span>
                         </div>
                         {s.note && (

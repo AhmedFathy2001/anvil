@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LocalTime from '@/components/LocalTime';
 
 interface StatData {
   stat: string;
@@ -104,7 +105,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
             <p className="text-xs text-text-muted">Edit baseline stats</p>
             {snapshotAt && (
               <p className="text-xs text-text-muted">
-                Snapshot: {new Date(snapshotAt).toLocaleString()}
+                Snapshot: <LocalTime date={snapshotAt} />
               </p>
             )}
           </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
+import LocalTime from '@/components/LocalTime';
 
 interface Tile {
   id: number;
@@ -385,7 +386,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           <p className="text-lg font-bold text-gold">{eventCountdown}</p>
           {event.startDate && (
             <p className="text-xs text-text-muted mt-1">
-              {new Date(event.startDate).toLocaleString()}
+              <LocalTime date={event.startDate} />
             </p>
           )}
         </div>
@@ -421,7 +422,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           </button>
           {lastFetch && (
             <span className="text-xs text-text-muted">
-              Last updated: {new Date(lastFetch).toLocaleString()}
+              Last updated: <LocalTime date={lastFetch} />
             </span>
           )}
         </div>

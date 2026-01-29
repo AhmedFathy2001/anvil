@@ -1,5 +1,7 @@
 'use client';
 
+import LocalTime from '@/components/LocalTime';
+
 interface Submission {
   id: number;
   tileId: number;
@@ -76,7 +78,7 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
                   )}
                   {s.note && <span className="truncate">&mdash; {s.note}</span>}
                   <span className="ml-auto flex-shrink-0">
-                    {new Date(s.createdAt).toLocaleDateString()}
+                    <LocalTime date={s.createdAt} format="date" />
                   </span>
                   {s.imageUrl && (
                     <a

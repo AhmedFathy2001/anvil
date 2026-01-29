@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import BingoBoard from '@/components/BingoBoard';
 import Scoreboard from '@/components/Scoreboard';
+import LocalTime from '@/components/LocalTime';
 
 interface Tile {
   id: number;
@@ -443,7 +444,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
                         />
                         <span className="text-foreground">{team?.name || 'Unknown'}</span>
                         <span className="text-text-muted text-xs ml-auto">
-                          {new Date(c.completedAt).toLocaleDateString()}
+                          <LocalTime date={c.completedAt} format="date" />
                         </span>
                       </div>
                     );

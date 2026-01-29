@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { db } from '@/db';
 import { events, teams } from '@/db/schema';
 import { desc, eq, count } from 'drizzle-orm';
+import LocalTime from '@/components/LocalTime';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,7 @@ export default async function HomePage() {
                   <span>{event.boardSize * event.boardSize} tiles</span>
                 </div>
                 <p className="text-xs text-text-muted mt-3">
-                  Created {new Date(event.createdAt).toLocaleDateString()}
+                  Created <LocalTime date={event.createdAt} format="date" />
                 </p>
               </Link>
             );
