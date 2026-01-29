@@ -18,6 +18,26 @@ interface Tile {
   statType?: string | null;
   statGoal?: number | null;
   trackingMode?: string;
+  womCompetitionId?: number | null;
+}
+
+interface TileWomTeamStanding {
+  rank: number;
+  womTeamName: string;
+  localTeamId: number | null;
+  localTeamName: string | null;
+  color: string | null;
+  totalGained: number;
+  mvp: string;
+}
+
+interface TileWomPlayerStanding {
+  rank: number;
+  womPlayerName: string;
+  localPlayerName: string | null;
+  localTeamName: string | null;
+  color: string | null;
+  gained: number;
 }
 
 interface Team {
@@ -77,11 +97,34 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [hideStandings, setHideStandings] = useState(false);
+  const [tileWomTeams, setTileWomTeams] = useState<TileWomTeamStanding[]>([]);
+  const [tileWomPlayers, setTileWomPlayers] = useState<TileWomPlayerStanding[]>([]);
+  const [tileWomLoading, setTileWomLoading] = useState(false);
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
+
+  // Fetch tile-level WOM data when selecting a tile with WOM linked
+  useEffect(() => {
+    if (!selectedTile?.womCompetitionId) {
+      setTileWomTeams([]);
+      setTileWomPlayers([]);
+      return;
+    }
+
+    setTileWomLoading(true);
+    fetch(`/api/events/${event.id}/tiles/${selectedTile.id}/wom`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setTileWomTeams(data.teams || []);
+          setTileWomPlayers(data.players || []);
+        }
+      })
+      .finally(() => setTileWomLoading(false));
+  }, [selectedTile?.id, selectedTile?.womCompetitionId, event.id]);
 
   useEffect(() => {
     fetch(`/api/events/${event.id}/submissions`)
@@ -349,6 +392,49 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
                 <p className="text-sm text-text-muted">No completions yet</p>
               )}
             </div>
+
+            {/* Tile WOM Standings */}
+            {selectedTile.womCompetitionId && (
+              <div className="mt-4 pt-4 border-t border-card-border">
+                <h4 className="text-sm font-semibold text-indigo-400 mb-2 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-indigo-400 rounded-full" />
+                  WOM Competition Progress
+                </h4>
+                {tileWomLoading ? (
+                  <p className="text-xs text-text-muted">Loading WOM data...</p>
+                ) : tileWomTeams.length > 0 ? (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {tileWomTeams.map((wt) => (
+                      <div
+                        key={wt.rank}
+                        className="flex items-center justify-between text-sm bg-card-bg rounded p-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gold w-5">#{wt.rank}</span>
+                          {wt.color && (
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: wt.color }} />
+                          )}
+                          <span className="text-foreground text-xs">{wt.localTeamName || wt.womTeamName}</span>
+                        </div>
+                        <span className="text-indigo-400 font-medium text-xs">
+                          {wt.totalGained.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-muted">No WOM data available</p>
+                )}
+                <a
+                  href={`https://wiseoldman.net/competitions/${selectedTile.womCompetitionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  View on Wise Old Man →
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

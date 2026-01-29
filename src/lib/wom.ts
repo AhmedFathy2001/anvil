@@ -118,21 +118,28 @@ function parseCSVLine(line: string): string[] {
 }
 
 /**
+ * Normalize RSN for comparison - OSRS is case-insensitive only
+ */
+function normalizeRsn(name: string): string {
+  return name.toLowerCase().trim();
+}
+
+/**
  * Match WOM team names to local team names (case-insensitive, fuzzy)
  */
 export function matchTeamName(womTeamName: string, localTeamNames: string[]): string | null {
-  const normalizedWom = womTeamName.toLowerCase().trim();
+  const normalizedWom = normalizeRsn(womTeamName);
 
-  // Exact match first
+  // Exact match first (normalized)
   for (const localName of localTeamNames) {
-    if (localName.toLowerCase().trim() === normalizedWom) {
+    if (normalizeRsn(localName) === normalizedWom) {
       return localName;
     }
   }
 
   // Partial match (WOM name contains local name or vice versa)
   for (const localName of localTeamNames) {
-    const normalizedLocal = localName.toLowerCase().trim();
+    const normalizedLocal = normalizeRsn(localName);
     if (normalizedWom.includes(normalizedLocal) || normalizedLocal.includes(normalizedWom)) {
       return localName;
     }
@@ -145,7 +152,6 @@ export function matchTeamName(womTeamName: string, localTeamNames: string[]): st
  * Match WOM player names to local player names (case-insensitive, spaces/hyphens normalized)
  */
 export function matchPlayerName(womPlayerName: string, localPlayerNames: string[]): string | null {
-  const normalizeRsn = (name: string) => name.toLowerCase().replace(/[-_ ]/g, ' ').trim();
   const normalizedWom = normalizeRsn(womPlayerName);
 
   for (const localName of localPlayerNames) {
