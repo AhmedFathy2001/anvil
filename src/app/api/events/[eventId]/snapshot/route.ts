@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players } from '@/db/schema';
+import { players, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
@@ -21,29 +21,51 @@ export async function POST(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
+  // Check if event has started
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+  const now = new Date();
+  const eventStarted = event?.startDate && new Date(event.startDate) <= now;
+
   const eventPlayers = await db.query.players.findMany({
     where: eq(players.eventId, eId),
   });
 
   let snapshotted = 0;
+  let refreshed = 0;
   const failed: string[] = [];
-  const now = new Date().toISOString();
+  const timestamp = now.toISOString();
 
   for (const player of eventPlayers) {
     try {
       const stats = await getStatsByGamemode(player.name);
       const statsJson = JSON.stringify(stats);
-      await db
-        .update(players)
-        .set({
-          statsSnapshot: statsJson,
-          snapshotAt: now,
-          // Also set cachedStats so gains can be calculated immediately
-          cachedStats: statsJson,
-          lastStatsFetch: now,
-        })
-        .where(eq(players.id, player.id));
-      snapshotted++;
+
+      // If player already has a baseline snapshot and event has started,
+      // only update cachedStats (don't overwrite the baseline)
+      if (player.statsSnapshot && eventStarted) {
+        await db
+          .update(players)
+          .set({
+            cachedStats: statsJson,
+            lastStatsFetch: timestamp,
+          })
+          .where(eq(players.id, player.id));
+        refreshed++;
+      } else {
+        // First snapshot or event hasn't started - set baseline
+        await db
+          .update(players)
+          .set({
+            statsSnapshot: statsJson,
+            snapshotAt: timestamp,
+            cachedStats: statsJson,
+            lastStatsFetch: timestamp,
+          })
+          .where(eq(players.id, player.id));
+        snapshotted++;
+      }
     } catch {
       failed.push(player.name);
     }
@@ -51,5 +73,5 @@ export async function POST(
     await delay(1200);
   }
 
-  return NextResponse.json({ snapshotted, failed });
+  return NextResponse.json({ snapshotted, refreshed, failed });
 }

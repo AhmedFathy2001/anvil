@@ -109,11 +109,14 @@ export async function GET(request: Request) {
     for (const player of playersNeedingSnapshot) {
       try {
         const stats = await getStatsByGamemode(player.name) as Snapshot;
+        const statsJson = JSON.stringify(stats);
+        const timestamp = new Date().toISOString();
         await db.update(players)
           .set({
-            statsSnapshot: JSON.stringify(stats),
-            cachedStats: JSON.stringify(stats),
-            lastStatsFetch: new Date().toISOString(),
+            statsSnapshot: statsJson,
+            snapshotAt: timestamp,
+            cachedStats: statsJson,
+            lastStatsFetch: timestamp,
           })
           .where(eq(players.id, player.id));
 

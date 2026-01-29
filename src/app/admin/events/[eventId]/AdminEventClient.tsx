@@ -11,6 +11,7 @@ import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 
 interface Tile {
@@ -148,7 +149,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [endDate, setEndDate] = useState(event.endDate || '');
   const [savingDates, setSavingDates] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
-  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; failed: string[] } | null>(null);
+  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[] } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
@@ -170,6 +171,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     createdAt: string;
   }[]>([]);
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [showStatTracking, setShowStatTracking] = useState(false);
+  const [editingBaselinePlayer, setEditingBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
 
   const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
 
@@ -490,11 +494,15 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
             </div>
           )}
 
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <button
+            onClick={() => setShowAddTeam(!showAddTeam)}
+            className="w-full text-lg font-bold mb-4 flex items-center gap-2 hover:text-gold transition-colors text-left"
+          >
             <span className="w-1 h-5 bg-gold rounded-full" />
             Add Team
-          </h2>
-          <TeamForm eventId={event.id} />
+            <span className="ml-auto text-sm text-text-muted">{showAddTeam ? '▼' : '▶'}</span>
+          </button>
+          {showAddTeam && <TeamForm eventId={event.id} />}
         </div>
 
         <div>
@@ -513,11 +521,17 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
 
       {/* Event Dates & Stat Tracking Section */}
       <div className="mt-12 pt-8 border-t border-card-border">
-        <h2 className="text-xl font-bold text-gold mb-6 flex items-center gap-2">
+        <button
+          onClick={() => setShowStatTracking(!showStatTracking)}
+          className="w-full text-xl font-bold text-gold mb-6 flex items-center gap-2 hover:text-gold-light transition-colors text-left"
+        >
           <span className="w-1 h-6 bg-gold rounded-full" />
           Stat Tracking
-        </h2>
+          <span className="ml-auto text-sm text-text-muted">{showStatTracking ? '▼' : '▶'}</span>
+        </button>
 
+        {showStatTracking && (
+        <>
         <div className="grid gap-6 lg:grid-cols-2 mb-8">
           {/* Event Dates */}
           <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
@@ -671,6 +685,8 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
               </div>
             ))}
         </div>
+        </>
+        )}
       </div>
 
       {/* Draft Section */}
@@ -1000,6 +1016,12 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                           {copiedToken === player.id ? 'Copied!' : 'Copy Link'}
                         </button>
                         <button
+                          onClick={() => setEditingBaselinePlayer({ id: player.id, name: player.name })}
+                          className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded"
+                        >
+                          Edit Stats
+                        </button>
+                        <button
                           onClick={() => resetPlayerSnapshot(player.id)}
                           disabled={resettingSnapshot === player.id}
                           className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-400/20 px-2 py-0.5 rounded disabled:opacity-50"
@@ -1091,6 +1113,17 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       {/* Hiscores Stats Modal */}
       {statsRsn && (
         <PlayerStatsPanel rsn={statsRsn} onClose={() => setStatsRsn(null)} />
+      )}
+
+      {/* Player Baseline Editor Modal */}
+      {editingBaselinePlayer && (
+        <PlayerBaselineEditor
+          eventId={event.id}
+          playerId={editingBaselinePlayer.id}
+          playerName={editingBaselinePlayer.name}
+          onClose={() => setEditingBaselinePlayer(null)}
+          onSaved={() => router.refresh()}
+        />
       )}
     </div>
   );
