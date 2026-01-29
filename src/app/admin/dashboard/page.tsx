@@ -30,6 +30,17 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Quick Links */}
+      <div className="flex gap-3 mb-6">
+        <Link
+          href="/admin/players"
+          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
+        >
+          <span className="text-gold">👥</span>
+          Player Pool
+        </Link>
+      </div>
+
       <div className="grid gap-8 lg:grid-cols-2 items-start">
         <div>
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">

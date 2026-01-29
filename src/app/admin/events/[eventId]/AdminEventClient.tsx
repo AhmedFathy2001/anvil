@@ -1011,9 +1011,12 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                   .filter((p) => p.teamId !== null && p.playerToken)
                   .map((player) => (
                     <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{player.name}</span>
-                        <span className="text-[10px] text-text-muted">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">{player.name}</span>
+                        {player.discord && player.discord !== player.name && (
+                          <span className="text-[10px] text-text-muted truncate">({player.discord})</span>
+                        )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: teams.find((t) => t.id === player.teamId)?.color + '20', color: teams.find((t) => t.id === player.teamId)?.color }}>
                           {teams.find((t) => t.id === player.teamId)?.name}
                         </span>
                       </div>
@@ -1025,17 +1028,23 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                           {copiedToken === player.id ? 'Copied!' : 'Copy Link'}
                         </button>
                         <button
-                          onClick={() => setEditingBaselinePlayer({ id: player.id, name: player.name })}
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
                           className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded"
                         >
-                          Edit Stats
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setEditingBaselinePlayer({ id: player.id, name: player.name })}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-400/20 px-2 py-0.5 rounded"
+                        >
+                          Stats
                         </button>
                         <button
                           onClick={() => resetPlayerSnapshot(player.id)}
                           disabled={resettingSnapshot === player.id}
                           className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-400/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
-                          {resettingSnapshot === player.id ? '...' : 'Reset Snap'}
+                          {resettingSnapshot === player.id ? '...' : 'Reset'}
                         </button>
                       </div>
                     </div>
