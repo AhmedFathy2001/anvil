@@ -172,7 +172,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [endDate, setEndDate] = useState(() => utcToLocal(event.endDate));
   const [savingDates, setSavingDates] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
-  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[] } | null>(null);
+  const [forceResetting, setForceResetting] = useState(false);
+  const [syncingWom, setSyncingWom] = useState(false);
+  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[]; updated?: number; skipped?: number; notFound?: string[]; competitions?: string[]; error?: string } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
@@ -354,6 +356,40 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       }
     } finally {
       setSnapshotting(false);
+    }
+  }
+
+  async function forceResetBaselines() {
+    if (!confirm('This will overwrite ALL player baselines with current stats. Are you sure?')) {
+      return;
+    }
+    setForceResetting(true);
+    setSnapshotResult(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/snapshot?forceReset=true`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setSnapshotResult(data);
+      }
+    } finally {
+      setForceResetting(false);
+    }
+  }
+
+  async function syncWomBaselines() {
+    setSyncingWom(true);
+    setSnapshotResult(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/sync-wom-baselines`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setSnapshotResult(data);
+      } else {
+        const err = await res.json();
+        setSnapshotResult({ snapshotted: 0, failed: [], ...err });
+      }
+    } finally {
+      setSyncingWom(false);
     }
   }
 
@@ -594,33 +630,76 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
             <h3 className="text-sm font-bold text-gold">Hiscores Management</h3>
             <p className="text-xs text-text-muted">
-              Take a baseline snapshot before the event starts, then refresh stats to track gains.
+              {eventStarted
+                ? 'Event has started. Use "Refresh Stats" to update current stats. Use "Sync from WOM" to align baselines with WOM competitions.'
+                : 'Take a baseline snapshot before the event starts, then refresh stats to track gains.'}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={takeSnapshot}
-                disabled={snapshotting}
+                disabled={snapshotting || forceResetting || syncingWom}
                 className="flex-1 py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
               >
-                {snapshotting ? 'Snapshotting...' : 'Take Snapshot'}
+                {snapshotting ? 'Snapshotting...' : eventStarted ? 'Snapshot (New Players)' : 'Take Snapshot'}
               </button>
               <button
                 onClick={refreshStats}
-                disabled={refreshingStats}
+                disabled={refreshingStats || snapshotting || forceResetting || syncingWom}
                 className="flex-1 py-2 text-sm font-semibold rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
               >
                 {refreshingStats ? 'Refreshing...' : 'Refresh Stats'}
               </button>
             </div>
+            <div className="flex gap-2">
+              <button
+                onClick={syncWomBaselines}
+                disabled={syncingWom || snapshotting || forceResetting}
+                className="flex-1 py-2 text-sm font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
+              >
+                {syncingWom ? 'Syncing...' : 'Sync from WOM'}
+              </button>
+              <button
+                onClick={forceResetBaselines}
+                disabled={forceResetting || snapshotting || syncingWom}
+                className="flex-1 py-2 text-sm font-semibold rounded bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+              >
+                {forceResetting ? 'Resetting...' : 'Force Reset All'}
+              </button>
+            </div>
             {snapshotResult && (
-              <div className="text-xs space-y-1">
-                <p className="text-accent-green-light">
-                  Snapshotted {snapshotResult.snapshotted} player{snapshotResult.snapshotted !== 1 ? 's' : ''}
-                </p>
-                {snapshotResult.failed.length > 0 && (
+              <div className="text-xs space-y-1 p-2 bg-brown-dark rounded">
+                {snapshotResult.snapshotted > 0 && (
+                  <p className="text-accent-green-light">
+                    Snapshotted: {snapshotResult.snapshotted} player{snapshotResult.snapshotted !== 1 ? 's' : ''}
+                  </p>
+                )}
+                {snapshotResult.refreshed !== undefined && snapshotResult.refreshed > 0 && (
+                  <p className="text-blue-400">
+                    Refreshed: {snapshotResult.refreshed} player{snapshotResult.refreshed !== 1 ? 's' : ''}
+                  </p>
+                )}
+                {snapshotResult.updated !== undefined && (
+                  <p className="text-indigo-400">
+                    Synced from WOM: {snapshotResult.updated} player{snapshotResult.updated !== 1 ? 's' : ''}
+                  </p>
+                )}
+                {snapshotResult.competitions && snapshotResult.competitions.length > 0 && (
+                  <p className="text-text-muted">
+                    Competitions: {snapshotResult.competitions.join(', ')}
+                  </p>
+                )}
+                {snapshotResult.failed && snapshotResult.failed.length > 0 && (
                   <p className="text-red-400">
                     Failed: {snapshotResult.failed.join(', ')}
                   </p>
+                )}
+                {snapshotResult.notFound && snapshotResult.notFound.length > 0 && (
+                  <p className="text-yellow-400">
+                    Not in WOM: {snapshotResult.notFound.join(', ')}
+                  </p>
+                )}
+                {snapshotResult.error && (
+                  <p className="text-red-400">Error: {snapshotResult.error}</p>
                 )}
               </div>
             )}

@@ -10,7 +10,7 @@ function delay(ms: number) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const isAdmin = await verifyAdmin();
@@ -20,6 +20,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+
+  // Check for force reset flag
+  const { searchParams } = new URL(request.url);
+  const forceReset = searchParams.get('forceReset') === 'true';
 
   // Check if event has started
   const event = await db.query.events.findFirst({
@@ -42,9 +46,9 @@ export async function POST(
       const stats = await getStatsByGamemode(player.name);
       const statsJson = JSON.stringify(stats);
 
-      // If player already has a baseline snapshot and event has started,
+      // If player already has a baseline snapshot and event has started (and not force reset),
       // only update cachedStats (don't overwrite the baseline)
-      if (player.statsSnapshot && eventStarted) {
+      if (player.statsSnapshot && eventStarted && !forceReset) {
         await db
           .update(players)
           .set({
@@ -54,7 +58,7 @@ export async function POST(
           .where(eq(players.id, player.id));
         refreshed++;
       } else {
-        // First snapshot or event hasn't started - set baseline
+        // First snapshot, event hasn't started, or force reset - set baseline
         await db
           .update(players)
           .set({
