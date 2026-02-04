@@ -121,8 +121,8 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     }
   }
 
-  async function handleDeleteSubmission(submissionId: number) {
-    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}`, { method: 'DELETE' });
+  async function handleDeleteSubmission(submissionId: number, reason: string) {
+    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
     if (res.ok) {
       await fetchSubmissions();
       await fetchCompletions();

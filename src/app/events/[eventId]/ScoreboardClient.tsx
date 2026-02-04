@@ -5,6 +5,7 @@ import Link from 'next/link';
 import BingoBoard from '@/components/BingoBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
+import { formatNumber } from '@/lib/utils';
 
 interface Tile {
   id: number;
@@ -113,6 +114,12 @@ function formatTimeLeft(ms: number): string {
   }
 }
 
+interface TeamGains {
+  teamId: number;
+  totalGained: number;
+  tileGains: Record<number, number>; // tileId -> gained
+}
+
 export default function ScoreboardClient({ event, tiles, teams, completions }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [womStandings, setWomStandings] = useState<WomTeamStanding[]>([]);
@@ -123,6 +130,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   const [tileWomPlayers, setTileWomPlayers] = useState<TileWomPlayerStanding[]>([]);
   const [tileWomLoading, setTileWomLoading] = useState(false);
   const [timeDisplay, setTimeDisplay] = useState<string>('');
+  const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
@@ -187,6 +195,39 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
       .then(setSubmissions);
   }, [event.id]);
 
+  // Fetch gains data for all teams (for stat tiles)
+  useEffect(() => {
+    const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
+    if (statTiles.length === 0) return;
+
+    // Fetch gains for all teams in parallel
+    Promise.all(
+      teams.map(async (team) => {
+        const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+
+        // Aggregate gains by tile
+        const tileGains: Record<number, number> = {};
+        let totalGained = 0;
+
+        for (const tile of statTiles) {
+          let tileTotal = 0;
+          for (const player of data) {
+            const gained = player.gains?.[tile.trackedStat!] ?? 0;
+            tileTotal += gained;
+          }
+          tileGains[tile.id] = tileTotal;
+          totalGained += tileTotal;
+        }
+
+        return { teamId: team.id, totalGained, tileGains };
+      })
+    ).then((results) => {
+      setTeamGains(results.filter((r): r is TeamGains => r !== null));
+    });
+  }, [event.id, teams, tiles]);
+
   useEffect(() => {
     if (!event.womCompetitionId) return;
     setWomLoading(true);
@@ -226,6 +267,23 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
     if (inProgress > 0) {
       dropProgressByTeam.set(team.id, { inProgress, total: dropTiles.length });
     }
+  }
+
+  // Build stat progress map for tiles (aggregated across all teams for overview)
+  const statProgressMap = new Map<number, { current: number; goal: number; statType?: string }>();
+  const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
+  for (const tile of statTiles) {
+    // Get max progress across all teams for overview
+    let maxGained = 0;
+    for (const tg of teamGains) {
+      const gained = tg.tileGains[tile.id] || 0;
+      if (gained > maxGained) maxGained = gained;
+    }
+    statProgressMap.set(tile.id, {
+      current: maxGained,
+      goal: tile.statGoal!,
+      statType: tile.statType || undefined,
+    });
   }
 
   const totalCompleted = completions.length;
@@ -294,52 +352,96 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
               dropProgressByTeam={dropProgressByTeam}
             />
 
-            {/* WOM Standings */}
-            {event.womCompetitionId && (
+            {/* XP/Stat Gains - Local + WOM */}
+            {(statTiles.length > 0 || event.womCompetitionId) && (
               <div className="mt-6">
                 <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
-                  <span className="w-1 h-4 bg-indigo-400 rounded-full" />
-                  XP Gains (WOM)
+                  <span className="w-1 h-4 bg-blue-400 rounded-full" />
+                  XP/Stat Gains
                 </h3>
-                {womLoading ? (
-                  <p className="text-sm text-text-muted">Loading WOM data...</p>
-                ) : womStandings.length > 0 ? (
-                  <div className="space-y-2">
-                    {womStandings.map((ws) => (
-                      <div
-                        key={ws.rank}
-                        className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
-                          {ws.color && (
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
-                          )}
-                          <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-lg font-bold text-indigo-400">
-                            {ws.totalGained.toLocaleString()}
-                          </span>
-                          <span className="text-xs text-text-muted ml-1">XP</span>
-                          <div className="text-xs text-text-muted">
-                            MVP: {ws.mvp}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+
+                {/* Local Stats (from our tracking) */}
+                {teamGains.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-text-muted mb-2">Local Tracking</p>
+                    <div className="space-y-2">
+                      {[...teamGains]
+                        .sort((a, b) => b.totalGained - a.totalGained)
+                        .map((tg, index) => {
+                          const team = teams.find((t) => t.id === tg.teamId);
+                          return (
+                            <div
+                              key={tg.teamId}
+                              className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>
+                                {team?.color && (
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
+                                )}
+                                <span className="font-medium">{team?.name || 'Unknown'}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-blue-400">
+                                  {formatNumber(tg.totalGained)}
+                                </span>
+                                <span className="text-xs text-text-muted ml-1">XP</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-text-muted">No WOM data available</p>
                 )}
-                <a
-                  href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
-                >
-                  View on Wise Old Man →
-                </a>
+
+                {/* WOM Stats */}
+                {event.womCompetitionId && (
+                  <div>
+                    <p className="text-xs text-text-muted mb-2 flex items-center gap-1">
+                      <span className="w-1 h-3 bg-indigo-400 rounded-full" />
+                      Wise Old Man
+                    </p>
+                    {womLoading ? (
+                      <p className="text-sm text-text-muted">Loading WOM data...</p>
+                    ) : womStandings.length > 0 ? (
+                      <div className="space-y-2">
+                        {womStandings.map((ws) => (
+                          <div
+                            key={ws.rank}
+                            className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
+                              {ws.color && (
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
+                              )}
+                              <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-lg font-bold text-indigo-400">
+                                {formatNumber(ws.totalGained)}
+                              </span>
+                              <span className="text-xs text-text-muted ml-1">XP</span>
+                              <div className="text-xs text-text-muted">
+                                MVP: {ws.mvp}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-text-muted">No WOM data available</p>
+                    )}
+                    <a
+                      href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
+                    >
+                      View on Wise Old Man →
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -356,6 +458,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             completions={completions}
             teams={teams}
             onTileClick={setSelectedTileId}
+            statProgress={statProgressMap}
             expanded={fullscreen}
           />
         </div>
@@ -368,7 +471,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
           onClick={() => setSelectedTileId(null)}
         >
           <div
-            className="bg-brown-dark border border-card-border rounded-xl p-6 max-w-md w-full shadow-2xl"
+            className="bg-brown-dark border border-card-border rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">
@@ -427,13 +530,61 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
               )}
             </div>
 
+            {/* Local Stat Progress by Team */}
+            {selectedTile.trackedStat && selectedTile.statGoal && teamGains.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-card-border">
+                <h4 className="text-sm font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                  <span className="w-1 h-3 bg-blue-400 rounded-full" />
+                  Team Progress (Local)
+                </h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {[...teamGains]
+                    .map((tg) => ({ ...tg, tileGain: tg.tileGains[selectedTile.id] || 0 }))
+                    .sort((a, b) => b.tileGain - a.tileGain)
+                    .map((tg) => {
+                      const team = teams.find((t) => t.id === tg.teamId);
+                      const percentage = Math.min(100, (tg.tileGain / selectedTile.statGoal!) * 100);
+                      return (
+                        <div
+                          key={tg.teamId}
+                          className="bg-card-bg rounded-lg p-2"
+                        >
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <div className="flex items-center gap-2">
+                              {team?.color && (
+                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team.color }} />
+                              )}
+                              <span className="text-foreground text-xs">{team?.name || 'Unknown'}</span>
+                            </div>
+                            <span className="text-blue-400 font-medium text-xs">
+                              {formatNumber(tg.tileGain)} / {formatNumber(selectedTile.statGoal!)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-brown-dark rounded-full overflow-hidden">
+                            <div
+                              className="h-full transition-all duration-500"
+                              style={{
+                                width: `${percentage}%`,
+                                background: percentage >= 100
+                                  ? 'linear-gradient(90deg, #22c55e, #4ade80)'
+                                  : 'linear-gradient(90deg, #3b82f6cc, #3b82f6)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
             {/* Completions */}
             <div className="mt-4 pt-4 border-t border-card-border">
               <h4 className="text-sm font-semibold text-foreground mb-2">
                 Completed by ({selectedTileCompletions.length})
               </h4>
               {selectedTileCompletions.length > 0 ? (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
                   {selectedTileCompletions.map((c) => {
                     const team = teams.find((t) => t.id === c.teamId);
                     return (

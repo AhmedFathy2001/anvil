@@ -7,16 +7,25 @@ interface Props {
   currentUrl?: string;
 }
 
+// Detect iOS/iPadOS
+function isIOS(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
   const [mode, setMode] = useState<'upload' | 'url'>('upload');
   const [uploading, setUploading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
   const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
     setUploading(true);
+    setError(null);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -26,9 +35,18 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
         const { url } = await res.json();
         setPreview(url);
         onImageSelected(url);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Upload failed. Try a different image format.');
       }
+    } catch {
+      setError('Upload failed. Check your connection and try again.');
     } finally {
       setUploading(false);
+      // Reset file input so the same file can be selected again
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
     }
   }
 
@@ -85,10 +103,12 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
               : 'border-card-border hover:border-gold/50'
           }`}
         >
+          {/* Multiple inputs for better iOS compatibility */}
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
+            accept="image/*"
+            capture={isIOS() ? 'environment' : undefined}
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -98,9 +118,17 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
           {uploading ? (
             <p className="text-sm text-text-muted">Uploading...</p>
           ) : (
-            <p className="text-sm text-text-muted">
-              Drop image here or click to browse
-            </p>
+            <div>
+              <p className="text-sm text-text-muted">
+                {isIOS() ? 'Tap to take photo or choose from library' : 'Drop image here or click to browse'}
+              </p>
+              <p className="text-xs text-text-muted mt-1 opacity-70">
+                Supports JPG, PNG, GIF, WebP
+              </p>
+            </div>
+          )}
+          {error && (
+            <p className="text-xs text-red-400 mt-2">{error}</p>
           )}
         </div>
       ) : (

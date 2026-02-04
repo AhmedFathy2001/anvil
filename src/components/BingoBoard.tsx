@@ -10,6 +10,9 @@ interface Tile {
   description?: string | null;
   tileType?: string;
   requiredAmount?: number | null;
+  trackedStat?: string | null;
+  statGoal?: number | null;
+  statType?: string | null;
 }
 
 interface Completion {
@@ -32,6 +35,7 @@ interface BingoBoardProps {
   interactive?: boolean;
   onTileClick?: (tileId: number) => void;
   dropProgress?: Map<number, { current: number; required: number }>;
+  statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
 }
 
@@ -44,6 +48,7 @@ export default function BingoBoard({
   interactive,
   onTileClick,
   dropProgress,
+  statProgress,
   expanded,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
@@ -72,6 +77,7 @@ export default function BingoBoard({
           });
 
         const progress = dropProgress?.get(tile.id);
+        const tileStat = statProgress?.get(tile.id);
 
         return (
           <TileCell
@@ -84,6 +90,7 @@ export default function BingoBoard({
             size={boardSize}
             tileType={tile.tileType}
             progress={progress}
+            statProgress={tileStat}
             expanded={expanded}
           />
         );

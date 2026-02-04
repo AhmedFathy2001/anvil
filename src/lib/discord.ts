@@ -148,6 +148,56 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   return sendDiscordWebhook({ embeds: [embed] });
 }
 
+interface SubmissionDeletedParams {
+  eventName: string;
+  tileLabel: string;
+  teamName: string;
+  teamColor: string;
+  creditPlayerName: string | null;
+  amount: number;
+  deletedBy: string;
+  deletedByRole: string;
+  reason: string;
+}
+
+export async function notifySubmissionDeleted(params: SubmissionDeletedParams): Promise<boolean> {
+  const {
+    eventName,
+    tileLabel,
+    teamName,
+    teamColor,
+    creditPlayerName,
+    amount,
+    deletedBy,
+    deletedByRole,
+    reason,
+  } = params;
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Event', value: eventName, inline: true },
+    { name: 'Tile', value: tileLabel, inline: true },
+    { name: 'Team', value: teamName, inline: true },
+  ];
+
+  if (creditPlayerName) {
+    fields.push({ name: 'Player', value: creditPlayerName, inline: true });
+  }
+
+  fields.push({ name: 'Amount Removed', value: `x${amount}`, inline: true });
+  fields.push({ name: 'Deleted By', value: `${deletedBy} (${deletedByRole})`, inline: true });
+  fields.push({ name: 'Reason', value: reason, inline: false });
+
+  const embed: DiscordEmbed = {
+    title: '🗑️ Submission Deleted',
+    description: '━━━━━━━━━━━━━━━━━━━━',
+    color: teamColorToDecimal(teamColor),
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendDiscordWebhook({ embeds: [embed] });
+}
+
 interface TileCompletionNotifyParams {
   eventName: string;
   tileLabel: string;

@@ -269,8 +269,8 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
     }
   }
 
-  async function handleDeleteSubmission(submissionId: number) {
-    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}`, {
+  async function handleDeleteSubmission(submissionId: number, reason: string) {
+    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, {
       method: 'DELETE',
     });
     if (res.ok) {

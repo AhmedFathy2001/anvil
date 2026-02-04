@@ -4,7 +4,7 @@ import { submissions, tiles, teams, players, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
-import { notifySubmission } from '@/lib/discord';
+import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 
 export async function GET(
   request: Request,
@@ -222,6 +222,7 @@ export async function DELETE(
 
   const { searchParams } = new URL(request.url);
   const submissionId = searchParams.get('submissionId');
+  const reason = searchParams.get('reason') || 'No reason provided';
 
   if (!submissionId) {
     return NextResponse.json({ error: 'submissionId query parameter required' }, { status: 400 });
@@ -238,7 +239,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Get the submission
+  // Get the submission with player info
   const submission = await db.query.submissions.findFirst({
     where: eq(submissions.id, sId),
   });
@@ -254,15 +255,57 @@ export async function DELETE(
     return NextResponse.json({ error: 'Submission not in this event' }, { status: 404 });
   }
 
-  // Auth checks: admin can delete any, captain their team, player their own
+  // Get team info for Discord notification
+  const team = await db.query.teams.findFirst({
+    where: eq(teams.id, submission.teamId),
+  });
+
+  // Get event info for Discord notification
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+  });
+
+  // Get credit player name if exists
+  let creditPlayerName: string | null = null;
+  if (submission.creditPlayerId) {
+    const creditPlayer = await db.query.players.findFirst({
+      where: eq(players.id, submission.creditPlayerId),
+    });
+    creditPlayerName = creditPlayer?.name || null;
+  }
+
+  // Determine who is deleting
+  let deletedByName = 'Admin';
+  let deletedByRole = 'admin';
   if (!isAdmin) {
-    if (captain && captain.teamId !== submission.teamId) {
-      return NextResponse.json({ error: 'Cannot delete submissions from another team' }, { status: 403 });
+    if (captain) {
+      deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
+      deletedByRole = 'captain';
     }
     if (player) {
+      const playerRecord = await db.query.players.findFirst({
+        where: eq(players.id, player.playerId),
+      });
+      deletedByName = playerRecord?.name || 'Player';
+      deletedByRole = 'player';
+    }
+  }
+
+  // Auth checks: admin can delete any, captain their team, player their own
+  // Priority: admin > captain > player
+  if (!isAdmin) {
+    // Captain can delete any submission from their team
+    if (captain && captain.teamId === submission.teamId) {
+      // Allowed - captain can delete team submissions
+    } else if (player) {
+      // Player can only delete their own submissions (where they are the uploader)
       if (player.teamId !== submission.teamId || player.playerId !== submission.playerId) {
         return NextResponse.json({ error: 'Can only delete your own submissions' }, { status: 403 });
       }
+    } else if (captain && captain.teamId !== submission.teamId) {
+      return NextResponse.json({ error: 'Cannot delete submissions from another team' }, { status: 403 });
+    } else {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
 
@@ -270,6 +313,21 @@ export async function DELETE(
 
   // Sync completion
   const syncResult = await syncDropTileCompletion(submission.tileId, submission.teamId);
+
+  // Send Discord notification for deletion
+  if (team && event) {
+    notifySubmissionDeleted({
+      eventName: event.name,
+      tileLabel: tile.label,
+      teamName: team.name,
+      teamColor: team.color,
+      creditPlayerName,
+      amount: submission.amount,
+      deletedBy: deletedByName,
+      deletedByRole,
+      reason,
+    }).catch(() => {}); // Silently ignore errors
+  }
 
   return NextResponse.json({ success: true, sync: syncResult });
 }

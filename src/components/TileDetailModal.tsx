@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
+import { formatNumber } from '@/lib/utils';
 
 interface Tile {
   id: number;
@@ -77,7 +78,7 @@ interface Props {
   canManage: boolean;
   canToggle: boolean;
   onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null }) => Promise<void>;
-  onDelete?: (submissionId: number) => Promise<void>;
+  onDelete?: (submissionId: number, reason: string) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
   eventId: number;
@@ -107,7 +108,7 @@ export default function TileDetailModal({
   statProgress,
 }: Props) {
   const [amount, setAmount] = useState('1');
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>(['']);
   const [note, setNote] = useState('');
   const [creditPlayerId, setCreditPlayerId] = useState<string>(currentPlayerId ? String(currentPlayerId) : '');
   const [submitting, setSubmitting] = useState(false);
@@ -118,11 +119,29 @@ export default function TileDetailModal({
   const [womPlayers, setWomPlayers] = useState<WomPlayerStanding[]>([]);
   const [womLoading, setWomLoading] = useState(false);
   const [showWomPlayers, setShowWomPlayers] = useState(false);
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+
+  const parsedAmount = parseInt(amount, 10) || 1;
+
+  // Update image URL array when amount changes
+  useEffect(() => {
+    const targetLength = Math.max(1, parsedAmount);
+    setImageUrls((prev) => {
+      if (prev.length === targetLength) return prev;
+      if (prev.length < targetLength) {
+        return [...prev, ...Array(targetLength - prev.length).fill('')];
+      }
+      return prev.slice(0, targetLength);
+    });
+  }, [parsedAmount]);
 
   // Reset form when tile changes or modal opens
   useEffect(() => {
     setAmount('1');
-    setImageUrl('');
+    setImageUrls(['']);
     setNote('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
@@ -160,9 +179,16 @@ export default function TileDetailModal({
     e.preventDefault();
     if (!onSubmit || !teamId) return;
 
-    // Validate image
-    if (!imageUrl || !imageUrl.trim()) {
-      setError('Please upload an image as evidence');
+    // Validate all images are uploaded
+    const validImages = imageUrls.filter((url) => url && url.trim());
+    if (validImages.length === 0) {
+      setError('Please upload at least one image as evidence');
+      return;
+    }
+
+    // If amount > 1, require all images
+    if (parsedAmount > 1 && validImages.length < parsedAmount) {
+      setError(`Please upload ${parsedAmount} images (one for each drop)`);
       return;
     }
 
@@ -175,16 +201,32 @@ export default function TileDetailModal({
     setError('');
     setSubmitting(true);
     try {
-      await onSubmit({
-        tileId: tile.id,
-        teamId,
-        amount: parseInt(amount, 10) || 1,
-        imageUrl,
-        note,
-        creditPlayerId: parseInt(creditPlayerId, 10),
-      });
+      // Submit each image as a separate submission with amount=1
+      // Or if only 1 image, submit with the full amount
+      if (validImages.length === 1) {
+        await onSubmit({
+          tileId: tile.id,
+          teamId,
+          amount: parsedAmount,
+          imageUrl: validImages[0],
+          note,
+          creditPlayerId: parseInt(creditPlayerId, 10),
+        });
+      } else {
+        // Multiple images = multiple submissions
+        for (const url of validImages) {
+          await onSubmit({
+            tileId: tile.id,
+            teamId,
+            amount: 1,
+            imageUrl: url,
+            note,
+            creditPlayerId: parseInt(creditPlayerId, 10),
+          });
+        }
+      }
       setAmount('1');
-      setImageUrl('');
+      setImageUrls(['']);
       setNote('');
       setCreditPlayerId('');
     } finally {
@@ -192,14 +234,39 @@ export default function TileDetailModal({
     }
   }
 
-  async function handleDelete(submissionId: number) {
-    if (!onDelete) return;
-    setDeletingId(submissionId);
+  function openDeleteModal(submissionId: number) {
+    setDeleteSubmissionId(submissionId);
+    setDeleteReason('');
+    setDeleteModalOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!onDelete || !deleteSubmissionId) return;
+    if (!deleteReason.trim()) return;
+    setDeletingId(deleteSubmissionId);
     try {
-      await onDelete(submissionId);
+      await onDelete(deleteSubmissionId, deleteReason.trim());
+      setDeleteModalOpen(false);
+      setDeleteSubmissionId(null);
+      setDeleteReason('');
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function cancelDelete() {
+    setDeleteModalOpen(false);
+    setDeleteSubmissionId(null);
+    setDeleteReason('');
+  }
+
+  // Check if user can delete a specific submission
+  function canDeleteSubmission(submission: Submission): boolean {
+    // If canManage is true (captain/admin), can delete any team submission
+    if (canManage) return true;
+    // Otherwise, players can only delete their own submissions (where they uploaded it)
+    if (currentPlayerId && submission.playerId === currentPlayerId) return true;
+    return false;
   }
 
   async function handleToggle() {
@@ -307,7 +374,29 @@ export default function TileDetailModal({
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Player Progress ({tile.trackedStat})
               </h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              {/* Team total */}
+              {tile.statGoal && (
+                <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-text-muted">Team Total</span>
+                    <span className="font-medium text-blue-400">
+                      {formatNumber(statProgress.reduce((sum, p) => sum + p.gained, 0))} / {formatNumber(tile.statGoal)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, (statProgress.reduce((sum, p) => sum + p.gained, 0) / tile.statGoal) * 100)}%`,
+                        background: statProgress.reduce((sum, p) => sum + p.gained, 0) >= tile.statGoal
+                          ? 'linear-gradient(90deg, #22c55e, #4ade80)'
+                          : 'linear-gradient(90deg, #3b82f6cc, #3b82f6)',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2 max-h-48 overflow-y-auto">
                 {statProgress.sort((a, b) => b.gained - a.gained).map((p) => {
                   const goal = tile.statGoal || 0;
                   const percentage = goal > 0 ? Math.min(100, (p.gained / goal) * 100) : 0;
@@ -319,8 +408,8 @@ export default function TileDetailModal({
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-foreground">{p.playerName}</span>
-                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-gold'}`}>
-                          +{p.gained.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
+                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`}>
+                          +{formatNumber(p.gained)} {tile.statType === 'boss' ? 'KC' : 'XP'}
                         </span>
                       </div>
                       {goal > 0 && (
@@ -337,7 +426,7 @@ export default function TileDetailModal({
                         </div>
                       )}
                       <div className="text-xs text-text-muted mt-1">
-                        Current: {p.current.toLocaleString()}
+                        Current: {formatNumber(p.current)}
                       </div>
                     </div>
                   );
@@ -386,7 +475,7 @@ export default function TileDetailModal({
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-bold text-indigo-400">
-                            {wt.totalGained.toLocaleString()}
+                            {formatNumber(wt.totalGained)}
                           </span>
                           <div className="text-[10px] text-text-muted">MVP: {wt.mvp}</div>
                         </div>
@@ -421,7 +510,7 @@ export default function TileDetailModal({
                             <span>{wp.localPlayerName || wp.womPlayerName}</span>
                           </div>
                           <span className="text-indigo-400 font-medium">
-                            +{wp.gained.toLocaleString()}
+                            +{formatNumber(wp.gained)}
                           </span>
                         </div>
                       ))}
@@ -485,9 +574,9 @@ export default function TileDetailModal({
                           <p className="text-xs text-text-muted mt-1">{s.note}</p>
                         )}
                       </div>
-                      {canManage && onDelete && (
+                      {canDeleteSubmission(s) && onDelete && (
                         <button
-                          onClick={() => handleDelete(s.id)}
+                          onClick={() => openDeleteModal(s.id)}
                           disabled={deletingId === s.id}
                           className="text-xs text-red-400 hover:text-red-300 transition-colors flex-shrink-0"
                         >
@@ -547,11 +636,36 @@ export default function TileDetailModal({
               </div>
 
               <div>
-                <label className="block text-xs text-text-muted mb-1">Evidence Screenshot *</label>
-                <ImageUpload
-                  onImageSelected={setImageUrl}
-                  currentUrl={imageUrl || undefined}
-                />
+                <label className="block text-xs text-text-muted mb-1">
+                  Evidence Screenshot{parsedAmount > 1 ? 's' : ''} *
+                  {parsedAmount > 1 && (
+                    <span className="text-yellow-400 ml-1">({imageUrls.filter(u => u).length}/{parsedAmount} uploaded)</span>
+                  )}
+                </label>
+                {parsedAmount === 1 ? (
+                  <ImageUpload
+                    onImageSelected={(url) => setImageUrls([url])}
+                    currentUrl={imageUrls[0] || undefined}
+                  />
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {imageUrls.map((url, index) => (
+                      <div key={index} className="border border-card-border/50 rounded-lg p-2 bg-brown-dark/30">
+                        <p className="text-xs text-text-muted mb-1">Drop #{index + 1}</p>
+                        <ImageUpload
+                          onImageSelected={(newUrl) => {
+                            setImageUrls((prev) => {
+                              const updated = [...prev];
+                              updated[index] = newUrl;
+                              return updated;
+                            });
+                          }}
+                          currentUrl={url || undefined}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -580,6 +694,45 @@ export default function TileDetailModal({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={cancelDelete} />
+          <div className="relative bg-card-bg border border-card-border rounded-xl w-full max-w-sm p-4 shadow-2xl">
+            <h3 className="text-lg font-bold text-foreground mb-3">Confirm Deletion</h3>
+            <p className="text-sm text-text-muted mb-4">
+              Are you sure you want to delete this submission? This action will be announced in Discord.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs text-text-muted mb-1">Reason for deletion *</label>
+              <textarea
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="e.g., Duplicate submission, Wrong tile, etc."
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground resize-none"
+                rows={2}
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 py-2 text-sm font-medium rounded border border-card-border text-text-muted hover:bg-brown-dark transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={!deleteReason.trim() || deletingId !== null}
+                className="flex-1 py-2 text-sm font-semibold rounded bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+              >
+                {deletingId !== null ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

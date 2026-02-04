@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 
 interface TileCellProps {
   label: string;
@@ -11,14 +11,16 @@ interface TileCellProps {
   size: number;
   tileType?: string;
   progress?: { current: number; required: number };
+  statProgress?: { current: number; goal: number; statType?: string };
   expanded?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, expanded }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   const isDrop = tileType === 'drop';
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
+  const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
   return (
     <button
@@ -27,8 +29,9 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       className={cn(
         'relative flex flex-col items-center justify-center text-center transition-all duration-200',
         'aspect-square overflow-hidden rounded-lg border-2',
-        !isCompleted && !hasPartialProgress && 'bg-tile-bg border-tile-border',
+        !isCompleted && !hasPartialProgress && !hasStatProgress && 'bg-tile-bg border-tile-border',
         hasPartialProgress && 'bg-yellow-900/10 border-yellow-600/40',
+        hasStatProgress && !hasPartialProgress && 'bg-blue-900/10 border-blue-500/40',
         interactive && !isCompleted && 'cursor-pointer hover:border-gold/60 hover:bg-card-bg-hover hover:scale-[1.03] hover:shadow-lg hover:shadow-gold/5',
         interactive && isCompleted && 'cursor-pointer hover:scale-[1.03] hover:brightness-110',
         !interactive && onClick && 'cursor-pointer hover:border-gold/40 hover:scale-[1.02]',
@@ -110,6 +113,26 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
               style={{
                 width: `${Math.min(100, (progress.current / progress.required) * 100)}%`,
                 background: 'linear-gradient(90deg, #eab308cc, #eab308)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Stat/XP tile progress indicator */}
+      {statProgress && statProgress.goal > 0 && !isCompleted && (
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="flex items-center justify-center mb-0.5">
+            <span className="text-[8px] sm:text-[10px] text-blue-400 font-medium">
+              {formatNumber(statProgress.current)}/{formatNumber(statProgress.goal)}
+            </span>
+          </div>
+          <div className="h-1 bg-brown-dark/60 rounded-b-lg overflow-hidden">
+            <div
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${Math.min(100, (statProgress.current / statProgress.goal) * 100)}%`,
+                background: 'linear-gradient(90deg, #3b82f6cc, #3b82f6)',
               }}
             />
           </div>
