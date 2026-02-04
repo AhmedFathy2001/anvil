@@ -602,9 +602,28 @@ export default function TileDetailModal({
           )}
 
           {/* Submit form for drop tiles */}
-          {isDrop && canSubmit && onSubmit && teamId && (
+          {isDrop && canSubmit && onSubmit && teamId && (() => {
+            const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
+            const maxAmount = remaining ?? 99;
+            const isComplete = remaining === 0;
+
+            if (isComplete) {
+              return (
+                <div className="border border-accent-green/30 rounded-lg p-3 bg-accent-green/10 text-center">
+                  <p className="text-sm text-accent-green-light font-medium">Tile Complete!</p>
+                  <p className="text-xs text-text-muted mt-1">All required drops have been submitted.</p>
+                </div>
+              );
+            }
+
+            return (
             <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
+              {remaining !== undefined && (
+                <p className="text-xs text-yellow-400">
+                  {remaining} more drop{remaining !== 1 ? 's' : ''} needed to complete this tile
+                </p>
+              )}
 
               {/* Who got this drop */}
               <div>
@@ -625,12 +644,18 @@ export default function TileDetailModal({
               </div>
 
               <div>
-                <label className="block text-xs text-text-muted mb-1">Amount</label>
+                <label className="block text-xs text-text-muted mb-1">
+                  Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
+                </label>
                 <input
                   type="number"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10) || 1;
+                    setAmount(String(Math.min(val, maxAmount)));
+                  }}
                   min="1"
+                  max={maxAmount}
                   className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
                 />
               </div>
@@ -691,7 +716,8 @@ export default function TileDetailModal({
                 {submitting ? 'Submitting...' : 'Submit'}
               </button>
             </form>
-          )}
+            );
+          })()}
         </div>
       </div>
 

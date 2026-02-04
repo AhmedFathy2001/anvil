@@ -319,6 +319,20 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
     }
   }
 
+  // Build stat progress map for tiles
+  const statProgress = new Map<number, { current: number; goal: number; statType?: string }>();
+  for (const tile of tiles) {
+    if (tile.trackedStat && tile.statGoal) {
+      const tileGains = gains[tile.id] || [];
+      const totalGained = tileGains.reduce((sum, p) => sum + p.gained, 0);
+      statProgress.set(tile.id, {
+        current: totalGained,
+        goal: tile.statGoal,
+        statType: tile.statType || undefined,
+      });
+    }
+  }
+
   const completed = completions.length;
   const total = tiles.length;
   const tilesLeft = total - completed;
@@ -454,6 +468,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
         interactive
         onTileClick={handleTileClick}
         dropProgress={dropProgress}
+        statProgress={statProgress}
       />
 
       {/* Team Roster */}
