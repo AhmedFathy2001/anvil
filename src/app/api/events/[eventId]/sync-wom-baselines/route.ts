@@ -28,7 +28,7 @@ async function fetchCompetition(id: number): Promise<WomCompetition | null> {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const isAdmin = await verifyAdmin();
@@ -38,6 +38,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+
+  // Parse optional metric filter from query string
+  const url = new URL(request.url);
+  const metricFilter = url.searchParams.get('metric');
 
   // Get all tiles with WOM competition IDs
   const eventTiles = await db.query.tiles.findMany({
@@ -63,6 +67,11 @@ export async function POST(
       continue;
     }
 
+    // Skip if metric filter is set and doesn't match
+    if (metricFilter && data.metric !== metricFilter) {
+      continue;
+    }
+
     fetchedCompetitions.push(`${data.metric} (${compId})`);
 
     // Use the first competition's start time as the baseline timestamp
@@ -70,7 +79,7 @@ export async function POST(
       competitionStartTime = data.startsAt;
     }
 
-    const metric = data.metric; // e.g., 'runecrafting', 'zulrah', etc.
+    const metric = data.metric; // e.g., 'runecraft', 'zulrah', etc.
 
     for (const p of data.participations || []) {
       const name = p.player.displayName.toLowerCase();
@@ -122,12 +131,12 @@ export async function POST(
       // Determine if this is a skill or boss based on the metric name
       // Skills: attack, defence, strength, hitpoints, ranged, prayer, magic, cooking,
       // woodcutting, fletching, fishing, firemaking, crafting, smithing, mining,
-      // herblore, agility, thieving, slayer, farming, runecrafting, hunter, construction, sailing
+      // herblore, agility, thieving, slayer, farming, runecraft, hunter, construction, sailing
       const skillNames = [
         'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic',
         'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting',
         'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming',
-        'runecrafting', 'hunter', 'construction', 'sailing', 'overall'
+        'runecraft', 'hunter', 'construction', 'sailing', 'overall'
       ];
 
       if (skillNames.includes(metric)) {

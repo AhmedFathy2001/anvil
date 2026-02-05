@@ -174,6 +174,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
   const [syncingWom, setSyncingWom] = useState(false);
+  const [womSyncMetric, setWomSyncMetric] = useState('');
   const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[]; updated?: number; skipped?: number; notFound?: string[]; competitions?: string[]; error?: string } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
@@ -380,7 +381,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     setSyncingWom(true);
     setSnapshotResult(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/sync-wom-baselines`, { method: 'POST' });
+      const url = womSyncMetric
+        ? `/api/events/${event.id}/sync-wom-baselines?metric=${encodeURIComponent(womSyncMetric)}`
+        : `/api/events/${event.id}/sync-wom-baselines`;
+      const res = await fetch(url, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setSnapshotResult(data);
@@ -651,6 +655,40 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
               </button>
             </div>
             <div className="flex gap-2">
+              <select
+                value={womSyncMetric}
+                onChange={(e) => setWomSyncMetric(e.target.value)}
+                className="px-2 py-2 text-sm rounded bg-brown-dark border border-gold/30 text-text-light"
+              >
+                <option value="">All Skills</option>
+                <optgroup label="Skills">
+                  <option value="overall">Overall</option>
+                  <option value="attack">Attack</option>
+                  <option value="defence">Defence</option>
+                  <option value="strength">Strength</option>
+                  <option value="hitpoints">Hitpoints</option>
+                  <option value="ranged">Ranged</option>
+                  <option value="prayer">Prayer</option>
+                  <option value="magic">Magic</option>
+                  <option value="cooking">Cooking</option>
+                  <option value="woodcutting">Woodcutting</option>
+                  <option value="fletching">Fletching</option>
+                  <option value="fishing">Fishing</option>
+                  <option value="firemaking">Firemaking</option>
+                  <option value="crafting">Crafting</option>
+                  <option value="smithing">Smithing</option>
+                  <option value="mining">Mining</option>
+                  <option value="herblore">Herblore</option>
+                  <option value="agility">Agility</option>
+                  <option value="thieving">Thieving</option>
+                  <option value="slayer">Slayer</option>
+                  <option value="farming">Farming</option>
+                  <option value="runecraft">Runecraft</option>
+                  <option value="hunter">Hunter</option>
+                  <option value="construction">Construction</option>
+                  <option value="sailing">Sailing</option>
+                </optgroup>
+              </select>
               <button
                 onClick={syncWomBaselines}
                 disabled={syncingWom || snapshotting || forceResetting}
