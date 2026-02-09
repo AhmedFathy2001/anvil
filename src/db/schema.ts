@@ -13,6 +13,8 @@ export const events = sqliteTable('events', {
   womCompetitionId: integer('wom_competition_id'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  forceEndedAt: text('force_ended_at'),
+  originalEndDate: text('original_end_date'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -83,3 +85,37 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value'),
 });
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  username: text('username').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role').notNull().default('moderator'), // 'admin' | 'moderator'
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdBy: integer('created_by'),
+});
+
+export const weeklyCompetitions = sqliteTable('weekly_competitions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  type: text('type').notNull(), // 'skill' | 'boss'
+  metric: text('metric').notNull(), // e.g. 'attack', 'zulrah'
+  title: text('title').notNull(),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  womCompetitionId: integer('wom_competition_id'),
+  status: text('status').notNull().default('upcoming'), // 'upcoming' | 'active' | 'completed'
+});
+
+export const weeklyParticipants = sqliteTable('weekly_participants', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  rsn: text('rsn').notNull(),
+  baselineValue: integer('baseline_value'),
+  currentValue: integer('current_value'),
+  lastUpdated: text('last_updated'),
+}, (table) => [
+  uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsn),
+]);

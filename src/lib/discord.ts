@@ -348,6 +348,30 @@ interface EventEndNotifyParams {
   totalTiles: number;
 }
 
+export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
+  const { eventName, standings, totalTiles } = params;
+
+  const standingsText = standings
+    .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
+    .map((s, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} tiles`;
+    })
+    .join('\n');
+
+  const embed: DiscordEmbed = {
+    title: '🛑 Bingo Event Force-Ended!',
+    description: `**${eventName}** has been force-ended by an admin.\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xff0000, // Red
+    fields: [
+      { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
+}
+
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
   const { eventName, standings, totalTiles } = params;
 

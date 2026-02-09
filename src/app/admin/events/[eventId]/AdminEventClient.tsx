@@ -78,6 +78,8 @@ interface Event {
   startDate: string | null;
   endDate: string | null;
   womCompetitionId: number | null;
+  forceEndedAt: string | null;
+  originalEndDate: string | null;
 }
 
 interface Player {
@@ -201,8 +203,15 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [showStatTracking, setShowStatTracking] = useState(false);
   const [editingBaselinePlayer, setEditingBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<{ id: number; name: string; discord: string | null; timezone: string | null } | null>(null);
+  const [forceEnding, setForceEnding] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [currentEvent, setCurrentEvent] = useState(event);
 
-  const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
+  const eventStarted = currentEvent.startDate ? new Date(currentEvent.startDate) <= new Date() : false;
+  const eventEnded = currentEvent.endDate ? new Date(currentEvent.endDate) <= new Date() : false;
+  const isForceEnded = !!currentEvent.forceEndedAt;
+  const isActive = eventStarted && !eventEnded;
 
   // Real-time updates via smart polling
   const { connected: streamConnected } = useEventStream(event.id, {
@@ -465,6 +474,54 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     }
   }
 
+  async function forceEndEvent() {
+    if (!confirm('Are you sure you want to force-end this event? This will end the event immediately and notify Discord.')) {
+      return;
+    }
+    setForceEnding(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force-end' }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        setEndDate(utcToLocal(updated.endDate));
+        router.refresh();
+      }
+    } finally {
+      setForceEnding(false);
+    }
+  }
+
+  async function resumeEvent() {
+    const originalEnd = currentEvent.originalEndDate;
+    const originalPassed = originalEnd && new Date(originalEnd) < new Date();
+    const msg = originalPassed
+      ? 'The original end date has already passed. The event will resume with that expired end date. Continue?'
+      : 'Are you sure you want to resume this event?';
+    if (!confirm(msg)) return;
+
+    setResuming(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resume' }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        setEndDate(utcToLocal(updated.endDate));
+        router.refresh();
+      }
+    } finally {
+      setResuming(false);
+    }
+  }
+
   function handleTileConfigSaved(tileId: number, updated: {
     label: string;
     description: string | null;
@@ -506,6 +563,129 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           <span className={`w-1.5 h-1.5 rounded-full ${streamConnected ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
           {streamConnected ? 'Live' : 'Connecting...'}
         </span>
+      </div>
+
+      {/* Event Details Card */}
+      <div className="border border-card-border rounded-xl p-5 bg-card-bg mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Event Details
+          </h2>
+          <div className="flex items-center gap-2">
+            {/* Status Badge */}
+            {isForceEnded ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">
+                Force-Ended
+              </span>
+            ) : eventEnded ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-text-muted/15 text-text-muted border border-text-muted/25">
+                Ended
+              </span>
+            ) : isActive ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/25">
+                Active
+              </span>
+            ) : (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                Upcoming
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Name</label>
+            <p className="text-sm font-medium">{currentEvent.name}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Board Size</label>
+            <p className="text-sm font-medium">{currentEvent.boardSize}x{currentEvent.boardSize}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Start Date</label>
+            {editMode ? (
+              <input
+                type="datetime-local"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+            ) : (
+              <p className="text-sm font-medium">
+                {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">End Date</label>
+            {editMode ? (
+              <input
+                type="datetime-local"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+            ) : (
+              <p className="text-sm font-medium">
+                {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {editMode && (
+          <p className="text-xs text-text-muted mb-3">Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              if (editMode) {
+                saveDates();
+              }
+              setEditMode(!editMode);
+            }}
+            disabled={savingDates}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/20 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+          >
+            {editMode ? (savingDates ? 'Saving...' : 'Save Dates') : 'Edit Dates'}
+          </button>
+
+          {editMode && (
+            <button
+              onClick={() => {
+                setStartDate(utcToLocal(currentEvent.startDate));
+                setEndDate(utcToLocal(currentEvent.endDate));
+                setEditMode(false);
+              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+
+          {isActive && !isForceEnded && (
+            <button
+              onClick={forceEndEvent}
+              disabled={forceEnding}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+            >
+              {forceEnding ? 'Ending...' : 'Force End Event'}
+            </button>
+          )}
+
+          {isForceEnded && (
+            <button
+              onClick={resumeEvent}
+              disabled={resuming}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+            >
+              {resuming ? 'Resuming...' : 'Resume Event'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
@@ -596,40 +776,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
 
         {showStatTracking && (
         <>
-        <div className="grid gap-6 lg:grid-cols-2 mb-8">
-          {/* Event Dates */}
-          <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
-            <h3 className="text-sm font-bold text-gold">Event Dates</h3>
-            <p className="text-xs text-text-muted mb-2">Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Start Date</label>
-                <input
-                  type="datetime-local"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">End Date</label>
-                <input
-                  type="datetime-local"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-                />
-              </div>
-            </div>
-            <button
-              onClick={saveDates}
-              disabled={savingDates}
-              className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
-            >
-              {savingDates ? 'Saving...' : 'Save Dates'}
-            </button>
-          </div>
-
+        <div className="grid gap-6 lg:grid-cols-1 mb-8">
           {/* Hiscores Management */}
           <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
             <h3 className="text-sm font-bold text-gold">Hiscores Management</h3>

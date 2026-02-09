@@ -81,6 +81,8 @@ export async function GET(request: Request) {
 
   // Filter to only active events for stat tracking
   const activeEvents = allEvents.filter((e) => {
+    // Skip force-ended events
+    if (e.forceEndedAt) return false;
     // Event has started
     if (e.startDate && e.startDate > now) return false;
     // Event hasn't ended

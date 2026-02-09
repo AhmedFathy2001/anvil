@@ -67,6 +67,7 @@ interface Event {
   womCompetitionId?: number | null;
   startDate?: string | null;
   endDate?: string | null;
+  forceEndedAt?: string | null;
 }
 
 interface WomTeamStanding {
@@ -140,6 +141,11 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   // Countdown / time remaining timer
   useEffect(() => {
     const updateTime = () => {
+      if (event.forceEndedAt) {
+        setTimeDisplay('Event force-ended');
+        return;
+      }
+
       const now = Date.now();
 
       if (event.startDate) {
@@ -167,7 +173,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [event.startDate, event.endDate]);
+  }, [event.startDate, event.endDate, event.forceEndedAt]);
 
   // Fetch tile-level WOM data when selecting a tile with WOM linked
   useEffect(() => {
