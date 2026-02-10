@@ -71,6 +71,13 @@
       "when": 1770666545680,
       "tag": "0009_chubby_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1770667386972,
+      "tag": "0010_famous_deathbird",
+      "breakpoints": true
     }
   ]
 }

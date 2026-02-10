@@ -73,8 +73,18 @@ export async function middleware(request: NextRequest) {
     }
     try {
       const data = JSON.parse(payload);
-      if (data.role !== 'admin') {
+      const role = data.role;
+
+      // Must be admin or moderator
+      if (role !== 'admin' && role !== 'moderator') {
         return NextResponse.redirect(new URL('/admin', request.url));
+      }
+
+      // Moderators can only access /admin/weekly* routes
+      if (role === 'moderator') {
+        if (!pathname.startsWith('/admin/weekly')) {
+          return NextResponse.redirect(new URL('/admin/weekly', request.url));
+        }
       }
     } catch {
       return NextResponse.redirect(new URL('/admin', request.url));

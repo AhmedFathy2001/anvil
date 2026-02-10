@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 
@@ -72,8 +72,9 @@ export async function POST(
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
+  const pluginAuth = await verifyPluginToken(request);
 
-  if (!isAdmin && !captain && !player) {
+  if (!isAdmin && !captain && !player && !pluginAuth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -83,6 +84,9 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
     }
     if (player && player.teamId !== teamId) {
+      return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
+    }
+    if (pluginAuth && pluginAuth.teamId !== teamId) {
       return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
     }
   }
@@ -144,6 +148,8 @@ export async function POST(
   let uploaderId: number | null = null;
   if (player) {
     uploaderId = player.playerId;
+  } else if (pluginAuth) {
+    uploaderId = pluginAuth.playerId;
   } else if (captain) {
     // Captain submitting - they are the uploader
     // Find captain's player record if they have one

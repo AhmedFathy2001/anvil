@@ -29,7 +29,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -63,6 +63,11 @@ export async function PUT(
     // optional is always editable
     optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,
   };
+
+  // trackedItemIds is always editable (admin can update plugin mappings anytime)
+  if (trackedItemIds !== undefined) {
+    updateSet.trackedItemIds = trackedItemIds ? JSON.stringify(trackedItemIds) : null;
+  }
 
   // label, tileType, requiredAmount only editable before event start
   if (!eventStarted) {

@@ -48,3 +48,6 @@ public/uploads/*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# RuneLite plugin (separate git repo)
+/plugin/

@@ -32,6 +32,7 @@ export const tiles = sqliteTable('tiles', {
   trackingMode: text('tracking_mode').default('team').notNull(),
   womCompetitionId: integer('wom_competition_id'),
   optional: integer('optional').default(0),
+  trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
 });
 
 export const teams = sqliteTable('teams', {

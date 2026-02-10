@@ -52,6 +52,7 @@ interface Tile {
   trackingMode: string;
   womCompetitionId?: number | null;
   optional?: number | null;
+  trackedItemIds?: string | null;
 }
 
 interface Team {
@@ -964,6 +965,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         trackingMode: tile.trackingMode || 'team',
                         womCompetitionId: tile.womCompetitionId ?? null,
                         optional: !!tile.optional,
+                        trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}

@@ -56,6 +56,12 @@ export default function RootLayout({
                 Player
               </Link>
               <Link
+                href="/weekly"
+                className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+              >
+                Weekly
+              </Link>
+              <Link
                 href="/admin"
                 className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
               >

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { put } from '@vercel/blob';
 import crypto from 'crypto';
 
@@ -24,8 +24,9 @@ export async function POST(request: Request) {
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
+  const pluginAuth = await verifyPluginToken(request);
 
-  if (!isAdmin && !captain && !player) {
+  if (!isAdmin && !captain && !player && !pluginAuth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

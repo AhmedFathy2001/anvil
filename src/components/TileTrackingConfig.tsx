@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { SKILLS, SKILL_LABELS, BOSSES } from "@/lib/constants";
 
 interface TileConfig {
@@ -14,6 +14,7 @@ interface TileConfig {
   trackingMode: string;
   womCompetitionId: number | null;
   optional: boolean;
+  trackedItemIds: number[] | null;
 }
 
 interface Props {
@@ -55,10 +56,68 @@ export default function TileTrackingConfig({
     initial.womCompetitionId?.toString() || "",
   );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
+  const [trackedItems, setTrackedItems] = useState<{ id: number; name: string }[]>(
+    (initial.trackedItemIds || []).map(id => ({ id, name: `Item #${id}` }))
+  );
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemResults, setItemResults] = useState<{ id: number; name: string }[]>([]);
+  const [itemSearching, setItemSearching] = useState(false);
+  const [showItemDropdown, setShowItemDropdown] = useState(false);
+  const itemSearchRef = useRef<HTMLDivElement>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingWom, setSavingWom] = useState(false);
   const [womError, setWomError] = useState<string | null>(null);
   const [womSuccess, setWomSuccess] = useState(false);
+
+  // Fetch item names for pre-existing IDs on mount
+  useEffect(() => {
+    if (!initial.trackedItemIds?.length) return;
+    // Resolve names by searching each ID
+    Promise.all(
+      initial.trackedItemIds.map(async (id) => {
+        try {
+          const res = await fetch(`/api/admin/items-search?q=${id}`);
+          if (res.ok) {
+            const results = await res.json();
+            const match = results.find((r: { id: number }) => r.id === id);
+            if (match) return match;
+          }
+        } catch { /* ignore */ }
+        return { id, name: `Item #${id}` };
+      })
+    ).then(setTrackedItems);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const searchItems = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setItemResults([]);
+      return;
+    }
+    setItemSearching(true);
+    try {
+      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const results = await res.json();
+        // Filter out already-added items
+        const existingIds = new Set(trackedItems.map(i => i.id));
+        setItemResults(results.filter((r: { id: number }) => !existingIds.has(r.id)));
+      }
+    } catch { /* ignore */ }
+    setItemSearching(false);
+  }, [trackedItems]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
+        setShowItemDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -77,6 +136,7 @@ export default function TileTrackingConfig({
           statGoal: statGoal ? parseInt(statGoal, 10) : null,
           trackingMode,
           optional,
+          trackedItemIds: trackedItems.length > 0 ? trackedItems.map(i => i.id) : null,
         }),
       });
       if (res.ok) {
@@ -92,6 +152,7 @@ export default function TileTrackingConfig({
           trackingMode: updated.trackingMode,
           womCompetitionId: updated.womCompetitionId,
           optional: !!updated.optional,
+          trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
         });
       }
     } finally {
@@ -224,6 +285,86 @@ export default function TileTrackingConfig({
             className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
             min="1"
           />
+        </div>
+      )}
+
+      {/* Tracked OSRS Item IDs (drop tiles only) — for RuneLite plugin */}
+      {tileType === "drop" && (
+        <div>
+          <label className="block text-xs text-text-muted mb-1">
+            Tracked Item IDs
+            <span className="text-text-muted/60 ml-1">(RuneLite plugin)</span>
+          </label>
+
+          {/* Added items */}
+          {trackedItems.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {trackedItems.map((item) => (
+                <span
+                  key={item.id}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                >
+                  {item.name}
+                  <span className="text-text-muted/60">#{item.id}</span>
+                  <button
+                    type="button"
+                    onClick={() => setTrackedItems(prev => prev.filter(i => i.id !== item.id))}
+                    className="ml-0.5 text-red-400 hover:text-red-300"
+                  >
+                    &times;
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Search input */}
+          <div ref={itemSearchRef} className="relative">
+            <input
+              type="text"
+              value={itemSearch}
+              onChange={(e) => {
+                const val = e.target.value;
+                setItemSearch(val);
+                setShowItemDropdown(true);
+                if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                searchTimeout.current = setTimeout(() => searchItems(val), 300);
+              }}
+              onFocus={() => itemResults.length > 0 && setShowItemDropdown(true)}
+              placeholder="Search items (e.g. Dragon warhammer)..."
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            {itemSearching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                ...
+              </span>
+            )}
+
+            {/* Dropdown results */}
+            {showItemDropdown && itemResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
+                {itemResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setTrackedItems(prev => [...prev, item]);
+                      setItemSearch("");
+                      setItemResults([]);
+                      setShowItemDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gold/10 transition-colors flex justify-between items-center"
+                  >
+                    <span className="text-foreground">{item.name}</span>
+                    <span className="text-text-muted/60 text-xs">#{item.id}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="text-[10px] text-text-muted mt-1">
+            OSRS item IDs the RuneLite plugin will auto-detect as drops for this tile.
+          </p>
         </div>
       )}
 
