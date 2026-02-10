@@ -2,17 +2,12 @@
  * Seeds a test event for plugin development.
  * Run: npx tsx scripts/seed-plugin-test.ts
  *
- * Creates:
- * - Event: "Plugin Test Bingo"
- * - Team: "Test Team"
- * - Player: "TestPlayer" with a playerToken
- * - Drop tile: "Bones" tracking item ID 526 (regular bones)
- *
- * After running, copy the playerToken into the RuneLite plugin config.
+ * Cleans up any previous "Plugin Test Bingo" events first.
  */
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
-import { events, tiles, teams, players } from '../src/db/schema';
+import { events, tiles, teams, players, submissions } from '../src/db/schema';
+import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 
@@ -37,10 +32,20 @@ const client = createClient({
 const db = drizzle(client);
 
 async function seed() {
-  // Create event (active now, ends in 7 days)
-  const now = new Date();
-  const startDate = new Date(now.getTime() - 60 * 60 * 1000).toISOString(); // started 1hr ago
-  const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // ends in 7 days
+  // Clean up old test events
+  const oldEvents = await db.select().from(events);
+  for (const evt of oldEvents) {
+    if (evt.name === 'Plugin Test Bingo') {
+      console.log(`Deleting old test event: id=${evt.id}`);
+      // Cascade deletes tiles, teams, players, submissions via FK
+      await db.delete(events).where(eq(events.id, evt.id));
+    }
+  }
+
+  // Create event with precise dates
+  // Starts now, ends Feb 17 2026 at 23:59:59 UTC
+  const startDate = '2026-02-10T19:00:00.000Z';
+  const endDate = '2026-02-17T23:59:59.000Z';
 
   const [event] = await db.insert(events).values({
     name: 'Plugin Test Bingo',
@@ -50,6 +55,8 @@ async function seed() {
   }).returning();
 
   console.log(`Created event: id=${event.id}, name="${event.name}"`);
+  console.log(`  Start: ${startDate}`);
+  console.log(`  End:   ${endDate}`);
 
   // Create team
   const [team] = await db.insert(teams).values({
@@ -72,24 +79,32 @@ async function seed() {
 
   console.log(`Created player: id=${player.id}, name="${player.name}"`);
 
-  // Create drop tile: Bones (item ID 526)
-  const [bonesTile] = await db.insert(tiles).values({
-    eventId: event.id,
-    position: 0,
-    label: 'Bones',
-    tileType: 'drop',
-    requiredAmount: 1,
-    trackedItemIds: JSON.stringify([526]),
-  }).returning();
+  // Create drop tiles with common NPC drops for easy testing
+  const dropTiles = [
+    { position: 0, label: 'Bones',        itemIds: [526],  required: 1 },
+    { position: 1, label: 'Cowhide',      itemIds: [1739], required: 2 },
+    { position: 2, label: 'Raw Chicken',   itemIds: [2138], required: 1 },
+    { position: 3, label: 'Bronze Arrows', itemIds: [882],  required: 5 },
+  ];
 
-  console.log(`Created tile: id=${bonesTile.id}, label="${bonesTile.label}", itemIds=[526]`);
+  for (const t of dropTiles) {
+    const [tile] = await db.insert(tiles).values({
+      eventId: event.id,
+      position: t.position,
+      label: t.label,
+      tileType: 'drop',
+      requiredAmount: t.required,
+      trackedItemIds: JSON.stringify(t.itemIds),
+    }).returning();
+
+    console.log(`Created tile: id=${tile.id}, label="${tile.label}", itemIds=${JSON.stringify(t.itemIds)}, required=${t.required}`);
+  }
 
   console.log('\n========================================');
   console.log('Plugin test data created successfully!');
   console.log('========================================');
-  console.log(`\nSite URL: http://localhost:3000`);
-  console.log(`Player Token: ${playerToken}`);
-  console.log('\nPaste these into the OSRS Bingo plugin settings in RuneLite.');
+  console.log(`\nPlayer Token: ${playerToken}`);
+  console.log('\nPaste this into the OSRS Bingo plugin settings in RuneLite.');
   console.log('Then kill any NPC that drops bones to trigger the auto-submit.\n');
 }
 

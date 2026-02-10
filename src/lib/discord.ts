@@ -307,8 +307,7 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     timestamp: new Date().toISOString(),
   };
 
-  // Tag @everyone for team win
-  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
+  return sendDiscordWebhook({ embeds: [embed] });
 }
 
 const BINGO_ROLE_ID = '1466184936934609008';
@@ -369,7 +368,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
+  return sendDiscordWebhook({ embeds: [embed] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -393,6 +392,5 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     timestamp: new Date().toISOString(),
   };
 
-  // Tag @everyone for event end
-  return sendDiscordWebhook({ content: '@everyone', embeds: [embed] });
+  return sendDiscordWebhook({ embeds: [embed] });
 }
