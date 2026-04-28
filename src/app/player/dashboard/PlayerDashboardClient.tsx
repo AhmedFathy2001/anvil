@@ -1,76 +1,14 @@
 'use client';
 
+import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
-
-interface Tile {
-  id: number;
-  eventId: number;
-  position: number;
-  label: string;
-  icon?: string | null;
-  description?: string | null;
-  tileType: string;
-  requiredAmount?: number | null;
-  trackedStat?: string | null;
-  statType?: string | null;
-  statGoal?: number | null;
-  trackingMode?: string | null;
-  womCompetitionId?: number | null;
-}
-
-interface PlayerGain {
-  playerId: number;
-  playerName: string;
-  gained: number;
-  current: number;
-}
-
-interface Team {
-  id: number;
-  eventId: number;
-  name: string;
-  color: string;
-}
-
-interface Completion {
-  id: number;
-  teamId: number;
-  tileId: number;
-  completedAt: string;
-}
-
-interface Event {
-  id: number;
-  name: string;
-  boardSize: number;
-  createdAt: string;
-  startDate?: string | null;
-  endDate?: string | null;
-}
-
-interface Submission {
-  id: number;
-  tileId: number;
-  teamId: number;
-  playerId: number | null;
-  creditPlayerId: number | null;
-  amount: number;
-  imageUrl: string | null;
-  note: string | null;
-  createdAt: string;
-  uploaderName?: string | null;
-  creditPlayerName?: string | null;
-}
-
-interface Player {
-  id: number;
-  name: string;
-  teamId: number | null;
-}
+import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
+import { useDropProgress } from '@/hooks/useDropProgress';
+import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 
 interface Props {
   event: Event;
@@ -89,64 +27,14 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<string | null>(null);
-  const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState<string>('');
-  const [eventCountdown, setEventCountdown] = useState<string>('');
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
 
-  // Event countdown timer
-  useEffect(() => {
-    if (!event.startDate || eventStarted) {
-      setEventCountdown('');
-      return;
-    }
-    const updateCountdown = () => {
-      const now = new Date();
-      const start = new Date(event.startDate!);
-      const diff = start.getTime() - now.getTime();
-      if (diff <= 0) {
-        setEventCountdown('');
-        return;
-      }
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const secs = Math.floor((diff % (1000 * 60)) / 1000);
-      if (days > 0) {
-        setEventCountdown(`${days}d ${hours}h ${mins}m`);
-      } else if (hours > 0) {
-        setEventCountdown(`${hours}h ${mins}m ${secs}s`);
-      } else {
-        setEventCountdown(`${mins}m ${secs}s`);
-      }
-    };
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [event.startDate, eventStarted]);
-
-  // Refresh countdown timer
-  useEffect(() => {
-    if (!nextRefresh) {
-      setCountdown('');
-      return;
-    }
-    const interval = setInterval(() => {
-      const now = new Date();
-      const diff = nextRefresh.getTime() - now.getTime();
-      if (diff <= 0) {
-        setCountdown('');
-        setNextRefresh(null);
-      } else {
-        const min = Math.floor(diff / 60000);
-        const sec = Math.floor((diff % 60000) / 1000);
-        setCountdown(`${min}:${sec.toString().padStart(2, '0')}`);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [nextRefresh]);
+  const eventCountdown = useCountdown(!eventStarted ? event.startDate : null);
+  const { countdown, nextRefresh, setNextRefresh } = useRefreshCountdown();
 
   async function refreshMyStats() {
     setRefreshing(true);
@@ -213,8 +101,17 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   }, [event.id, team.id, tiles, teamPlayers, playerId]);
 
   useEffect(() => {
-    fetchSubmissions();
-    fetchGains();
+    async function loadData() {
+      setFetchError(null);
+      try {
+        await Promise.all([fetchSubmissions(), fetchGains()]);
+        setLoading(false);
+      } catch {
+        setFetchError('Failed to load data. Please refresh.');
+        setLoading(false);
+      }
+    }
+    loadData();
   }, [fetchSubmissions, fetchGains]);
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null }) {
@@ -237,15 +134,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
     }
   }
 
-  // Build drop progress map
-  const dropProgress = new Map<number, { current: number; required: number }>();
-  for (const tile of tiles) {
-    if (tile.tileType === 'drop' && tile.requiredAmount) {
-      const tileSubs = submissions.filter((s) => s.tileId === tile.id);
-      const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
-      dropProgress.set(tile.id, { current, required: tile.requiredAmount });
-    }
-  }
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   // Build stat progress map for tiles
   const statProgress = new Map<number, { current: number; goal: number; statType?: string }>();
@@ -334,6 +223,9 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
         )}
       </div>
 
+      {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); }} />}
+      {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
+
       <BingoBoard
         tiles={tiles}
         boardSize={event.boardSize}
@@ -375,6 +267,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
           eventId={event.id}
           teamId={team.id}
           dropProgress={dropProgress.get(selectedTile.id)}
+          perItemProgress={perItemProgressMap.get(selectedTile.id)}
           teamPlayers={teamPlayers.map((p) => ({ id: p.id, name: p.name }))}
           currentPlayerId={playerId}
           statProgress={gains[selectedTile.id]}

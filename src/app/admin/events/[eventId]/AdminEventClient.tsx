@@ -1,5 +1,6 @@
 'use client';
 
+import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -35,64 +36,6 @@ function localToUtc(localString: string): string | null {
   const date = new Date(localString);
   if (isNaN(date.getTime())) return null;
   return date.toISOString();
-}
-
-interface Tile {
-  id: number;
-  eventId: number;
-  position: number;
-  label: string;
-  icon?: string | null;
-  description?: string | null;
-  tileType: string;
-  requiredAmount?: number | null;
-  trackedStat?: string | null;
-  statType?: string | null;
-  statGoal?: number | null;
-  trackingMode: string;
-  womCompetitionId?: number | null;
-  optional?: number | null;
-  trackedItemIds?: string | null;
-}
-
-interface Team {
-  id: number;
-  eventId: number;
-  name: string;
-  color: string;
-}
-
-interface Completion {
-  id: number;
-  teamId: number;
-  tileId: number;
-  completedAt: string;
-}
-
-interface Event {
-  id: number;
-  name: string;
-  boardSize: number;
-  createdAt: string;
-  draftStatus: string;
-  draftOrder: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  womCompetitionId: number | null;
-  forceEndedAt: string | null;
-  originalEndDate: string | null;
-}
-
-interface Player {
-  id: number;
-  eventId: number;
-  name: string;
-  discord: string | null;
-  timezone: string | null;
-  teamId: number | null;
-  pickNumber: number | null;
-  pickedAt: string | null;
-  playerToken: string | null;
 }
 
 interface ParsedPlayer {
@@ -176,9 +119,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [savingDates, setSavingDates] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
-  const [syncingWom, setSyncingWom] = useState(false);
-  const [womSyncMetric, setWomSyncMetric] = useState('');
-  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[]; updated?: number; skipped?: number; notFound?: string[]; competitions?: string[]; error?: string } | null>(null);
+  const [snapshotResult, setSnapshotResult] = useState<{ snapshotted: number; refreshed?: number; failed: string[]; error?: string } | null>(null);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
@@ -387,26 +328,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     }
   }
 
-  async function syncWomBaselines() {
-    setSyncingWom(true);
-    setSnapshotResult(null);
-    try {
-      const url = womSyncMetric
-        ? `/api/events/${event.id}/sync-wom-baselines?metric=${encodeURIComponent(womSyncMetric)}`
-        : `/api/events/${event.id}/sync-wom-baselines`;
-      const res = await fetch(url, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshotResult(data);
-      } else {
-        const err = await res.json();
-        setSnapshotResult({ snapshotted: 0, failed: [], ...err });
-      }
-    } finally {
-      setSyncingWom(false);
-    }
-  }
-
   async function refreshStats() {
     setRefreshingStats(true);
     try {
@@ -532,7 +453,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     statType: string | null;
     statGoal: number | null;
     trackingMode: string;
-    womCompetitionId?: number | null;
     optional?: boolean;
   }) {
     setLocalTiles((prev) =>
@@ -783,70 +703,29 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
             <h3 className="text-sm font-bold text-gold">Hiscores Management</h3>
             <p className="text-xs text-text-muted">
               {eventStarted
-                ? 'Event has started. Use "Refresh Stats" to update current stats. Use "Sync from WOM" to align baselines with WOM competitions.'
+                ? 'Event has started. Use "Refresh Stats" to update current stats.'
                 : 'Take a baseline snapshot before the event starts, then refresh stats to track gains.'}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={takeSnapshot}
-                disabled={snapshotting || forceResetting || syncingWom}
+                disabled={snapshotting || forceResetting}
                 className="flex-1 py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
               >
                 {snapshotting ? 'Snapshotting...' : eventStarted ? 'Snapshot (New Players)' : 'Take Snapshot'}
               </button>
               <button
                 onClick={refreshStats}
-                disabled={refreshingStats || snapshotting || forceResetting || syncingWom}
+                disabled={refreshingStats || snapshotting || forceResetting}
                 className="flex-1 py-2 text-sm font-semibold rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
               >
                 {refreshingStats ? 'Refreshing...' : 'Refresh Stats'}
               </button>
             </div>
             <div className="flex gap-2">
-              <select
-                value={womSyncMetric}
-                onChange={(e) => setWomSyncMetric(e.target.value)}
-                className="px-2 py-2 text-sm rounded bg-brown-dark border border-gold/30 text-text-light"
-              >
-                <option value="">All Skills</option>
-                <optgroup label="Skills">
-                  <option value="overall">Overall</option>
-                  <option value="attack">Attack</option>
-                  <option value="defence">Defence</option>
-                  <option value="strength">Strength</option>
-                  <option value="hitpoints">Hitpoints</option>
-                  <option value="ranged">Ranged</option>
-                  <option value="prayer">Prayer</option>
-                  <option value="magic">Magic</option>
-                  <option value="cooking">Cooking</option>
-                  <option value="woodcutting">Woodcutting</option>
-                  <option value="fletching">Fletching</option>
-                  <option value="fishing">Fishing</option>
-                  <option value="firemaking">Firemaking</option>
-                  <option value="crafting">Crafting</option>
-                  <option value="smithing">Smithing</option>
-                  <option value="mining">Mining</option>
-                  <option value="herblore">Herblore</option>
-                  <option value="agility">Agility</option>
-                  <option value="thieving">Thieving</option>
-                  <option value="slayer">Slayer</option>
-                  <option value="farming">Farming</option>
-                  <option value="runecraft">Runecraft</option>
-                  <option value="hunter">Hunter</option>
-                  <option value="construction">Construction</option>
-                  <option value="sailing">Sailing</option>
-                </optgroup>
-              </select>
-              <button
-                onClick={syncWomBaselines}
-                disabled={syncingWom || snapshotting || forceResetting}
-                className="flex-1 py-2 text-sm font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
-              >
-                {syncingWom ? 'Syncing...' : 'Sync from WOM'}
-              </button>
               <button
                 onClick={forceResetBaselines}
-                disabled={forceResetting || snapshotting || syncingWom}
+                disabled={forceResetting || snapshotting}
                 className="flex-1 py-2 text-sm font-semibold rounded bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
               >
                 {forceResetting ? 'Resetting...' : 'Force Reset All'}
@@ -864,24 +743,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                     Refreshed: {snapshotResult.refreshed} player{snapshotResult.refreshed !== 1 ? 's' : ''}
                   </p>
                 )}
-                {snapshotResult.updated !== undefined && (
-                  <p className="text-indigo-400">
-                    Synced from WOM: {snapshotResult.updated} player{snapshotResult.updated !== 1 ? 's' : ''}
-                  </p>
-                )}
-                {snapshotResult.competitions && snapshotResult.competitions.length > 0 && (
-                  <p className="text-text-muted">
-                    Competitions: {snapshotResult.competitions.join(', ')}
-                  </p>
-                )}
                 {snapshotResult.failed && snapshotResult.failed.length > 0 && (
                   <p className="text-red-400">
                     Failed: {snapshotResult.failed.join(', ')}
-                  </p>
-                )}
-                {snapshotResult.notFound && snapshotResult.notFound.length > 0 && (
-                  <p className="text-yellow-400">
-                    Not in WOM: {snapshotResult.notFound.join(', ')}
                   </p>
                 )}
                 {snapshotResult.error && (
@@ -963,9 +827,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         statType: tile.statType ?? null,
                         statGoal: tile.statGoal ?? null,
                         trackingMode: tile.trackingMode || 'team',
-                        womCompetitionId: tile.womCompetitionId ?? null,
                         optional: !!tile.optional,
                         trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
+                        itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}

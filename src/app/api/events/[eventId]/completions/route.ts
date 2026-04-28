@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { completions, tiles, teams, events } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 
@@ -19,8 +19,8 @@ export async function GET(
 
   let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
   if (tileIds.length > 0) {
-    const allCompletions = await db.query.completions.findMany();
-    eventCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
+    eventCompletions = await db.select().from(completions)
+      .where(inArray(completions.tileId, tileIds));
   }
 
   return NextResponse.json(eventCompletions);

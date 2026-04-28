@@ -1,7 +1,10 @@
 import { db } from '@/db';
-import { players, weeklyParticipants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { clanMembers, players, weeklyParticipants } from '@/db/schema';
+import { isNull } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { findOrCreateClanMember } from '@/lib/clan';
+import { normalizeRsn } from '@/lib/auth';
+import { log } from '@/lib/logger';
 
 interface HiscoresSnapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
@@ -9,86 +12,110 @@ interface HiscoresSnapshot {
 }
 
 /**
- * Enroll all unique RSNs from the players table into a competition.
- * Uses onConflictDoNothing to skip already-enrolled players.
+ * Enroll every active clan member into a competition.
+ * Skips members who have left the clan. Also pulls in any player names from
+ * historical events that don't yet have a clan_members row, auto-registering them
+ * (as guests).
  */
 export async function enrollAllPlayers(competitionId: number) {
-  const allPlayers = await db.select({ name: players.name }).from(players);
+  // Source of truth: active clan members
+  const activeMembers = await db
+    .select({ id: clanMembers.id, rsn: clanMembers.rsn })
+    .from(clanMembers)
+    .where(isNull(clanMembers.leftAt));
 
-  // Deduplicate RSNs (case-insensitive)
-  const seen = new Set<string>();
-  const uniqueRsns: string[] = [];
-  for (const p of allPlayers) {
-    const lower = p.name.toLowerCase();
-    if (!seen.has(lower)) {
-      seen.add(lower);
-      uniqueRsns.push(p.name);
-    }
+  const participantPayload = activeMembers.map((m) => ({
+    competitionId,
+    clanMemberId: m.id,
+    rsn: m.rsn,
+    rsnNormalized: normalizeRsn(m.rsn),
+  }));
+
+  // Fallback: pull any legacy player names not yet in clan_members, create guest rows.
+  const orphanPlayers = await db
+    .select({ name: players.name })
+    .from(players)
+    .where(isNull(players.clanMemberId));
+
+  const seen = new Set(activeMembers.map((m) => normalizeRsn(m.rsn)));
+  for (const p of orphanPlayers) {
+    const normalized = normalizeRsn(p.name);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    const memberId = await findOrCreateClanMember(p.name);
+    participantPayload.push({
+      competitionId,
+      clanMemberId: memberId,
+      rsn: p.name,
+      rsnNormalized: normalized,
+    });
   }
 
-  if (uniqueRsns.length === 0) return 0;
-
-  // Insert in batches
   let enrolled = 0;
-  for (const rsn of uniqueRsns) {
+  for (const row of participantPayload) {
     try {
-      await db.insert(weeklyParticipants).values({
-        competitionId,
-        rsn,
-      }).onConflictDoNothing();
+      await db.insert(weeklyParticipants).values(row).onConflictDoNothing();
       enrolled++;
     } catch {
-      // Skip on error
+      // Skip on conflict/error — keep counting what we could add
     }
   }
-
   return enrolled;
 }
 
+const HISCORES_TIMEOUT_MS = 8000;
+const HISCORES_RETRY_DELAY_MS = 1500;
+
+function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${tag} timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
+  return (await withTimeout(
+    getStatsByGamemode(rsn) as Promise<HiscoresSnapshot>,
+    HISCORES_TIMEOUT_MS,
+    `hiscores(${rsn})`,
+  ));
+}
+
 /**
- * Fetch a participant's stat value from OSRS Hiscores.
- * Falls back to WOM API if hiscores fail.
+ * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout
+ * and one retry — on persistent failure returns null so the cron tick moves on
+ * and picks the participant back up on its next pass.
  */
 export async function fetchParticipantStat(
   rsn: string,
   type: 'skill' | 'boss',
   metric: string,
 ): Promise<number | null> {
-  // Try OSRS Hiscores first
-  try {
-    const stats = await getStatsByGamemode(rsn) as HiscoresSnapshot;
-    if (type === 'skill') {
-      const skill = stats.skills?.[metric];
-      return skill?.xp ?? null;
-    } else {
-      const boss = stats.bosses?.[metric];
-      if (!boss || boss.score < 0) return 0;
-      return boss.score;
+  let stats: HiscoresSnapshot | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      stats = await fetchHiscoresOnce(rsn);
+      break;
+    } catch (err) {
+      if (attempt === 2) {
+        log.warn('hiscores.fail', { rsn, attempt }, err);
+        return null;
+      }
+      await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
     }
-  } catch {
-    // Hiscores failed, try WOM fallback
   }
+  if (!stats) return null;
 
-  // WOM fallback
-  try {
-    const encodedRsn = encodeURIComponent(rsn);
-    const res = await fetch(`https://api.wiseoldman.net/v2/players/${encodedRsn}`, {
-      headers: { 'User-Agent': 'osrs-bingo-tracker' },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    if (type === 'skill') {
-      const value = data?.latestSnapshot?.data?.skills?.[metric]?.experience;
-      return typeof value === 'number' ? value : null;
-    } else {
-      const value = data?.latestSnapshot?.data?.bosses?.[metric]?.kills;
-      if (typeof value !== 'number' || value < 0) return 0;
-      return value;
-    }
-  } catch {
-    return null;
+  if (type === 'skill') {
+    const skill = stats.skills?.[metric];
+    return skill?.xp ?? null;
   }
+  const boss = stats.bosses?.[metric];
+  if (!boss || boss.score < 0) return 0;
+  return boss.score;
 }
 
 export interface LeaderboardEntry {

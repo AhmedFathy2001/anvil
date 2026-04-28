@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate, womCompetitionId } = await request.json();
+  const { type, metric, title, startDate, endDate } = await request.json();
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -58,7 +58,6 @@ export async function POST(request: Request) {
     startDate,
     endDate,
     createdById: user.userId > 0 ? user.userId : null,
-    womCompetitionId: womCompetitionId || null,
     status,
   }).returning();
 

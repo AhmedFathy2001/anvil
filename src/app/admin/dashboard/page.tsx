@@ -45,6 +45,20 @@ export default async function AdminDashboardPage() {
       {/* Quick Links */}
       <div className="flex flex-wrap gap-3 mb-6">
         <Link
+          href="/admin/schedule"
+          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
+        >
+          <span className="text-gold">📅</span>
+          Schedule
+        </Link>
+        <Link
+          href="/admin/clan"
+          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
+        >
+          <span className="text-gold">🛡️</span>
+          Clan Roster
+        </Link>
+        <Link
           href="/admin/players"
           className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
         >

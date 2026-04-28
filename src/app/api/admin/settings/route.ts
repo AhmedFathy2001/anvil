@@ -5,19 +5,31 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 
+const EXPOSED_KEYS = ['discord_webhook_url', 'clan_name'] as const;
+type ExposedKey = (typeof EXPOSED_KEYS)[number];
+
+async function upsertSetting(key: string, value: string | null) {
+  const existing = await db.query.settings.findFirst({
+    where: eq(settings.key, key),
+  });
+  if (existing) {
+    await db.update(settings).set({ value }).where(eq(settings.key, key));
+  } else {
+    await db.insert(settings).values({ key, value });
+  }
+}
+
 export async function GET() {
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const webhookSetting = await db.query.settings.findFirst({
-    where: eq(settings.key, 'discord_webhook_url'),
-  });
-
-  return NextResponse.json({
-    discord_webhook_url: webhookSetting?.value || '',
-  });
+  const rows = await db.select().from(settings);
+  const map = new Map(rows.map((r) => [r.key, r.value]));
+  const out: Record<string, string> = {};
+  for (const key of EXPOSED_KEYS) out[key] = map.get(key) || '';
+  return NextResponse.json(out);
 }
 
 export async function PUT(request: Request) {
@@ -26,24 +38,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { discord_webhook_url } = await request.json();
-
-  if (discord_webhook_url !== undefined) {
-    const existing = await db.query.settings.findFirst({
-      where: eq(settings.key, 'discord_webhook_url'),
-    });
-
-    if (existing) {
-      await db
-        .update(settings)
-        .set({ value: discord_webhook_url || null })
-        .where(eq(settings.key, 'discord_webhook_url'));
-    } else {
-      await db.insert(settings).values({
-        key: 'discord_webhook_url',
-        value: discord_webhook_url || null,
-      });
-    }
+  const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
+  for (const key of EXPOSED_KEYS) {
+    const raw = body[key];
+    if (raw === undefined) continue;
+    const value = typeof raw === 'string' ? raw.trim() : raw;
+    await upsertSetting(key, value ? value : null);
   }
 
   return NextResponse.json({ success: true });

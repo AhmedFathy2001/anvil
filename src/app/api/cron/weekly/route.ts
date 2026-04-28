@@ -11,11 +11,16 @@ function delay(ms: number) {
 }
 
 export async function GET(request: Request) {
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
+  if (process.env.NODE_ENV === 'production' && !CRON_SECRET) {
+    return NextResponse.json(
+      { error: 'Server misconfigured: CRON_SECRET is required in production' },
+      { status: 500 },
+    );
+  }
   const authHeader = request.headers.get('authorization');
   const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
-
-  if (!isVercelCron && !hasValidSecret) {
+  const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
+  if (!hasValidSecret && !devBypass) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

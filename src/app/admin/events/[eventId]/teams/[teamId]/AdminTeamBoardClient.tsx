@@ -1,67 +1,12 @@
 'use client';
 
+import type { Event, Tile, Team, Completion, Submission, Player } from '@/lib/types';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
-
-interface Tile {
-  id: number;
-  eventId: number;
-  position: number;
-  label: string;
-  icon?: string | null;
-  description?: string | null;
-  tileType: string;
-  requiredAmount?: number | null;
-  trackedStat?: string | null;
-  statType?: string | null;
-  statGoal?: number | null;
-  trackingMode?: string | null;
-  womCompetitionId?: number | null;
-}
-
-interface Team {
-  id: number;
-  eventId: number;
-  name: string;
-  color: string;
-}
-
-interface Completion {
-  id: number;
-  teamId: number;
-  tileId: number;
-  completedAt: string;
-}
-
-interface Event {
-  id: number;
-  name: string;
-  boardSize: number;
-  createdAt: string;
-}
-
-interface Submission {
-  id: number;
-  tileId: number;
-  teamId: number;
-  playerId: number | null;
-  creditPlayerId: number | null;
-  amount: number;
-  imageUrl: string | null;
-  note: string | null;
-  createdAt: string;
-  uploaderName?: string | null;
-  creditPlayerName?: string | null;
-}
-
-interface Player {
-  id: number;
-  name: string;
-  teamId: number | null;
-}
+import { useDropProgress } from '@/hooks/useDropProgress';
 
 interface Props {
   event: Event;
@@ -129,15 +74,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     }
   }
 
-  // Build drop progress map
-  const dropProgress = new Map<number, { current: number; required: number }>();
-  for (const tile of tiles) {
-    if (tile.tileType === 'drop' && tile.requiredAmount) {
-      const tileSubs = submissions.filter((s) => s.tileId === tile.id);
-      const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
-      dropProgress.set(tile.id, { current, required: tile.requiredAmount });
-    }
-  }
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   const completed = completions.length;
   const total = tiles.length;
@@ -193,6 +130,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           eventId={event.id}
           teamId={team.id}
           dropProgress={dropProgress.get(selectedTile.id)}
+          perItemProgress={perItemProgressMap.get(selectedTile.id)}
           teamPlayers={teamPlayers.map((p) => ({ id: p.id, name: p.name }))}
         />
       )}

@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { requireSecret } from '@/lib/env';
 
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'admin-secret';
-const CAPTAIN_SESSION_SECRET = process.env.CAPTAIN_SESSION_SECRET || 'captain-secret';
-const PLAYER_SESSION_SECRET = process.env.PLAYER_SESSION_SECRET || 'player-secret';
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
+const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
+const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
+const PLAYER_SESSION_SECRET = requireSecret('PLAYER_SESSION_SECRET', 'dev-player-secret');
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -80,9 +73,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
 
-      // Moderators can only access /admin/weekly* routes
+      // Moderators can access weekly, clan, and schedule views
       if (role === 'moderator') {
-        if (!pathname.startsWith('/admin/weekly')) {
+        const allowed = ['/admin/weekly', '/admin/clan', '/admin/schedule'];
+        if (!allowed.some((p) => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL('/admin/weekly', request.url));
         }
       }

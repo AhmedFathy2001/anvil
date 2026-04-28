@@ -2,20 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SKILLS, SKILL_LABELS, BOSSES } from "@/lib/constants";
-
-interface TileConfig {
-  label: string;
-  description: string | null;
-  tileType: string;
-  requiredAmount: number | null;
-  trackedStat: string | null;
-  statType: string | null;
-  statGoal: number | null;
-  trackingMode: string;
-  womCompetitionId: number | null;
-  optional: boolean;
-  trackedItemIds: number[] | null;
-}
+import type { ItemRequirement, TileConfig } from '@/lib/types';
 
 interface Props {
   tileId: number;
@@ -52,12 +39,12 @@ export default function TileTrackingConfig({
   const [trackingMode, setTrackingMode] = useState<string>(
     initial.trackingMode || "team",
   );
-  const [womCompetitionId, setWomCompetitionId] = useState<string>(
-    initial.womCompetitionId?.toString() || "",
-  );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
-  const [trackedItems, setTrackedItems] = useState<{ id: number; name: string }[]>(
-    (initial.trackedItemIds || []).map(id => ({ id, name: `Item #${id}` }))
+  const [perItemMode, setPerItemMode] = useState<boolean>(!!initial.itemRequirements?.length);
+  const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
+    initial.itemRequirements?.length
+      ? initial.itemRequirements.map(r => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
+      : (initial.trackedItemIds || []).map(id => ({ id, name: `Item #${id}`, perItemAmount: 1 }))
   );
   const [itemSearch, setItemSearch] = useState("");
   const [itemResults, setItemResults] = useState<{ id: number; name: string }[]>([]);
@@ -66,12 +53,13 @@ export default function TileTrackingConfig({
   const itemSearchRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savingWom, setSavingWom] = useState(false);
-  const [womError, setWomError] = useState<string | null>(null);
-  const [womSuccess, setWomSuccess] = useState(false);
 
   // Fetch item names for pre-existing IDs on mount
   useEffect(() => {
+    if (initial.itemRequirements?.length) {
+      // Per-item mode: names already available from requirements
+      return;
+    }
     if (!initial.trackedItemIds?.length) return;
     // Resolve names by searching each ID
     Promise.all(
@@ -81,10 +69,10 @@ export default function TileTrackingConfig({
           if (res.ok) {
             const results = await res.json();
             const match = results.find((r: { id: number }) => r.id === id);
-            if (match) return match;
+            if (match) return { ...match, perItemAmount: 1 };
           }
         } catch { /* ignore */ }
-        return { id, name: `Item #${id}` };
+        return { id, name: `Item #${id}`, perItemAmount: 1 };
       })
     ).then(setTrackedItems);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,22 +110,36 @@ export default function TileTrackingConfig({
   async function handleSave() {
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        tileId,
+        label: label || undefined,
+        description: description || null,
+        tileType: tileType || "standard",
+        trackedStat: trackedStat || null,
+        statType: statType || null,
+        statGoal: statGoal ? parseInt(statGoal, 10) : null,
+        trackingMode,
+        optional,
+      };
+
+      if (perItemMode && trackedItems.length > 0) {
+        // Per-item mode: send itemRequirements, server auto-derives trackedItemIds and requiredAmount
+        payload.itemRequirements = trackedItems.map(i => ({
+          itemId: i.id,
+          name: i.name,
+          requiredAmount: i.perItemAmount,
+        }));
+      } else {
+        // Simple mode
+        payload.itemRequirements = null;
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map(i => i.id) : null;
+      }
+
       const res = await fetch(`/api/events/${eventId}/tiles`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tileId,
-          label: label || undefined,
-          description: description || null,
-          tileType: tileType || "standard",
-          requiredAmount: requiredAmount ? parseInt(requiredAmount, 10) : null,
-          trackedStat: trackedStat || null,
-          statType: statType || null,
-          statGoal: statGoal ? parseInt(statGoal, 10) : null,
-          trackingMode,
-          optional,
-          trackedItemIds: trackedItems.length > 0 ? trackedItems.map(i => i.id) : null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -150,9 +152,9 @@ export default function TileTrackingConfig({
           statType: updated.statType,
           statGoal: updated.statGoal,
           trackingMode: updated.trackingMode,
-          womCompetitionId: updated.womCompetitionId,
           optional: !!updated.optional,
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
+          itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
         });
       }
     } finally {
@@ -165,35 +167,6 @@ export default function TileTrackingConfig({
     setTrackedStat("");
     setStatGoal("");
     setTrackingMode("team");
-  }
-
-  async function handleSaveWom() {
-    setSavingWom(true);
-    setWomError(null);
-    setWomSuccess(false);
-    try {
-      const res = await fetch(`/api/events/${eventId}/tiles/${tileId}/wom`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          competitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
-        }),
-      });
-      if (res.ok) {
-        setWomSuccess(true);
-        onSaved({
-          ...initial,
-          womCompetitionId: womCompetitionId ? parseInt(womCompetitionId, 10) : null,
-        });
-      } else {
-        const data = await res.json();
-        setWomError(data.error || "Failed to save");
-      }
-    } catch {
-      setWomError("Failed to save");
-    } finally {
-      setSavingWom(false);
-    }
   }
 
   function handleStatTypeChange(newType: string) {
@@ -270,8 +243,8 @@ export default function TileTrackingConfig({
         )}
       </div>
 
-      {/* Required amount (drop tiles only) */}
-      {tileType === "drop" && (
+      {/* Required amount (drop tiles only, hidden in per-item mode) */}
+      {tileType === "drop" && !perItemMode && (
         <div>
           <label className="block text-xs text-text-muted mb-1">
             Required Amount
@@ -288,32 +261,83 @@ export default function TileTrackingConfig({
         </div>
       )}
 
+      {/* Per-item mode: show auto-computed total */}
+      {tileType === "drop" && perItemMode && trackedItems.length > 0 && (
+        <div>
+          <label className="block text-xs text-text-muted mb-1">
+            Total Required Amount <span className="text-text-muted/60">(auto-computed)</span>
+          </label>
+          <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
+            {trackedItems.reduce((sum, i) => sum + i.perItemAmount, 0)}
+          </div>
+        </div>
+      )}
+
       {/* Tracked OSRS Item IDs (drop tiles only) — for RuneLite plugin */}
       {tileType === "drop" && (
         <div>
-          <label className="block text-xs text-text-muted mb-1">
-            Tracked Item IDs
-            <span className="text-text-muted/60 ml-1">(RuneLite plugin)</span>
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs text-text-muted">
+              Tracked Item IDs
+              <span className="text-text-muted/60 ml-1">(RuneLite plugin)</span>
+            </label>
+          </div>
+
+          {/* Per-Item Tracking toggle */}
+          {trackedItems.length > 0 && (
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setPerItemMode(!perItemMode)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  perItemMode ? 'bg-accent-green' : 'bg-card-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    perItemMode ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+              <span className="text-xs text-text-muted">
+                Per-item tracking (each item has its own required amount)
+              </span>
+            </div>
+          )}
 
           {/* Added items */}
           {trackedItems.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="space-y-1.5 mb-2">
               {trackedItems.map((item) => (
-                <span
+                <div
                   key={item.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
                 >
-                  {item.name}
-                  <span className="text-text-muted/60">#{item.id}</span>
+                  <span className="flex-1 min-w-0 truncate">
+                    {item.name}
+                    <span className="text-text-muted/60 ml-1">#{item.id}</span>
+                  </span>
+                  {perItemMode && (
+                    <input
+                      type="number"
+                      value={item.perItemAmount}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                        setTrackedItems(prev => prev.map(i => i.id === item.id ? { ...i, perItemAmount: val } : i));
+                      }}
+                      min="1"
+                      className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
+                      title="Required amount for this item"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => setTrackedItems(prev => prev.filter(i => i.id !== item.id))}
-                    className="ml-0.5 text-red-400 hover:text-red-300"
+                    className="text-red-400 hover:text-red-300 flex-shrink-0"
                   >
                     &times;
                   </button>
-                </span>
+                </div>
               ))}
             </div>
           )}
@@ -348,7 +372,7 @@ export default function TileTrackingConfig({
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      setTrackedItems(prev => [...prev, item]);
+                      setTrackedItems(prev => [...prev, { ...item, perItemAmount: 1 }]);
                       setItemSearch("");
                       setItemResults([]);
                       setShowItemDropdown(false);
@@ -509,41 +533,6 @@ export default function TileTrackingConfig({
         {saving ? "Saving..." : "Save Configuration"}
       </button>
 
-      {/* WOM Integration */}
-      <div className="pt-3 mt-3 border-t border-card-border">
-        <h4 className="text-sm font-semibold text-indigo-400 mb-2">Wise Old Man Tracking</h4>
-        <p className="text-[10px] text-text-muted mb-2">
-          Link a WOM competition to track XP gains for this tile. Get the ID from the competition URL.
-        </p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={womCompetitionId}
-            onChange={(e) => {
-              setWomCompetitionId(e.target.value.replace(/\D/g, ""));
-              setWomError(null);
-              setWomSuccess(false);
-            }}
-            placeholder="Competition ID (e.g. 124043)"
-            className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-          />
-          <button
-            type="button"
-            onClick={handleSaveWom}
-            disabled={savingWom}
-            className="px-4 py-2 text-xs font-semibold rounded bg-indigo-500/20 border border-indigo-500 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-50 transition-colors"
-          >
-            {savingWom ? "..." : "Link"}
-          </button>
-        </div>
-        {womError && <p className="text-xs text-red-400 mt-1">{womError}</p>}
-        {womSuccess && <p className="text-xs text-green-400 mt-1">WOM competition linked!</p>}
-        {initial.womCompetitionId && !womSuccess && (
-          <p className="text-xs text-indigo-400 mt-1">
-            Currently linked to WOM #{initial.womCompetitionId}
-          </p>
-        )}
-      </div>
     </div>
   );
 }

@@ -1,73 +1,12 @@
 'use client';
 
+import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import Link from 'next/link';
-
-interface Tile {
-  id: number;
-  eventId: number;
-  position: number;
-  label: string;
-  icon?: string | null;
-  description?: string | null;
-  tileType: string;
-  requiredAmount?: number | null;
-  trackedStat?: string | null;
-  statType?: string | null;
-  statGoal?: number | null;
-  trackingMode?: string | null;
-  womCompetitionId?: number | null;
-}
-
-interface PlayerGain {
-  playerId: number;
-  playerName: string;
-  gained: number;
-  current: number;
-}
-
-interface Team {
-  id: number;
-  eventId: number;
-  name: string;
-  color: string;
-}
-
-interface Completion {
-  id: number;
-  teamId: number;
-  tileId: number;
-  completedAt: string;
-}
-
-interface Event {
-  id: number;
-  name: string;
-  boardSize: number;
-  createdAt: string;
-}
-
-interface Submission {
-  id: number;
-  tileId: number;
-  teamId: number;
-  playerId: number | null;
-  creditPlayerId: number | null;
-  amount: number;
-  imageUrl: string | null;
-  note: string | null;
-  createdAt: string;
-  uploaderName?: string | null;
-  creditPlayerName?: string | null;
-}
-
-interface Player {
-  id: number;
-  name: string;
-  teamId: number | null;
-}
+import { useDropProgress } from '@/hooks/useDropProgress';
+import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 
 interface Props {
   event: Event;
@@ -81,6 +20,8 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
@@ -117,8 +58,13 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   }, [event.id, team.id, tiles, teamPlayers]);
 
   useEffect(() => {
-    fetchSubmissions();
-    fetchGains();
+    setFetchError(null);
+    Promise.all([fetchSubmissions(), fetchGains()])
+      .then(() => setLoading(false))
+      .catch((err) => {
+        setFetchError(err instanceof Error ? err.message : 'Failed to load board data');
+        setLoading(false);
+      });
   }, [fetchSubmissions, fetchGains]);
 
   const completed = completions.length;
@@ -126,15 +72,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const tilesLeft = total - completed;
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  // Build drop progress map
-  const dropProgress = new Map<number, { current: number; required: number }>();
-  for (const tile of tiles) {
-    if (tile.tileType === 'drop' && tile.requiredAmount) {
-      const tileSubs = submissions.filter((s) => s.tileId === tile.id);
-      const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
-      dropProgress.set(tile.id, { current, required: tile.requiredAmount });
-    }
-  }
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -158,6 +96,24 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         <h1 className="text-2xl sm:text-3xl font-bold">{team.name}</h1>
       </div>
       <p className="text-text-muted text-sm mb-2">{event.name}</p>
+
+      {fetchError && (
+        <ErrorBanner
+          message={fetchError}
+          onRetry={() => {
+            setLoading(true);
+            setFetchError(null);
+            Promise.all([fetchSubmissions(), fetchGains()])
+              .then(() => setLoading(false))
+              .catch((err) => {
+                setFetchError(err instanceof Error ? err.message : 'Failed to load board data');
+                setLoading(false);
+              });
+          }}
+        />
+      )}
+
+      {loading && <BoardSkeleton size={event.boardSize} />}
 
       {/* Progress bar */}
       <div className="mb-6 max-w-md">
@@ -268,6 +224,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           eventId={event.id}
           teamId={team.id}
           dropProgress={dropProgress.get(selectedTile.id)}
+          perItemProgress={perItemProgressMap.get(selectedTile.id)}
           statProgress={gains[selectedTile.id]}
         />
       )}

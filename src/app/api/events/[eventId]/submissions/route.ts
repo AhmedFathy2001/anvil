@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
@@ -16,6 +16,8 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const teamIdFilter = searchParams.get('teamId');
   const tileIdFilter = searchParams.get('tileId');
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '0', 10) || 0, 0), 500);
+  const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
   // Get all tiles for event
   const eventTiles = await db.query.tiles.findMany({
@@ -27,16 +29,19 @@ export async function GET(
     return NextResponse.json([]);
   }
 
-  // Get all submissions for those tiles
-  const allSubmissions = await db.select().from(submissions);
-  let filtered = allSubmissions.filter((s) => tileIds.includes(s.tileId));
-
+  // Get submissions for this event's tiles with optional filters
+  const conditions = [inArray(submissions.tileId, tileIds)];
   if (teamIdFilter) {
-    filtered = filtered.filter((s) => s.teamId === parseInt(teamIdFilter, 10));
+    conditions.push(eq(submissions.teamId, parseInt(teamIdFilter, 10)));
   }
   if (tileIdFilter) {
-    filtered = filtered.filter((s) => s.tileId === parseInt(tileIdFilter, 10));
+    conditions.push(eq(submissions.tileId, parseInt(tileIdFilter, 10)));
   }
+  const filtered = limit > 0
+    ? await db.select().from(submissions).where(and(...conditions))
+        .orderBy(submissions.createdAt).limit(limit).offset(offset)
+    : await db.select().from(submissions).where(and(...conditions))
+        .orderBy(submissions.createdAt);
 
   // Join player names (uploader and credit)
   const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
@@ -57,15 +62,46 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId } = await request.json();
 
-  if (!tileId || !teamId) {
-    return NextResponse.json({ error: 'tileId and teamId are required' }, { status: 400 });
+  if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
+    return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
   }
 
-  // Require image
+  // Validate amount
+  const submitAmount = amount ?? 1;
+  if (!Number.isInteger(submitAmount) || submitAmount < 1 || submitAmount > 10000) {
+    return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
+  }
+
+  // Require image and validate URL
   if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
     return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
+  }
+  let imageUrlParsed: URL;
+  try {
+    imageUrlParsed = new URL(imageUrl.trim());
+  } catch {
+    return NextResponse.json({ error: 'imageUrl must be a valid URL' }, { status: 400 });
+  }
+  // Only accept Vercel Blob URLs — prevents Discord embeds from pointing at arbitrary/phishy hosts.
+  // Vercel Blob hostnames look like `<id>.public.blob.vercel-storage.com`.
+  const isVercelBlob =
+    imageUrlParsed.protocol === 'https:' &&
+    (imageUrlParsed.hostname.endsWith('.public.blob.vercel-storage.com') ||
+      imageUrlParsed.hostname.endsWith('.blob.vercel-storage.com'));
+  if (!isVercelBlob) {
+    return NextResponse.json(
+      { error: 'imageUrl must be a Vercel Blob URL — upload via /api/upload first' },
+      { status: 400 },
+    );
+  }
+
+  // Validate note
+  if (note !== undefined && note !== null) {
+    if (typeof note !== 'string' || note.trim().length > 500) {
+      return NextResponse.json({ error: 'note must be a string of at most 500 characters' }, { status: 400 });
+    }
   }
 
   // Check auth
@@ -126,8 +162,35 @@ export async function POST(
     return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
   }
 
-  // Check if tile is already complete (prevent over-submitting)
-  if (tile.requiredAmount) {
+  // Per-item tracking validation
+  const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[] : null;
+
+  if (tileItemRequirements) {
+    // Per-item mode: require itemId
+    if (!itemId) {
+      return NextResponse.json({ error: 'itemId is required for per-item tracked tiles' }, { status: 400 });
+    }
+    const requirement = tileItemRequirements.find((r: { itemId: number }) => r.itemId === itemId);
+    if (!requirement) {
+      return NextResponse.json({ error: 'itemId is not tracked by this tile' }, { status: 400 });
+    }
+    // Check per-item over-submission
+    const itemSubmissions = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), eq(submissions.itemId, itemId)));
+    const itemTotal = Number(itemSubmissions[0]?.total ?? 0);
+    const submitAmount = amount || 1;
+
+    if (itemTotal >= requirement.requiredAmount) {
+      return NextResponse.json({ error: `${requirement.name} already at required amount (${requirement.requiredAmount})` }, { status: 400 });
+    }
+    if (itemTotal + submitAmount > requirement.requiredAmount && !isAdmin) {
+      const remaining = requirement.requiredAmount - itemTotal;
+      return NextResponse.json({ error: `Can only submit ${remaining} more ${requirement.name}` }, { status: 400 });
+    }
+  } else if (tile.requiredAmount) {
+    // Simple mode: existing behavior
     const currentSubmissions = await db
       .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
       .from(submissions)
@@ -180,11 +243,9 @@ export async function POST(
       amount: amount || 1,
       imageUrl: imageUrl.trim(),
       note: note || null,
+      itemId: itemId || null,
     })
     .returning();
-
-  // Sync completion
-  const syncResult = await syncDropTileCompletion(tileId, teamId);
 
   // Get current total submissions for progress
   const totalResult = await db
@@ -202,7 +263,7 @@ export async function POST(
     creditPlayerName = creditPlayer?.name || null;
   }
 
-  // Fire and forget - don't block the response
+  // Send submission notification FIRST (with screenshot) so Discord shows it before completion
   notifySubmission({
     eventName: event?.name || 'Unknown Event',
     tileLabel: tile.label,
@@ -216,7 +277,12 @@ export async function POST(
     imageUrl: imageUrl.trim(),
   }).catch(() => {}); // Silently ignore errors
 
-  return NextResponse.json({ submission, sync: syncResult }, { status: 201 });
+  // Delay completion sync so Discord processes the screenshot message first
+  setTimeout(async () => {
+    await syncDropTileCompletion(tileId, teamId);
+  }, 1500);
+
+  return NextResponse.json({ submission }, { status: 201 });
 }
 
 export async function DELETE(

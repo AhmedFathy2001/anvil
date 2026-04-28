@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players, tiles, teams, completions, events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
 
@@ -18,12 +18,19 @@ interface Snapshot {
 }
 
 export async function GET(request: Request) {
-  // Verify request is from Vercel Cron or has valid secret
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
+  // In production we require CRON_SECRET. The `x-vercel-cron` header alone isn't enough —
+  // it's spoofable outside Vercel's edge, and forgetting the secret turns cron into a public endpoint.
+  if (process.env.NODE_ENV === 'production' && !CRON_SECRET) {
+    return NextResponse.json(
+      { error: 'Server misconfigured: CRON_SECRET is required in production' },
+      { status: 500 },
+    );
+  }
   const authHeader = request.headers.get('authorization');
   const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
-
-  if (!isVercelCron && !hasValidSecret) {
+  // Dev only: allow the Vercel-cron header when no secret is configured, so local simulation works.
+  const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
+  if (!hasValidSecret && !devBypass) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -59,12 +66,13 @@ export async function GET(request: Request) {
     if (event.endDate && event.endDate < now && !event.endNotified) {
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
       const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
-      const allCompletions = await db.select().from(completions);
+      const eventTileIds = eventTiles.map(t => t.id);
+      const eventCompletions = eventTileIds.length > 0
+        ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
+        : [];
 
       const standings = eventTeams.map(team => {
-        const teamCompletions = allCompletions.filter(c =>
-          c.teamId === team.id && eventTiles.some(t => t.id === c.tileId)
-        );
+        const teamCompletions = eventCompletions.filter(c => c.teamId === team.id);
         return { teamName: team.name, tilesCompleted: teamCompletions.length };
       });
 
@@ -151,8 +159,11 @@ export async function GET(request: Request) {
     });
     const teamMap = new Map(eventTeams.map((t) => [t.id, t]));
 
-    // Get existing completions
-    const existingCompletions = await db.query.completions.findMany();
+    // Get existing completions for this event's tiles
+    const eventTileIds = eventTiles.map(t => t.id);
+    const existingCompletions = eventTileIds.length > 0
+      ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
+      : [];
     const completionSet = new Set(
       existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)
     );

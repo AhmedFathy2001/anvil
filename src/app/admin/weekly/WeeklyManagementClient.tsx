@@ -13,7 +13,6 @@ interface Competition {
   endDate: string;
   status: string;
   participantCount: number;
-  womCompetitionId: number | null;
 }
 
 interface Participant {
@@ -38,7 +37,6 @@ export default function WeeklyManagementClient() {
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [womId, setWomId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -56,7 +54,6 @@ export default function WeeklyManagementClient() {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [editStatus, setEditStatus] = useState('');
-  const [editWomId, setEditWomId] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
   async function fetchCompetitions() {
@@ -85,7 +82,6 @@ export default function WeeklyManagementClient() {
         title,
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
-        womCompetitionId: womId ? parseInt(womId, 10) : null,
       }),
     });
 
@@ -101,7 +97,6 @@ export default function WeeklyManagementClient() {
     setMetric('');
     setStartDate('');
     setEndDate('');
-    setWomId('');
     setCreating(false);
     fetchCompetitions();
   }
@@ -171,7 +166,6 @@ export default function WeeklyManagementClient() {
     setEditStartDate(comp.startDate.slice(0, 16));
     setEditEndDate(comp.endDate.slice(0, 16));
     setEditStatus(comp.status);
-    setEditWomId(comp.womCompetitionId?.toString() || '');
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -187,7 +181,6 @@ export default function WeeklyManagementClient() {
         startDate: new Date(editStartDate).toISOString(),
         endDate: new Date(editEndDate).toISOString(),
         status: editStatus,
-        womCompetitionId: editWomId ? parseInt(editWomId, 10) : null,
       }),
     });
 
@@ -282,29 +275,17 @@ export default function WeeklyManagementClient() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">WOM Competition ID</label>
-                <input
-                  type="text"
-                  value={editWomId}
-                  onChange={(e) => setEditWomId(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="(optional)"
-                />
-              </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Status</label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+              >
+                <option value="upcoming">Upcoming</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+              </select>
             </div>
             <div className="flex gap-2 justify-end">
               <button
@@ -410,17 +391,6 @@ export default function WeeklyManagementClient() {
                   className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-text-muted mb-1">WOM Competition ID (optional)</label>
-              <input
-                type="text"
-                value={womId}
-                onChange={(e) => setWomId(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                placeholder="Fallback tracking"
-              />
             </div>
 
             {createError && <p className="text-red-400 text-sm">{createError}</p>}

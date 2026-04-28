@@ -4,53 +4,8 @@ import { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
 import { formatNumber } from '@/lib/utils';
-
-interface Tile {
-  id: number;
-  position: number;
-  label: string;
-  icon?: string | null;
-  description?: string | null;
-  tileType: string;
-  requiredAmount?: number | null;
-  trackedStat?: string | null;
-  statType?: string | null;
-  statGoal?: number | null;
-  trackingMode?: string | null;
-  womCompetitionId?: number | null;
-}
-
-interface WomTeamStanding {
-  rank: number;
-  womTeamName: string;
-  localTeamName: string | null;
-  color: string | null;
-  totalGained: number;
-  mvp: string;
-}
-
-interface WomPlayerStanding {
-  rank: number;
-  womPlayerName: string;
-  localPlayerName: string | null;
-  localTeamName: string | null;
-  color: string | null;
-  gained: number;
-}
-
-interface Submission {
-  id: number;
-  tileId: number;
-  teamId: number;
-  playerId: number | null;
-  creditPlayerId: number | null;
-  amount: number;
-  imageUrl: string | null;
-  note: string | null;
-  createdAt: string;
-  uploaderName?: string | null;
-  creditPlayerName?: string | null;
-}
+import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 interface CompletedByTeam {
   teamId: number;
@@ -84,6 +39,7 @@ interface Props {
   eventId: number;
   teamId?: number;
   dropProgress?: { current: number; required: number };
+  perItemProgress?: ItemRequirementProgress[];
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
   statProgress?: PlayerStatProgress[];
@@ -103,6 +59,7 @@ export default function TileDetailModal({
   eventId,
   teamId,
   dropProgress,
+  perItemProgress,
   teamPlayers,
   currentPlayerId,
   statProgress,
@@ -115,10 +72,6 @@ export default function TileDetailModal({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState('');
-  const [womTeams, setWomTeams] = useState<WomTeamStanding[]>([]);
-  const [womPlayers, setWomPlayers] = useState<WomPlayerStanding[]>([]);
-  const [womLoading, setWomLoading] = useState(false);
-  const [showWomPlayers, setShowWomPlayers] = useState(false);
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
@@ -145,31 +98,7 @@ export default function TileDetailModal({
     setNote('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
-    setShowWomPlayers(false);
   }, [tile.id, currentPlayerId]);
-
-  // Fetch WOM data if tile has a competition linked
-  useEffect(() => {
-    if (!tile.womCompetitionId) {
-      setWomTeams([]);
-      setWomPlayers([]);
-      return;
-    }
-    setWomLoading(true);
-    // Pass teamId to filter WOM data to just this team (for captain view)
-    const url = teamId
-      ? `/api/events/${eventId}/tiles/${tile.id}/wom?teamId=${teamId}`
-      : `/api/events/${eventId}/tiles/${tile.id}/wom`;
-    fetch(url)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          setWomTeams(data.teams || []);
-          setWomPlayers(data.players || []);
-        }
-      })
-      .finally(() => setWomLoading(false));
-  }, [eventId, tile.id, tile.womCompetitionId, teamId]);
 
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';
@@ -279,10 +208,24 @@ export default function TileDetailModal({
     }
   }
 
+  const modalRef = useModalA11y<HTMLDivElement>({ onClose });
+  const titleId = `tile-modal-title-${tile.id}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl focus:outline-none"
+      >
         {/* Header */}
         <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 rounded-t-2xl flex items-start justify-between">
           <div className="flex items-start gap-3 min-w-0">
@@ -293,7 +236,7 @@ export default function TileDetailModal({
               </div>
             )}
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-foreground truncate">{tile.label}</h2>
+              <h2 id={titleId} className="text-lg font-bold text-foreground truncate">{tile.label}</h2>
               {tile.description && (
                 <p className="text-sm text-text-muted mt-0.5">{tile.description}</p>
               )}
@@ -321,7 +264,9 @@ export default function TileDetailModal({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close dialog"
             className="text-text-muted hover:text-foreground text-xl leading-none flex-shrink-0 ml-2"
           >
             &times;
@@ -365,6 +310,28 @@ export default function TileDetailModal({
                   }}
                 />
               </div>
+
+              {/* Per-item breakdown */}
+              {perItemProgress && perItemProgress.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {perItemProgress.map((item) => {
+                    const itemComplete = item.currentAmount >= item.requiredAmount;
+                    return (
+                      <div key={item.itemId} className="flex items-center gap-2 text-xs">
+                        <span className={`flex-shrink-0 w-4 text-center ${itemComplete ? 'text-accent-green-light' : 'text-text-muted'}`}>
+                          {itemComplete ? '\u2713' : ''}
+                        </span>
+                        <span className={`flex-1 min-w-0 truncate ${itemComplete ? 'text-accent-green-light' : 'text-foreground'}`}>
+                          {item.name}
+                        </span>
+                        <span className={`font-medium ${itemComplete ? 'text-accent-green-light' : 'text-gold'}`}>
+                          {item.currentAmount}/{item.requiredAmount}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -438,88 +405,6 @@ export default function TileDetailModal({
           {isStatTile && (!statProgress || statProgress.length === 0) && (
             <div className="text-center py-4 text-text-muted text-sm">
               No stat progress data available yet.
-            </div>
-          )}
-
-          {/* WOM Standings */}
-          {tile.womCompetitionId && (
-            <div>
-              <h3 className="text-sm font-semibold text-indigo-400 mb-2 flex items-center gap-2">
-                WOM Competition
-                <a
-                  href={`https://wiseoldman.net/competitions/${tile.womCompetitionId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-text-muted hover:text-indigo-400 underline"
-                >
-                  View on WOM
-                </a>
-              </h3>
-              {womLoading ? (
-                <p className="text-sm text-text-muted">Loading WOM data...</p>
-              ) : womTeams.length > 0 ? (
-                <div className="space-y-2">
-                  {/* Team standings */}
-                  <div className="space-y-1.5">
-                    {womTeams.slice(0, 5).map((wt) => (
-                      <div
-                        key={wt.rank}
-                        className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-brown-dark/50"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-indigo-400 w-5">#{wt.rank}</span>
-                          {wt.color && (
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: wt.color }} />
-                          )}
-                          <span className="text-sm font-medium">{wt.localTeamName || wt.womTeamName}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-bold text-indigo-400">
-                            {formatNumber(wt.totalGained)}
-                          </span>
-                          <div className="text-[10px] text-text-muted">MVP: {wt.mvp}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Toggle to show individual players */}
-                  {womPlayers.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowWomPlayers(!showWomPlayers)}
-                      className="text-xs text-indigo-400 hover:text-indigo-300 underline"
-                    >
-                      {showWomPlayers ? 'Hide players' : `Show top players (${womPlayers.length})`}
-                    </button>
-                  )}
-
-                  {/* Individual player standings */}
-                  {showWomPlayers && womPlayers.length > 0 && (
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {womPlayers.slice(0, 20).map((wp) => (
-                        <div
-                          key={wp.rank}
-                          className="flex items-center justify-between text-xs border border-card-border/50 rounded px-2 py-1 bg-brown-dark/30"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-text-muted w-4">#{wp.rank}</span>
-                            {wp.color && (
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: wp.color }} />
-                            )}
-                            <span>{wp.localPlayerName || wp.womPlayerName}</span>
-                          </div>
-                          <span className="text-indigo-400 font-medium">
-                            +{formatNumber(wp.gained)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-text-muted">No WOM data available</p>
-              )}
             </div>
           )}
 

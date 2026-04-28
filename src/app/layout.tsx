@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OSRS Bingo Tracker",
-  description: "Old School RuneScape Bingo Team Tracker",
+  title: "Anvil — OSRS Clan Events",
+  description: "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.",
+  icons: { icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }] },
 };
 
 export default function RootLayout({
@@ -31,9 +32,10 @@ export default function RootLayout({
         <nav className="border-b-2 border-gold/20 bg-gradient-to-b from-card-bg to-background sticky top-0 z-50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
-              <span className="text-2xl">🎯</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-48.png" alt="" width={24} height={24} className="rounded" />
               <span className="text-gold font-bold text-lg group-hover:text-gold-light transition-colors">
-                OSRS Bingo
+                Anvil
               </span>
             </Link>
             <div className="flex items-center gap-1">

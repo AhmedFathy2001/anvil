@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { log } from '@/lib/logger';
 
 interface DiscordEmbed {
   title: string;
@@ -21,38 +22,58 @@ async function getWebhookUrl(): Promise<string | null> {
     const setting = await db.query.settings.findFirst({
       where: eq(settings.key, 'discord_webhook_url'),
     });
-    if (!setting?.value) {
-      console.log('[Discord] No webhook URL configured');
-    }
     return setting?.value || null;
   } catch (error) {
-    console.error('[Discord] Failed to fetch webhook URL from database:', error);
+    log.warn('discord.db-read-fail', {}, error);
     return null;
   }
 }
 
+const MAX_RETRY_MS = 5000;
+
+async function postWebhook(
+  webhookUrl: string,
+  payload: DiscordWebhookPayload,
+): Promise<Response> {
+  return fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await getWebhookUrl();
-  if (!webhookUrl) {
-    console.log('[Discord] Skipping webhook - no URL configured');
-    return false;
-  }
+  if (!webhookUrl) return false;
 
   try {
-    console.log('[Discord] Sending webhook...');
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    let response = await postWebhook(webhookUrl, payload);
+
+    if (response.status === 429) {
+      // Discord sends Retry-After in seconds (sometimes fractional). Also check
+      // the JSON body's retry_after which can be more precise for route-specific
+      // buckets. Cap total wait so a hot bucket can't stall a cron job.
+      const headerVal = response.headers.get('retry-after');
+      let retryMs = headerVal ? Number(headerVal) * 1000 : 0;
+      if (!retryMs) {
+        try {
+          const body = (await response.clone().json()) as { retry_after?: number };
+          if (typeof body.retry_after === 'number') retryMs = body.retry_after * 1000;
+        } catch { /* body wasn't JSON */ }
+      }
+      retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
+      log.warn('discord.rate-limited', { retryMs });
+      await new Promise((r) => setTimeout(r, retryMs));
+      response = await postWebhook(webhookUrl, payload);
+    }
+
     if (!response.ok) {
-      console.error('[Discord] Webhook failed with status:', response.status, await response.text());
-    } else {
-      console.log('[Discord] Webhook sent successfully');
+      const text = await response.text().catch(() => '');
+      log.warn('discord.webhook-fail', { status: response.status, body: text.slice(0, 200) });
     }
     return response.ok;
   } catch (error) {
-    console.error('[Discord] Failed to send webhook:', error);
+    log.warn('discord.webhook-exception', {}, error);
     return false;
   }
 }

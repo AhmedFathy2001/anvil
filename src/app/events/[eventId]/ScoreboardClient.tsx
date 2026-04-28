@@ -20,27 +20,7 @@ interface Tile {
   statType?: string | null;
   statGoal?: number | null;
   trackingMode?: string;
-  womCompetitionId?: number | null;
   optional?: number | null;
-}
-
-interface TileWomTeamStanding {
-  rank: number;
-  womTeamName: string;
-  localTeamId: number | null;
-  localTeamName: string | null;
-  color: string | null;
-  totalGained: number;
-  mvp: string;
-}
-
-interface TileWomPlayerStanding {
-  rank: number;
-  womPlayerName: string;
-  localPlayerName: string | null;
-  localTeamName: string | null;
-  color: string | null;
-  gained: number;
 }
 
 interface Team {
@@ -64,22 +44,9 @@ interface Event {
   createdAt: string;
   draftStatus: string;
   draftOrder: string | null;
-  womCompetitionId?: number | null;
   startDate?: string | null;
   endDate?: string | null;
   forceEndedAt?: string | null;
-}
-
-interface WomTeamStanding {
-  rank: number;
-  womTeamName: string;
-  localTeamId: number | null;
-  localTeamName: string | null;
-  color: string | null;
-  playerCount: number;
-  totalGained: number;
-  averageGained: number;
-  mvp: string;
 }
 
 interface Submission {
@@ -123,13 +90,8 @@ interface TeamGains {
 
 export default function ScoreboardClient({ event, tiles, teams, completions }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [womStandings, setWomStandings] = useState<WomTeamStanding[]>([]);
-  const [womLoading, setWomLoading] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [tileWomTeams, setTileWomTeams] = useState<TileWomTeamStanding[]>([]);
-  const [tileWomPlayers, setTileWomPlayers] = useState<TileWomPlayerStanding[]>([]);
-  const [tileWomLoading, setTileWomLoading] = useState(false);
   const [timeDisplay, setTimeDisplay] = useState<string>('');
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
 
@@ -175,26 +137,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
     return () => clearInterval(interval);
   }, [event.startDate, event.endDate, event.forceEndedAt]);
 
-  // Fetch tile-level WOM data when selecting a tile with WOM linked
-  useEffect(() => {
-    if (!selectedTile?.womCompetitionId) {
-      setTileWomTeams([]);
-      setTileWomPlayers([]);
-      return;
-    }
-
-    setTileWomLoading(true);
-    fetch(`/api/events/${event.id}/tiles/${selectedTile.id}/wom`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          setTileWomTeams(data.teams || []);
-          setTileWomPlayers(data.players || []);
-        }
-      })
-      .finally(() => setTileWomLoading(false));
-  }, [selectedTile?.id, selectedTile?.womCompetitionId, event.id]);
-
   useEffect(() => {
     fetch(`/api/events/${event.id}/submissions`)
       .then((r) => r.ok ? r.json() : [])
@@ -233,17 +175,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
       setTeamGains(results.filter((r): r is TeamGains => r !== null));
     });
   }, [event.id, teams, tiles]);
-
-  useEffect(() => {
-    if (!event.womCompetitionId) return;
-    setWomLoading(true);
-    fetch(`/api/events/${event.id}/wom`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data?.teams) setWomStandings(data.teams);
-      })
-      .finally(() => setWomLoading(false));
-  }, [event.id, event.womCompetitionId]);
 
   // Exclude optional tiles from completion counts
   const requiredTiles = tiles.filter((t) => !t.optional);
@@ -358,96 +289,40 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
               dropProgressByTeam={dropProgressByTeam}
             />
 
-            {/* XP/Stat Gains - Local + WOM */}
-            {(statTiles.length > 0 || event.womCompetitionId) && (
+            {/* XP/Stat Gains */}
+            {statTiles.length > 0 && teamGains.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
                   <span className="w-1 h-4 bg-blue-400 rounded-full" />
                   XP/Stat Gains
                 </h3>
-
-                {/* Local Stats (from our tracking) */}
-                {teamGains.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs text-text-muted mb-2">Local Tracking</p>
-                    <div className="space-y-2">
-                      {[...teamGains]
-                        .sort((a, b) => b.totalGained - a.totalGained)
-                        .map((tg, index) => {
-                          const team = teams.find((t) => t.id === tg.teamId);
-                          return (
-                            <div
-                              key={tg.teamId}
-                              className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>
-                                {team?.color && (
-                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
-                                )}
-                                <span className="font-medium">{team?.name || 'Unknown'}</span>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-lg font-bold text-blue-400">
-                                  {formatNumber(tg.totalGained)}
-                                </span>
-                                <span className="text-xs text-text-muted ml-1">XP</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* WOM Stats */}
-                {event.womCompetitionId && (
-                  <div>
-                    <p className="text-xs text-text-muted mb-2 flex items-center gap-1">
-                      <span className="w-1 h-3 bg-indigo-400 rounded-full" />
-                      Wise Old Man
-                    </p>
-                    {womLoading ? (
-                      <p className="text-sm text-text-muted">Loading WOM data...</p>
-                    ) : womStandings.length > 0 ? (
-                      <div className="space-y-2">
-                        {womStandings.map((ws) => (
-                          <div
-                            key={ws.rank}
-                            className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg font-bold text-gold w-6">#{ws.rank}</span>
-                              {ws.color && (
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
-                              )}
-                              <span className="font-medium">{ws.localTeamName || ws.womTeamName}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-lg font-bold text-indigo-400">
-                                {formatNumber(ws.totalGained)}
-                              </span>
-                              <span className="text-xs text-text-muted ml-1">XP</span>
-                              <div className="text-xs text-text-muted">
-                                MVP: {ws.mvp}
-                              </div>
-                            </div>
+                <div className="space-y-2">
+                  {[...teamGains]
+                    .sort((a, b) => b.totalGained - a.totalGained)
+                    .map((tg, index) => {
+                      const team = teams.find((t) => t.id === tg.teamId);
+                      return (
+                        <div
+                          key={tg.teamId}
+                          className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>
+                            {team?.color && (
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
+                            )}
+                            <span className="font-medium">{team?.name || 'Unknown'}</span>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-text-muted">No WOM data available</p>
-                    )}
-                    <a
-                      href={`https://wiseoldman.net/competitions/${event.womCompetitionId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
-                    >
-                      View on Wise Old Man →
-                    </a>
-                  </div>
-                )}
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-blue-400">
+                              {formatNumber(tg.totalGained)}
+                            </span>
+                            <span className="text-xs text-text-muted ml-1">XP</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             )}
           </div>
@@ -612,48 +487,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
               )}
             </div>
 
-            {/* Tile WOM Standings */}
-            {selectedTile.womCompetitionId && (
-              <div className="mt-4 pt-4 border-t border-card-border">
-                <h4 className="text-sm font-semibold text-indigo-400 mb-2 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-indigo-400 rounded-full" />
-                  WOM Competition Progress
-                </h4>
-                {tileWomLoading ? (
-                  <p className="text-xs text-text-muted">Loading WOM data...</p>
-                ) : tileWomTeams.length > 0 ? (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {tileWomTeams.map((wt) => (
-                      <div
-                        key={wt.rank}
-                        className="flex items-center justify-between text-sm bg-card-bg rounded p-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-gold w-5">#{wt.rank}</span>
-                          {wt.color && (
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: wt.color }} />
-                          )}
-                          <span className="text-foreground text-xs">{wt.localTeamName || wt.womTeamName}</span>
-                        </div>
-                        <span className="text-indigo-400 font-medium text-xs">
-                          {wt.totalGained.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-text-muted">No WOM data available</p>
-                )}
-                <a
-                  href={`https://wiseoldman.net/competitions/${selectedTile.womCompetitionId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 underline"
-                >
-                  View on Wise Old Man →
-                </a>
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -33,7 +33,6 @@ interface Tile {
   statType: string | null;
   statGoal: number | null;
   trackingMode: string;
-  womCompetitionId: number | null;
 }
 
 export interface EventStreamData {

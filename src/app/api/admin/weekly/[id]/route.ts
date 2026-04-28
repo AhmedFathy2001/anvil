@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
@@ -39,14 +39,13 @@ export async function PUT(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
-  const { title, startDate, endDate, status, womCompetitionId } = await request.json();
+  const { title, startDate, endDate, status } = await request.json();
 
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (startDate !== undefined) updates.startDate = startDate;
   if (endDate !== undefined) updates.endDate = endDate;
   if (status !== undefined) updates.status = status;
-  if (womCompetitionId !== undefined) updates.womCompetitionId = womCompetitionId;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

@@ -1,13 +1,14 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { players } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { players, pluginLinks } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import { requireSecret } from '@/lib/env';
 
-const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'admin-secret';
-const CAPTAIN_SESSION_SECRET = process.env.CAPTAIN_SESSION_SECRET || 'captain-secret';
-const PLAYER_SESSION_SECRET = process.env.PLAYER_SESSION_SECRET || 'player-secret';
+const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
+const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
+const PLAYER_SESSION_SECRET = requireSecret('PLAYER_SESSION_SECRET', 'dev-player-secret');
 
 function sign(payload: string, secret: string): string {
   const hmac = crypto.createHmac('sha256', secret);
@@ -149,6 +150,47 @@ export async function verifyPluginToken(
     teamId: player.teamId,
     eventId: player.eventId,
   };
+}
+
+// Admin plugin token: a long-lived token issued via the site's link flow.
+// Bound to a users.id + rsn so admin-only plugin actions (clan-sync etc.) are attributable.
+export async function verifyAdminPluginToken(
+  request: Request
+): Promise<{ userId: number; rsn: string; linkId: number } | null> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+
+  const link = await db.query.pluginLinks.findFirst({
+    where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
+  });
+  if (!link) return null;
+
+  // Fire-and-forget lastUsedAt bump — ok if it races
+  db.update(pluginLinks)
+    .set({ lastUsedAt: new Date().toISOString() })
+    .where(eq(pluginLinks.id, link.id))
+    .catch(() => {});
+
+  return { userId: link.userId, rsn: link.rsn, linkId: link.id };
+}
+
+export function generatePluginLinkCode(): string {
+  // 6 chars from an unambiguous alphabet (no 0/O/1/I/L)
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(6);
+  let out = '';
+  for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
+export function generateAdminPluginToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+export function normalizeRsn(rsn: string): string {
+  return rsn.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export async function verifyPlayer(): Promise<{ playerId: number; teamId: number } | null> {

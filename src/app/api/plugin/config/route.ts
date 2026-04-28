@@ -3,9 +3,10 @@ import { db } from '@/db';
 import { events, tiles, teams, submissions } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
+import { requireSecret } from '@/lib/env';
 import crypto from 'crypto';
 
-const CODEWORD_SECRET = process.env.CODEWORD_SECRET || 'bingo-codeword-secret';
+const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 
 function generateCodeword(playerId: number, eventId: number): string {
   const date = new Date().toISOString().slice(0, 10);
@@ -52,12 +53,33 @@ export async function GET(request: Request) {
 
   const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
 
+  // Get per-item submission totals for tiles with itemRequirements
+  const perItemSubmissions = await db
+    .select({
+      tileId: submissions.tileId,
+      itemId: submissions.itemId,
+      total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+    })
+    .from(submissions)
+    .where(eq(submissions.teamId, auth.teamId))
+    .groupBy(submissions.tileId, submissions.itemId)
+    .all();
+
+  // Build a map: tileId -> { itemId -> total }
+  const perItemMap = new Map<number, Map<number, number>>();
+  for (const row of perItemSubmissions) {
+    if (row.itemId == null) continue;
+    if (!perItemMap.has(row.tileId)) perItemMap.set(row.tileId, new Map());
+    perItemMap.get(row.tileId)!.set(row.itemId, Number(row.total));
+  }
+
   return NextResponse.json({
     event: {
       id: event.id,
       name: event.name,
       startDate: event.startDate,
       endDate: event.endDate,
+      forceEndedAt: event.forceEndedAt ?? null,
     },
     team: {
       id: team.id,
@@ -70,12 +92,27 @@ export async function GET(request: Request) {
     codeword: generateCodeword(auth.playerId, event.id),
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
-      .map(t => ({
-        tileId: t.id,
-        label: t.label,
-        itemIds: JSON.parse(t.trackedItemIds || '[]'),
-        requiredAmount: t.requiredAmount ?? 1,
-        currentAmount: submissionMap[t.id] ?? 0,
-      })),
+      .map(t => {
+        const itemReqs = t.itemRequirements
+          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[]
+          : null;
+        const tileItemTotals = perItemMap.get(t.id);
+
+        return {
+          tileId: t.id,
+          label: t.label,
+          itemIds: JSON.parse(t.trackedItemIds || '[]'),
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: submissionMap[t.id] ?? 0,
+          ...(itemReqs ? {
+            itemRequirements: itemReqs.map(req => ({
+              itemId: req.itemId,
+              name: req.name,
+              requiredAmount: req.requiredAmount,
+              currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
+            })),
+          } : {}),
+        };
+      }),
   });
 }

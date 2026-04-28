@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players } from '@/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
+import { findOrCreateClanMember } from '@/lib/clan';
 
 export async function GET(
   _request: Request,
@@ -34,19 +35,29 @@ export async function POST(
 
   // Bulk import: array of { name, discord?, timezone? }
   if (Array.isArray(body)) {
-    const toInsert = body
-      .filter((p: { name?: string }) => p.name && typeof p.name === 'string' && p.name.trim())
-      .map((p: { name: string; discord?: string; timezone?: string }) => ({
-        eventId: id,
-        name: p.name.trim(),
-        discord: p.discord?.trim() || null,
-        timezone: p.timezone?.trim() || null,
-        playerToken: generatePlayerToken(),
-      }));
+    const valid = body.filter(
+      (p: { name?: string }) => p.name && typeof p.name === 'string' && p.name.trim(),
+    ) as { name: string; discord?: string; timezone?: string }[];
 
-    if (toInsert.length === 0) {
+    if (valid.length === 0) {
       return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
     }
+
+    const toInsert = await Promise.all(
+      valid.map(async (p) => {
+        const name = p.name.trim();
+        const discord = p.discord?.trim() || null;
+        const clanMemberId = await findOrCreateClanMember(name, { discordId: discord });
+        return {
+          eventId: id,
+          clanMemberId,
+          name,
+          discord,
+          timezone: p.timezone?.trim() || null,
+          playerToken: generatePlayerToken(),
+        };
+      }),
+    );
 
     const inserted = await db.insert(players).values(toInsert).returning();
     return NextResponse.json(inserted, { status: 201 });
@@ -59,12 +70,17 @@ export async function POST(
     return NextResponse.json({ error: 'Player name is required' }, { status: 400 });
   }
 
+  const trimmedName = name.trim();
+  const trimmedDiscord = discord?.trim() || null;
+  const clanMemberId = await findOrCreateClanMember(trimmedName, { discordId: trimmedDiscord });
+
   const [player] = await db
     .insert(players)
     .values({
       eventId: id,
-      name: name.trim(),
-      discord: discord?.trim() || null,
+      clanMemberId,
+      name: trimmedName,
+      discord: trimmedDiscord,
       timezone: timezone?.trim() || null,
       playerToken: generatePlayerToken(),
     })

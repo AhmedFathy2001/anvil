@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { db } from '@/db';
 import { events, teams, tiles, completions, submissions, players } from '@/db/schema';
-import { desc, eq, count } from 'drizzle-orm';
+import { desc, eq, count, inArray } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
 
 export const dynamic = 'force-dynamic';
@@ -34,70 +34,111 @@ export default async function HomePage() {
     return !!e.forceEndedAt || (!!e.endDate && e.endDate < now);
   });
 
-  // Get winner info for past events
+  // Batch-fetch data for past events (avoid N+1 queries)
+  const pastEventIds = pastEvents.map(e => e.id);
   const pastEventWinners = new Map<number, { teamName: string; teamColor: string; tilesCompleted: number }>();
-  for (const event of pastEvents) {
-    const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
-    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
-    const tileIds = eventTiles.map((t) => t.id);
-    if (tileIds.length === 0 || eventTeams.length === 0) continue;
-
-    const allCompletions = await db.select().from(completions);
-    const eventCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
-
-    let bestTeam: { teamName: string; teamColor: string; tilesCompleted: number } | null = null;
-    for (const team of eventTeams) {
-      const teamCount = eventCompletions.filter((c) => c.teamId === team.id).length;
-      if (!bestTeam || teamCount > bestTeam.tilesCompleted) {
-        bestTeam = { teamName: team.name, teamColor: team.color, tilesCompleted: teamCount };
-      }
-    }
-    if (bestTeam && bestTeam.tilesCompleted > 0) {
-      pastEventWinners.set(event.id, bestTeam);
-    }
-  }
-
-  // Get top contributors for past events (by total submission amount)
   const pastEventContributors = new Map<number, { name: string; totalAmount: number }[]>();
-  for (const event of pastEvents) {
-    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
-    const tileIds = new Set(eventTiles.map((t) => t.id));
-    if (tileIds.size === 0) continue;
 
-    const allSubmissions = await db.select().from(submissions);
-    const eventSubmissions = allSubmissions.filter((s) => tileIds.has(s.tileId));
+  if (pastEventIds.length > 0) {
+    const allPastTeams = await db.select().from(teams).where(inArray(teams.eventId, pastEventIds));
+    const allPastTiles = await db.select().from(tiles).where(inArray(tiles.eventId, pastEventIds));
+    const allPastTileIds = allPastTiles.map(t => t.id);
+    const allPastCompletions = allPastTileIds.length > 0
+      ? await db.select().from(completions).where(inArray(completions.tileId, allPastTileIds))
+      : [];
+    const allPastSubmissions = allPastTileIds.length > 0
+      ? await db.select().from(submissions).where(inArray(submissions.tileId, allPastTileIds))
+      : [];
+    const allPastPlayers = await db.select().from(players).where(inArray(players.eventId, pastEventIds));
 
-    // Group by creditPlayerId
-    const playerTotals = new Map<number, number>();
-    for (const s of eventSubmissions) {
-      if (s.creditPlayerId) {
-        playerTotals.set(s.creditPlayerId, (playerTotals.get(s.creditPlayerId) || 0) + s.amount);
-      }
+    // Group by eventId
+    const teamsByEvent = new Map<number, typeof allPastTeams>();
+    for (const t of allPastTeams) {
+      const list = teamsByEvent.get(t.eventId) || [];
+      list.push(t);
+      teamsByEvent.set(t.eventId, list);
+    }
+    const tilesByEvent = new Map<number, typeof allPastTiles>();
+    for (const t of allPastTiles) {
+      const list = tilesByEvent.get(t.eventId) || [];
+      list.push(t);
+      tilesByEvent.set(t.eventId, list);
+    }
+    const tileEventMap = new Map(allPastTiles.map(t => [t.id, t.eventId]));
+    const completionsByEvent = new Map<number, typeof allPastCompletions>();
+    for (const c of allPastCompletions) {
+      const eventId = tileEventMap.get(c.tileId);
+      if (eventId == null) continue;
+      const list = completionsByEvent.get(eventId) || [];
+      list.push(c);
+      completionsByEvent.set(eventId, list);
+    }
+    const submissionsByEvent = new Map<number, typeof allPastSubmissions>();
+    for (const s of allPastSubmissions) {
+      const eventId = tileEventMap.get(s.tileId);
+      if (eventId == null) continue;
+      const list = submissionsByEvent.get(eventId) || [];
+      list.push(s);
+      submissionsByEvent.set(eventId, list);
+    }
+    const playersByEvent = new Map<number, typeof allPastPlayers>();
+    for (const p of allPastPlayers) {
+      const list = playersByEvent.get(p.eventId) || [];
+      list.push(p);
+      playersByEvent.set(p.eventId, list);
     }
 
-    if (playerTotals.size === 0) continue;
+    for (const event of pastEvents) {
+      const eventTeams = teamsByEvent.get(event.id) || [];
+      const eventTiles = tilesByEvent.get(event.id) || [];
+      const eventCompletions = completionsByEvent.get(event.id) || [];
 
-    // Get top 3 player names
-    const topPlayerIds = [...playerTotals.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
+      if (eventTiles.length === 0 || eventTeams.length === 0) continue;
 
-    const eventPlayers = await db.select().from(players).where(eq(players.eventId, event.id));
-    const playerMap = new Map(eventPlayers.map((p) => [p.id, p.name]));
+      // Winner
+      let bestTeam: { teamName: string; teamColor: string; tilesCompleted: number } | null = null;
+      for (const team of eventTeams) {
+        const teamCount = eventCompletions.filter(c => c.teamId === team.id).length;
+        if (!bestTeam || teamCount > bestTeam.tilesCompleted) {
+          bestTeam = { teamName: team.name, teamColor: team.color, tilesCompleted: teamCount };
+        }
+      }
+      if (bestTeam && bestTeam.tilesCompleted > 0) {
+        pastEventWinners.set(event.id, bestTeam);
+      }
 
-    const topContributors = topPlayerIds.map(([playerId, totalAmount]) => ({
-      name: playerMap.get(playerId) || 'Unknown',
-      totalAmount,
-    }));
+      // Top contributors
+      const eventSubmissions = submissionsByEvent.get(event.id) || [];
+      const playerTotals = new Map<number, number>();
+      for (const s of eventSubmissions) {
+        if (s.creditPlayerId) {
+          playerTotals.set(s.creditPlayerId, (playerTotals.get(s.creditPlayerId) || 0) + s.amount);
+        }
+      }
 
-    pastEventContributors.set(event.id, topContributors);
+      if (playerTotals.size > 0) {
+        const topPlayerIds = [...playerTotals.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+
+        const eventPlayers = playersByEvent.get(event.id) || [];
+        const playerMap = new Map(eventPlayers.map(p => [p.id, p.name]));
+
+        const topContributors = topPlayerIds.map(([playerId, totalAmount]) => ({
+          name: playerMap.get(playerId) || 'Unknown',
+          totalAmount,
+        }));
+
+        pastEventContributors.set(event.id, topContributors);
+      }
+    }
   }
 
   return (
     <div>
       <div className="text-center mb-10">
-        <h1 className="text-3xl sm:text-4xl font-bold text-gold mb-2">OSRS Bingo Tracker</h1>
-        <p className="text-text-muted">Track your clan bingo events and compete with teams</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-gold mb-2">Anvil</h1>
+        <p className="text-text-muted">Where your clan&apos;s bingos, SotW/BotW, and roster come together.</p>
       </div>
 
       {allEvents.length === 0 ? (
