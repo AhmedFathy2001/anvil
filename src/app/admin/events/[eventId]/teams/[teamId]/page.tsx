@@ -3,6 +3,7 @@ import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import AdminTeamBoardClient from './AdminTeamBoardClient';
+import CaptainAssignment from './CaptainAssignment';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +39,15 @@ export default async function AdminTeamBoardPage({
   const { captainPassword: _, ...safeTeam } = team;
 
   return (
-    <AdminTeamBoardClient
-      event={event}
-      team={safeTeam}
-      tiles={eventTiles}
-      completions={teamCompletions}
-      players={eventPlayers}
-    />
+    <>
+      <CaptainAssignment teamId={team.id} currentCaptainUserId={team.captainUserId} />
+      <AdminTeamBoardClient
+        event={event}
+        team={safeTeam}
+        tiles={eventTiles}
+        completions={teamCompletions}
+        players={eventPlayers}
+      />
+    </>
   );
 }

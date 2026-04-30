@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { verifyUser } from "@/lib/auth";
+import { db } from "@/db";
+import { users as usersTable } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { avatarUrl } from "@/lib/discord-oauth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,11 +24,23 @@ export const metadata: Metadata = {
   icons: { icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }] },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await verifyUser();
+  let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string } | null = null;
+  if (session?.userId) {
+    const found = await db.query.users.findFirst({
+      where: eq(usersTable.id, session.userId),
+      columns: { displayName: true, discordId: true, discordAvatar: true, role: true },
+    });
+    if (found) userRow = found;
+  }
+  const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
+  const isStaff = session?.role === 'admin' || session?.role === 'moderator';
+
   return (
     <html lang="en">
       <body
@@ -46,29 +63,19 @@ export default function RootLayout({
                 Events
               </Link>
               <Link
-                href="/captain"
-                className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
-              >
-                Captain
-              </Link>
-              <Link
-                href="/player"
-                className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
-              >
-                Player
-              </Link>
-              <Link
                 href="/weekly"
                 className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
               >
                 Weekly
               </Link>
-              <Link
-                href="/admin"
-                className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
-              >
-                Admin
-              </Link>
+              {isStaff && (
+                <Link
+                  href="/admin/dashboard"
+                  className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
+                >
+                  Admin
+                </Link>
+              )}
               <a
                 href="https://discord.gg/xvuhwTGZyR"
                 target="_blank"
@@ -80,6 +87,41 @@ export default function RootLayout({
                 </svg>
                 Discord
               </a>
+              {session && userRow ? (
+                <div className="ml-2 flex items-center gap-2 pl-3 border-l border-card-border">
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-2 group px-2 py-1 rounded-md hover:bg-brown-light transition-all"
+                    title={userRow.displayName}
+                  >
+                    {avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatar} alt="" width={24} height={24} className="rounded-full" />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full bg-gold/20 text-gold text-xs flex items-center justify-center font-semibold">
+                        {(userRow.displayName || '?').charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="text-sm text-foreground/80 group-hover:text-foreground hidden sm:inline">
+                      {userRow.displayName}
+                    </span>
+                  </Link>
+                  <a
+                    href="/api/auth/logout?return=/"
+                    className="px-2 py-1 rounded-md text-xs text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+                    title="Sign out"
+                  >
+                    ⎋
+                  </a>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="ml-2 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
+                >
+                  Sign in
+                </Link>
+              )}
             </div>
           </div>
         </nav>

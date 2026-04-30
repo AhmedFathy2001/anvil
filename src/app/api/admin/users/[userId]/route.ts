@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
-import { verifyAdmin, verifyUser, hashPasswordBcrypt } from '@/lib/auth';
+import { verifyUser, hashPasswordBcrypt } from '@/lib/auth';
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { clanAuditLog, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+
+const VALID_ROLES = new Set(['admin', 'moderator', 'member']);
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const isAdmin = await verifyAdmin();
+  const session = await verifyUser();
+  const isAdmin = session?.role === 'admin';
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -17,14 +20,21 @@ export async function PUT(
   const targetId = parseInt(userId, 10);
   const { displayName, password, role } = await request.json();
 
+  if (role !== undefined && !VALID_ROLES.has(role)) {
+    return NextResponse.json({ error: 'Role must be admin, moderator, or member' }, { status: 400 });
+  }
+
   // Prevent demoting last admin
   if (role && role !== 'admin') {
     const admins = await db.select().from(users).where(eq(users.role, 'admin'));
-    const target = admins.find(u => u.id === targetId);
+    const target = admins.find((u) => u.id === targetId);
     if (target && admins.length <= 1) {
       return NextResponse.json({ error: 'Cannot demote the last admin' }, { status: 400 });
     }
   }
+
+  // Capture prior role for audit trail.
+  const before = role !== undefined ? await db.query.users.findFirst({ where: eq(users.id, targetId) }) : null;
 
   const updates: Record<string, unknown> = {};
   if (displayName !== undefined) updates.displayName = displayName;
@@ -38,6 +48,18 @@ export async function PUT(
   }
 
   await db.update(users).set(updates).where(eq(users.id, targetId));
+
+  // Log promotion/demotion so the clan audit log shows the role change.
+  if (before && role && before.role !== role) {
+    db.insert(clanAuditLog)
+      .values({
+        eventType: role === 'member' ? 'demoted' : before.role === 'member' ? 'promoted' : 'role_changed',
+        oldValue: JSON.stringify({ userId: targetId, role: before.role }),
+        newValue: JSON.stringify({ userId: targetId, role }),
+        actorUserId: session && session.userId > 0 ? session.userId : null,
+      })
+      .catch(() => {});
+  }
 
   const updated = await db.select({
     id: users.id,

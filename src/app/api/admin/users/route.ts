@@ -15,9 +15,17 @@ export async function GET() {
     displayName: users.displayName,
     role: users.role,
     createdAt: users.createdAt,
+    discordId: users.discordId,
+    discordUsername: users.discordUsername,
+    discordAvatar: users.discordAvatar,
+    lastLoginAt: users.lastLoginAt,
+    passwordHash: users.passwordHash,
   }).from(users);
 
-  return NextResponse.json(allUsers);
+  // Strip the password hash from the response — only the boolean "has one" leaves the server.
+  return NextResponse.json(
+    allUsers.map(({ passwordHash, ...rest }) => ({ ...rest, hasPassword: Boolean(passwordHash) })),
+  );
 }
 
 export async function POST(request: Request) {
@@ -32,6 +40,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Username, password, and role are required' }, { status: 400 });
   }
 
+  // POST creates legacy username/password staff. Discord-linked members get created
+  // automatically via the OAuth callback, not here. We constrain to admin/moderator
+  // because there's no point legacy-creating a 'member' (they'd just sign in via Discord).
   if (role !== 'admin' && role !== 'moderator') {
     return NextResponse.json({ error: 'Role must be admin or moderator' }, { status: 400 });
   }

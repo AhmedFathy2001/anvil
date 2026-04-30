@@ -1,205 +1,245 @@
 import Link from 'next/link';
 import { db } from '@/db';
-import { events, teams } from '@/db/schema';
-import { desc, eq, count } from 'drizzle-orm';
-import EventForm from '@/components/EventForm';
-import DiscordSettings from '@/components/DiscordSettings';
+import {
+  clanAuditLog,
+  clanMembers,
+  events,
+  teams,
+  weeklyCompetitions,
+} from '@/db/schema';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
   const allEvents = await db.select().from(events).orderBy(desc(events.createdAt));
-
   const teamCounts = new Map<number, number>();
   if (allEvents.length > 0) {
     const counts = await db
       .select({ eventId: teams.eventId, count: count() })
       .from(teams)
       .groupBy(teams.eventId);
-    for (const row of counts) {
-      teamCounts.set(row.eventId, row.count);
-    }
+    for (const row of counts) teamCounts.set(row.eventId, row.count);
   }
-
   const now = new Date().toISOString();
-
   const activeEvents = allEvents.filter((e) => {
     if (e.forceEndedAt) return false;
     if (e.endDate && e.endDate < now) return false;
     return true;
   });
+  const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < now));
 
-  const pastEvents = allEvents.filter((e) => {
-    return !!e.forceEndedAt || (!!e.endDate && e.endDate < now);
-  });
+  const [provisionalCount, activeMembers, activeWeekly, recentAudit] = await Promise.all([
+    db
+      .select({ c: count() })
+      .from(clanMembers)
+      .where(and(eq(clanMembers.provisional, 1), isNull(clanMembers.leftAt)))
+      .then((r) => r[0]?.c ?? 0),
+    db
+      .select({ c: count() })
+      .from(clanMembers)
+      .where(isNull(clanMembers.leftAt))
+      .then((r) => r[0]?.c ?? 0),
+    db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.status, 'active') }),
+    db
+      .select({
+        id: clanAuditLog.id,
+        eventType: clanAuditLog.eventType,
+        notes: clanAuditLog.notes,
+        occurredAt: clanAuditLog.occurredAt,
+        memberRsn: clanMembers.rsn,
+      })
+      .from(clanAuditLog)
+      .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+      .orderBy(desc(clanAuditLog.occurredAt))
+      .limit(8),
+  ]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gold">Admin Dashboard</h1>
-          <p className="text-text-muted text-sm mt-1">Manage events, teams, and tiles</p>
-        </div>
+      <header className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Dashboard</h1>
+        <p className="text-text-muted text-sm">Overview of clan activity and live events.</p>
+      </header>
+
+      {/* Stat tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <StatTile label="Active members" value={activeMembers} />
+        <StatTile label="Active events" value={activeEvents.length} accent={activeEvents.length > 0} />
+        <StatTile label="Pending verifications" value={provisionalCount} warn={provisionalCount > 0} />
+        <StatTile label="Past events" value={pastEvents.length} muted />
       </div>
 
-      {/* Quick Links */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <Link
-          href="/admin/schedule"
-          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
-        >
-          <span className="text-gold">📅</span>
-          Schedule
-        </Link>
-        <Link
-          href="/admin/clan"
-          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
-        >
-          <span className="text-gold">🛡️</span>
-          Clan Roster
-        </Link>
-        <Link
-          href="/admin/players"
-          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
-        >
-          <span className="text-gold">👥</span>
-          Player Pool
-        </Link>
-        <Link
-          href="/admin/users"
-          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
-        >
-          <span className="text-gold">🔑</span>
-          User Management
-        </Link>
-        <Link
-          href="/admin/weekly"
-          className="px-4 py-2 text-sm border border-card-border rounded-lg bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all flex items-center gap-2"
-        >
-          <span className="text-gold">🏆</span>
-          Weekly Competitions
-        </Link>
-      </div>
-
-      <div className="grid gap-8 lg:grid-cols-2 items-start">
-        <div>
-          {/* Active Events */}
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <span className="w-1 h-5 bg-accent-green rounded-full" />
-            Active Events
-          </h2>
-          {activeEvents.length === 0 ? (
-            <div className="text-center py-8 border border-dashed border-card-border rounded-xl mb-6">
-              <p className="text-text-muted">No active events. Create one to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-2 mb-6">
-              {activeEvents.map((event) => {
-                const numTeams = teamCounts.get(event.id) || 0;
-                const hasStarted = event.startDate && event.startDate <= now;
-                return (
-                  <Link
-                    key={event.id}
-                    href={`/admin/events/${event.id}`}
-                    className="group flex items-center justify-between border border-card-border rounded-xl p-4 bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold group-hover:text-gold transition-colors">
-                          {event.name}
-                        </span>
-                        {hasStarted ? (
-                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">
-                            Upcoming
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
-                        <span className="bg-gold/15 text-gold px-1.5 py-0.5 rounded-full">
-                          {event.boardSize}x{event.boardSize}
-                        </span>
-                        <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
-                      </div>
-                    </div>
-                    <span className="text-text-muted text-sm group-hover:text-gold transition-colors">&rarr;</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Past Events */}
-          {pastEvents.length > 0 && (
-            <>
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span className="w-1 h-5 bg-text-muted rounded-full" />
-                Event History
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Active events */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold flex items-center gap-2">
+                <span className="w-1 h-5 bg-accent-green rounded-full" />
+                Active Events
               </h2>
+              <Link href="/admin/events" className="text-xs text-gold hover:text-gold-light">
+                Manage events →
+              </Link>
+            </div>
+            {activeEvents.length === 0 ? (
+              <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
+                No active events.{' '}
+                <Link href="/admin/events" className="text-gold hover:underline">
+                  Create one →
+                </Link>
+              </div>
+            ) : (
               <div className="space-y-2">
-                {pastEvents.map((event) => {
-                  const numTeams = teamCounts.get(event.id) || 0;
+                {activeEvents.map((e) => {
+                  const numTeams = teamCounts.get(e.id) || 0;
+                  const hasStarted = e.startDate && e.startDate <= now;
                   return (
                     <Link
-                      key={event.id}
-                      href={`/admin/events/${event.id}`}
-                      className="group flex items-center justify-between border border-card-border/60 rounded-xl p-4 bg-card-bg/60 hover:border-gold/30 hover:bg-card-bg-hover transition-all"
+                      key={e.id}
+                      href={`/admin/events/${e.id}`}
+                      className="group flex items-center justify-between border border-card-border rounded-xl p-4 bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-all"
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-text-muted group-hover:text-gold transition-colors">
-                            {event.name}
-                          </span>
-                          {event.forceEndedAt ? (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">
-                              Force-Ended
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold group-hover:text-gold transition-colors">{e.name}</span>
+                          {hasStarted ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">
+                              Active
                             </span>
                           ) : (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-text-muted/15 text-text-muted">
-                              Completed
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">
+                              Upcoming
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
-                          <span className="bg-gold/10 text-gold/70 px-1.5 py-0.5 rounded-full">
-                            {event.boardSize}x{event.boardSize}
+                          <span className="bg-gold/15 text-gold px-1.5 py-0.5 rounded-full">
+                            {e.boardSize}×{e.boardSize}
                           </span>
-                          <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
+                          <span>
+                            {numTeams} team{numTeams !== 1 ? 's' : ''}
+                          </span>
                         </div>
                       </div>
-                      <span className="text-text-muted text-sm group-hover:text-gold transition-colors">&rarr;</span>
+                      <span className="text-text-muted text-sm group-hover:text-gold transition-colors">→</span>
                     </Link>
                   );
                 })}
               </div>
-            </>
-          )}
-        </div>
-        <div className="space-y-8">
-          <div>
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              Create Event
-            </h2>
-            <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-              <EventForm />
-            </div>
-          </div>
+            )}
+          </section>
 
-          <div>
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              Discord Integration
-            </h2>
-            <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-              <DiscordSettings />
+          {/* Recent audit */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold flex items-center gap-2">
+                <span className="w-1 h-5 bg-gold rounded-full" />
+                Recent activity
+              </h2>
+              <Link href="/admin/clan/audit" className="text-xs text-gold hover:text-gold-light">
+                Full log →
+              </Link>
             </div>
-          </div>
+            {recentAudit.length === 0 ? (
+              <div className="text-center py-6 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
+                Nothing logged yet.
+              </div>
+            ) : (
+              <ul className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+                {recentAudit.map((a) => (
+                  <li key={a.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm">
+                        <span className="text-gold capitalize">{a.eventType.replace(/_/g, ' ')}</span>
+                        {a.memberRsn && <span className="text-text-muted"> · {a.memberRsn}</span>}
+                      </div>
+                      {a.notes && <div className="text-[11px] text-text-muted truncate">{a.notes}</div>}
+                    </div>
+                    <span className="text-[11px] text-text-muted shrink-0">
+                      {new Date(a.occurredAt).toLocaleDateString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
+
+        <aside className="space-y-6">
+          {/* Quick context */}
+          <section>
+            <h2 className="font-semibold flex items-center gap-2 mb-3">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              Snapshot
+            </h2>
+            <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+              <SnapshotRow label="This week's competition" value={activeWeekly?.title ?? '—'} href="/admin/weekly" />
+              <SnapshotRow
+                label="Pending mod review"
+                value={`${provisionalCount} member${provisionalCount === 1 ? '' : 's'}`}
+                href="/admin/verifications"
+                emphasize={provisionalCount > 0}
+              />
+              <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/clan" />
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  accent,
+  warn,
+  muted,
+}: {
+  label: string;
+  value: number | string;
+  accent?: boolean;
+  warn?: boolean;
+  muted?: boolean;
+}) {
+  const valueClass = warn
+    ? 'text-yellow-400'
+    : accent
+      ? 'text-accent-green-light'
+      : muted
+        ? 'text-text-muted'
+        : 'text-foreground';
+  return (
+    <div className="border border-card-border rounded-xl bg-card-bg p-4">
+      <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
+      <div className={`text-2xl font-semibold mt-1 ${valueClass}`}>{value}</div>
+    </div>
+  );
+}
+
+function SnapshotRow({
+  label,
+  value,
+  href,
+  emphasize,
+}: {
+  label: string;
+  value: string;
+  href: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-card-bg-hover transition-colors"
+    >
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase tracking-wider text-text-muted">{label}</div>
+        <div className={`text-sm font-medium truncate ${emphasize ? 'text-yellow-400' : ''}`}>{value}</div>
+      </div>
+      <span className="text-text-muted text-xs">→</span>
+    </Link>
   );
 }

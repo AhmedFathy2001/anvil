@@ -68,16 +68,24 @@ export async function middleware(request: NextRequest) {
       const data = JSON.parse(payload);
       const role = data.role;
 
-      // Must be admin or moderator
+      // Must be admin or moderator. Members get sent home rather than back to /admin
+      // (which is the legacy staff login page) so they don't get stuck in a loop.
       if (role !== 'admin' && role !== 'moderator') {
-        return NextResponse.redirect(new URL('/admin', request.url));
+        return NextResponse.redirect(new URL('/', request.url));
       }
 
-      // Moderators can access weekly, clan, and schedule views
+      // Moderators can access dashboard, weekly, clan, schedule, and verifications.
+      // Admin-only sections (events, players, staff, integrations) redirect them home.
       if (role === 'moderator') {
-        const allowed = ['/admin/weekly', '/admin/clan', '/admin/schedule'];
+        const allowed = [
+          '/admin/dashboard',
+          '/admin/weekly',
+          '/admin/clan',
+          '/admin/schedule',
+          '/admin/verifications',
+        ];
         if (!allowed.some((p) => pathname.startsWith(p))) {
-          return NextResponse.redirect(new URL('/admin/weekly', request.url));
+          return NextResponse.redirect(new URL('/admin/dashboard', request.url));
         }
       }
     } catch {

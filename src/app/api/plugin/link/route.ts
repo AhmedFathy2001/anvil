@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
+import {
+  clanAuditLog,
+  clanMembers,
+  pluginLinkCodes,
+  pluginLinks,
+  users,
+} from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
-// Plugin exchanges {code, rsn} for a long-lived adminPluginToken.
+// Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
-// because the plugin is our client. The code acts as proof that the admin initiated this.
+// because the plugin is our client. accountHash (from client.getAccountHash()) is the stable
+// Jagex identifier; passing it lets us detect renames and survive RSN changes.
+//
+// Admin issuers additionally receive a long-lived pluginLinks token that the plugin
+// uses for clan-sync and other admin actions.
 export async function POST(request: Request) {
-  // Only rate-limited endpoint. Legit use is ~once ever per admin; a burst of
-  // wrong codes almost certainly means someone is trying to brute-force the
-  // 6-char space. 20 per 5 min per IP is generous for humans, cheap for us.
   const rl = await rateLimit(request, 'plugin-link', { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
@@ -20,7 +27,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { code?: string; rsn?: string };
+  let body: { code?: string; rsn?: string; accountHash?: string };
   try {
     body = await request.json();
   } catch {
@@ -29,14 +36,14 @@ export async function POST(request: Request) {
 
   const code = (body.code || '').trim().toUpperCase();
   const rsn = (body.rsn || '').trim();
+  const accountHash = typeof body.accountHash === 'string' ? body.accountHash.trim() : '';
   if (!code || code.length !== 6 || !rsn) {
     return NextResponse.json({ error: 'A 6-character code and rsn are required' }, { status: 400 });
   }
 
   const nowIso = new Date().toISOString();
 
-  // Atomic consume: only one request can flip consumedAt from null → now.
-  // LibSQL/SQLite doesn't return affected rows from UPDATE directly, so we use RETURNING.
+  // Atomic consume — only one request flips consumedAt from null → now.
   const consumed = await db
     .update(pluginLinkCodes)
     .set({ consumedAt: nowIso })
@@ -57,67 +64,190 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminUser = await db.query.users.findFirst({ where: eq(users.id, codeRow.userId) });
-  if (!adminUser || adminUser.role !== 'admin') {
-    return NextResponse.json({ error: 'Issuer no longer has admin role' }, { status: 403 });
+  const issuingUser = await db.query.users.findFirst({ where: eq(users.id, codeRow.userId) });
+  if (!issuingUser) {
+    return NextResponse.json({ error: 'Issuer user no longer exists' }, { status: 403 });
   }
 
   const rsnNormalized = normalizeRsn(rsn);
 
-  // Conflict: the same admin is already linked to a different RSN (and hasn't revoked it).
-  // Revoking previous links to a different RSN is a deliberate choice the admin must make
-  // on the site, so we refuse the swap here with 409 instead of silently stacking tokens.
-  const existingLinks = await db.query.pluginLinks.findMany({
-    where: and(eq(pluginLinks.userId, codeRow.userId), isNull(pluginLinks.revokedAt)),
-  });
-  const conflictingLink = existingLinks.find((l) => l.rsnNormalized !== rsnNormalized);
-  if (conflictingLink) {
-    return NextResponse.json(
-      {
-        error: `Admin is already linked to ${conflictingLink.rsn}. Revoke that link on the site before linking a new RSN.`,
-        linkedRsn: conflictingLink.rsn,
-      },
-      { status: 409 },
-    );
-  }
-
-  // If same admin + same RSN already has a live link, reuse it instead of issuing a duplicate.
-  const sameRsnLink = existingLinks.find((l) => l.rsnNormalized === rsnNormalized);
-  const token = sameRsnLink?.token ?? generateAdminPluginToken();
-
-  if (!sameRsnLink) {
-    await db.insert(pluginLinks).values({
-      userId: codeRow.userId,
-      rsn,
-      rsnNormalized,
-      token,
-    });
-  }
-
-  // Opportunistically register the admin's own RSN in the clan roster as a verified member.
-  // Safe: an admin has vouched for the RSN by linking it.
-  const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
-  });
+  // Pick the existing clanMember row that this link should attach to:
+  //   1) accountHash match — strongest, survives renames
+  //   2) rsnNormalized match — for ghosts or members imported via sync
+  let existing = accountHash
+    ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })
+    : null;
   if (!existing) {
-    await db.insert(clanMembers).values({
-      rsn,
-      rsnNormalized,
-      source: 'plugin-self',
-      isGuest: 0,
-      lastSeenInClan: nowIso,
-    });
-  } else if (existing.leftAt && existing.source !== 'manual') {
+    existing = (await db.query.clanMembers.findFirst({
+      where: eq(clanMembers.rsnNormalized, rsnNormalized),
+    })) ?? null;
+  }
+
+  // Detect rename: accountHash matches a row whose RSN no longer matches what the plugin reports.
+  const renamed =
+    existing && accountHash && existing.accountHash === accountHash && existing.rsnNormalized !== rsnNormalized;
+  // Ghost being claimed: a row exists but has no user attached yet.
+  const claimingGhost = existing && existing.userId == null;
+
+  let clanMemberId: number;
+
+  if (existing) {
+    const previousRsns: string[] = (() => {
+      if (!existing!.previousRsns) return [];
+      try {
+        const parsed = JSON.parse(existing!.previousRsns);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    if (renamed && existing.rsn) previousRsns.push(existing.rsn);
+
+    // If another user already owns this clanMember, refuse to overwrite — the link
+    // belongs to whoever first claimed it. The site can offer a transfer flow elsewhere.
+    if (existing.userId && existing.userId !== issuingUser.id) {
+      return NextResponse.json(
+        { error: 'This RuneScape account is already linked to a different site user.' },
+        { status: 409 },
+      );
+    }
+
     await db
       .update(clanMembers)
-      .set({ leftAt: null, lastSeenInClan: nowIso })
+      .set({
+        rsn: renamed ? rsn : existing.rsn,
+        rsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
+        previousRsns: previousRsns.length ? JSON.stringify(previousRsns) : existing.previousRsns,
+        accountHash: accountHash || existing.accountHash,
+        userId: issuingUser.id,
+        verifiedAt: nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        // Plugin-self is a stronger provenance than plugin-roster but weaker than manual.
+        source: existing.source === 'manual' ? 'manual' : 'plugin-self',
+        // If this row was previously soft-deleted (left clan) and is now linking, treat
+        // them as returned. Manual removals stay marked-left.
+        leftAt: existing.source === 'manual' ? existing.leftAt : null,
+        lastSeenInClan: nowIso,
+        claimedAt: claimingGhost ? nowIso : existing.claimedAt,
+        // The first account a user links becomes their primary unless one is already set.
+        isPrimary: existing.isPrimary,
+      })
       .where(eq(clanMembers.id, existing.id));
+
+    clanMemberId = existing.id;
+
+    if (renamed) {
+      db.insert(clanAuditLog)
+        .values({
+          clanMemberId,
+          eventType: 'renamed',
+          oldValue: JSON.stringify({ rsn: existing.rsn }),
+          newValue: JSON.stringify({ rsn }),
+          actorUserId: issuingUser.id,
+          notes: 'Detected via plugin link (accountHash matched)',
+        })
+        .catch(() => {});
+    }
+    if (claimingGhost) {
+      db.insert(clanAuditLog)
+        .values({
+          clanMemberId,
+          eventType: 'claimed',
+          newValue: JSON.stringify({ userId: issuingUser.id, rsn }),
+          actorUserId: issuingUser.id,
+        })
+        .catch(() => {});
+    }
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId,
+        eventType: 'verified',
+        newValue: JSON.stringify({ method: 'plugin', accountHash: accountHash || null }),
+        actorUserId: issuingUser.id,
+      })
+      .catch(() => {});
+  } else {
+    const inserted = await db
+      .insert(clanMembers)
+      .values({
+        rsn,
+        rsnNormalized,
+        accountHash: accountHash || null,
+        source: 'plugin-self',
+        isGuest: 0,
+        lastSeenInClan: nowIso,
+        userId: issuingUser.id,
+        verifiedAt: nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        claimedAt: nowIso,
+        isPrimary: 0,
+      })
+      .returning({ id: clanMembers.id });
+    clanMemberId = inserted[0].id;
+
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId,
+        eventType: 'verified',
+        newValue: JSON.stringify({ method: 'plugin', accountHash: accountHash || null, rsn }),
+        actorUserId: issuingUser.id,
+      })
+      .catch(() => {});
+  }
+
+  // First account becomes primary automatically. Done after the upsert so we can count
+  // existing rows owned by this user.
+  const userAccounts = await db.query.clanMembers.findMany({
+    where: and(eq(clanMembers.userId, issuingUser.id), isNull(clanMembers.leftAt)),
+    columns: { id: true, isPrimary: true },
+  });
+  const hasPrimary = userAccounts.some((a) => a.isPrimary === 1);
+  if (!hasPrimary) {
+    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
+  }
+
+  // Admins additionally get a long-lived pluginLinks token for clan-sync etc.
+  let adminToken: string | null = null;
+  if (issuingUser.role === 'admin') {
+    const existingLinks = await db.query.pluginLinks.findMany({
+      where: and(eq(pluginLinks.userId, issuingUser.id), isNull(pluginLinks.revokedAt)),
+    });
+    const sameRsnLink = existingLinks.find((l) => l.rsnNormalized === rsnNormalized);
+    const conflictingLink = existingLinks.find((l) => l.rsnNormalized !== rsnNormalized);
+    if (conflictingLink) {
+      // Existing semantics: refuse to silently swap a previously-bound RSN.
+      return NextResponse.json(
+        {
+          error: `Admin is already linked to ${conflictingLink.rsn}. Revoke that link on the site before linking a new RSN.`,
+          linkedRsn: conflictingLink.rsn,
+        },
+        { status: 409 },
+      );
+    }
+    if (sameRsnLink) {
+      adminToken = sameRsnLink.token;
+    } else {
+      adminToken = generateAdminPluginToken();
+      await db.insert(pluginLinks).values({
+        userId: issuingUser.id,
+        rsn,
+        rsnNormalized,
+        token: adminToken,
+      });
+    }
   }
 
   return NextResponse.json({
-    token,
-    userId: codeRow.userId,
-    username: adminUser.username,
+    success: true,
+    userId: issuingUser.id,
+    username: issuingUser.username ?? issuingUser.discordUsername ?? null,
+    displayName: issuingUser.displayName,
+    role: issuingUser.role,
     rsn,
+    clanMemberId,
+    isAdmin: issuingUser.role === 'admin',
+    adminToken,
   });
 }

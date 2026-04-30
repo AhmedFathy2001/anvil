@@ -1,23 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { avatarUrl } from '@/lib/discord-oauth';
 
 interface User {
   id: number;
-  username: string;
+  username: string | null;
   displayName: string;
-  role: string;
+  role: 'admin' | 'moderator' | 'member';
   createdAt: string;
+  discordId: string | null;
+  discordUsername: string | null;
+  discordAvatar: string | null;
+  lastLoginAt: string | null;
+  hasPassword: boolean;
 }
+
+type RoleFilter = 'all' | 'admin' | 'moderator' | 'member';
 
 export default function UsersClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [filter, setFilter] = useState<RoleFilter>('all');
+  const [search, setSearch] = useState('');
 
-  // Create form state
+  // Create form (legacy username/password admins only)
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -25,10 +35,10 @@ export default function UsersClient() {
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Edit form state
+  // Edit form
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editPassword, setEditPassword] = useState('');
-  const [editRole, setEditRole] = useState<'admin' | 'moderator'>('moderator');
+  const [editRole, setEditRole] = useState<'admin' | 'moderator' | 'member'>('member');
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -41,8 +51,27 @@ export default function UsersClient() {
   }
 
   useEffect(() => {
-    fetchUsers();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount fetch; cascading re-renders aren't a concern here
+    void fetchUsers();
   }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter((u) => {
+      if (filter !== 'all' && u.role !== filter) return false;
+      if (!q) return true;
+      const haystack = `${u.displayName} ${u.discordUsername ?? ''} ${u.username ?? ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [users, filter, search]);
+
+  const counts = useMemo(() => {
+    return {
+      admin: users.filter((u) => u.role === 'admin').length,
+      moderator: users.filter((u) => u.role === 'moderator').length,
+      member: users.filter((u) => u.role === 'member').length,
+    };
+  }, [users]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -79,7 +108,7 @@ export default function UsersClient() {
   function startEdit(user: User) {
     setEditingUser(user);
     setEditDisplayName(user.displayName);
-    setEditRole(user.role as 'admin' | 'moderator');
+    setEditRole(user.role);
     setEditPassword('');
     setEditError('');
   }
@@ -113,9 +142,23 @@ export default function UsersClient() {
     fetchUsers();
   }
 
-  async function handleDelete(user: User) {
-    if (!confirm(`Delete user "${user.username}"?`)) return;
+  async function quickPromote(user: User, role: 'admin' | 'moderator' | 'member') {
+    if (user.role === role) return;
+    const res = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || 'Failed to update role');
+      return;
+    }
+    fetchUsers();
+  }
 
+  async function handleDelete(user: User) {
+    if (!confirm(`Delete user "${user.displayName}"?`)) return;
     const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
@@ -131,10 +174,12 @@ export default function UsersClient() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gold">User Management</h1>
-          <p className="text-text-muted text-sm mt-1">Manage admin and moderator accounts</p>
+          <p className="text-text-muted text-sm mt-1">
+            {users.length} total · {counts.admin} admin · {counts.moderator} moderator · {counts.member} member
+          </p>
         </div>
         <div className="flex gap-2">
           <Link
@@ -147,15 +192,41 @@ export default function UsersClient() {
             onClick={() => setShowCreate(true)}
             className="px-4 py-1.5 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors"
           >
-            + Create User
+            + Legacy staff account
           </button>
         </div>
+      </div>
+
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {(['all', 'admin', 'moderator', 'member'] as const).map((r) => (
+          <button
+            key={r}
+            onClick={() => setFilter(r)}
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors capitalize ${
+              filter === r
+                ? 'bg-gold/20 text-gold border border-gold/40'
+                : 'border border-card-border text-text-muted hover:text-foreground hover:bg-brown-light'
+            }`}
+          >
+            {r === 'all' ? 'All' : r}
+          </button>
+        ))}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name…"
+          className="ml-auto bg-brown-light border border-card-border rounded-md px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-gold"
+        />
       </div>
 
       {/* Create modal */}
       {showCreate && (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <h2 className="text-lg font-bold mb-4">Create User</h2>
+          <h2 className="text-lg font-bold mb-1">Create legacy staff account</h2>
+          <p className="text-xs text-text-muted mb-4">
+            Use this only when you need a username/password fallback. Normal staff should sign in
+            via Discord and be promoted with the &ldquo;Make admin&rdquo; / &ldquo;Make moderator&rdquo; buttons.
+          </p>
           <form onSubmit={handleCreate} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -227,7 +298,7 @@ export default function UsersClient() {
       {/* Edit modal */}
       {editingUser && (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <h2 className="text-lg font-bold mb-4">Edit: {editingUser.username}</h2>
+          <h2 className="text-lg font-bold mb-4">Edit: {editingUser.displayName}</h2>
           <form onSubmit={handleEdit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -239,24 +310,27 @@ export default function UsersClient() {
                   className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">New Password (leave blank to keep)</label>
-                <input
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="(unchanged)"
-                />
-              </div>
+              {editingUser.hasPassword && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">New Password (leave blank to keep)</label>
+                  <input
+                    type="password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+                    placeholder="(unchanged)"
+                  />
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">Role</label>
               <select
                 value={editRole}
-                onChange={(e) => setEditRole(e.target.value as 'admin' | 'moderator')}
+                onChange={(e) => setEditRole(e.target.value as 'admin' | 'moderator' | 'member')}
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
               >
+                <option value="member">Member</option>
                 <option value="moderator">Moderator</option>
                 <option value="admin">Admin</option>
               </select>
@@ -287,54 +361,123 @@ export default function UsersClient() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-card-border text-left text-text-muted">
-              <th className="px-4 py-3 font-medium">Username</th>
-              <th className="px-4 py-3 font-medium">Display Name</th>
+              <th className="px-4 py-3 font-medium">User</th>
+              <th className="px-4 py-3 font-medium">Auth</th>
               <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Created</th>
+              <th className="px-4 py-3 font-medium">Last login</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-b border-card-border/50 hover:bg-card-bg-hover transition-colors">
-                <td className="px-4 py-3 font-medium">{user.username}</td>
-                <td className="px-4 py-3 text-text-muted">{user.displayName}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                      user.role === 'admin'
-                        ? 'bg-gold/15 text-gold'
-                        : 'bg-blue-500/15 text-blue-400'
-                    }`}
-                  >
-                    {user.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-text-muted">
-                  {new Date(user.createdAt).toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => startEdit(user)}
-                      className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
+            {filtered.map((user) => {
+              const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
+              return (
+                <tr
+                  key={user.id}
+                  className="border-b border-card-border/50 hover:bg-card-bg-hover transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatar} alt="" width={32} height={32} className="rounded-full" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full bg-gold/20 text-gold flex items-center justify-center text-xs font-semibold">
+                          {(user.displayName || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{user.displayName}</div>
+                        <div className="text-xs text-text-muted truncate">
+                          {user.discordUsername
+                            ? `@${user.discordUsername}`
+                            : user.username || '—'}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {user.discordId && (
+                        <span className="text-[10px] uppercase tracking-wide bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">
+                          Discord
+                        </span>
+                      )}
+                      {user.hasPassword && (
+                        <span className="text-[10px] uppercase tracking-wide bg-brown-light text-text-muted px-1.5 py-0.5 rounded">
+                          password
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        user.role === 'admin'
+                          ? 'bg-gold/15 text-gold'
+                          : user.role === 'moderator'
+                            ? 'bg-blue-500/15 text-blue-400'
+                            : 'bg-brown-light text-text-muted'
+                      }`}
                     >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(user)}
-                      className="px-2 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-text-muted text-xs">
+                    {user.lastLoginAt
+                      ? new Date(user.lastLoginAt).toLocaleString()
+                      : new Date(user.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex gap-1.5 justify-end flex-wrap">
+                      {user.role !== 'admin' && (
+                        <button
+                          onClick={() => quickPromote(user, 'admin')}
+                          className="px-2 py-1 text-xs border border-gold/30 text-gold hover:bg-gold/10 rounded transition-colors"
+                          title="Promote to admin"
+                        >
+                          Make admin
+                        </button>
+                      )}
+                      {user.role !== 'moderator' && (
+                        <button
+                          onClick={() => quickPromote(user, 'moderator')}
+                          className="px-2 py-1 text-xs border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                          title="Set as moderator"
+                        >
+                          Make mod
+                        </button>
+                      )}
+                      {user.role !== 'member' && (
+                        <button
+                          onClick={() => quickPromote(user, 'member')}
+                          className="px-2 py-1 text-xs border border-card-border text-text-muted hover:bg-brown-light hover:text-foreground rounded transition-colors"
+                          title="Demote to member"
+                        >
+                          Demote
+                        </button>
+                      )}
+                      <button
+                        onClick={() => startEdit(user)}
+                        className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user)}
+                        className="px-2 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-text-muted">
-                  No users found.
+                  {users.length === 0 ? 'No users found.' : 'No users match the current filter.'}
                 </td>
               </tr>
             )}

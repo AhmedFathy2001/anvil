@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }).returning();
 
     const newUser = result[0];
-    const token = signUserToken(newUser.id, newUser.username, newUser.role);
+    const token = signUserToken(newUser.id, newUser.username ?? loginUsername, newUser.role);
 
     const response = NextResponse.json({
       success: true,
@@ -59,12 +59,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
+  // Discord-only users have no passwordHash and can't authenticate via this legacy form.
+  if (!user[0].passwordHash) {
+    return NextResponse.json({ error: 'This account uses Discord login. Visit /login.' }, { status: 401 });
+  }
+
   const matched = await verifyPasswordBcrypt(password, user[0].passwordHash);
   if (!matched) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
-  const token = signUserToken(user[0].id, user[0].username, user[0].role);
+  const token = signUserToken(user[0].id, user[0].username ?? username, user[0].role);
   const redirectTo = user[0].role === 'admin' ? '/admin/dashboard' : '/admin/weekly';
 
   const response = NextResponse.json({
