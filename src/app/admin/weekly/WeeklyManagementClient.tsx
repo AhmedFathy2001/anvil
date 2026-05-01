@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import DateRangeField from '@/components/DateRangeField';
 
 interface Competition {
   id: number;
@@ -76,13 +77,7 @@ export default function WeeklyManagementClient() {
     const res = await fetch('/api/admin/weekly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        metric,
-        title,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
-      }),
+      body: JSON.stringify({ type, metric, title, startDate, endDate }),
     });
 
     if (!res.ok) {
@@ -163,8 +158,8 @@ export default function WeeklyManagementClient() {
   function startEdit(comp: Competition) {
     setEditingComp(comp);
     setEditTitle(comp.title);
-    setEditStartDate(comp.startDate.slice(0, 16));
-    setEditEndDate(comp.endDate.slice(0, 16));
+    setEditStartDate(comp.startDate);
+    setEditEndDate(comp.endDate);
     setEditStatus(comp.status);
   }
 
@@ -178,8 +173,8 @@ export default function WeeklyManagementClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: editTitle,
-        startDate: new Date(editStartDate).toISOString(),
-        endDate: new Date(editEndDate).toISOString(),
+        startDate: editStartDate,
+        endDate: editEndDate,
         status: editStatus,
       }),
     });
@@ -255,26 +250,14 @@ export default function WeeklyManagementClient() {
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Start Date</label>
-                <input
-                  type="datetime-local"
-                  value={editStartDate}
-                  onChange={(e) => setEditStartDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">End Date</label>
-                <input
-                  type="datetime-local"
-                  value={editEndDate}
-                  onChange={(e) => setEditEndDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-            </div>
+            <DateRangeField
+              startIso={editStartDate}
+              endIso={editEndDate}
+              onChange={({ startIso, endIso }) => {
+                setEditStartDate(startIso);
+                setEditEndDate(endIso);
+              }}
+            />
             <div>
               <label className="block text-xs text-text-muted mb-1">Status</label>
               <select
@@ -370,28 +353,16 @@ export default function WeeklyManagementClient() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Start Date</label>
-                <input
-                  type="datetime-local"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">End Date</label>
-                <input
-                  type="datetime-local"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-            </div>
+            <DateRangeField
+              startIso={startDate}
+              endIso={endDate}
+              onChange={({ startIso, endIso }) => {
+                setStartDate(startIso);
+                setEndDate(endIso);
+              }}
+              required
+            />
+
 
             {createError && <p className="text-red-400 text-sm">{createError}</p>}
 
