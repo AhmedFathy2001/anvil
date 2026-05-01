@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings } from '@/db/schema';
-import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 
@@ -258,6 +258,23 @@ export async function POST(request: Request) {
     db.insert(clanAuditLog).values(auditPayload).catch(() => {});
   }
 
+  // Always stamp the last-sync timestamp in settings so the plugin can show
+  // "Last sync: X ago" even when a sync produced zero changes (the audit log only
+  // records actual diffs, so a clean sync would otherwise leave no trace).
+  const lastSyncSettingValue = JSON.stringify({
+    at: now,
+    summary: {
+      added: toInsert.length,
+      markedLeft: leftResult.length,
+      returned: changes.filter((c) => c.type === 'returned').length,
+      renamed: changes.filter((c) => c.type === 'renamed').length,
+    },
+  });
+  await db
+    .insert(settings)
+    .values({ key: 'last_clan_sync', value: lastSyncSettingValue })
+    .onConflictDoUpdate({ target: settings.key, set: { value: lastSyncSettingValue } });
+
   // ── 7) Discord summary (async, never blocks the response) ────────────────
   if (changes.length > 0) {
     const joined = changes.filter((c) => c.type === 'joined');
@@ -305,49 +322,34 @@ export async function POST(request: Request) {
 }
 
 // GET — what's the latest sync state for this clan? The plugin calls this on startup
-// so its panel can show "Last sync: X minutes ago" without needing to perform a fresh
-// roster post. Computed from clan_audit_log (no extra column needed).
+// so its panel can show "Last sync: X minutes ago" without performing a fresh roster
+// post. Reads from settings (always stamped) rather than clan_audit_log (only stamped
+// when there were actual diffs), so a clean sync still surfaces.
 export async function GET(request: Request) {
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Find the most recent timestamp across any sync-driven audit entry. We treat any
-  // join/left/returned/renamed entry as evidence of a sync.
-  const SYNC_EVENT_TYPES = ['joined', 'left', 'returned', 'renamed'] as const;
-
-  const recent = await db
-    .select({
-      eventType: clanAuditLog.eventType,
-      occurredAt: clanAuditLog.occurredAt,
-    })
-    .from(clanAuditLog)
-    .where(inArray(clanAuditLog.eventType, SYNC_EVENT_TYPES as unknown as string[]))
-    .orderBy(desc(clanAuditLog.occurredAt))
-    .limit(200);
-
-  if (recent.length === 0) {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'last_clan_sync') });
+  if (!row?.value) {
     return NextResponse.json({ lastSyncAt: null, summary: null });
   }
-
-  const lastSyncAt = recent[0].occurredAt;
-  // Group every event that shares the latest sync's timestamp (within ~2 seconds) so
-  // the plugin can rebuild the summary message without storing it server-side.
-  const lastTs = new Date(lastSyncAt).getTime();
-  const window = 2000;
-  const sameSync = recent.filter((r) => Math.abs(new Date(r.occurredAt).getTime() - lastTs) <= window);
-
-  const tally = sameSync.reduce<Record<string, number>>((acc, r) => {
-    acc[r.eventType] = (acc[r.eventType] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  return NextResponse.json({
-    lastSyncAt,
-    summary: {
-      added: tally.joined ?? 0,
-      markedLeft: tally.left ?? 0,
-      returned: tally.returned ?? 0,
-      renamed: tally.renamed ?? 0,
-    },
-  });
+  try {
+    const parsed = JSON.parse(row.value) as {
+      at?: string;
+      summary?: { added?: number; markedLeft?: number; returned?: number; renamed?: number };
+    };
+    return NextResponse.json({
+      lastSyncAt: parsed.at ?? null,
+      summary: parsed.summary
+        ? {
+            added: parsed.summary.added ?? 0,
+            markedLeft: parsed.summary.markedLeft ?? 0,
+            returned: parsed.summary.returned ?? 0,
+            renamed: parsed.summary.renamed ?? 0,
+          }
+        : null,
+    });
+  } catch {
+    return NextResponse.json({ lastSyncAt: null, summary: null });
+  }
 }

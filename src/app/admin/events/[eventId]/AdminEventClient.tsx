@@ -526,13 +526,17 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             <div>
               <label className="block text-xs text-text-muted mb-1">Start Date</label>
               <p className="text-sm font-medium">
-                {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
+                <span suppressHydrationWarning>
+                  {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
+                </span>
               </p>
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">End Date</label>
               <p className="text-sm font-medium">
-                {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
+                <span suppressHydrationWarning>
+                  {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
+                </span>
               </p>
             </div>
           </div>

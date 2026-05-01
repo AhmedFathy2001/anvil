@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db } from '@/db';
 import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -54,10 +55,17 @@ export async function POST(
     return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
   }
 
+  // captain_password is a legacy column we no longer read or hand out — but the live
+  // DB may still have it as NOT NULL until migration 0019 lands. Stuff a random byte
+  // string in regardless so the insert succeeds on either schema. The column is
+  // strictly inert; no auth flow consults it anymore.
+  const placeholderPassword = crypto.randomBytes(16).toString('hex');
+
   const [team] = await db.insert(teams).values({
     eventId: id,
     name,
     color,
+    captainPassword: placeholderPassword,
     captainUserId: captainUserIdInt,
   }).returning();
 
