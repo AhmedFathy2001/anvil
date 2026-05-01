@@ -13,6 +13,13 @@ interface IncomingMember {
   accountHash?: string | null;
 }
 
+interface ChangeRecord {
+  type: 'joined' | 'left' | 'returned' | 'renamed';
+  rsn: string;
+  oldRsn?: string;
+  memberId: number;
+}
+
 async function getConfiguredClanName(): Promise<string | null> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
   const fromDb = row?.value?.trim();
@@ -21,21 +28,20 @@ async function getConfiguredClanName(): Promise<string | null> {
   return fromEnv || null;
 }
 
-interface ChangeRecord {
-  type: 'joined' | 'left' | 'returned' | 'renamed';
-  rsn: string;
-  oldRsn?: string;
-  memberId: number;
-}
-
 // POST — admin plugin pushes the current in-game clan roster.
-// Reconciles into clan_members:
-//   • Unknown RSN → create row (joined)
-//   • Existing soft-deleted (leftAt set, source != manual) → un-leave (returned)
-//   • Existing accountHash matches but RSN differs → rename
-//   • Plugin-sourced row not in this sync → mark left
-// Each transition emits a clan_audit_log entry; a single summary embed gets posted to
-// the Discord webhook so the clan can see "+2 joined, -1 left" without inbox spam.
+//
+// Reconciliation strategy:
+//   1) Pre-fetch every clan_members row once (one SELECT)
+//   2) Build maps by accountHash + rsnNormalized for O(1) lookup
+//   3) Categorize each incoming row in memory (no per-member queries)
+//   4) Bulk-insert new members in one statement
+//   5) Apply per-row updates sequentially (drizzle SQLite has no batch UPDATE-with-different-values)
+//   6) Bulk-insert audit entries in one statement
+//   7) Soft-delete missing-from-roster rows in one UPDATE
+//
+// On a 100+ member roster, the previous per-member SELECT-then-INSERT-or-UPDATE pattern
+// produced 300-500 sequential round-trips and reliably exceeded plugin read timeouts.
+// This pass keeps it bounded to a small constant of round-trips regardless of clan size.
 export async function POST(request: Request) {
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,55 +66,53 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
-  const incomingNormalized = new Set<string>();
   const changes: ChangeRecord[] = [];
-  let added = 0;
-  let updated = 0;
+
+  // ── 1) Pre-fetch all existing rows ────────────────────────────────────────
+  const existingRows = await db.select().from(clanMembers);
+  const byHash = new Map<string, typeof existingRows[number]>();
+  const byRsn = new Map<string, typeof existingRows[number]>();
+  for (const r of existingRows) {
+    if (r.accountHash) byHash.set(r.accountHash, r);
+    byRsn.set(r.rsnNormalized, r);
+  }
+
+  // ── 2) Categorize incoming rows ──────────────────────────────────────────
+  type ToUpdate = {
+    id: number;
+    setRsn: string;
+    setRsnNormalized: string;
+    setRank: string | null;
+    setAccountHash: string | null;
+    setSource: 'manual' | 'plugin-self' | 'plugin-roster';
+    setLeftAt: string | null;
+    setIsGuest: number;
+    setPreviousRsns: string | null;
+    renamed: boolean;
+    oldRsn?: string;
+    returning: boolean;
+  };
+  const toInsert: { rsn: string; rsnNormalized: string; rank: string | null; accountHash: string | null }[] = [];
+  const toUpdate: ToUpdate[] = [];
+  const incomingNormalized = new Set<string>();
+  const seenIncoming = new Set<string>();
 
   for (const m of members) {
     if (!m || typeof m.rsn !== 'string') continue;
     const rsn = m.rsn.trim();
     if (!rsn) continue;
     const rsnNormalized = normalizeRsn(rsn);
+    if (seenIncoming.has(rsnNormalized)) continue; // de-dupe duplicate names in payload
+    seenIncoming.add(rsnNormalized);
     incomingNormalized.add(rsnNormalized);
 
     const rank = typeof m.rank === 'string' ? m.rank.trim().toLowerCase() : null;
     const incomingHash = typeof m.accountHash === 'string' && m.accountHash.length > 0 ? m.accountHash : null;
 
-    // Match by accountHash first (lets us detect renames). Fall back to RSN.
-    let existing = incomingHash
-      ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, incomingHash) })
-      : null;
-    if (!existing) {
-      existing = (await db.query.clanMembers.findFirst({
-        where: eq(clanMembers.rsnNormalized, rsnNormalized),
-      })) ?? null;
-    }
+    const existing = (incomingHash && byHash.get(incomingHash)) || byRsn.get(rsnNormalized) || null;
 
     if (!existing) {
-      const inserted = await db
-        .insert(clanMembers)
-        .values({
-          rsn,
-          rsnNormalized,
-          rank,
-          source: 'plugin-roster',
-          isGuest: 0,
-          lastSeenInClan: now,
-          accountHash: incomingHash,
-        })
-        .returning({ id: clanMembers.id });
-      const newId = inserted[0].id;
-      added++;
-      changes.push({ type: 'joined', rsn, memberId: newId });
-      db.insert(clanAuditLog)
-        .values({
-          clanMemberId: newId,
-          eventType: 'joined',
-          newValue: JSON.stringify({ rsn, rank }),
-          notes: 'Detected via clan-sync',
-        })
-        .catch(() => {});
+      toInsert.push({ rsn, rsnNormalized, rank, accountHash: incomingHash });
       continue;
     }
 
@@ -117,69 +121,111 @@ export async function POST(request: Request) {
       existing.accountHash === incomingHash &&
       existing.rsnNormalized !== rsnNormalized;
     const returning = existing.leftAt != null && existing.source !== 'manual';
-
-    const previousRsns: string[] = (() => {
-      if (!existing!.previousRsns) return [];
-      try {
-        const parsed = JSON.parse(existing!.previousRsns);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
-    if (renamed && existing.rsn) previousRsns.push(existing.rsn);
-
-    // Manual removals are sticky — admin made a deliberate call. Skip un-leave but still
-    // refresh metadata so the row stays current.
     const preserveLeftAt = Boolean(existing.leftAt && existing.source === 'manual');
 
-    await db
-      .update(clanMembers)
-      .set({
-        rsn: renamed ? rsn : rsn, // refresh display casing either way
-        rsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
-        previousRsns: renamed ? JSON.stringify(previousRsns) : existing.previousRsns,
-        rank: rank ?? existing.rank,
-        lastSeenInClan: now,
-        leftAt: preserveLeftAt ? existing.leftAt : null,
-        isGuest: preserveLeftAt ? existing.isGuest : 0,
-        accountHash: incomingHash ?? existing.accountHash,
-        source:
-          existing.source === 'manual'
-            ? 'manual'
-            : existing.source === 'plugin-self'
-              ? 'plugin-self'
-              : 'plugin-roster',
-      })
-      .where(eq(clanMembers.id, existing.id));
-    updated++;
-
-    if (renamed) {
-      changes.push({ type: 'renamed', rsn, oldRsn: existing.rsn, memberId: existing.id });
-      db.insert(clanAuditLog)
-        .values({
-          clanMemberId: existing.id,
-          eventType: 'renamed',
-          oldValue: JSON.stringify({ rsn: existing.rsn }),
-          newValue: JSON.stringify({ rsn }),
-          notes: 'Detected via clan-sync (accountHash matched)',
-        })
-        .catch(() => {});
+    let previousRsns: string[] = [];
+    if (existing.previousRsns) {
+      try {
+        const parsed = JSON.parse(existing.previousRsns);
+        if (Array.isArray(parsed)) previousRsns = parsed;
+      } catch { /* keep empty */ }
     }
-    if (returning && !preserveLeftAt) {
-      changes.push({ type: 'returned', rsn, memberId: existing.id });
-      db.insert(clanAuditLog)
-        .values({
-          clanMemberId: existing.id,
-          eventType: 'returned',
-          newValue: JSON.stringify({ rsn }),
-          notes: 'Detected via clan-sync',
-        })
-        .catch(() => {});
+    if (renamed && existing.rsn) previousRsns.push(existing.rsn);
+
+    toUpdate.push({
+      id: existing.id,
+      setRsn: rsn,
+      setRsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
+      setRank: rank ?? existing.rank,
+      setAccountHash: incomingHash ?? existing.accountHash,
+      setSource:
+        existing.source === 'manual'
+          ? 'manual'
+          : existing.source === 'plugin-self'
+            ? 'plugin-self'
+            : 'plugin-roster',
+      setLeftAt: preserveLeftAt ? existing.leftAt : null,
+      setIsGuest: preserveLeftAt ? existing.isGuest : 0,
+      setPreviousRsns: renamed ? JSON.stringify(previousRsns) : existing.previousRsns,
+      renamed,
+      oldRsn: renamed ? existing.rsn : undefined,
+      returning: returning && !preserveLeftAt,
+    });
+  }
+
+  // ── 3) Bulk insert new members ───────────────────────────────────────────
+  const auditPayload: { clanMemberId: number; eventType: string; oldValue?: string | null; newValue?: string | null; notes?: string | null }[] = [];
+
+  if (toInsert.length > 0) {
+    const insertedRows = await db
+      .insert(clanMembers)
+      .values(
+        toInsert.map((row) => ({
+          rsn: row.rsn,
+          rsnNormalized: row.rsnNormalized,
+          rank: row.rank,
+          source: 'plugin-roster' as const,
+          isGuest: 0,
+          lastSeenInClan: now,
+          accountHash: row.accountHash,
+        })),
+      )
+      .returning({ id: clanMembers.id, rsn: clanMembers.rsn });
+
+    for (let i = 0; i < insertedRows.length; i++) {
+      const ins = insertedRows[i];
+      const src = toInsert[i];
+      changes.push({ type: 'joined', rsn: ins.rsn, memberId: ins.id });
+      auditPayload.push({
+        clanMemberId: ins.id,
+        eventType: 'joined',
+        newValue: JSON.stringify({ rsn: ins.rsn, rank: src.rank }),
+        notes: 'Detected via clan-sync',
+      });
     }
   }
 
-  // Soft-delete plugin-sourced rows missing from this sync.
+  // ── 4) Apply per-member updates ──────────────────────────────────────────
+  // Sequential because each row has different values; libsql doesn't have a portable
+  // batch UPDATE form. Each statement is a single round-trip keyed on PK.
+  for (const u of toUpdate) {
+    await db
+      .update(clanMembers)
+      .set({
+        rsn: u.setRsn,
+        rsnNormalized: u.setRsnNormalized,
+        previousRsns: u.setPreviousRsns,
+        rank: u.setRank,
+        lastSeenInClan: now,
+        leftAt: u.setLeftAt,
+        isGuest: u.setIsGuest,
+        accountHash: u.setAccountHash,
+        source: u.setSource,
+      })
+      .where(eq(clanMembers.id, u.id));
+
+    if (u.renamed) {
+      changes.push({ type: 'renamed', rsn: u.setRsn, oldRsn: u.oldRsn, memberId: u.id });
+      auditPayload.push({
+        clanMemberId: u.id,
+        eventType: 'renamed',
+        oldValue: JSON.stringify({ rsn: u.oldRsn ?? null }),
+        newValue: JSON.stringify({ rsn: u.setRsn }),
+        notes: 'Detected via clan-sync (accountHash matched)',
+      });
+    }
+    if (u.returning) {
+      changes.push({ type: 'returned', rsn: u.setRsn, memberId: u.id });
+      auditPayload.push({
+        clanMemberId: u.id,
+        eventType: 'returned',
+        newValue: JSON.stringify({ rsn: u.setRsn }),
+        notes: 'Detected via clan-sync',
+      });
+    }
+  }
+
+  // ── 5) Soft-delete missing ───────────────────────────────────────────────
   const incomingList = Array.from(incomingNormalized);
   const leftResult = await db
     .update(clanMembers)
@@ -198,17 +244,21 @@ export async function POST(request: Request) {
 
   for (const left of leftResult) {
     changes.push({ type: 'left', rsn: left.rsn, memberId: left.id });
-    db.insert(clanAuditLog)
-      .values({
-        clanMemberId: left.id,
-        eventType: 'left',
-        oldValue: JSON.stringify({ rsn: left.rsn }),
-        notes: 'Detected via clan-sync (missing from roster)',
-      })
-      .catch(() => {});
+    auditPayload.push({
+      clanMemberId: left.id,
+      eventType: 'left',
+      oldValue: JSON.stringify({ rsn: left.rsn }),
+      notes: 'Detected via clan-sync (missing from roster)',
+    });
   }
 
-  // Fire-and-forget Discord summary if anything changed. Empty syncs are silent.
+  // ── 6) Bulk insert audit entries ─────────────────────────────────────────
+  if (auditPayload.length > 0) {
+    // Fire-and-forget — audit failures shouldn't sink an otherwise-successful sync.
+    db.insert(clanAuditLog).values(auditPayload).catch(() => {});
+  }
+
+  // ── 7) Discord summary (async, never blocks the response) ────────────────
   if (changes.length > 0) {
     const joined = changes.filter((c) => c.type === 'joined');
     const left = changes.filter((c) => c.type === 'left');
@@ -238,8 +288,8 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    added,
-    updated,
+    added: toInsert.length,
+    updated: toUpdate.length,
     markedLeft: leftResult.length,
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,

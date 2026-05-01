@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { SKILL_LABELS } from '@/lib/constants';
 
 type Tab = 'plugin' | 'no-plugin' | 'manual';
 
@@ -15,16 +16,23 @@ interface AttemptState {
   rsn: string;
   expiresAt: string;
   minDelta: number;
+  targetSkill: string;
 }
 
 interface CheckResult {
   status: 'pending' | 'succeeded' | 'failed';
   reason?: string | null;
+  targetSkill?: string | null;
   bestSkill?: string | null;
   bestDelta?: number;
   minDelta?: number;
   skill?: string;
   delta?: number;
+}
+
+function formatSkill(s: string | null | undefined): string {
+  if (!s) return '';
+  return SKILL_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function LinkAccountClient({ hasAny }: { hasAny: boolean }) {
@@ -286,6 +294,7 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
           rsn: data.rsn,
           expiresAt: data.expiresAt,
           minDelta: data.minDelta,
+          targetSkill: data.targetSkill,
         });
       }
     } catch (e) {
@@ -336,9 +345,9 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
         </button>
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
         <p className="text-xs text-text-muted mt-3 leading-relaxed">
-          We&apos;ll snapshot your Hiscores XP, then ask you to play for a bit. Once any single skill gains
-          ≥1,000 XP within 30 minutes, your account is verified. A moderator confirms before it&apos;s fully
-          cleared (provisional status).
+          We&apos;ll snapshot your Hiscores XP and pick a random skill for you to train. Gain ≥1,000 XP
+          in that <em>specific</em> skill within 30 minutes and your account is verified. A moderator
+          confirms before it&apos;s fully cleared (provisional status).
         </p>
       </div>
     );
@@ -382,6 +391,11 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
     );
   }
 
+  const targetLabel = formatSkill(attempt.targetSkill);
+  const bestProgress = check?.bestSkill === attempt.targetSkill && check?.bestDelta
+    ? `${check.bestDelta.toLocaleString()} XP gained`
+    : 'no XP gained yet';
+
   return (
     <div className="border border-gold/30 bg-gold/5 rounded-lg p-4">
       <div className="text-xs uppercase tracking-wide text-text-muted mb-1">Verifying</div>
@@ -389,11 +403,14 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
       <div className="text-sm text-foreground/80 mb-3">
         Log in to RuneScape and gain at least{' '}
         <span className="text-gold font-semibold">{attempt.minDelta.toLocaleString()} XP</span>{' '}
-        in any single skill within {mm}:{ss}.
+        in <span className="text-gold font-semibold">{targetLabel}</span> within {mm}:{ss}.
+      </div>
+      <div className="text-[11px] text-text-muted bg-brown-dark/40 border border-card-border rounded px-2 py-1.5 mb-3">
+        XP in any other skill is ignored — must be {targetLabel} specifically.
       </div>
       {check && (
         <div className="text-xs text-text-muted mb-3">
-          Best so far: {check.bestSkill ? `${check.bestDelta?.toLocaleString() ?? 0} XP in ${check.bestSkill}` : 'no XP gained yet'}
+          Progress: {bestProgress}
         </div>
       )}
       <div className="flex items-center gap-2">
@@ -415,7 +432,7 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
         </button>
       </div>
       <p className="text-[11px] text-text-muted mt-3">
-        Auto-polls every 30s. Slayer and Farming XP can lag behind — train any other skill for fastest verification.
+        Auto-polls every 30s. If your assigned skill is locked behind a quest, cancel and start over to re-roll.
       </p>
     </div>
   );

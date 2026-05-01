@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, clanMembers, verificationAttempts } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { bestSkillDelta, fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
+import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // POST /api/auth/verify-stat-delta/check { attemptId }
@@ -63,24 +63,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'failed', reason: 'expired' });
   }
 
-  let baseline: Record<string, number>;
+  let baselineRaw: Record<string, number | string>;
   try {
-    baseline = JSON.parse(attempt.baselineSnapshot);
+    baselineRaw = JSON.parse(attempt.baselineSnapshot);
   } catch {
     return NextResponse.json({ status: 'failed', reason: 'corrupt_baseline' }, { status: 500 });
+  }
+
+  // _target is the specific skill the user must train. Older attempts (before this was
+  // added) won't have one — fall back to "any skill" so they don't break.
+  const targetSkill = typeof baselineRaw._target === 'string' ? baselineRaw._target : null;
+  const baseline: Record<string, number> = {};
+  for (const [k, v] of Object.entries(baselineRaw)) {
+    if (k !== '_target' && typeof v === 'number') baseline[k] = v;
   }
 
   const snapshot = await fetchHiscoresSnapshot(attempt.rsn);
   if (!snapshot) {
     return NextResponse.json({ status: 'pending', reason: 'hiscores_unavailable' });
   }
-
   const current = snapshotXpMap(snapshot);
-  const best = bestSkillDelta(baseline, current);
+
+  // Only credit XP gained in the target skill. Coincidental gains in OTHER skills don't
+  // count — that's the whole point of the targeted version.
+  let best: { skill: string; delta: number } | null = null;
+  if (targetSkill) {
+    const baseXp = baseline[targetSkill];
+    const currentXp = current[targetSkill];
+    if (typeof baseXp === 'number' && typeof currentXp === 'number') {
+      const delta = currentXp - baseXp;
+      if (delta > 0) best = { skill: targetSkill, delta };
+    }
+  } else {
+    // Legacy "any skill" fallback for old attempts that pre-date the targetSkill change.
+    for (const [skill, currentXp] of Object.entries(current)) {
+      const baseXp = baseline[skill];
+      if (typeof baseXp !== 'number') continue;
+      const delta = currentXp - baseXp;
+      if (delta > 0 && (!best || delta > best.delta)) best = { skill, delta };
+    }
+  }
 
   if (!best || best.delta < attempt.minDelta) {
     return NextResponse.json({
       status: 'pending',
+      targetSkill,
       bestSkill: best?.skill ?? null,
       bestDelta: best?.delta ?? 0,
       minDelta: attempt.minDelta,

@@ -9,6 +9,27 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 const WINDOW_MS = 30 * 60 * 1000;
 const MIN_DELTA = 1000;
 
+// Skills we'll ask the user to train. Excludes:
+//   - overall (it's a sum, not a real skill)
+//   - slayer + farming (XP gets reported with a lag, so a 30-min check window can miss it)
+//   - sailing (not live in-game yet for many accounts; would prevent ranked players from verifying)
+// Anything in this list is reasonably trainable from any account state, so picking
+// randomly from it gives a friction the legit owner can resolve in <5 minutes.
+const TRAINABLE_SKILLS = [
+  'attack', 'strength', 'defence', 'hitpoints', 'ranged', 'prayer', 'magic',
+  'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting',
+  'smithing', 'mining', 'herblore', 'agility', 'thieving', 'runecraft',
+  'hunter', 'construction',
+];
+
+function pickTargetSkill(xpMap: Record<string, number>): string | null {
+  // Restrict to skills the user is actually ranked in — picking a skill they have 0 XP
+  // in would force them to start from scratch which is poor UX.
+  const candidates = TRAINABLE_SKILLS.filter((s) => (xpMap[s] ?? 0) > 0);
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 // POST /api/auth/verify-stat-delta/start { rsn }
 // Snapshots Hiscores XP for the RSN, stores the baseline, returns the attempt id +
 // expiry. The user then plays the game for ≥minDelta XP in any skill within the window
@@ -81,6 +102,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const targetSkill = pickTargetSkill(xpMap);
+  if (!targetSkill) {
+    return NextResponse.json(
+      {
+        error:
+          'Account has no ranked trainable skills. Train any skill (Attack, Mining, Cooking, etc.) until it appears on Hiscores, then try again.',
+      },
+      { status: 422 },
+    );
+  }
+
+  // _target is embedded in the JSON snapshot rather than a dedicated column to avoid
+  // a one-off migration. The check route reads it from here.
+  const baselineWithTarget = { _target: targetSkill, ...xpMap };
+
   const expiresAt = new Date(Date.now() + WINDOW_MS).toISOString();
   const inserted = await db
     .insert(verificationAttempts)
@@ -88,7 +124,7 @@ export async function POST(request: Request) {
       userId: session.userId,
       rsn,
       rsnNormalized,
-      baselineSnapshot: JSON.stringify(xpMap),
+      baselineSnapshot: JSON.stringify(baselineWithTarget),
       minDelta: MIN_DELTA,
       expiresAt,
     })
@@ -100,5 +136,6 @@ export async function POST(request: Request) {
     minDelta: MIN_DELTA,
     windowMinutes: WINDOW_MS / 60_000,
     rsn,
+    targetSkill,
   });
 }
