@@ -70,7 +70,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [savingOrder, setSavingOrder] = useState(false);
   const [draftAction, setDraftAction] = useState('');
   const [picking, setPicking] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<number | null>(null);
 
   // ISO strings (or '' when unset) — DateRangeField handles the local↔UTC plumbing
   // internally, so we no longer need utcToLocal/localToUtc at this layer.
@@ -225,18 +224,31 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
 
   async function saveDates() {
     setSavingDates(true);
-    // startDate/endDate are already ISO (or '' when unset). Send null for unset so the
-    // API knows to clear the field rather than store an empty string.
-    await fetch(`/api/events/${event.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startDate: startDate || null,
-        endDate: endDate || null,
-      }),
-    });
-    setSavingDates(false);
-    router.refresh();
+    try {
+      // startDate/endDate are already ISO (or '' when unset). Send null for unset so the
+      // API knows to clear the field rather than store an empty string.
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: startDate || null,
+          endDate: endDate || null,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        // Sync our client state with the persisted values so reopening the editor shows
+        // the saved dates (instead of stale or empty state). router.refresh() rebuilds
+        // server components but doesn't reset our client state — we have to do it manually.
+        setCurrentEvent(updated);
+        setStartDate(updated.startDate ?? '');
+        setEndDate(updated.endDate ?? '');
+        setEditMode(false);
+        router.refresh();
+      }
+    } finally {
+      setSavingDates(false);
+    }
   }
 
   async function takeSnapshot() {
@@ -428,13 +440,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     );
   }
 
-  function copyToken(token: string, playerId: number) {
-    navigator.clipboard.writeText(`${window.location.origin}/player/${token}`);
-    setCopiedToken(playerId);
-    setTimeout(() => setCopiedToken(null), 2000);
-  }
-
-  const isDraftInProgress = draft.status === 'active' || draft.status === 'paused';
+const isDraftInProgress = draft.status === 'active' || draft.status === 'paused';
 
   return (
     <div>
@@ -536,9 +542,16 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           <button
             onClick={() => {
               if (editMode) {
+                // saveDates closes the editor itself once persisted; don't toggle
+                // synchronously here or we'd close before the save resolves.
                 saveDates();
+              } else {
+                // Re-seed the inputs from the latest known event state when entering
+                // edit mode, in case currentEvent changed since last edit.
+                setStartDate(currentEvent.startDate ?? '');
+                setEndDate(currentEvent.endDate ?? '');
+                setEditMode(true);
               }
-              setEditMode(!editMode);
             }}
             disabled={savingDates}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/20 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
@@ -898,16 +911,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                        {player.playerToken && (
-                          <button
-                            onClick={() => copyToken(player.playerToken!, player.id)}
-                            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors border border-blue-400/20 px-1.5 py-0.5 rounded"
-                            title="Copy player login link"
-                          >
-                            {copiedToken === player.id ? 'Copied!' : 'Copy Link'}
-                          </button>
-                        )}
-                        <button
+<button
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
                           className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded"
                           title="Edit player details"
@@ -1102,12 +1106,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => copyToken(player.playerToken!, player.id)}
-                          className="text-xs text-blue-400 hover:text-blue-300 transition-colors border border-blue-400/20 px-2 py-0.5 rounded"
-                        >
-                          {copiedToken === player.id ? 'Copied!' : 'Copy Link'}
-                        </button>
                         <button
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
                           className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded"

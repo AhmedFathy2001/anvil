@@ -30,7 +30,7 @@ export default function TeamForm({ eventId, onCreated }: TeamFormProps) {
 
     const captainUserId = captainMember?.user?.id ?? null;
     if (captainUserId == null) {
-      setError('Pick a Discord-linked clan member to be captain.');
+      setError('Pick a clan member to be captain.');
       return;
     }
 
@@ -102,13 +102,21 @@ export default function TeamForm({ eventId, onCreated }: TeamFormProps) {
             setCaptainMemberId(id);
             setCaptainMember(member);
           }}
-          requireDiscordUser
           preferLinked
           emptyState="No clan members yet — sync the clan from the plugin first."
         />
         {captainMember && (
           <p className="text-xs text-accent-green-light mt-1">
-            ✓ {captainMember.user?.displayName ?? captainMember.rsn} will get captain access on Discord login.
+            ✓ {captainMember.user?.displayName ?? captainMember.rsn} will get captain access
+            {captainMember.user?.discordId
+              ? ' on Discord login.'
+              : ' once they sign in (Discord or legacy login).'}
+          </p>
+        )}
+        {captainMember && !captainMember.user && (
+          <p className="text-xs text-yellow-400 mt-1">
+            ⚠ This member has no linked user account yet — they&apos;ll need to verify (plugin / stat-delta /
+            mod approval) before they can claim the seat.
           </p>
         )}
       </div>
