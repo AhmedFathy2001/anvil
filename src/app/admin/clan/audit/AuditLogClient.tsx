@@ -1,7 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
+interface RenameSuggestion {
+  leftMemberId: number;
+  joinedMemberId: number;
+  oldRsn: string;
+  newRsn: string;
+  rank: string | null;
+  leftAt: string;
+  joinedAt: string;
+  deltaSeconds: number;
+}
 
 export interface AuditEntry {
   id: number;
@@ -59,6 +70,67 @@ export default function AuditLogClient({
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [suggestions, setSuggestions] = useState<RenameSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [actingOn, setActingOn] = useState<number | null>(null); // joinedMemberId currently being merged/dismissed
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set()); // joinedMemberId
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/clan/suspected-renames')
+      .then((r) => (r.ok ? r.json() : { suggestions: [] }))
+      .then((data: { suggestions: RenameSuggestion[] }) => {
+        if (!cancelled) {
+          setSuggestions(data.suggestions ?? []);
+          setSuggestionsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function confirmSuggestion(s: RenameSuggestion) {
+    setActingOn(s.joinedMemberId);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/clan/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: s.leftMemberId,
+          targetId: s.joinedMemberId,
+          note: `Approved as rename: ${s.oldRsn} → ${s.newRsn} (${s.deltaSeconds}s apart, rank ${s.rank ?? 'unknown'})`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Merge failed');
+      } else {
+        // Drop this suggestion from the list and refresh the audit feed below.
+        setSuggestions((prev) => prev.filter((p) => p.joinedMemberId !== s.joinedMemberId));
+        router.refresh();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setActingOn(null);
+    }
+  }
+
+  function dismissSuggestion(s: RenameSuggestion) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(s.joinedMemberId);
+      return next;
+    });
+  }
+
+  const visibleSuggestions = suggestions.filter((s) => !dismissed.has(s.joinedMemberId));
+
   const filtered = useMemo(() => {
     if (filter === 'all') return entries;
     return entries.filter((e) => e.eventType === filter);
@@ -94,6 +166,67 @@ export default function AuditLogClient({
 
   return (
     <div>
+      {/* Suspected renames — heuristic matches of left+joined pairs that look like renames */}
+      {!suggestionsLoading && visibleSuggestions.length > 0 && (
+        <div className="border border-yellow-500/30 bg-yellow-500/5 rounded-xl p-4 mb-5">
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div>
+              <h3 className="font-semibold text-yellow-300 flex items-center gap-2">
+                <span className="w-1 h-5 bg-yellow-500 rounded-full" />
+                Suspected renames
+                <span className="text-xs font-normal text-text-muted">({visibleSuggestions.length})</span>
+              </h3>
+              <p className="text-xs text-text-muted mt-1">
+                Pairs of left+joined members that occurred within 10 minutes and share the same rank.
+                Confirm to merge histories, or dismiss if unrelated.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {visibleSuggestions.map((s) => {
+              const busy = actingOn === s.joinedMemberId;
+              return (
+                <li
+                  key={s.joinedMemberId}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 bg-brown-dark/40 border border-yellow-500/20 rounded-lg flex-wrap"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">
+                      <span className="text-red-400">{s.oldRsn}</span>
+                      <span className="text-text-muted mx-2">→</span>
+                      <span className="text-accent-green-light">{s.newRsn}</span>
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-0.5">
+                      {s.rank ? <>rank: <span className="text-foreground/80">{s.rank}</span> · </> : null}
+                      {s.deltaSeconds}s apart · {new Date(s.joinedAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => dismissSuggestion(s)}
+                      disabled={busy}
+                      className="text-xs px-2.5 py-1 border border-card-border text-text-muted hover:text-foreground hover:bg-brown-light rounded transition-colors disabled:opacity-50"
+                    >
+                      Not a rename
+                    </button>
+                    <button
+                      onClick={() => confirmSuggestion(s)}
+                      disabled={busy}
+                      className="text-xs px-2.5 py-1 bg-accent-green/20 border border-accent-green/40 text-accent-green-light hover:bg-accent-green/30 rounded transition-colors disabled:opacity-50"
+                    >
+                      {busy ? 'Merging…' : 'Confirm rename'}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {error && (
+            <p className="text-red-400 text-sm mt-3">{error}</p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap gap-1.5 text-xs">
           {filterOptions.map((opt) => (
