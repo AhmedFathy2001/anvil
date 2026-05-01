@@ -16,6 +16,7 @@ import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import DateRangeField from '@/components/DateRangeField';
+import ClanMemberPicker from '@/components/ClanMemberPicker';
 
 // Convert UTC ISO string to local datetime-local input format
 function utcToLocal(utcString: string | null): string {
@@ -37,46 +38,6 @@ function localToUtc(localString: string): string | null {
   const date = new Date(localString);
   if (isNaN(date.getTime())) return null;
   return date.toISOString();
-}
-
-interface ParsedPlayer {
-  name: string;
-  discord: string;
-  timezone: string | null;
-}
-
-const TZ_PATTERNS = /^(UTC|GMT|PST|PDT|PT|EST|EDT|ET|CST|CDT|CT|MST|MDT|MT|AEST|AEDT|ACST|ACDT|AWST|BST|IST|CET|CEST|EET|EEST|JST|KST|NZST|NZDT)/i;
-
-function parseBulkText(text: string): ParsedPlayer[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      const cleaned = line.startsWith('@') ? line.slice(1) : line;
-      const parts = cleaned.split(' - ').map((p) => p.trim()).filter(Boolean);
-
-      if (parts.length === 0) return null;
-
-      const discord = parts[0];
-
-      if (parts.length === 1) {
-        return { name: discord, discord, timezone: null };
-      }
-
-      if (parts.length === 2) {
-        return { name: parts[1], discord, timezone: null };
-      }
-
-      const lastPart = parts[parts.length - 1];
-      if (TZ_PATTERNS.test(lastPart)) {
-        const rsn = parts.slice(1, -1).join(' - ');
-        return { name: rsn, discord, timezone: lastPart };
-      }
-
-      return { name: parts[1], discord, timezone: null };
-    })
-    .filter((p): p is ParsedPlayer => p !== null);
 }
 
 interface DraftState {
@@ -103,12 +64,8 @@ interface Props {
 export default function AdminEventClient({ event, tiles, teams, completions, players: initialPlayers }: Props) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [playerName, setPlayerName] = useState('');
+  const [selectedClanMemberIds, setSelectedClanMemberIds] = useState<number[]>([]);
   const [addingPlayer, setAddingPlayer] = useState(false);
-  const [bulkText, setBulkText] = useState('');
-  const [bulkPreview, setBulkPreview] = useState<ParsedPlayer[]>([]);
-  const [showBulkImport, setShowBulkImport] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [draftAction, setDraftAction] = useState('');
@@ -209,16 +166,16 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     router.refresh();
   }
 
-  async function addPlayer() {
-    if (!playerName.trim()) return;
+  async function addSelectedFromRoster() {
+    if (selectedClanMemberIds.length === 0) return;
     setAddingPlayer(true);
     const res = await fetch(`/api/events/${event.id}/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: playerName.trim() }),
+      body: JSON.stringify(selectedClanMemberIds.map((clanMemberId) => ({ clanMemberId }))),
     });
     if (res.ok) {
-      setPlayerName('');
+      setSelectedClanMemberIds([]);
       await fetchDraft();
       router.refresh();
     }
@@ -229,29 +186,6 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     await fetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
     await fetchDraft();
     router.refresh();
-  }
-
-  function handleBulkTextChange(text: string) {
-    setBulkText(text);
-    setBulkPreview(parseBulkText(text));
-  }
-
-  async function importBulk() {
-    if (bulkPreview.length === 0) return;
-    setImporting(true);
-    const res = await fetch(`/api/events/${event.id}/players`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bulkPreview),
-    });
-    if (res.ok) {
-      setBulkText('');
-      setBulkPreview([]);
-      setShowBulkImport(false);
-      await fetchDraft();
-      router.refresh();
-    }
-    setImporting(false);
   }
 
   async function saveDraftOrder(order: number[]) {
@@ -913,74 +847,31 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
                 Player Pool
               </h3>
 
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addPlayer()}
-                  placeholder="Player RSN..."
-                  className="flex-1 px-3 py-2 rounded-lg bg-card-bg border border-card-border text-sm focus:outline-none focus:border-gold"
+              <div className="mb-4 border border-card-border rounded-xl p-3 bg-card-bg space-y-3">
+                <p className="text-xs text-text-muted">
+                  Pick clan members to add to this event&apos;s player pool. Names come from the synced
+                  roster — no manual RSN typing or Discord-format imports needed.
+                </p>
+                <ClanMemberPicker
+                  mode="multi"
+                  eventId={event.id}
+                  value={selectedClanMemberIds}
+                  onChange={(ids) => setSelectedClanMemberIds(ids)}
+                  preferLinked
+                  disableEnrolled
                 />
                 <button
-                  onClick={addPlayer}
-                  disabled={addingPlayer || !playerName.trim()}
-                  className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-4 py-2 rounded-lg hover:bg-gold/20 transition-colors disabled:opacity-50"
+                  onClick={addSelectedFromRoster}
+                  disabled={addingPlayer || selectedClanMemberIds.length === 0}
+                  className="w-full text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/25 transition-colors disabled:opacity-50"
                 >
-                  {addingPlayer ? '...' : 'Add'}
+                  {addingPlayer
+                    ? 'Adding…'
+                    : selectedClanMemberIds.length === 0
+                      ? 'Select members above'
+                      : `Add ${selectedClanMemberIds.length} to pool`}
                 </button>
               </div>
-
-              <button
-                onClick={() => setShowBulkImport(!showBulkImport)}
-                className="text-xs text-text-muted hover:text-gold transition-colors mb-3"
-              >
-                {showBulkImport ? 'Hide bulk import' : 'Bulk import from text (Discord format)'}
-              </button>
-
-              {showBulkImport && (
-                <div className="mb-4 border border-card-border rounded-xl p-3 bg-card-bg space-y-3">
-                  <p className="text-xs text-text-muted">
-                    Paste lines in <code className="text-gold">@Discord - RSN - Timezone</code> format (one per line).
-                  </p>
-                  <textarea
-                    value={bulkText}
-                    onChange={(e) => handleBulkTextChange(e.target.value)}
-                    placeholder={`@Drenvox - Drenvox - UTC +2\n@GoofeyGooper - SpecatronDon\n@Yakatakk`}
-                    rows={6}
-                    className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm font-mono focus:outline-none focus:border-gold resize-y"
-                  />
-                  {bulkPreview.length > 0 && (
-                    <>
-                      <p className="text-xs text-text-muted">
-                        Preview: {bulkPreview.length} player{bulkPreview.length !== 1 ? 's' : ''} detected
-                      </p>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
-                        {bulkPreview.map((p, i) => (
-                          <div key={i} className="text-xs flex items-center gap-2 text-text-muted">
-                            <span className="text-foreground font-medium">{p.name}</span>
-                            {p.discord !== p.name && (
-                              <span className="opacity-60">({p.discord})</span>
-                            )}
-                            {p.timezone && (
-                              <span className="bg-gold/10 text-gold px-1.5 py-0.5 rounded text-[10px]">
-                                {p.timezone}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={importBulk}
-                        disabled={importing}
-                        className="w-full text-sm font-medium bg-accent-green/10 text-accent-green-light border border-accent-green/20 px-4 py-2 rounded-lg hover:bg-accent-green/20 transition-colors disabled:opacity-50"
-                      >
-                        {importing ? 'Importing...' : `Import ${bulkPreview.length} players`}
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
 
               {draft.players.length > 0 ? (
                 <div className="space-y-1.5">

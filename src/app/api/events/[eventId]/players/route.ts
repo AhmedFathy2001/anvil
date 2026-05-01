@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { clanMembers, players } from '@/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
 
@@ -33,32 +33,62 @@ export async function POST(
   const id = parseInt(eventId, 10);
   const body = await request.json();
 
-  // Bulk import: array of { name, discord?, timezone? }
+  // Bulk add. Two payload shapes:
+  //   - [{ clanMemberId }]  — preferred path, picker-driven, links directly to the synced roster
+  //   - [{ name, discord?, timezone? }] — legacy text-based import, still accepted for guests/manual rows
   if (Array.isArray(body)) {
-    const valid = body.filter(
-      (p: { name?: string }) => p.name && typeof p.name === 'string' && p.name.trim(),
+    type Item = { clanMemberId?: number; name?: string; discord?: string; timezone?: string };
+    const items = body as Item[];
+
+    const fromIds = items.filter((i): i is { clanMemberId: number } =>
+      typeof i.clanMemberId === 'number' && Number.isFinite(i.clanMemberId),
+    );
+    const fromText = items.filter(
+      (i) => typeof i.name === 'string' && i.name.trim().length > 0 && typeof i.clanMemberId !== 'number',
     ) as { name: string; discord?: string; timezone?: string }[];
 
-    if (valid.length === 0) {
+    if (fromIds.length === 0 && fromText.length === 0) {
       return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
     }
 
-    const toInsert = await Promise.all(
-      valid.map(async (p) => {
-        const name = p.name.trim();
-        const discord = p.discord?.trim() || null;
-        const clanMemberId = await findOrCreateClanMember(name, { discordId: discord });
-        return {
-          eventId: id,
-          clanMemberId,
-          name,
-          discord,
-          timezone: p.timezone?.trim() || null,
-          playerToken: generatePlayerToken(),
-        };
-      }),
-    );
+    const toInsert: typeof players.$inferInsert[] = [];
 
+    if (fromIds.length > 0) {
+      // Picker path: look up the clan_members rows in one query and project them into players.
+      const memberIds = fromIds.map((i) => i.clanMemberId);
+      const memberRows = await db
+        .select()
+        .from(clanMembers)
+        .where(inArray(clanMembers.id, memberIds));
+      for (const m of memberRows) {
+        toInsert.push({
+          eventId: id,
+          clanMemberId: m.id,
+          name: m.rsn,
+          discord: null,
+          timezone: null,
+          playerToken: generatePlayerToken(),
+        });
+      }
+    }
+
+    for (const p of fromText) {
+      const name = p.name.trim();
+      const discord = p.discord?.trim() || null;
+      const clanMemberId = await findOrCreateClanMember(name, { discordId: discord });
+      toInsert.push({
+        eventId: id,
+        clanMemberId,
+        name,
+        discord,
+        timezone: p.timezone?.trim() || null,
+        playerToken: generatePlayerToken(),
+      });
+    }
+
+    if (toInsert.length === 0) {
+      return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
+    }
     const inserted = await db.insert(players).values(toInsert).returning();
     return NextResponse.json(inserted, { status: 201 });
   }

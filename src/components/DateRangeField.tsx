@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import DateTimePicker from './DateTimePicker';
 
 // Date-range picker with two modes:
 //   - "range":  pick a start datetime + an end datetime explicitly
@@ -137,24 +138,31 @@ export default function DateRangeField({ startIso, endIso, onChange, required }:
 
       <div>
         <label className="block text-xs text-text-muted mb-1">Start</label>
-        <input
-          type="datetime-local"
-          value={startLocal}
-          onChange={(e) => setStart(e.target.value)}
+        <DateTimePicker
+          value={startIso}
+          onChange={(iso) => {
+            if (mode === 'duration') {
+              const days = customDays ?? computedDays ?? 7;
+              onChange({ startIso: iso, endIso: iso ? addDays(iso, days) : '' });
+            } else {
+              onChange({ startIso: iso, endIso });
+            }
+          }}
+          placeholder="Pick a start date…"
+          ariaLabel="Start date and time"
           required={required}
-          className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 [color-scheme:dark]"
         />
       </div>
 
       {mode === 'range' ? (
         <div>
           <label className="block text-xs text-text-muted mb-1">End</label>
-          <input
-            type="datetime-local"
-            value={endLocal}
-            onChange={(e) => setEnd(e.target.value)}
+          <DateTimePicker
+            value={endIso}
+            onChange={(iso) => onChange({ startIso, endIso: iso })}
+            placeholder="Pick an end date…"
+            ariaLabel="End date and time"
             required={required}
-            className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 [color-scheme:dark]"
           />
         </div>
       ) : (
