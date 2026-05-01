@@ -18,23 +18,32 @@ export async function POST(request: Request) {
 
   const { name, boardSize, tileLabels, tileIcons } = await request.json();
 
-  if (!name || !boardSize || !Array.isArray(tileLabels)) {
-    return NextResponse.json({ error: 'Name, boardSize, and tileLabels are required' }, { status: 400 });
+  if (!name || !boardSize) {
+    return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
   }
 
   const expectedTiles = boardSize * boardSize;
-  if (tileLabels.length !== expectedTiles) {
-    return NextResponse.json(
-      { error: `Expected ${expectedTiles} tiles for a ${boardSize}x${boardSize} board` },
-      { status: 400 }
-    );
+  // tileLabels is optional — when omitted (the "blank create" path) we generate
+  // placeholder labels and the user fills tiles in via the per-tile editor on the
+  // event detail page. JSON imports continue to pass the full labels array.
+  let resolvedLabels: string[];
+  if (Array.isArray(tileLabels) && tileLabels.length > 0) {
+    if (tileLabels.length !== expectedTiles) {
+      return NextResponse.json(
+        { error: `Expected ${expectedTiles} tiles for a ${boardSize}×${boardSize} board, got ${tileLabels.length}` },
+        { status: 400 },
+      );
+    }
+    resolvedLabels = tileLabels;
+  } else {
+    resolvedLabels = Array.from({ length: expectedTiles }, (_, i) => `Tile ${i + 1}`);
   }
 
   const icons: (string | null)[] = Array.isArray(tileIcons) ? tileIcons : [];
 
   const [event] = await db.insert(events).values({ name, boardSize }).returning();
 
-  const tileValues = tileLabels.map((label: string, index: number) => ({
+  const tileValues = resolvedLabels.map((label: string, index: number) => ({
     eventId: event.id,
     position: index,
     label,
