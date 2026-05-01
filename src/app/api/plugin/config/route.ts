@@ -40,6 +40,11 @@ export async function GET(request: Request) {
     where: and(eq(tiles.eventId, auth.eventId), eq(tiles.tileType, 'drop')),
   });
 
+  // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
+  // for these — match on the presence of a trackedStat field instead.
+  const allEventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) });
+  const statTilesRaw = allEventTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
+
   // Get current submission totals per tile for this team
   const teamSubmissions = await db
     .select({
