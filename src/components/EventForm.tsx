@@ -77,8 +77,10 @@ export default function EventForm() {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    if (tileLabels.length !== totalTiles) {
-      setError(`Expected ${totalTiles} tile labels (one per line), got ${tileLabels.length}`);
+    // Two paths: JSON-imported labels must match board size exactly; blank create
+    // sends no labels and lets the API auto-name them.
+    if (tileLabels.length > 0 && tileLabels.length !== totalTiles) {
+      setError(`Imported board has ${tileLabels.length} tiles but board size is ${totalTiles}. Adjust board size or re-import.`);
       setLoading(false);
       return;
     }
@@ -86,7 +88,11 @@ export default function EventForm() {
     const res = await fetch('/api/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, boardSize, tileLabels, tileIcons }),
+      body: JSON.stringify(
+        tileLabels.length > 0
+          ? { name, boardSize, tileLabels, tileIcons }
+          : { name, boardSize },
+      ),
     });
 
     if (!res.ok) {
