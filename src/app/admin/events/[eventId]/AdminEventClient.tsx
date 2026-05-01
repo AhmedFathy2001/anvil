@@ -454,9 +454,35 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     statGoal: number | null;
     trackingMode: string;
     optional?: boolean;
+    trackedItemIds?: number[] | null;
+    itemRequirements?: { itemId: number; name: string; requiredAmount: number }[] | null;
   }) {
+    // localTiles mirrors the DB row shape, where trackedItemIds/itemRequirements are
+    // stringified JSON. TileTrackingConfig hands us the parsed forms, so re-serialize
+    // before merging — otherwise the next Configure-open will JSON.parse an array.
+    const { trackedItemIds, itemRequirements, optional: updatedOptional, ...rest } = updated;
     setLocalTiles((prev) =>
-      prev.map((t) => (t.id === tileId ? { ...t, ...updated, optional: updated.optional ? 1 : 0 } : t))
+      prev.map((t) =>
+        t.id === tileId
+          ? {
+              ...t,
+              ...rest,
+              optional: updatedOptional ? 1 : 0,
+              trackedItemIds:
+                trackedItemIds === undefined
+                  ? t.trackedItemIds
+                  : trackedItemIds === null
+                    ? null
+                    : JSON.stringify(trackedItemIds),
+              itemRequirements:
+                itemRequirements === undefined
+                  ? t.itemRequirements
+                  : itemRequirements === null
+                    ? null
+                    : JSON.stringify(itemRequirements),
+            }
+          : t,
+      ),
     );
   }
 
