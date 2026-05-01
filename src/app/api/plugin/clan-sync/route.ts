@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings } from '@/db/schema';
-import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 
@@ -287,6 +287,8 @@ export async function POST(request: Request) {
     }).catch(() => {});
   }
 
+  // Detailed change list for the plugin to render as in-game chat lines (one per
+  // event), in addition to the count summary it has always returned.
   return NextResponse.json({
     added: toInsert.length,
     updated: toUpdate.length,
@@ -294,5 +296,58 @@ export async function POST(request: Request) {
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,
     syncedAt: now,
+    changes: changes.map((c) => ({
+      type: c.type,
+      rsn: c.rsn,
+      oldRsn: c.oldRsn ?? null,
+    })),
+  });
+}
+
+// GET — what's the latest sync state for this clan? The plugin calls this on startup
+// so its panel can show "Last sync: X minutes ago" without needing to perform a fresh
+// roster post. Computed from clan_audit_log (no extra column needed).
+export async function GET(request: Request) {
+  const auth = await verifyAdminPluginToken(request);
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Find the most recent timestamp across any sync-driven audit entry. We treat any
+  // join/left/returned/renamed entry as evidence of a sync.
+  const SYNC_EVENT_TYPES = ['joined', 'left', 'returned', 'renamed'] as const;
+
+  const recent = await db
+    .select({
+      eventType: clanAuditLog.eventType,
+      occurredAt: clanAuditLog.occurredAt,
+    })
+    .from(clanAuditLog)
+    .where(inArray(clanAuditLog.eventType, SYNC_EVENT_TYPES as unknown as string[]))
+    .orderBy(desc(clanAuditLog.occurredAt))
+    .limit(200);
+
+  if (recent.length === 0) {
+    return NextResponse.json({ lastSyncAt: null, summary: null });
+  }
+
+  const lastSyncAt = recent[0].occurredAt;
+  // Group every event that shares the latest sync's timestamp (within ~2 seconds) so
+  // the plugin can rebuild the summary message without storing it server-side.
+  const lastTs = new Date(lastSyncAt).getTime();
+  const window = 2000;
+  const sameSync = recent.filter((r) => Math.abs(new Date(r.occurredAt).getTime() - lastTs) <= window);
+
+  const tally = sameSync.reduce<Record<string, number>>((acc, r) => {
+    acc[r.eventType] = (acc[r.eventType] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return NextResponse.json({
+    lastSyncAt,
+    summary: {
+      added: tally.joined ?? 0,
+      markedLeft: tally.left ?? 0,
+      returned: tally.returned ?? 0,
+      renamed: tally.renamed ?? 0,
+    },
   });
 }
