@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, submissions } from '@/db/schema';
+import { events, tiles, teams, submissions, players } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
@@ -78,6 +78,66 @@ export async function GET(request: Request) {
     perItemMap.get(row.tileId)!.set(row.itemId, Number(row.total));
   }
 
+  // Aggregate stat-tile progress so the side panel can show "Mining XP: 4500/5000"
+  // for the team. We pull every team player's baseline + cached stats once, parse
+  // them, and sum gained values per tile (or use just the calling player's value
+  // when tracking_mode is 'individual').
+  const teamPlayers = await db
+    .select({
+      id: players.id,
+      statsSnapshot: players.statsSnapshot,
+      cachedStats: players.cachedStats,
+    })
+    .from(players)
+    .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
+
+  function readStatValue(blob: string | null, statType: string | null, statName: string): number | null {
+    if (!blob) return null;
+    try {
+      const parsed = JSON.parse(blob) as {
+        skills?: Record<string, { xp?: number; level?: number }>;
+        bosses?: Record<string, { score?: number; rank?: number }>;
+      };
+      if (statType === 'boss' || statType === 'kc') {
+        return parsed.bosses?.[statName]?.score ?? null;
+      }
+      // default to skill XP
+      return parsed.skills?.[statName]?.xp ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  const trackedStats = statTilesRaw.map((t) => {
+    const statName = t.trackedStat ?? '';
+    const statType = t.statType ?? 'skill';
+    const goal = t.statGoal ?? 0;
+    const trackingMode = t.trackingMode ?? 'team';
+
+    let gainedTotal = 0;
+    const sources = trackingMode === 'individual'
+      ? teamPlayers.filter((p) => p.id === auth.playerId)
+      : teamPlayers;
+
+    for (const p of sources) {
+      const baseline = readStatValue(p.statsSnapshot, statType, statName);
+      const current = readStatValue(p.cachedStats, statType, statName);
+      if (baseline == null || current == null) continue;
+      const gained = current - baseline;
+      if (gained > 0) gainedTotal += gained;
+    }
+
+    return {
+      tileId: t.id,
+      label: t.label,
+      statName,
+      statType,
+      trackingMode,
+      currentAmount: gainedTotal,
+      goalAmount: goal,
+    };
+  });
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -95,6 +155,7 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    trackedStats,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {
