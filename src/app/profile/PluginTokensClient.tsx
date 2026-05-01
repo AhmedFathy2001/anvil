@@ -78,10 +78,9 @@ export default function PluginTokensClient() {
   return (
     <div>
       <p className="text-xs text-text-muted mb-3 leading-relaxed">
-        Long-lived admin plugin tokens. If your plugin&apos;s local config got wiped (e.g.{' '}
-        <code className="font-mono text-foreground/80">gradle runClient</code> resetting the RuneLite profile),
-        copy your existing token directly into the plugin&apos;s &ldquo;Admin plugin token&rdquo; field — no need
-        to repeat the link-code dance.
+        Long-lived admin plugin tokens. If your plugin lost its config — reinstall, new machine,
+        different RuneLite profile, or anything else — copy the token directly into the plugin&apos;s
+        &ldquo;Admin plugin token&rdquo; field instead of generating a fresh link code.
       </p>
       {error && (
         <div className="text-red-400 text-sm mb-2 border border-red-500/30 bg-red-500/10 rounded px-3 py-2">
