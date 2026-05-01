@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings } from '@/db/schema';
-import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 
@@ -330,26 +330,62 @@ export async function GET(request: Request) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const row = await db.query.settings.findFirst({ where: eq(settings.key, 'last_clan_sync') });
-  if (!row?.value) {
+  if (row?.value) {
+    try {
+      const parsed = JSON.parse(row.value) as {
+        at?: string;
+        summary?: { added?: number; markedLeft?: number; returned?: number; renamed?: number };
+      };
+      if (parsed.at) {
+        return NextResponse.json({
+          lastSyncAt: parsed.at,
+          summary: parsed.summary
+            ? {
+                added: parsed.summary.added ?? 0,
+                markedLeft: parsed.summary.markedLeft ?? 0,
+                returned: parsed.summary.returned ?? 0,
+                renamed: parsed.summary.renamed ?? 0,
+              }
+            : null,
+        });
+      }
+    } catch {
+      /* fall through to audit-log fallback */
+    }
+  }
+
+  // Fallback: no setting yet (first deploy, or never synced since the setting was added).
+  // Reconstruct from clan_audit_log so users with prior sync history still see "Last sync"
+  // in the panel without having to perform a fresh sync to seed the setting.
+  const SYNC_EVENT_TYPES = ['joined', 'left', 'returned', 'renamed'];
+  const recent = await db
+    .select({
+      eventType: clanAuditLog.eventType,
+      occurredAt: clanAuditLog.occurredAt,
+    })
+    .from(clanAuditLog)
+    .where(inArray(clanAuditLog.eventType, SYNC_EVENT_TYPES))
+    .orderBy(desc(clanAuditLog.occurredAt))
+    .limit(200);
+
+  if (recent.length === 0) {
     return NextResponse.json({ lastSyncAt: null, summary: null });
   }
-  try {
-    const parsed = JSON.parse(row.value) as {
-      at?: string;
-      summary?: { added?: number; markedLeft?: number; returned?: number; renamed?: number };
-    };
-    return NextResponse.json({
-      lastSyncAt: parsed.at ?? null,
-      summary: parsed.summary
-        ? {
-            added: parsed.summary.added ?? 0,
-            markedLeft: parsed.summary.markedLeft ?? 0,
-            returned: parsed.summary.returned ?? 0,
-            renamed: parsed.summary.renamed ?? 0,
-          }
-        : null,
-    });
-  } catch {
-    return NextResponse.json({ lastSyncAt: null, summary: null });
-  }
+  const lastSyncAt = recent[0].occurredAt;
+  const lastTs = new Date(lastSyncAt).getTime();
+  const sameSync = recent.filter((r) => Math.abs(new Date(r.occurredAt).getTime() - lastTs) <= 2000);
+  const tally = sameSync.reduce<Record<string, number>>((acc, r) => {
+    acc[r.eventType] = (acc[r.eventType] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return NextResponse.json({
+    lastSyncAt,
+    summary: {
+      added: tally.joined ?? 0,
+      markedLeft: tally.left ?? 0,
+      returned: tally.returned ?? 0,
+      renamed: tally.renamed ?? 0,
+    },
+  });
 }
