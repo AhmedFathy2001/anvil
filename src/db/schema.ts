@@ -41,9 +41,11 @@ export const teams = sqliteTable('teams', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   color: text('color').notNull(),
-  captainPassword: text('captain_password').notNull(),
-  // captainUserId promotes a Discord-linked user to team captain — preferred over captainPassword,
-  // which is kept as a fallback for legacy events and emergency access.
+  // Captains are Discord-linked users — `captainUserId` references `users.id` and is the
+  // sole captain identifier. The legacy `captain_password` column was retired once
+  // Discord login became required to participate; the column stays in DDL only because
+  // SQLite makes drops painful, but no code reads or writes it.
+  captainPassword: text('captain_password'),
   captainUserId: integer('captain_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
   index('teams_event_id_idx').on(table.eventId),

@@ -15,6 +15,7 @@ import TileTrackingConfig from '@/components/TileTrackingConfig';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
+import DateRangeField from '@/components/DateRangeField';
 
 // Convert UTC ISO string to local datetime-local input format
 function utcToLocal(utcString: string | null): string {
@@ -114,8 +115,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [picking, setPicking] = useState(false);
   const [copiedToken, setCopiedToken] = useState<number | null>(null);
 
-  const [startDate, setStartDate] = useState(() => utcToLocal(event.startDate));
-  const [endDate, setEndDate] = useState(() => utcToLocal(event.endDate));
+  // ISO strings (or '' when unset) — DateRangeField handles the local↔UTC plumbing
+  // internally, so we no longer need utcToLocal/localToUtc at this layer.
+  const [startDate, setStartDate] = useState(() => event.startDate ?? '');
+  const [endDate, setEndDate] = useState(() => event.endDate ?? '');
   const [savingDates, setSavingDates] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
@@ -153,6 +156,9 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const eventStarted = currentEvent.startDate ? new Date(currentEvent.startDate) <= new Date() : false;
   const eventEnded = currentEvent.endDate ? new Date(currentEvent.endDate) <= new Date() : false;
   const isForceEnded = !!currentEvent.forceEndedAt;
+  // Draft = no start date set yet and not force-ended. Public listings hide drafts;
+  // here on the admin view we surface them with their own badge so the state isn't ambiguous.
+  const isDraft = !isForceEnded && !currentEvent.startDate;
   const isActive = eventStarted && !eventEnded;
 
   // Real-time updates via smart polling
@@ -285,12 +291,14 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
 
   async function saveDates() {
     setSavingDates(true);
+    // startDate/endDate are already ISO (or '' when unset). Send null for unset so the
+    // API knows to clear the field rather than store an empty string.
     await fetch(`/api/events/${event.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        startDate: localToUtc(startDate),
-        endDate: localToUtc(endDate),
+        startDate: startDate || null,
+        endDate: endDate || null,
       }),
     });
     setSavingDates(false);
@@ -410,7 +418,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       if (res.ok) {
         const updated = await res.json();
         setCurrentEvent(updated);
-        setEndDate(utcToLocal(updated.endDate));
+        setEndDate(updated.endDate ?? '');
         router.refresh();
       }
     } finally {
@@ -436,7 +444,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
       if (res.ok) {
         const updated = await res.json();
         setCurrentEvent(updated);
-        setEndDate(utcToLocal(updated.endDate));
+        setEndDate(updated.endDate ?? '');
         router.refresh();
       }
     } finally {
@@ -506,9 +514,12 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
         </span>
         <span>{tiles.length} tiles</span>
         <span>{teams.length} team{teams.length !== 1 ? 's' : ''}</span>
-        <span className={`flex items-center gap-1.5 ${streamConnected ? 'text-accent-green-light' : 'text-text-muted'}`}>
+        <span
+          className={`flex items-center gap-1.5 ${streamConnected ? 'text-accent-green-light' : 'text-text-muted'}`}
+          title={streamConnected ? 'Real-time updates connected' : 'Connecting to live updates…'}
+        >
           <span className={`w-1.5 h-1.5 rounded-full ${streamConnected ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
-          {streamConnected ? 'Live' : 'Connecting...'}
+          {streamConnected ? 'Connected' : 'Connecting…'}
         </span>
       </div>
 
@@ -529,6 +540,10 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
               <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-text-muted/15 text-text-muted border border-text-muted/25">
                 Ended
               </span>
+            ) : isDraft ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-500/15 text-yellow-300 border border-yellow-500/25">
+                Draft
+              </span>
             ) : isActive ? (
               <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/25">
                 Active
@@ -541,49 +556,46 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+        <div className="grid gap-4 sm:grid-cols-2 mb-4">
           <div>
             <label className="block text-xs text-text-muted mb-1">Name</label>
             <p className="text-sm font-medium">{currentEvent.name}</p>
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Board Size</label>
-            <p className="text-sm font-medium">{currentEvent.boardSize}x{currentEvent.boardSize}</p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Start Date</label>
-            {editMode ? (
-              <input
-                type="datetime-local"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-              />
-            ) : (
-              <p className="text-sm font-medium">
-                {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">End Date</label>
-            {editMode ? (
-              <input
-                type="datetime-local"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-              />
-            ) : (
-              <p className="text-sm font-medium">
-                {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
-              </p>
-            )}
+            <p className="text-sm font-medium">{currentEvent.boardSize}×{currentEvent.boardSize}</p>
           </div>
         </div>
 
-        {editMode && (
-          <p className="text-xs text-text-muted mb-3">Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
+        {editMode ? (
+          <div className="mb-3">
+            <DateRangeField
+              startIso={startDate}
+              endIso={endDate}
+              onChange={({ startIso, endIso }) => {
+                setStartDate(startIso);
+                setEndDate(endIso);
+              }}
+            />
+            <p className="text-xs text-text-muted mt-2">
+              Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 mb-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Start Date</label>
+              <p className="text-sm font-medium">
+                {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">End Date</label>
+              <p className="text-sm font-medium">
+                {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
+              </p>
+            </div>
+          </div>
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -603,8 +615,8 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
           {editMode && (
             <button
               onClick={() => {
-                setStartDate(utcToLocal(currentEvent.startDate));
-                setEndDate(utcToLocal(currentEvent.endDate));
+                setStartDate(currentEvent.startDate ?? '');
+                setEndDate(currentEvent.endDate ?? '');
                 setEditMode(false);
               }}
               className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"

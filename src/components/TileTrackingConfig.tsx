@@ -247,7 +247,7 @@ export default function TileTrackingConfig({
       {tileType === "drop" && !perItemMode && (
         <div>
           <label className="block text-xs text-text-muted mb-1">
-            Required Amount
+            Required Amount <span className="text-text-muted/60">(any tracked item counts)</span>
           </label>
           <input
             type="number"
@@ -258,6 +258,9 @@ export default function TileTrackingConfig({
             className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
             min="1"
           />
+          <p className="text-[10px] text-text-muted mt-0.5">
+            Total drops needed across all tracked items combined. E.g. &ldquo;10 uniques from any GWD boss&rdquo;.
+          </p>
         </div>
       )}
 
@@ -270,6 +273,9 @@ export default function TileTrackingConfig({
           <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
             {trackedItems.reduce((sum, i) => sum + i.perItemAmount, 0)}
           </div>
+          <p className="text-[10px] text-text-muted mt-0.5">
+            Sum of each item&rsquo;s required amount below.
+          </p>
         </div>
       )}
 
@@ -278,30 +284,46 @@ export default function TileTrackingConfig({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs text-text-muted">
-              Tracked Item IDs
-              <span className="text-text-muted/60 ml-1">(RuneLite plugin)</span>
+              Tracked Items
+              <span className="text-text-muted/60 ml-1">(RuneLite plugin auto-detects these drops)</span>
             </label>
           </div>
 
           {/* Per-Item Tracking toggle */}
           {trackedItems.length > 0 && (
-            <div className="flex items-center gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setPerItemMode(!perItemMode)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
-                  perItemMode ? 'bg-accent-green' : 'bg-card-border'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    perItemMode ? 'translate-x-5' : ''
+            <div className="mb-2 rounded border border-card-border bg-brown-dark/40 p-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPerItemMode(!perItemMode)}
+                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                    perItemMode ? 'bg-accent-green' : 'bg-card-border'
                   }`}
-                />
-              </button>
-              <span className="text-xs text-text-muted">
-                Per-item tracking (each item has its own required amount)
-              </span>
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                      perItemMode ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+                <span className="text-xs font-medium text-foreground/80">
+                  Per-item tracking
+                </span>
+              </div>
+              <p className="text-[10px] text-text-muted mt-1.5 leading-relaxed">
+                {perItemMode ? (
+                  <>
+                    <span className="text-accent-green-light">On:</span> each item needs its own count to complete the tile.
+                    Use for sets like <span className="text-foreground/70">Moons</span> (1× Blood + 1× Blue + 1× Eclipse) or
+                    <span className="text-foreground/70"> Justiciar</span> (1× helm + 1× chest + 1× legs).
+                  </>
+                ) : (
+                  <>
+                    <span className="text-text-muted/80">Off:</span> any tracked item drop counts toward one shared total.
+                    Use for &ldquo;X drops from this boss pool&rdquo; tiles.
+                  </>
+                )}
+              </p>
             </div>
           )}
 
@@ -386,9 +408,11 @@ export default function TileTrackingConfig({
               </div>
             )}
           </div>
-          <p className="text-[10px] text-text-muted mt-1">
-            OSRS item IDs the RuneLite plugin will auto-detect as drops for this tile.
-          </p>
+          {trackedItems.length === 0 && (
+            <p className="text-[10px] text-text-muted mt-1">
+              Search and add the item drops this tile tracks. Once added, you can switch on per-item tracking if each item needs its own count.
+            </p>
+          )}
         </div>
       )}
 

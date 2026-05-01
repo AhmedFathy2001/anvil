@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { teams, events } from '@/db/schema';
+import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain, hashPassword } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 
 export async function GET(
   _request: Request,
@@ -31,19 +31,34 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
-  const { name, color, captainPassword } = await request.json();
+  const { name, color, captainUserId } = await request.json();
 
-  if (!name || !color || !captainPassword) {
-    return NextResponse.json({ error: 'Name, color, and captainPassword are required' }, { status: 400 });
+  if (!name || !color) {
+    return NextResponse.json({ error: 'Name and color are required' }, { status: 400 });
   }
 
-  const hashedPassword = hashPassword(captainPassword);
+  const captainUserIdInt =
+    typeof captainUserId === 'number' && Number.isFinite(captainUserId) && captainUserId > 0
+      ? captainUserId
+      : null;
+  if (captainUserIdInt == null) {
+    return NextResponse.json(
+      { error: 'captainUserId is required — assign a Discord-linked user as captain.' },
+      { status: 400 },
+    );
+  }
+
+  // Confirm the chosen user actually exists before we trust the FK.
+  const captainUser = await db.query.users.findFirst({ where: eq(users.id, captainUserIdInt) });
+  if (!captainUser) {
+    return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
+  }
 
   const [team] = await db.insert(teams).values({
     eventId: id,
     name,
     color,
-    captainPassword: hashedPassword,
+    captainUserId: captainUserIdInt,
   }).returning();
 
   const { captainPassword: _, ...safeTeam } = team;

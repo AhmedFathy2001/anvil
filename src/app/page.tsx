@@ -53,8 +53,15 @@ export default async function HomePage() {
 
   const now = new Date().toISOString();
 
+  // Public-side state machine for events:
+  //   - "draft":    startDate is null and not force-ended → hidden from public
+  //   - "upcoming": startDate is in the future → shown alongside active
+  //   - "active":   started, not yet ended, not force-ended
+  //   - "past":     force-ended OR endDate < now
+  const isDraft = (e: typeof allEvents[number]) => !e.forceEndedAt && !e.startDate;
   const activeEvents = allEvents.filter((e) => {
     if (e.forceEndedAt) return false;
+    if (isDraft(e)) return false;
     if (e.endDate && e.endDate < now) return false;
     return true;
   });

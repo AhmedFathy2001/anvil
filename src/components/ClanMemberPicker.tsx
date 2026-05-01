@@ -32,13 +32,17 @@ interface CommonProps {
 interface SingleProps extends CommonProps {
   mode: 'single';
   value: number | null;
-  onChange: (memberId: number | null) => void;
+  // Second arg is the picked member object (or null on clear) — convenience for consumers
+  // that need fields beyond the id (e.g. team captain assignment needs `user.id`).
+  onChange: (memberId: number | null, member: PickableMember | null) => void;
+  // When true, reject members without a linked Discord user (captain seats need this).
+  requireDiscordUser?: boolean;
 }
 
 interface MultiProps extends CommonProps {
   mode: 'multi';
   value: number[];
-  onChange: (memberIds: number[]) => void;
+  onChange: (memberIds: number[], members: PickableMember[]) => void;
   disableEnrolled?: boolean; // grey out members already enrolled in this event
 }
 
@@ -111,13 +115,22 @@ export default function ClanMemberPicker(props: Props) {
   }
 
   function toggle(id: number) {
+    const member = members?.find((m) => m.id === id) ?? null;
     if (props.mode === 'single') {
-      props.onChange(props.value === id ? null : id);
+      if (props.requireDiscordUser && member && !member.user?.discordId) {
+        // Captain seats are claimed via Discord login, so picking an unlinked member
+        // would leave the seat unclaimable. UI flags those rows; this is the safety net.
+        return;
+      }
+      const willClear = props.value === id;
+      props.onChange(willClear ? null : id, willClear ? null : member);
     } else {
-      const next = props.value.includes(id)
-        ? props.value.filter((v) => v !== id)
-        : [...props.value, id];
-      props.onChange(next);
+      const isAdding = !props.value.includes(id);
+      const nextIds = isAdding ? [...props.value, id] : props.value.filter((v) => v !== id);
+      const nextMembers = members
+        ? nextIds.map((mid) => members.find((m) => m.id === mid)).filter((m): m is PickableMember => Boolean(m))
+        : [];
+      props.onChange(nextIds, nextMembers);
     }
   }
 
@@ -152,21 +165,28 @@ export default function ClanMemberPicker(props: Props) {
             const selected = isSelected(m.id);
             const enrolled = props.mode === 'multi' && props.disableEnrolled && m.enrolledPlayerId != null;
             const linked = Boolean(m.user?.discordId);
+            const requiresLink = props.mode === 'single' && props.requireDiscordUser && !linked;
+            const disabled = enrolled || requiresLink;
             const avatar = m.user?.discordId ? avatarUrl(m.user.discordId, m.user.discordAvatar) : null;
+            const disabledReason = enrolled
+              ? 'Already added to this event'
+              : requiresLink
+                ? 'No Discord login linked — captain access needs a Discord-linked user'
+                : '';
             return (
               <li key={m.id}>
                 <button
                   type="button"
-                  onClick={() => !enrolled && toggle(m.id)}
-                  disabled={enrolled}
+                  onClick={() => !disabled && toggle(m.id)}
+                  disabled={disabled}
                   className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                     selected
                       ? 'bg-gold/10'
-                      : enrolled
+                      : disabled
                         ? 'opacity-50 cursor-not-allowed'
                         : 'hover:bg-brown-light'
                   }`}
-                  title={enrolled ? 'Already added to this event' : ''}
+                  title={disabledReason}
                 >
                   <span
                     className={`w-4 h-4 rounded border ${
@@ -211,6 +231,9 @@ export default function ClanMemberPicker(props: Props) {
                   </div>
                   {enrolled && (
                     <span className="text-[10px] text-text-muted shrink-0">enrolled</span>
+                  )}
+                  {requiresLink && (
+                    <span className="text-[10px] text-text-muted shrink-0">no Discord</span>
                   )}
                 </button>
               </li>
