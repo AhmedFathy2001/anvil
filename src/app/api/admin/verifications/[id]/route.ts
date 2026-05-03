@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
+import { applyPendingRole } from '@/lib/pending-role';
 
 // POST /api/admin/verifications/[id] { action: 'approve' | 'reject' }
 // Approve clears the provisional flag — the clan member becomes fully verified.
@@ -55,6 +56,11 @@ export async function POST(
         verifiedAt: member.verifiedAt ?? nowIso,
       })
       .where(eq(clanMembers.id, memberId));
+
+    // Apply any pre-assigned role now that the verification has cleared mod review.
+    if (member.userId && member.pendingRole) {
+      await applyPendingRole(memberId, member.userId, 'manual_approval');
+    }
 
     db.insert(clanAuditLog)
       .values({

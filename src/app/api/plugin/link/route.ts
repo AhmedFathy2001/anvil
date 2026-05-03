@@ -10,6 +10,7 @@ import {
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { applyPendingRole } from '@/lib/pending-role';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -207,6 +208,11 @@ export async function POST(request: Request) {
   if (!hasPrimary) {
     await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
   }
+
+  // Apply any pre-assigned pending role. Plugin-verified claims are high-trust so we
+  // promote immediately. Won't downgrade — if the user already has a higher role
+  // (e.g. existing admin claiming a "moderator"-tagged member) we skip.
+  await applyPendingRole(clanMemberId, issuingUser.id, 'plugin');
 
   // Admins additionally get a long-lived pluginLinks token for clan-sync etc.
   let adminToken: string | null = null;

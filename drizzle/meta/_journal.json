@@ -148,6 +148,13 @@
       "when": 1777805788104,
       "tag": "0020_living_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1777809702599,
+      "tag": "0021_familiar_ogun",
+      "breakpoints": true
     }
   ]
 }

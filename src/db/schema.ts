@@ -209,6 +209,11 @@ export const clanMembers = sqliteTable('clan_members', {
   provisional: integer('provisional').default(0).notNull(),
   // When a ghost record was claimed by a Discord-linked user.
   claimedAt: text('claimed_at'),
+  // Pre-assigned role applied to the linked user when this member's verification
+  // is finalized. Plugin-verified claims apply immediately; stat-delta/manual
+  // claims wait for mod approval before promoting the user. Cleared once applied.
+  // Values: 'admin' | 'moderator' | null.
+  pendingRole: text('pending_role'),
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
