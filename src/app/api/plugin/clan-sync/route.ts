@@ -14,9 +14,11 @@ interface IncomingMember {
 }
 
 interface ChangeRecord {
-  type: 'joined' | 'left' | 'returned' | 'renamed';
+  type: 'joined' | 'left' | 'returned' | 'renamed' | 'rank_changed';
   rsn: string;
   oldRsn?: string;
+  oldRank?: string | null;
+  newRank?: string | null;
   memberId: number;
 }
 
@@ -91,6 +93,9 @@ export async function POST(request: Request) {
     renamed: boolean;
     oldRsn?: string;
     returning: boolean;
+    rankChanged: boolean;
+    oldRank: string | null;
+    newRank: string | null;
   };
   const toInsert: { rsn: string; rsnNormalized: string; rank: string | null; accountHash: string | null }[] = [];
   const toUpdate: ToUpdate[] = [];
@@ -122,6 +127,8 @@ export async function POST(request: Request) {
       existing.rsnNormalized !== rsnNormalized;
     const returning = existing.leftAt != null && existing.source !== 'manual';
     const preserveLeftAt = Boolean(existing.leftAt && existing.source === 'manual');
+    const rankChanged =
+      rank != null && existing.rank != null && rank !== existing.rank;
 
     let previousRsns: string[] = [];
     if (existing.previousRsns) {
@@ -150,6 +157,9 @@ export async function POST(request: Request) {
       renamed,
       oldRsn: renamed ? existing.rsn : undefined,
       returning: returning && !preserveLeftAt,
+      rankChanged,
+      oldRank: rankChanged ? existing.rank : null,
+      newRank: rankChanged ? rank : null,
     });
   }
 
@@ -223,6 +233,22 @@ export async function POST(request: Request) {
         notes: 'Detected via clan-sync',
       });
     }
+    if (u.rankChanged) {
+      changes.push({
+        type: 'rank_changed',
+        rsn: u.setRsn,
+        oldRank: u.oldRank,
+        newRank: u.newRank,
+        memberId: u.id,
+      });
+      auditPayload.push({
+        clanMemberId: u.id,
+        eventType: 'rank_changed',
+        oldValue: JSON.stringify({ rank: u.oldRank }),
+        newValue: JSON.stringify({ rank: u.newRank }),
+        notes: 'Detected via clan-sync',
+      });
+    }
   }
 
   // ── 5) Soft-delete missing ───────────────────────────────────────────────
@@ -290,6 +316,11 @@ export async function POST(request: Request) {
       name: `Renamed (${renamed.length})`,
       value: renamed.map((c) => `${c.oldRsn ?? '?'} → ${c.rsn}`).join('\n').slice(0, 1024),
     });
+    const rankChanged = changes.filter((c) => c.type === 'rank_changed');
+    if (rankChanged.length) fields.push({
+      name: `Rank changed (${rankChanged.length})`,
+      value: rankChanged.map((c) => `${c.rsn}: ${c.oldRank ?? '—'} → ${c.newRank ?? '—'}`).join('\n').slice(0, 1024),
+    });
 
     sendDiscordWebhook({
       embeds: [
@@ -317,6 +348,8 @@ export async function POST(request: Request) {
       type: c.type,
       rsn: c.rsn,
       oldRsn: c.oldRsn ?? null,
+      oldRank: c.oldRank ?? null,
+      newRank: c.newRank ?? null,
     })),
   });
 }
