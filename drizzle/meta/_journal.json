@@ -141,6 +141,13 @@
       "when": 1777618770775,
       "tag": "0019_colorful_marvel_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1777805788104,
+      "tag": "0020_living_gauntlet",
+      "breakpoints": true
     }
   ]
 }

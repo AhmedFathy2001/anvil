@@ -164,12 +164,20 @@ export async function GET(request: Request) {
           : null;
         const tileItemTotals = perItemMap.get(t.id);
 
+        let acceptedSources: string[] | null = null;
+        if (t.acceptedSources) {
+          try {
+            const parsed = JSON.parse(t.acceptedSources);
+            if (Array.isArray(parsed)) acceptedSources = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON, treat as accept-any */ }
+        }
         return {
           tileId: t.id,
           label: t.label,
           itemIds: JSON.parse(t.trackedItemIds || '[]'),
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
+          acceptedSources,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,

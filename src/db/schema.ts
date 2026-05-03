@@ -32,6 +32,12 @@ export const tiles = sqliteTable('tiles', {
   optional: integer('optional').default(0),
   trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
   itemRequirements: text('item_requirements'), // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}]
+  // JSON array of accepted loot sources for this tile. NULL = accept any source
+  // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
+  // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles
+  // + loot keys). e.g. '["npc","event"]' for "from CoX or any NPC, not PvP"
+  // or '["pvp"]' for a PK-only tile.
+  acceptedSources: text('accepted_sources'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
