@@ -4,10 +4,11 @@ import {
   clanAuditLog,
   clanMembers,
   events,
+  signupFees,
   teams,
   weeklyCompetitions,
 } from '@/db/schema';
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function AdminDashboardPage() {
   });
   const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < now));
 
-  const [provisionalCount, activeMembers, activeWeekly, recentAudit] = await Promise.all([
+  const [provisionalCount, activeMembers, activeWeekly, recentAudit, openFeeCount] = await Promise.all([
     db
       .select({ c: count() })
       .from(clanMembers)
@@ -53,6 +54,11 @@ export default async function AdminDashboardPage() {
       .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
       .orderBy(desc(clanAuditLog.occurredAt))
       .limit(8),
+    db
+      .select({ c: count() })
+      .from(signupFees)
+      .where(inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']))
+      .then((r) => r[0]?.c ?? 0),
   ]);
 
   return (
@@ -183,6 +189,12 @@ export default async function AdminDashboardPage() {
                 emphasize={provisionalCount > 0}
               />
               <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/clan" />
+              <SnapshotRow
+                label="Open sign-up fees"
+                value={`${openFeeCount} fee${openFeeCount === 1 ? '' : 's'}`}
+                href="/admin/fees"
+                emphasize={openFeeCount > 0}
+              />
             </div>
           </section>
         </aside>

@@ -17,6 +17,7 @@ import PlayerEditor from '@/components/PlayerEditor';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import DateRangeField from '@/components/DateRangeField';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
+import SignupAdminPanel from './SignupAdminPanel';
 
 // Convert UTC ISO string to local datetime-local input format
 function utcToLocal(utcString: string | null): string {
@@ -671,6 +672,15 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             teams={teams}
           />
         </div>
+      </div>
+
+      {/* Sign-ups Section */}
+      <div className="mt-12 pt-8 border-t border-card-border">
+        <h2 className="text-xl font-bold text-gold mb-6 flex items-center gap-2">
+          <span className="w-1 h-6 bg-gold rounded-full" />
+          Sign-ups
+        </h2>
+        <SignupAdminPanel event={currentEvent} onEventUpdated={setCurrentEvent} />
       </div>
 
       {/* Event Dates & Stat Tracking Section */}

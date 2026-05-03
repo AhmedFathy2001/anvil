@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanAuditLog, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-const VALID_ROLES = new Set(['admin', 'moderator', 'member']);
+const VALID_ROLES = new Set(['admin', 'treasurer', 'moderator', 'member']);
 
 export async function PUT(
   request: Request,
@@ -21,7 +21,7 @@ export async function PUT(
   const { displayName, password, role } = await request.json();
 
   if (role !== undefined && !VALID_ROLES.has(role)) {
-    return NextResponse.json({ error: 'Role must be admin, moderator, or member' }, { status: 400 });
+    return NextResponse.json({ error: 'Role must be admin, treasurer, moderator, or member' }, { status: 400 });
   }
 
   // Prevent demoting last admin

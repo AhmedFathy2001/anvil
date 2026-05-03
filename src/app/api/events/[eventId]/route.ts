@@ -140,10 +140,19 @@ export async function PATCH(
     return NextResponse.json(updated);
   }
 
-  // Default: update dates
+  // Default: update dates and/or sign-up config
   const updates: Record<string, unknown> = {};
   if ('startDate' in body) updates.startDate = body.startDate;
   if ('endDate' in body) updates.endDate = body.endDate;
+  if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
+  if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
+  if ('captainSelectionDeadline' in body) updates.captainSelectionDeadline = body.captainSelectionDeadline;
+  if ('signupFee' in body) {
+    if (body.signupFee !== null && (typeof body.signupFee !== 'number' || !Number.isFinite(body.signupFee) || body.signupFee < 0)) {
+      return NextResponse.json({ error: 'signupFee must be a non-negative number or null' }, { status: 400 });
+    }
+    updates.signupFee = body.signupFee;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -153,11 +162,10 @@ export async function PATCH(
   const isIsoString = (v: unknown): v is string =>
     typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
-  if ('startDate' in body && body.startDate !== null && !isIsoString(body.startDate)) {
-    return NextResponse.json({ error: 'startDate must be an ISO date string or null' }, { status: 400 });
-  }
-  if ('endDate' in body && body.endDate !== null && !isIsoString(body.endDate)) {
-    return NextResponse.json({ error: 'endDate must be an ISO date string or null' }, { status: 400 });
+  for (const field of ['startDate', 'endDate', 'signupOpensAt', 'signupDeadline', 'captainSelectionDeadline'] as const) {
+    if (field in body && body[field] !== null && !isIsoString(body[field])) {
+      return NextResponse.json({ error: `${field} must be an ISO date string or null` }, { status: 400 });
+    }
   }
 
   const existing = await db.query.events.findFirst({ where: eq(events.id, id) });
@@ -171,6 +179,25 @@ export async function PATCH(
       { error: 'endDate must be after startDate' },
       { status: 400 },
     );
+  }
+
+  // Sign-up sequencing: opens ≤ deadline ≤ captain-selection ≤ start. Each pair is checked
+  // individually so partial updates against existing values still validate.
+  const finalSignupOpens = 'signupOpensAt' in body ? (body.signupOpensAt as string | null) : existing.signupOpensAt;
+  const finalSignupDeadline = 'signupDeadline' in body ? (body.signupDeadline as string | null) : existing.signupDeadline;
+  const finalCaptainDeadline = 'captainSelectionDeadline' in body ? (body.captainSelectionDeadline as string | null) : existing.captainSelectionDeadline;
+
+  if (finalSignupOpens && finalSignupDeadline && finalSignupDeadline <= finalSignupOpens) {
+    return NextResponse.json({ error: 'signupDeadline must be after signupOpensAt' }, { status: 400 });
+  }
+  if (finalSignupDeadline && finalCaptainDeadline && finalCaptainDeadline < finalSignupDeadline) {
+    return NextResponse.json({ error: 'captainSelectionDeadline must be on or after signupDeadline' }, { status: 400 });
+  }
+  if (finalCaptainDeadline && finalStart && finalCaptainDeadline > finalStart) {
+    return NextResponse.json({ error: 'captainSelectionDeadline must be on or before startDate' }, { status: 400 });
+  }
+  if (finalSignupDeadline && finalStart && finalSignupDeadline > finalStart) {
+    return NextResponse.json({ error: 'signupDeadline must be on or before startDate' }, { status: 400 });
   }
 
   const [updated] = await db

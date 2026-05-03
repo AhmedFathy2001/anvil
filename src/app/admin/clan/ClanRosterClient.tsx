@@ -15,6 +15,9 @@ interface ClanMember {
   leftAt: string | null;
   lastSeenInClan: string | null;
   notes: string | null;
+  userId: number | null;
+  provisional: number;
+  pendingRole: 'admin' | 'moderator' | null;
 }
 
 interface PluginLink {
@@ -30,7 +33,7 @@ interface PluginLink {
 
 type FilterMode = 'active' | 'guests' | 'left' | 'all';
 
-export default function ClanRosterClient() {
+export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [links, setLinks] = useState<PluginLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +47,12 @@ export default function ClanRosterClient() {
   const [addIsGuest, setAddIsGuest] = useState(false);
   const [addError, setAddError] = useState('');
   const [adding, setAdding] = useState(false);
+
+  const [roleTarget, setRoleTarget] = useState<ClanMember | null>(null);
+  const [roleValue, setRoleValue] = useState<'admin' | 'moderator' | 'none'>('none');
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleError, setRoleError] = useState('');
+  const [roleNotice, setRoleNotice] = useState<string | null>(null);
 
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [linkExpiresAt, setLinkExpiresAt] = useState<string | null>(null);
@@ -232,6 +241,43 @@ export default function ClanRosterClient() {
     setRenameTarget(null);
     setRenameValue('');
     setRenameSaving(false);
+    fetchAll();
+  }
+
+  function openRole(member: ClanMember) {
+    setRoleTarget(member);
+    setRoleValue(member.pendingRole ?? 'none');
+    setRoleError('');
+  }
+
+  async function submitRole(e: React.FormEvent) {
+    e.preventDefault();
+    if (!roleTarget) return;
+    setRoleSaving(true);
+    setRoleError('');
+    const res = await fetch(`/api/admin/clan/${roleTarget.id}/pending-role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: roleValue === 'none' ? null : roleValue }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRoleError(data.error || 'Failed to update role');
+      setRoleSaving(false);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    const rsn = roleTarget.rsn;
+    setRoleTarget(null);
+    setRoleSaving(false);
+    if (data.appliedNow) {
+      setRoleNotice(`Promoted ${rsn} to ${data.user?.role ?? roleValue} immediately (already verified).`);
+    } else if (roleValue === 'none') {
+      setRoleNotice(`Cleared pending role for ${rsn}.`);
+    } else {
+      setRoleNotice(`Queued ${roleValue} role for ${rsn}. Will apply when they verify via Discord + plugin/mod approval.`);
+    }
+    setTimeout(() => setRoleNotice(null), 6000);
     fetchAll();
   }
 
@@ -498,7 +544,34 @@ export default function ClanRosterClient() {
                   key={m.id}
                   className={`border-b border-card-border/50 hover:bg-card-bg-hover transition-colors ${m.leftAt ? 'opacity-60' : ''}`}
                 >
-                  <td className="px-4 py-3 font-medium">{m.rsn}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div>{m.rsn}</div>
+                    {m.pendingRole && (
+                      <div className="mt-1">
+                        <span
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                            m.pendingRole === 'admin'
+                              ? 'bg-gold/15 text-gold'
+                              : 'bg-blue-500/15 text-blue-400'
+                          }`}
+                          title={
+                            m.userId
+                              ? m.provisional
+                                ? `Will be granted ${m.pendingRole} once a mod approves their verification`
+                                : `Pending — will apply on next role sync`
+                              : `Will be granted ${m.pendingRole} when this RSN is claimed via Discord + verified`
+                          }
+                        >
+                          → {m.pendingRole}
+                          {!m.userId
+                            ? ' (awaiting claim)'
+                            : m.provisional
+                              ? ' (awaiting mod approval)'
+                              : ' (pending)'}
+                        </span>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-text-muted">{m.rank || '—'}</td>
                   <td className="px-4 py-3">
                     {m.leftAt ? (
@@ -536,6 +609,14 @@ export default function ClanRosterClient() {
                           >
                             Rename
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openRole(m)}
+                              className="px-2 py-1 text-xs border border-gold/30 text-gold rounded hover:bg-gold/10 transition-colors"
+                            >
+                              Set role
+                            </button>
+                          )}
                           <button
                             onClick={() => togglePromote(m)}
                             className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
@@ -563,6 +644,66 @@ export default function ClanRosterClient() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Role-assignment notice */}
+      {roleNotice && (
+        <div className="fixed bottom-6 right-6 z-40 max-w-sm border border-gold/30 bg-card-bg rounded-lg shadow-lg px-4 py-3 text-sm">
+          {roleNotice}
+        </div>
+      )}
+
+      {/* Set-role modal */}
+      {roleTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => !roleSaving && setRoleTarget(null)}
+          />
+          <form
+            onSubmit={submitRole}
+            className="relative bg-card-bg border border-card-border rounded-xl w-full max-w-md p-5 shadow-2xl"
+          >
+            <h2 className="text-lg font-bold text-gold mb-1">Pre-assign staff role</h2>
+            <p className="text-text-muted text-sm mb-4">
+              {roleTarget.userId
+                ? roleTarget.provisional
+                  ? `${roleTarget.rsn} has claimed this RSN but their verification is still provisional. The role will apply when a mod approves it.`
+                  : `${roleTarget.rsn} is already linked and verified — the role applies immediately on save.`
+                : `Stamps a role onto ${roleTarget.rsn}. When they sign in via Discord and verify (plugin or stat-delta), the role is granted automatically.`}
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs text-text-muted mb-1">Role</label>
+              <select
+                value={roleValue}
+                onChange={(e) => setRoleValue(e.target.value as 'admin' | 'moderator' | 'none')}
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+              >
+                <option value="none">None (clear)</option>
+                <option value="moderator">Moderator</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            {roleError && <p className="text-red-400 text-sm mb-3">{roleError}</p>}
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                disabled={roleSaving}
+                onClick={() => setRoleTarget(null)}
+                className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={roleSaving}
+                className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+              >
+                {roleSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

@@ -81,7 +81,19 @@ export async function verifyAdmin(): Promise<boolean> {
 export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin' || user.role === 'moderator') return user;
+  // Treasurers do everything moderators can; this gate accepts all three mod-tier roles.
+  if (user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator') {
+    return user;
+  }
+  return null;
+}
+
+// Fee-collection gate. Regular moderators cannot collect sign-up fees — only admins
+// and treasurers can. Used by the fee-collection endpoints in the sign-up flow.
+export async function verifyFeeCollector(): Promise<UserPayload | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+  if (user.role === 'admin' || user.role === 'treasurer') return user;
   return null;
 }
 

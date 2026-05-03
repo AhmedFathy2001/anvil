@@ -41,10 +41,10 @@ export async function POST(request: Request) {
   }
 
   // POST creates legacy username/password staff. Discord-linked members get created
-  // automatically via the OAuth callback, not here. We constrain to admin/moderator
-  // because there's no point legacy-creating a 'member' (they'd just sign in via Discord).
-  if (role !== 'admin' && role !== 'moderator') {
-    return NextResponse.json({ error: 'Role must be admin or moderator' }, { status: 400 });
+  // automatically via the OAuth callback, not here. We constrain to staff roles because
+  // there's no point legacy-creating a 'member' (they'd just sign in via Discord).
+  if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator') {
+    return NextResponse.json({ error: 'Role must be admin, treasurer, or moderator' }, { status: 400 });
   }
 
   const passwordHash = await hashPasswordBcrypt(password);

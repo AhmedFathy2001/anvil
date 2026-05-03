@@ -14,6 +14,12 @@ export const events = sqliteTable('events', {
   endNotified: integer('end_notified').default(0),
   forceEndedAt: text('force_ended_at'),
   originalEndDate: text('original_end_date'),
+  // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
+  // null = signups open as soon as the event exists / no captain-selection cutoff.
+  signupFee: integer('signup_fee'),
+  signupOpensAt: text('signup_opens_at'),
+  signupDeadline: text('signup_deadline'),
+  captainSelectionDeadline: text('captain_selection_deadline'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -134,7 +140,10 @@ export const users = sqliteTable('users', {
   username: text('username').unique(),
   displayName: text('display_name').notNull(),
   passwordHash: text('password_hash'),
-  role: text('role').notNull().default('member'), // 'admin' | 'moderator' | 'member'
+  // 'admin' | 'treasurer' | 'moderator' | 'member'. Treasurer is a mod-tier role that
+  // additionally has fee-collection authority for sign-ups. Hierarchy:
+  //   admin > treasurer > moderator > member.
+  role: text('role').notNull().default('member'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   createdBy: integer('created_by'),
   // Discord OAuth identity (the primary login path for non-staff users)
@@ -281,6 +290,58 @@ export const pluginLinks = sqliteTable('plugin_links', {
 }, (table) => [
   uniqueIndex('plugin_links_token_unique').on(table.token),
   index('plugin_links_user_id_idx').on(table.userId),
+]);
+
+// Per-event sign-up. One row per (event, user) — a Discord account can only sign up once
+// per event but may own multiple clanMembers; `clanMemberId` is the single RSN they chose
+// to play this event with (the bingo only tracks that account). `profileData` is a frozen
+// snapshot of the responses captured at submit time, editable by the user up until
+// `events.signupDeadline`. New signups prefill from the user's most recent prior signup so
+// they don't re-type unchanged answers.
+export const eventSignups = sqliteTable('event_signups', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'restrict' }),
+  // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }
+  profileData: text('profile_data').notNull().default('{}'),
+  // pending = awaiting fee/admin review, approved = eligible for draft, rejected = denied,
+  // withdrawn = user opted out before the deadline.
+  status: text('status').notNull().default('pending'),
+  signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('event_signup_user_unique').on(table.eventId, table.userId),
+  index('event_signups_event_id_idx').on(table.eventId),
+  index('event_signups_user_id_idx').on(table.userId),
+  index('event_signups_clan_member_id_idx').on(table.clanMemberId),
+]);
+
+// Sign-up fee tracking. One row per signup. Status flow:
+//   pending → reported (player names who they paid) → collected (mod claims + uploads proof)
+//   → confirmed (admin clears; proof blob is then deleted to save storage)
+// disputed = collector claim and player report disagree; surfaces an admin badge.
+export const signupFees = sqliteTable('signup_fees', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  signupId: integer('signup_id').notNull().references(() => eventSignups.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  status: text('status').notNull().default('pending'),
+  // Mod/admin who claims they collected the fee. Site role (moderator/admin) is what
+  // grants this ability — clan rank is irrelevant.
+  collectedByUserId: integer('collected_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  collectedAt: text('collected_at'),
+  // Player's self-report of who they paid. Used to detect disputes against collectedByUserId.
+  reportedCollectorUserId: integer('reported_collector_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reportedAt: text('reported_at'),
+  // Vercel Blob URL of the proof screenshot. Nulled out after admin confirmation as
+  // part of the cleanup-on-confirm flow.
+  proofBlobUrl: text('proof_blob_url'),
+  confirmedByUserId: integer('confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  confirmedAt: text('confirmed_at'),
+  notes: text('notes'),
+}, (table) => [
+  uniqueIndex('signup_fees_signup_unique').on(table.signupId),
+  index('signup_fees_status_idx').on(table.status),
 ]);
 
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.

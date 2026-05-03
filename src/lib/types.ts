@@ -13,6 +13,10 @@ export interface Event {
   endNotified?: number | null;
   forceEndedAt: string | null;
   originalEndDate: string | null;
+  signupFee: number | null;
+  signupOpensAt: string | null;
+  signupDeadline: string | null;
+  captainSelectionDeadline: string | null;
 }
 
 export interface Tile {

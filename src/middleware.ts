@@ -68,21 +68,23 @@ export async function middleware(request: NextRequest) {
       const data = JSON.parse(payload);
       const role = data.role;
 
-      // Must be admin or moderator. Members get sent home rather than back to /admin
-      // (which is the legacy staff login page) so they don't get stuck in a loop.
-      if (role !== 'admin' && role !== 'moderator') {
+      // Must be admin/treasurer/moderator. Members get sent home rather than back to
+      // /admin (the legacy staff login page) so they don't get stuck in a loop.
+      if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator') {
         return NextResponse.redirect(new URL('/', request.url));
       }
 
-      // Moderators can access dashboard, weekly, clan, schedule, and verifications.
-      // Admin-only sections (events, players, staff, integrations) redirect them home.
-      if (role === 'moderator') {
+      // Moderators (and treasurers, which extend moderator) can access dashboard, weekly,
+      // clan, schedule, and verifications. Admin-only sections (events, players, staff,
+      // integrations) redirect them home.
+      if (role === 'moderator' || role === 'treasurer') {
         const allowed = [
           '/admin/dashboard',
           '/admin/weekly',
           '/admin/clan',
           '/admin/schedule',
           '/admin/verifications',
+          '/admin/fees',
         ];
         if (!allowed.some((p) => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url));

@@ -8,7 +8,7 @@ interface User {
   id: number;
   username: string | null;
   displayName: string;
-  role: 'admin' | 'moderator' | 'member';
+  role: Role;
   createdAt: string;
   discordId: string | null;
   discordUsername: string | null;
@@ -17,7 +17,16 @@ interface User {
   hasPassword: boolean;
 }
 
-type RoleFilter = 'all' | 'admin' | 'moderator' | 'member';
+type Role = 'admin' | 'treasurer' | 'moderator' | 'member';
+type RoleFilter = 'all' | Role;
+type CreatableRole = Exclude<Role, 'member'>;
+
+const ROLE_BADGE_CLS: Record<Role, string> = {
+  admin: 'bg-gold/15 text-gold',
+  treasurer: 'bg-purple-500/15 text-purple-300',
+  moderator: 'bg-blue-500/15 text-blue-400',
+  member: 'bg-brown-light text-text-muted',
+};
 
 export default function UsersClient() {
   const [users, setUsers] = useState<User[]>([]);
@@ -31,14 +40,14 @@ export default function UsersClient() {
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState<'admin' | 'moderator'>('moderator');
+  const [newRole, setNewRole] = useState<CreatableRole>('moderator');
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
 
   // Edit form
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editPassword, setEditPassword] = useState('');
-  const [editRole, setEditRole] = useState<'admin' | 'moderator' | 'member'>('member');
+  const [editRole, setEditRole] = useState<Role>('member');
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -68,6 +77,7 @@ export default function UsersClient() {
   const counts = useMemo(() => {
     return {
       admin: users.filter((u) => u.role === 'admin').length,
+      treasurer: users.filter((u) => u.role === 'treasurer').length,
       moderator: users.filter((u) => u.role === 'moderator').length,
       member: users.filter((u) => u.role === 'member').length,
     };
@@ -142,7 +152,7 @@ export default function UsersClient() {
     fetchUsers();
   }
 
-  async function quickPromote(user: User, role: 'admin' | 'moderator' | 'member') {
+  async function quickPromote(user: User, role: Role) {
     if (user.role === role) return;
     const res = await fetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
@@ -178,7 +188,7 @@ export default function UsersClient() {
         <div>
           <h1 className="text-2xl font-bold text-gold">User Management</h1>
           <p className="text-text-muted text-sm mt-1">
-            {users.length} total · {counts.admin} admin · {counts.moderator} moderator · {counts.member} member
+            {users.length} total · {counts.admin} admin · {counts.treasurer} treasurer · {counts.moderator} moderator · {counts.member} member
           </p>
         </div>
         <div className="flex gap-2">
@@ -198,7 +208,7 @@ export default function UsersClient() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {(['all', 'admin', 'moderator', 'member'] as const).map((r) => (
+        {(['all', 'admin', 'treasurer', 'moderator', 'member'] as const).map((r) => (
           <button
             key={r}
             onClick={() => setFilter(r)}
@@ -266,10 +276,11 @@ export default function UsersClient() {
                 <label className="block text-xs text-text-muted mb-1">Role</label>
                 <select
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as 'admin' | 'moderator')}
+                  onChange={(e) => setNewRole(e.target.value as CreatableRole)}
                   className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
                 >
                   <option value="moderator">Moderator</option>
+                  <option value="treasurer">Treasurer</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -327,11 +338,12 @@ export default function UsersClient() {
               <label className="block text-xs text-text-muted mb-1">Role</label>
               <select
                 value={editRole}
-                onChange={(e) => setEditRole(e.target.value as 'admin' | 'moderator' | 'member')}
+                onChange={(e) => setEditRole(e.target.value as Role)}
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
               >
                 <option value="member">Member</option>
                 <option value="moderator">Moderator</option>
+                <option value="treasurer">Treasurer</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -412,13 +424,7 @@ export default function UsersClient() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                        user.role === 'admin'
-                          ? 'bg-gold/15 text-gold'
-                          : user.role === 'moderator'
-                            ? 'bg-blue-500/15 text-blue-400'
-                            : 'bg-brown-light text-text-muted'
-                      }`}
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE_CLS[user.role] ?? ROLE_BADGE_CLS.member}`}
                     >
                       {user.role}
                     </span>
@@ -437,6 +443,15 @@ export default function UsersClient() {
                           title="Promote to admin"
                         >
                           Make admin
+                        </button>
+                      )}
+                      {user.role !== 'treasurer' && (
+                        <button
+                          onClick={() => quickPromote(user, 'treasurer')}
+                          className="px-2 py-1 text-xs border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 rounded transition-colors"
+                          title="Set as treasurer (mod + fee collection)"
+                        >
+                          Make treasurer
                         </button>
                       )}
                       {user.role !== 'moderator' && (
