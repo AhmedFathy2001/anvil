@@ -7,6 +7,7 @@ import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import LinkAccountClient from './LinkAccountClient';
 import PluginTokensClient from './PluginTokensClient';
+import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 
 export default async function ProfilePage() {
   const session = await verifyUser();
@@ -256,11 +257,19 @@ export default async function ProfilePage() {
         <LinkAccountClient hasAny={linkedAccounts.length > 0} />
       </section>
 
+      <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="text-lg font-semibold">RuneLite plugin token</h2>
+        </div>
+        <PluginPlayerTokenClient />
+      </section>
+
       {isStaff && (
         <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            <h2 className="text-lg font-semibold">Plugin tokens</h2>
+            <h2 className="text-lg font-semibold">Admin plugin links</h2>
           </div>
           <PluginTokensClient />
         </section>

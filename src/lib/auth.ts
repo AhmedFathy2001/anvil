@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { players, pluginLinks } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { clanMembers, events, players, pluginLinks, users } from '@/db/schema';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { requireSecret } from '@/lib/env';
 
@@ -141,26 +141,150 @@ export function signPlayerToken(playerId: number, teamId: number): string {
   return sign(JSON.stringify({ role: 'player', playerId, teamId, iat: Date.now() }), PLAYER_SESSION_SECRET);
 }
 
-// Plugin auth: resolve playerToken UUID from Authorization: Bearer header
+// Plugin auth: resolve playerToken UUID from Authorization: Bearer header.
+//
+// Two token shapes are accepted, in order:
+//
+//   1. **Per-user plugin token** (`users.plugin_token`). Long-lived, configured
+//      once. The active event/team/player row is resolved server-side using the
+//      caller's `clan_members` and the in-game RSN they pass with each call.
+//   2. **Legacy per-event token** (`players.player_token`). Bound to a single
+//      `players` row, kept working for any plugin/install that hasn't migrated.
+//
+// `currentRsn` is the in-game name reported by the client. When provided it
+// scopes the resolution to the matching clan_member, which is what blocks "drop
+// on the wrong account credits the right account" (the multi-RSN-on-one-Jagex
+// problem). When omitted, the resolver picks any active-event player row owned
+// by the user — convenient for back-compat but loses the cross-account check.
 export async function verifyPluginToken(
   request: Request
-): Promise<{ playerId: number; teamId: number; eventId: number } | null> {
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
-  const player = await db.query.players.findFirst({
-    where: eq(players.playerToken, token),
-  });
+  // Pull the RSN hint from header (preferred), then ?rsn= query param.
+  let currentRsn = request.headers.get('X-RSN')?.trim() || null;
+  if (!currentRsn) {
+    try { currentRsn = new URL(request.url).searchParams.get('rsn'); } catch { /* not a URL we can parse */ }
+  }
+  const normalizedRsn = currentRsn ? normalizeRsn(currentRsn) : null;
 
+  // Path 1 — per-user plugin token.
+  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  if (user) {
+    const memberRows = await db
+      .select({
+        id: clanMembers.id,
+        rsnNormalized: clanMembers.rsnNormalized,
+        previousRsns: clanMembers.previousRsns,
+      })
+      .from(clanMembers)
+      .where(and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)));
+    if (memberRows.length === 0) return null;
+
+    // Build a per-member set of every RSN that's ever been theirs — covers in-game
+    // renames where the plugin reports the new name before the next /hello sync has
+    // had a chance to update clan_members.
+    const memberRsnSets = new Map<number, Set<string>>(
+      memberRows.map((m) => {
+        const aliases = new Set<string>([m.rsnNormalized]);
+        if (m.previousRsns) {
+          try {
+            const arr = JSON.parse(m.previousRsns);
+            if (Array.isArray(arr)) {
+              for (const prev of arr) {
+                if (typeof prev === 'string') aliases.add(normalizeRsn(prev));
+              }
+            }
+          } catch { /* ignore malformed */ }
+        }
+        return [m.id, aliases];
+      }),
+    );
+
+    const memberIds = memberRows.map((m) => m.id);
+    const playerRows = await db
+      .select({
+        id: players.id,
+        name: players.name,
+        teamId: players.teamId,
+        eventId: players.eventId,
+        endDate: events.endDate,
+        forceEndedAt: events.forceEndedAt,
+        clanMemberId: players.clanMemberId,
+      })
+      .from(players)
+      .innerJoin(events, eq(players.eventId, events.id))
+      .where(inArray(players.clanMemberId, memberIds));
+
+    const nowIso = new Date().toISOString();
+    const live = playerRows.filter(
+      (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+    );
+    if (live.length === 0) return null;
+
+    let pick = null as typeof live[number] | null;
+    if (normalizedRsn) {
+      // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
+      const matchingMember = memberRows.find((m) =>
+        memberRsnSets.get(m.id)?.has(normalizedRsn),
+      );
+      if (!matchingMember) return null; // current account isn't on this user's roster
+      pick = live.find((p) => p.clanMemberId === matchingMember.id) ?? null;
+      if (!pick) return null; // not signed up under this RSN
+    } else {
+      // No RSN hint — pick any live event row. Cross-account safety degrades.
+      pick = live[0];
+    }
+
+    return {
+      playerId: pick.id,
+      teamId: pick.teamId!,
+      eventId: pick.eventId,
+      userId: user.id,
+      rsn: pick.name,
+    };
+  }
+
+  // Path 2 — legacy per-event token. RSN check accepts the frozen player.name OR
+  // any previous alias on the linked clan_member, so a mid-event rename doesn't lock
+  // the user out before the next /hello sync catches up.
+  const player = await db.query.players.findFirst({ where: eq(players.playerToken, token) });
   if (!player || !player.teamId) return null;
+
+  let userId: number | null = null;
+  if (normalizedRsn) {
+    const acceptedNames = new Set<string>([normalizeRsn(player.name)]);
+    if (player.clanMemberId) {
+      const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
+      if (cm) {
+        userId = cm.userId;
+        acceptedNames.add(cm.rsnNormalized);
+        if (cm.previousRsns) {
+          try {
+            const arr = JSON.parse(cm.previousRsns);
+            if (Array.isArray(arr)) {
+              for (const prev of arr) if (typeof prev === 'string') acceptedNames.add(normalizeRsn(prev));
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    }
+    if (!acceptedNames.has(normalizedRsn)) return null;
+  } else if (player.clanMemberId) {
+    const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
+    userId = cm?.userId ?? null;
+  }
 
   return {
     playerId: player.id,
     teamId: player.teamId,
     eventId: player.eventId,
+    userId,
+    rsn: player.name,
   };
 }
 

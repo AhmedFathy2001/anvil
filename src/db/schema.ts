@@ -152,7 +152,15 @@ export const users = sqliteTable('users', {
   discordAvatar: text('discord_avatar'),
   email: text('email'),
   lastLoginAt: text('last_login_at'),
-});
+  // Long-lived per-user plugin token. The RuneLite plugin stores this once and uses it
+  // across events — the server resolves the active event/team/player row at request
+  // time using the user's clan_members + the current in-game RSN sent with each call.
+  // Rotated by the user from /profile if leaked. Nullable for legacy users; lazily
+  // generated the first time the user opens the plugin section.
+  pluginToken: text('plugin_token'),
+}, (table) => [
+  uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
+]);
 
 export const weeklyCompetitions = sqliteTable('weekly_competitions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
