@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, players } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { verifyPluginToken } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
 import crypto from 'crypto';
 
@@ -18,6 +18,21 @@ function generateCodeword(playerId: number, eventId: number): string {
 export async function GET(request: Request) {
   const auth = await verifyPluginToken(request);
   if (!auth) {
+    // Distinguish "bad token" from "valid token but no active event" so the plugin
+    // doesn't surface a misleading "failed to connect" when the user just isn't
+    // enrolled anywhere right now.
+    const userOnly = await verifyPluginTokenUser(request);
+    if (userOnly) {
+      return NextResponse.json({
+        event: null,
+        team: null,
+        player: null,
+        codeword: null,
+        trackedStats: [],
+        trackedDrops: [],
+        noActiveEvent: true,
+      });
+    }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
   }
 

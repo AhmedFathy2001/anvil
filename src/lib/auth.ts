@@ -120,6 +120,30 @@ export function signPlayerToken(playerId: number, teamId: number): string {
   return sign(JSON.stringify({ role: 'player', playerId, teamId, iat: Date.now() }), PLAYER_SESSION_SECRET);
 }
 
+// Lightweight token validation: returns user info if the bearer token matches a
+// per-user plugin token, regardless of whether the user has an active event.
+// Use this for endpoints that should succeed for any valid token (e.g. "is my
+// token working?"). For endpoints that need an event/team/player row, use
+// `verifyPluginToken` which additionally resolves the active enrollment.
+export async function verifyPluginTokenUser(
+  request: Request,
+): Promise<{ userId: number } | null> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  if (user) return { userId: user.id };
+  const player = await db.query.players.findFirst({ where: eq(players.playerToken, token) });
+  if (player) {
+    const cm = player.clanMemberId
+      ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+      : null;
+    return { userId: cm?.userId ?? 0 };
+  }
+  return null;
+}
+
 // Plugin auth: resolve playerToken UUID from Authorization: Bearer header.
 //
 // Two token shapes are accepted, in order:
@@ -135,6 +159,10 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // on the wrong account credits the right account" (the multi-RSN-on-one-Jagex
 // problem). When omitted, the resolver picks any active-event player row owned
 // by the user — convenient for back-compat but loses the cross-account check.
+//
+// Returns null when the token is invalid OR when the token is valid but the
+// caller has no active event enrollment. Callers that need to distinguish these
+// cases should layer `verifyPluginTokenUser` on top.
 export async function verifyPluginToken(
   request: Request
 ): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
