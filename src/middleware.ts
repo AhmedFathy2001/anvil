@@ -54,22 +54,23 @@ async function verifyToken(token: string, secret: string): Promise<string | null
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Protect admin routes (except the login page itself)
-  if (pathname.startsWith('/admin') && pathname !== '/admin') {
+  // Protect admin routes — all auth flows through Discord OAuth at /login now.
+  if (pathname.startsWith('/admin')) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('return', pathname);
     const token = request.cookies.get('admin_session')?.value;
     if (!token) {
-      return NextResponse.redirect(new URL('/admin', request.url));
+      return NextResponse.redirect(loginUrl);
     }
     const payload = await verifyToken(token, ADMIN_SESSION_SECRET);
     if (!payload) {
-      return NextResponse.redirect(new URL('/admin', request.url));
+      return NextResponse.redirect(loginUrl);
     }
     try {
       const data = JSON.parse(payload);
       const role = data.role;
 
-      // Must be admin/treasurer/moderator. Members get sent home rather than back to
-      // /admin (the legacy staff login page) so they don't get stuck in a loop.
+      // Must be admin/treasurer/moderator. Members get sent home.
       if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator') {
         return NextResponse.redirect(new URL('/', request.url));
       }
@@ -91,7 +92,7 @@ export async function middleware(request: NextRequest) {
         }
       }
     } catch {
-      return NextResponse.redirect(new URL('/admin', request.url));
+      return NextResponse.redirect(loginUrl);
     }
   }
 

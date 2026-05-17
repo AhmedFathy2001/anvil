@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
 
@@ -58,13 +57,6 @@ export default async function LoginPage({
         {params.error && (
           <p className="text-red-400 text-sm mt-4 text-center">{params.error}</p>
         )}
-
-        <div className="mt-6 text-center text-xs text-text-muted">
-          Need staff access?{' '}
-          <Link href="/admin" className="text-gold hover:text-gold-light underline-offset-2 hover:underline">
-            Legacy admin login
-          </Link>
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyUser, hashPasswordBcrypt } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { clanAuditLog, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -18,7 +18,7 @@ export async function PUT(
 
   const { userId } = await params;
   const targetId = parseInt(userId, 10);
-  const { displayName, password, role } = await request.json();
+  const { displayName, role } = await request.json();
 
   if (role !== undefined && !VALID_ROLES.has(role)) {
     return NextResponse.json({ error: 'Role must be admin, treasurer, moderator, or member' }, { status: 400 });
@@ -39,9 +39,6 @@ export async function PUT(
   const updates: Record<string, unknown> = {};
   if (displayName !== undefined) updates.displayName = displayName;
   if (role !== undefined) updates.role = role;
-  if (password) {
-    updates.passwordHash = await hashPasswordBcrypt(password);
-  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -63,7 +60,6 @@ export async function PUT(
 
   const updated = await db.select({
     id: users.id,
-    username: users.username,
     displayName: users.displayName,
     role: users.role,
     createdAt: users.createdAt,

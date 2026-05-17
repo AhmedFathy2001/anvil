@@ -134,9 +134,8 @@ export const rateLimits = sqliteTable('rate_limits', {
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  // username + passwordHash are the legacy local-auth credentials. Both are nullable now
-  // so Discord-only users (the new norm) don't need fake usernames or password hashes.
-  // At least one of: (username + passwordHash) or discordId must be present.
+  // Dead legacy columns (username + password_hash). Discord OAuth is the only auth path now;
+  // these are left in the table to keep migrations cheap. Stop reading/writing them.
   username: text('username').unique(),
   displayName: text('display_name').notNull(),
   passwordHash: text('password_hash'),

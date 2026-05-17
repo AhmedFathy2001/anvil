@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { clanMembers, events, players, pluginLinks, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
 import { requireSecret } from '@/lib/env';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
@@ -31,12 +30,6 @@ function verify(token: string, secret: string): string | null {
   return payload;
 }
 
-// Legacy token (backward compat)
-export function signAdminToken(): string {
-  return sign(JSON.stringify({ role: 'admin', iat: Date.now() }), ADMIN_SESSION_SECRET);
-}
-
-// New user-aware token
 export function signUserToken(userId: number, username: string, role: string): string {
   return sign(JSON.stringify({ userId, username, role, iat: Date.now() }), ADMIN_SESSION_SECRET);
 }
@@ -59,13 +52,8 @@ export async function verifyUser(): Promise<UserPayload | null> {
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
-    // New-style token with userId
     if (data.userId && data.username && data.role) {
       return { userId: data.userId, username: data.username, role: data.role };
-    }
-    // Legacy token (role === 'admin' but no userId)
-    if (data.role === 'admin') {
-      return { userId: 0, username: 'legacy-admin', role: 'admin' };
     }
     return null;
   } catch {
@@ -112,15 +100,6 @@ export async function verifyCaptain(): Promise<{ teamId: number } | null> {
   } catch {
     return null;
   }
-}
-
-// Bcrypt password hashing for user accounts
-export async function hashPasswordBcrypt(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
-}
-
-export async function verifyPasswordBcrypt(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
 }
 
 // Legacy SHA-256 password functions (for captain passwords etc.)

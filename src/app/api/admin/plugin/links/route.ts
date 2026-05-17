@@ -15,7 +15,7 @@ export async function GET() {
     .select({
       id: pluginLinks.id,
       userId: pluginLinks.userId,
-      username: users.username,
+      username: users.discordUsername,
       displayName: users.displayName,
       rsn: pluginLinks.rsn,
       createdAt: pluginLinks.createdAt,

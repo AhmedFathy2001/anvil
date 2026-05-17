@@ -6,7 +6,6 @@ import { avatarUrl } from '@/lib/discord-oauth';
 
 interface User {
   id: number;
-  username: string | null;
   displayName: string;
   role: Role;
   createdAt: string;
@@ -14,12 +13,10 @@ interface User {
   discordUsername: string | null;
   discordAvatar: string | null;
   lastLoginAt: string | null;
-  hasPassword: boolean;
 }
 
 type Role = 'admin' | 'treasurer' | 'moderator' | 'member';
 type RoleFilter = 'all' | Role;
-type CreatableRole = Exclude<Role, 'member'>;
 
 const ROLE_BADGE_CLS: Record<Role, string> = {
   admin: 'bg-gold/15 text-gold',
@@ -31,22 +28,12 @@ const ROLE_BADGE_CLS: Record<Role, string> = {
 export default function UsersClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [filter, setFilter] = useState<RoleFilter>('all');
   const [search, setSearch] = useState('');
 
-  // Create form (legacy username/password admins only)
-  const [newUsername, setNewUsername] = useState('');
-  const [newDisplayName, setNewDisplayName] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState<CreatableRole>('moderator');
-  const [createError, setCreateError] = useState('');
-  const [creating, setCreating] = useState(false);
-
   // Edit form
   const [editDisplayName, setEditDisplayName] = useState('');
-  const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState<Role>('member');
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -69,7 +56,7 @@ export default function UsersClient() {
     return users.filter((u) => {
       if (filter !== 'all' && u.role !== filter) return false;
       if (!q) return true;
-      const haystack = `${u.displayName} ${u.discordUsername ?? ''} ${u.username ?? ''}`.toLowerCase();
+      const haystack = `${u.displayName} ${u.discordUsername ?? ''}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [users, filter, search]);
@@ -83,43 +70,10 @@ export default function UsersClient() {
     };
   }, [users]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreateError('');
-    setCreating(true);
-
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: newUsername,
-        displayName: newDisplayName || newUsername,
-        password: newPassword,
-        role: newRole,
-      }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      setCreateError(data.error || 'Failed to create user');
-      setCreating(false);
-      return;
-    }
-
-    setNewUsername('');
-    setNewDisplayName('');
-    setNewPassword('');
-    setNewRole('moderator');
-    setShowCreate(false);
-    setCreating(false);
-    fetchUsers();
-  }
-
   function startEdit(user: User) {
     setEditingUser(user);
     setEditDisplayName(user.displayName);
     setEditRole(user.role);
-    setEditPassword('');
     setEditError('');
   }
 
@@ -131,7 +85,6 @@ export default function UsersClient() {
 
     const body: Record<string, string> = {};
     if (editDisplayName !== editingUser.displayName) body.displayName = editDisplayName;
-    if (editPassword) body.password = editPassword;
     if (editRole !== editingUser.role) body.role = editRole;
 
     const res = await fetch(`/api/admin/users/${editingUser.id}`, {
@@ -198,12 +151,6 @@ export default function UsersClient() {
           >
             Back
           </Link>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-1.5 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors"
-          >
-            + Legacy staff account
-          </button>
         </div>
       </div>
 
@@ -229,110 +176,19 @@ export default function UsersClient() {
         />
       </div>
 
-      {/* Create modal */}
-      {showCreate && (
-        <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <h2 className="text-lg font-bold mb-1">Create legacy staff account</h2>
-          <p className="text-xs text-text-muted mb-4">
-            Use this only when you need a username/password fallback. Normal staff should sign in
-            via Discord and be promoted with the &ldquo;Make admin&rdquo; / &ldquo;Make moderator&rdquo; buttons.
-          </p>
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Username</label>
-                <input
-                  type="text"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="username"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Display Name</label>
-                <input
-                  type="text"
-                  value={newDisplayName}
-                  onChange={(e) => setNewDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="(optional)"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Role</label>
-                <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as CreatableRole)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                >
-                  <option value="moderator">Moderator</option>
-                  <option value="treasurer">Treasurer</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-            {createError && <p className="text-red-400 text-sm">{createError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={creating}
-                className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors disabled:opacity-50"
-              >
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {/* Edit modal */}
       {editingUser && (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
           <h2 className="text-lg font-bold mb-4">Edit: {editingUser.displayName}</h2>
           <form onSubmit={handleEdit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-text-muted mb-1">Display Name</label>
-                <input
-                  type="text"
-                  value={editDisplayName}
-                  onChange={(e) => setEditDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                />
-              </div>
-              {editingUser.hasPassword && (
-                <div>
-                  <label className="block text-xs text-text-muted mb-1">New Password (leave blank to keep)</label>
-                  <input
-                    type="password"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                    placeholder="(unchanged)"
-                  />
-                </div>
-              )}
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Display Name</label>
+              <input
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+              />
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">Role</label>
@@ -374,7 +230,6 @@ export default function UsersClient() {
           <thead>
             <tr className="border-b border-card-border text-left text-text-muted">
               <th className="px-4 py-3 font-medium">User</th>
-              <th className="px-4 py-3 font-medium">Auth</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Last login</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -401,25 +256,9 @@ export default function UsersClient() {
                       <div className="min-w-0">
                         <div className="font-medium truncate">{user.displayName}</div>
                         <div className="text-xs text-text-muted truncate">
-                          {user.discordUsername
-                            ? `@${user.discordUsername}`
-                            : user.username || '—'}
+                          {user.discordUsername ? `@${user.discordUsername}` : '—'}
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {user.discordId && (
-                        <span className="text-[10px] uppercase tracking-wide bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">
-                          Discord
-                        </span>
-                      )}
-                      {user.hasPassword && (
-                        <span className="text-[10px] uppercase tracking-wide bg-brown-light text-text-muted px-1.5 py-0.5 rounded">
-                          password
-                        </span>
-                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -491,7 +330,7 @@ export default function UsersClient() {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-text-muted">
+                <td colSpan={4} className="px-4 py-8 text-center text-text-muted">
                   {users.length === 0 ? 'No users found.' : 'No users match the current filter.'}
                 </td>
               </tr>
