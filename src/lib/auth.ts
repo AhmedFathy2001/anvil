@@ -267,11 +267,11 @@ export async function verifyPluginToken(
   };
 }
 
-// Admin plugin token: a long-lived token issued via the site's link flow.
-// Bound to a users.id + rsn so admin-only plugin actions (clan-sync etc.) are attributable.
+// Admin plugin token: a long-lived token bound to a user (not an RSN). Authenticates
+// admin-only plugin actions like clan-sync from any character the admin plays.
 export async function verifyAdminPluginToken(
   request: Request
-): Promise<{ userId: number; rsn: string; linkId: number } | null> {
+): Promise<{ userId: number } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7).trim();
@@ -288,7 +288,7 @@ export async function verifyAdminPluginToken(
     .where(eq(pluginLinks.id, link.id))
     .catch(() => {});
 
-  return { userId: link.userId, rsn: link.rsn, linkId: link.id };
+  return { userId: link.userId };
 }
 
 export function generatePluginLinkCode(): string {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, pluginLinks, weeklyParticipants } from '@/db/schema';
+import { clanMembers, players, weeklyParticipants } from '@/db/schema';
 import { and, eq, ne } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { log } from '@/lib/logger';
@@ -10,12 +10,11 @@ import { log } from '@/lib/logger';
 // every table that embeds the RSN alongside a clan_member_id FK:
 //   - players.name (current-event enrollments)
 //   - weekly_participants.rsn + rsnNormalized (keeps FK, no re-enrollment)
-//   - plugin_links.rsn + rsnNormalized (admin's linked RSN follows them)
 //
 // Merge handling: if the new RSN already exists as a separate clan member,
 // we only auto-merge when that target is an unused guest (no players, no
-// weekly participants, no plugin links). Otherwise we refuse with 409 so
-// an admin can reconcile manually rather than lose history.
+// weekly participants). Otherwise we refuse with 409 so an admin can reconcile
+// manually rather than lose history.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -71,17 +70,15 @@ export async function POST(
   });
 
   if (conflict) {
-    const [conflictPlayers, conflictWeekly, conflictLinks] = await Promise.all([
+    const [conflictPlayers, conflictWeekly] = await Promise.all([
       db.select({ id: players.id }).from(players).where(eq(players.clanMemberId, conflict.id)),
       db.select({ id: weeklyParticipants.id }).from(weeklyParticipants).where(eq(weeklyParticipants.clanMemberId, conflict.id)),
-      db.select({ id: pluginLinks.id }).from(pluginLinks).where(eq(pluginLinks.rsnNormalized, newNormalized)),
     ]);
 
     const isUnusedGuest =
       conflict.isGuest === 1
       && conflictPlayers.length === 0
-      && conflictWeekly.length === 0
-      && conflictLinks.length === 0;
+      && conflictWeekly.length === 0;
 
     if (!isUnusedGuest) {
       return NextResponse.json(
@@ -92,7 +89,6 @@ export async function POST(
           conflictCounts: {
             players: conflictPlayers.length,
             weeklyParticipants: conflictWeekly.length,
-            pluginLinks: conflictLinks.length,
           },
         },
         { status: 409 },
@@ -125,13 +121,6 @@ export async function POST(
     .update(weeklyParticipants)
     .set({ rsn: newRsn, rsnNormalized: newNormalized })
     .where(eq(weeklyParticipants.clanMemberId, memberId));
-
-  // Admin plugin links are bound to the RSN string; follow the rename so the
-  // admin doesn't have to re-link after changing their own name.
-  await db
-    .update(pluginLinks)
-    .set({ rsn: newRsn, rsnNormalized: newNormalized })
-    .where(eq(pluginLinks.rsnNormalized, source.rsnNormalized));
 
   log.info('clan.rename.ok', {
     adminUserId: user.userId,

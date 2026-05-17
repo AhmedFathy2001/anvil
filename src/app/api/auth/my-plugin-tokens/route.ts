@@ -25,7 +25,6 @@ export async function GET() {
   return NextResponse.json(
     rows.map((r) => ({
       id: r.id,
-      rsn: r.rsn,
       token: r.token,
       createdAt: r.createdAt,
       lastUsedAt: r.lastUsedAt,

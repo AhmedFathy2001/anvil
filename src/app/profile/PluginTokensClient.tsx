@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 
 interface PluginToken {
   id: number;
-  rsn: string;
   token: string;
   createdAt: string;
   lastUsedAt: string | null;
@@ -98,7 +97,7 @@ export default function PluginTokensClient() {
               className="border border-card-border rounded-lg p-3 bg-brown-dark/40"
             >
               <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="font-medium">{t.rsn}</div>
+                <div className="font-medium text-sm text-text-muted">Admin token</div>
                 <div className="text-[11px] text-text-muted">
                   Created {new Date(t.createdAt).toLocaleDateString()}
                   {t.lastUsedAt && ` · last used ${new Date(t.lastUsedAt).toLocaleDateString()}`}

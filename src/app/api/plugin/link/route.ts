@@ -215,31 +215,18 @@ export async function POST(request: Request) {
   await applyPendingRole(clanMemberId, issuingUser.id, 'plugin');
 
   // Admins additionally get a long-lived pluginLinks token for clan-sync etc.
+  // One active token per admin user — reused across in-game characters.
   let adminToken: string | null = null;
   if (issuingUser.role === 'admin') {
-    const existingLinks = await db.query.pluginLinks.findMany({
+    const existing = await db.query.pluginLinks.findFirst({
       where: and(eq(pluginLinks.userId, issuingUser.id), isNull(pluginLinks.revokedAt)),
     });
-    const sameRsnLink = existingLinks.find((l) => l.rsnNormalized === rsnNormalized);
-    const conflictingLink = existingLinks.find((l) => l.rsnNormalized !== rsnNormalized);
-    if (conflictingLink) {
-      // Existing semantics: refuse to silently swap a previously-bound RSN.
-      return NextResponse.json(
-        {
-          error: `Admin is already linked to ${conflictingLink.rsn}. Revoke that link on the site before linking a new RSN.`,
-          linkedRsn: conflictingLink.rsn,
-        },
-        { status: 409 },
-      );
-    }
-    if (sameRsnLink) {
-      adminToken = sameRsnLink.token;
+    if (existing) {
+      adminToken = existing.token;
     } else {
       adminToken = generateAdminPluginToken();
       await db.insert(pluginLinks).values({
         userId: issuingUser.id,
-        rsn,
-        rsnNormalized,
         token: adminToken,
       });
     }

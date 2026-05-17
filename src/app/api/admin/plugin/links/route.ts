@@ -17,7 +17,6 @@ export async function GET() {
       userId: pluginLinks.userId,
       username: users.discordUsername,
       displayName: users.displayName,
-      rsn: pluginLinks.rsn,
       createdAt: pluginLinks.createdAt,
       lastUsedAt: pluginLinks.lastUsedAt,
       revokedAt: pluginLinks.revokedAt,

@@ -25,7 +25,6 @@ interface PluginLink {
   userId: number;
   username: string | null;
   displayName: string | null;
-  rsn: string;
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -282,7 +281,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function revokeLink(link: PluginLink) {
-    if (!confirm(`Revoke plugin link for ${link.username} (${link.rsn})?`)) return;
+    if (!confirm(`Revoke plugin link for ${link.username ?? link.displayName ?? `user ${link.userId}`}?`)) return;
     const res = await fetch(`/api/admin/plugin/links/${link.id}`, { method: 'DELETE' });
     if (res.ok) fetchAll();
   }
@@ -399,9 +398,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   className="flex items-center justify-between border border-card-border/60 rounded-lg px-3 py-2 text-sm"
                 >
                   <div>
-                    <span className="font-semibold">{link.username}</span>
-                    <span className="text-text-muted"> linked as </span>
-                    <span className="text-gold">{link.rsn}</span>
+                    <span className="font-semibold">{link.username ?? link.displayName ?? `user ${link.userId}`}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-text-muted">

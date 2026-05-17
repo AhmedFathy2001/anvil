@@ -282,14 +282,13 @@ export const verificationAttempts = sqliteTable('verification_attempts', {
   index('verification_attempts_expires_at_idx').on(table.expiresAt),
 ]);
 
-// Long-lived plugin tokens issued to an admin after they've verified their RSN through the link flow.
+// Long-lived plugin tokens issued to an admin after they've verified via the link flow.
 // Distinct from per-event `players.playerToken` (which scopes a player to one event/team).
-// Used to authenticate admin-only plugin actions (clan-sync, etc).
+// Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the
+// admin can use this token from any in-game character on their account.
 export const pluginLinks = sqliteTable('plugin_links', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  rsn: text('rsn').notNull(),
-  rsnNormalized: text('rsn_normalized').notNull(),
   token: text('token').notNull(),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   lastUsedAt: text('last_used_at'),
