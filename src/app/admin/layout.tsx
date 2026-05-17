@@ -78,6 +78,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ],
   });
 
+  // Fee collection queue — visible to admin + moderator (treasurer routing is
+  // gated downstream). Sign-up fees flow through here.
+  groups.push({
+    label: 'Money',
+    items: [{ href: '/admin/fees', label: 'Fees', icon: '💰' }],
+  });
+
   // Players + staff — admin only.
   if (isAdmin) {
     groups.push({

@@ -1,8 +1,7 @@
 import { db } from '@/db';
-import { clanMembers, players, weeklyParticipants } from '@/db/schema';
-import { isNull } from 'drizzle-orm';
+import { clanMembers, settings, weeklyParticipants } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
-import { findOrCreateClanMember } from '@/lib/clan';
 import { normalizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
@@ -11,50 +10,48 @@ interface HiscoresSnapshot {
   bosses: Record<string, { rank: number; score: number }>;
 }
 
+// Setting key for the "include guests in weekly auto-enrollment" toggle.
+// Default off — guests are typically not part of the clan-wide weekly comp.
+// Admins can flip this from the settings UI for events where guests should be tracked.
+const WEEKLY_TRACK_GUESTS_KEY = 'weekly_track_guests';
+
+async function shouldTrackGuests(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, WEEKLY_TRACK_GUESTS_KEY) });
+  return row?.value === 'true' || row?.value === '1';
+}
+
 /**
- * Enroll every active clan member into a competition.
- * Skips members who have left the clan. Also pulls in any player names from
- * historical events that don't yet have a clan_members row, auto-registering them
- * (as guests).
+ * Enroll every active clan member into a competition. The pool comes from the
+ * plugin-synced clan roster (`clan_members` with `left_at IS NULL`). Discord
+ * login is NOT required — weekly comps are clan-wide by design.
+ *
+ * Guests (`is_guest = 1`) are excluded by default. Set the `weekly_track_guests`
+ * setting to "true" to also enroll them, or use the per-event participants
+ * endpoint to manually add specific guests for one comp.
  */
 export async function enrollAllPlayers(competitionId: number) {
-  // Source of truth: active clan members
+  const trackGuests = await shouldTrackGuests();
+  const whereClause = trackGuests
+    ? isNull(clanMembers.leftAt)
+    : and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0));
+
   const activeMembers = await db
     .select({ id: clanMembers.id, rsn: clanMembers.rsn })
     .from(clanMembers)
-    .where(isNull(clanMembers.leftAt));
-
-  const participantPayload = activeMembers.map((m) => ({
-    competitionId,
-    clanMemberId: m.id,
-    rsn: m.rsn,
-    rsnNormalized: normalizeRsn(m.rsn),
-  }));
-
-  // Fallback: pull any legacy player names not yet in clan_members, create guest rows.
-  const orphanPlayers = await db
-    .select({ name: players.name })
-    .from(players)
-    .where(isNull(players.clanMemberId));
-
-  const seen = new Set(activeMembers.map((m) => normalizeRsn(m.rsn)));
-  for (const p of orphanPlayers) {
-    const normalized = normalizeRsn(p.name);
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    const memberId = await findOrCreateClanMember(p.name);
-    participantPayload.push({
-      competitionId,
-      clanMemberId: memberId,
-      rsn: p.name,
-      rsnNormalized: normalized,
-    });
-  }
+    .where(whereClause);
 
   let enrolled = 0;
-  for (const row of participantPayload) {
+  for (const m of activeMembers) {
     try {
-      await db.insert(weeklyParticipants).values(row).onConflictDoNothing();
+      await db
+        .insert(weeklyParticipants)
+        .values({
+          competitionId,
+          clanMemberId: m.id,
+          rsn: m.rsn,
+          rsnNormalized: normalizeRsn(m.rsn),
+        })
+        .onConflictDoNothing();
       enrolled++;
     } catch {
       // Skip on conflict/error — keep counting what we could add

@@ -30,6 +30,18 @@ function formatRemaining(target: string | null): string | null {
   return `${minutes}m left`;
 }
 
+function formatUntilStart(target: string | null): string | null {
+  if (!target) return null;
+  const ms = new Date(target).getTime() - Date.now();
+  if (ms <= 0) return 'starting now';
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  if (days > 0) return `starts in ${days}d ${hours}h`;
+  if (hours > 0) return `starts in ${hours}h`;
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  return `starts in ${minutes}m`;
+}
+
 function metricLabel(comp: { type: string; metric: string }): string {
   if (comp.type === 'skill') return SKILL_LABELS[comp.metric] ?? comp.metric;
   return BOSSES.find((b) => b.key === comp.metric)?.label ?? comp.metric;
@@ -100,6 +112,23 @@ export default async function HomePage() {
       .filter((p) => p.gained > 0)
       .sort((a, b) => b.gained - a.gained)
       .slice(0, 3);
+  }
+
+  // Upcoming weekly competitions — surfaced on the home page so members can see
+  // what's coming this week alongside live events.
+  const upcomingWeeklies = await db.query.weeklyCompetitions.findMany({
+    where: eq(weeklyCompetitions.status, 'upcoming'),
+    orderBy: (w, { asc }) => [asc(w.startDate)],
+    limit: 4,
+  });
+  const upcomingWeeklyParticipantCounts = new Map<number, number>();
+  if (upcomingWeeklies.length > 0) {
+    const rows = await db
+      .select({ competitionId: weeklyParticipants.competitionId, c: count() })
+      .from(weeklyParticipants)
+      .where(inArray(weeklyParticipants.competitionId, upcomingWeeklies.map((w) => w.id)))
+      .groupBy(weeklyParticipants.competitionId);
+    for (const r of rows) upcomingWeeklyParticipantCounts.set(r.competitionId, r.c);
   }
 
   // Fetch board completion data for active events (to show team progress)
@@ -202,6 +231,50 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Upcoming weekly competitions — shown above active section so members
+          spot what's coming this week even when nothing is live yet. */}
+      {upcomingWeeklies.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-base font-semibold text-text-muted mb-3 flex items-center gap-2">
+            <span className="w-1 h-4 bg-blue-400/70 rounded-full" />
+            Upcoming this week
+            <span className="text-xs text-text-muted/60 font-normal">({upcomingWeeklies.length})</span>
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {upcomingWeeklies.map((w) => {
+              const untilStart = formatUntilStart(w.startDate);
+              const partCount = upcomingWeeklyParticipantCounts.get(w.id) ?? 0;
+              return (
+                <Link
+                  key={w.id}
+                  href="/weekly"
+                  className="block group border border-card-border rounded-2xl p-5 bg-card-bg/60 hover:border-blue-400/40 hover:bg-card-bg-hover transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <div className="text-xs uppercase tracking-wider text-text-muted mb-1">
+                        {w.type === 'skill' ? 'Skill of the Week' : 'Boss of the Week'}
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">
+                        {w.title}
+                      </h3>
+                      <div className="text-sm text-text-muted mt-0.5">{metricLabel(w)}</div>
+                    </div>
+                    <span className="text-[10px] font-medium uppercase tracking-wide bg-blue-500/15 text-blue-300 px-2 py-1 rounded-full shrink-0">
+                      Upcoming
+                    </span>
+                  </div>
+                  <div className="text-xs text-text-muted flex flex-wrap gap-x-3 gap-y-1">
+                    {untilStart && <span className="text-blue-300/90">{untilStart}</span>}
+                    <span>{partCount} enrolled</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Active highlights */}
       {(activeEvents.length > 0 || activeWeekly) && (
         <section className="mb-10 grid gap-5 lg:grid-cols-2">
@@ -302,8 +375,8 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* Empty state when nothing is active */}
-      {activeEvents.length === 0 && !activeWeekly && allEvents.length > 0 && (
+      {/* Empty state when nothing is active or upcoming */}
+      {activeEvents.length === 0 && !activeWeekly && upcomingWeeklies.length === 0 && allEvents.length > 0 && (
         <section className="mb-10 border border-dashed border-card-border rounded-2xl py-12 text-center">
           <p className="text-text-muted text-lg mb-1">Nothing live right now</p>
           <p className="text-text-muted text-sm">
@@ -314,7 +387,7 @@ export default async function HomePage() {
       )}
 
       {/* No events at all — fresh-install state */}
-      {allEvents.length === 0 && !activeWeekly && (
+      {allEvents.length === 0 && !activeWeekly && upcomingWeeklies.length === 0 && (
         <section className="mb-10 border border-dashed border-card-border rounded-2xl py-16 text-center">
           <p className="text-text-muted text-lg mb-2">No events yet</p>
           <p className="text-text-muted text-sm">

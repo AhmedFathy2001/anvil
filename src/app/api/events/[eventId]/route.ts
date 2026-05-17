@@ -208,3 +208,41 @@ export async function PATCH(
 
   return NextResponse.json(updated);
 }
+
+// DELETE /api/events/[eventId] — permanently removes an event and everything it owns
+// (tiles, teams, completions, players, submissions, signups all cascade in the schema).
+// Admin-only and gated on the event already being over so we can't delete a live one
+// out from under participants — force-end first if you need to delete a running event.
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { eventId } = await params;
+  const id = parseInt(eventId, 10);
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
+  }
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  const now = new Date().toISOString();
+  const isOver = !!event.forceEndedAt || (!!event.endDate && event.endDate < now);
+  const isDraft = !event.startDate && !event.forceEndedAt;
+  if (!isOver && !isDraft) {
+    return NextResponse.json(
+      { error: 'Event is still active. Force-end it first or wait for it to end.' },
+      { status: 400 },
+    );
+  }
+
+  await db.delete(events).where(eq(events.id, id));
+  return NextResponse.json({ success: true });
+}
