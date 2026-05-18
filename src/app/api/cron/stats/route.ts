@@ -8,6 +8,10 @@ import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin }
 // Vercel Cron protection - only allow requests from Vercel's cron system
 const CRON_SECRET = process.env.CRON_SECRET;
 
+// Sequential hiscores polling per player — default Vercel function timeout (15 s on Pro,
+// 10 s on Hobby) is way under what this loop needs. Bump to the Pro cap; Hobby clips to 60 s.
+export const maxDuration = 300;
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -6,6 +6,12 @@ import { fetchParticipantStat } from '@/lib/weekly';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+// Default Vercel function timeout (15 s on Pro, 10 s on Hobby) is well under what this
+// loop needs — 40 participants × 1.2 s sleep alone = 48 s. Without this, the cron is
+// killed before any DB write lands and the comp appears to never advance. 300 s is the
+// Pro cap; Hobby maxes at 60 s and will clip to that automatically.
+export const maxDuration = 300;
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -72,10 +78,11 @@ export async function GET(request: Request) {
     for (const p of batch) {
       try {
         const value = await fetchParticipantStat(p.rsn, comp.type as 'skill' | 'boss', comp.metric);
+        const nowIso = new Date().toISOString();
         if (value !== null) {
           const updates: Record<string, unknown> = {
             currentValue: value,
-            lastUpdated: new Date().toISOString(),
+            lastUpdated: nowIso,
           };
           // Set baseline on first fetch
           if (p.baselineValue === null) {
@@ -84,6 +91,13 @@ export async function GET(request: Request) {
           await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
           compResult.participantsUpdated++;
         } else {
+          // Bump lastUpdated even on failure so this row drops to the back of the queue —
+          // otherwise a single chronically-failing RSN (renamed account, missing from hiscores)
+          // stays at the head of the `ORDER BY lastUpdated ASC NULLS FIRST` and starves healthy
+          // rows out of their hourly re-poll.
+          await db.update(weeklyParticipants)
+            .set({ lastUpdated: nowIso })
+            .where(eq(weeklyParticipants.id, p.id));
           compResult.errors.push(`No data for ${p.rsn}`);
         }
       } catch {

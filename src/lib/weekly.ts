@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, settings, weeklyParticipants } from '@/db/schema';
+import { clanMembers, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { normalizeRsn } from '@/lib/auth';
@@ -120,6 +120,73 @@ export interface LeaderboardEntry {
   baselineValue: number | null;
   currentValue: number | null;
   gained: number;
+}
+
+/**
+ * Propagate an in-game rename into active weekly_participants. Without this, an old RSN
+ * stays enrolled (and the hiscores lookup 404s forever), while the next plugin enroll under
+ * the new RSN inserts a second row — leaving the clan_member tracked twice with neither
+ * row accumulating progress.
+ *
+ * If both old and new rows exist in a comp, the new row wins; any baseline from the old
+ * row is transferred only when the new row hasn't fetched yet. The old row is then deleted.
+ * If only the old row exists, we rename it in place.
+ */
+export async function applyRenameToActiveWeeklyParticipants(
+  clanMemberId: number,
+  oldRsn: string,
+  newRsn: string,
+): Promise<void> {
+  const oldNorm = normalizeRsn(oldRsn);
+  const newNorm = normalizeRsn(newRsn);
+  if (oldNorm === newNorm) return;
+
+  const activeComps = await db
+    .select({ id: weeklyCompetitions.id })
+    .from(weeklyCompetitions)
+    .where(eq(weeklyCompetitions.status, 'active'));
+
+  for (const comp of activeComps) {
+    const oldRow = await db.query.weeklyParticipants.findFirst({
+      where: and(
+        eq(weeklyParticipants.competitionId, comp.id),
+        eq(weeklyParticipants.rsnNormalized, oldNorm),
+      ),
+    });
+    if (!oldRow) continue;
+
+    const newRow = await db.query.weeklyParticipants.findFirst({
+      where: and(
+        eq(weeklyParticipants.competitionId, comp.id),
+        eq(weeklyParticipants.rsnNormalized, newNorm),
+      ),
+    });
+
+    if (newRow) {
+      if (newRow.baselineValue === null && oldRow.baselineValue !== null) {
+        await db
+          .update(weeklyParticipants)
+          .set({
+            baselineValue: oldRow.baselineValue,
+            currentValue: oldRow.currentValue,
+            lastUpdated: oldRow.lastUpdated,
+            clanMemberId,
+          })
+          .where(eq(weeklyParticipants.id, newRow.id));
+      } else if (newRow.clanMemberId !== clanMemberId) {
+        await db
+          .update(weeklyParticipants)
+          .set({ clanMemberId })
+          .where(eq(weeklyParticipants.id, newRow.id));
+      }
+      await db.delete(weeklyParticipants).where(eq(weeklyParticipants.id, oldRow.id));
+    } else {
+      await db
+        .update(weeklyParticipants)
+        .set({ rsn: newRsn, rsnNormalized: newNorm, clanMemberId })
+        .where(eq(weeklyParticipants.id, oldRow.id));
+    }
+  }
 }
 
 /**

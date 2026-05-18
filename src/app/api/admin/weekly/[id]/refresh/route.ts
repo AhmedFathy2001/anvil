@@ -5,6 +5,11 @@ import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { fetchParticipantStat } from '@/lib/weekly';
 
+// Sequential hiscores fetch for every participant — easily over a minute. Default
+// Vercel function timeout is 15 s (Pro) / 10 s (Hobby), so without this the admin
+// "Refresh" button gets killed mid-loop.
+export const maxDuration = 300;
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -35,10 +40,11 @@ export async function POST(
   for (const p of participants) {
     try {
       const value = await fetchParticipantStat(p.rsn, comp[0].type as 'skill' | 'boss', comp[0].metric);
+      const nowIso = new Date().toISOString();
       if (value !== null) {
         const updates: Record<string, unknown> = {
           currentValue: value,
-          lastUpdated: new Date().toISOString(),
+          lastUpdated: nowIso,
         };
         // Set baseline on first fetch
         if (p.baselineValue === null) {
@@ -47,6 +53,11 @@ export async function POST(
         await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
         updated++;
       } else {
+        // Bump lastUpdated on failure so this row stops occupying the head of the cron's
+        // `ORDER BY lastUpdated ASC NULLS FIRST` queue.
+        await db.update(weeklyParticipants)
+          .set({ lastUpdated: nowIso })
+          .where(eq(weeklyParticipants.id, p.id));
         errors.push(`No data for ${p.rsn}`);
       }
     } catch {

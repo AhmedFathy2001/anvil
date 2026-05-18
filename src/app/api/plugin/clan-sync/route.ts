@@ -4,6 +4,7 @@ import { clanAuditLog, clanMembers, settings } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
+import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 
 interface IncomingMember {
   rsn: string;
@@ -223,6 +224,9 @@ export async function POST(request: Request) {
         newValue: JSON.stringify({ rsn: u.setRsn }),
         notes: 'Detected via clan-sync (accountHash matched)',
       });
+      if (u.oldRsn) {
+        await applyRenameToActiveWeeklyParticipants(u.id, u.oldRsn, u.setRsn).catch(() => {});
+      }
     }
     if (u.returning) {
       changes.push({ type: 'returned', rsn: u.setRsn, memberId: u.id });

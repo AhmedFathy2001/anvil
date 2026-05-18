@@ -11,6 +11,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
+import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -149,6 +150,9 @@ export async function POST(request: Request) {
           notes: 'Detected via plugin link (accountHash matched)',
         })
         .catch(() => {});
+      if (existing.rsn) {
+        applyRenameToActiveWeeklyParticipants(clanMemberId, existing.rsn, rsn).catch(() => {});
+      }
     }
     if (claimingGhost) {
       db.insert(clanAuditLog)
