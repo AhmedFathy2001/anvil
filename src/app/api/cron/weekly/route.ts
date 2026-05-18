@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
-import { fetchParticipantStat } from '@/lib/weekly';
+import { enrollAllPlayers, fetchParticipantStat } from '@/lib/weekly';
+import { log } from '@/lib/logger';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -18,6 +19,7 @@ function delay(ms: number) {
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production' && !CRON_SECRET) {
+    log.error('weekly-cron.misconfigured', { reason: 'CRON_SECRET env var is unset in production' });
     return NextResponse.json(
       { error: 'Server misconfigured: CRON_SECRET is required in production' },
       { status: 500 },
@@ -27,6 +29,11 @@ export async function GET(request: Request) {
   const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
   const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
   if (!hasValidSecret && !devBypass) {
+    log.warn('weekly-cron.unauthorized', {
+      hasSecret: !!CRON_SECRET,
+      hasAuthHeader: !!authHeader,
+      hasVercelCronHeader: request.headers.get('x-vercel-cron') === '1',
+    });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -58,6 +65,26 @@ export async function GET(request: Request) {
 
   // Process active competitions
   const activeComps = allComps.filter((c) => c.status === 'active');
+
+  // Catch-up enrollment: members added to the clan roster after a comp was created
+  // (or new members synced while a comp is running) are not in weekly_participants
+  // unless we re-run enrollment. enrollAllPlayers is idempotent (onConflictDoNothing)
+  // so this is safe to run every tick. New rows land with baselineValue=null and are
+  // picked up first by the queue sort below.
+  let enrolledThisTick = 0;
+  for (const comp of activeComps) {
+    try {
+      enrolledThisTick += await enrollAllPlayers(comp.id);
+    } catch (err) {
+      log.warn('weekly-cron.enroll-fail', { competitionId: comp.id }, err);
+    }
+  }
+
+  log.info('weekly-cron.tick', {
+    totalComps: allComps.length,
+    activeComps: activeComps.length,
+    newlyEnrolled: enrolledThisTick,
+  });
 
   for (const comp of activeComps) {
     const compResult = {

@@ -40,10 +40,13 @@ export async function enrollAllPlayers(competitionId: number) {
     .from(clanMembers)
     .where(whereClause);
 
+  // Count only rows actually inserted (not conflicts that hit the unique index) so
+  // callers can tell "did anyone new join this comp on this run". .returning() yields
+  // an empty array when onConflictDoNothing suppresses the insert.
   let enrolled = 0;
   for (const m of activeMembers) {
     try {
-      await db
+      const inserted = await db
         .insert(weeklyParticipants)
         .values({
           competitionId,
@@ -51,8 +54,9 @@ export async function enrollAllPlayers(competitionId: number) {
           rsn: m.rsn,
           rsnNormalized: normalizeRsn(m.rsn),
         })
-        .onConflictDoNothing();
-      enrolled++;
+        .onConflictDoNothing()
+        .returning({ id: weeklyParticipants.id });
+      if (inserted.length > 0) enrolled++;
     } catch {
       // Skip on conflict/error — keep counting what we could add
     }
