@@ -99,8 +99,11 @@ export async function GET(request: Request) {
       .where(eq(weeklyParticipants.competitionId, comp.id))
       .orderBy(asc(weeklyParticipants.lastUpdated));
 
-    // Cap at 40 participants per run to stay within timeout budget
-    const batch = participants.slice(0, 40);
+    // Per-tick cap sized to the 300 s function budget (1.2 s delay + ~1.5 s hiscores
+    // call ≈ 2.7 s per row → ~100 rows comfortably). At 100/tick a 150-person roster
+    // completes a full sweep in ~2 hours, so any new kill surfaces on the leaderboard
+    // within ~1 hour on average.
+    const batch = participants.slice(0, 150);
 
     for (const p of batch) {
       try {
