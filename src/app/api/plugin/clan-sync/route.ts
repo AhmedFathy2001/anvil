@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
-import { normalizeRsn, verifyAdminPluginToken } from '@/lib/auth';
+import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 
@@ -105,7 +105,9 @@ export async function POST(request: Request) {
 
   for (const m of members) {
     if (!m || typeof m.rsn !== 'string') continue;
-    const rsn = m.rsn.trim();
+    // sanitizeRsn (NBSP → ASCII space) so the stored display RSN is what the OSRS
+    // Hiscores library accepts. Raw plugin payloads ship in-game names with U+00A0.
+    const rsn = sanitizeRsn(m.rsn);
     if (!rsn) continue;
     const rsnNormalized = normalizeRsn(rsn);
     if (seenIncoming.has(rsnNormalized)) continue; // de-dupe duplicate names in payload

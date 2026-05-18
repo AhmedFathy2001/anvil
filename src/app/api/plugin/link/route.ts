@@ -8,7 +8,7 @@ import {
   users,
 } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { generateAdminPluginToken, normalizeRsn } from '@/lib/auth';
+import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   }
 
   const code = (body.code || '').trim().toUpperCase();
-  const rsn = (body.rsn || '').trim();
+  const rsn = sanitizeRsn(body.rsn || '');
   const accountHash = typeof body.accountHash === 'string' ? body.accountHash.trim() : '';
   if (!code || code.length !== 6 || !rsn) {
     return NextResponse.json({ error: 'A 6-character code and rsn are required' }, { status: 400 });

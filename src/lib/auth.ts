@@ -336,6 +336,20 @@ export function normalizeRsn(rsn: string): string {
   return rsn.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/**
+ * Display-side cleanup for an RSN: collapses any Unicode whitespace (notably U+00A0
+ * non-breaking space, which is how OSRS in-game names encode their spaces to avoid
+ * line-wrap) to ASCII space and trims edges. Preserves casing.
+ *
+ * Why this matters: the OSRS Hiscores library validates with /^[a-zA-Z0-9 _-]+$/,
+ * which only accepts 0x20 — an NBSP-bearing RSN throws "RSN contains invalid character"
+ * before the HTTP request goes out. Use this at every site that writes an RSN into a
+ * column we'll later feed to Hiscores, and at the read site as defense in depth.
+ */
+export function sanitizeRsn(rsn: string): string {
+  return rsn.replace(/\s+/g, ' ').trim();
+}
+
 export async function verifyPlayer(): Promise<{ playerId: number; teamId: number } | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('player_session')?.value;

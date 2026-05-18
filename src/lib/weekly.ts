@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { clanMembers, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
-import { normalizeRsn } from '@/lib/auth';
+import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
 interface HiscoresSnapshot {
@@ -78,10 +78,14 @@ function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
 }
 
 async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
+  // Strip any non-ASCII whitespace before handing to the lib — its validateRSN regex
+  // rejects U+00A0 outright. Defense in depth; we also clean on write, but legacy
+  // rows still in the table need this until they're backfilled.
+  const cleanRsn = sanitizeRsn(rsn);
   return (await withTimeout(
-    getStatsByGamemode(rsn) as Promise<HiscoresSnapshot>,
+    getStatsByGamemode(cleanRsn) as Promise<HiscoresSnapshot>,
     HISCORES_TIMEOUT_MS,
-    `hiscores(${rsn})`,
+    `hiscores(${cleanRsn})`,
   ));
 }
 

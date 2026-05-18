@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { normalizeRsn } from '@/lib/auth';
+import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 
 /**
  * Upsert a clan member by normalized RSN. Returns the clan_member id.
@@ -15,7 +15,7 @@ export async function findOrCreateClanMember(
   rsn: string,
   options: { discordId?: string | null; asGuest?: boolean } = {},
 ): Promise<number> {
-  const trimmed = rsn.trim();
+  const trimmed = sanitizeRsn(rsn);
   if (!trimmed) throw new Error('rsn is required');
 
   const normalized = normalizeRsn(trimmed);

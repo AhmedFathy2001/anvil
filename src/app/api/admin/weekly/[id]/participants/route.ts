@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
+import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -42,8 +42,9 @@ export async function POST(
 
   let added = 0;
   for (const rsn of rsns) {
-    if (typeof rsn !== 'string' || !rsn.trim()) continue;
-    const trimmed = rsn.trim();
+    if (typeof rsn !== 'string') continue;
+    const trimmed = sanitizeRsn(rsn);
+    if (!trimmed) continue;
     try {
       const clanMemberId = await findOrCreateClanMember(trimmed);
       await db.insert(weeklyParticipants).values({

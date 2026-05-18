@@ -4,7 +4,7 @@ import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { fetchParticipantStat } from '@/lib/weekly';
-import { normalizeRsn } from '@/lib/auth';
+import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 
 // POST — plugin auto-enrolls the signed-in player in the currently active weekly comp.
 // No auth: any plugin user may enroll themselves (creates a guest clan member if new).
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const rsn = (body.rsn || '').trim();
+  const rsn = sanitizeRsn(body.rsn || '');
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
   const rsnNormalized = normalizeRsn(rsn);
 
