@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
+import { clanMembers, eventSignups, events, players, signupFees } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { verifyUser } from '@/lib/auth';
+import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState } from '@/lib/signup';
 
 export async function GET(
@@ -204,6 +204,23 @@ export async function POST(
         status: 'pending',
       });
     }
+
+    // Auto-add the signed-up player to the event's draft pool. Mirrors the bulk
+    // promote-pool admin action, just at signup time so the pool fills itself as
+    // the form is filled. Idempotent: skip when a player row already exists for
+    // this clan member in this event (e.g. captain promoted directly, or the
+    // admin manually added them earlier).
+    const existingPlayer = await db.query.players.findFirst({
+      where: and(eq(players.eventId, id), eq(players.clanMemberId, body.clanMemberId)),
+    });
+    if (!existingPlayer) {
+      await db.insert(players).values({
+        eventId: id,
+        clanMemberId: body.clanMemberId,
+        name: account.rsn,
+        playerToken: generatePlayerToken(),
+      });
+    }
   }
 
   return NextResponse.json({
@@ -262,6 +279,19 @@ export async function DELETE(
     .update(eventSignups)
     .set({ status: 'withdrawn', updatedAt: new Date().toISOString() })
     .where(eq(eventSignups.id, existing.id));
+
+  // Pull them back out of the pool — but only if they aren't already on a team.
+  // Once drafted, withdrawing the signup is bookkeeping; the team needs a manual
+  // intervention from an admin (the captain may want to keep / replace them).
+  await db
+    .delete(players)
+    .where(
+      and(
+        eq(players.eventId, id),
+        eq(players.clanMemberId, existing.clanMemberId),
+        isNull(players.teamId),
+      ),
+    );
 
   return NextResponse.json({ ok: true });
 }

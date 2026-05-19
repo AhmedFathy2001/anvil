@@ -103,6 +103,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [showStatTracking, setShowStatTracking] = useState(false);
+  const [showSignups, setShowSignups] = useState(false);
   const [editingBaselinePlayer, setEditingBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<{ id: number; name: string; discord: string | null; timezone: string | null } | null>(null);
   const [forceEnding, setForceEnding] = useState(false);
@@ -142,6 +143,12 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     totalPicked: initialPlayers.filter((p) => p.teamId !== null).length,
     poolRemaining: initialPlayers.filter((p) => p.teamId === null).length,
   });
+
+  // Team creation and pool management only appear once signups have opened. If
+  // signupOpensAt is null we treat signups as "always open" — admin can do
+  // everything immediately. Re-evaluated on render so the gate auto-opens when
+  // the user keeps the page up across the opens-at boundary.
+  const signupsOpen = !currentEvent.signupOpensAt || new Date(currentEvent.signupOpensAt) <= new Date();
 
   const fetchDraft = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/draft`);
@@ -649,15 +656,23 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             </div>
           )}
 
-          <button
-            onClick={() => setShowAddTeam(!showAddTeam)}
-            className="w-full text-lg font-bold mb-4 flex items-center gap-2 hover:text-gold transition-colors text-left"
-          >
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Add Team
-            <span className="ml-auto text-sm text-text-muted">{showAddTeam ? '▼' : '▶'}</span>
-          </button>
-          {showAddTeam && <TeamForm eventId={event.id} />}
+          {signupsOpen ? (
+            <>
+              <button
+                onClick={() => setShowAddTeam(!showAddTeam)}
+                className="w-full text-lg font-bold mb-4 flex items-center gap-2 hover:text-gold transition-colors text-left"
+              >
+                <span className="w-1 h-5 bg-gold rounded-full" />
+                Add Team
+                <span className="ml-auto text-sm text-text-muted">{showAddTeam ? '▼' : '▶'}</span>
+              </button>
+              {showAddTeam && <TeamForm eventId={event.id} />}
+            </>
+          ) : (
+            <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
+              Teams can be added once sign-ups open ({new Date(currentEvent.signupOpensAt!).toLocaleString()}).
+            </div>
+          )}
         </div>
 
         <div>
@@ -676,11 +691,15 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
 
       {/* Sign-ups Section */}
       <div className="mt-12 pt-8 border-t border-card-border">
-        <h2 className="text-xl font-bold text-gold mb-6 flex items-center gap-2">
+        <button
+          onClick={() => setShowSignups(!showSignups)}
+          className="w-full text-xl font-bold text-gold mb-6 flex items-center gap-2 hover:text-gold-light transition-colors text-left"
+        >
           <span className="w-1 h-6 bg-gold rounded-full" />
           Sign-ups
-        </h2>
-        <SignupAdminPanel event={currentEvent} onEventUpdated={setCurrentEvent} />
+          <span className="ml-auto text-sm text-text-muted">{showSignups ? '▼' : '▶'}</span>
+        </button>
+        {showSignups && <SignupAdminPanel event={currentEvent} onEventUpdated={setCurrentEvent} />}
       </div>
 
       {/* Event Dates & Stat Tracking Section */}
@@ -865,7 +884,13 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
           </div>
         )}
 
-        {(draft.status === 'none') && (
+        {(draft.status === 'none') && !signupsOpen && (
+          <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
+            Player pool fills once sign-ups open ({new Date(currentEvent.signupOpensAt!).toLocaleString()}). Players who fill the sign-up form are added automatically; admins can also add clan members manually here once the window opens.
+          </div>
+        )}
+
+        {(draft.status === 'none') && signupsOpen && (
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Player Pool Management */}
             <div>
