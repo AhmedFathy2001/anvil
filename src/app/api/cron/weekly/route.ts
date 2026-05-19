@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, asc, and, or, isNull, inArray, lt } from 'drizzle-orm';
-import { enrollAllPlayers, fetchParticipantStat, probeRsnReachable } from '@/lib/weekly';
+import {
+  enrollAllPlayers,
+  fetchParticipantStat,
+  probeRsnReachable,
+  reviewPendingRenames,
+  writePlayerSnapshot,
+} from '@/lib/weekly';
 import { log } from '@/lib/logger';
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -124,12 +130,23 @@ export async function GET(request: Request) {
     }
   }
 
+  // Pending-rename auto-reviewer. Cap at 5/tick — each row costs up to 2 hiscores
+  // calls, so a batch of 5 ≈ 10 calls × 0.5 s = 5 s of work. Sits inside the same
+  // function budget as the rest of the tick.
+  let renameReview = { reviewed: 0, approved: 0, denied: 0, deferred: 0 };
+  try {
+    renameReview = await reviewPendingRenames(5);
+  } catch (err) {
+    log.warn('weekly-cron.rename-review-fail', undefined, err);
+  }
+
   log.info('weekly-cron.tick', {
     totalComps: allComps.length,
     activeComps: activeComps.length,
     newlyEnrolled: enrolledThisTick,
     reprobedUnranked: unrankedCandidates.length,
     revivedToActive: revived,
+    renameReview,
   });
 
   for (const comp of activeComps) {
@@ -172,6 +189,10 @@ export async function GET(request: Request) {
     let lastDispatch = 0;
     const dispatchQueue = [...batch];
     const unrankedMemberIds = new Set<number>();
+    // De-dupe snapshot writes within a single tick. With 15-min ticks we'd still get
+    // ~96 snapshots/member/day untunneled; this guard caps it to one per clan_member
+    // per tick (~1/15min) for the small cost of a Set lookup.
+    const snapshotWrittenThisTick = new Set<number>();
 
     async function takeToken() {
       const wait = Math.max(0, PER_REQUEST_GAP_MS - (Date.now() - lastDispatch));
@@ -213,6 +234,14 @@ export async function GET(request: Request) {
             if (p.baselineValue === null) updates.baselineValue = result.value;
             await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
             compResult.participantsUpdated++;
+
+            // Persist a per-member snapshot for force-end recovery + retroactive
+            // leaderboard recomputes. Capped at one write per clan_member per tick
+            // (multiple comps may share members) so we don't bloat the table.
+            if (p.clanMemberId != null && !snapshotWrittenThisTick.has(p.clanMemberId)) {
+              snapshotWrittenThisTick.add(p.clanMemberId);
+              await writePlayerSnapshot(p.clanMemberId, result.snapshot);
+            }
           } else if (result.kind === 'unranked') {
             // Quarantine the clan_member row so future ticks skip it entirely. The display
             // RSN was almost certainly renamed; a separate re-probe job will lift it back

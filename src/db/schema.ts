@@ -358,6 +358,53 @@ export const signupFees = sqliteTable('signup_fees', {
   index('signup_fees_status_idx').on(table.status),
 ]);
 
+// User-submitted RSN rename requests, reviewed by a cron pass that mirrors WOM's
+// auto-reviewer heuristic (negative-gains check + new-name reachability). Covers the
+// gap where a user renames in-game but doesn't re-open the plugin — without this, the
+// `clan_members` row 404s forever and the user disappears from comps silently.
+//
+// Lifecycle: pending → approved (clan_member renamed, weekly_participants reconciled)
+// or → denied (resolution column has the reason). Re-submissions with the same target
+// RSN are allowed once a prior attempt is resolved; a unique partial-style guard is
+// enforced at the application layer at submit time.
+export const pendingRenames = sqliteTable('pending_renames', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  oldRsn: text('old_rsn').notNull(),
+  newRsn: text('new_rsn').notNull(),
+  oldRsnNormalized: text('old_rsn_normalized').notNull(),
+  newRsnNormalized: text('new_rsn_normalized').notNull(),
+  // JSON snapshot of the old RSN's hiscores at submission time. The reviewer compares
+  // each skill xp against the new-name fetch — any decrease is the WOM-canonical
+  // "different account took the old name" signal and forces a denial.
+  oldSnapshot: text('old_snapshot').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'denied'
+  // Human-readable reason filled in when status leaves 'pending'.
+  resolution: text('resolution'),
+  submittedByUserId: integer('submitted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: text('reviewed_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('pending_renames_status_idx').on(table.status),
+  index('pending_renames_member_idx').on(table.clanMemberId),
+]);
+
+// Append-only snapshot history. One row per successful hiscores fetch for a clan
+// member. Two roles: (1) recompute leaderboards for any comp window without trusting
+// the per-comp `currentValue` cache; (2) catch negative-gain anomalies retroactively.
+// Payload is JSON to avoid a 200-column table for ~150 members.
+export const playerSnapshots = sqliteTable('player_snapshots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  capturedAt: text('captured_at').default(sql`(datetime('now'))`).notNull(),
+  // JSON: { skills: { attack: {xp,level,rank}, ... }, bosses: { zulrah: {score,rank}, ... } }
+  payload: text('payload').notNull(),
+  // Denormalized for cheap "did anything change since last snapshot" probes and ORDER BY.
+  overallXp: integer('overall_xp'),
+}, (table) => [
+  index('player_snapshots_member_captured_idx').on(table.clanMemberId, table.capturedAt),
+]);
+
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.
 // Plugin exchanges {code, rsn} for a pluginLinks row.
 export const pluginLinkCodes = sqliteTable('plugin_link_codes', {

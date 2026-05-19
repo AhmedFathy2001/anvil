@@ -1,11 +1,11 @@
 import { db } from '@/db';
-import { clanMembers, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
-interface HiscoresSnapshot {
+export interface HiscoresSnapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
   bosses: Record<string, { rank: number; score: number }>;
 }
@@ -118,9 +118,12 @@ export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unr
  * Tagged result for a hiscores fetch. WOM-style separation so the caller can react
  * differently to "the account isn't on hiscores" (terminal — flip status to unranked,
  * stop wasting future cron slots) vs "the call broke transiently" (retry next tick).
+ *
+ * `snapshot` is the full hiscores response — included on success so callers can
+ * persist a player_snapshots row in the same trip (no second hiscores call needed).
  */
 export type FetchResult =
-  | { kind: 'value'; value: number }
+  | { kind: 'value'; value: number; snapshot: HiscoresSnapshot }
   | { kind: 'unranked' }            // 404 from hiscores OR validator rejected the RSN string outright
   | { kind: 'transient' };          // network / timeout / parse error — try again later
 
@@ -169,13 +172,34 @@ export async function fetchParticipantStat(
   if (type === 'skill') {
     const xp = stats.skills?.[metric]?.xp;
     if (typeof xp !== 'number') return { kind: 'transient' };
-    return { kind: 'value', value: xp };
+    return { kind: 'value', value: xp, snapshot: stats };
   }
   const boss = stats.bosses?.[metric];
   // boss.score < 0 means the player is on hiscores but unranked for this boss — that's
   // a real "0 KC" value, not a fetch failure.
-  if (!boss || boss.score < 0) return { kind: 'value', value: 0 };
-  return { kind: 'value', value: boss.score };
+  if (!boss || boss.score < 0) return { kind: 'value', value: 0, snapshot: stats };
+  return { kind: 'value', value: boss.score, snapshot: stats };
+}
+
+/**
+ * Persist a player_snapshots row. Best-effort — callers don't fail the surrounding
+ * fetch loop when this errors (logging happens here). `overallXp` is denormalized
+ * out of the JSON payload for cheap ORDER BY / "did anything change" queries.
+ */
+export async function writePlayerSnapshot(
+  clanMemberId: number,
+  snapshot: HiscoresSnapshot,
+): Promise<void> {
+  const overallXp = snapshot.skills?.overall?.xp;
+  try {
+    await db.insert(playerSnapshots).values({
+      clanMemberId,
+      payload: JSON.stringify(snapshot),
+      overallXp: typeof overallXp === 'number' ? overallXp : null,
+    });
+  } catch (err) {
+    log.warn('player-snapshots.write-fail', { clanMemberId }, err);
+  }
 }
 
 export interface LeaderboardEntry {
@@ -250,6 +274,269 @@ export async function applyRenameToActiveWeeklyParticipants(
         .where(eq(weeklyParticipants.id, oldRow.id));
     }
   }
+}
+
+// =============================================================================
+// Rename request flow (WOM-style)
+// =============================================================================
+//
+// User submits "I renamed in-game" → we capture an old-name snapshot at submit
+// time and queue the request. The hourly cron's reviewer pass picks a few off
+// the queue, fetches the new name, runs the negative-gains heuristic, and
+// auto-approves or denies. Approval propagates the rename into clan_members
+// and any active weekly_participants via applyRenameToActiveWeeklyParticipants.
+//
+// This covers the gap where the RuneLite plugin's accountHash-based detection
+// never fires (user renamed and didn't re-open the plugin) — without it, the
+// clan_members row 404s every cron tick forever and the user silently falls
+// off leaderboards.
+
+export interface SubmitRenameInput {
+  clanMemberId: number;
+  newRsn: string;
+  submittedByUserId: number | null;
+}
+
+export type SubmitRenameResult =
+  | { ok: true; id: number }
+  | { ok: false; reason: string };
+
+export async function submitRenameRequest(input: SubmitRenameInput): Promise<SubmitRenameResult> {
+  const newRsn = sanitizeRsn(input.newRsn);
+  if (!newRsn) return { ok: false, reason: 'new RSN is required' };
+  if (newRsn.length > 12) return { ok: false, reason: 'RSN must be 12 characters or fewer' };
+
+  const cm = await db.query.clanMembers.findFirst({
+    where: eq(clanMembers.id, input.clanMemberId),
+  });
+  if (!cm) return { ok: false, reason: 'clan member not found' };
+
+  const newRsnNormalized = normalizeRsn(newRsn);
+  if (newRsnNormalized === cm.rsnNormalized) {
+    return { ok: false, reason: 'new RSN matches the current one — nothing to change' };
+  }
+
+  // Refuse duplicate pending row for the same (member, new-name) — the existing
+  // submission will move through the reviewer on its own.
+  const duplicate = await db.query.pendingRenames.findFirst({
+    where: and(
+      eq(pendingRenames.clanMemberId, input.clanMemberId),
+      eq(pendingRenames.newRsnNormalized, newRsnNormalized),
+      eq(pendingRenames.status, 'pending'),
+    ),
+  });
+  if (duplicate) return { ok: false, reason: 'a pending request for this rename already exists' };
+
+  // Snapshot the OLD name's hiscores at submission time. If the old name 404s
+  // already (rename happened a while back), we still accept the submission —
+  // the reviewer just won't have a gains-check baseline and will fall back to
+  // the lighter heuristic (new name reachable + no conflicting clan_member).
+  let oldSnapshotJson = '{}';
+  try {
+    const stats = await fetchHiscoresOnce(cm.rsn);
+    oldSnapshotJson = JSON.stringify(stats);
+  } catch {
+    // intentional — see comment above
+  }
+
+  const inserted = await db
+    .insert(pendingRenames)
+    .values({
+      clanMemberId: input.clanMemberId,
+      oldRsn: cm.rsn,
+      newRsn,
+      oldRsnNormalized: cm.rsnNormalized,
+      newRsnNormalized,
+      oldSnapshot: oldSnapshotJson,
+      submittedByUserId: input.submittedByUserId,
+    })
+    .returning({ id: pendingRenames.id });
+
+  return { ok: true, id: inserted[0].id };
+}
+
+interface HiscoresSkillEntry {
+  rank: number;
+  level: number;
+  xp: number;
+}
+
+/**
+ * Per-skill negative-gain check. If any skill XP on the new name is *lower* than
+ * what we captured for the old name at submission time, a different account has
+ * almost certainly taken the old name — block the rename.
+ *
+ * Tolerates skills that exist in one snapshot but not the other (hiscores
+ * occasionally drops sub-rank-2M players from listings, mostly slayer/farming
+ * at very low levels).
+ */
+function detectNegativeGains(
+  oldSnapshot: HiscoresSnapshot | Record<string, never>,
+  newStats: HiscoresSnapshot,
+): boolean {
+  const oldSkills = (oldSnapshot as HiscoresSnapshot).skills;
+  if (!oldSkills || typeof oldSkills !== 'object') return false;
+  for (const [name, raw] of Object.entries(oldSkills)) {
+    const oldXp = (raw as HiscoresSkillEntry)?.xp;
+    const newXp = newStats.skills?.[name]?.xp;
+    if (typeof oldXp !== 'number' || typeof newXp !== 'number') continue;
+    if (newXp < oldXp) return true;
+  }
+  return false;
+}
+
+async function markResolved(prId: number, status: 'approved' | 'denied', resolution: string): Promise<void> {
+  await db
+    .update(pendingRenames)
+    .set({ status, resolution, reviewedAt: new Date().toISOString() })
+    .where(eq(pendingRenames.id, prId));
+}
+
+interface PendingRow {
+  id: number;
+  clanMemberId: number;
+  oldRsn: string;
+  newRsn: string;
+  oldRsnNormalized: string;
+  newRsnNormalized: string;
+  oldSnapshot: string;
+}
+
+async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false; reason: string }> {
+  // If another clan_member already holds the new normalized RSN, we can only
+  // proceed safely when it's clearly stale (left, unranked, or archived). An
+  // active different member with the same target name is a swap that needs
+  // human attention.
+  const conflict = await db.query.clanMembers.findFirst({
+    where: and(
+      eq(clanMembers.rsnNormalized, pr.newRsnNormalized),
+      ne(clanMembers.id, pr.clanMemberId),
+    ),
+  });
+  if (conflict) {
+    const stale = conflict.leftAt != null || conflict.status !== 'active';
+    if (!stale) {
+      return { ok: false, reason: 'target RSN held by another active clan member' };
+    }
+    // Soft-archive the stale row so the unique index on rsn_normalized frees up.
+    await db
+      .update(clanMembers)
+      .set({
+        leftAt: conflict.leftAt ?? new Date().toISOString(),
+        status: 'archived',
+        statusLastChecked: new Date().toISOString(),
+      })
+      .where(eq(clanMembers.id, conflict.id));
+  }
+
+  const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, pr.clanMemberId) });
+  if (!cm) return { ok: false, reason: 'clan member no longer exists' };
+
+  // Append the OLD rsn to previousRsns if it isn't already there.
+  let previousRsns: string[] = [];
+  if (cm.previousRsns) {
+    try {
+      const parsed = JSON.parse(cm.previousRsns);
+      if (Array.isArray(parsed)) previousRsns = parsed;
+    } catch {
+      // ignore malformed legacy JSON
+    }
+  }
+  if (cm.rsn && cm.rsn !== pr.newRsn && !previousRsns.includes(cm.rsn)) {
+    previousRsns.push(cm.rsn);
+  }
+
+  await db
+    .update(clanMembers)
+    .set({
+      rsn: pr.newRsn,
+      rsnNormalized: pr.newRsnNormalized,
+      previousRsns: JSON.stringify(previousRsns),
+      // If we'd quarantined this member because the old name 404'd, the rename
+      // brings them back to 'active'. Otherwise preserve the existing status.
+      status: cm.status === 'unranked' ? 'active' : cm.status,
+      statusLastChecked: new Date().toISOString(),
+    })
+    .where(eq(clanMembers.id, pr.clanMemberId));
+
+  await applyRenameToActiveWeeklyParticipants(pr.clanMemberId, pr.oldRsn, pr.newRsn);
+
+  return { ok: true };
+}
+
+/**
+ * Auto-reviewer pass. Called once per cron tick with a small batch cap so we
+ * stay within the function budget. Each pending row consumes up to 2 hiscores
+ * calls (probe + full fetch for the gains check).
+ */
+export async function reviewPendingRenames(
+  maxPerTick = 5,
+): Promise<{ reviewed: number; approved: number; denied: number; deferred: number }> {
+  const pending = await db
+    .select()
+    .from(pendingRenames)
+    .where(eq(pendingRenames.status, 'pending'))
+    .orderBy(asc(pendingRenames.createdAt))
+    .limit(maxPerTick);
+
+  let approved = 0;
+  let denied = 0;
+  let deferred = 0;
+
+  for (const pr of pending) {
+    const probe = await probeRsnReachable(pr.newRsn);
+    if (probe === 'unranked') {
+      await markResolved(pr.id, 'denied', 'New name not found on hiscores');
+      denied++;
+      continue;
+    }
+    if (probe === 'transient') {
+      deferred++;
+      continue;
+    }
+
+    let oldSnapshot: HiscoresSnapshot | Record<string, never> = {};
+    try {
+      const parsed = JSON.parse(pr.oldSnapshot);
+      if (parsed && typeof parsed === 'object') oldSnapshot = parsed;
+    } catch {
+      // leave as empty — heuristic will simply be lighter for this submission
+    }
+
+    const hasOldStats =
+      'skills' in oldSnapshot && oldSnapshot.skills && Object.keys(oldSnapshot.skills).length > 0;
+
+    if (hasOldStats) {
+      let newStats: HiscoresSnapshot;
+      try {
+        newStats = await fetchHiscoresOnce(pr.newRsn);
+      } catch (err) {
+        log.warn('pending-renames.fetch-new-fail', { id: pr.id, newRsn: pr.newRsn }, err);
+        deferred++;
+        continue;
+      }
+      if (detectNegativeGains(oldSnapshot, newStats)) {
+        await markResolved(pr.id, 'denied', 'Negative gains detected — different account likely holds this name');
+        denied++;
+        continue;
+      }
+    }
+
+    const result = await approveRename(pr);
+    if (result.ok) {
+      await markResolved(
+        pr.id,
+        'approved',
+        hasOldStats ? 'Auto-approved: no negative gains, new name reachable' : 'Auto-approved: new name reachable (no old snapshot available)',
+      );
+      approved++;
+    } else {
+      await markResolved(pr.id, 'denied', `Approval blocked: ${result.reason}`);
+      denied++;
+    }
+  }
+
+  return { reviewed: pending.length, approved, denied, deferred };
 }
 
 /**
