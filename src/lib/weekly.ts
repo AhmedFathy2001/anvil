@@ -31,9 +31,13 @@ async function shouldTrackGuests(): Promise<boolean> {
  */
 export async function enrollAllPlayers(competitionId: number) {
   const trackGuests = await shouldTrackGuests();
+  // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
+  // cron will immediately quarantine. They become eligible again when a re-probe job
+  // (or manual mod action) flips status back to 'active'.
+  const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
   const whereClause = trackGuests
-    ? isNull(clanMembers.leftAt)
-    : and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0));
+    ? baseClause
+    : and(baseClause, eq(clanMembers.isGuest, 0));
 
   const activeMembers = await db
     .select({ id: clanMembers.id, rsn: clanMembers.rsn })
@@ -90,37 +94,88 @@ async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
 }
 
 /**
- * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout
- * and one retry — on persistent failure returns null so the cron tick moves on
- * and picks the participant back up on its next pass.
+ * Light-weight reachability probe — used by the cron's re-probe pass to lift
+ * `unranked` members back to `active` when they reappear on hiscores. Reuses the
+ * full snapshot fetch (osrs-json-hiscores doesn't expose a HEAD-like check) but
+ * doesn't read any metric, so callers can ignore the parsed payload.
+ */
+export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unranked' | 'transient'> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await fetchHiscoresOnce(rsn);
+      return 'reachable';
+    } catch (err) {
+      const classification = classifyError(err);
+      if (classification === 'unranked') return 'unranked';
+      if (attempt === 2) return 'transient';
+      await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
+    }
+  }
+  return 'transient';
+}
+
+/**
+ * Tagged result for a hiscores fetch. WOM-style separation so the caller can react
+ * differently to "the account isn't on hiscores" (terminal — flip status to unranked,
+ * stop wasting future cron slots) vs "the call broke transiently" (retry next tick).
+ */
+export type FetchResult =
+  | { kind: 'value'; value: number }
+  | { kind: 'unranked' }            // 404 from hiscores OR validator rejected the RSN string outright
+  | { kind: 'transient' };          // network / timeout / parse error — try again later
+
+function classifyError(err: unknown): 'unranked' | 'transient' {
+  const msg = err instanceof Error ? err.message : String(err);
+  // osrs-json-hiscores throws "Player not found" on 404 and "RSN contains invalid character"
+  // / "RSN must be between..." for client-side validator rejections. All of those mean
+  // "do not keep polling this RSN" — flip to unranked and have a human / re-probe fix it.
+  if (/not found|invalid character|must be between|must be a string/i.test(msg)) return 'unranked';
+  return 'transient';
+}
+
+/**
+ * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout and one
+ * retry — distinguishes terminal (`unranked`) from transient failures so the cron can
+ * stop chasing dead RSNs.
  */
 export async function fetchParticipantStat(
   rsn: string,
   type: 'skill' | 'boss',
   metric: string,
-): Promise<number | null> {
+): Promise<FetchResult> {
   let stats: HiscoresSnapshot | null = null;
+  let lastClassification: 'unranked' | 'transient' = 'transient';
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       stats = await fetchHiscoresOnce(rsn);
       break;
     } catch (err) {
+      lastClassification = classifyError(err);
+      // Don't retry an unranked / invalid RSN — the second attempt will fail identically
+      // because nothing about the input or hiscores presence changes inside 1.5 s.
+      if (lastClassification === 'unranked') {
+        log.warn('hiscores.unranked', { rsn });
+        return { kind: 'unranked' };
+      }
       if (attempt === 2) {
         log.warn('hiscores.fail', { rsn, attempt }, err);
-        return null;
+        return { kind: 'transient' };
       }
       await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
     }
   }
-  if (!stats) return null;
+  if (!stats) return { kind: 'transient' };
 
   if (type === 'skill') {
-    const skill = stats.skills?.[metric];
-    return skill?.xp ?? null;
+    const xp = stats.skills?.[metric]?.xp;
+    if (typeof xp !== 'number') return { kind: 'transient' };
+    return { kind: 'value', value: xp };
   }
   const boss = stats.bosses?.[metric];
-  if (!boss || boss.score < 0) return 0;
-  return boss.score;
+  // boss.score < 0 means the player is on hiscores but unranked for this boss — that's
+  // a real "0 KC" value, not a fetch failure.
+  if (!boss || boss.score < 0) return { kind: 'value', value: 0 };
+  return { kind: 'value', value: boss.score };
 }
 
 export interface LeaderboardEntry {

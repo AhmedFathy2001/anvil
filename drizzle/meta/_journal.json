@@ -169,6 +169,13 @@
       "when": 1777816267221,
       "tag": "0023_shocking_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1779112009167,
+      "tag": "0024_freezing_vampiro",
+      "breakpoints": true
     }
   ]
 }

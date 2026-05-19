@@ -39,8 +39,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ enrolled: true, alreadyEnrolled: true, compId: active.id });
   }
 
-  // Lock baseline from hiscores; null is acceptable, cron will retry
-  const baseline = await fetchParticipantStat(rsn, active.type as 'skill' | 'boss', active.metric);
+  // Lock baseline from hiscores; null is acceptable, cron will retry.
+  // Transient failures: leave baseline null and the cron will pick it up. Unranked
+  // failures: still enroll, but the cron will skip them once we flag the clan_member
+  // unranked elsewhere — leaving baseline null keeps them out of the leaderboard
+  // until they reappear on hiscores.
+  const result = await fetchParticipantStat(rsn, active.type as 'skill' | 'boss', active.metric);
+  const baseline = result.kind === 'value' ? result.value : null;
 
   // onConflictDoNothing covers the check-then-insert race where two concurrent
   // enroll calls for the same RSN both pass the existing-check above.

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat } from '@/lib/weekly';
+import { log } from '@/lib/logger';
 
 // Sequential hiscores fetch for every participant — easily over a minute. Default
 // Vercel function timeout is 15 s (Pro) / 10 s (Hobby), so without this the admin
@@ -35,36 +36,65 @@ export async function POST(
     .where(eq(weeklyParticipants.competitionId, compId));
 
   let updated = 0;
+  let markedUnranked = 0;
   const errors: string[] = [];
+  const unrankedMemberIds = new Set<number>();
+  const compType = comp[0].type as 'skill' | 'boss';
 
   for (const p of participants) {
     try {
-      const value = await fetchParticipantStat(p.rsn, comp[0].type as 'skill' | 'boss', comp[0].metric);
+      const result = await fetchParticipantStat(p.rsn, compType, comp[0].metric);
       const nowIso = new Date().toISOString();
-      if (value !== null) {
+      if (result.kind === 'value') {
+        // Same negative-gains guard as the scheduled cron — refuse to overwrite a higher
+        // existing value with a lower one, which is the canonical "someone else has this
+        // RSN now" signal.
+        if (p.currentValue !== null && result.value < p.currentValue) {
+          log.warn('weekly-refresh.negative-gain', {
+            rsn: p.rsn,
+            competitionId: compId,
+            previous: p.currentValue,
+            fetched: result.value,
+          });
+          await db.update(weeklyParticipants)
+            .set({ lastUpdated: nowIso })
+            .where(eq(weeklyParticipants.id, p.id));
+          errors.push(`Negative gain ignored for ${p.rsn}`);
+          continue;
+        }
         const updates: Record<string, unknown> = {
-          currentValue: value,
+          currentValue: result.value,
           lastUpdated: nowIso,
         };
-        // Set baseline on first fetch
-        if (p.baselineValue === null) {
-          updates.baselineValue = value;
-        }
+        if (p.baselineValue === null) updates.baselineValue = result.value;
         await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
         updated++;
-      } else {
-        // Bump lastUpdated on failure so this row stops occupying the head of the cron's
-        // `ORDER BY lastUpdated ASC NULLS FIRST` queue.
+      } else if (result.kind === 'unranked') {
+        if (p.clanMemberId != null) unrankedMemberIds.add(p.clanMemberId);
         await db.update(weeklyParticipants)
           .set({ lastUpdated: nowIso })
           .where(eq(weeklyParticipants.id, p.id));
-        errors.push(`No data for ${p.rsn}`);
+        errors.push(`Unranked: ${p.rsn}`);
+      } else {
+        await db.update(weeklyParticipants)
+          .set({ lastUpdated: nowIso })
+          .where(eq(weeklyParticipants.id, p.id));
+        errors.push(`Transient fail: ${p.rsn}`);
       }
-    } catch {
+    } catch (err) {
+      log.warn('weekly-refresh.row-error', { rsn: p.rsn, compId }, err);
       errors.push(`Failed to fetch ${p.rsn}`);
     }
     await delay(1200);
   }
 
-  return NextResponse.json({ updated, total: participants.length, errors });
+  if (unrankedMemberIds.size > 0) {
+    const ids = Array.from(unrankedMemberIds);
+    await db.update(clanMembers)
+      .set({ status: 'unranked', statusLastChecked: new Date().toISOString() })
+      .where(inArray(clanMembers.id, ids));
+    markedUnranked = ids.length;
+  }
+
+  return NextResponse.json({ updated, markedUnranked, total: participants.length, errors });
 }

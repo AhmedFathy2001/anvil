@@ -230,12 +230,20 @@ export const clanMembers = sqliteTable('clan_members', {
   // claims wait for mod approval before promoting the user. Cleared once applied.
   // Values: 'admin' | 'moderator' | null.
   pendingRole: text('pending_role'),
+  // Tracking lifecycle. `active` = normal polling. `unranked` = hiscores returned
+  // 404 (renamed, banned, or genuinely not on hiscores yet) — skipped by the cron
+  // until a re-probe job lifts them back. `banned` / `archived` = manual flags.
+  // The cron's queue health depends on this: without it, a renamed account 404s
+  // every tick forever and steals a slot from healthy rows.
+  status: text('status').notNull().default('active'), // 'active' | 'unranked' | 'banned' | 'archived'
+  statusLastChecked: text('status_last_checked'),
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
   index('clan_members_left_at_idx').on(table.leftAt),
   index('clan_members_user_id_idx').on(table.userId),
   index('clan_members_provisional_idx').on(table.provisional),
+  index('clan_members_status_idx').on(table.status),
 ]);
 
 // Append-only history of what happened to clan_members rows: joined, left, returned,
