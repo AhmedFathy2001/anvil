@@ -66,6 +66,52 @@ function pickHighestRank(ranks: (string | null | undefined)[]): string | null {
   return best;
 }
 
+/**
+ * Discord-aware highest-rank picker. Uses Discord role `position` (higher = above
+ * in the role list) when a rank has a matching Discord role — so admins control
+ * precedence by just ordering their Discord roles, including custom ones like
+ * "marshal" that aren't in the OSRS standard list. Falls back to the static
+ * RANK_PRECEDENCE for ranks with no matching Discord role.
+ */
+function pickHighestRankUsingGuild(
+  ranks: (string | null | undefined)[],
+  guildRoles: DiscordRole[],
+): string | null {
+  if (guildRoles.length === 0) return pickHighestRank(ranks);
+
+  const roleByRank = new Map<string, DiscordRole>();
+  for (const r of guildRoles) {
+    const key = normalizeRankKey(r.name);
+    if (key) roleByRank.set(key, r);
+  }
+
+  let best: string | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const rank of ranks) {
+    if (!rank) continue;
+    const key = normalizeRankKey(rank);
+    if (!key) continue;
+
+    let score: number;
+    const matched = roleByRank.get(key);
+    if (matched) {
+      // Discord position: higher number = higher in the role list (closer to top).
+      score = matched.position;
+    } else {
+      const stdIdx = RANK_PRECEDENCE.indexOf(key);
+      // Negative because lower index in RANK_PRECEDENCE = higher rank. Shift below
+      // Discord positions so any guild-mapped rank outranks an unmapped fallback.
+      score = stdIdx === -1 ? Number.NEGATIVE_INFINITY : -1000 - stdIdx;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = rank;
+    }
+  }
+  return best;
+}
+
 // =============================================================================
 // Config (env + settings)
 // =============================================================================
@@ -73,9 +119,23 @@ function pickHighestRank(ranks: (string | null | undefined)[]): string | null {
 interface RoleSyncConfig {
   botToken: string;
   guildId: string;
-  rankRoleMap: Record<string, string>; // lowercased OSRS rank → Discord role ID
-  defaultRoleIds: string[];            // always applied to active non-guest members
-  guestRoleIds: string[];              // applied to active guests (when sync is triggered for one)
+  // Explicit role-ID config. Survives Discord role renames, so this is preferred
+  // when an admin wants stability. All three may be empty — name-based fallback
+  // below kicks in.
+  rankRoleMap: Record<string, string>; // canonical rank key → Discord role ID
+  defaultRoleIds: string[];
+  guestRoleIds: string[];
+  // Name-based config. Resolved against the live guild roles at sync time. The
+  // common path: the admin sets `discord_default_role_names = ["Member", "Imp"]`
+  // and `discord_guest_role_names = ["Clan Friend"]`, and leaves rank-role mapping
+  // entirely to the auto-match below.
+  defaultRoleNames: string[];
+  guestRoleNames: string[];
+  // Auto-match in-game rank → Discord role whose name matches case-insensitively
+  // (with _ ↔ space). Defaults to true. If your guild's role names match the OSRS
+  // rank names ("General", "Captain", "Deputy Owner"), zero rank-role config is
+  // needed — this just works.
+  autoMatchRankByName: boolean;
 }
 
 async function readSetting(key: string): Promise<string | null> {
@@ -131,13 +191,52 @@ export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
   const guildId = (await readSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
   if (!guildId) return null;
 
+  // Auto-match defaults to true — turn it off by setting the value to literal 'false'.
+  const autoMatchRaw = await readSetting('discord_auto_match_rank_by_name');
+  const autoMatchRankByName = autoMatchRaw !== 'false';
+
   return {
     botToken,
     guildId,
     rankRoleMap: parseJsonRecord(await readSetting('discord_rank_role_map')),
     defaultRoleIds: parseJsonArray(await readSetting('discord_default_role_ids')),
     guestRoleIds: parseJsonArray(await readSetting('discord_guest_role_ids')),
+    defaultRoleNames: parseJsonArray(await readSetting('discord_default_role_names')),
+    guestRoleNames: parseJsonArray(await readSetting('discord_guest_role_names')),
+    autoMatchRankByName,
   };
+}
+
+/**
+ * Resolve a list of role names to role IDs against the live guild role list.
+ * Matching is case-insensitive with whitespace + underscore normalization, so
+ * an admin entering "Deputy Owner" matches a Discord role literally named
+ * "deputy_owner" or "DEPUTY OWNER". Missing names are silently dropped — a
+ * warning is logged so the admin can spot typos.
+ */
+function resolveRoleNamesToIds(names: string[], guildRoles: DiscordRole[]): string[] {
+  const byNormalizedName = new Map<string, string>();
+  for (const r of guildRoles) {
+    const key = normalizeRankKey(r.name);
+    if (key) byNormalizedName.set(key, r.id);
+  }
+  const ids: string[] = [];
+  for (const raw of names) {
+    const key = normalizeRankKey(raw);
+    if (!key) continue;
+    const id = byNormalizedName.get(key);
+    if (id) ids.push(id);
+    else log.warn('discord-roles.name-not-found', { name: raw, normalized: key });
+  }
+  return ids;
+}
+
+/** Find a guild role whose name matches the given canonical rank key. */
+function findRoleIdForRankByName(rankKey: string, guildRoles: DiscordRole[]): string | null {
+  for (const r of guildRoles) {
+    if (normalizeRankKey(r.name) === rankKey) return r.id;
+  }
+  return null;
 }
 
 // =============================================================================
@@ -372,28 +471,85 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
   }
 
   const allGuests = ownedRows.every((r) => r.isGuest === 1);
-  const highestRank = pickHighestRank(ownedRows.filter((r) => r.isGuest === 0).map((r) => r.rank));
+
+  // If any part of the config is name-based or auto-matching is on, we need the
+  // live guild role list. Fetched at most once per sync. When all config is
+  // strictly ID-based and auto-match is off, we skip the GET entirely.
+  const needGuildRoles =
+    cfg.autoMatchRankByName ||
+    cfg.defaultRoleNames.length > 0 ||
+    cfg.guestRoleNames.length > 0;
+  let guildRoles: DiscordRole[] = [];
+  if (needGuildRoles) {
+    const rolesRes = await discordFetch(cfg, `/guilds/${cfg.guildId}/roles`);
+    if (rolesRes.ok) {
+      guildRoles = (await rolesRes.json()) as DiscordRole[];
+    } else {
+      log.warn('discord-roles.list-roles-fail', { status: rolesRes.status, ctx: 'syncRolesForClanMember' });
+    }
+  }
+
+  // Pick highest rank using Discord role positions when available — that lets the
+  // admin's Discord role ordering dictate clan rank precedence (including custom
+  // ranks like "marshal" that the static RANK_PRECEDENCE doesn't know).
+  const highestRank = pickHighestRankUsingGuild(
+    ownedRows.filter((r) => r.isGuest === 0).map((r) => r.rank),
+    guildRoles,
+  );
+
+  // Merge ID-based config with name-resolved fallbacks. Explicit IDs win; names
+  // only add roles that the ID list didn't already cover, so an admin can keep a
+  // partial override without losing the auto-match path for the rest.
+  const resolvedDefaults = new Set<string>([
+    ...cfg.defaultRoleIds,
+    ...resolveRoleNamesToIds(cfg.defaultRoleNames, guildRoles),
+  ]);
+  const resolvedGuests = new Set<string>([
+    ...cfg.guestRoleIds,
+    ...resolveRoleNamesToIds(cfg.guestRoleNames, guildRoles),
+  ]);
+
+  // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
+  const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
+  if (cfg.autoMatchRankByName) {
+    // Pre-walk the precedence list so e.g. removing a downgraded role still works
+    // (we have to know it was ours to touch even if the user no longer holds the
+    // rank that originally added it).
+    for (const rankKey of RANK_PRECEDENCE) {
+      const id = findRoleIdForRankByName(rankKey, guildRoles);
+      if (id) managedRankRoleIds.add(id);
+    }
+  }
 
   // Target role set
   const target = new Set<string>();
   if (allGuests) {
-    cfg.guestRoleIds.forEach((id) => target.add(id));
+    resolvedGuests.forEach((id) => target.add(id));
   } else {
-    cfg.defaultRoleIds.forEach((id) => target.add(id));
+    resolvedDefaults.forEach((id) => target.add(id));
     const rankKey = normalizeRankKey(highestRank);
     if (rankKey) {
-      const roleId = cfg.rankRoleMap[rankKey];
-      if (roleId) target.add(roleId);
+      // 1) Explicit map override wins
+      let roleId: string | null = cfg.rankRoleMap[rankKey] ?? null;
+      // 2) Auto-match against guild role name
+      if (!roleId && cfg.autoMatchRankByName) roleId = findRoleIdForRankByName(rankKey, guildRoles);
+      if (roleId) {
+        target.add(roleId);
+        // For custom rank names that aren't in RANK_PRECEDENCE (e.g. "marshal"),
+        // the role wasn't pre-walked above. Record it so a future downgrade can
+        // still remove it.
+        managedRankRoleIds.add(roleId);
+      }
     }
   }
 
-  // The set of roles we're allowed to touch on this user. Any role not in this set
-  // is left alone — it might be a moderator role assigned manually, a server-booster
-  // role, the @everyone role, etc.
+  // The set of roles we're allowed to touch on this user. Anything outside this
+  // set (moderator role assigned manually, server-booster role, @everyone, …) is
+  // left untouched.
   const managed = new Set<string>([
-    ...cfg.defaultRoleIds,
-    ...cfg.guestRoleIds,
-    ...Object.values(cfg.rankRoleMap),
+    ...resolvedDefaults,
+    ...resolvedGuests,
+    ...managedRankRoleIds,
   ]);
 
   const currentMember = await getGuildMember(cfg, discordUserId);
