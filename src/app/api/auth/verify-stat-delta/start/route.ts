@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, verificationAttempts } from '@/db/schema';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -100,6 +100,48 @@ export async function POST(request: Request) {
       { error: 'Hiscores returned no skill data. Account may be unranked or hidden.' },
       { status: 422 },
     );
+  }
+
+  // Guard: a user typing their RSN differently than what's already on file (e.g.
+  // "KPX_Nisbro" when the canonical plugin-derived row says "KPX Nisbro") would
+  // otherwise create a second clan_members row for the same OSRS account. We can't
+  // detect this from the RSN string alone — they're different by index. Instead,
+  // compare hiscores snapshots: same OSRS account → near-identical XP across skills.
+  // Refuse and point them at their existing linked row when the match is overwhelming.
+  const existingLinked = await db
+    .select({ id: clanMembers.id, rsn: clanMembers.rsn, rsnNormalized: clanMembers.rsnNormalized })
+    .from(clanMembers)
+    .where(
+      and(
+        eq(clanMembers.userId, session.userId),
+        isNotNull(clanMembers.verifiedAt),
+        isNull(clanMembers.leftAt),
+        ne(clanMembers.rsnNormalized, rsnNormalized),
+      ),
+    );
+  for (const cm of existingLinked) {
+    const existingSnap = await fetchHiscoresSnapshot(cm.rsn).catch(() => null);
+    if (!existingSnap) continue; // can't compare → don't block on a transient failure
+    const existingXp = snapshotXpMap(existingSnap);
+    let comparable = 0;
+    let exact = 0;
+    for (const [skill, xp] of Object.entries(xpMap)) {
+      const other = existingXp[skill];
+      if (typeof other !== 'number') continue;
+      comparable++;
+      if (other === xp) exact++;
+    }
+    // Threshold tuned to tolerate one skill being mid-refresh on Hiscores: ≥ 5 skills
+    // compared and at most 1 mismatch. Two different accounts virtually never satisfy
+    // this — even max mains differ on some boss/skill rank or XP fraction.
+    if (comparable >= 5 && exact >= comparable - 1) {
+      return NextResponse.json(
+        {
+          error: `Hiscores for "${rsn}" matches your already-verified RSN "${cm.rsn}". If that's a typo, use the existing one; if it's a different alt, double-check the spelling.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const targetSkill = pickTargetSkill(xpMap);
