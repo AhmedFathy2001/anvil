@@ -11,7 +11,7 @@
  * no-ops, so this module is safe to deploy before the token is provisioned.
  */
 import { db } from '@/db';
-import { clanMembers, settings, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, settings, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -512,10 +512,42 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
   // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
   const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
   if (cfg.autoMatchRankByName) {
-    // Pre-walk the precedence list so e.g. removing a downgraded role still works
-    // (we have to know it was ours to touch even if the user no longer holds the
-    // rank that originally added it).
-    for (const rankKey of RANK_PRECEDENCE) {
+    // Pre-walk every rank we know about so a demotion to a previously-unseen rank
+    // still removes the old rank role. Three sources unioned:
+    //   1) RANK_PRECEDENCE — standard OSRS clan ranks (handles fresh clans)
+    //   2) Currently held ranks across the active roster (handles custom ranks
+    //      that anyone presently holds — e.g. "marshal", "admiral")
+    //   3) Every rank that's ever been seen in a rank_changed audit log entry
+    //      (handles the case where a user just got demoted away from a custom
+    //      rank that nobody else currently holds — without (3), the old role
+    //      would remain stuck on them)
+    const knownRanks = new Set<string>(RANK_PRECEDENCE);
+    const currentRanks = await db
+      .selectDistinct({ rank: clanMembers.rank })
+      .from(clanMembers);
+    for (const row of currentRanks) {
+      const k = normalizeRankKey(row.rank);
+      if (k) knownRanks.add(k);
+    }
+    const auditRanks = await db
+      .select({ oldValue: clanAuditLog.oldValue, newValue: clanAuditLog.newValue })
+      .from(clanAuditLog)
+      .where(eq(clanAuditLog.eventType, 'rank_changed'));
+    for (const row of auditRanks) {
+      for (const raw of [row.oldValue, row.newValue]) {
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw) as { rank?: unknown };
+          if (typeof parsed.rank === 'string') {
+            const k = normalizeRankKey(parsed.rank);
+            if (k) knownRanks.add(k);
+          }
+        } catch {
+          // ignore malformed legacy rows
+        }
+      }
+    }
+    for (const rankKey of knownRanks) {
       const id = findRoleIdForRankByName(rankKey, guildRoles);
       if (id) managedRankRoleIds.add(id);
     }
