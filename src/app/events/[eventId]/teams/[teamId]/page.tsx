@@ -3,6 +3,8 @@ import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamBoardClient from './TeamBoardClient';
+import { verifyUser } from '@/lib/auth';
+import { signupWindowState } from '@/lib/signup';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +38,26 @@ export default async function TeamBoardPage({
   }
 
   const { captainPassword: _, ...safeTeam } = team;
+
+  // Same gate as the event scoreboard: non-staff viewers don't see the team board
+  // until sign-ups have opened. Staff bypass for setup access.
+  const session = await verifyUser();
+  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const window = signupWindowState({
+    signupOpensAt: event.signupOpensAt,
+    signupDeadline: event.signupDeadline,
+    startDate: event.startDate,
+  });
+  if (!isStaff && window.reason === 'not_open_yet') {
+    return (
+      <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+        <p className="text-lg font-semibold mb-1">This team board is hidden until sign-ups open</p>
+        {event.signupOpensAt && (
+          <p className="text-sm">Opens {new Date(event.signupOpensAt).toLocaleString()}.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <TeamBoardClient
