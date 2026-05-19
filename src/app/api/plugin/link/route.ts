@@ -12,6 +12,7 @@ import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth'
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
+import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -235,6 +236,11 @@ export async function POST(request: Request) {
       });
     }
   }
+
+  // Now that this clan_member is linked to a Discord-authenticated user, we have
+  // a high-confidence Discord id for role sync. Fire-and-forget — the response to
+  // the plugin should not block on Discord round-trips.
+  syncRolesForClanMemberFireAndForget(clanMemberId);
 
   return NextResponse.json({
     success: true,

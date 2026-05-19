@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
+import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
 interface IncomingMember {
   rsn: string;
@@ -195,6 +196,10 @@ export async function POST(request: Request) {
         newValue: JSON.stringify({ rsn: ins.rsn, rank: src.rank }),
         notes: 'Detected via clan-sync',
       });
+      // Brand-new join → assign default + rank roles in Discord. Best-effort; the
+      // user might not exist on the guild side yet (in which case the sync is a
+      // no-op until a future trigger).
+      syncRolesForClanMemberFireAndForget(ins.id);
     }
   }
 
@@ -254,6 +259,13 @@ export async function POST(request: Request) {
         newValue: JSON.stringify({ rank: u.newRank }),
         notes: 'Detected via clan-sync',
       });
+    }
+    // Trigger a role re-sync on any signal that could change the target role set:
+    // rename, return-from-left, or rank change. Each is a fire-and-forget HTTP call;
+    // the sync function diff-applies so back-to-back triggers for the same member
+    // are cheap (just a GET of current roles, then no-op writes).
+    if (u.renamed || u.returning || u.rankChanged) {
+      syncRolesForClanMemberFireAndForget(u.id);
     }
   }
 
