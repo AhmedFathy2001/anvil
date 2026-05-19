@@ -18,12 +18,25 @@ import { normalizeRsn } from '@/lib/auth';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
-// Standard OSRS clan rank precedence (highest → lowest). Custom rank names that
-// aren't in this list are treated as "lowest" — they still get the default roles
-// but won't pick up a rank-specific role unless the admin maps them.
+/**
+ * Canonical form for rank keys. RuneLite emits ranks in mixed conventions
+ * ("deputy_owner" vs "Deputy Owner"), Discord role names use spaces, and admins
+ * enter map keys however they want — collapse all of those to one canonical
+ * lowercase-with-spaces form so lookups are stable.
+ */
+function normalizeRankKey(rank: string | null | undefined): string | null {
+  if (typeof rank !== 'string') return null;
+  const v = rank.trim().toLowerCase().replace(/[_\s]+/g, ' ');
+  return v.length > 0 ? v : null;
+}
+
+// Standard OSRS clan rank precedence (highest → lowest), in canonical form. Custom
+// ranks (e.g. "marshal", "imp") that aren't in this list are treated as "lowest" —
+// they still get default roles but won't pick up a rank-specific role unless the
+// admin adds an entry to the rankRoleMap.
 const RANK_PRECEDENCE = [
   'owner',
-  'deputy_owner',
+  'deputy owner',
   'coordinator',
   'overseer',
   'general',
@@ -38,8 +51,9 @@ const RANK_PRECEDENCE = [
 
 /** Lower index = higher rank. Unknown / nullable → +Infinity (lowest). */
 function rankIndex(rank: string | null | undefined): number {
-  if (!rank) return Number.POSITIVE_INFINITY;
-  const idx = RANK_PRECEDENCE.indexOf(rank.toLowerCase());
+  const key = normalizeRankKey(rank);
+  if (!key) return Number.POSITIVE_INFINITY;
+  const idx = RANK_PRECEDENCE.indexOf(key);
   return idx === -1 ? Number.POSITIVE_INFINITY : idx;
 }
 
@@ -76,7 +90,11 @@ function parseJsonRecord(raw: string | null): Record<string, string> {
     if (v && typeof v === 'object' && !Array.isArray(v)) {
       const out: Record<string, string> = {};
       for (const [k, val] of Object.entries(v)) {
-        if (typeof val === 'string') out[k.toLowerCase()] = val;
+        if (typeof val !== 'string') continue;
+        // Normalize the rank key so admins can write "Deputy Owner", "deputy_owner",
+        // or "DEPUTY OWNER" interchangeably — all hash to "deputy owner".
+        const key = normalizeRankKey(k);
+        if (key) out[key] = val;
       }
       return out;
     }
@@ -362,8 +380,9 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
     cfg.guestRoleIds.forEach((id) => target.add(id));
   } else {
     cfg.defaultRoleIds.forEach((id) => target.add(id));
-    if (highestRank) {
-      const roleId = cfg.rankRoleMap[highestRank.toLowerCase()];
+    const rankKey = normalizeRankKey(highestRank);
+    if (rankKey) {
+      const roleId = cfg.rankRoleMap[rankKey];
       if (roleId) target.add(roleId);
     }
   }
