@@ -333,7 +333,14 @@ export function generateAdminPluginToken(): string {
 }
 
 export function normalizeRsn(rsn: string): string {
-  return rsn.trim().toLowerCase().replace(/\s+/g, ' ');
+  // OSRS treats space and underscore as the same character in a name: display names
+  // render with spaces, but logins, hiscores lookups, and older/manually-entered rows
+  // use underscores. Collapse both to a single space so "GIM_nisbro" and "GIM Nisbro"
+  // normalize identically — otherwise a roster sync sees them as two different accounts
+  // and reports one "left" + one "joined" for what is really the same person.
+  // NOTE: existing rsn_normalized columns must be backfilled when this changes —
+  // see scripts/backfill-rsn-normalized.ts.
+  return rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
 }
 
 /**

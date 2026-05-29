@@ -98,6 +98,10 @@ export async function POST(request: Request) {
     rankChanged: boolean;
     oldRank: string | null;
     newRank: string | null;
+    // A guest (event-only, isGuest=1) that now appears in the ranked roster, i.e. they
+    // actually joined the clan. Forces a Discord role re-sync even when no rank was
+    // reported, so they stop being treated as a guest on the Discord side.
+    becameMember: boolean;
   };
   const toInsert: { rsn: string; rsnNormalized: string; rank: string | null; accountHash: string | null }[] = [];
   const toUpdate: ToUpdate[] = [];
@@ -131,8 +135,13 @@ export async function POST(request: Request) {
       existing.rsnNormalized !== rsnNormalized;
     const returning = existing.leftAt != null && existing.source !== 'manual';
     const preserveLeftAt = Boolean(existing.leftAt && existing.source === 'manual');
-    const rankChanged =
-      rank != null && existing.rank != null && rank !== existing.rank;
+    // A null existing.rank (a guest or never-ranked row) counts as a change to their
+    // first rank — so a guest the roster now reports with a rank ("imp") produces a
+    // rank_changed audit + Discord role sync instead of silently flipping isGuest.
+    const rankChanged = rank != null && rank !== existing.rank;
+    // Guest → real member: the ranked roster includes them, so they're no longer a
+    // guest. preserveLeftAt guards the manual-left case (don't resurrect those).
+    const becameMember = existing.isGuest === 1 && !preserveLeftAt;
 
     let previousRsns: string[] = [];
     if (existing.previousRsns) {
@@ -164,6 +173,7 @@ export async function POST(request: Request) {
       rankChanged,
       oldRank: rankChanged ? existing.rank : null,
       newRank: rankChanged ? rank : null,
+      becameMember,
     });
   }
 
@@ -261,10 +271,11 @@ export async function POST(request: Request) {
       });
     }
     // Trigger a role re-sync on any signal that could change the target role set:
-    // rename, return-from-left, or rank change. Each is a fire-and-forget HTTP call;
-    // the sync function diff-applies so back-to-back triggers for the same member
-    // are cheap (just a GET of current roles, then no-op writes).
-    if (u.renamed || u.returning || u.rankChanged) {
+    // rename, return-from-left, rank change, or a guest being promoted to a real
+    // member. Each is a fire-and-forget HTTP call; the sync function diff-applies so
+    // back-to-back triggers for the same member are cheap (just a GET of current
+    // roles, then no-op writes).
+    if (u.renamed || u.returning || u.rankChanged || u.becameMember) {
       syncRolesForClanMemberFireAndForget(u.id);
     }
   }

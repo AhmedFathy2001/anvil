@@ -12,6 +12,9 @@ interface RenameSuggestion {
   leftAt: string;
   joinedAt: string;
   deltaSeconds: number;
+  leftXp: number | null;
+  joinedXp: number | null;
+  xpMatchPct: number | null;
 }
 
 export interface AuditEntry {
@@ -48,6 +51,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   verified: { label: 'Verified', color: 'text-gold' },
   claimed: { label: 'Claimed', color: 'text-gold' },
   merged: { label: 'Merged', color: 'text-purple-400' },
+  rename_dismissed: { label: 'Not a rename', color: 'text-text-muted' },
   mod_approved: { label: 'Mod approved', color: 'text-accent-green-light' },
   mod_rejected: { label: 'Mod rejected', color: 'text-red-400' },
   user_signed_up: { label: 'Signed up', color: 'text-text-muted' },
@@ -121,12 +125,43 @@ export default function AuditLogClient({
     }
   }
 
-  function dismissSuggestion(s: RenameSuggestion) {
+  async function dismissSuggestion(s: RenameSuggestion) {
+    // Optimistically hide it, then persist so it doesn't return on the next load.
     setDismissed((prev) => {
       const next = new Set(prev);
       next.add(s.joinedMemberId);
       return next;
     });
+    setActingOn(s.joinedMemberId);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/clan/suspected-renames', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leftMemberId: s.leftMemberId, joinedMemberId: s.joinedMemberId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Could not save dismissal — it may reappear.');
+        // Roll back the optimistic hide so the mod can retry.
+        setDismissed((prev) => {
+          const next = new Set(prev);
+          next.delete(s.joinedMemberId);
+          return next;
+        });
+      } else {
+        router.refresh();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.delete(s.joinedMemberId);
+        return next;
+      });
+    } finally {
+      setActingOn(null);
+    }
   }
 
   const visibleSuggestions = suggestions.filter((s) => !dismissed.has(s.joinedMemberId));
@@ -177,8 +212,8 @@ export default function AuditLogClient({
                 <span className="text-xs font-normal text-text-muted">({visibleSuggestions.length})</span>
               </h3>
               <p className="text-xs text-text-muted mt-1">
-                Pairs of left+joined members that occurred within 10 minutes and share the same rank.
-                Confirm to merge histories, or dismiss if unrelated.
+                Left+joined pairs from the same sync, sharing a rank, whose Hiscores XP matches
+                closely enough to be the same account. Confirm to merge histories, or dismiss if unrelated.
               </p>
             </div>
           </div>
@@ -200,6 +235,12 @@ export default function AuditLogClient({
                       {s.rank ? <>rank: <span className="text-foreground/80">{s.rank}</span> · </> : null}
                       {s.deltaSeconds}s apart · {new Date(s.joinedAt).toLocaleString()}
                     </div>
+                    {s.leftXp != null && s.joinedXp != null && (
+                      <div className="text-[11px] text-accent-green-light/80 mt-0.5">
+                        XP match: {s.leftXp.toLocaleString()} → {s.joinedXp.toLocaleString()}
+                        {s.xpMatchPct != null && <span className="text-text-muted"> ({s.xpMatchPct}% diff)</span>}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
