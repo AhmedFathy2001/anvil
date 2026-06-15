@@ -13,6 +13,8 @@ interface Tile {
   trackedStat?: string | null;
   statGoal?: number | null;
   statType?: string | null;
+  optional?: number | null;
+  points?: number | null;
 }
 
 interface Completion {
@@ -37,6 +39,7 @@ interface BingoBoardProps {
   dropProgress?: Map<number, { current: number; required: number }>;
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
+  pointsMode?: boolean;
 }
 
 export default function BingoBoard({
@@ -50,6 +53,7 @@ export default function BingoBoard({
   dropProgress,
   statProgress,
   expanded,
+  pointsMode,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -92,6 +96,7 @@ export default function BingoBoard({
             progress={progress}
             statProgress={tileStat}
             expanded={expanded}
+            points={pointsMode && !tile.optional ? (tile.points ?? 1) : undefined}
           />
         );
       })}

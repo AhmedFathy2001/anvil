@@ -75,15 +75,23 @@ export async function GET(request: Request) {
         ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
         : [];
 
+      const pointsMode = event.scoringMode === 'points';
+      const scoredTiles = eventTiles.filter(t => !t.optional);
+      const weightById = new Map(scoredTiles.map(t => [t.id, pointsMode ? (t.points ?? 0) : 1]));
+      const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
+
       const standings = eventTeams.map(team => {
-        const teamCompletions = eventCompletions.filter(c => c.teamId === team.id);
-        return { teamName: team.name, tilesCompleted: teamCompletions.length };
+        const teamScore = eventCompletions
+          .filter(c => c.teamId === team.id && weightById.has(c.tileId))
+          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+        return { teamName: team.name, tilesCompleted: teamScore };
       });
 
       await notifyEventEnd({
         eventName: event.name,
         standings,
-        totalTiles: eventTiles.length,
+        totalTiles: pointsMode ? totalScore : scoredTiles.length,
+        unit: pointsMode ? 'pts' : 'tiles',
       });
       await db.update(events)
         .set({ endNotified: 1 })

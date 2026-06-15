@@ -22,6 +22,8 @@ interface Participant {
   baselineValue: number | null;
   currentValue: number | null;
   lastUpdated: string | null;
+  flagged: number;
+  flagReason: string | null;
 }
 
 export default function WeeklyManagementClient() {
@@ -48,6 +50,11 @@ export default function WeeklyManagementClient() {
   // Refresh
   const [refreshing, setRefreshing] = useState<number | null>(null);
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
+
+  // Baseline correction (fix flagged / implausible gains)
+  const [fixingId, setFixingId] = useState<number | null>(null);
+  const [fixValue, setFixValue] = useState('');
+  const [savingFix, setSavingFix] = useState(false);
 
   // Edit
   const [editingComp, setEditingComp] = useState<Competition | null>(null);
@@ -143,6 +150,33 @@ export default function WeeklyManagementClient() {
       setRefreshResult('Refresh failed');
     }
     setRefreshing(null);
+  }
+
+  function startFix(p: Participant) {
+    setFixingId(p.id);
+    // Default to the current value: setting baseline = current zeroes the bogus
+    // pre-event gain and counts only progress from here on.
+    setFixValue(String(p.currentValue ?? p.baselineValue ?? 0));
+  }
+
+  async function handleSaveFix(compId: number) {
+    if (fixingId === null) return;
+    const baselineValue = Number(fixValue);
+    if (!Number.isFinite(baselineValue) || baselineValue < 0) return;
+    setSavingFix(true);
+
+    const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId: fixingId, baselineValue }),
+    });
+
+    if (res.ok) {
+      setFixingId(null);
+      setFixValue('');
+      loadParticipants(compId);
+    }
+    setSavingFix(false);
   }
 
   async function handleDelete(compId: number) {
@@ -493,6 +527,7 @@ export default function WeeklyManagementClient() {
                                 <th className="px-3 py-2 font-medium">Current</th>
                                 <th className="px-3 py-2 font-medium">Gained</th>
                                 <th className="px-3 py-2 font-medium">Last Updated</th>
+                                <th className="px-3 py-2 font-medium"></th>
                               </tr>
                             </thead>
                             <tbody>
@@ -500,27 +535,75 @@ export default function WeeklyManagementClient() {
                                 .sort((a, b) => ((b.currentValue ?? 0) - (b.baselineValue ?? 0)) - ((a.currentValue ?? 0) - (a.baselineValue ?? 0)))
                                 .map((p) => {
                                   const gained = (p.currentValue ?? 0) - (p.baselineValue ?? 0);
+                                  const isFlagged = p.flagged === 1;
                                   return (
-                                    <tr key={p.id} className="border-b border-card-border/50">
-                                      <td className="px-3 py-2 font-medium">{p.rsn}</td>
+                                    <tr key={p.id} className={`border-b border-card-border/50 ${isFlagged ? 'bg-red-500/5' : ''}`}>
+                                      <td className="px-3 py-2 font-medium">
+                                        <div className="flex items-center gap-1.5">
+                                          {p.rsn}
+                                          {isFlagged && (
+                                            <span
+                                              title={p.flagReason ?? 'Implausible gain — likely pre-event progress swept in by a stale baseline.'}
+                                              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 cursor-help"
+                                            >
+                                              ⚠ Implausible
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
                                       <td className="px-3 py-2 text-text-muted">
                                         {p.baselineValue?.toLocaleString() ?? '-'}
                                       </td>
                                       <td className="px-3 py-2 text-text-muted">
                                         {p.currentValue?.toLocaleString() ?? '-'}
                                       </td>
-                                      <td className={`px-3 py-2 font-medium ${gained > 0 ? 'text-accent-green-light' : 'text-text-muted'}`}>
+                                      <td className={`px-3 py-2 font-medium ${isFlagged ? 'text-red-400' : gained > 0 ? 'text-accent-green-light' : 'text-text-muted'}`}>
                                         {p.baselineValue !== null ? `+${gained.toLocaleString()}` : '-'}
                                       </td>
                                       <td className="px-3 py-2 text-text-muted text-xs">
                                         {p.lastUpdated ? new Date(p.lastUpdated).toLocaleString() : 'Never'}
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        {fixingId === p.id ? (
+                                          <div className="flex items-center gap-1.5 justify-end">
+                                            <input
+                                              type="number"
+                                              value={fixValue}
+                                              onChange={(e) => setFixValue(e.target.value)}
+                                              className="w-28 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs"
+                                            />
+                                            <button
+                                              onClick={() => handleSaveFix(comp.id)}
+                                              disabled={savingFix}
+                                              className="px-2 py-1 text-xs font-semibold bg-gold/20 border border-gold text-gold rounded hover:bg-gold/30 disabled:opacity-50 transition-colors"
+                                            >
+                                              {savingFix ? '...' : 'Save'}
+                                            </button>
+                                            <button
+                                              onClick={() => { setFixingId(null); setFixValue(''); }}
+                                              className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          p.baselineValue !== null && (
+                                            <button
+                                              onClick={() => startFix(p)}
+                                              title="Correct this participant's baseline"
+                                              className={`px-2 py-1 text-xs border rounded transition-colors ${isFlagged ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-card-border text-text-muted hover:border-gold/40'}`}
+                                            >
+                                              Fix baseline
+                                            </button>
+                                          )
+                                        )}
                                       </td>
                                     </tr>
                                   );
                                 })}
                               {participants.length === 0 && (
                                 <tr>
-                                  <td colSpan={5} className="px-3 py-6 text-center text-text-muted">
+                                  <td colSpan={6} className="px-3 py-6 text-center text-text-muted">
                                     No participants enrolled yet.
                                   </td>
                                 </tr>

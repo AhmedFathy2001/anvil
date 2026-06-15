@@ -364,18 +364,21 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
 
 interface EventEndNotifyParams {
   eventName: string;
+  // `tilesCompleted`/`totalTiles` carry summed point weights for points-scoring
+  // events; `unit` controls the label (defaults to 'tiles').
   standings: { teamName: string; tilesCompleted: number }[];
   totalTiles: number;
+  unit?: string;
 }
 
 export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventName, standings, totalTiles } = params;
+  const { eventName, standings, totalTiles, unit = 'tiles' } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} tiles`;
+      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} ${unit}`;
     })
     .join('\n');
 
@@ -393,13 +396,13 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventName, standings, totalTiles } = params;
+  const { eventName, standings, totalTiles, unit = 'tiles' } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} tiles`;
+      return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} ${unit}`;
     })
     .join('\n');
 

@@ -14,11 +14,14 @@ interface ScoreboardProps {
   completionCounts: Map<number, number>;
   eventId: number;
   dropProgressByTeam?: Map<number, { inProgress: number; total: number }>;
+  // When true the scores in `completionCounts`/`totalTiles` are point weights, not
+  // raw tile counts — relabel the UI accordingly ("X / Y pts", "X pts remaining").
+  pointsMode?: boolean;
 }
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function Scoreboard({ teams, totalTiles, completionCounts, eventId, dropProgressByTeam }: ScoreboardProps) {
+export default function Scoreboard({ teams, totalTiles, completionCounts, eventId, dropProgressByTeam, pointsMode }: ScoreboardProps) {
   const sortedTeams = [...teams].sort((a, b) => {
     const aCount = completionCounts.get(a.id) || 0;
     const bCount = completionCounts.get(b.id) || 0;
@@ -62,9 +65,9 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
                 <span className="text-xl font-bold" style={{ color: team.color }}>
                   {completed}
                 </span>
-                <span className="text-text-muted text-sm">/{totalTiles}</span>
+                <span className="text-text-muted text-sm">/{totalTiles}{pointsMode ? ' pts' : ''}</span>
                 <p className="text-xs text-text-muted">
-                  {tilesLeft} remaining
+                  {tilesLeft} {pointsMode ? 'pts ' : ''}remaining
                   {dropInfo && dropInfo.inProgress > 0 && (
                     <span className="text-yellow-400 ml-1">
                       · {dropInfo.inProgress} drop{dropInfo.inProgress !== 1 ? 's' : ''} in progress

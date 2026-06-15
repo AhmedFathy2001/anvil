@@ -10,6 +10,7 @@ interface Props {
   initial: TileConfig;
   onSaved: (updated: TileConfig) => void;
   eventStarted?: boolean;
+  pointsMode?: boolean;
 }
 
 export default function TileTrackingConfig({
@@ -18,6 +19,7 @@ export default function TileTrackingConfig({
   initial,
   onSaved,
   eventStarted,
+  pointsMode,
 }: Props) {
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(
@@ -40,6 +42,9 @@ export default function TileTrackingConfig({
     initial.trackingMode || "team",
   );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
+  const [points, setPoints] = useState<string>(
+    initial.points != null ? initial.points.toString() : "1",
+  );
   const [perItemMode, setPerItemMode] = useState<boolean>(!!initial.itemRequirements?.length);
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
@@ -120,6 +125,7 @@ export default function TileTrackingConfig({
         statGoal: statGoal ? parseInt(statGoal, 10) : null,
         trackingMode,
         optional,
+        points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
       };
 
       if (perItemMode && trackedItems.length > 0) {
@@ -155,6 +161,7 @@ export default function TileTrackingConfig({
           optional: !!updated.optional,
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
+          points: updated.points ?? 1,
         });
       }
     } finally {
@@ -206,6 +213,26 @@ export default function TileTrackingConfig({
           placeholder="Tile description..."
         />
       </div>
+
+      {/* Point value (points-scoring events only) */}
+      {pointsMode && (
+        <div>
+          <label className="block text-xs text-text-muted mb-1">
+            Point Value <span className="text-text-muted/60">(score awarded on completion)</span>
+          </label>
+          <input
+            type="number"
+            value={points}
+            onChange={(e) => setPoints(e.target.value)}
+            min="0"
+            placeholder="e.g. 10"
+            className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+          />
+          <p className="text-[10px] text-text-muted mt-0.5">
+            Higher = harder tile. A team&rsquo;s standing is the sum of points for the tiles it completes.
+          </p>
+        </div>
+      )}
 
       {/* Tile type toggle */}
       <div>

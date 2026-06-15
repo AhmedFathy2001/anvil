@@ -17,6 +17,7 @@ export interface Event {
   signupOpensAt: string | null;
   signupDeadline: string | null;
   captainSelectionDeadline: string | null;
+  scoringMode?: string; // 'tiles' (classic) | 'points'
 }
 
 export interface Tile {
@@ -35,6 +36,7 @@ export interface Tile {
   optional?: number | null;
   trackedItemIds?: string | null;
   itemRequirements?: string | null;
+  points?: number | null;
 }
 
 export interface Team {
@@ -104,6 +106,7 @@ export interface TileConfig {
   optional: boolean;
   trackedItemIds: number[] | null;
   itemRequirements: ItemRequirement[] | null;
+  points: number;
 }
 
 export interface PlayerGain {

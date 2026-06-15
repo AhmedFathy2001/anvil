@@ -1,3 +1,20 @@
+// Fun one-liners the Anvil plugin may post on a player's death (1/100 roll, otherwise
+// the player's own configured message is used). `{name}` is substituted with the RSN.
+// Served via GET /api/plugin/config so the pool can be edited without a plugin release;
+// the plugin keeps a small baked-in fallback for when it's offline.
+export const FUN_DEATH_MESSAGES: string[] = [
+  "{name} has been sent to Lumbridge to think about their choices.",
+  "{name} forgot to flick Protect from Magic. Classic.",
+  "{name} died doing what they loved: not eating.",
+  "GG {name}, the gravestone fund thanks you for your donation.",
+  "{name} has logged out to the respawn screen.",
+  "{name} found out the hard way that it does, in fact, hit through prayer.",
+  "{name} bravely tanked one more hit than they had HP for.",
+  "Press F for {name}.",
+  "{name} just speedran a trip to Lumbridge.",
+  "{name} would like to remind everyone that food is optional, apparently.",
+];
+
 export const SKILLS = [
   "overall",
   "attack",

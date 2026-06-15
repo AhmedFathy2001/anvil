@@ -7,6 +7,7 @@ import Link from 'next/link';
 import BingoBoard from '@/components/BingoBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
+import { tileWeight, isPointsMode } from '@/lib/utils';
 
 interface Props {
   event: Event;
@@ -76,8 +77,14 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
-  const completed = completions.length;
-  const total = tiles.length;
+  const pointsMode = isPointsMode(event.scoringMode);
+  const weightById = new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
+  const completed = pointsMode
+    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
+    : completions.length;
+  const total = pointsMode
+    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : tiles.length;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -101,7 +108,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded-full font-medium">Admin</span>
       </div>
       <p className="text-text-muted text-sm mb-6">
-        Click tiles to view details and manage · {completed}/{total} completed
+        Click tiles to view details and manage · {completed}/{total} {pointsMode ? 'pts' : 'completed'}
       </p>
 
       <BingoBoard
@@ -112,6 +119,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         activeTeamId={team.id}
         onTileClick={handleTileClick}
         dropProgress={dropProgress}
+        pointsMode={pointsMode}
       />
 
       {/* Tile Detail Modal */}
@@ -132,6 +140,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           dropProgress={dropProgress.get(selectedTile.id)}
           perItemProgress={perItemProgressMap.get(selectedTile.id)}
           teamPlayers={teamPlayers.map((p) => ({ id: p.id, name: p.name }))}
+          pointsMode={pointsMode}
         />
       )}
     </div>

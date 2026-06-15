@@ -13,9 +13,10 @@ interface TileCellProps {
   progress?: { current: number; required: number };
   statProgress?: { current: number; goal: number; statType?: string };
   expanded?: boolean;
+  points?: number;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   const isDrop = tileType === 'drop';
@@ -48,6 +49,20 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       }
       title={isCompleted ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}` : label}
     >
+      {/* Point value badge (points-scoring events) — top-left so it clears the checkmark */}
+      {points !== undefined && (
+        <div
+          className={cn(
+            'absolute top-1 left-1 rounded px-1 font-bold leading-none',
+            'bg-purple-500/25 text-purple-200 border border-purple-400/30',
+            size <= 5 ? 'text-[8px] sm:text-[10px] py-0.5' : 'text-[7px] sm:text-[8px] py-px',
+          )}
+          title={`${points} point${points !== 1 ? 's' : ''}`}
+        >
+          {points}
+        </div>
+      )}
+
       {/* Completed checkmark */}
       {isCompleted && (
         <div

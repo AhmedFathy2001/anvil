@@ -16,11 +16,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
   }
+
+  if (scoringMode !== undefined && scoringMode !== 'tiles' && scoringMode !== 'points') {
+    return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
+  }
+  const resolvedScoringMode = scoringMode === 'points' ? 'points' : 'tiles';
 
   const expectedTiles = boardSize * boardSize;
   // tileLabels is optional — when omitted (the "blank create" path) we generate
@@ -47,7 +52,7 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const event = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(events).values({ name, boardSize }).returning();
+    const [created] = await tx.insert(events).values({ name, boardSize, scoringMode: resolvedScoringMode }).returning();
     const tileValues = resolvedLabels.map((label: string, index: number) => ({
       eventId: created.id,
       position: index,

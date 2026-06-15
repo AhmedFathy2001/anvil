@@ -21,3 +21,22 @@ export function formatNumber(num: number, decimals: number = 1): string {
   }
   return num.toString();
 }
+
+/**
+ * The weight a single tile contributes to a team's score.
+ * In 'points' mode it's the tile's configured `points` (default 1); in classic
+ * 'tiles' mode every tile is worth 1. This is the one place the two scoring modes
+ * diverge — everything else (completion mechanics, blackout detection) is shared.
+ */
+export function tileWeight(
+  scoringMode: string | null | undefined,
+  points: number | null | undefined,
+): number {
+  if (scoringMode === 'points') return points ?? 0;
+  return 1;
+}
+
+/** True when the event tallies standings by summed point weights rather than tile counts. */
+export function isPointsMode(scoringMode: string | null | undefined): boolean {
+  return scoringMode === 'points';
+}

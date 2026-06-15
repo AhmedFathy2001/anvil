@@ -5,7 +5,7 @@ import Link from 'next/link';
 import BingoBoard from '@/components/BingoBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
 
 interface Tile {
   id: number;
@@ -21,6 +21,7 @@ interface Tile {
   statGoal?: number | null;
   trackingMode?: string;
   optional?: number | null;
+  points?: number | null;
 }
 
 interface Team {
@@ -47,6 +48,7 @@ interface Event {
   startDate?: string | null;
   endDate?: string | null;
   forceEndedAt?: string | null;
+  scoringMode?: string;
 }
 
 interface Submission {
@@ -177,14 +179,20 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   }, [event.id, teams, tiles]);
 
   // Exclude optional tiles from completion counts
+  const pointsMode = isPointsMode(event.scoringMode);
   const requiredTiles = tiles.filter((t) => !t.optional);
-  const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+  // Weight per tile: its point value in points mode, 1 in classic mode. A team's
+  // score is the summed weight of the required tiles it has completed, and the
+  // "total" the scoreboard divides against is the summed weight of all required tiles.
+  const weightById = new Map(requiredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
+  const totalWeight = requiredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
 
   const completionCounts = new Map<number, number>();
   for (const c of completions) {
     // Only count completions of required (non-optional) tiles
-    if (requiredTileIds.has(c.tileId)) {
-      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + 1);
+    const w = weightById.get(c.tileId);
+    if (w !== undefined) {
+      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + w);
     }
   }
 
@@ -234,6 +242,11 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
           <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
             {event.boardSize}x{event.boardSize}
           </span>
+          {pointsMode && (
+            <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">
+              {totalWeight} pts on the board
+            </span>
+          )}
           <span>{teams.length} team{teams.length !== 1 ? 's' : ''}</span>
           <span>{totalCompleted} tile{totalCompleted !== 1 ? 's' : ''} completed</span>
         </div>
@@ -283,10 +296,11 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             </h2>
             <Scoreboard
               teams={teams}
-              totalTiles={requiredTiles.length}
+              totalTiles={pointsMode ? totalWeight : requiredTiles.length}
               completionCounts={completionCounts}
               eventId={event.id}
               dropProgressByTeam={dropProgressByTeam}
+              pointsMode={pointsMode}
             />
 
             {/* XP/Stat Gains */}
@@ -341,6 +355,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             onTileClick={setSelectedTileId}
             statProgress={statProgressMap}
             expanded={fullscreen}
+            pointsMode={pointsMode}
           />
         </div>
       </div>
@@ -373,6 +388,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             )}
 
             <div className="space-y-2 text-sm">
+              {pointsMode && !selectedTile.optional && (
+                <div className="flex items-center gap-2">
+                  <span className="text-text-muted">Points:</span>
+                  <span className="text-purple-300 font-medium">{selectedTile.points ?? 1}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className="text-text-muted">Type:</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${

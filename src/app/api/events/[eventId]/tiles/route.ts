@@ -29,7 +29,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -55,6 +55,12 @@ export async function PUT(
   if (requiredAmount !== undefined && requiredAmount !== null) {
     if (!Number.isInteger(requiredAmount) || requiredAmount < 1) {
       return NextResponse.json({ error: 'requiredAmount must be an integer >= 1' }, { status: 400 });
+    }
+  }
+
+  if (points !== undefined && points !== null) {
+    if (!Number.isInteger(points) || points < 0) {
+      return NextResponse.json({ error: 'points must be a non-negative integer' }, { status: 400 });
     }
   }
 
@@ -87,6 +93,8 @@ export async function PUT(
     trackingMode: trackingMode !== undefined ? trackingMode : tile.trackingMode,
     // optional is always editable
     optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,
+    // point weight is always editable (admin can tune standings even mid-event)
+    points: points !== undefined && points !== null ? points : tile.points,
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)

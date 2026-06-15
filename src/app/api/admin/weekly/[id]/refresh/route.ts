@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat } from '@/lib/weekly';
+import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
 
 // Sequential hiscores fetch for every participant — easily over a minute. Default
@@ -67,6 +68,21 @@ export async function POST(
           lastUpdated: nowIso,
         };
         if (p.baselineValue === null) updates.baselineValue = result.value;
+
+        // Mirror the cron's implausible-jump flag (see src/lib/gainsValidation.ts).
+        if (p.currentValue !== null) {
+          const spike = checkRateSpike({
+            type: compType,
+            metric: comp[0].metric,
+            delta: result.value - p.currentValue,
+            fromIso: p.lastUpdated,
+            toIso: nowIso,
+          });
+          if (spike.flagged) {
+            updates.flagged = 1;
+            updates.flagReason = describeRateSpike(compType, spike);
+          }
+        }
         await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
         updated++;
       } else if (result.kind === 'unranked') {

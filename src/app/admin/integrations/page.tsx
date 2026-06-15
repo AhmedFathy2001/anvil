@@ -27,6 +27,34 @@ export default function AdminIntegrationsPage() {
         </div>
       </section>
 
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Plugin notifications</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Channels the Anvil plugin posts to directly when a clan member dies or receives a rare
+          drop. Members fetch these on launch, so remapping a channel here takes effect on their next
+          login — no plugin update needed. Leave blank to disable that notification.
+        </p>
+        <div className="space-y-4">
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <DiscordSettings
+              settingKey="webhook_rare_drops"
+              label="Rare drops channel"
+              helpText="Valuable drops and pets are posted here by the plugin."
+            />
+          </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <DiscordSettings
+              settingKey="webhook_deaths"
+              label="Deaths channel"
+              helpText="Death notifications (and the occasional surprise) are posted here by the plugin."
+            />
+          </div>
+        </div>
+      </section>
+
       <section>
         <div className="flex items-center gap-2 mb-3">
           <span className="w-1 h-5 bg-gold rounded-full" />

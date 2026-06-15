@@ -1,0 +1,101 @@
+id,tile,description,category,difficulty,points
+1,Any Clue Scroll (Easy),Obtain an easy clue scroll drop,Clues,Easy,10
+2,Mole Claw / Mole Skin,Get a drop from Giant Mole,Boss,Easy,10
+3,Ensouled Head,Loot any ensouled head,Slayer,Easy,10
+4,Mystic Robe Piece (any),Receive any Mystic robe piece,PvM,Easy,15
+5,Granite Maul,Get a Granite maul drop,Slayer,Easy,15
+6,Any Barrows Piece,Receive any single Barrows item,Boss,Easy,20
+7,Sapphire/Emerald Drop,Loot a cut/uncut sapphire or emerald,PvM,Easy,15
+8,Long Bone,Receive a Long bone drop,PvM,Easy,20
+9,Dragon Med Helm,Get a Dragon med helm drop,Slayer,Easy,20
+10,Black Mask,Receive a Black mask drop,Slayer,Easy,25
+11,Skotos,Obtain the Skotos pet,Boss,Medium,150
+12,Mist/Dust Battlestaff,Get a Mist or Dust battlestaff,Slayer,Easy,25
+13,Any Clue Scroll (Medium),Obtain a medium clue scroll,Clues,Easy,15
+14,Dragon Boots,Receive Dragon boots from Spiritual mages,Slayer,Easy,30
+15,Abyssal Whip,Get an Abyssal whip from Abyssal demons,Slayer,Medium,40
+16,Abyssal Dagger,Receive an Abyssal dagger,Slayer,Medium,60
+17,Imbued Heart,Get an Imbued heart drop,Slayer,Hard,120
+18,Eternal Gem,Receive an Eternal gem,Slayer,Hard,150
+19,Dragon Pickaxe,Get a Dragon pickaxe drop,Slayer,Medium,70
+20,Dragon Harpoon,Receive a Dragon harpoon,Slayer,Medium,70
+21,Granite Boots / Ring,Get a Granite boots or ring drop,Slayer,Medium,50
+22,Mutagen (Tanzanite/Magma),Receive a Tanzanite or Magma mutagen,Boss,Elite,300
+23,Serpentine Visage,Get a Serpentine visage from Zulrah,Boss,Medium,60
+24,Tanzanite Fang,Receive a Tanzanite fang from Zulrah,Boss,Medium,80
+25,Magic Fang,Get a Magic fang from Zulrah,Boss,Medium,80
+26,Toxic Blowpipe (Uncharged),Receive a Toxic blowpipe,Boss,Hard,120
+27,Pet Snakeling,Obtain Pet snakeling (Zulrah),Boss,Elite,300
+28,Dragon Warhammer,Get a Dragon warhammer drop,PvM,Hard,180
+29,Ballista Piece (any),Receive any Heavy/Light ballista piece,PvM,Medium,60
+30,Dragon 2h Sword,Get a Dragon 2h sword drop,PvM,Medium,50
+31,Zenyte Shard,Receive a Zenyte shard,Boss,Medium,70
+32,Hydra Leather,Get a Hydra leather from Alchemical Hydra,Boss,Hard,120
+33,Hydra Claw,Receive a Hydra claw,Boss,Hard,150
+34,Hydra's Eye/Fang/Heart,Get any Brimstone ring piece,Boss,Medium,60
+35,Ikkle Hydra,Obtain the Ikkle hydra pet,Boss,Elite,300
+36,Dragon Hunter Lance,Get a Dragon hunter lance,Boss,Hard,120
+37,Bandos Tassets,Receive Bandos tassets,GWD,Hard,140
+38,Bandos Chestplate,Get a Bandos chestplate,GWD,Hard,140
+39,Bandos Boots,Receive Bandos boots,GWD,Medium,50
+40,Bandos Hilt,Get a Bandos hilt drop,GWD,Hard,120
+41,Pet General Graardor,Obtain the Graardor pet,GWD,Elite,350
+42,Armadyl Helmet,Receive an Armadyl helmet,GWD,Medium,80
+43,Armadyl Chestplate,Get an Armadyl chestplate,GWD,Hard,140
+44,Armadyl Chainskirt,Receive an Armadyl chainskirt,GWD,Hard,140
+45,Armadyl Hilt,Get an Armadyl hilt drop,GWD,Hard,130
+46,Pet Kree'arra,Obtain the Kree'arra pet,GWD,Elite,350
+47,Saradomin Sword,Receive a Saradomin sword,GWD,Medium,50
+48,Armadyl Crossbow,Get an Armadyl crossbow drop,GWD,Hard,180
+49,Saradomin Hilt,Receive a Saradomin hilt,GWD,Hard,120
+50,Pet Zilyana,Obtain the Zilyana pet,GWD,Elite,350
+51,Zamorakian Spear,Get a Zamorakian spear drop,GWD,Medium,60
+52,Steam Battlestaff,Receive a Steam battlestaff,GWD,Easy,30
+53,Staff of the Dead,Get a Staff of the dead drop,GWD,Hard,130
+54,Zamorak Hilt,Receive a Zamorak hilt,GWD,Hard,120
+55,Pet K'ril Tsutsaroth,Obtain the K'ril pet,GWD,Elite,350
+56,Nex - Torva Piece,Receive any Torva armour piece,Nex,Elite,360
+57,Nex - Zaryte Vambraces,Get Zaryte vambraces,Nex,Hard,160
+58,Nex - Nihil Horn,Receive a Nihil horn,Nex,Hard,180
+59,Nex - Ancient Hilt,Get an Ancient hilt drop,Nex,Elite,300
+60,Pet Nexling,Obtain the Nexling pet,Nex,Elite,400
+61,Dragon Axe,Get a Dragon axe (Dagannoth Kings),Boss,Easy,30
+62,Berserker Ring,Receive a Berserker ring,Boss,Medium,50
+63,Archers Ring,Get an Archers ring drop,Boss,Medium,50
+64,Seers Ring,Receive a Seers ring,Boss,Medium,50
+65,Warrior Ring,Get a Warrior ring drop,Boss,Medium,50
+66,Pet Dagannoth (any),Obtain any Dagannoth King pet,Boss,Elite,300
+67,Occult Necklace,Get an Occult necklace from Smoke Devils,Slayer,Medium,40
+68,Pet Smoke Devil,Obtain Smoke devil pet (Thermy),Boss,Elite,300
+69,Kraken Tentacle,Receive a Kraken tentacle,Boss,Easy,30
+70,Trident of the Seas,Get a Trident of the seas,Boss,Easy,25
+71,Pet Kraken,Obtain the Kraken pet,Boss,Elite,300
+72,Odium/Malediction Shard,Receive any Wildy shield shard,Wildy,Medium,60
+73,Treasonous Ring,Get a Treasonous ring (Venenatis),Wildy,Medium,60
+74,Tyrannical Ring,Receive a Tyrannical ring (Callisto),Wildy,Medium,60
+75,Ring of the Gods,Get a Ring of the gods (Vet'ion),Wildy,Medium,70
+76,Dragon Pickaxe (Wildy),Receive a Dragon pickaxe from a Wildy boss,Wildy,Medium,80
+77,Voidwaker Piece (any),Get any Voidwaker hilt/blade/gem,Wildy,Hard,160
+78,Pet (any Wildy Boss),Obtain any Wilderness boss pet,Wildy,Elite,350
+79,Fedora,Receive the Fedora from Crazy Archaeologist,Wildy,Hard,200
+80,Curved/Long Bone,Get a Curved bone drop,PvM,Hard,200
+81,Tome of Fire (Page),Receive a Burnt page,Boss,Easy,20
+82,Pharaoh's Sceptre,Get a Pharaoh's sceptre (Pyramid Plunder),Minigame,Medium,60
+83,Any Clue Scroll (Hard),Obtain a hard clue scroll,Clues,Easy,20
+84,Any Clue Scroll (Elite),Obtain an elite clue scroll,Clues,Medium,60
+85,Any Clue Scroll (Master),Obtain a master clue scroll,Clues,Hard,120
+86,3rd Age Item (any),Receive any 3rd age item from a clue,Clues,Elite,400
+87,Ranger Boots,Get Ranger boots from a clue,Clues,Hard,150
+88,Robin Hood Hat,Receive a Robin hood hat from a clue,Clues,Hard,150
+89,Dragon Full Helm,Get a Dragon full helm from a clue,Clues,Medium,80
+90,Bloodhound,Obtain the Bloodhound pet,Clues,Elite,300
+91,Twisted Bow,Receive a Twisted bow (CoX),Raids,Elite,400
+92,Dragon Hunter Crossbow,Get a Dragon hunter crossbow (CoX),Raids,Hard,160
+93,Ancestral Piece (any),Receive any Ancestral robe piece (CoX),Raids,Elite,300
+94,Dinh's Bulwark,Get Dinh's bulwark (CoX),Raids,Hard,130
+95,Scythe of Vitur,Receive a Scythe of vitur (ToB),Raids,Elite,400
+96,Justiciar Piece (any),Get any Justiciar armour piece (ToB),Raids,Hard,180
+97,Avernic Defender Hilt,Receive an Avernic defender hilt (ToB),Raids,Hard,150
+98,Tumeken's Shadow,Get Tumeken's shadow (ToA),Raids,Elite,400
+99,Masori Piece (any),Receive any Masori armour piece (ToA),Raids,Hard,200
+100,Lightbearer / Ring (ToA),Get a Lightbearer or ring drop (ToA),Raids,Medium,80

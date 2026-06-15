@@ -9,6 +9,7 @@ import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
+import { tileWeight, isPointsMode } from '@/lib/utils';
 
 interface Props {
   event: Event;
@@ -150,8 +151,17 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
     }
   }
 
-  const completed = completions.length;
-  const total = tiles.length;
+  const pointsMode = isPointsMode(event.scoringMode);
+  const weightById = useMemo(
+    () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
+    [tiles, event.scoringMode],
+  );
+  const completed = pointsMode
+    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
+    : completions.length;
+  const total = pointsMode
+    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : tiles.length;
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
@@ -193,7 +203,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
       {/* Progress bar */}
       <div className="mb-4 max-w-md">
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-text-muted">{completed}/{total} completed</span>
+          <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
           <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
         </div>
         <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
@@ -241,6 +251,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
         }}
         dropProgress={dropProgress}
         statProgress={statProgress}
+        pointsMode={pointsMode}
       />
 
       {/* My Contributions */}
@@ -271,6 +282,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
           teamPlayers={teamPlayers.map((p) => ({ id: p.id, name: p.name }))}
           currentPlayerId={playerId}
           statProgress={gains[selectedTile.id]}
+          pointsMode={pointsMode}
         />
       )}
     </div>

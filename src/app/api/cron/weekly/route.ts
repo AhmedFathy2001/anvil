@@ -9,6 +9,7 @@ import {
   reviewPendingRenames,
   writePlayerSnapshot,
 } from '@/lib/weekly';
+import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -168,6 +169,7 @@ export async function GET(request: Request) {
         rsn: weeklyParticipants.rsn,
         baselineValue: weeklyParticipants.baselineValue,
         currentValue: weeklyParticipants.currentValue,
+        lastUpdated: weeklyParticipants.lastUpdated,
         clanMemberId: weeklyParticipants.clanMemberId,
       })
       .from(weeklyParticipants)
@@ -232,6 +234,29 @@ export async function GET(request: Request) {
               lastUpdated: nowIso,
             };
             if (p.baselineValue === null) updates.baselineValue = result.value;
+
+            // Flag an implausible single-tick jump (e.g. a logout flush of a pre-event
+            // grind sweeping into the gain). We flag — never clamp — so an admin can
+            // correct the baseline by hand. Only set the flag; never clear it here.
+            if (p.currentValue !== null) {
+              const spike = checkRateSpike({
+                type: compType,
+                metric: comp.metric,
+                delta: result.value - p.currentValue,
+                fromIso: p.lastUpdated,
+                toIso: nowIso,
+              });
+              if (spike.flagged) {
+                updates.flagged = 1;
+                updates.flagReason = describeRateSpike(compType, spike);
+                log.warn('weekly-cron.implausible-gain', {
+                  rsn: p.rsn,
+                  competitionId: comp.id,
+                  delta: result.value - p.currentValue,
+                  ratePerHour: Math.round(spike.ratePerHour),
+                });
+              }
+            }
             await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
             compResult.participantsUpdated++;
 

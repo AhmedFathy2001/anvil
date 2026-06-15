@@ -18,6 +18,7 @@ import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import DateRangeField from '@/components/DateRangeField';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import SignupAdminPanel from './SignupAdminPanel';
+import { tileWeight, isPointsMode } from '@/lib/utils';
 
 // Convert UTC ISO string to local datetime-local input format
 function utcToLocal(utcString: string | null): string {
@@ -118,6 +119,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   // here on the admin view we surface them with their own badge so the state isn't ambiguous.
   const isDraft = !isForceEnded && !currentEvent.startDate;
   const isActive = eventStarted && !eventEnded;
+  const pointsMode = isPointsMode(currentEvent.scoringMode);
 
   // Real-time updates via smart polling
   const { connected: streamConnected } = useEventStream(event.id, {
@@ -418,6 +420,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     optional?: boolean;
     trackedItemIds?: number[] | null;
     itemRequirements?: { itemId: number; name: string; requiredAmount: number }[] | null;
+    points?: number;
   }) {
     // localTiles mirrors the DB row shape, where trackedItemIds/itemRequirements are
     // stringified JSON. TileTrackingConfig hands us the parsed forms, so re-serialize
@@ -460,6 +463,11 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
         <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
           {event.boardSize}x{event.boardSize}
         </span>
+        {pointsMode && (
+          <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">
+            Points
+          </span>
+        )}
         <span>{tiles.length} tiles</span>
         <span>{teams.length} team{teams.length !== 1 ? 's' : ''}</span>
         <span
@@ -512,6 +520,10 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
           <div>
             <label className="block text-xs text-text-muted mb-1">Board Size</label>
             <p className="text-sm font-medium">{currentEvent.boardSize}×{currentEvent.boardSize}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Scoring</label>
+            <p className="text-sm font-medium">{pointsMode ? 'Points (Leagues-style)' : 'Classic (tile count)'}</p>
           </div>
         </div>
 
@@ -616,9 +628,12 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             <div className="space-y-2 mb-8">
               {teams.map((team) => {
                 const requiredTiles = localTiles.filter((t) => !t.optional);
-                const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
-                const completed = liveCompletions.filter((c) => c.teamId === team.id && requiredTileIds.has(c.tileId)).length;
-                const pct = requiredTiles.length > 0 ? Math.round((completed / requiredTiles.length) * 100) : 0;
+                const weightById = new Map(requiredTiles.map((t) => [t.id, tileWeight(currentEvent.scoringMode, t.points)]));
+                const totalWeight = requiredTiles.reduce((sum, t) => sum + tileWeight(currentEvent.scoringMode, t.points), 0);
+                const completed = liveCompletions
+                  .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
+                  .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+                const pct = totalWeight > 0 ? Math.round((completed / totalWeight) * 100) : 0;
                 return (
                   <div
                     key={team.id}
@@ -628,7 +643,7 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
                       <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: team.color }} />
                       <div>
                         <span className="font-semibold">{team.name}</span>
-                        <span className="text-text-muted text-xs ml-2">{completed}/{requiredTiles.length} ({pct}%)</span>
+                        <span className="text-text-muted text-xs ml-2">{completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -795,6 +810,11 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold truncate">{tile.label}</span>
                   <div className="flex items-center gap-1.5">
+                    {pointsMode && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
+                        {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
+                      </span>
+                    )}
                     {tile.optional ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
                         Optional
@@ -848,9 +868,11 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
                         optional: !!tile.optional,
                         trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
                         itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
+                        points: tile.points ?? 1,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}
+                      pointsMode={pointsMode}
                     />
                   </div>
                 )}

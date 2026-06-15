@@ -7,6 +7,7 @@ export default function EventForm() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [boardSize, setBoardSize] = useState(5);
+  const [scoringMode, setScoringMode] = useState<'tiles' | 'points'>('tiles');
   const [tileLabelsRaw, setTileLabelsRaw] = useState('');
   const [tileIcons, setTileIcons] = useState<string[]>([]);
   const [importedFile, setImportedFile] = useState('');
@@ -90,8 +91,8 @@ export default function EventForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(
         tileLabels.length > 0
-          ? { name, boardSize, tileLabels, tileIcons }
-          : { name, boardSize },
+          ? { name, boardSize, tileLabels, tileIcons, scoringMode }
+          : { name, boardSize, scoringMode },
       ),
     });
 
@@ -176,6 +177,39 @@ export default function EventForm() {
               {boardSize}×{boardSize} = {totalTiles} tiles
             </span>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground/70 mb-1.5">Scoring Mode</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setScoringMode('tiles')}
+              className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                scoringMode === 'tiles'
+                  ? 'bg-gold/20 border-gold text-gold'
+                  : 'border-card-border text-text-muted hover:border-gold/50'
+              }`}
+            >
+              Classic (tile count)
+            </button>
+            <button
+              type="button"
+              onClick={() => setScoringMode('points')}
+              className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                scoringMode === 'points'
+                  ? 'bg-gold/20 border-gold text-gold'
+                  : 'border-card-border text-text-muted hover:border-gold/50'
+              }`}
+            >
+              Points (Leagues-style)
+            </button>
+          </div>
+          <p className="text-xs text-text-muted mt-1 leading-relaxed">
+            {scoringMode === 'points'
+              ? 'Each tile carries a point value (set per-tile after creation). A team’s score is the sum of points for completed tiles — harder tiles are worth more.'
+              : 'Every completed tile counts equally toward a team’s score.'}
+          </p>
         </div>
 
         {hasImportedLabels ? (

@@ -101,15 +101,25 @@ export async function PATCH(
       ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
       : [];
 
+    // Points-scoring events tally summed point weights of non-optional tiles;
+    // classic events tally raw completed-tile counts.
+    const pointsMode = event.scoringMode === 'points';
+    const scoredTiles = eventTiles.filter(t => !t.optional);
+    const weightById = new Map(scoredTiles.map(t => [t.id, pointsMode ? (t.points ?? 0) : 1]));
+    const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
+
     const standings = eventTeams.map(team => {
-      const teamCompletions = eventCompletions.filter(c => c.teamId === team.id);
-      return { teamName: team.name, tilesCompleted: teamCompletions.length };
+      const teamScore = eventCompletions
+        .filter(c => c.teamId === team.id && weightById.has(c.tileId))
+        .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+      return { teamName: team.name, tilesCompleted: teamScore };
     });
 
     notifyEventForceEnd({
       eventName: event.name,
       standings,
-      totalTiles: eventTiles.length,
+      totalTiles: pointsMode ? totalScore : scoredTiles.length,
+      unit: pointsMode ? 'pts' : 'tiles',
     }).catch(() => {});
 
     return NextResponse.json(updated);

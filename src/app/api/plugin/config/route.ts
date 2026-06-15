@@ -4,6 +4,12 @@ import { events, tiles, teams, submissions, players } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
+import {
+  buildSchedule,
+  getActiveWeekly,
+  getNotificationWebhooks,
+  getFunDeathMessages,
+} from '@/lib/pluginConfig';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -23,6 +29,14 @@ export async function GET(request: Request) {
     // enrolled anywhere right now.
     const userOnly = await verifyPluginTokenUser(request);
     if (userOnly) {
+      // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
+      // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
+      // panel shows the schedule even when the player isn't enrolled anywhere.
+      const [schedule, activeWeekly, webhooks] = await Promise.all([
+        buildSchedule(),
+        getActiveWeekly(),
+        getNotificationWebhooks(),
+      ]);
       return NextResponse.json({
         event: null,
         team: null,
@@ -31,6 +45,10 @@ export async function GET(request: Request) {
         trackedStats: [],
         trackedDrops: [],
         noActiveEvent: true,
+        schedule,
+        activeWeekly,
+        webhooks,
+        funDeathMessages: getFunDeathMessages(),
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
@@ -153,6 +171,15 @@ export async function GET(request: Request) {
     };
   });
 
+  // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
+  // schedule + active weekly (was two separate endpoints) plus the notification
+  // webhooks and fun-death pool the plugin posts with directly.
+  const [schedule, activeWeekly, webhooks] = await Promise.all([
+    buildSchedule(),
+    getActiveWeekly(),
+    getNotificationWebhooks(),
+  ]);
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -170,6 +197,10 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    schedule,
+    activeWeekly,
+    webhooks,
+    funDeathMessages: getFunDeathMessages(),
     trackedStats,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured

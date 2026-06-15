@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 
-const EXPOSED_KEYS = ['discord_webhook_url', 'clan_name'] as const;
+const EXPOSED_KEYS = [
+  'discord_webhook_url',
+  'clan_name',
+  'webhook_rare_drops',
+  'webhook_deaths',
+] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 
 async function upsertSetting(key: string, value: string | null) {

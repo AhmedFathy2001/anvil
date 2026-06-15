@@ -43,6 +43,7 @@ interface Props {
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
   statProgress?: PlayerStatProgress[];
+  pointsMode?: boolean;
 }
 
 export default function TileDetailModal({
@@ -63,6 +64,7 @@ export default function TileDetailModal({
   teamPlayers,
   currentPlayerId,
   statProgress,
+  pointsMode,
 }: Props) {
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
@@ -253,6 +255,11 @@ export default function TileDetailModal({
                 {isStatTile && tile.statGoal && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
+                  </span>
+                )}
+                {pointsMode && !tile.optional && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium">
+                    {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
                   </span>
                 )}
                 {isCompleted && (

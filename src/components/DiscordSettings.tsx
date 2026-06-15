@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react';
 
-export default function DiscordSettings() {
+interface DiscordSettingsProps {
+  // Which settings key this field reads/writes. Defaults to the main event webhook.
+  settingKey?: string;
+  label?: string;
+  helpText?: string;
+}
+
+export default function DiscordSettings({
+  settingKey = 'discord_webhook_url',
+  label = 'Discord Webhook URL',
+  helpText = 'Get a webhook URL from your Discord server settings → Integrations → Webhooks',
+}: DiscordSettingsProps) {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [originalUrl, setOriginalUrl] = useState('');
   const [loading, setLoading] = useState(true);
@@ -12,15 +23,16 @@ export default function DiscordSettings() {
 
   useEffect(() => {
     loadSettings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingKey]);
 
   async function loadSettings() {
     try {
       const res = await fetch('/api/admin/settings');
       if (res.ok) {
         const data = await res.json();
-        setWebhookUrl(data.discord_webhook_url || '');
-        setOriginalUrl(data.discord_webhook_url || '');
+        setWebhookUrl(data[settingKey] || '');
+        setOriginalUrl(data[settingKey] || '');
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -36,7 +48,7 @@ export default function DiscordSettings() {
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discord_webhook_url: webhookUrl }),
+        body: JSON.stringify({ [settingKey]: webhookUrl }),
       });
       if (res.ok) {
         setOriginalUrl(webhookUrl);
@@ -89,20 +101,18 @@ export default function DiscordSettings() {
   return (
     <div className="space-y-4">
       <div>
-        <label htmlFor="webhook-url" className="block text-sm font-medium mb-2">
-          Discord Webhook URL
+        <label htmlFor={`webhook-url-${settingKey}`} className="block text-sm font-medium mb-2">
+          {label}
         </label>
         <input
-          id="webhook-url"
+          id={`webhook-url-${settingKey}`}
           type="url"
           value={webhookUrl}
           onChange={(e) => setWebhookUrl(e.target.value)}
           placeholder="https://discord.com/api/webhooks/..."
           className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
         />
-        <p className="text-xs text-text-muted mt-1">
-          Get a webhook URL from your Discord server settings → Integrations → Webhooks
-        </p>
+        <p className="text-xs text-text-muted mt-1">{helpText}</p>
       </div>
 
       {message && (

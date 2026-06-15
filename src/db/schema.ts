@@ -20,6 +20,12 @@ export const events = sqliteTable('events', {
   signupOpensAt: text('signup_opens_at'),
   signupDeadline: text('signup_deadline'),
   captainSelectionDeadline: text('captain_selection_deadline'),
+  // Scoring mode. 'tiles' (default, classic) = a team's score is the count of
+  // completed required tiles. 'points' (Leagues/Grid-Master style) = each tile
+  // carries a `points` weight and a team's score is the sum of those weights for
+  // the tiles it has completed. Completion mechanics are identical in both modes;
+  // only how standings are tallied/displayed differs.
+  scoringMode: text('scoring_mode').default('tiles').notNull(),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -44,6 +50,10 @@ export const tiles = sqliteTable('tiles', {
   // + loot keys). e.g. '["npc","event"]' for "from CoX or any NPC, not PvP"
   // or '["pvp"]' for a PK-only tile.
   acceptedSources: text('accepted_sources'),
+  // Point weight for this tile in a 'points'-scoring event (ignored when the
+  // event's scoringMode is 'tiles'). Harder tiles carry more points. Defaults to
+  // 1 so a points event behaves like a tile-count event until weights are set.
+  points: integer('points').default(1).notNull(),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
@@ -186,6 +196,13 @@ export const weeklyParticipants = sqliteTable('weekly_participants', {
   baselineValue: integer('baseline_value'),
   currentValue: integer('current_value'),
   lastUpdated: text('last_updated'),
+  // Set when a single stat fetch records an implausibly large jump (XP/KC gained in
+  // one tick that exceeds the max plausible rate — see src/lib/gainsValidation.ts).
+  // The usual cause is OSRS hiscores flushing a pre-event grind on logout, sweeping
+  // pre-comp progress into the gain. Flag persists until an admin corrects the
+  // baseline. flagReason carries a human-readable summary for the admin UI tooltip.
+  flagged: integer('flagged').notNull().default(0),
+  flagReason: text('flag_reason'),
 }, (table) => [
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
   index('weekly_participants_comp_id_idx').on(table.competitionId),
