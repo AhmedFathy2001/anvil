@@ -68,6 +68,7 @@ export async function GET(request: Request) {
   const cols = event.boardSize > 0 ? event.boardSize : 1;
 
   return NextResponse.json({
+    eventId: event.id,
     format: event.format,
     scoringMode: event.scoringMode,
     boardSize: event.boardSize,
