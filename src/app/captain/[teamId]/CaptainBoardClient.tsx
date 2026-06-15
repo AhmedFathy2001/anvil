@@ -3,7 +3,7 @@
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
@@ -362,7 +362,8 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); fetchSubmissions().then(() => fetchGains()).then(() => setLoading(false)).catch(() => { setFetchError('Failed to load data. Please refresh.'); setLoading(false); }); }} />}
       {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
 
-      <BingoBoard
+      <EventBoard
+        format={event.format}
         tiles={tiles}
         boardSize={event.boardSize}
         completions={completions}

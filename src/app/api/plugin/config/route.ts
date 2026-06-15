@@ -9,6 +9,9 @@ import {
   getActiveWeekly,
   getNotificationWebhooks,
   getFunDeathMessages,
+  getDeathTaunts,
+  getSpoonTaunts,
+  getAlwaysNotifyItems,
 } from '@/lib/pluginConfig';
 import crypto from 'crypto';
 
@@ -32,11 +35,16 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, webhooks] = await Promise.all([
-        buildSchedule(),
-        getActiveWeekly(),
-        getNotificationWebhooks(),
-      ]);
+      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems] =
+        await Promise.all([
+          buildSchedule(),
+          getActiveWeekly(),
+          getNotificationWebhooks(),
+          getFunDeathMessages(),
+          getDeathTaunts(),
+          getSpoonTaunts(),
+          getAlwaysNotifyItems(),
+        ]);
       return NextResponse.json({
         event: null,
         team: null,
@@ -48,7 +56,10 @@ export async function GET(request: Request) {
         schedule,
         activeWeekly,
         webhooks,
-        funDeathMessages: getFunDeathMessages(),
+        funDeathMessages,
+        deathTaunts,
+        spoonTaunts,
+        alwaysNotifyItems,
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
@@ -177,11 +188,16 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks] = await Promise.all([
-    buildSchedule(),
-    getActiveWeekly(),
-    getNotificationWebhooks(),
-  ]);
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems] =
+    await Promise.all([
+      buildSchedule(),
+      getActiveWeekly(),
+      getNotificationWebhooks(),
+      getFunDeathMessages(),
+      getDeathTaunts(),
+      getSpoonTaunts(),
+      getAlwaysNotifyItems(),
+    ]);
 
   return NextResponse.json({
     event: {
@@ -190,6 +206,10 @@ export async function GET(request: Request) {
       startDate: event.startDate,
       endDate: event.endDate,
       forceEndedAt: event.forceEndedAt ?? null,
+      // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race)
+      // for the player's own active event straight from these two fields.
+      format: event.format,
+      scoringMode: event.scoringMode,
     },
     team: {
       id: team.id,
@@ -203,7 +223,10 @@ export async function GET(request: Request) {
     schedule,
     activeWeekly,
     webhooks,
-    funDeathMessages: getFunDeathMessages(),
+    funDeathMessages,
+    deathTaunts,
+    spoonTaunts,
+    alwaysNotifyItems,
     trackedStats,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured

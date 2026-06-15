@@ -10,6 +10,11 @@ const EXPOSED_KEYS = [
   'clan_name',
   'webhook_rare_drops',
   'webhook_deaths',
+  'webhook_combat_achievements',
+  'always_notify_items',
+  'fun_death_messages',
+  'death_taunts',
+  'spoon_taunts',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

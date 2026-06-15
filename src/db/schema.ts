@@ -26,6 +26,13 @@ export const events = sqliteTable('events', {
   // the tiles it has completed. Completion mechanics are identical in both modes;
   // only how standings are tallied/displayed differs.
   scoringMode: text('scoring_mode').default('tiles').notNull(),
+  // Board layout / event format, orthogonal to scoringMode:
+  //   'bingo'    = a square N×N grid of tiles (classic) — or the Leagues-style points
+  //                accordion when scoringMode='points'.
+  //   'tilerace' = an ordered linear track; teams race along the tile sequence and the
+  //                furthest-reached tile is each team's position.
+  // The RuneLite plugin's Anvil clog tab branches its in-game view on this column.
+  format: text('format').default('bingo').notNull(),
 });
 
 export const tiles = sqliteTable('tiles', {

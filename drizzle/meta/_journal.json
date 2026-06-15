@@ -204,6 +204,13 @@
       "when": 1781548165876,
       "tag": "0028_tile_category",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1781562610002,
+      "tag": "0029_open_raider",
+      "breakpoints": true
     }
   ]
 }

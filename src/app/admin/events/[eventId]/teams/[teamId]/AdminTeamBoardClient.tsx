@@ -4,7 +4,7 @@ import type { Event, Tile, Team, Completion, Submission, Player } from '@/lib/ty
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWeight, isPointsMode } from '@/lib/utils';
@@ -111,7 +111,8 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         Click tiles to view details and manage · {completed}/{total} {pointsMode ? 'pts' : 'completed'}
       </p>
 
-      <BingoBoard
+      <EventBoard
+        format={event.format}
         tiles={tiles}
         boardSize={event.boardSize}
         completions={completions}

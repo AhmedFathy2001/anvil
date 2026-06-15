@@ -157,6 +157,12 @@ export async function PATCH(
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
   if ('captainSelectionDeadline' in body) updates.captainSelectionDeadline = body.captainSelectionDeadline;
+  if ('format' in body) {
+    if (body.format !== 'bingo' && body.format !== 'tilerace') {
+      return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+    }
+    updates.format = body.format;
+  }
   if ('signupFee' in body) {
     if (body.signupFee !== null && (typeof body.signupFee !== 'number' || !Number.isFinite(body.signupFee) || body.signupFee < 0)) {
       return NextResponse.json({ error: 'signupFee must be a non-negative number or null' }, { status: 400 });

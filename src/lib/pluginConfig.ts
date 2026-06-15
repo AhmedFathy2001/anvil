@@ -15,6 +15,11 @@ export interface ScheduleBingo {
   status: 'active' | 'upcoming';
   boardSize: number | null;
   tileCount: number;
+  // Lets the plugin pick the right in-game view without a second fetch:
+  //   format='tilerace' → race track; format='bingo' + scoringMode='points' → accordion;
+  //   format='bingo' + scoringMode='tiles' → square grid.
+  format: string;
+  scoringMode: string;
 }
 
 export interface ScheduleWeekly {
@@ -67,6 +72,8 @@ export async function buildSchedule(): Promise<PluginSchedule> {
     status: e.startDate! > nowIso ? 'upcoming' : 'active',
     boardSize: e.boardSize,
     tileCount: tileCountMap.get(e.id) ?? 0,
+    format: e.format,
+    scoringMode: e.scoringMode,
   }));
 
   const weeklies: ScheduleWeekly[] = allWeeklies
@@ -123,9 +130,14 @@ export interface PluginWebhooks {
   // Discord webhook URLs the plugin posts to directly. Null when unset on the site.
   rareDrops: string | null;
   deaths: string | null;
+  combatAchievements: string | null;
 }
 
-export const WEBHOOK_SETTING_KEYS = ['webhook_rare_drops', 'webhook_deaths'] as const;
+export const WEBHOOK_SETTING_KEYS = [
+  'webhook_rare_drops',
+  'webhook_deaths',
+  'webhook_combat_achievements',
+] as const;
 
 // Plugin-posted notification destinations, read from the settings key/value table.
 export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
@@ -137,11 +149,46 @@ export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
   return {
     rareDrops: map.get('webhook_rare_drops') || null,
     deaths: map.get('webhook_deaths') || null,
+    combatAchievements: map.get('webhook_combat_achievements') || null,
   };
 }
 
-// Server-managed fun-death pool. Sourced from constants for now; promote to settings/table
-// later only if it needs to be admin-editable.
-export function getFunDeathMessages(): string[] {
-  return FUN_DEATH_MESSAGES;
+// Newline-separated list settings the plugin reads. Edited on Admin → Integrations.
+export const FUN_DEATHS_SETTING_KEY = 'fun_death_messages';
+export const DEATH_TAUNTS_SETTING_KEY = 'death_taunts';
+export const SPOON_TAUNTS_SETTING_KEY = 'spoon_taunts';
+export const ALWAYS_NOTIFY_SETTING_KEY = 'always_notify_items';
+
+// Reads a settings value stored as one entry per line, trimmed and blank-filtered.
+async function getLineSetting(key: string): Promise<string[]> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+  if (!row?.value) return [];
+  return row.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+// Server-managed 1/100 fun-death pool. Admin-editable; falls back to the curated constant when
+// the clan hasn't set its own.
+export async function getFunDeathMessages(): Promise<string[]> {
+  const custom = await getLineSetting(FUN_DEATHS_SETTING_KEY);
+  return custom.length ? custom : FUN_DEATH_MESSAGES;
+}
+
+// Admin-set reaction lines appended to death / lucky-drop posts. Empty = use the plugin's baked-in
+// defaults (the plugin substitutes its own list when these are empty).
+export async function getDeathTaunts(): Promise<string[]> {
+  return getLineSetting(DEATH_TAUNTS_SETTING_KEY);
+}
+
+export async function getSpoonTaunts(): Promise<string[]> {
+  return getLineSetting(SPOON_TAUNTS_SETTING_KEY);
+}
+
+// Admin-managed list of item names that always post to the rare-drops channel (prestige drops
+// the value/rarity thresholds miss). EXTENDS the plugin's baked-in defaults — the plugin unions
+// both lists — so this only needs to hold extras (e.g. new ornament kits). One name per line.
+export async function getAlwaysNotifyItems(): Promise<string[]> {
+  return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
 }

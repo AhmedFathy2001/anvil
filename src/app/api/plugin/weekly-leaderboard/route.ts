@@ -35,11 +35,27 @@ export async function GET(request: Request) {
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, comp.id));
 
-  const board = computeLeaderboard(participants);
+  // Dedupe by RSN (case-insensitive): a rename/re-enroll can leave two participant rows for the
+  // same player, which otherwise shows them twice. Keep the row with the most progress.
+  // Normalize whitespace too - OSRS display names can carry non-breaking spaces, so
+  // "Drenvox mdps" can arrive with mismatched spacing and dodge a plain lowercase compare.
+  const byRsn = new Map<string, (typeof participants)[number]>();
+  for (const p of participants) {
+    const key = (p.rsn ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const existing = byRsn.get(key);
+    if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) {
+      byRsn.set(key, p);
+    }
+  }
+
+  const board = computeLeaderboard([...byRsn.values()]);
   const entries = board.slice(0, MAX_ENTRIES).map((e, i) => ({
     rank: i + 1,
     rsn: e.rsn,
-    gained: e.gained,
+    // Clamp to >= 0: a not-yet-fetched / unranked participant has currentValue null, which
+    // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
+    // can't lose KC/XP, so floor it at 0.
+    gained: Math.max(0, e.gained),
   }));
 
   return NextResponse.json({

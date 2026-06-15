@@ -16,26 +16,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
   }
 
+  if (format !== undefined && format !== 'bingo' && format !== 'tilerace') {
+    return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+  }
+  const resolvedFormat = format === 'tilerace' ? 'tilerace' : 'bingo';
+
   if (scoringMode !== undefined && scoringMode !== 'tiles' && scoringMode !== 'points') {
     return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
   }
-  const resolvedScoringMode = scoringMode === 'points' ? 'points' : 'tiles';
+  // A tile race is always scored by furthest tile reached; point-weighting only
+  // applies to the grid format, so force 'tiles' for a race.
+  const resolvedScoringMode =
+    resolvedFormat === 'tilerace' ? 'tiles' : scoringMode === 'points' ? 'points' : 'tiles';
 
-  const expectedTiles = boardSize * boardSize;
+  // Grid events are N×N; a tile race is a flat ordered sequence of `boardSize` tiles.
+  const expectedTiles = resolvedFormat === 'tilerace' ? boardSize : boardSize * boardSize;
   // tileLabels is optional — when omitted (the "blank create" path) we generate
   // placeholder labels and the user fills tiles in via the per-tile editor on the
   // event detail page. JSON imports continue to pass the full labels array.
   let resolvedLabels: string[];
   if (Array.isArray(tileLabels) && tileLabels.length > 0) {
     if (tileLabels.length !== expectedTiles) {
+      const shape = resolvedFormat === 'tilerace' ? `${boardSize}-tile race` : `${boardSize}×${boardSize} board`;
       return NextResponse.json(
-        { error: `Expected ${expectedTiles} tiles for a ${boardSize}×${boardSize} board, got ${tileLabels.length}` },
+        { error: `Expected ${expectedTiles} tiles for a ${shape}, got ${tileLabels.length}` },
         { status: 400 },
       );
     }
@@ -52,7 +62,7 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const event = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(events).values({ name, boardSize, scoringMode: resolvedScoringMode }).returning();
+    const [created] = await tx.insert(events).values({ name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat }).returning();
     const tileValues = resolvedLabels.map((label: string, index: number) => ({
       eventId: created.id,
       position: index,

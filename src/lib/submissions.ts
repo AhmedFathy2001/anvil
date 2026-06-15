@@ -45,7 +45,21 @@ export async function syncDropTileCompletion(tileId: number, teamId: number) {
     isComplete = totalAmount >= tile.requiredAmount;
   }
 
+  // Tile race: a drop tile can't auto-complete until the team has finished every
+  // earlier tile in the sequence. Until then we leave it pending so the ordered
+  // track stays strict, exactly like manual completions in the completions route.
+  let raceBlocked = false;
   if (isComplete) {
+    const raceEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
+    if (raceEvent?.format === 'tilerace') {
+      const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, tile.eventId) });
+      const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
+      const doneTileIds = new Set(teamDone.map((c) => c.tileId));
+      raceBlocked = raceTiles.some((t) => t.position < tile.position && !doneTileIds.has(t.id));
+    }
+  }
+
+  if (isComplete && !raceBlocked) {
     // Auto-complete — use onConflictDoNothing to avoid race condition
     const [inserted] = await db.insert(completions).values({ teamId, tileId })
       .onConflictDoNothing()
@@ -91,12 +105,13 @@ export async function syncDropTileCompletion(tileId: number, teamId: number) {
         }
       }
     }
-  } else {
-    // Revert completion if it exists (idempotent DELETE)
+  } else if (!isComplete) {
+    // Revert completion if it exists (idempotent DELETE). A race-blocked tile is
+    // left untouched — its earlier-tile gate, not its own progress, is what's missing.
     await db.delete(completions).where(
       and(eq(completions.teamId, teamId), eq(completions.tileId, tileId))
     );
   }
 
-  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete };
+  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked };
 }

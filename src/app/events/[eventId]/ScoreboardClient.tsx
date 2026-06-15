@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
 import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
@@ -49,6 +49,7 @@ interface Event {
   endDate?: string | null;
   forceEndedAt?: string | null;
   scoringMode?: string;
+  format?: string;
 }
 
 interface Submission {
@@ -347,7 +348,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             Board Overview
             <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
-          <BingoBoard
+          <EventBoard
+            format={event.format}
             tiles={tiles}
             boardSize={event.boardSize}
             completions={completions}

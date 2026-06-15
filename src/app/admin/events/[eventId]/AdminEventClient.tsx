@@ -4,7 +4,7 @@ import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import TeamForm from '@/components/TeamForm';
 import DraftOrderSetup from '@/components/DraftOrderSetup';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
@@ -18,7 +18,7 @@ import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import DateRangeField from '@/components/DateRangeField';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import SignupAdminPanel from './SignupAdminPanel';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { tileWeight, isPointsMode, isTileRaceFormat } from '@/lib/utils';
 
 // Convert UTC ISO string to local datetime-local input format
 function utcToLocal(utcString: string | null): string {
@@ -120,6 +120,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
   const isDraft = !isForceEnded && !currentEvent.startDate;
   const isActive = eventStarted && !eventEnded;
   const pointsMode = isPointsMode(currentEvent.scoringMode);
+  const raceFormat = isTileRaceFormat(currentEvent.format);
 
   // Real-time updates via smart polling
   const { connected: streamConnected } = useEventStream(event.id, {
@@ -519,13 +520,21 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             <p className="text-sm font-medium">{currentEvent.name}</p>
           </div>
           <div>
-            <label className="block text-xs text-text-muted mb-1">Board Size</label>
-            <p className="text-sm font-medium">{currentEvent.boardSize}×{currentEvent.boardSize}</p>
+            <label className="block text-xs text-text-muted mb-1">Format</label>
+            <p className="text-sm font-medium">{raceFormat ? 'Tile race' : 'Bingo grid'}</p>
           </div>
           <div>
-            <label className="block text-xs text-text-muted mb-1">Scoring</label>
-            <p className="text-sm font-medium">{pointsMode ? 'Points (Leagues-style)' : 'Classic (tile count)'}</p>
+            <label className="block text-xs text-text-muted mb-1">{raceFormat ? 'Track Length' : 'Board Size'}</label>
+            <p className="text-sm font-medium">
+              {raceFormat ? `${currentEvent.boardSize} tiles` : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
+            </p>
           </div>
+          {!raceFormat && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Scoring</label>
+              <p className="text-sm font-medium">{pointsMode ? 'Points (Leagues-style)' : 'Classic (tile count)'}</p>
+            </div>
+          )}
         </div>
 
         {editMode ? (
@@ -696,7 +705,8 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
             <span className="w-1 h-5 bg-gold rounded-full" />
             Board Preview
           </h2>
-          <BingoBoard
+          <EventBoard
+            format={event.format}
             tiles={localTiles}
             boardSize={event.boardSize}
             completions={liveCompletions}

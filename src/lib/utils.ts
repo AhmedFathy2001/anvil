@@ -40,3 +40,12 @@ export function tileWeight(
 export function isPointsMode(scoringMode: string | null | undefined): boolean {
   return scoringMode === 'points';
 }
+
+/**
+ * True when the event is the ordered linear "tile race" track rather than a grid.
+ * In this format tiles are completed in sequence (sequential lock) and a team's
+ * standing is the furthest tile it has reached. Mirrors {@link isPointsMode}.
+ */
+export function isTileRaceFormat(format: string | null | undefined): boolean {
+  return format === 'tilerace';
+}

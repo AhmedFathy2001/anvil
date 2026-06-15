@@ -86,6 +86,29 @@ export async function POST(
     );
   }
 
+  // Tile race: completions are an ordered track. A team may only complete the tile
+  // immediately after its current frontier, and may only un-complete the frontier
+  // tile itself. Admins bypass so they can correct the board out of order.
+  if (event.format === 'tilerace' && !isAdmin) {
+    const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+    const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
+    const doneTileIds = new Set(teamDone.map((c) => c.tileId));
+
+    if (!doneTileIds.has(tileId)) {
+      // Adding — every earlier tile in the sequence must already be done.
+      const earlierUndone = raceTiles.some((t) => t.position < tile.position && !doneTileIds.has(t.id));
+      if (earlierUndone) {
+        return NextResponse.json({ error: 'Complete the earlier tiles in the race first' }, { status: 400 });
+      }
+    } else {
+      // Removing — only the furthest tile can be undone.
+      const laterDone = raceTiles.some((t) => t.position > tile.position && doneTileIds.has(t.id));
+      if (laterDone) {
+        return NextResponse.json({ error: 'Un-complete the later tiles in the race first' }, { status: 400 });
+      }
+    }
+  }
+
   // Toggle: check if completion exists
   const existing = await db.query.completions.findFirst({
     where: and(eq(completions.teamId, teamId), eq(completions.tileId, tileId)),

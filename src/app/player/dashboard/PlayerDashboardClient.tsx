@@ -2,7 +2,7 @@
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
@@ -236,7 +236,8 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); }} />}
       {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
 
-      <BingoBoard
+      <EventBoard
+        format={event.format}
         tiles={tiles}
         boardSize={event.boardSize}
         completions={completions}

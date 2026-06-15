@@ -18,6 +18,7 @@ export interface Event {
   signupDeadline: string | null;
   captainSelectionDeadline: string | null;
   scoringMode?: string; // 'tiles' (classic) | 'points'
+  format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)
 }
 
 export interface Tile {

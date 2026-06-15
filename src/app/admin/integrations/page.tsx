@@ -1,4 +1,6 @@
 import DiscordSettings from '@/components/DiscordSettings';
+import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
+import LineListSetting from '@/components/LineListSetting';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +54,65 @@ export default function AdminIntegrationsPage() {
               helpText="Death notifications (and the occasional surprise) are posted here by the plugin."
             />
           </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <DiscordSettings
+              settingKey="webhook_combat_achievements"
+              label="Combat achievements channel"
+              helpText="CA tier clears (and high-tier task completions) are posted here by the plugin."
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Notification lines</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          The clan&apos;s flavour text for plugin posts. Leave a box blank to use the plugin&apos;s
+          built-in defaults. Members pick up changes on their next login — no plugin update needed.
+        </p>
+        <div className="space-y-4">
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <LineListSetting
+              settingKey="fun_death_messages"
+              label="Death one-liners (1 in 100 chance)"
+              helpText="Replaces the whole death message on a rare roll. Use {name} for the player's RSN. One per line."
+              placeholder={'One line per entry, e.g.\n{name} got sent to Lumbridge.\nPress F for {name}.'}
+            />
+          </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <LineListSetting
+              settingKey="death_taunts"
+              label="Death reaction lines"
+              helpText='Appended to every death post when "Funny lines" is on in the plugin. One per line.'
+              placeholder={'One line per entry, e.g.\nSit.\nL + ratio.\nSkill issue.'}
+            />
+          </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <LineListSetting
+              settingKey="spoon_taunts"
+              label="Lucky-drop (spoon) reaction lines"
+              helpText='Appended to a rare / high-value drop post when "Funny lines" is on. One per line.'
+              placeholder={'One line per entry, e.g.\nSPOONED.\nWay under rate.'}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Always-notify drops</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Prestige items that always post to the rare-drops channel regardless of value or rarity —
+          untradeables and cheap-but-meaningful unlocks the value/rarity thresholds would miss. The
+          plugin ships with a built-in list; add clan extras here without a plugin update.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <AlwaysNotifyItems />
         </div>
       </section>
 

@@ -2,7 +2,7 @@
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import BingoBoard from '@/components/BingoBoard';
+import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
@@ -143,7 +143,8 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         <p className="text-xs text-text-muted mt-1">{tilesLeft} {pointsMode ? 'pts ' : ''}remaining</p>
       </div>
 
-      <BingoBoard
+      <EventBoard
+        format={event.format}
         tiles={tiles}
         boardSize={event.boardSize}
         completions={completions}
