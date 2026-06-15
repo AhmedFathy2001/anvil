@@ -37,6 +37,7 @@ export interface Tile {
   trackedItemIds?: string | null;
   itemRequirements?: string | null;
   points?: number | null;
+  category?: string | null;
 }
 
 export interface Team {
@@ -107,6 +108,7 @@ export interface TileConfig {
   trackedItemIds: number[] | null;
   itemRequirements: ItemRequirement[] | null;
   points: number;
+  category: string | null;
 }
 
 export interface PlayerGain {

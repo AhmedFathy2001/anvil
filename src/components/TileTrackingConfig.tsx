@@ -45,6 +45,7 @@ export default function TileTrackingConfig({
   const [points, setPoints] = useState<string>(
     initial.points != null ? initial.points.toString() : "1",
   );
+  const [category, setCategory] = useState<string>(initial.category || "");
   const [perItemMode, setPerItemMode] = useState<boolean>(!!initial.itemRequirements?.length);
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
@@ -126,6 +127,7 @@ export default function TileTrackingConfig({
         trackingMode,
         optional,
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
+        category: category.trim() || null,
       };
 
       if (perItemMode && trackedItems.length > 0) {
@@ -162,6 +164,7 @@ export default function TileTrackingConfig({
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
           points: updated.points ?? 1,
+          category: updated.category ?? null,
         });
       }
     } finally {
@@ -233,6 +236,21 @@ export default function TileTrackingConfig({
           </p>
         </div>
       )}
+
+      {/* Category (free-text grouping for the plugin's collection-log filters) */}
+      <div>
+        <label className="block text-xs text-text-muted mb-1">
+          Category <span className="text-text-muted/60">(groups tasks in the plugin, e.g. Zulrah, Slayer, Skilling)</span>
+        </label>
+        <input
+          type="text"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="e.g. GWD"
+          maxLength={60}
+          className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+        />
+      </div>
 
       {/* Tile type toggle */}
       <div>

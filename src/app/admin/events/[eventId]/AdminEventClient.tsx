@@ -421,6 +421,7 @@ export default function AdminEventClient({ event, tiles, teams, completions, pla
     trackedItemIds?: number[] | null;
     itemRequirements?: { itemId: number; name: string; requiredAmount: number }[] | null;
     points?: number;
+    category?: string | null;
   }) {
     // localTiles mirrors the DB row shape, where trackedItemIds/itemRequirements are
     // stringified JSON. TileTrackingConfig hands us the parsed forms, so re-serialize
@@ -869,6 +870,7 @@ const isDraftInProgress = draft.status === 'active' || draft.status === 'paused'
                         trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
                         itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
                         points: tile.points ?? 1,
+                        category: tile.category ?? null,
                       }}
                       onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                       eventStarted={eventStarted}

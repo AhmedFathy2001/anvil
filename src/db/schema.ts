@@ -50,6 +50,10 @@ export const tiles = sqliteTable('tiles', {
   // + loot keys). e.g. '["npc","event"]' for "from CoX or any NPC, not PvP"
   // or '["pvp"]' for a PK-only tile.
   acceptedSources: text('accepted_sources'),
+  // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
+  // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
+  // NULL = uncategorised.
+  category: text('category'),
   // Point weight for this tile in a 'points'-scoring event (ignored when the
   // event's scoringMode is 'tiles'). Harder tiles carry more points. Defaults to
   // 1 so a points event behaves like a tile-count event until weights are set.

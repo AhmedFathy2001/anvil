@@ -163,6 +163,9 @@ export async function GET(request: Request) {
     return {
       tileId: t.id,
       label: t.label,
+      description: t.description ?? null,
+      points: t.points ?? 0,
+      category: t.category ?? null,
       statName,
       statType,
       trackingMode,
@@ -220,6 +223,9 @@ export async function GET(request: Request) {
         return {
           tileId: t.id,
           label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
           itemIds: JSON.parse(t.trackedItemIds || '[]'),
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,

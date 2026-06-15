@@ -1,0 +1,1 @@
+ALTER TABLE `tiles` ADD `category` text;
