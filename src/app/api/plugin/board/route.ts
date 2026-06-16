@@ -58,6 +58,18 @@ function allItemIds(trackedItemIds: string | null, itemRequirements: string | nu
   return ids;
 }
 
+// Human-readable "what does this tile actually require" for stat tiles (skill XP / boss KC), where
+// the label alone (e.g. a custom name) doesn't convey the task. Null for drop/manual tiles, whose
+// item icon + required-amount already describe them.
+function tileRequirement(trackedStat: string | null, statType: string | null, statGoal: number | null): string | null {
+  if (!trackedStat) return null;
+  const stat = trackedStat.charAt(0).toUpperCase() + trackedStat.slice(1);
+  const goal = statGoal && statGoal > 0 ? statGoal.toLocaleString() : '';
+  const isBoss = statType === 'boss' || statType === 'kc';
+  if (isBoss) return goal ? `Reach ${goal} ${stat} KC` : `${stat} KC`;
+  return goal ? `Gain ${goal} ${stat} XP` : `${stat} XP`;
+}
+
 type EventRow = typeof events.$inferSelect;
 
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
@@ -149,6 +161,7 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         itemId: representativeItemId(t.trackedItemIds, t.itemRequirements),
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
         requiredAmount: t.requiredAmount ?? 1,
+        requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
         optional: t.optional ? 1 : 0,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
         ...(itemRequirements ? { itemRequirements } : {}),

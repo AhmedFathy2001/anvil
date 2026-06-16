@@ -8,8 +8,10 @@ import {
   probeRsnReachable,
   reviewPendingRenames,
   writePlayerSnapshot,
+  computeLeaderboard,
 } from '@/lib/weekly';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
+import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
 import { log } from '@/lib/logger';
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -27,6 +29,44 @@ const PER_REQUEST_GAP_MS = 400;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Final, deduped standings for a competition (gains floored at 0), for the results announcement.
+async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: string; gained: number }[]> {
+  const participants = await db
+    .select({
+      rsn: weeklyParticipants.rsn,
+      baselineValue: weeklyParticipants.baselineValue,
+      currentValue: weeklyParticipants.currentValue,
+    })
+    .from(weeklyParticipants)
+    .where(eq(weeklyParticipants.competitionId, competitionId));
+  // Dedupe by normalized RSN (rename/re-enroll can leave two rows), keeping the most progress.
+  const byRsn = new Map<string, (typeof participants)[number]>();
+  for (const p of participants) {
+    const key = (p.rsn ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const existing = byRsn.get(key);
+    if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) byRsn.set(key, p);
+  }
+  return computeLeaderboard([...byRsn.values()]).map((e) => ({ rsn: e.rsn, gained: Math.max(0, e.gained) }));
+}
+
+// Weekly Discord posts are best-effort: a webhook failure must never break the cron sweep.
+async function announceWeeklyStart(comp: { type: string; title: string; metric: string; endDate: string }) {
+  try {
+    await notifyWeeklyStart({ type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate });
+  } catch (err) {
+    log.warn('weekly-cron.notify-start-fail', {}, err);
+  }
+}
+
+async function announceWeeklyResults(comp: { id: number; type: string; title: string; metric: string }) {
+  try {
+    const standings = await buildWeeklyStandings(comp.id);
+    await notifyWeeklyResults({ type: comp.type, title: comp.title, metric: comp.metric, standings });
+  } catch (err) {
+    log.warn('weekly-cron.notify-results-fail', {}, err);
+  }
 }
 
 export async function GET(request: Request) {
@@ -68,11 +108,18 @@ export async function GET(request: Request) {
         .set({ status: newStatus })
         .where(eq(weeklyCompetitions.id, comp.id));
       comp.status = newStatus;
+      // The status flip happens exactly once, so these announcements fire exactly once.
+      if (newStatus === 'active') {
+        await announceWeeklyStart(comp);
+      } else {
+        await announceWeeklyResults(comp);
+      }
     } else if (comp.status === 'active' && comp.endDate <= now) {
       await db.update(weeklyCompetitions)
         .set({ status: 'completed' })
         .where(eq(weeklyCompetitions.id, comp.id));
       comp.status = 'completed';
+      await announceWeeklyResults(comp);
     }
   }
 

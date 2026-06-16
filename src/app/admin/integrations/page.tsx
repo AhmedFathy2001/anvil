@@ -32,6 +32,25 @@ export default function AdminIntegrationsPage() {
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-3">
           <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Weekly competitions webhook</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          A separate channel for Skill / Boss of the Week posts: a start announcement when a
+          competition goes live, and a results post (winner + final standings) when it ends. Leave
+          blank to disable weekly posts.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <DiscordSettings
+            settingKey="discord_webhook_weekly"
+            label="SOTW / BOTW channel"
+            helpText="Weekly competition start and results (winner) notifications post here."
+          />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
           <h2 className="font-semibold">Plugin notifications</h2>
         </div>
         <p className="text-sm text-text-muted mb-3">

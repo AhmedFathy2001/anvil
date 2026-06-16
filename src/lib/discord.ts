@@ -17,14 +17,17 @@ interface DiscordWebhookPayload {
   embeds?: DiscordEmbed[];
 }
 
-async function getWebhookUrl(): Promise<string | null> {
+// The main bingo/clan webhook (event start/end, draft, clan-sync summaries).
+const BINGO_WEBHOOK_KEY = 'discord_webhook_url';
+// Separate channel for weekly competition (SOTW/BOTW) start/end/winner posts.
+const WEEKLY_WEBHOOK_KEY = 'discord_webhook_weekly';
+
+async function getSettingUrl(key: string): Promise<string | null> {
   try {
-    const setting = await db.query.settings.findFirst({
-      where: eq(settings.key, 'discord_webhook_url'),
-    });
+    const setting = await db.query.settings.findFirst({ where: eq(settings.key, key) });
     return setting?.value || null;
   } catch (error) {
-    log.warn('discord.db-read-fail', {}, error);
+    log.warn('discord.db-read-fail', { key }, error);
     return null;
   }
 }
@@ -42,10 +45,8 @@ async function postWebhook(
   });
 }
 
-export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await getWebhookUrl();
-  if (!webhookUrl) return false;
-
+// Post to a specific webhook URL with Discord's 429 retry handling. Returns true on a 2xx.
+async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<boolean> {
   try {
     let response = await postWebhook(webhookUrl, payload);
 
@@ -76,6 +77,20 @@ export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promis
     log.warn('discord.webhook-exception', {}, error);
     return false;
   }
+}
+
+export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await getSettingUrl(BINGO_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload);
+}
+
+// Posts to the dedicated weekly-competition webhook (falls back to nothing when unset — weekly
+// posts simply don't fire rather than spilling into the bingo channel).
+export async function sendWeeklyWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await getSettingUrl(WEEKLY_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload);
 }
 
 export async function sendTestWebhook(webhookUrl: string): Promise<boolean> {
@@ -417,4 +432,73 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
   };
 
   return sendDiscordWebhook({ embeds: [embed] });
+}
+
+// ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
+
+function weeklyKind(type: string): string {
+  return type === 'skill' ? 'Skill of the Week' : 'Boss of the Week';
+}
+
+interface WeeklyStartParams {
+  type: string;   // 'skill' | 'boss'
+  title: string;
+  metric: string; // e.g. 'attack', 'zulrah'
+  endDate: string;
+}
+
+export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
+  const { type, title, metric, endDate } = params;
+  const kind = weeklyKind(type);
+  const emoji = type === 'skill' ? '📈' : '⚔️';
+
+  const embed: DiscordEmbed = {
+    title: `${emoji} ${kind} has started!`,
+    description: `**${title}** is live — tracking **${metric}**.\nEnroll in-game with the Anvil plugin and start grinding!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0x00ff00, // Green
+    fields: [
+      { name: 'Metric', value: metric, inline: true },
+      { name: 'Ends', value: new Date(endDate).toLocaleString(), inline: true },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendWeeklyWebhook({ embeds: [embed] });
+}
+
+interface WeeklyResultsParams {
+  type: string;
+  title: string;
+  metric: string;
+  // Pre-ranked, gains floored at 0. First entry is the winner.
+  standings: { rsn: string; gained: number }[];
+}
+
+// Fired when a weekly competition ends — announces the winner and the final standings (top 10).
+export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<boolean> {
+  const { type, title, metric, standings } = params;
+  const kind = weeklyKind(type);
+  const winner = standings[0];
+
+  const standingsText = standings
+    .slice(0, 10)
+    .map((s, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+      return `${medal} **${s.rsn}** — +${s.gained.toLocaleString()}`;
+    })
+    .join('\n');
+
+  const embed: DiscordEmbed = {
+    title: `🏁 ${kind} Results — ${title}`,
+    description: winner
+      ? `🥇 **${winner.rsn}** wins with **+${winner.gained.toLocaleString()}** ${metric}!\n━━━━━━━━━━━━━━━━━━━━`
+      : `**${title}** has ended.\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xffd700, // Gold
+    fields: [
+      { name: 'Final Standings', value: standingsText || 'No participants', inline: false },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendWeeklyWebhook({ embeds: [embed] });
 }
