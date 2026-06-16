@@ -7,6 +7,7 @@ import { sendTestWebhook } from '@/lib/discord';
 
 const EXPOSED_KEYS = [
   'discord_webhook_url',
+  'discord_webhook_bingo',
   'discord_webhook_weekly',
   'clan_name',
   'webhook_rare_drops',

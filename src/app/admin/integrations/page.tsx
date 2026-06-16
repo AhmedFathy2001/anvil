@@ -18,14 +18,32 @@ export default function AdminIntegrationsPage() {
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-3">
           <span className="w-1 h-5 bg-gold rounded-full" />
-          <h2 className="font-semibold">Discord webhook</h2>
+          <h2 className="font-semibold">General / clan updates webhook</h2>
         </div>
         <p className="text-sm text-text-muted mb-3">
-          Webhook URL receives event start/end notifications, weekly competition pings, and clan-sync
-          summaries (joins / leaves / renames).
+          Non-event posts: clan-roster sync summaries (member joins / leaves / renames / count). Also
+          the fallback for bingo posts when no dedicated bingo webhook is set below.
         </p>
         <div className="border border-card-border rounded-xl p-5 bg-card-bg">
           <DiscordSettings />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Bingo events webhook</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Bingo-specific posts: event start / end, draft complete, blackout, and drop submissions.
+          Leave blank to fall back to the general webhook above.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <DiscordSettings
+            settingKey="discord_webhook_bingo"
+            label="Bingo events channel"
+            helpText="Event start/end, draft, blackout, and submission notifications post here."
+          />
         </div>
       </section>
 

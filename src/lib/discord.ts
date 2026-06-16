@@ -17,9 +17,13 @@ interface DiscordWebhookPayload {
   embeds?: DiscordEmbed[];
 }
 
-// The main bingo/clan webhook (event start/end, draft, clan-sync summaries).
-const BINGO_WEBHOOK_KEY = 'discord_webhook_url';
-// Separate channel for weekly competition (SOTW/BOTW) start/end/winner posts.
+// General / plugin-updates webhook — clan-roster changes (member joins / leaves / renames / count)
+// and any non-event-specific posts. NOT bingo-specific.
+const GENERAL_WEBHOOK_KEY = 'discord_webhook_url';
+// Dedicated bingo-event webhook (event start/end, draft, blackout, submissions). Falls back to the
+// general webhook when unset so existing single-webhook setups keep receiving bingo posts.
+const BINGO_WEBHOOK_KEY = 'discord_webhook_bingo';
+// Dedicated weekly competition (SOTW/BOTW) start/end/winner webhook.
 const WEEKLY_WEBHOOK_KEY = 'discord_webhook_weekly';
 
 async function getSettingUrl(key: string): Promise<string | null> {
@@ -79,14 +83,23 @@ async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload)
   }
 }
 
+// General / plugin-updates channel — clan-roster sync summaries and other non-event posts.
 export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await getSettingUrl(BINGO_WEBHOOK_KEY);
+  const webhookUrl = await getSettingUrl(GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
-// Posts to the dedicated weekly-competition webhook (falls back to nothing when unset — weekly
-// posts simply don't fire rather than spilling into the bingo channel).
+// Bingo-event channel; falls back to the general webhook when no dedicated bingo webhook is set so
+// existing single-webhook clans keep getting bingo posts until they split the channel.
+export async function sendBingoWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = (await getSettingUrl(BINGO_WEBHOOK_KEY)) || (await getSettingUrl(GENERAL_WEBHOOK_KEY));
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload);
+}
+
+// Dedicated weekly-competition webhook (no fallback — weekly posts simply don't fire when unset
+// rather than spilling into another channel).
 export async function sendWeeklyWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await getSettingUrl(WEEKLY_WEBHOOK_KEY);
   if (!webhookUrl) return false;
@@ -181,7 +194,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     embed.image = { url: imageUrl };
   }
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 interface SubmissionDeletedParams {
@@ -231,7 +244,7 @@ export async function notifySubmissionDeleted(params: SubmissionDeletedParams): 
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 interface TileCompletionNotifyParams {
@@ -281,7 +294,7 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 interface TeamWithPlayers {
@@ -319,7 +332,7 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 interface TeamWinNotifyParams {
@@ -343,7 +356,7 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 const BINGO_ROLE_ID = '1466184936934609008';
@@ -374,7 +387,7 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
   };
 
   // Tag bingo role
-  return sendDiscordWebhook({ content: `<@&${BINGO_ROLE_ID}>`, embeds: [embed] });
+  return sendBingoWebhook({ content: `<@&${BINGO_ROLE_ID}>`, embeds: [embed] });
 }
 
 interface EventEndNotifyParams {
@@ -407,7 +420,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -431,7 +444,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     timestamp: new Date().toISOString(),
   };
 
-  return sendDiscordWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ embeds: [embed] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
