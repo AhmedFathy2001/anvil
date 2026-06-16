@@ -133,12 +133,9 @@ SQLite requires a default; hand-edit the migration to include a backfill if so
 - `scripts/backfill-clan-members.ts` — populates `clan_members` from existing
   `players` + `weekly_participants` rows. Safe to re-run. Runs the normalize-rsn
   upsert so case variants are deduplicated.
-- `scripts/seed-plugin-test.ts` — seeds a small "Plugin Test Bingo" event with
-  a few teams/players for plugin development. Run after migrations.
 
 ```bash
 npx tsx scripts/backfill-clan-members.ts
-npx tsx scripts/seed-plugin-test.ts
 ```
 
 ## RuneLite plugin
