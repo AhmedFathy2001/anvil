@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import { useModalA11y } from '@/hooks/useModalA11y';
-import { isPointsMode } from '@/lib/utils';
+import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
 
 interface Props {
@@ -21,9 +21,58 @@ export default function TilesClient({ event, tiles }: Props) {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [adding, setAdding] = useState(false);
+
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
   const editingTile = editingTileId != null ? localTiles.find((t) => t.id === editingTileId) ?? null : null;
+  // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
+  // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
+  const dynamicBoard = isTileRaceFormat(event.format) || pointsMode;
+  const canEditTileSet = dynamicBoard && !eventStarted;
+
+  async function handleAddTile() {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not add tile.' });
+        return;
+      }
+      setLocalTiles((prev) => [...prev, data as Tile]);
+      // Clear filters so the freshly-added tile is visible once its drawer closes.
+      setSearch('');
+      setKindFilter('all');
+      setEditingTileId(data.id);
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDeleteTile(tileId: number) {
+    const res = await fetch(`/api/events/${event.id}/tiles/${tileId}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setImportMsg({ type: 'error', text: data.error || 'Could not delete tile.' });
+      return;
+    }
+    setLocalTiles((prev) => {
+      const removed = prev.find((t) => t.id === tileId);
+      const pos = removed?.position ?? Infinity;
+      return prev
+        .filter((t) => t.id !== tileId)
+        .map((t) => (t.position > pos ? { ...t, position: t.position - 1 } : t));
+    });
+    setEditingTileId(null);
+    router.refresh();
+  }
 
   // Filter state — essential once a Leagues board imports hundreds of tiles.
   const [search, setSearch] = useState('');
@@ -199,11 +248,23 @@ export default function TilesClient({ event, tiles }: Props) {
 
       {/* Per-tile configuration */}
       <div>
-        <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-          <span className="w-1 h-5 bg-gold rounded-full" />
-          Tile Configuration
-          <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
-        </h2>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Tile Configuration
+            <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
+          </h2>
+          {dynamicBoard && (
+            <button
+              onClick={handleAddTile}
+              disabled={adding || eventStarted}
+              title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {adding ? 'Adding…' : '+ Add tile'}
+            </button>
+          )}
+        </div>
 
         {/* Search + kind filter */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
@@ -310,7 +371,9 @@ export default function TilesClient({ event, tiles }: Props) {
           eventId={event.id}
           eventStarted={eventStarted}
           pointsMode={pointsMode}
+          canDelete={canEditTileSet}
           onClose={() => setEditingTileId(null)}
+          onDelete={() => handleDeleteTile(editingTile.id)}
           onSaved={(updated) => {
             handleTileConfigSaved(editingTile.id, updated);
             setEditingTileId(null);
@@ -397,13 +460,17 @@ interface DrawerProps {
   eventId: number;
   eventStarted: boolean;
   pointsMode: boolean;
+  canDelete?: boolean;
   onClose: () => void;
+  onDelete?: () => void;
   onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, onClose, onSaved }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -465,6 +532,40 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, onClose, on
             eventStarted={eventStarted}
             pointsMode={pointsMode}
           />
+
+          {canDelete && onDelete && (
+            <div className="mt-5 pt-4 border-t border-card-border">
+              {confirmingDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-muted flex-1">Delete this tile permanently?</span>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleting}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeleting(true);
+                      onDelete();
+                    }}
+                    disabled={deleting}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting…' : 'Delete tile'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Delete this tile
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

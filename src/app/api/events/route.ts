@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   if (isClassicGrid && boardSize > 12) {
     return NextResponse.json({ error: 'A classic grid is capped at 12×12.' }, { status: 400 });
   }
-  if (!isClassicGrid && boardSize > 200) {
-    return NextResponse.json({ error: 'Events are capped at 200 tiles.' }, { status: 400 });
+  if (!isClassicGrid && boardSize > 1000) {
+    return NextResponse.json({ error: 'Events are capped at 1000 tiles.' }, { status: 400 });
   }
   const expectedTiles = isClassicGrid ? boardSize * boardSize : boardSize;
   // tileLabels is optional — when omitted (the "blank create" path) we generate

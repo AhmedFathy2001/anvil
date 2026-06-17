@@ -258,3 +258,63 @@ export async function PUT(
 
   return NextResponse.json(updated);
 }
+
+// Add a tile. Only Leagues (bingo+points) and Tile-race boards are arbitrary-length task
+// lists — there `boardSize` IS the tile count, so admins grow them tile-by-tile here. A
+// classic bingo board is a fixed N×N grid and is rejected. Pre-start only (adding tiles
+// mid-event would shift everyone's totals). Body: { label? }.
+const MAX_TILES = 1000;
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> },
+) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
+  if (!event) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
+  if (isClassicGrid) {
+    return NextResponse.json(
+      { error: 'A classic bingo grid is a fixed N×N board — tiles cannot be added individually.' },
+      { status: 400 },
+    );
+  }
+  if (event.startDate && new Date(event.startDate) <= new Date()) {
+    return NextResponse.json({ error: 'Tiles cannot be added after the event has started.' }, { status: 400 });
+  }
+
+  const existing = await db.select({ position: tiles.position }).from(tiles).where(eq(tiles.eventId, eId));
+  if (existing.length >= MAX_TILES) {
+    return NextResponse.json({ error: `Events are capped at ${MAX_TILES} tiles.` }, { status: 400 });
+  }
+  const nextPosition = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
+
+  let label = `Tile ${nextPosition + 1}`;
+  try {
+    const body = await request.json();
+    if (body && typeof body.label === 'string' && body.label.trim()) {
+      label = body.label.trim().slice(0, 200);
+    }
+  } catch {
+    /* empty body is fine — fall back to the placeholder label */
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [tile] = await tx.insert(tiles).values({ eventId: eId, position: nextPosition, label }).returning();
+    // Keep boardSize == tile count so the display helpers (eventTileCount / eventShapeBadge) stay accurate.
+    await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
+    return tile;
+  });
+
+  return NextResponse.json(created, { status: 201 });
+}
