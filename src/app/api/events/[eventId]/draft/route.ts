@@ -86,6 +86,14 @@ export async function POST(
 
   switch (action) {
     case 'set-order': {
+      // Draft order is locked once the draft is underway — changing it mid-draft would
+      // break snake-order fairness (a team could be skipped or pick twice). Reset first.
+      if (event.draftStatus !== 'none') {
+        return NextResponse.json(
+          { error: 'Draft order can only be changed before the draft starts.' },
+          { status: 409 },
+        );
+      }
       const { teamOrder } = body;
       if (!Array.isArray(teamOrder) || teamOrder.length === 0) {
         return NextResponse.json({ error: 'teamOrder must be a non-empty array of team IDs' }, { status: 400 });

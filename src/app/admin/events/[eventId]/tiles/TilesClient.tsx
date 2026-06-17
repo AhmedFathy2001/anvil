@@ -97,6 +97,19 @@ export default function TilesClient({ event, tiles }: Props) {
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
 
+  // Derive the single "kind" badge from the stored columns (mirrors TileTrackingConfig).
+  function tileKind(tile: Tile): { label: string; cls: string } {
+    if (tile.tileType === 'drop') {
+      const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
+      return isCollection
+        ? { label: 'Collection', cls: 'bg-accent-green/20 text-accent-green-light' }
+        : { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' };
+    }
+    if (tile.statType === 'skill') return { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300' };
+    if (tile.statType === 'boss') return { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300' };
+    return { label: 'Standard', cls: 'bg-gold/15 text-gold' };
+  }
+
   function handleTileConfigSaved(
     tileId: number,
     updated: {
@@ -290,13 +303,10 @@ export default function TilesClient({ event, tiles }: Props) {
                       Optional
                     </span>
                   ) : null}
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                      tile.tileType === 'drop' ? 'bg-accent-green/20 text-accent-green-light' : 'bg-gold/15 text-gold'
-                    }`}
-                  >
-                    {tile.tileType === 'drop' ? 'Drop' : 'Std'}
-                  </span>
+                  {(() => {
+                    const k = tileKind(tile);
+                    return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>;
+                  })()}
                   <span className="text-xs text-text-muted">#{tile.position + 1}</span>
                 </div>
               </div>

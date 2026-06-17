@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 
@@ -104,13 +104,17 @@ export async function POST(
     }
   }
 
-  // Check auth
+  // Check auth. Legacy captain/player cookies + plugin bearer token still work; the
+  // unified My Team page authenticates via the Discord web session (membership), which is
+  // already scoped to this team so it can't be used to submit for another team.
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
   const pluginAuth = await verifyPluginToken(request);
+  const membership =
+    !isAdmin && !captain && !player && !pluginAuth ? await resolveTeamMembership(eId, teamId) : null;
 
-  if (!isAdmin && !captain && !player && !pluginAuth) {
+  if (!isAdmin && !captain && !player && !pluginAuth && !membership) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -213,6 +217,10 @@ export async function POST(
     uploaderId = player.playerId;
   } else if (pluginAuth) {
     uploaderId = pluginAuth.playerId;
+  } else if (membership) {
+    // Discord web session — attribute to the user's own player row on this team
+    // (a captain-only with no player row stays unattributed, like the captain path).
+    uploaderId = membership.playerId;
   } else if (captain) {
     // Captain submitting - they are the uploader
     // Find captain's player record if they have one
@@ -223,7 +231,7 @@ export async function POST(
   }
 
   // Validate creditPlayerId if provided - must be on the same team
-  let resolvedCreditPlayerId: number | null = creditPlayerId || null;
+  const resolvedCreditPlayerId: number | null = creditPlayerId || null;
   if (resolvedCreditPlayerId) {
     const creditPlayer = await db.query.players.findFirst({
       where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
@@ -302,14 +310,11 @@ export async function DELETE(
 
   const sId = parseInt(submissionId, 10);
 
-  // Check auth
+  // Check auth — admin / legacy captain+player cookies / Discord web session. The web
+  // session is resolved against the submission's own team below.
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
-
-  if (!isAdmin && !captain && !player) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   // Get the submission with player info
   const submission = await db.query.submissions.findFirst({
@@ -317,6 +322,12 @@ export async function DELETE(
   });
   if (!submission) {
     return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+  }
+
+  const membership =
+    !isAdmin && !captain && !player ? await resolveTeamMembership(eId, submission.teamId) : null;
+  if (!isAdmin && !captain && !player && !membership) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Verify tile belongs to this event
@@ -361,23 +372,30 @@ export async function DELETE(
       deletedByName = playerRecord?.name || 'Player';
       deletedByRole = 'player';
     }
+    if (membership) {
+      if (membership.isCaptain) {
+        deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
+        deletedByRole = 'captain';
+      } else if (membership.playerId) {
+        const playerRecord = await db.query.players.findFirst({ where: eq(players.id, membership.playerId) });
+        deletedByName = playerRecord?.name || 'Player';
+        deletedByRole = 'player';
+      }
+    }
   }
 
-  // Auth checks: admin can delete any, captain their team, player their own
-  // Priority: admin > captain > player
+  // Auth checks: admin can delete any, captain their team, player their own.
+  // Captaincy and player-ownership come from either the legacy cookies or the web session.
   if (!isAdmin) {
-    // Captain can delete any submission from their team
-    if (captain && captain.teamId === submission.teamId) {
-      // Allowed - captain can delete team submissions
-    } else if (player) {
-      // Player can only delete their own submissions (where they are the uploader)
-      if (player.teamId !== submission.teamId || player.playerId !== submission.playerId) {
+    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.isCaptain ?? false);
+    if (captainOfTeam) {
+      // Allowed — captain can delete any of their team's submissions.
+    } else {
+      const myPlayerId =
+        membership?.playerId ?? (player && player.teamId === submission.teamId ? player.playerId : null);
+      if (myPlayerId == null || myPlayerId !== submission.playerId) {
         return NextResponse.json({ error: 'Can only delete your own submissions' }, { status: 403 });
       }
-    } else if (captain && captain.teamId !== submission.teamId) {
-      return NextResponse.json({ error: 'Cannot delete submissions from another team' }, { status: 403 });
-    } else {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
 

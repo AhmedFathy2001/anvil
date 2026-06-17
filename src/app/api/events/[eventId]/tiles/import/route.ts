@@ -94,6 +94,44 @@ export async function POST(
     ) {
       return NextResponse.json({ error: `Row ${i + 1}: statGoal must be a non-negative integer` }, { status: 400 });
     }
+
+    // Cross-validate the resulting tile kind against the existing row (import never
+    // touches tracked items, so those come from the DB). Same rule as the single-tile
+    // PUT: a tile is exactly one kind.
+    const tile = eventTiles[i];
+    const parseLen = (v: unknown): number => {
+      if (typeof v !== 'string' || !v) return 0;
+      try {
+        const arr = JSON.parse(v);
+        return Array.isArray(arr) ? arr.length : 0;
+      } catch {
+        return 0;
+      }
+    };
+    const effTileType = !eventStarted && row.tileType !== undefined ? row.tileType || 'standard' : tile.tileType;
+    const effTrackedStat = row.trackedStat !== undefined ? row.trackedStat || null : tile.trackedStat;
+    const effStatType = row.statType !== undefined ? row.statType || null : tile.statType;
+    const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : tile.statGoal;
+    const effRequiredAmount =
+      !eventStarted && row.requiredAmount !== undefined ? row.requiredAmount ?? null : tile.requiredAmount;
+    const hasStat = !!effTrackedStat || !!effStatType || effStatGoal != null;
+    const hasDropFields =
+      effRequiredAmount != null || parseLen(tile.trackedItemIds) > 0 || parseLen(tile.itemRequirements) > 0;
+    if (hasStat && (effTileType === 'drop' || hasDropFields)) {
+      return NextResponse.json(
+        { error: `Row ${i + 1}: a stat-tracked tile cannot also be a drop tile / require items.` },
+        { status: 400 },
+      );
+    }
+    if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
+      return NextResponse.json({ error: `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.` }, { status: 400 });
+    }
+    if (effTileType !== 'drop' && hasDropFields) {
+      return NextResponse.json(
+        { error: `Row ${i + 1}: only drop tiles can carry a required amount or items.` },
+        { status: 400 },
+      );
+    }
   }
 
   await db.transaction(async (tx) => {

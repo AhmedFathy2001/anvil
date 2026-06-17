@@ -96,9 +96,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   async function deleteTeam(teamId: number) {
     setDeleting(teamId);
-    await fetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
-    setDeleting(null);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Could not delete team');
+        return;
+      }
+      router.refresh();
+    } finally {
+      setDeleting(null);
+    }
   }
 
   async function addSelectedFromRoster() {
@@ -214,6 +222,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   const draftTeams = draft.teams.length > 0 ? draft.teams : teams;
+  // Once the draft leaves 'none', the team set + order are frozen server-side. Mirror
+  // that in the UI so the controls match what the API will accept.
+  const draftLocked = draft.status !== 'none';
+
+  // Guided setup checklist (only meaningful pre-draft).
+  const steps = [
+    { label: 'Add ≥2 teams', done: teams.length >= 2 },
+    { label: 'Fill the player pool', done: draft.players.length >= 1 },
+    { label: 'Set draft order', done: draft.teamOrder.length > 0 },
+    { label: 'Start draft', done: false },
+  ];
+  const nextStepIdx = steps.findIndex((s) => !s.done);
 
   return (
     <div className="space-y-12">
@@ -251,13 +271,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     >
                       Manage Tiles
                     </Link>
-                    <button
-                      onClick={() => deleteTeam(team.id)}
-                      disabled={deleting === team.id}
-                      className="text-xs text-red-400 border border-red-400/20 px-2.5 py-1 rounded-lg hover:bg-red-400/10 transition-colors disabled:opacity-50"
-                    >
-                      {deleting === team.id ? '...' : 'Delete'}
-                    </button>
+                    {!draftLocked && (
+                      <button
+                        onClick={() => deleteTeam(team.id)}
+                        disabled={deleting === team.id}
+                        className="text-xs text-red-400 border border-red-400/20 px-2.5 py-1 rounded-lg hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                      >
+                        {deleting === team.id ? '...' : 'Delete'}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -269,7 +291,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
 
-        {signupsOpen ? (
+        {draftLocked ? (
+          <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
+            🔒 Teams are locked while the draft is {draft.status}. Reset the draft to change the team set.
+          </div>
+        ) : signupsOpen ? (
           <>
             <button
               onClick={() => setShowAddTeam(!showAddTeam)}
@@ -294,6 +320,35 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           <span className="w-1 h-6 bg-gold rounded-full" />
           Player Draft
         </h2>
+
+        {draft.status === 'none' && (
+          <ol className="flex flex-wrap items-center gap-2 mb-6">
+            {steps.map((s, i) => {
+              const isNext = i === nextStepIdx;
+              return (
+                <li
+                  key={s.label}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
+                    s.done
+                      ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light'
+                      : isNext
+                        ? 'border-gold/40 bg-gold/10 text-gold'
+                        : 'border-card-border text-text-muted'
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                      s.done ? 'bg-accent-green text-brown-dark' : isNext ? 'bg-gold text-brown-dark' : 'bg-card-border'
+                    }`}
+                  >
+                    {s.done ? '✓' : i + 1}
+                  </span>
+                  {s.label}
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         {(draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">

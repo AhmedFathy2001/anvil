@@ -129,6 +129,40 @@ export async function PUT(
     if (requiredAmount !== undefined) updateSet.requiredAmount = requiredAmount || null;
   }
 
+  // Cross-validate the FINAL persisted state so a tile is always exactly one kind.
+  // Prevents nonsense like a 10M-XP goal on a drop tile (stat tracking + drop tracking
+  // on the same row), which downstream submission/cron logic would otherwise fight over.
+  const merged = { ...tile, ...updateSet } as typeof tile;
+  const parseLen = (v: unknown): number => {
+    if (typeof v !== 'string' || !v) return 0;
+    try {
+      const arr = JSON.parse(v);
+      return Array.isArray(arr) ? arr.length : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const hasStat = !!merged.trackedStat || !!merged.statType || merged.statGoal != null;
+  const hasDropFields =
+    merged.requiredAmount != null || parseLen(merged.trackedItemIds) > 0 || parseLen(merged.itemRequirements) > 0;
+  const isDrop = merged.tileType === 'drop';
+
+  if (hasStat && (isDrop || hasDropFields)) {
+    return NextResponse.json(
+      { error: 'A stat-tracked tile (skill/boss) cannot also require item drops. Pick one kind.' },
+      { status: 400 },
+    );
+  }
+  if (hasStat && merged.statType !== 'skill' && merged.statType !== 'boss') {
+    return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
+  }
+  if (!isDrop && hasDropFields) {
+    return NextResponse.json(
+      { error: 'Only drop tiles can carry a required amount or tracked items.' },
+      { status: 400 },
+    );
+  }
+
   const [updated] = await db
     .update(tiles)
     .set(updateSet)

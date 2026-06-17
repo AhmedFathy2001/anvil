@@ -32,6 +32,21 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+
+  // Teams are part of the draft setup — once the draft is underway (or done) the team
+  // set is frozen so the snake order stays valid. Adding a team mid-draft would leave it
+  // out of the rotation; the admin must reset the draft to change teams.
+  const eventRow = await db.query.events.findFirst({ where: eq(events.id, id) });
+  if (!eventRow) {
+    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+  if (eventRow.draftStatus !== 'none') {
+    return NextResponse.json(
+      { error: 'Teams are locked once the draft starts. Reset the draft to change teams.' },
+      { status: 409 },
+    );
+  }
+
   const { name, color, captainUserId } = await request.json();
 
   if (!name || !color) {
@@ -92,6 +107,16 @@ export async function DELETE(
   }
 
   const tId = parseInt(teamId, 10);
+
+  // Same freeze as team creation: deleting a team mid-draft bricks the snake order
+  // (the next pick references a team that no longer exists). Reset the draft first.
+  const eventRow = await db.query.events.findFirst({ where: eq(events.id, eId) });
+  if (eventRow && eventRow.draftStatus !== 'none') {
+    return NextResponse.json(
+      { error: 'Teams are locked once the draft starts. Reset the draft to remove a team.' },
+      { status: 409 },
+    );
+  }
 
   await db.delete(teams).where(and(eq(teams.id, tId), eq(teams.eventId, eId)));
 

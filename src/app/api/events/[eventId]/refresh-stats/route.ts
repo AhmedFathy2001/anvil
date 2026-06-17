@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain, verifyPlayer } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain, verifyPlayer, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 
 const CAPTAIN_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
@@ -23,8 +23,10 @@ export async function POST(
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
+  // Discord web session — membership is resolved per-team below where the target is known.
+  const webUser = !isAdmin && !captain && !player ? await verifyUser() : null;
 
-  if (!isAdmin && !captain && !player) {
+  if (!isAdmin && !captain && !player && !webUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -59,17 +61,23 @@ export async function POST(
 
     // Check permissions
     if (!isAdmin) {
-      if (player && player.playerId !== playerId) {
+      // Resolve the Discord web session against the target player's team, if needed.
+      const webMembership =
+        webUser && targetPlayer.teamId != null ? await resolveTeamMembership(eId, targetPlayer.teamId) : null;
+      const isSelf = (player && player.playerId === playerId) || webMembership?.playerId === playerId;
+      const isTeamCaptain = (captain && targetPlayer.teamId === captain.teamId) || (webMembership?.isCaptain ?? false);
+
+      if (player && player.playerId !== playerId && !isTeamCaptain) {
         return NextResponse.json({ error: 'Can only refresh your own stats' }, { status: 403 });
       }
-      if (captain && targetPlayer.teamId !== captain.teamId) {
+      if (!isSelf && !isTeamCaptain) {
         return NextResponse.json({ error: 'Player not on your team' }, { status: 403 });
       }
 
-      // Check cooldown for non-admin
+      // Check cooldown for non-admin (self → player cooldown, captain refreshing others → captain cooldown)
       if (targetPlayer.lastStatsFetch) {
         const lastFetch = new Date(targetPlayer.lastStatsFetch);
-        const cooldown = player ? PLAYER_COOLDOWN_MS : CAPTAIN_COOLDOWN_MS;
+        const cooldown = isSelf ? PLAYER_COOLDOWN_MS : CAPTAIN_COOLDOWN_MS;
         const elapsed = now.getTime() - lastFetch.getTime();
 
         if (elapsed < cooldown) {
@@ -105,7 +113,12 @@ export async function POST(
 
   // Team refresh (captain or admin only)
   if (teamId) {
-    if (!isAdmin && (!captain || captain.teamId !== teamId)) {
+    let teamCaptain = !!captain && captain.teamId === teamId;
+    if (!isAdmin && !teamCaptain && webUser) {
+      const m = await resolveTeamMembership(eId, teamId);
+      if (m?.isCaptain) teamCaptain = true;
+    }
+    if (!isAdmin && !teamCaptain) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

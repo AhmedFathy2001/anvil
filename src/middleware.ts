@@ -136,9 +136,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Unified "My Team" surface — open to any logged-in Discord user; the page itself
+  // resolves captain/player membership per team.
+  if (pathname.startsWith('/team')) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('return', pathname);
+    const token = request.cookies.get('admin_session')?.value;
+    if (!token) {
+      return NextResponse.redirect(loginUrl);
+    }
+    const payload = await verifyToken(token, ADMIN_SESSION_SECRET);
+    if (!payload) {
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/captain/:path*', '/player/dashboard'],
+  matcher: ['/admin/:path*', '/captain/:path*', '/player/dashboard', '/team/:path*'],
 };

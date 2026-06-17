@@ -68,6 +68,14 @@ export default async function RootLayout({
               >
                 Weekly
               </Link>
+              {session && (
+                <Link
+                  href="/team"
+                  className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+                >
+                  My Team
+                </Link>
+              )}
               {isStaff && (
                 <Link
                   href="/admin/dashboard"

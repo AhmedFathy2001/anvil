@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain } from '@/lib/auth';
+import { eq, and } from 'drizzle-orm';
+import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick } from '@/lib/draft';
 import { notifyDraftComplete } from '@/lib/discord';
 
@@ -12,17 +12,19 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { playerId, teamId: overrideTeamId } = await request.json();
+  const { playerId } = await request.json();
 
   if (!playerId) {
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
   }
 
-  // Auth: must be admin or captain of the picking team
+  // Auth: must be admin or captain of the picking team. Captaincy via legacy cookie or
+  // the Discord web session (resolved against the team whose turn it is, below).
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
+  const webUser = !isAdmin && !captain ? await verifyUser() : null;
 
-  if (!isAdmin && !captain) {
+  if (!isAdmin && !captain && !webUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -68,18 +70,15 @@ export async function POST(
 
   const expectedTeamId = getTeamForPick(teamOrder, pickedCount);
 
-  // If admin is picking on behalf of a team, allow override
-  const pickingTeamId = isAdmin && overrideTeamId ? overrideTeamId : expectedTeamId;
-
-  // Validate it's the right team's turn (unless admin overriding)
-  if (!isAdmin) {
-    if (!captain || captain.teamId !== expectedTeamId) {
-      return NextResponse.json({ error: 'It is not your team\'s turn to pick' }, { status: 403 });
-    }
+  // Resolve which team this caller captains (cookie, or web session for the team on the clock).
+  let captainTeamId: number | null = captain ? captain.teamId : null;
+  if (!isAdmin && !captain && webUser) {
+    const m = await resolveTeamMembership(eId, expectedTeamId);
+    if (m?.isCaptain) captainTeamId = expectedTeamId;
   }
 
-  // For non-admin picks, the picking team must match the expected team
-  if (!isAdmin && pickingTeamId !== expectedTeamId) {
+  // Validate it's the right team's turn (unless admin overriding)
+  if (!isAdmin && captainTeamId !== expectedTeamId) {
     return NextResponse.json({ error: 'It is not your team\'s turn to pick' }, { status: 403 });
   }
 

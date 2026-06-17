@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { completions, tiles, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain } from '@/lib/auth';
+import { verifyAdmin, verifyCaptain, resolveTeamMembership } from '@/lib/auth';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 
 export async function GET(
@@ -38,11 +38,17 @@ export async function POST(
     return NextResponse.json({ error: 'teamId and tileId are required' }, { status: 400 });
   }
 
-  // Check auth: must be admin or captain of the specified team
+  // Check auth: must be admin or captain of the specified team. Captaincy is recognised
+  // via the legacy captain_session cookie OR the Discord web session (unified My Team).
   const isAdmin = await verifyAdmin();
   const captain = await verifyCaptain();
+  let isCaptainOfTeam = !!captain && captain.teamId === teamId;
+  if (!isAdmin && !isCaptainOfTeam) {
+    const membership = await resolveTeamMembership(eId, teamId);
+    if (membership?.isCaptain) isCaptainOfTeam = true;
+  }
 
-  if (!isAdmin && (!captain || captain.teamId !== teamId)) {
+  if (!isAdmin && !isCaptainOfTeam) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

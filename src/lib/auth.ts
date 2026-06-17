@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanMembers, events, players, pluginLinks, users } from '@/db/schema';
+import { clanMembers, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 
@@ -83,6 +83,47 @@ export async function verifyFeeCollector(): Promise<UserPayload | null> {
   if (!user) return null;
   if (user.role === 'admin' || user.role === 'treasurer') return user;
   return null;
+}
+
+// Unified web-session membership resolver. Given the logged-in Discord user, works out
+// their relationship to a specific team in an event: are they its captain, and/or do they
+// have a player row on it (a captain is usually also a player). This replaces the old
+// captain-password / player-token sessions for the website — the RuneLite plugin still
+// uses bearer tokens via verifyPluginToken. Returns null if not logged in or the user has
+// no captain/player tie to that team.
+export async function resolveTeamMembership(
+  eventId: number,
+  teamId: number,
+): Promise<{ userId: number; isCaptain: boolean; playerId: number | null } | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+
+  const team = await db.query.teams.findFirst({
+    where: and(eq(teams.id, teamId), eq(teams.eventId, eventId)),
+  });
+  if (!team) return null;
+
+  const isCaptain = team.captainUserId === user.userId;
+
+  let playerId: number | null = null;
+  const myMembers = await db
+    .select({ id: clanMembers.id })
+    .from(clanMembers)
+    .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
+  if (myMembers.length > 0) {
+    const memberIds = myMembers.map((m) => m.id);
+    const playerRow = await db.query.players.findFirst({
+      where: and(
+        eq(players.eventId, eventId),
+        eq(players.teamId, teamId),
+        inArray(players.clanMemberId, memberIds),
+      ),
+    });
+    playerId = playerRow?.id ?? null;
+  }
+
+  if (!isCaptain && playerId == null) return null;
+  return { userId: user.userId, isCaptain, playerId };
 }
 
 export async function verifyCaptain(): Promise<{ teamId: number } | null> {
