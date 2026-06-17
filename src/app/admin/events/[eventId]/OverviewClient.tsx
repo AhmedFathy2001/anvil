@@ -129,21 +129,21 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
 
         <div className="grid gap-4 sm:grid-cols-2 mb-4">
           <div>
-            <label className="block text-xs text-text-muted mb-1">Format</label>
-            <p className="text-sm font-medium">{raceFormat ? 'Tile race' : 'Bingo grid'}</p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">{raceFormat ? 'Track Length' : 'Board Size'}</label>
+            <label className="block text-xs text-text-muted mb-1">Type</label>
             <p className="text-sm font-medium">
-              {raceFormat ? `${currentEvent.boardSize} tiles` : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
+              {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
             </p>
           </div>
-          {!raceFormat && (
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Scoring</label>
-              <p className="text-sm font-medium">{pointsMode ? 'Points (Leagues-style)' : 'Classic (tile count)'}</p>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
+            </label>
+            <p className="text-sm font-medium">
+              {raceFormat || pointsMode
+                ? `${currentEvent.boardSize} tiles`
+                : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
+            </p>
+          </div>
         </div>
 
         {editMode ? (

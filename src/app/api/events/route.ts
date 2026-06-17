@@ -31,19 +31,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
   }
   // A tile race is always scored by furthest tile reached; point-weighting only
-  // applies to the grid format, so force 'tiles' for a race.
+  // applies to the bingo format, so force 'tiles' for a race.
   const resolvedScoringMode =
     resolvedFormat === 'tilerace' ? 'tiles' : scoringMode === 'points' ? 'points' : 'tiles';
 
-  // Grid events are N×N; a tile race is a flat ordered sequence of `boardSize` tiles.
-  const expectedTiles = resolvedFormat === 'tilerace' ? boardSize : boardSize * boardSize;
+  if (!Number.isInteger(boardSize) || boardSize < 1) {
+    return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
+  }
+
+  // Three event shapes, all keyed off (format, scoringMode):
+  //   • Classic bingo  (bingo + tiles)  → a square N×N grid, so boardSize is N and tiles = N².
+  //   • Leagues bingo  (bingo + points) → an arbitrary-length task list, boardSize IS the tile count.
+  //   • Tile race      (tilerace)       → a linear track, boardSize IS the tile count.
+  // Only classic squares boardSize; the other two use it directly as the number of tiles.
+  const isClassicGrid = resolvedFormat === 'bingo' && resolvedScoringMode === 'tiles';
+  if (isClassicGrid && boardSize > 12) {
+    return NextResponse.json({ error: 'A classic grid is capped at 12×12.' }, { status: 400 });
+  }
+  if (!isClassicGrid && boardSize > 200) {
+    return NextResponse.json({ error: 'Events are capped at 200 tiles.' }, { status: 400 });
+  }
+  const expectedTiles = isClassicGrid ? boardSize * boardSize : boardSize;
   // tileLabels is optional — when omitted (the "blank create" path) we generate
-  // placeholder labels and the user fills tiles in via the per-tile editor on the
-  // event detail page. JSON imports continue to pass the full labels array.
+  // placeholder labels and the user fills tiles in via the per-tile editor / CSV import.
   let resolvedLabels: string[];
   if (Array.isArray(tileLabels) && tileLabels.length > 0) {
     if (tileLabels.length !== expectedTiles) {
-      const shape = resolvedFormat === 'tilerace' ? `${boardSize}-tile race` : `${boardSize}×${boardSize} board`;
+      const shape = isClassicGrid
+        ? `${boardSize}×${boardSize} grid`
+        : resolvedFormat === 'tilerace'
+          ? `${boardSize}-tile race`
+          : `${boardSize}-tile Leagues board`;
       return NextResponse.json(
         { error: `Expected ${expectedTiles} tiles for a ${shape}, got ${tileLabels.length}` },
         { status: 400 },

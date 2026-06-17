@@ -3,7 +3,7 @@ import { events, tiles, teams } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
+import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import EventTabNav from './EventTabNav';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,7 @@ export default async function EventLayout({
 
       <div className="flex items-center gap-2.5 text-sm text-text-muted mb-6 flex-wrap">
         <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
-          {raceFormat ? `Race · ${event.boardSize}` : `${event.boardSize}×${event.boardSize}`}
+          {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
         </span>
         {raceFormat && (
           <span className="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-xs font-medium">

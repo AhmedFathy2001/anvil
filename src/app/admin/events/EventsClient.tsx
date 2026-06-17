@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import LocalTime from '@/components/LocalTime';
+import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 
 export interface EventRow {
   kind: 'event';
@@ -11,6 +12,7 @@ export interface EventRow {
   name: string;
   boardSize: number;
   format: string;
+  scoringMode: string;
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
@@ -138,8 +140,8 @@ function EventCard({
 }) {
   const isDraft = !event.startDate && !event.forceEndedAt;
   const canDelete = !active || isDraft;
-  const isRace = event.format === 'tilerace';
-  const tileCount = isRace ? event.boardSize : event.boardSize * event.boardSize;
+  const tileCount = eventTileCount(event.format, event.scoringMode, event.boardSize);
+  const shapeBadge = eventShapeBadge(event.format, event.scoringMode, event.boardSize);
 
   return (
     <div
@@ -169,7 +171,7 @@ function EventCard({
               </span>
             ) : null}
             <span className="text-xs bg-gold/15 text-gold/90 px-2 py-0.5 rounded-full font-medium">
-              {isRace ? `Race · ${event.boardSize}` : `${event.boardSize}×${event.boardSize}`}
+              {shapeBadge}
             </span>
           </div>
         </div>

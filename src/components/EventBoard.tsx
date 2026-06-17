@@ -2,6 +2,7 @@
 
 import BingoBoard from './BingoBoard';
 import TileRaceBoard from './TileRaceBoard';
+import LeaguesBoard from './LeaguesBoard';
 import { isTileRaceFormat } from '@/lib/utils';
 
 interface Tile {
@@ -54,6 +55,11 @@ interface EventBoardProps {
 export default function EventBoard({ format, boardSize, pointsMode, ...rest }: EventBoardProps) {
   if (isTileRaceFormat(format)) {
     return <TileRaceBoard {...rest} />;
+  }
+  // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
+  // so it isn't bound to a perfect-square tile count.
+  if (pointsMode) {
+    return <LeaguesBoard {...rest} />;
   }
   return <BingoBoard boardSize={boardSize} pointsMode={pointsMode} {...rest} />;
 }

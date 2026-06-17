@@ -5,7 +5,7 @@ import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
-import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
 
 interface Tile {
   id: number;
@@ -241,7 +241,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
         <h1 className="text-3xl font-bold text-gold mb-1">{event.name}</h1>
         <div className="flex items-center gap-3 text-sm text-text-muted">
           <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
-            {event.boardSize}x{event.boardSize}
+            {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
           </span>
           {pointsMode && (
             <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">

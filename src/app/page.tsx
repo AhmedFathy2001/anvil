@@ -15,6 +15,7 @@ import {
 import { count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -344,12 +345,12 @@ export default async function HomePage() {
                         </h2>
                       </div>
                       <span className="text-xs bg-gold/15 text-gold px-2 py-1 rounded-full font-medium">
-                        {event.boardSize}×{event.boardSize}
+                        {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-muted mb-3">
                       <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
-                      <span>{event.boardSize * event.boardSize} tiles</span>
+                      <span>{eventTileCount(event.format, event.scoringMode, event.boardSize)} tiles</span>
                       {remaining && <span className="text-gold/80">{remaining}</span>}
                     </div>
                     {stats?.topTeam && stats.topTeam.tiles > 0 ? (
@@ -358,7 +359,7 @@ export default async function HomePage() {
                         <span className="text-text-muted">
                           Leading: <span className="text-foreground font-medium">{stats.topTeam.name}</span>
                           <span className="ml-1.5 text-text-muted">
-                            ({stats.topTeam.tiles}/{event.boardSize * event.boardSize} tiles)
+                            ({stats.topTeam.tiles}/{eventTileCount(event.format, event.scoringMode, event.boardSize)} tiles)
                           </span>
                         </span>
                       </div>
@@ -440,7 +441,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted mb-2">
-                    <span>{event.boardSize}×{event.boardSize}</span>
+                    <span>{eventShapeBadge(event.format, event.scoringMode, event.boardSize)}</span>
                     <span>·</span>
                     <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
                   </div>

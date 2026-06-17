@@ -49,3 +49,38 @@ export function isPointsMode(scoringMode: string | null | undefined): boolean {
 export function isTileRaceFormat(format: string | null | undefined): boolean {
   return format === 'tilerace';
 }
+
+/**
+ * Total tiles for an event, accounting for all three shapes:
+ *   • classic bingo (bingo + tiles) → a square N×N grid → N²
+ *   • Leagues bingo (bingo + points) → an arbitrary task list → N
+ *   • tile race (tilerace)           → a linear track       → N
+ * `boardSize` is N. Only classic squares it.
+ */
+export function eventTileCount(
+  format: string | null | undefined,
+  scoringMode: string | null | undefined,
+  boardSize: number,
+): number {
+  if (isTileRaceFormat(format)) return boardSize;
+  if (isPointsMode(scoringMode)) return boardSize;
+  return boardSize * boardSize;
+}
+
+/** Short mode label for badges/headers. */
+export function eventModeLabel(format: string | null | undefined, scoringMode: string | null | undefined): string {
+  if (isTileRaceFormat(format)) return 'Tile race';
+  if (isPointsMode(scoringMode)) return 'Leagues';
+  return 'Bingo';
+}
+
+/** Compact shape badge, e.g. "5×5", "Race · 12", "Leagues · 30". */
+export function eventShapeBadge(
+  format: string | null | undefined,
+  scoringMode: string | null | undefined,
+  boardSize: number,
+): string {
+  if (isTileRaceFormat(format)) return `Race · ${boardSize}`;
+  if (isPointsMode(scoringMode)) return `Leagues · ${boardSize}`;
+  return `${boardSize}×${boardSize}`;
+}

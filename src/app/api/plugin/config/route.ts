@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, players } from '@/db/schema';
+import { events, tiles, teams, submissions, players, completions } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
@@ -199,6 +199,19 @@ export async function GET(request: Request) {
       getAlwaysNotifyItems(),
     ]);
 
+  // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
+  // fire a banner for the whole team when any tile is completed, regardless of who finished it.
+  const teamCompletions = await db
+    .select({ tileId: completions.tileId })
+    .from(completions)
+    .where(eq(completions.teamId, auth.teamId))
+    .all();
+  const tileLabelById = new Map(allEventTiles.map((t) => [t.id, t.label]));
+  const completedTiles = teamCompletions.map((c) => ({
+    tileId: c.tileId,
+    label: tileLabelById.get(c.tileId) ?? `Tile #${c.tileId}`,
+  }));
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -227,6 +240,7 @@ export async function GET(request: Request) {
     deathTaunts,
     spoonTaunts,
     alwaysNotifyItems,
+    completedTiles,
     trackedStats,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
