@@ -3,28 +3,43 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
-import EventForm from '@/components/EventForm';
 import LocalTime from '@/components/LocalTime';
 
 export interface EventRow {
+  kind: 'event';
   id: number;
   name: string;
   boardSize: number;
+  format: string;
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
   createdAt: string;
+  teamCount: number;
 }
+
+export interface WeeklyRow {
+  kind: 'weekly';
+  id: number;
+  title: string;
+  type: 'skill' | 'boss';
+  metric: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  participantCount: number;
+  createdAt: string;
+}
+
+export type ListItem = EventRow | WeeklyRow;
 
 interface Props {
-  active: EventRow[];
-  past: EventRow[];
-  teamCounts: Record<number, number>;
+  active: ListItem[];
+  past: ListItem[];
 }
 
-export default function EventsClient({ active, past, teamCounts }: Props) {
+export default function EventsClient({ active, past }: Props) {
   const router = useRouter();
-  const [showCreate, setShowCreate] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const total = active.length + past.length;
 
@@ -46,6 +61,21 @@ export default function EventsClient({ active, past, teamCounts }: Props) {
     }
   }
 
+  function renderCard(item: ListItem) {
+    if (item.kind === 'weekly') {
+      return <WeeklyCard key={`w${item.id}`} comp={item} />;
+    }
+    return (
+      <EventCard
+        key={`e${item.id}`}
+        event={item}
+        active={!item.forceEndedAt && !(item.endDate && item.endDate < new Date().toISOString())}
+        onDelete={() => deleteEvent(item)}
+        deleting={deletingId === item.id}
+      />
+    );
+  }
+
   return (
     <div>
       <header className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -53,35 +83,16 @@ export default function EventsClient({ active, past, teamCounts }: Props) {
           <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Events</h1>
           <p className="text-text-muted text-sm">
             {total} total · {active.length} active · {past.length} past
+            <span className="text-text-muted/60"> · bingo, tile race &amp; weekly competitions</span>
           </p>
         </div>
-        {!showCreate && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
-          >
-            + New event
-          </button>
-        )}
+        <Link
+          href="/admin/events/new"
+          className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
+        >
+          + New event
+        </Link>
       </header>
-
-      {showCreate && (
-        <div className="border border-card-border rounded-xl bg-card-bg p-6 mb-8 shadow-lg shadow-black/20">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              <h2 className="font-semibold">Create Event</h2>
-            </div>
-            <button
-              onClick={() => setShowCreate(false)}
-              className="text-sm text-text-muted hover:text-foreground underline-offset-2 hover:underline"
-            >
-              Cancel
-            </button>
-          </div>
-          <EventForm />
-        </div>
-      )}
 
       <section className="mb-8">
         <h2 className="font-semibold flex items-center gap-2 mb-3">
@@ -91,28 +102,12 @@ export default function EventsClient({ active, past, teamCounts }: Props) {
         {active.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
             No active events.{' '}
-            {!showCreate && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="text-gold hover:underline"
-              >
-                Create one →
-              </button>
-            )}
+            <Link href="/admin/events/new" className="text-gold hover:underline">
+              Create one →
+            </Link>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {active.map((e) => (
-              <EventCard
-                key={e.id}
-                event={e}
-                teamCount={teamCounts[e.id] ?? 0}
-                active
-                onDelete={() => deleteEvent(e)}
-                deleting={deletingId === e.id}
-              />
-            ))}
-          </div>
+          <div className="grid gap-3 sm:grid-cols-2">{active.map(renderCard)}</div>
         )}
       </section>
 
@@ -123,17 +118,7 @@ export default function EventsClient({ active, past, teamCounts }: Props) {
             Past
             <span className="text-xs text-text-muted/60 font-normal">({past.length})</span>
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {past.map((e) => (
-              <EventCard
-                key={e.id}
-                event={e}
-                teamCount={teamCounts[e.id] ?? 0}
-                onDelete={() => deleteEvent(e)}
-                deleting={deletingId === e.id}
-              />
-            ))}
-          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{past.map(renderCard)}</div>
         </section>
       )}
     </div>
@@ -142,19 +127,19 @@ export default function EventsClient({ active, past, teamCounts }: Props) {
 
 function EventCard({
   event,
-  teamCount,
   active,
   onDelete,
   deleting,
 }: {
   event: EventRow;
-  teamCount: number;
   active?: boolean;
   onDelete: () => void;
   deleting: boolean;
 }) {
   const isDraft = !event.startDate && !event.forceEndedAt;
   const canDelete = !active || isDraft;
+  const isRace = event.format === 'tilerace';
+  const tileCount = isRace ? event.boardSize : event.boardSize * event.boardSize;
 
   return (
     <div
@@ -184,16 +169,16 @@ function EventCard({
               </span>
             ) : null}
             <span className="text-xs bg-gold/15 text-gold/90 px-2 py-0.5 rounded-full font-medium">
-              {event.boardSize}×{event.boardSize}
+              {isRace ? `Race · ${event.boardSize}` : `${event.boardSize}×${event.boardSize}`}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-text-muted">
           <span>
-            {teamCount} team{teamCount !== 1 ? 's' : ''}
+            {event.teamCount} team{event.teamCount !== 1 ? 's' : ''}
           </span>
           <span>·</span>
-          <span>{event.boardSize * event.boardSize} tiles</span>
+          <span>{tileCount} tiles</span>
         </div>
         {event.startDate && event.endDate && (
           <p className="text-[10px] text-text-muted/70 mt-2">
@@ -228,5 +213,59 @@ function EventCard({
         </button>
       )}
     </div>
+  );
+}
+
+// Read-only mirror of a weekly (SOTW/BOTW) competition. Clicking deep-links to the
+// dedicated Competitions surface — this list is for visibility, not management.
+function WeeklyCard({ comp }: { comp: WeeklyRow }) {
+  const isBoss = comp.type === 'boss';
+  const badge = isBoss ? 'BOTW' : 'SOTW';
+  const statusBadge =
+    comp.status === 'active'
+      ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light' }
+      : comp.status === 'completed'
+        ? { label: 'Done', cls: 'bg-text-muted/15 text-text-muted' }
+        : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400' };
+  const isPast = comp.status === 'completed';
+
+  return (
+    <Link
+      href="/admin/weekly"
+      className={`group relative block p-4 border rounded-xl transition-all ${
+        isPast
+          ? 'border-card-border/60 bg-card-bg/50 hover:border-purple-400/30'
+          : 'border-card-border bg-card-bg hover:border-purple-400/40 hover:bg-card-bg-hover'
+      }`}
+    >
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <h3
+          className={`font-semibold flex items-center gap-2 group-hover:text-purple-300 transition-colors ${
+            isPast ? 'text-text-muted' : 'text-foreground'
+          }`}
+        >
+          <span aria-hidden>🏆</span>
+          {comp.title}
+        </h3>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusBadge.cls}`}>
+            {statusBadge.label}
+          </span>
+          <span className="text-xs bg-purple-400/15 text-purple-300 px-2 py-0.5 rounded-full font-medium">
+            {badge}
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-text-muted">
+        <span className="capitalize">{comp.metric.replace(/_/g, ' ')}</span>
+        <span>·</span>
+        <span>
+          {comp.participantCount} player{comp.participantCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <p className="text-[10px] text-text-muted/70 mt-2">
+        <LocalTime date={comp.startDate} format="date" /> — <LocalTime date={comp.endDate} format="date" />
+      </p>
+    </Link>
   );
 }

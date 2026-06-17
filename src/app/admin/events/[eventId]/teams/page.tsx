@@ -1,12 +1,12 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions } from '@/db/schema';
+import { events, tiles, teams, players, completions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import OverviewClient from './OverviewClient';
+import TeamsDraftClient from './TeamsDraftClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EventOverviewPage({
+export default async function EventTeamsPage({
   params,
 }: {
   params: Promise<{ eventId: string }>;
@@ -17,9 +17,10 @@ export default async function EventOverviewPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, eventTeams] = await Promise.all([
+  const [eventTiles, eventTeams, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     db.select().from(teams).where(eq(teams.eventId, id)),
+    db.select().from(players).where(eq(players.eventId, id)),
   ]);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
@@ -27,11 +28,14 @@ export default async function EventOverviewPage({
     ? (await db.select().from(completions)).filter((c) => tileIds.has(c.tileId))
     : [];
 
+  const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
+
   return (
-    <OverviewClient
+    <TeamsDraftClient
       event={event}
       tiles={eventTiles}
-      teams={eventTeams}
+      teams={safeTeams}
+      players={eventPlayers}
       completions={eventCompletions}
     />
   );

@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
   });
   const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < now));
 
-  const [provisionalCount, activeMembers, activeWeekly, recentAudit, openFeeCount] = await Promise.all([
+  const [provisionalCount, activeMembers, activeWeekly, rawRecentAudit, openFeeCount] = await Promise.all([
     db
       .select({ c: count() })
       .from(clanMembers)
@@ -45,6 +45,7 @@ export default async function AdminDashboardPage() {
     db
       .select({
         id: clanAuditLog.id,
+        clanMemberId: clanAuditLog.clanMemberId,
         eventType: clanAuditLog.eventType,
         notes: clanAuditLog.notes,
         occurredAt: clanAuditLog.occurredAt,
@@ -53,13 +54,33 @@ export default async function AdminDashboardPage() {
       .from(clanAuditLog)
       .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
       .orderBy(desc(clanAuditLog.occurredAt))
-      .limit(8),
+      .limit(60),
     db
       .select({ c: count() })
       .from(signupFees)
       .where(inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']))
       .then((r) => r[0]?.c ?? 0),
   ]);
+
+  // A single logical action (e.g. verifying a member) writes several audit rows —
+  // 'renamed' + 'claimed' + 'verified' — and a member can be touched repeatedly, so the
+  // raw feed reads as a wall of identical "Verified · X" lines. Collapse by
+  // (member, eventType): keep the most recent occurrence and tally repeats as a ×N badge.
+  // Rows with no member (system events like clan-sync joins) are keyed by id so they
+  // never merge together.
+  const collapsedAudit: Array<(typeof rawRecentAudit)[number] & { count: number }> = [];
+  const auditIndex = new Map<string, number>();
+  for (const a of rawRecentAudit) {
+    const key = a.clanMemberId != null ? `m${a.clanMemberId}:${a.eventType}` : `r${a.id}`;
+    const existing = auditIndex.get(key);
+    if (existing != null) {
+      collapsedAudit[existing].count += 1;
+    } else {
+      auditIndex.set(key, collapsedAudit.length);
+      collapsedAudit.push({ ...a, count: 1 });
+    }
+  }
+  const recentAudit = collapsedAudit.slice(0, 8);
 
   return (
     <div>
@@ -160,6 +181,11 @@ export default async function AdminDashboardPage() {
                       <div className="text-sm">
                         <span className="text-gold capitalize">{a.eventType.replace(/_/g, ' ')}</span>
                         {a.memberRsn && <span className="text-text-muted"> · {a.memberRsn}</span>}
+                        {a.count > 1 && (
+                          <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold/90 align-middle">
+                            ×{a.count}
+                          </span>
+                        )}
                       </div>
                       {a.notes && <div className="text-[11px] text-text-muted truncate">{a.notes}</div>}
                     </div>
