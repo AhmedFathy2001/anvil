@@ -7,6 +7,23 @@ import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
+// mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
+function clockToSeconds(value: string): number | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (/^\d+$/.test(v)) return parseInt(v, 10);
+  const parts = v.split(':').map((p) => p.trim());
+  if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
+  const nums = parts.map((p) => parseInt(p, 10));
+  return parts.length === 2 ? nums[0] * 60 + nums[1] : nums[0] * 3600 + nums[1] * 60 + nums[2];
+}
+
+function secondsToClock(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 interface CompletedByTeam {
   teamId: number;
   teamName: string;
@@ -32,7 +49,7 @@ interface Props {
   canSubmit: boolean;
   canManage: boolean;
   canToggle: boolean;
-  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null }) => Promise<void>;
+  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) => Promise<void>;
   onDelete?: (submissionId: number, reason: string) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
@@ -69,6 +86,8 @@ export default function TileDetailModal({
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
   const [note, setNote] = useState('');
+  // Timed-tile clear time entered as mm:ss.
+  const [clearTime, setClearTime] = useState('');
   const [creditPlayerId, setCreditPlayerId] = useState<string>(currentPlayerId ? String(currentPlayerId) : '');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -98,17 +117,59 @@ export default function TileDetailModal({
     setAmount('1');
     setImageUrls(['']);
     setNote('');
+    setClearTime('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
   }, [tile.id, currentPlayerId]);
 
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';
+  const isKill = tile.tileType === 'kill';
+  const isTimed = tile.tileType === 'timed';
+  // Drop and kill share the count-based progress/gallery/submission UI.
+  const isCount = isDrop || isKill;
   const isStatTile = !!tile.trackedStat;
+  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  // Noun used in the count-based submission form copy ("drop" vs "kill").
+  const countNoun = isKill ? 'kill' : 'drop';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!onSubmit || !teamId) return;
+
+    // Timed tiles: one screenshot + a clear time. The plugin normally bakes & submits this;
+    // the web form is a manual fallback.
+    if (isTimed) {
+      const img = imageUrls.find((url) => url && url.trim());
+      if (!img) {
+        setError('Please upload a screenshot of the clear.');
+        return;
+      }
+      const secs = clockToSeconds(clearTime);
+      if (secs == null || secs < 1 || secs > 86400) {
+        setError('Enter the clear time as mm:ss (e.g. 28:30).');
+        return;
+      }
+      setError('');
+      setSubmitting(true);
+      try {
+        await onSubmit({
+          tileId: tile.id,
+          teamId,
+          amount: 1,
+          imageUrl: img,
+          note,
+          creditPlayerId: creditPlayerId ? parseInt(creditPlayerId, 10) : null,
+          durationSeconds: secs,
+        });
+        setImageUrls(['']);
+        setNote('');
+        setClearTime('');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     // Validate all images are uploaded
     const validImages = imageUrls.filter((url) => url && url.trim());
@@ -244,17 +305,28 @@ export default function TileDetailModal({
               )}
               <div className="flex items-center gap-2 mt-1">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  isDrop
+                  isCount
                     ? 'bg-accent-green/20 text-accent-green-light'
                     : isStatTile
                     ? 'bg-blue-500/20 text-blue-400'
                     : 'bg-gold/20 text-gold'
                 }`}>
-                  {isDrop ? 'Drop' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard'}
+                  {kindLabel}
                 </span>
                 {isStatTile && tile.statGoal && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
+                  </span>
+                )}
+                {isKill && tile.requiredAmount && (
+                  <span className="text-xs text-text-muted">
+                    Goal: {tile.requiredAmount.toLocaleString()} kill{tile.requiredAmount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {isTimed && tile.timeThresholdSeconds && (
+                  <span className="text-xs text-text-muted">
+                    Cap: ≤ {secondsToClock(tile.timeThresholdSeconds)}
+                    {tile.timedActivity ? ` · ${tile.timedActivity}` : ''}
                   </span>
                 )}
                 {pointsMode && !tile.optional && (
@@ -297,8 +369,8 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Drop tile progress */}
-          {isDrop && dropProgress && (
+          {/* Drop / kill tile progress */}
+          {isCount && dropProgress && (
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-text-muted">Progress</span>
@@ -415,8 +487,17 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Standard tile toggle */}
-          {!isDrop && canToggle && onToggle && (
+          {/* Timed tile status */}
+          {isTimed && (
+            <div className={`rounded-lg border p-3 text-sm ${isCompleted ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light' : 'border-card-border bg-brown-dark/30 text-text-muted'}`}>
+              {isCompleted
+                ? `Cleared in time — at or under ${tile.timeThresholdSeconds ? secondsToClock(tile.timeThresholdSeconds) : 'the cap'}.`
+                : `Clear ${tile.timedActivity || 'the activity'} in ${tile.timeThresholdSeconds ? `≤ ${secondsToClock(tile.timeThresholdSeconds)}` : 'time'} and submit the baked screenshot.`}
+            </div>
+          )}
+
+          {/* Standard / stat tile manual toggle (count- and time-based tiles complete via submissions) */}
+          {!isCount && !isTimed && canToggle && onToggle && (
             <button
               onClick={handleToggle}
               disabled={toggling}
@@ -431,7 +512,7 @@ export default function TileDetailModal({
           )}
 
           {/* Submission gallery */}
-          {isDrop && submissions.length > 0 && (
+          {(isCount || isTimed) && submissions.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Submissions ({submissions.length})
@@ -451,7 +532,9 @@ export default function TileDetailModal({
                             </span>
                           )}
                           <span className="text-gold font-medium">
-                            x{s.amount}
+                            {isTimed
+                              ? (s.durationSeconds != null ? secondsToClock(s.durationSeconds) : '—')
+                              : `x${s.amount}`}
                           </span>
                           {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
                             <span className="text-text-muted">
@@ -493,8 +576,8 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Submit form for drop tiles */}
-          {isDrop && canSubmit && onSubmit && teamId && (() => {
+          {/* Submit form for drop / kill tiles */}
+          {isCount && canSubmit && onSubmit && teamId && (() => {
             const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
             const maxAmount = remaining ?? 99;
             const isComplete = remaining === 0;
@@ -503,7 +586,7 @@ export default function TileDetailModal({
               return (
                 <div className="border border-accent-green/30 rounded-lg p-3 bg-accent-green/10 text-center">
                   <p className="text-sm text-accent-green-light font-medium">Tile Complete!</p>
-                  <p className="text-xs text-text-muted mt-1">All required drops have been submitted.</p>
+                  <p className="text-xs text-text-muted mt-1">All required {countNoun}s have been submitted.</p>
                 </div>
               );
             }
@@ -513,13 +596,13 @@ export default function TileDetailModal({
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
               {remaining !== undefined && (
                 <p className="text-xs text-yellow-400">
-                  {remaining} more drop{remaining !== 1 ? 's' : ''} needed to complete this tile
+                  {remaining} more {countNoun}{remaining !== 1 ? 's' : ''} needed to complete this tile
                 </p>
               )}
 
-              {/* Who got this drop */}
+              {/* Who got this drop/kill */}
               <div>
-                <label className="block text-xs text-text-muted mb-1">Who got this drop? *</label>
+                <label className="block text-xs text-text-muted mb-1">Who got this {countNoun}? *</label>
                 <select
                   value={creditPlayerId}
                   onChange={(e) => setCreditPlayerId(e.target.value)}
@@ -568,7 +651,7 @@ export default function TileDetailModal({
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {imageUrls.map((url, index) => (
                       <div key={index} className="border border-card-border/50 rounded-lg p-2 bg-brown-dark/30">
-                        <p className="text-xs text-text-muted mb-1">Drop #{index + 1}</p>
+                        <p className="text-xs text-text-muted mb-1">{isKill ? 'Kill' : 'Drop'} #{index + 1}</p>
                         <ImageUpload
                           onImageSelected={(newUrl) => {
                             setImageUrls((prev) => {
@@ -610,6 +693,75 @@ export default function TileDetailModal({
             </form>
             );
           })()}
+
+          {/* Submit form for timed tiles */}
+          {isTimed && canSubmit && onSubmit && teamId && !isCompleted && (
+            <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Submit a Clear</h3>
+              <p className="text-xs text-text-muted">
+                Normally the plugin bakes &amp; submits this automatically. Use this only as a manual fallback.
+              </p>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">
+                  Clear Time *{tile.timeThresholdSeconds ? <span className="text-yellow-400 ml-1">(must be ≤ {secondsToClock(tile.timeThresholdSeconds)})</span> : null}
+                </label>
+                <input
+                  type="text"
+                  value={clearTime}
+                  onChange={(e) => setClearTime(e.target.value)}
+                  placeholder="mm:ss — e.g. 28:30"
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+              </div>
+
+              {/* Optional credit player */}
+              {teamPlayers && teamPlayers.length > 0 && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Who cleared it? (optional)</label>
+                  <select
+                    value={creditPlayerId}
+                    onChange={(e) => setCreditPlayerId(e.target.value)}
+                    className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                  >
+                    <option value="">Team clear / unattributed</option>
+                    {teamPlayers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Evidence Screenshot *</label>
+                <ImageUpload
+                  onImageSelected={(url) => setImageUrls([url])}
+                  currentUrl={imageUrls[0] || undefined}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional note..."
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+              </div>
+
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+              >
+                {submitting ? 'Submitting...' : 'Submit Clear'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

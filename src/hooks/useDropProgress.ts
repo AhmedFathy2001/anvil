@@ -14,7 +14,9 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
     const perItemProgressMap = new Map<number, ItemRequirementProgress[]>();
 
     for (const tile of tiles) {
-      if (tile.tileType === 'drop' && tile.requiredAmount) {
+      // Drop and kill tiles both accumulate submission `amount` toward `requiredAmount`
+      // (drop = item drops, kill = NPC kills). Kill tiles never carry per-item requirements.
+      if ((tile.tileType === 'drop' || tile.tileType === 'kill') && tile.requiredAmount) {
         const tileSubs = submissions.filter((s) => s.tileId === tile.id);
         const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
         dropProgress.set(tile.id, { current, required: tile.requiredAmount });

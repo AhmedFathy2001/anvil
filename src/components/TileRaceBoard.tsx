@@ -249,7 +249,7 @@ function TrackTile({
   progress,
   statProgress,
 }: TrackTileProps) {
-  const isDrop = tile.tileType === 'drop';
+  const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill';
   const showDrop = isDrop && progress && progress.current > 0 && !reached;
   const showStat = statProgress && statProgress.current > 0 && !reached;
 

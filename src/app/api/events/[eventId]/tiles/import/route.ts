@@ -12,7 +12,8 @@ import { verifyAdmin } from '@/lib/auth';
 //
 // Body: { rows: Array<{
 //   label?, description?, tileType?, requiredAmount?, points?, category?,
-//   optional?, trackedStat?, statType?, statGoal?
+//   optional?, trackedStat?, statType?, statGoal?,
+//   targetNpcs?, timedActivity?, timeThresholdSeconds?
 // }> }
 // Row index i targets the tile at position i (0-based). Extra rows beyond the tile
 // count are ignored and reported back.
@@ -28,6 +29,9 @@ interface ImportRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  targetNpcs?: string[] | null;
+  timedActivity?: string | null;
+  timeThresholdSeconds?: number | null;
 }
 
 export async function POST(
@@ -94,6 +98,19 @@ export async function POST(
     ) {
       return NextResponse.json({ error: `Row ${i + 1}: statGoal must be a non-negative integer` }, { status: 400 });
     }
+    if (
+      row.timeThresholdSeconds !== undefined && row.timeThresholdSeconds !== null &&
+      (!Number.isInteger(row.timeThresholdSeconds) || row.timeThresholdSeconds < 1 || row.timeThresholdSeconds > 86400)
+    ) {
+      return NextResponse.json({ error: `Row ${i + 1}: timeThresholdSeconds must be an integer between 1 and 86400` }, { status: 400 });
+    }
+    if (
+      row.targetNpcs !== undefined && row.targetNpcs !== null &&
+      (!Array.isArray(row.targetNpcs) || row.targetNpcs.length > 25 ||
+        !row.targetNpcs.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40))
+    ) {
+      return NextResponse.json({ error: `Row ${i + 1}: targetNpcs must be up to 25 NPC names (≤40 chars each)` }, { status: 400 });
+    }
 
     // Cross-validate the resulting tile kind against the existing row (import never
     // touches tracked items, so those come from the DB). Same rule as the single-tile
@@ -114,23 +131,37 @@ export async function POST(
     const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : tile.statGoal;
     const effRequiredAmount =
       !eventStarted && row.requiredAmount !== undefined ? row.requiredAmount ?? null : tile.requiredAmount;
+    const effTargetNpcsLen =
+      row.targetNpcs !== undefined ? (row.targetNpcs?.length ?? 0) : parseLen(tile.targetNpcs);
+    const effTimed =
+      (row.timedActivity !== undefined ? !!row.timedActivity : !!tile.timedActivity) ||
+      (row.timeThresholdSeconds !== undefined ? row.timeThresholdSeconds != null : tile.timeThresholdSeconds != null);
     const hasStat = !!effTrackedStat || !!effStatType || effStatGoal != null;
-    const hasDropFields =
-      effRequiredAmount != null || parseLen(tile.trackedItemIds) > 0 || parseLen(tile.itemRequirements) > 0;
-    if (hasStat && (effTileType === 'drop' || hasDropFields)) {
+    const dropItemFields = parseLen(tile.trackedItemIds) > 0 || parseLen(tile.itemRequirements) > 0;
+    const isDrop = effTileType === 'drop';
+    const isKill = effTileType === 'kill';
+    const isTimed = effTileType === 'timed';
+
+    if (hasStat && (isDrop || isKill || isTimed || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
       return NextResponse.json(
-        { error: `Row ${i + 1}: a stat-tracked tile cannot also be a drop tile / require items.` },
+        { error: `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, or timed tile.` },
         { status: 400 },
       );
     }
     if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
       return NextResponse.json({ error: `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.` }, { status: 400 });
     }
-    if (effTileType !== 'drop' && hasDropFields) {
-      return NextResponse.json(
-        { error: `Row ${i + 1}: only drop tiles can carry a required amount or items.` },
-        { status: 400 },
-      );
+    if (dropItemFields && !isDrop) {
+      return NextResponse.json({ error: `Row ${i + 1}: only drop tiles can carry items.` }, { status: 400 });
+    }
+    if (effTargetNpcsLen > 0 && !isKill) {
+      return NextResponse.json({ error: `Row ${i + 1}: only kill tiles can target NPCs.` }, { status: 400 });
+    }
+    if (effTimed && !isTimed) {
+      return NextResponse.json({ error: `Row ${i + 1}: only timed tiles can carry an activity or time threshold.` }, { status: 400 });
+    }
+    if (effRequiredAmount != null && !isDrop && !isKill) {
+      return NextResponse.json({ error: `Row ${i + 1}: only drop or kill tiles can have a required amount.` }, { status: 400 });
     }
   }
 
@@ -147,6 +178,14 @@ export async function POST(
       if (row.trackedStat !== undefined) updateSet.trackedStat = row.trackedStat || null;
       if (row.statType !== undefined) updateSet.statType = row.statType || null;
       if (row.statGoal !== undefined) updateSet.statGoal = row.statGoal ?? null;
+      // Kill/timed kind fields — always applied (like stat fields).
+      if (row.targetNpcs !== undefined) {
+        updateSet.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
+          ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))
+          : null;
+      }
+      if (row.timedActivity !== undefined) updateSet.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
+      if (row.timeThresholdSeconds !== undefined) updateSet.timeThresholdSeconds = row.timeThresholdSeconds ?? null;
 
       // Pre-start-only fields.
       if (!eventStarted) {

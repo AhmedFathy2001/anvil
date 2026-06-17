@@ -29,7 +29,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -101,6 +101,52 @@ export async function PUT(
     }
   }
 
+  // targetNpcs: optional JSON array of NPC names a KILL tile counts. Same shape as sourceNpcs.
+  let targetNpcsJson: string | null | undefined;
+  if (targetNpcs !== undefined) {
+    if (targetNpcs === null || (Array.isArray(targetNpcs) && targetNpcs.length === 0)) {
+      targetNpcsJson = null;
+    } else if (
+      Array.isArray(targetNpcs) &&
+      targetNpcs.length <= 25 &&
+      targetNpcs.every((n: unknown) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40)
+    ) {
+      targetNpcsJson = JSON.stringify(targetNpcs.map((n: string) => n.trim()));
+    } else {
+      return NextResponse.json(
+        { error: 'targetNpcs must be an array of up to 25 non-empty NPC names (≤40 chars each)' },
+        { status: 400 },
+      );
+    }
+  }
+
+  // timedActivity: optional free-text activity identifier for a TIMED tile (≤60 chars).
+  let timedActivityValue: string | null | undefined;
+  if (timedActivity !== undefined) {
+    if (timedActivity === null || (typeof timedActivity === 'string' && timedActivity.trim() === '')) {
+      timedActivityValue = null;
+    } else if (typeof timedActivity === 'string' && timedActivity.trim().length <= 60) {
+      timedActivityValue = timedActivity.trim();
+    } else {
+      return NextResponse.json({ error: 'timedActivity must be a string of at most 60 characters' }, { status: 400 });
+    }
+  }
+
+  // timeThresholdSeconds: optional completion-time cap for a TIMED tile (1..86400 seconds).
+  let timeThresholdValue: number | null | undefined;
+  if (timeThresholdSeconds !== undefined) {
+    if (timeThresholdSeconds === null) {
+      timeThresholdValue = null;
+    } else if (Number.isInteger(timeThresholdSeconds) && timeThresholdSeconds >= 1 && timeThresholdSeconds <= 86400) {
+      timeThresholdValue = timeThresholdSeconds;
+    } else {
+      return NextResponse.json(
+        { error: 'timeThresholdSeconds must be an integer between 1 and 86400' },
+        { status: 400 },
+      );
+    }
+  }
+
   // Build update set
   const updateSet: Record<string, unknown> = {
     // description is always editable
@@ -118,6 +164,10 @@ export async function PUT(
     category: category !== undefined ? (category ? String(category).slice(0, 60) : null) : tile.category,
     // source-NPC restriction (drop tiles only) is always editable
     ...(sourceNpcsJson !== undefined ? { sourceNpcs: sourceNpcsJson } : {}),
+    // kill-tile target NPCs and timed-tile activity/threshold are always editable
+    ...(targetNpcsJson !== undefined ? { targetNpcs: targetNpcsJson } : {}),
+    ...(timedActivityValue !== undefined ? { timedActivity: timedActivityValue } : {}),
+    ...(timeThresholdValue !== undefined ? { timeThresholdSeconds: timeThresholdValue } : {}),
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)
@@ -164,27 +214,40 @@ export async function PUT(
     }
   };
   const hasStat = !!merged.trackedStat || !!merged.statType || merged.statGoal != null;
-  const hasDropFields =
-    merged.requiredAmount != null ||
+  const dropItemFields =
     parseLen(merged.trackedItemIds) > 0 ||
     parseLen(merged.itemRequirements) > 0 ||
     parseLen(merged.sourceNpcs) > 0;
+  const hasKillFields = parseLen(merged.targetNpcs) > 0;
+  const hasTimedFields = merged.timeThresholdSeconds != null || !!merged.timedActivity;
   const isDrop = merged.tileType === 'drop';
+  const isKill = merged.tileType === 'kill';
+  const isTimed = merged.tileType === 'timed';
+  // requiredAmount is shared by drop (item count) and kill (kill count).
+  const hasRequiredAmount = merged.requiredAmount != null;
 
-  if (hasStat && (isDrop || hasDropFields)) {
+  // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
+  if (hasStat && (isDrop || isKill || isTimed || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also require item drops. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, or timed tile. Pick one kind.' },
       { status: 400 },
     );
   }
   if (hasStat && merged.statType !== 'skill' && merged.statType !== 'boss') {
     return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
   }
-  if (!isDrop && hasDropFields) {
-    return NextResponse.json(
-      { error: 'Only drop tiles can carry a required amount or tracked items.' },
-      { status: 400 },
-    );
+  // Field/kind coherence for the submission-backed kinds.
+  if (dropItemFields && !isDrop) {
+    return NextResponse.json({ error: 'Only drop tiles can carry tracked items or source restrictions.' }, { status: 400 });
+  }
+  if (hasKillFields && !isKill) {
+    return NextResponse.json({ error: 'Only kill tiles can target NPCs.' }, { status: 400 });
+  }
+  if (hasTimedFields && !isTimed) {
+    return NextResponse.json({ error: 'Only timed tiles can carry an activity or time threshold.' }, { status: 400 });
+  }
+  if (hasRequiredAmount && !isDrop && !isKill) {
+    return NextResponse.json({ error: 'Only drop or kill tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

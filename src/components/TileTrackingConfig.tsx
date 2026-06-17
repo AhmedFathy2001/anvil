@@ -16,7 +16,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -24,6 +24,22 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'boss', label: 'Boss KC', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
   { key: 'collection', label: 'Collection', blurb: 'A set where each listed item needs its own count (e.g. full Moons).' },
+  { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
+  { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
+];
+
+// Activity hints for timed tiles. The free-text field accepts any name the plugin can time.
+const TIMED_ACTIVITY_SUGGESTIONS = [
+  'Inferno',
+  'Fight Caves',
+  'Fortis Colosseum',
+  'Chambers of Xeric',
+  'Theatre of Blood',
+  'Tombs of Amascut',
+  'TzKal-Zuk',
+  'Vorkath',
+  'Zulrah',
+  'Alchemical Hydra',
 ];
 
 // Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
@@ -51,9 +67,30 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
+  if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'timed') return 'timed';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
   return 'standard';
+}
+
+// mm:ss <-> seconds helpers for the timed-tile threshold input.
+function secondsToClock(total: number | null | undefined): string {
+  if (total == null || total < 0) return '';
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+function clockToSeconds(value: string): number | null {
+  const v = value.trim();
+  if (!v) return null;
+  // Accept "mm:ss", "h:mm:ss", or a bare seconds count.
+  if (/^\d+$/.test(v)) return parseInt(v, 10);
+  const parts = v.split(':').map((p) => p.trim());
+  if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
+  const nums = parts.map((p) => parseInt(p, 10));
+  if (parts.length === 2) return nums[0] * 60 + nums[1];
+  return nums[0] * 3600 + nums[1] * 60 + nums[2];
 }
 
 export default function TileTrackingConfig({
@@ -76,6 +113,18 @@ export default function TileTrackingConfig({
   const [category, setCategory] = useState<string>(initial.category || "");
   // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
   const [sourceNpcsText, setSourceNpcsText] = useState<string>((initial.sourceNpcs || []).join(", "));
+  // Kill-tile target NPC names — a multi-pick set (any listed name counts). Variants like
+  // "The Nightmare" + "Phosani's Nightmare" can all be added so any of them count.
+  const [targetNpcNames, setTargetNpcNames] = useState<string[]>(initial.targetNpcs || []);
+  const [npcSearch, setNpcSearch] = useState("");
+  const [npcResults, setNpcResults] = useState<string[]>([]);
+  const [npcSearching, setNpcSearching] = useState(false);
+  const [showNpcDropdown, setShowNpcDropdown] = useState(false);
+  const npcSearchRef = useRef<HTMLDivElement>(null);
+  const npcSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timed-tile activity + threshold.
+  const [timedActivity, setTimedActivity] = useState<string>(initial.timedActivity || "");
+  const [timeThresholdClock, setTimeThresholdClock] = useState<string>(secondsToClock(initial.timeThresholdSeconds));
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
@@ -93,6 +142,8 @@ export default function TileTrackingConfig({
   const isStat = kind === 'skill' || kind === 'boss';
   const isDrop = kind === 'drop' || kind === 'collection';
   const isCollection = kind === 'collection';
+  const isKill = kind === 'kill';
+  const isTimed = kind === 'timed';
 
   // Resolve names for pre-existing tracked item IDs (simple-mode tiles store only IDs).
   useEffect(() => {
@@ -136,15 +187,67 @@ export default function TileTrackingConfig({
       if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
         setShowItemDropdown(false);
       }
+      if (npcSearchRef.current && !npcSearchRef.current.contains(e.target as Node)) {
+        setShowNpcDropdown(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // NPC name search (kill tiles) — backed by the OSRS Wiki monster list. Excludes names
+  // already added so the dropdown only offers new ones.
+  const searchNpcs = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setNpcResults([]);
+      return;
+    }
+    setNpcSearching(true);
+    try {
+      const res = await fetch(`/api/admin/npc-search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const results = (await res.json()) as { name: string }[];
+        const existing = new Set(targetNpcNames.map((n) => n.toLowerCase()));
+        setNpcResults(results.map((r) => r.name).filter((n) => !existing.has(n.toLowerCase())));
+      }
+    } catch { /* ignore */ }
+    setNpcSearching(false);
+  }, [targetNpcNames]);
+
+  function addNpc(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setTargetNpcNames((prev) =>
+      prev.some((n) => n.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed],
+    );
+  }
+  function addAllNpcResults() {
+    if (npcResults.length === 0) return;
+    setTargetNpcNames((prev) => {
+      const seen = new Set(prev.map((n) => n.toLowerCase()));
+      const merged = [...prev];
+      for (const n of npcResults) {
+        if (!seen.has(n.toLowerCase())) {
+          merged.push(n);
+          seen.add(n.toLowerCase());
+        }
+      }
+      return merged;
+    });
+    setNpcResults([]);
+    setNpcSearch("");
+    setShowNpcDropdown(false);
+  }
+  function removeNpc(name: string) {
+    setTargetNpcNames((prev) => prev.filter((n) => n !== name));
+  }
+
   // Switching kind wipes the other kinds' fields so a save can't smuggle stale data.
   function changeKind(next: TileKind) {
     setKind(next);
     setError(null);
+    // Fields not relevant to the destination kind are always cleared; each branch then
+    // keeps only what it needs.
     if (next === 'skill' || next === 'boss') {
       setTrackedStat("");
       setStatGoal("");
@@ -152,9 +255,29 @@ export default function TileTrackingConfig({
       setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     } else if (next === 'drop' || next === 'collection') {
       setTrackedStat("");
       setStatGoal("");
+      setTargetNpcNames([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'kill') {
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'timed') {
+      setTrackedStat("");
+      setStatGoal("");
+      setRequiredAmount("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
     } else {
       // standard
       setTrackedStat("");
@@ -162,6 +285,9 @@ export default function TileTrackingConfig({
       setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     }
   }
 
@@ -178,6 +304,17 @@ export default function TileTrackingConfig({
     if (kind === 'collection') {
       if (trackedItems.length === 0) return 'Add at least one item to the collection.';
       if (trackedItems.some((i) => i.perItemAmount < 1)) return 'Each collection item needs a count of at least 1.';
+    }
+    if (kind === 'kill') {
+      if (targetNpcNames.length === 0) return 'Add at least one NPC to count kills for.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    }
+    if (kind === 'timed') {
+      if (!timedActivity.trim()) return 'Name the activity to time (e.g. Inferno).';
+      const secs = clockToSeconds(timeThresholdClock);
+      if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
+      if (secs > 86400) return 'Time cap cannot exceed 24 hours.';
     }
     return null;
   }
@@ -201,7 +338,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -210,6 +347,9 @@ export default function TileTrackingConfig({
         trackedItemIds: null,
         itemRequirements: null,
         sourceNpcs: null,
+        targetNpcs: null,
+        timedActivity: null,
+        timeThresholdSeconds: null,
       };
 
       if (isStat) {
@@ -226,6 +366,13 @@ export default function TileTrackingConfig({
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+      } else if (kind === 'kill') {
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = targetNpcNames;
+        payload.trackingMode = trackingMode;
+      } else if (kind === 'timed') {
+        payload.timedActivity = timedActivity.trim();
+        payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
       }
 
       if (isDrop) {
@@ -255,6 +402,9 @@ export default function TileTrackingConfig({
           points: updated.points ?? 1,
           category: updated.category ?? null,
           sourceNpcs: updated.sourceNpcs ? JSON.parse(updated.sourceNpcs) : null,
+          targetNpcs: updated.targetNpcs ? JSON.parse(updated.targetNpcs) : null,
+          timedActivity: updated.timedActivity ?? null,
+          timeThresholdSeconds: updated.timeThresholdSeconds ?? null,
         });
       } else {
         const data = await res.json().catch(() => ({}));
@@ -566,6 +716,183 @@ export default function TileTrackingConfig({
               boss — Chambers of Xeric, Theatre of Blood, Tombs of Amascut, Barrows, Lunar Chest (Moons). The game
               reports the chest as the source, so an &ldquo;onyx from CoX&rdquo; tile uses{' '}
               <span className="text-foreground/70">Chambers of Xeric</span>.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- KILL KIND ---- */}
+      {isKill && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Target NPC(s) <span className="text-text-muted/60">(any listed name counts)</span>
+            </label>
+
+            {/* Selected NPC chips */}
+            {targetNpcNames.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {targetNpcNames.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    {name}
+                    <button
+                      type="button"
+                      onClick={() => removeNpc(name)}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                      aria-label={`Remove ${name}`}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Search + free-text add. Enter adds the typed text verbatim (override). */}
+            <div ref={npcSearchRef} className="relative">
+              <input
+                type="text"
+                value={npcSearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNpcSearch(val);
+                  setShowNpcDropdown(true);
+                  if (npcSearchTimeout.current) clearTimeout(npcSearchTimeout.current);
+                  npcSearchTimeout.current = setTimeout(() => searchNpcs(val), 300);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && npcSearch.trim()) {
+                    e.preventDefault();
+                    addNpc(npcSearch);
+                    setNpcSearch('');
+                    setNpcResults([]);
+                    setShowNpcDropdown(false);
+                  }
+                }}
+                onFocus={() => npcResults.length > 0 && setShowNpcDropdown(true)}
+                placeholder="Search monsters (e.g. Nightmare, Chicken)..."
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              {npcSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
+              {showNpcDropdown && npcResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
+                  <button
+                    type="button"
+                    onClick={addAllNpcResults}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-gold border-b border-card-border hover:bg-gold/10 transition-colors"
+                  >
+                    + Add all {npcResults.length} match{npcResults.length !== 1 ? 'es' : ''}
+                  </button>
+                  {npcResults.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        addNpc(name);
+                        setNpcSearch('');
+                        setNpcResults([]);
+                        setShowNpcDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              A kill counts when the NPC&rsquo;s name matches <span className="text-foreground/70">any</span> of these
+              (case-insensitive). Add every variant you want to count — e.g. <span className="text-foreground/70">The
+              Nightmare</span> + <span className="text-foreground/70">Phosani&rsquo;s Nightmare</span>, or use
+              &ldquo;Add all matches&rdquo;. These need not be on the hiscores (chickens, cows, etc.). Press Enter to add a
+              name that isn&rsquo;t in the list — the plugin&rsquo;s reported name is the source of truth.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Required Kills</label>
+            <input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="e.g. 50"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrackingMode("team")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Team Total
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrackingMode("solo")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Solo (Any Member)
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- TIMED KIND ---- */}
+      {isTimed && (
+        <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Activity</label>
+            <input
+              type="text"
+              list="timed-activity-suggestions"
+              value={timedActivity}
+              onChange={(e) => setTimedActivity(e.target.value)}
+              placeholder="e.g. Inferno"
+              maxLength={60}
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            <datalist id="timed-activity-suggestions">
+              {TIMED_ACTIVITY_SUGGESTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              The activity the plugin times (region/boss it recognises). Raids, Inferno, Colosseum, or a boss.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Time Cap <span className="text-text-muted/60">(complete if cleared at or under)</span>
+            </label>
+            <input
+              type="text"
+              value={timeThresholdClock}
+              onChange={(e) => setTimeThresholdClock(e.target.value)}
+              placeholder="mm:ss — e.g. 30:00"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Enter as <span className="text-foreground/70">mm:ss</span> (e.g. 30:00) or seconds. Pass/fail — the tile
+              completes when a submitted clear time is at or under this cap.
             </p>
           </div>
         </div>

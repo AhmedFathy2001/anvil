@@ -63,6 +63,21 @@ export const tiles = sqliteTable('tiles', {
   // source name the RuneLite plugin reports. Drop tiles only. Important for Leagues-style
   // boards where the same item is obtainable from many places but only one should count.
   sourceNpcs: text('source_npcs'),
+  // KILL tiles (tile_type='kill'). JSON array of NPC names the RuneLite plugin counts
+  // kills for — e.g. '["Chicken"]' or '["Cow","Cow calf"]' for "kill any of these".
+  // Matched case-insensitively against the NPC the plugin reports on death. These NPCs
+  // need NOT be on the OSRS hiscores (that's the whole point — chickens, cows, etc.).
+  // The kill count needed is stored in `requiredAmount`; `trackingMode` decides whether
+  // kills accumulate across the team or any single member's kills count. NULL for non-kill tiles.
+  targetNpcs: text('target_npcs'),
+  // TIMED tiles (tile_type='timed'). Free-text activity identifier the plugin maps to an
+  // internal timer — e.g. "Inferno", "Chambers of Xeric", "Fortis Colosseum", or a boss
+  // name. The plugin times a clear (region-enter → boss-death/completion) and bakes the
+  // duration onto the screenshot. NULL for non-timed tiles.
+  timedActivity: text('timed_activity'),
+  // TIMED tiles. The completion-time cap in seconds. The tile completes when a submission
+  // reports a duration ≤ this value (pass/fail, not a leaderboard). NULL for non-timed tiles.
+  timeThresholdSeconds: integer('time_threshold_seconds'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
@@ -137,6 +152,10 @@ export const submissions = sqliteTable('submissions', {
   imageUrl: text('image_url'),
   note: text('note'),
   itemId: integer('item_id'), // which specific tracked item this submission is for (per-item tracking)
+  // TIMED-tile submissions only: the measured completion time in seconds, as reported
+  // (and baked onto the screenshot) by the plugin. NULL for drop/kill submissions. The
+  // tile completes when any submission's durationSeconds ≤ tile.timeThresholdSeconds.
+  durationSeconds: integer('duration_seconds'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

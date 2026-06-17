@@ -218,6 +218,13 @@
       "when": 1781675819568,
       "tag": "0030_lumpy_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1781690097436,
+      "tag": "0031_majestic_strong_guy",
+      "breakpoints": true
     }
   ]
 }

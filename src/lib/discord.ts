@@ -144,6 +144,16 @@ interface SubmissionNotifyParams {
   requiredAmount: number | null;
   note: string | null;
   imageUrl: string | null;
+  // Tile kind so the embed can label itself ('drop' | 'kill' | 'timed'). Defaults to drop.
+  tileType?: string | null;
+  // Timed-tile clear time in seconds (shown as mm:ss). Null for drop/kill submissions.
+  durationSeconds?: number | null;
+}
+
+function formatClearTime(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export async function notifySubmission(params: SubmissionNotifyParams): Promise<boolean> {
@@ -158,6 +168,8 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     requiredAmount,
     note,
     imageUrl,
+    tileType,
+    durationSeconds,
   } = params;
 
   const fields: { name: string; value: string; inline?: boolean }[] = [
@@ -170,7 +182,15 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push({ name: 'Player', value: creditPlayerName, inline: true });
   }
 
-  if (requiredAmount) {
+  if (tileType === 'timed' && durationSeconds != null) {
+    fields.push({ name: 'Clear Time', value: formatClearTime(durationSeconds), inline: true });
+  } else if (tileType === 'kill') {
+    fields.push({
+      name: 'Kills',
+      value: requiredAmount ? `${amount} submitted (${currentTotal}/${requiredAmount} total)` : `${amount} submitted`,
+      inline: true,
+    });
+  } else if (requiredAmount) {
     fields.push({
       name: 'Progress',
       value: `${amount} submitted (${currentTotal}/${requiredAmount} total)`,
@@ -182,8 +202,13 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push({ name: 'Note', value: note, inline: false });
   }
 
+  const title =
+    tileType === 'timed' ? '⏱️ New Timed Clear Submitted!'
+    : tileType === 'kill' ? '⚔️ New Kill Submitted!'
+    : '🎯 New Drop Submitted!';
+
   const embed: DiscordEmbed = {
-    title: '🎯 New Drop Submitted!',
+    title,
     description: '━━━━━━━━━━━━━━━━━━━━',
     color: teamColorToDecimal(teamColor),
     fields,

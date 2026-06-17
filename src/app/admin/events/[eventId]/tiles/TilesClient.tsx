@@ -1,9 +1,10 @@
 'use client';
 
 import type { Event, Tile } from '@/lib/types';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
 
@@ -22,19 +23,33 @@ export default function TilesClient({ event, tiles }: Props) {
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+  const editingTile = editingTileId != null ? localTiles.find((t) => t.id === editingTileId) ?? null : null;
 
-  // Derive the single "kind" badge from the stored columns (mirrors TileTrackingConfig).
-  function tileKind(tile: Tile): { label: string; cls: string } {
-    if (tile.tileType === 'drop') {
-      const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
-      return isCollection
-        ? { label: 'Collection', cls: 'bg-accent-green/20 text-accent-green-light' }
-        : { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' };
-    }
-    if (tile.statType === 'skill') return { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300' };
-    if (tile.statType === 'boss') return { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300' };
-    return { label: 'Standard', cls: 'bg-gold/15 text-gold' };
-  }
+  // Filter state — essential once a Leagues board imports hundreds of tiles.
+  const [search, setSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
+
+  const filteredTiles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return localTiles.filter((t) => {
+      if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
+      if (!q) return true;
+      return (
+        t.label?.toLowerCase().includes(q) ||
+        t.category?.toLowerCase().includes(q) ||
+        t.trackedStat?.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        String(t.position + 1) === q.replace(/^#/, '') ||
+        false
+      );
+    });
+  }, [localTiles, search, kindFilter]);
+
+  // Collapse back to the first page whenever the result set changes.
+  useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter]);
+
+  const visibleTiles = filteredTiles.slice(0, visibleLimit);
 
   function handleTileConfigSaved(
     tileId: number,
@@ -53,9 +68,12 @@ export default function TilesClient({ event, tiles }: Props) {
       points?: number;
       category?: string | null;
       sourceNpcs?: string[] | null;
+      targetNpcs?: string[] | null;
+      timedActivity?: string | null;
+      timeThresholdSeconds?: number | null;
     },
   ) {
-    const { trackedItemIds, itemRequirements, sourceNpcs, optional: updatedOptional, ...rest } = updated;
+    const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, ...rest } = updated;
     setLocalTiles((prev) =>
       prev.map((t) =>
         t.id === tileId
@@ -69,6 +87,8 @@ export default function TilesClient({ event, tiles }: Props) {
                 itemRequirements === undefined ? t.itemRequirements : itemRequirements === null ? null : JSON.stringify(itemRequirements),
               sourceNpcs:
                 sourceNpcs === undefined ? t.sourceNpcs : sourceNpcs === null ? null : JSON.stringify(sourceNpcs),
+              targetNpcs:
+                targetNpcs === undefined ? t.targetNpcs : targetNpcs === null ? null : JSON.stringify(targetNpcs),
             }
           : t,
       ),
@@ -184,77 +204,267 @@ export default function TilesClient({ event, tiles }: Props) {
           Tile Configuration
           <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {localTiles.map((tile) => (
-            <div key={tile.id} className="border border-card-border rounded-xl p-3 bg-card-bg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold truncate">{tile.label}</span>
-                <div className="flex items-center gap-1.5">
-                  {pointsMode && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
-                      {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {tile.optional ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
-                      Optional
-                    </span>
-                  ) : null}
-                  {(() => {
-                    const k = tileKind(tile);
-                    return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>;
-                  })()}
-                  <span className="text-xs text-text-muted">#{tile.position + 1}</span>
-                </div>
-              </div>
-              {tile.description && <p className="text-xs text-text-muted mb-1 line-clamp-2">{tile.description}</p>}
-              {tile.tileType === 'drop' && tile.requiredAmount && (
-                <p className="text-xs text-accent-green-light mb-1">Required: {tile.requiredAmount}</p>
-              )}
-              {tile.trackedStat ? (
-                <div className="text-xs text-text-muted mb-2">
-                  <span className="text-gold">{tile.trackedStat}</span>
-                  {tile.statGoal && <span className="ml-1">(goal: {tile.statGoal.toLocaleString()})</span>}
-                  <span className="ml-1">[{tile.trackingMode}]</span>
-                </div>
-              ) : (
-                <p className="text-xs text-text-muted mb-2">No stat tracked</p>
-              )}
+
+        {/* Search + kind filter */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tiles by label, category, stat, or #position…"
+              className="w-full pl-3 pr-8 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
+            />
+            {search && (
               <button
-                onClick={() => setEditingTileId(editingTileId === tile.id ? null : tile.id)}
-                className="text-xs text-gold hover:text-gold-light transition-colors underline decoration-gold/30 underline-offset-2"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
               >
-                {editingTileId === tile.id ? 'Close' : 'Configure'}
+                &times;
               </button>
-              {editingTileId === tile.id && (
-                <div className="mt-3 pt-3 border-t border-card-border">
-                  <TileTrackingConfig
-                    tileId={tile.id}
-                    eventId={event.id}
-                    initial={{
-                      label: tile.label,
-                      description: tile.description ?? null,
-                      tileType: tile.tileType || 'standard',
-                      requiredAmount: tile.requiredAmount ?? null,
-                      trackedStat: tile.trackedStat ?? null,
-                      statType: tile.statType ?? null,
-                      statGoal: tile.statGoal ?? null,
-                      trackingMode: tile.trackingMode || 'team',
-                      optional: !!tile.optional,
-                      trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
-                      itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
-                      points: tile.points ?? 1,
-                      category: tile.category ?? null,
-                      sourceNpcs: tile.sourceNpcs ? JSON.parse(tile.sourceNpcs) : null,
-                    }}
-                    onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
-                    eventStarted={eventStarted}
-                    pointsMode={pointsMode}
-                  />
+            )}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            {KIND_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setKindFilter(f.key)}
+                className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  kindFilter === f.key
+                    ? 'bg-gold/20 border-gold text-gold'
+                    : 'border-card-border text-text-muted hover:border-gold/40'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-xs text-text-muted mb-3">
+          {filteredTiles.length === localTiles.length
+            ? `Showing all ${localTiles.length} tile${localTiles.length !== 1 ? 's' : ''}`
+            : `${filteredTiles.length} of ${localTiles.length} tiles match`}
+          {filteredTiles.length > visibleTiles.length && ` · displaying first ${visibleTiles.length}`}
+        </p>
+
+        {filteredTiles.length === 0 ? (
+          <div className="border border-card-border rounded-xl p-8 bg-card-bg text-center text-sm text-text-muted">
+            No tiles match your search.
+          </div>
+        ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+          {visibleTiles.map((tile) => {
+            const k = tileKind(tile);
+            const isEditing = editingTileId === tile.id;
+            return (
+              <button
+                key={tile.id}
+                onClick={() => setEditingTileId(tile.id)}
+                className={`text-left border rounded-xl p-3 bg-card-bg hover:bg-card-bg-hover transition-colors flex flex-col gap-1.5 ${
+                  isEditing ? 'border-gold ring-1 ring-gold/40' : 'border-card-border hover:border-gold/40'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-mono text-text-muted shrink-0">#{tile.position + 1}</span>
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {pointsMode && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
+                        {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {tile.optional ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
+                        Optional
+                      </span>
+                    ) : null}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                <span className="text-sm font-semibold text-foreground truncate">{tile.label}</span>
+                <span className="text-xs text-text-muted truncate">{tileMeta(tile)}</span>
+              </button>
+            );
+          })}
+        </div>
+        )}
+
+        {filteredTiles.length > visibleTiles.length && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setVisibleLimit((n) => n + PAGE_SIZE)}
+              className="text-sm font-semibold px-4 py-2 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors"
+            >
+              Show {Math.min(PAGE_SIZE, filteredTiles.length - visibleTiles.length)} more
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Configuration drawer */}
+      {editingTile && (
+        <TileConfigDrawer
+          key={editingTile.id}
+          tile={editingTile}
+          eventId={event.id}
+          eventStarted={eventStarted}
+          pointsMode={pointsMode}
+          onClose={() => setEditingTileId(null)}
+          onSaved={(updated) => {
+            handleTileConfigSaved(editingTile.id, updated);
+            setEditingTileId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// How many tiles to render per page — Leagues boards can import 500-1000 tiles, so the
+// grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
+const PAGE_SIZE = 120;
+
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed';
+type KindFilter = 'all' | TileKindKey;
+
+// Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
+function tileKindKey(tile: Tile): TileKindKey {
+  if (tile.tileType === 'kill') return 'kill';
+  if (tile.tileType === 'timed') return 'timed';
+  if (tile.tileType === 'drop') {
+    const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
+    return isCollection ? 'collection' : 'drop';
+  }
+  if (tile.statType === 'skill') return 'skill';
+  if (tile.statType === 'boss') return 'boss';
+  return 'standard';
+}
+
+const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
+  standard: { label: 'Standard', cls: 'bg-gold/15 text-gold' },
+  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300' },
+  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300' },
+  drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' },
+  collection: { label: 'Collection', cls: 'bg-accent-green/20 text-accent-green-light' },
+  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
+  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
+};
+
+const tileKind = (tile: Tile) => KIND_META[tileKindKey(tile)];
+
+const KIND_FILTERS: { key: KindFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'standard', label: 'Standard' },
+  { key: 'skill', label: 'Skill' },
+  { key: 'boss', label: 'Boss' },
+  { key: 'drop', label: 'Drop' },
+  { key: 'collection', label: 'Collection' },
+  { key: 'kill', label: 'Kill' },
+  { key: 'timed', label: 'Timed' },
+];
+
+/** One-line summary of a tile's current configuration, shown under the label on each card. */
+function tileMeta(tile: Tile): string {
+  switch (tileKindKey(tile)) {
+    case 'collection': {
+      let count = 0;
+      try {
+        count = (JSON.parse(tile.itemRequirements || '[]') as unknown[]).length;
+      } catch {
+        /* ignore */
+      }
+      return `Collection · ${count} item${count !== 1 ? 's' : ''}`;
+    }
+    case 'drop':
+      return tile.requiredAmount ? `Required: ${tile.requiredAmount}` : 'Item drop';
+    case 'skill':
+    case 'boss': {
+      const goal = tile.statGoal ? ` · goal ${tile.statGoal.toLocaleString()}` : '';
+      return `${tile.trackedStat}${goal} · ${tile.trackingMode}`;
+    }
+    case 'kill':
+      return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
+    case 'timed':
+      return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
+    default:
+      return 'Manual tile — no auto-tracking';
+  }
+}
+
+interface DrawerProps {
+  tile: Tile;
+  eventId: number;
+  eventStarted: boolean;
+  pointsMode: boolean;
+  onClose: () => void;
+  onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];
+}
+
+function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, onClose, onSaved }: DrawerProps) {
+  const ref = useModalA11y<HTMLDivElement>({ onClose });
+  const titleId = `tile-config-title-${tile.id}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative h-full w-full max-w-md bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide"
+      >
+        {/* Header */}
+        <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">Tile #{tile.position + 1}</p>
+            <h3 id={titleId} className="text-base font-bold text-foreground truncate">
+              {tile.label}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close configuration"
+            className="shrink-0 w-8 h-8 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors text-lg leading-none"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Form */}
+        <div className="flex-1 min-h-0 p-5 overflow-y-auto">
+          <TileTrackingConfig
+            tileId={tile.id}
+            eventId={eventId}
+            initial={{
+              label: tile.label,
+              description: tile.description ?? null,
+              tileType: tile.tileType || 'standard',
+              requiredAmount: tile.requiredAmount ?? null,
+              trackedStat: tile.trackedStat ?? null,
+              statType: tile.statType ?? null,
+              statGoal: tile.statGoal ?? null,
+              trackingMode: tile.trackingMode || 'team',
+              optional: !!tile.optional,
+              trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
+              itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
+              points: tile.points ?? 1,
+              category: tile.category ?? null,
+              sourceNpcs: tile.sourceNpcs ? JSON.parse(tile.sourceNpcs) : null,
+              targetNpcs: tile.targetNpcs ? JSON.parse(tile.targetNpcs) : null,
+              timedActivity: tile.timedActivity ?? null,
+              timeThresholdSeconds: tile.timeThresholdSeconds ?? null,
+            }}
+            onSaved={onSaved}
+            eventStarted={eventStarted}
+            pointsMode={pointsMode}
+          />
         </div>
       </div>
     </div>

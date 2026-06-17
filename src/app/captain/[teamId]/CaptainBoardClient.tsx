@@ -155,7 +155,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
     }
   }
 
-  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null }) {
+  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
     const res = await fetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

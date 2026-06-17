@@ -4,16 +4,19 @@
 // unknown columns are ignored. Row order maps onto tiles by position (row 1 → tile #1).
 //
 // Columns:
-//   label          tile name (required for a meaningful tile; blank → auto "Tile N")
-//   description    free-text shown on the tile
-//   type           "standard" | "drop"  (stat tiles use trackedStat/statType instead)
-//   points         integer reward weight (Leagues scoring)
-//   category       grouping label for the plugin (e.g. "Zulrah")
-//   optional       true/false — doesn't count toward the total
-//   requiredAmount integer — for drop tiles
-//   trackedStat    skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
-//   statType       "skill" | "boss"
-//   statGoal       integer XP/KC goal
+//   label               tile name (required for a meaningful tile; blank → auto "Tile N")
+//   description         free-text shown on the tile
+//   type                "standard" | "drop" | "kill" | "timed"  (stat tiles use trackedStat/statType instead)
+//   points              integer reward weight (Leagues scoring)
+//   category            grouping label for the plugin (e.g. "Zulrah")
+//   optional            true/false — doesn't count toward the total
+//   requiredAmount      integer — drop tiles (item count) or kill tiles (kill count)
+//   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
+//   statType            "skill" | "boss"
+//   statGoal            integer XP/KC goal
+//   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf")
+//   timedActivity       timed tiles — activity to time (e.g. "Inferno")
+//   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00)
 export const TILE_CSV_COLUMNS = [
   'label',
   'description',
@@ -25,6 +28,9 @@ export const TILE_CSV_COLUMNS = [
   'trackedStat',
   'statType',
   'statGoal',
+  'targetNpcs',
+  'timedActivity',
+  'timeThresholdSeconds',
 ] as const;
 
 export interface TileCsvRow {
@@ -38,6 +44,9 @@ export interface TileCsvRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  targetNpcs?: string[] | null;
+  timedActivity?: string | null;
+  timeThresholdSeconds?: number | null;
 }
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines, and "" escapes.
@@ -119,6 +128,9 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     trackedStat: idx('trackedstat'),
     statType: idx('stattype'),
     statGoal: idx('statgoal'),
+    targetNpcs: idx('targetnpcs'),
+    timedActivity: idx('timedactivity'),
+    timeThresholdSeconds: idx('timethresholdseconds'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -142,6 +154,13 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     if (col.trackedStat >= 0) row.trackedStat = get(cells, col.trackedStat).trim() || null;
     if (col.statType >= 0) row.statType = get(cells, col.statType).trim() || null;
     if (col.statGoal >= 0) row.statGoal = toIntOrNull(get(cells, col.statGoal));
+    if (col.targetNpcs >= 0) {
+      // Pipe-separated within the cell, since comma is the CSV delimiter.
+      const names = get(cells, col.targetNpcs).split('|').map((s) => s.trim()).filter(Boolean);
+      row.targetNpcs = names.length > 0 ? names : null;
+    }
+    if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
+    if (col.timeThresholdSeconds >= 0) row.timeThresholdSeconds = toIntOrNull(get(cells, col.timeThresholdSeconds));
     rows.push(row);
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
   });

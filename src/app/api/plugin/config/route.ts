@@ -52,6 +52,8 @@ export async function GET(request: Request) {
         codeword: null,
         trackedStats: [],
         trackedDrops: [],
+        trackedKills: [],
+        trackedTimed: [],
         noActiveEvent: true,
         schedule,
         activeWeekly,
@@ -206,11 +208,16 @@ export async function GET(request: Request) {
     .from(completions)
     .where(eq(completions.teamId, auth.teamId))
     .all();
-  const tileLabelById = new Map(allEventTiles.map((t) => [t.id, t.label]));
-  const completedTiles = teamCompletions.map((c) => ({
-    tileId: c.tileId,
-    label: tileLabelById.get(c.tileId) ?? `Tile #${c.tileId}`,
-  }));
+  const tileById = new Map(allEventTiles.map((t) => [t.id, t]));
+  const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
+  const completedTiles = teamCompletions.map((c) => {
+    const tile = tileById.get(c.tileId);
+    return {
+      tileId: c.tileId,
+      label: tile?.label ?? `Tile #${c.tileId}`,
+      points: tile?.points ?? 0,
+    };
+  });
 
   return NextResponse.json({
     event: {
@@ -285,5 +292,46 @@ export async function GET(request: Request) {
           } : {}),
         };
       }),
+
+    // Kill-count tiles — the plugin counts kills of the named NPC(s) (not hiscores-backed)
+    // and submits a baked screenshot toward `requiredAmount`. `currentAmount` is the team's
+    // submitted kill total so the side panel can show progress.
+    trackedKills: allEventTiles
+      .filter((t) => t.tileType === 'kill')
+      .map((t) => {
+        let targetNpcs: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) targetNpcs = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          targetNpcs,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: submissionMap[t.id] ?? 0,
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+
+    // Timed-clear tiles — the plugin times the named activity and bakes the duration onto a
+    // screenshot; the tile completes when a submitted time is at or under `thresholdSeconds`.
+    trackedTimed: allEventTiles
+      .filter((t) => t.tileType === 'timed')
+      .map((t) => ({
+        tileId: t.id,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        activity: t.timedActivity ?? null,
+        thresholdSeconds: t.timeThresholdSeconds ?? null,
+        completed: completedTileIdSet.has(t.id),
+      })),
   });
 }

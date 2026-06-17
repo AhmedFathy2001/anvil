@@ -62,7 +62,7 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
@@ -154,8 +154,21 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop') {
-    return NextResponse.json({ error: 'Submissions are only for drop tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, or timed tiles' }, { status: 400 });
+  }
+
+  // Timed tiles carry a completion duration instead of a count. Validate it up front so the
+  // value reaching the DB is always a sane positive integer (seconds, capped at 24h).
+  let durationSecondsValue: number | null = null;
+  if (tile.tileType === 'timed') {
+    if (!Number.isInteger(durationSeconds) || durationSeconds < 1 || durationSeconds > 86400) {
+      return NextResponse.json(
+        { error: 'durationSeconds is required for timed tiles and must be an integer between 1 and 86400' },
+        { status: 400 },
+      );
+    }
+    durationSecondsValue = durationSeconds;
   }
 
   // Verify team belongs to event
@@ -252,6 +265,7 @@ export async function POST(
       imageUrl: imageUrl.trim(),
       note: note || null,
       itemId: itemId || null,
+      durationSeconds: durationSecondsValue,
     })
     .returning();
 
@@ -283,6 +297,8 @@ export async function POST(
     requiredAmount: tile.requiredAmount,
     note: note || null,
     imageUrl: imageUrl.trim(),
+    tileType: tile.tileType,
+    durationSeconds: durationSecondsValue,
   }).catch(() => {}); // Silently ignore errors
 
   // Delay completion sync so Discord processes the screenshot message first

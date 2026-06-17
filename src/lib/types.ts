@@ -40,6 +40,9 @@ export interface Tile {
   points?: number | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
+  targetNpcs?: string | null; // JSON array of target NPC names (kill tiles only)
+  timedActivity?: string | null; // activity identifier (timed tiles only)
+  timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
 }
 
 export interface Team {
@@ -85,6 +88,7 @@ export interface Submission {
   uploaderName?: string | null;
   creditPlayerName?: string | null;
   itemId?: number | null;
+  durationSeconds?: number | null; // timed-tile clear time in seconds
 }
 
 export interface ItemRequirement {
@@ -113,6 +117,11 @@ export interface TileConfig {
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.
   sourceNpcs: string[] | null;
+  // Kill tiles: NPC names whose kills count (e.g. ["Chicken"]). null for non-kill tiles.
+  targetNpcs: string[] | null;
+  // Timed tiles: activity to time + completion-time cap in seconds. null for non-timed tiles.
+  timedActivity: string | null;
+  timeThresholdSeconds: number | null;
 }
 
 export interface PlayerGain {

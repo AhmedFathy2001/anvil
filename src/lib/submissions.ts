@@ -3,46 +3,72 @@ import { submissions, tiles, completions, teams, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 
+// Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
+// and insert or revert the `completions` row accordingly. Named for its original drop-only
+// role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
 export async function syncDropTileCompletion(tileId: number, teamId: number) {
-  // Get the tile to check requiredAmount
+  // Get the tile to check its completion criteria
   const tile = await db.query.tiles.findFirst({
     where: eq(tiles.id, tileId),
   });
 
-  if (!tile || tile.tileType !== 'drop' || !tile.requiredAmount) {
-    return null;
-  }
-
-  const itemRequirements = tile.itemRequirements
-    ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[]
-    : null;
+  if (!tile) return null;
 
   let totalAmount: number;
   let isComplete: boolean;
 
-  if (itemRequirements) {
-    // Per-item mode: check each item individually
-    const perItemTotals = await db
-      .select({
-        itemId: submissions.itemId,
-        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-      })
+  if (tile.tileType === 'timed') {
+    // Timed clear: pass/fail. Complete when any submission's reported duration is at or
+    // under the cap. No threshold configured → never auto-completes.
+    if (tile.timeThresholdSeconds == null) return null;
+    const fastest = await db
+      .select({ best: sql<number | null>`MIN(${submissions.durationSeconds})` })
       .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
-      .groupBy(submissions.itemId);
-
-    const itemTotalMap = new Map(perItemTotals.map(r => [r.itemId, Number(r.total)]));
-    totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
-    isComplete = itemRequirements.every(req => (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount);
-  } else {
-    // Simple mode: existing behavior
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    const best = fastest[0]?.best ?? null;
+    totalAmount = best ?? 0;
+    isComplete = best != null && best <= tile.timeThresholdSeconds;
+  } else if (tile.tileType === 'kill') {
+    // Kill count: accumulate submitted kills toward the required amount, exactly like a
+    // simple drop tile (no per-item breakdown).
+    if (!tile.requiredAmount) return null;
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-
     totalAmount = result[0]?.total ?? 0;
     isComplete = totalAmount >= tile.requiredAmount;
+  } else if (tile.tileType === 'drop' && tile.requiredAmount) {
+    const itemRequirements = tile.itemRequirements
+      ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[]
+      : null;
+
+    if (itemRequirements) {
+      // Per-item mode: check each item individually
+      const perItemTotals = await db
+        .select({
+          itemId: submissions.itemId,
+          total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+        })
+        .from(submissions)
+        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
+        .groupBy(submissions.itemId);
+
+      const itemTotalMap = new Map(perItemTotals.map(r => [r.itemId, Number(r.total)]));
+      totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
+      isComplete = itemRequirements.every(req => (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount);
+    } else {
+      // Simple mode: existing behavior
+      const result = await db
+        .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+        .from(submissions)
+        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+
+      totalAmount = result[0]?.total ?? 0;
+      isComplete = totalAmount >= tile.requiredAmount;
+    }
+  } else {
+    return null;
   }
 
   // Tile race: a drop tile can't auto-complete until the team has finished every

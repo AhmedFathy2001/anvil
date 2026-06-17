@@ -19,7 +19,8 @@ interface TileCellProps {
 export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
-  const isDrop = tileType === 'drop';
+  // Drop and kill tiles both show a count-based partial-progress indicator.
+  const isDrop = tileType === 'drop' || tileType === 'kill';
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
