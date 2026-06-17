@@ -145,9 +145,47 @@ export default function TilesClient({ event, tiles }: Props) {
   }
 
   function downloadTemplate() {
-    // Seed the template with the current tile labels so the admin edits in-place.
+    // Seed the template with the current tiles so the admin edits in-place. Emits every column
+    // in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
     const header = TILE_CSV_COLUMNS.join(',');
     const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const jsonNames = (v: string | null | undefined): string => {
+      if (!v) return '';
+      try {
+        const arr = JSON.parse(v) as string[];
+        return Array.isArray(arr) ? arr.join('|') : '';
+      } catch {
+        return '';
+      }
+    };
+    // Lossless round-trip: collection items emit "Name#id:count" (id pins it even if the name
+    // is an untradeable the importer couldn't resolve); simple-drop pools emit bare ids.
+    const itemsCell = (t: Tile): string => {
+      if (t.itemRequirements) {
+        try {
+          const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
+          if (Array.isArray(reqs) && reqs.length) {
+            return reqs
+              .map((r) => {
+                const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
+                return `${labelled}:${r.requiredAmount}`;
+              })
+              .join('; ');
+          }
+        } catch {
+          /* ignore malformed JSON */
+        }
+      }
+      if (t.trackedItemIds) {
+        try {
+          const ids = JSON.parse(t.trackedItemIds) as number[];
+          if (Array.isArray(ids) && ids.length) return ids.map(String).join('; ');
+        } catch {
+          /* ignore malformed JSON */
+        }
+      }
+      return '';
+    };
     const lines = localTiles.map((t) =>
       [
         escape(t.label ?? ''),
@@ -160,6 +198,10 @@ export default function TilesClient({ event, tiles }: Props) {
         escape(t.trackedStat ?? ''),
         escape(t.statType ?? ''),
         t.statGoal != null ? String(t.statGoal) : '',
+        escape(jsonNames(t.targetNpcs)),
+        escape(t.timedActivity ?? ''),
+        t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
+        escape(itemsCell(t)),
       ].join(','),
     );
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
@@ -196,10 +238,26 @@ export default function TilesClient({ event, tiles }: Props) {
         setImportMsg({ type: 'error', text: data.error || 'Import failed' });
         return;
       }
+      const bits: string[] = [];
+      if (data.applied) bits.push(`updated ${data.applied}`);
+      if (data.created) bits.push(`added ${data.created} new`);
+      if (!bits.length) bits.push('no tiles changed');
       setImportMsg({
         type: 'success',
-        text: `Imported ${data.applied} tile${data.applied !== 1 ? 's' : ''}${data.ignored ? ` · ${data.ignored} extra row(s) ignored` : ''}.`,
+        text: `Import complete — ${bits.join(', ')}${data.ignored ? ` · ${data.ignored} extra row(s) ignored` : ''}.`,
       });
+      // Pull the fresh tile set so both updated and newly-created tiles render immediately.
+      try {
+        const refreshed = await fetch(`/api/events/${event.id}/tiles`);
+        if (refreshed.ok) {
+          const fresh = (await refreshed.json()) as Tile[];
+          setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
+          setSearch('');
+          setKindFilter('all');
+        }
+      } catch {
+        /* ignore — router.refresh below still re-syncs server data */
+      }
       router.refresh();
     } catch {
       setImportMsg({ type: 'error', text: 'Could not read the CSV file.' });
@@ -237,6 +295,9 @@ export default function TilesClient({ event, tiles }: Props) {
         <p className="text-xs text-text-muted leading-relaxed">
           Configure many tiles at once — ideal for Leagues-style boards. Rows map onto tiles by order
           (row 1 → tile #1). Columns: <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
+          {dynamicBoard && !eventStarted
+            ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
+            : ' Extra rows beyond the board size are ignored.'}
           {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
         </p>
         {importMsg && (

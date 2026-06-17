@@ -1,40 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/auth';
-
-interface MappingItem {
-  id: number;
-  name: string;
-}
-
-// In-memory cache — fetched once per server lifecycle.
-let cachedItems: MappingItem[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 1000 * 60 * 60; // 1 hour
-
-// Source: the OSRS Wiki real-time-prices item mapping. It's actively maintained (the old
-// osrsbox-db this used to hit was abandoned and now 301s to a dead host, which was the 500).
-// The Wiki requires a descriptive User-Agent or it rejects the request. Note this list is
-// GE-tradeable items only — untradeables (most pets, a few uniques) won't appear; those tiles
-// are configured without an item icon.
-const MAPPING_URL = 'https://prices.runescape.wiki/api/v1/osrs/mapping';
-const USER_AGENT = 'osrs-bingo-anvil (admin item-icon picker)';
-
-async function getItems(): Promise<MappingItem[]> {
-  if (cachedItems && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return cachedItems;
-  }
-
-  const res = await fetch(MAPPING_URL, { headers: { 'User-Agent': USER_AGENT } });
-  if (!res.ok) throw new Error(`Failed to fetch OSRS item mapping: HTTP ${res.status}`);
-
-  const data = (await res.json()) as { id: number; name: string }[];
-  cachedItems = data
-    .filter((item) => typeof item.id === 'number' && typeof item.name === 'string')
-    .map((item) => ({ id: item.id, name: item.name }));
-  cacheTimestamp = Date.now();
-
-  return cachedItems;
-}
+import { getItemMapping } from '@/lib/osrsItems';
 
 export async function GET(request: Request) {
   const isAdmin = await verifyAdmin();
@@ -50,7 +16,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const items = await getItems();
+    const items = await getItemMapping();
+
+    // A purely numeric query is an item-ID lookup — lets admins add untradeables (pets) by id,
+    // and resolves names for pre-existing tracked IDs the name-search can't find.
+    if (/^\d+$/.test(query)) {
+      const id = parseInt(query, 10);
+      const exact = items.find((item) => item.id === id);
+      return NextResponse.json(exact ? [exact] : []);
+    }
 
     // Prefix matches first (more relevant), then any substring match; cap at 20.
     const matches = items.filter((item) => item.name.toLowerCase().includes(query));

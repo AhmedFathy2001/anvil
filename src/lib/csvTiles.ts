@@ -17,6 +17,13 @@
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf")
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00)
+//   items               drop tiles — tracked item(s), "Name:count" semicolon-separated
+//                       (e.g. "Blood moon helm:1; Blue moon helm:1"). Count is optional (def 1).
+//                       Each entry can be a NAME (resolved to an item ID on import — covers
+//                       untradeables/pets too), a raw ID ("12651:1"), or "Name#id" to pin an
+//                       exact id with a readable label ("Pet zilyana#12651:1"). With a
+//                       requiredAmount set it's a simple drop pool (any item counts toward the
+//                       total); without one it's a collection (each item needs its own count).
 export const TILE_CSV_COLUMNS = [
   'label',
   'description',
@@ -31,7 +38,16 @@ export const TILE_CSV_COLUMNS = [
   'targetNpcs',
   'timedActivity',
   'timeThresholdSeconds',
+  'items',
 ] as const;
+
+export interface TileCsvItem {
+  /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
+  name: string;
+  count: number;
+  /** Explicit item id ("12651:1" or "Name#12651:1") — bypasses name resolution when set. */
+  id?: number;
+}
 
 export interface TileCsvRow {
   label?: string;
@@ -47,6 +63,42 @@ export interface TileCsvRow {
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  items?: TileCsvItem[] | null;
+}
+
+// Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
+// taken from the LAST colon so item names containing a colon still mostly work. Each entry's
+// item part can be a name ("Blood moon helm"), a raw id ("12651"), or "Name#id" ("Pet zilyana#12651").
+function parseItemsCell(v: string): TileCsvItem[] {
+  return v
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry): TileCsvItem | null => {
+      // Split a trailing ":count" off the item part (count optional).
+      let itemPart = entry;
+      let count = 1;
+      const ci = entry.lastIndexOf(':');
+      if (ci > 0 && /^\d+$/.test(entry.slice(ci + 1).trim())) {
+        const n = parseInt(entry.slice(ci + 1).trim(), 10);
+        if (n >= 1) {
+          count = n;
+          itemPart = entry.slice(0, ci).trim();
+        }
+      }
+      // "Name#id" — explicit id with a label.
+      const hashed = itemPart.match(/^(.*)#(\d+)$/);
+      if (hashed) {
+        return { name: hashed[1].trim(), count, id: parseInt(hashed[2], 10) };
+      }
+      // Bare numeric — a raw id, no label.
+      if (/^\d+$/.test(itemPart)) {
+        return { name: '', count, id: parseInt(itemPart, 10) };
+      }
+      // Plain name.
+      return itemPart ? { name: itemPart, count } : null;
+    })
+    .filter((it): it is TileCsvItem => it != null && (it.name.length > 0 || it.id != null));
 }
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines, and "" escapes.
@@ -131,6 +183,7 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     targetNpcs: idx('targetnpcs'),
     timedActivity: idx('timedactivity'),
     timeThresholdSeconds: idx('timethresholdseconds'),
+    items: idx('items'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -161,6 +214,10 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
     if (col.timeThresholdSeconds >= 0) row.timeThresholdSeconds = toIntOrNull(get(cells, col.timeThresholdSeconds));
+    if (col.items >= 0) {
+      const parsedItems = parseItemsCell(get(cells, col.items));
+      row.items = parsedItems.length > 0 ? parsedItems : null;
+    }
     rows.push(row);
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
   });

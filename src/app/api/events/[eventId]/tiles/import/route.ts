@@ -3,20 +3,23 @@ import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 
-// Bulk tile import — maps CSV/JSON rows onto an event's existing tiles by position
-// (row order). Built for Leagues-style boards where configuring 49+ tiles one at a
-// time in the UI is impractical. Label/type/requiredAmount are only applied before the
-// event starts (mirrors the single-tile PUT); description/points/category/optional/stat
-// fields are always applied.
+// Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
+// Built for Leagues-style boards where configuring hundreds of tiles one at a time is
+// impractical. Row index i targets the tile at position i (0-based):
+//   • rows that line up with existing tiles UPDATE them, and
+//   • on Leagues/Tile-race boards (arbitrary-length task lists), extra rows beyond the
+//     current tile count CREATE new tiles (up to MAX_TILES), pre-start only.
+// A classic bingo grid is a fixed N×N shape, so extra rows there are ignored, not created.
+// Label/type/requiredAmount are only applied/created before the event starts (mirrors the
+// single-tile PUT); description/points/category/optional/stat fields are always applied.
 //
 // Body: { rows: Array<{
 //   label?, description?, tileType?, requiredAmount?, points?, category?,
 //   optional?, trackedStat?, statType?, statGoal?,
 //   targetNpcs?, timedActivity?, timeThresholdSeconds?
 // }> }
-// Row index i targets the tile at position i (0-based). Extra rows beyond the tile
-// count are ignored and reported back.
 
 interface ImportRow {
   label?: string;
@@ -32,6 +35,217 @@ interface ImportRow {
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  items?: { name?: string; count: number; id?: number }[] | null;
+}
+
+// Drop fields derived from a row's resolved `items` list — built before the transaction so the
+// same values feed both kind validation and the insert/update.
+interface DerivedItemFields {
+  tileType: 'drop';
+  requiredAmount: number;
+  trackedItemIds: number[] | null;
+  itemRequirements: { itemId: number; name: string; requiredAmount: number }[] | null;
+}
+
+const MAX_TILES = 1000;
+
+// Structural subset of a tile row that the kind cross-validation reads. A full tile row is
+// assignable to this; new (to-be-created) tiles use the blank template below.
+interface TileBase {
+  tileType: string;
+  trackedStat: string | null;
+  statType: string | null;
+  statGoal: number | null;
+  requiredAmount: number | null;
+  targetNpcs: string | null;
+  trackedItemIds: string | null;
+  itemRequirements: string | null;
+  timedActivity: string | null;
+  timeThresholdSeconds: number | null;
+}
+
+const BLANK_TILE: TileBase = {
+  tileType: 'standard',
+  trackedStat: null,
+  statType: null,
+  statGoal: null,
+  requiredAmount: null,
+  targetNpcs: null,
+  trackedItemIds: null,
+  itemRequirements: null,
+  timedActivity: null,
+  timeThresholdSeconds: null,
+};
+
+function parseLen(v: unknown): number {
+  if (typeof v !== 'string' || !v) return 0;
+  try {
+    const arr = JSON.parse(v);
+    return Array.isArray(arr) ? arr.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Validate a row's standalone numeric/array fields. Returns an error string or null.
+function validateRowFields(i: number, row: ImportRow): string | null {
+  if (
+    row.requiredAmount !== undefined && row.requiredAmount !== null &&
+    (!Number.isInteger(row.requiredAmount) || row.requiredAmount < 1)
+  ) {
+    return `Row ${i + 1}: requiredAmount must be an integer >= 1`;
+  }
+  if (
+    row.points !== undefined && row.points !== null &&
+    (!Number.isInteger(row.points) || row.points < 0)
+  ) {
+    return `Row ${i + 1}: points must be a non-negative integer`;
+  }
+  if (
+    row.statGoal !== undefined && row.statGoal !== null &&
+    (!Number.isInteger(row.statGoal) || row.statGoal < 0)
+  ) {
+    return `Row ${i + 1}: statGoal must be a non-negative integer`;
+  }
+  if (
+    row.timeThresholdSeconds !== undefined && row.timeThresholdSeconds !== null &&
+    (!Number.isInteger(row.timeThresholdSeconds) || row.timeThresholdSeconds < 1 || row.timeThresholdSeconds > 86400)
+  ) {
+    return `Row ${i + 1}: timeThresholdSeconds must be an integer between 1 and 86400`;
+  }
+  if (
+    row.targetNpcs !== undefined && row.targetNpcs !== null &&
+    (!Array.isArray(row.targetNpcs) || row.targetNpcs.length > 25 ||
+      !row.targetNpcs.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40))
+  ) {
+    return `Row ${i + 1}: targetNpcs must be up to 25 NPC names (≤40 chars each)`;
+  }
+  return null;
+}
+
+// Resolve a row's `items` into the concrete drop fields. With a `requiredAmount` it's a simple
+// drop pool (any tracked item counts toward the total); without one it's a collection (each
+// item needs its own count, and the total is their sum). Name entries are guaranteed resolvable
+// by the caller (missing names already errored); id entries are used verbatim with a backfilled
+// label. Returns null when the row carries no items.
+function deriveItemFields(
+  row: ImportRow,
+  byName: Map<string, MappingItem>,
+  byId: Map<number, MappingItem>,
+): DerivedItemFields | null {
+  if (!Array.isArray(row.items) || row.items.length === 0) return null;
+  const reqs = row.items.map((it) => {
+    const requiredAmount = Math.max(1, Math.floor(it.count) || 1);
+    if (it.id != null) {
+      const label = it.name && it.name.trim() ? it.name.trim() : byId.get(it.id)?.name ?? `Item #${it.id}`;
+      return { itemId: it.id, name: label, requiredAmount };
+    }
+    const hit = byName.get((it.name ?? '').trim().toLowerCase())!;
+    return { itemId: hit.id, name: hit.name, requiredAmount };
+  });
+  const simpleAmount =
+    row.requiredAmount != null && Number.isInteger(row.requiredAmount) && row.requiredAmount >= 1
+      ? row.requiredAmount
+      : null;
+  if (simpleAmount != null) {
+    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null };
+  }
+  return {
+    tileType: 'drop',
+    requiredAmount: reqs.reduce((s, r) => s + r.requiredAmount, 0),
+    trackedItemIds: null,
+    itemRequirements: reqs,
+  };
+}
+
+// Cross-validate the resulting tile kind — a tile is exactly one kind. `base` is the current
+// DB state of the target tile (blank for a to-be-created tile). `derived` (when present) is the
+// drop config the row's `items` resolve to and overrides the kind/amount. Returns an error or null.
+function validateRowKind(
+  i: number,
+  row: ImportRow,
+  base: TileBase,
+  eventStarted: boolean,
+  derived: DerivedItemFields | null,
+): string | null {
+  const effTileType = derived
+    ? 'drop'
+    : !eventStarted && row.tileType !== undefined
+      ? row.tileType || 'standard'
+      : base.tileType;
+  const effTrackedStat = row.trackedStat !== undefined ? row.trackedStat || null : base.trackedStat;
+  const effStatType = row.statType !== undefined ? row.statType || null : base.statType;
+  const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : base.statGoal;
+  const effRequiredAmount = derived
+    ? derived.requiredAmount
+    : !eventStarted && row.requiredAmount !== undefined
+      ? row.requiredAmount ?? null
+      : base.requiredAmount;
+  const effTargetNpcsLen = row.targetNpcs !== undefined ? (row.targetNpcs?.length ?? 0) : parseLen(base.targetNpcs);
+  const effTimed =
+    (row.timedActivity !== undefined ? !!row.timedActivity : !!base.timedActivity) ||
+    (row.timeThresholdSeconds !== undefined ? row.timeThresholdSeconds != null : base.timeThresholdSeconds != null);
+  const hasStat = !!effTrackedStat || !!effStatType || effStatGoal != null;
+  const dropItemFields = derived
+    ? (derived.trackedItemIds?.length ?? 0) > 0 || (derived.itemRequirements?.length ?? 0) > 0
+    : parseLen(base.trackedItemIds) > 0 || parseLen(base.itemRequirements) > 0;
+  const isDrop = effTileType === 'drop';
+  const isKill = effTileType === 'kill';
+  const isTimed = effTileType === 'timed';
+
+  if (hasStat && (isDrop || isKill || isTimed || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, or timed tile.`;
+  }
+  if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
+    return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
+  }
+  if (dropItemFields && !isDrop) {
+    return `Row ${i + 1}: only drop tiles can carry items.`;
+  }
+  if (effTargetNpcsLen > 0 && !isKill) {
+    return `Row ${i + 1}: only kill tiles can target NPCs.`;
+  }
+  if (effTimed && !isTimed) {
+    return `Row ${i + 1}: only timed tiles can carry an activity or time threshold.`;
+  }
+  if (effRequiredAmount != null && !isDrop && !isKill) {
+    return `Row ${i + 1}: only drop or kill tiles can have a required amount.`;
+  }
+  return null;
+}
+
+// Map a row to the tile columns it sets. `allowPreStart` gates the fields that are locked once
+// the event starts (label/tileType/requiredAmount and the item config). `derived` (when present)
+// is the drop config from the row's `items` and overrides type/amount/items. Used for updates+inserts.
+function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: DerivedItemFields | null): Record<string, unknown> {
+  const s: Record<string, unknown> = {};
+  if (row.description !== undefined) s.description = row.description || null;
+  if (row.points !== undefined && row.points !== null) s.points = row.points;
+  if (row.category !== undefined) s.category = row.category ? String(row.category).slice(0, 60) : null;
+  if (row.optional !== undefined) s.optional = row.optional ? 1 : 0;
+  if (row.trackedStat !== undefined) s.trackedStat = row.trackedStat || null;
+  if (row.statType !== undefined) s.statType = row.statType || null;
+  if (row.statGoal !== undefined) s.statGoal = row.statGoal ?? null;
+  if (row.targetNpcs !== undefined) {
+    s.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
+      ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))
+      : null;
+  }
+  if (row.timedActivity !== undefined) s.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
+  if (row.timeThresholdSeconds !== undefined) s.timeThresholdSeconds = row.timeThresholdSeconds ?? null;
+  if (allowPreStart) {
+    if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
+    if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';
+    if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
+    // Item config (resolved from the row's `items`) wins over the raw type/requiredAmount above.
+    if (derived) {
+      s.tileType = 'drop';
+      s.requiredAmount = derived.requiredAmount;
+      s.trackedItemIds = derived.trackedItemIds ? JSON.stringify(derived.trackedItemIds) : null;
+      s.itemRequirements = derived.itemRequirements ? JSON.stringify(derived.itemRequirements) : null;
+    }
+  }
+  return s;
 }
 
 export async function POST(
@@ -51,6 +265,7 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+  const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
 
   let body: { rows?: unknown };
   try {
@@ -71,134 +286,122 @@ export async function POST(
     return NextResponse.json({ error: 'Event has no tiles to import into' }, { status: 400 });
   }
 
-  const applied = Math.min(rows.length, eventTiles.length);
-  const ignored = Math.max(0, rows.length - eventTiles.length);
+  const existingCount = eventTiles.length;
+  const updates = Math.min(rows.length, existingCount);
+  // Extra rows become new tiles only on dynamic (Leagues/race) boards, pre-start, up to the cap.
+  const canGrow = !isClassicGrid && !eventStarted;
+  const creates = canGrow ? Math.max(0, Math.min(rows.length - existingCount, MAX_TILES - existingCount)) : 0;
+  const processed = updates + creates;
+  const ignored = rows.length - processed;
 
-  // Validate every row up front so the whole import is all-or-nothing.
-  for (let i = 0; i < applied; i++) {
+  // Item config is only applied pre-start (it sets the tile kind). Load the merged item mapping
+  // once if any row carries items, index it by name + id, then fail loudly on any name that
+  // doesn't resolve so nothing partial lands. (id-pinned entries skip name resolution.)
+  const byName = new Map<string, MappingItem>();
+  const byId = new Map<number, MappingItem>();
+  const hasAnyItems =
+    !eventStarted &&
+    rows.slice(0, processed).some((r) => r && typeof r === 'object' && Array.isArray((r as ImportRow).items) && (r as ImportRow).items!.length > 0);
+  if (hasAnyItems) {
+    let mapping: MappingItem[];
+    try {
+      mapping = await getItemMapping();
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not reach the OSRS item database to resolve item names. Try again shortly.' },
+        { status: 502 },
+      );
+    }
+    for (const it of mapping) {
+      const key = it.name.toLowerCase();
+      if (!byName.has(key)) byName.set(key, it);
+      if (!byId.has(it.id)) byId.set(it.id, it);
+    }
+    // Collect name entries (those without an explicit id) that don't resolve.
+    const missing = new Set<string>();
+    for (let i = 0; i < processed; i++) {
+      const row = rows[i] as ImportRow;
+      if (!row || typeof row !== 'object' || !Array.isArray(row.items)) continue;
+      for (const it of row.items) {
+        if (it && it.id == null) {
+          const name = (it.name ?? '').trim();
+          if (name && !byName.has(name.toLowerCase())) missing.add(name);
+        }
+      }
+    }
+    if (missing.size > 0) {
+      return NextResponse.json(
+        { error: `Unknown item name(s): ${[...missing].join(', ')}. Match the in-game spelling exactly, or pin an id with "Name#id".` },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Drop fields each processed row's `items` resolve to (null when no items / event started).
+  const derivedList: (DerivedItemFields | null)[] = [];
+  for (let i = 0; i < processed; i++) {
+    const row = rows[i] as ImportRow;
+    derivedList.push(!eventStarted && row && typeof row === 'object' ? deriveItemFields(row, byName, byId) : null);
+  }
+
+  // Validate every processed row up front so the whole import is all-or-nothing.
+  for (let i = 0; i < processed; i++) {
     const row = rows[i] as ImportRow;
     if (row == null || typeof row !== 'object') {
       return NextResponse.json({ error: `Row ${i + 1} is not an object` }, { status: 400 });
     }
-    if (
-      row.requiredAmount !== undefined && row.requiredAmount !== null &&
-      (!Number.isInteger(row.requiredAmount) || row.requiredAmount < 1)
-    ) {
-      return NextResponse.json({ error: `Row ${i + 1}: requiredAmount must be an integer >= 1` }, { status: 400 });
+    const fieldErr = validateRowFields(i, row);
+    if (fieldErr) {
+      return NextResponse.json({ error: fieldErr }, { status: 400 });
     }
-    if (
-      row.points !== undefined && row.points !== null &&
-      (!Number.isInteger(row.points) || row.points < 0)
-    ) {
-      return NextResponse.json({ error: `Row ${i + 1}: points must be a non-negative integer` }, { status: 400 });
-    }
-    if (
-      row.statGoal !== undefined && row.statGoal !== null &&
-      (!Number.isInteger(row.statGoal) || row.statGoal < 0)
-    ) {
-      return NextResponse.json({ error: `Row ${i + 1}: statGoal must be a non-negative integer` }, { status: 400 });
-    }
-    if (
-      row.timeThresholdSeconds !== undefined && row.timeThresholdSeconds !== null &&
-      (!Number.isInteger(row.timeThresholdSeconds) || row.timeThresholdSeconds < 1 || row.timeThresholdSeconds > 86400)
-    ) {
-      return NextResponse.json({ error: `Row ${i + 1}: timeThresholdSeconds must be an integer between 1 and 86400` }, { status: 400 });
-    }
-    if (
-      row.targetNpcs !== undefined && row.targetNpcs !== null &&
-      (!Array.isArray(row.targetNpcs) || row.targetNpcs.length > 25 ||
-        !row.targetNpcs.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40))
-    ) {
-      return NextResponse.json({ error: `Row ${i + 1}: targetNpcs must be up to 25 NPC names (≤40 chars each)` }, { status: 400 });
-    }
-
-    // Cross-validate the resulting tile kind against the existing row (import never
-    // touches tracked items, so those come from the DB). Same rule as the single-tile
-    // PUT: a tile is exactly one kind.
-    const tile = eventTiles[i];
-    const parseLen = (v: unknown): number => {
-      if (typeof v !== 'string' || !v) return 0;
-      try {
-        const arr = JSON.parse(v);
-        return Array.isArray(arr) ? arr.length : 0;
-      } catch {
-        return 0;
-      }
-    };
-    const effTileType = !eventStarted && row.tileType !== undefined ? row.tileType || 'standard' : tile.tileType;
-    const effTrackedStat = row.trackedStat !== undefined ? row.trackedStat || null : tile.trackedStat;
-    const effStatType = row.statType !== undefined ? row.statType || null : tile.statType;
-    const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : tile.statGoal;
-    const effRequiredAmount =
-      !eventStarted && row.requiredAmount !== undefined ? row.requiredAmount ?? null : tile.requiredAmount;
-    const effTargetNpcsLen =
-      row.targetNpcs !== undefined ? (row.targetNpcs?.length ?? 0) : parseLen(tile.targetNpcs);
-    const effTimed =
-      (row.timedActivity !== undefined ? !!row.timedActivity : !!tile.timedActivity) ||
-      (row.timeThresholdSeconds !== undefined ? row.timeThresholdSeconds != null : tile.timeThresholdSeconds != null);
-    const hasStat = !!effTrackedStat || !!effStatType || effStatGoal != null;
-    const dropItemFields = parseLen(tile.trackedItemIds) > 0 || parseLen(tile.itemRequirements) > 0;
-    const isDrop = effTileType === 'drop';
-    const isKill = effTileType === 'kill';
-    const isTimed = effTileType === 'timed';
-
-    if (hasStat && (isDrop || isKill || isTimed || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    // Items can only live on a drop tile — an explicit conflicting type is an error, not a coerce.
+    if (derivedList[i] && row.tileType && row.tileType !== 'drop') {
       return NextResponse.json(
-        { error: `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, or timed tile.` },
+        { error: `Row ${i + 1}: items can only be set on drop tiles (got type "${row.tileType}").` },
         { status: 400 },
       );
     }
-    if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
-      return NextResponse.json({ error: `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.` }, { status: 400 });
-    }
-    if (dropItemFields && !isDrop) {
-      return NextResponse.json({ error: `Row ${i + 1}: only drop tiles can carry items.` }, { status: 400 });
-    }
-    if (effTargetNpcsLen > 0 && !isKill) {
-      return NextResponse.json({ error: `Row ${i + 1}: only kill tiles can target NPCs.` }, { status: 400 });
-    }
-    if (effTimed && !isTimed) {
-      return NextResponse.json({ error: `Row ${i + 1}: only timed tiles can carry an activity or time threshold.` }, { status: 400 });
-    }
-    if (effRequiredAmount != null && !isDrop && !isKill) {
-      return NextResponse.json({ error: `Row ${i + 1}: only drop or kill tiles can have a required amount.` }, { status: 400 });
+    // Existing tiles validate against their DB state (and the event's real started flag);
+    // new tiles validate against a blank template and are always pre-start.
+    const isExisting = i < existingCount;
+    const kindErr = validateRowKind(
+      i,
+      row,
+      isExisting ? eventTiles[i] : BLANK_TILE,
+      isExisting ? eventStarted : false,
+      derivedList[i],
+    );
+    if (kindErr) {
+      return NextResponse.json({ error: kindErr }, { status: 400 });
     }
   }
 
+  const maxPos = existingCount > 0 ? eventTiles[existingCount - 1].position : -1;
+
   await db.transaction(async (tx) => {
-    for (let i = 0; i < applied; i++) {
-      const row = rows[i] as ImportRow;
-      const tile = eventTiles[i];
-      const updateSet: Record<string, unknown> = {};
-
-      if (row.description !== undefined) updateSet.description = row.description || null;
-      if (row.points !== undefined && row.points !== null) updateSet.points = row.points;
-      if (row.category !== undefined) updateSet.category = row.category ? String(row.category).slice(0, 60) : null;
-      if (row.optional !== undefined) updateSet.optional = row.optional ? 1 : 0;
-      if (row.trackedStat !== undefined) updateSet.trackedStat = row.trackedStat || null;
-      if (row.statType !== undefined) updateSet.statType = row.statType || null;
-      if (row.statGoal !== undefined) updateSet.statGoal = row.statGoal ?? null;
-      // Kill/timed kind fields — always applied (like stat fields).
-      if (row.targetNpcs !== undefined) {
-        updateSet.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
-          ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))
-          : null;
-      }
-      if (row.timedActivity !== undefined) updateSet.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
-      if (row.timeThresholdSeconds !== undefined) updateSet.timeThresholdSeconds = row.timeThresholdSeconds ?? null;
-
-      // Pre-start-only fields.
-      if (!eventStarted) {
-        if (row.label !== undefined && row.label) updateSet.label = String(row.label).slice(0, 200);
-        if (row.tileType !== undefined) updateSet.tileType = row.tileType || 'standard';
-        if (row.requiredAmount !== undefined) updateSet.requiredAmount = row.requiredAmount ?? null;
-      }
-
+    for (let i = 0; i < updates; i++) {
+      const updateSet = tileFieldsFromRow(rows[i] as ImportRow, !eventStarted, derivedList[i]);
       if (Object.keys(updateSet).length > 0) {
-        await tx.update(tiles).set(updateSet).where(eq(tiles.id, tile.id));
+        await tx.update(tiles).set(updateSet).where(eq(tiles.id, eventTiles[i].id));
       }
+    }
+    for (let j = 0; j < creates; j++) {
+      const row = rows[existingCount + j] as ImportRow;
+      const position = maxPos + 1 + j;
+      const fields = tileFieldsFromRow(row, true, derivedList[existingCount + j]);
+      const label = typeof fields.label === 'string' && fields.label ? fields.label : `Tile ${position + 1}`;
+      await tx.insert(tiles).values({ eventId: eId, position, label, ...fields });
+    }
+    if (creates > 0) {
+      // Keep boardSize == tile count so the Leagues/race display helpers stay accurate.
+      await tx.update(events).set({ boardSize: existingCount + creates }).where(eq(events.id, eId));
     }
   });
 
-  return NextResponse.json({ applied, ignored, total: eventTiles.length });
+  return NextResponse.json({
+    applied: updates,
+    created: creates,
+    ignored,
+    total: existingCount + creates,
+  });
 }

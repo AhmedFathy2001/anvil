@@ -654,7 +654,7 @@ export default function TileTrackingConfig({
                   searchTimeout.current = setTimeout(() => searchItems(val), 300);
                 }}
                 onFocus={() => itemResults.length > 0 && setShowItemDropdown(true)}
-                placeholder="Search items (e.g. Dragon warhammer)..."
+                placeholder="Search by name or item ID (e.g. Pet zilyana, 12651)..."
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               />
               {itemSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
