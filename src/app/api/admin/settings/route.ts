@@ -14,6 +14,7 @@ const EXPOSED_KEYS = [
   'webhook_deaths',
   'webhook_combat_achievements',
   'webhook_pvp_kills',
+  'webhook_clips',
   'always_notify_items',
   'fun_death_messages',
   'death_taunts',

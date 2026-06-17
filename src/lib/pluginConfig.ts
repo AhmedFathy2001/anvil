@@ -132,6 +132,7 @@ export interface PluginWebhooks {
   deaths: string | null;
   combatAchievements: string | null;
   pvpKills: string | null;
+  clips: string | null;
 }
 
 export const WEBHOOK_SETTING_KEYS = [
@@ -139,6 +140,7 @@ export const WEBHOOK_SETTING_KEYS = [
   'webhook_deaths',
   'webhook_combat_achievements',
   'webhook_pvp_kills',
+  'webhook_clips',
 ] as const;
 
 // Plugin-posted notification destinations, read from the settings key/value table.
@@ -153,6 +155,7 @@ export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
     deaths: map.get('webhook_deaths') || null,
     combatAchievements: map.get('webhook_combat_achievements') || null,
     pvpKills: map.get('webhook_pvp_kills') || null,
+    clips: map.get('webhook_clips') || null,
   };
 }
 

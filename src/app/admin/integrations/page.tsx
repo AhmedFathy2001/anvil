@@ -105,6 +105,13 @@ export default function AdminIntegrationsPage() {
               helpText="When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill (the tick your target hits 0 HP) is posted here."
             />
           </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <DiscordSettings
+              settingKey="webhook_clips"
+              label="Clips channel"
+              helpText="On-demand OBS replay clips (captured via the plugin's clip hotkey) are posted here when small enough for Discord. Requires OBS + replay buffer set up by the member."
+            />
+          </div>
         </div>
       </section>
 
