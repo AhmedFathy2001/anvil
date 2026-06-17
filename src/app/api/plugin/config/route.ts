@@ -243,6 +243,13 @@ export async function GET(request: Request) {
             if (Array.isArray(parsed)) acceptedSources = parsed.filter((s) => typeof s === 'string');
           } catch { /* ignore malformed JSON, treat as accept-any */ }
         }
+        let sourceNpcs: string[] | null = null;
+        if (t.sourceNpcs) {
+          try {
+            const parsed = JSON.parse(t.sourceNpcs);
+            if (Array.isArray(parsed)) sourceNpcs = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON, treat as any-source */ }
+        }
         return {
           tileId: t.id,
           label: t.label,
@@ -253,6 +260,7 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
           acceptedSources,
+          sourceNpcs,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,

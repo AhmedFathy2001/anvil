@@ -126,9 +126,10 @@ export default function TilesClient({ event, tiles }: Props) {
       itemRequirements?: { itemId: number; name: string; requiredAmount: number }[] | null;
       points?: number;
       category?: string | null;
+      sourceNpcs?: string[] | null;
     },
   ) {
-    const { trackedItemIds, itemRequirements, optional: updatedOptional, ...rest } = updated;
+    const { trackedItemIds, itemRequirements, sourceNpcs, optional: updatedOptional, ...rest } = updated;
     setLocalTiles((prev) =>
       prev.map((t) =>
         t.id === tileId
@@ -140,6 +141,8 @@ export default function TilesClient({ event, tiles }: Props) {
                 trackedItemIds === undefined ? t.trackedItemIds : trackedItemIds === null ? null : JSON.stringify(trackedItemIds),
               itemRequirements:
                 itemRequirements === undefined ? t.itemRequirements : itemRequirements === null ? null : JSON.stringify(itemRequirements),
+              sourceNpcs:
+                sourceNpcs === undefined ? t.sourceNpcs : sourceNpcs === null ? null : JSON.stringify(sourceNpcs),
             }
           : t,
       ),
@@ -348,6 +351,7 @@ export default function TilesClient({ event, tiles }: Props) {
                       itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
                       points: tile.points ?? 1,
                       category: tile.category ?? null,
+                      sourceNpcs: tile.sourceNpcs ? JSON.parse(tile.sourceNpcs) : null,
                     }}
                     onSaved={(updated) => handleTileConfigSaved(tile.id, updated)}
                     eventStarted={eventStarted}

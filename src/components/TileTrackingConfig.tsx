@@ -26,6 +26,27 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'collection', label: 'Collection', blurb: 'A set where each listed item needs its own count (e.g. full Moons).' },
 ];
 
+// Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
+// reports — raid/chest loot uses the chest name (not the room boss), direct kills use the NPC
+// name. Not exhaustive; the field accepts any free-text name.
+const SOURCE_SUGGESTIONS = [
+  'Chambers of Xeric',
+  'Theatre of Blood',
+  'Tombs of Amascut',
+  'Barrows',
+  'Lunar Chest',
+  'Fortis Colosseum',
+  'Hallowed Sepulchre',
+  'Zulrah',
+  'Vorkath',
+  'Nex',
+  'Alchemical Hydra',
+  'The Nightmare',
+  "Phosani's Nightmare",
+  'Cerberus',
+  'Corrupted Hunllef',
+];
+
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
@@ -53,6 +74,8 @@ export default function TileTrackingConfig({
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
+  // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
+  const [sourceNpcsText, setSourceNpcsText] = useState<string>((initial.sourceNpcs || []).join(", "));
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
@@ -128,6 +151,7 @@ export default function TileTrackingConfig({
       setTrackingMode("team");
       setRequiredAmount("");
       setTrackedItems([]);
+      setSourceNpcsText("");
     } else if (next === 'drop' || next === 'collection') {
       setTrackedStat("");
       setStatGoal("");
@@ -137,6 +161,7 @@ export default function TileTrackingConfig({
       setStatGoal("");
       setRequiredAmount("");
       setTrackedItems([]);
+      setSourceNpcsText("");
     }
   }
 
@@ -184,6 +209,7 @@ export default function TileTrackingConfig({
         requiredAmount: null,
         trackedItemIds: null,
         itemRequirements: null,
+        sourceNpcs: null,
       };
 
       if (isStat) {
@@ -200,6 +226,11 @@ export default function TileTrackingConfig({
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+      }
+
+      if (isDrop) {
+        const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
+        payload.sourceNpcs = npcs.length > 0 ? npcs : null;
       }
 
       const res = await fetch(`/api/events/${eventId}/tiles`, {
@@ -223,6 +254,7 @@ export default function TileTrackingConfig({
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
           points: updated.points ?? 1,
           category: updated.category ?? null,
+          sourceNpcs: updated.sourceNpcs ? JSON.parse(updated.sourceNpcs) : null,
         });
       } else {
         const data = await res.json().catch(() => ({}));
@@ -504,6 +536,37 @@ export default function TileTrackingConfig({
                   : 'Optional: add specific item drops the plugin should auto-detect. Leave empty to count any submitted drop.'}
               </p>
             )}
+          </div>
+
+          {/* Source restriction — count the drop only from these sources (NPC, raid, or chest). */}
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Restrict to source(s) <span className="text-text-muted/60">(optional)</span>
+            </label>
+            <input
+              type="text"
+              list="source-npc-suggestions"
+              value={sourceNpcsText}
+              onChange={(e) => setSourceNpcsText(e.target.value)}
+              placeholder="e.g. Zulrah  ·  Chambers of Xeric  ·  Barrows"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            <datalist id="source-npc-suggestions">
+              {SOURCE_SUGGESTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Comma-separated. The drop only counts when it comes from one of these (case-insensitive). Leave blank to
+              accept any source.
+              <br />
+              • <span className="text-foreground/70">Direct kills</span> → the NPC name (e.g. Zulrah, Vorkath, Nex).
+              <br />
+              • <span className="text-foreground/70">Raids &amp; chest loot</span> → the raid/chest name, not the room
+              boss — Chambers of Xeric, Theatre of Blood, Tombs of Amascut, Barrows, Lunar Chest (Moons). The game
+              reports the chest as the source, so an &ldquo;onyx from CoX&rdquo; tile uses{' '}
+              <span className="text-foreground/70">Chambers of Xeric</span>.
+            </p>
           </div>
         </div>
       )}

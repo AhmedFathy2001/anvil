@@ -211,6 +211,13 @@
       "when": 1781562610002,
       "tag": "0029_open_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1781675819568,
+      "tag": "0030_lumpy_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

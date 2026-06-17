@@ -29,7 +29,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -82,6 +82,25 @@ export async function PUT(
     }
   }
 
+  // sourceNpcs: optional JSON array of specific source NPC names for a drop tile.
+  let sourceNpcsJson: string | null | undefined;
+  if (sourceNpcs !== undefined) {
+    if (sourceNpcs === null || (Array.isArray(sourceNpcs) && sourceNpcs.length === 0)) {
+      sourceNpcsJson = null;
+    } else if (
+      Array.isArray(sourceNpcs) &&
+      sourceNpcs.length <= 25 &&
+      sourceNpcs.every((n: unknown) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40)
+    ) {
+      sourceNpcsJson = JSON.stringify(sourceNpcs.map((n: string) => n.trim()));
+    } else {
+      return NextResponse.json(
+        { error: 'sourceNpcs must be an array of up to 25 non-empty NPC names (≤40 chars each)' },
+        { status: 400 },
+      );
+    }
+  }
+
   // Build update set
   const updateSet: Record<string, unknown> = {
     // description is always editable
@@ -97,6 +116,8 @@ export async function PUT(
     points: points !== undefined && points !== null ? points : tile.points,
     // category (free-text grouping for plugin filters) is always editable
     category: category !== undefined ? (category ? String(category).slice(0, 60) : null) : tile.category,
+    // source-NPC restriction (drop tiles only) is always editable
+    ...(sourceNpcsJson !== undefined ? { sourceNpcs: sourceNpcsJson } : {}),
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)
@@ -144,7 +165,10 @@ export async function PUT(
   };
   const hasStat = !!merged.trackedStat || !!merged.statType || merged.statGoal != null;
   const hasDropFields =
-    merged.requiredAmount != null || parseLen(merged.trackedItemIds) > 0 || parseLen(merged.itemRequirements) > 0;
+    merged.requiredAmount != null ||
+    parseLen(merged.trackedItemIds) > 0 ||
+    parseLen(merged.itemRequirements) > 0 ||
+    parseLen(merged.sourceNpcs) > 0;
   const isDrop = merged.tileType === 'drop';
 
   if (hasStat && (isDrop || hasDropFields)) {

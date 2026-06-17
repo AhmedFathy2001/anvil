@@ -98,6 +98,13 @@ export default function AdminIntegrationsPage() {
               helpText="CA tier clears (and high-tier task completions) are posted here by the plugin."
             />
           </div>
+          <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+            <DiscordSettings
+              settingKey="webhook_pvp_kills"
+              label="PvP kills channel"
+              helpText="When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill (the tick your target hits 0 HP) is posted here."
+            />
+          </div>
         </div>
       </section>
 

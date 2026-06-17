@@ -57,6 +57,12 @@ export const tiles = sqliteTable('tiles', {
   // + loot keys). e.g. '["npc","event"]' for "from CoX or any NPC, not PvP"
   // or '["pvp"]' for a PK-only tile.
   acceptedSources: text('accepted_sources'),
+  // JSON array of specific NPC/source NAMES this drop tile must come from, e.g.
+  // '["Tekton"]' for "onyx, but only from Tekton". NULL = any source (subject to
+  // acceptedSources category filtering). Matched case-insensitively against the loot
+  // source name the RuneLite plugin reports. Drop tiles only. Important for Leagues-style
+  // boards where the same item is obtainable from many places but only one should count.
+  sourceNpcs: text('source_npcs'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.

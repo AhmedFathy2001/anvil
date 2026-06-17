@@ -39,6 +39,7 @@ export interface Tile {
   itemRequirements?: string | null;
   points?: number | null;
   category?: string | null;
+  sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
 }
 
 export interface Team {
@@ -110,6 +111,8 @@ export interface TileConfig {
   itemRequirements: ItemRequirement[] | null;
   points: number;
   category: string | null;
+  // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.
+  sourceNpcs: string[] | null;
 }
 
 export interface PlayerGain {
