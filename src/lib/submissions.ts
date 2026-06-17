@@ -6,7 +6,13 @@ import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
 // role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
-export async function syncDropTileCompletion(tileId: number, teamId: number) {
+export async function syncDropTileCompletion(
+  tileId: number,
+  teamId: number,
+  // When notifyCompletion is false the caller is folding the "tile completed" announcement into its
+  // own submission message (one webhook request instead of two). The team-win post still fires.
+  { notifyCompletion = true }: { notifyCompletion?: boolean } = {},
+) {
   // Get the tile to check its completion criteria
   const tile = await db.query.tiles.findFirst({
     where: eq(tiles.id, tileId),
@@ -101,15 +107,17 @@ export async function syncDropTileCompletion(tileId: number, teamId: number) {
       }) : null;
 
       if (team && event) {
-        notifyTileCompletion({
-          eventName: event.name,
-          tileLabel: tile.label,
-          teamName: team.name,
-          teamColor: team.color,
-          tileType: tile.tileType,
-          trackedStat: tile.trackedStat,
-          statType: tile.statType,
-        }).catch(() => {});
+        if (notifyCompletion) {
+          notifyTileCompletion({
+            eventName: event.name,
+            tileLabel: tile.label,
+            teamName: team.name,
+            teamColor: team.color,
+            tileType: tile.tileType,
+            trackedStat: tile.trackedStat,
+            statType: tile.statType,
+          }).catch(() => {});
+        }
 
         // Check for blackout win
         const eventTiles = await db.query.tiles.findMany({

@@ -285,7 +285,12 @@ export async function POST(
     creditPlayerName = creditPlayer?.name || null;
   }
 
-  // Send submission notification FIRST (with screenshot) so Discord shows it before completion
+  // Resolve completion BEFORE notifying (and awaited, not in a fire-after-response setTimeout that a
+  // serverless function can freeze before running) so the completion is reliably persisted and we can
+  // fold "tile completed" into the single submission post — one bingo-webhook request, not two. The
+  // separate completion announcement is suppressed; the team-win post still fires from inside sync.
+  const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
+
   notifySubmission({
     eventName: event?.name || 'Unknown Event',
     tileLabel: tile.label,
@@ -299,12 +304,8 @@ export async function POST(
     imageUrl: imageUrl.trim(),
     tileType: tile.tileType,
     durationSeconds: durationSecondsValue,
+    completed: syncResult?.isComplete ?? false,
   }).catch(() => {}); // Silently ignore errors
-
-  // Delay completion sync so Discord processes the screenshot message first
-  setTimeout(async () => {
-    await syncDropTileCompletion(tileId, teamId);
-  }, 1500);
 
   return NextResponse.json({ submission }, { status: 201 });
 }

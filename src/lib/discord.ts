@@ -148,6 +148,9 @@ interface SubmissionNotifyParams {
   tileType?: string | null;
   // Timed-tile clear time in seconds (shown as mm:ss). Null for drop/kill submissions.
   durationSeconds?: number | null;
+  // True when this submission completed the tile — folds the old separate completion post into
+  // this one message so a completing submission costs the bingo webhook one request, not two.
+  completed?: boolean;
 }
 
 function formatClearTime(totalSeconds: number): string {
@@ -170,6 +173,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     imageUrl,
     tileType,
     durationSeconds,
+    completed,
   } = params;
 
   const fields: { name: string; value: string; inline?: boolean }[] = [
@@ -202,8 +206,13 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push({ name: 'Note', value: note, inline: false });
   }
 
-  const title =
-    tileType === 'timed' ? '⏱️ New Timed Clear Submitted!'
+  if (completed) {
+    fields.push({ name: '​', value: '✅ **This completed the tile!**', inline: false });
+  }
+
+  const title = completed
+    ? '✅ Tile Completed!'
+    : tileType === 'timed' ? '⏱️ New Timed Clear Submitted!'
     : tileType === 'kill' ? '⚔️ New Kill Submitted!'
     : '🎯 New Drop Submitted!';
 
