@@ -6,6 +6,7 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { TILE_TIERS, tileTier, tileCategories, type TileTierKey } from '@/lib/tileFilter';
 
 interface Tile {
   id: number;
@@ -22,6 +23,7 @@ interface Tile {
   trackingMode?: string;
   optional?: number | null;
   points?: number | null;
+  category?: string | null;
 }
 
 interface Team {
@@ -97,6 +99,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   const [fullscreen, setFullscreen] = useState(false);
   const [timeDisplay, setTimeDisplay] = useState<string>('');
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [tierFilter, setTierFilter] = useState<'all' | TileTierKey>('all');
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
@@ -235,6 +239,21 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
   const totalCompleted = completions.length;
   const draftActive = event.draftStatus === 'active' || event.draftStatus === 'paused';
 
+  // Board filters — by content category and by difficulty tier (derived from points).
+  const categories = tileCategories(tiles);
+  const filterActive = categoryFilter !== 'all' || tierFilter !== 'all';
+  const matchedTileIds = filterActive
+    ? new Set(
+        tiles
+          .filter((t) => categoryFilter === 'all' || (t.category?.trim() || '') === categoryFilter)
+          .filter((t) => tierFilter === 'all' || tileTier(t.points) === tierFilter)
+          .map((t) => t.id),
+      )
+    : null;
+  // Tier bands only make sense when tiles carry distinct point values.
+  const showTierFilter = pointsMode;
+  const showFilters = categories.length > 0 || showTierFilter;
+
   return (
     <div>
       <div className="mb-8">
@@ -348,6 +367,65 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             Board Overview
             <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
+
+          {showFilters && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+              {categories.length > 0 && (
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="shrink-0 text-xs px-2.5 py-1.5 bg-brown-dark border border-card-border rounded-lg text-foreground focus:border-gold/50 focus:outline-none"
+                  aria-label="Filter board by category"
+                >
+                  <option value="all">All categories</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {showTierFilter && (
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                  <button
+                    onClick={() => setTierFilter('all')}
+                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                      tierFilter === 'all'
+                        ? 'bg-gold/20 border-gold text-gold'
+                        : 'border-card-border text-text-muted hover:border-gold/40'
+                    }`}
+                  >
+                    All tiers
+                  </button>
+                  {TILE_TIERS.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTierFilter(t.key)}
+                      className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                        tierFilter === t.key
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/40'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filterActive && (
+                <button
+                  onClick={() => {
+                    setCategoryFilter('all');
+                    setTierFilter('all');
+                  }}
+                  className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
           <EventBoard
             format={event.format}
             tiles={tiles}
@@ -358,6 +436,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
             statProgress={statProgressMap}
             expanded={fullscreen}
             pointsMode={pointsMode}
+            matchedTileIds={matchedTileIds}
           />
         </div>
       </div>

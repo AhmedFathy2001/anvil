@@ -34,6 +34,7 @@ interface TileRaceBoardProps {
   dropProgress?: Map<number, { current: number; required: number }>;
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
+  matchedTileIds?: Set<number> | null;
 }
 
 // How many tiles per row before the track snakes back the other way.
@@ -48,6 +49,7 @@ export default function TileRaceBoard({
   dropProgress,
   statProgress,
   expanded,
+  matchedTileIds,
 }: TileRaceBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const tileIds = new Set(sortedTiles.map((t) => t.id));
@@ -180,6 +182,7 @@ export default function TileRaceBoard({
                           onClick={onTileClick ? () => onTileClick(tile.id) : undefined}
                           progress={dropProgress?.get(tile.id)}
                           statProgress={statProgress?.get(tile.id)}
+                          dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
                         />
                       </div>
                       {i < row.length - 1 && (
@@ -235,6 +238,7 @@ interface TrackTileProps {
   onClick?: () => void;
   progress?: { current: number; required: number };
   statProgress?: { current: number; goal: number; statType?: string };
+  dimmed?: boolean;
 }
 
 function TrackTile({
@@ -248,6 +252,7 @@ function TrackTile({
   onClick,
   progress,
   statProgress,
+  dimmed,
 }: TrackTileProps) {
   const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill';
   const showDrop = isDrop && progress && progress.current > 0 && !reached;
@@ -262,6 +267,7 @@ function TrackTile({
         !reached && !isNext && 'bg-tile-bg border-tile-border',
         isNext && !reached && 'bg-gold/10 border-gold/70 shadow-[0_0_10px_rgba(212,175,55,0.25)]',
         isLocked && !reached && 'opacity-40',
+        dimmed && 'opacity-30 grayscale',
         onClick && 'cursor-pointer hover:scale-[1.03]',
         !onClick && 'cursor-default',
       )}

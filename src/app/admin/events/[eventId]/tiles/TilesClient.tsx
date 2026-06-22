@@ -7,6 +7,7 @@ import TileTrackingConfig from '@/components/TileTrackingConfig';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
+import { TILE_TIERS, tileTier, tileCategories, type TileTierKey } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
@@ -49,6 +50,8 @@ export default function TilesClient({ event, tiles }: Props) {
       // Clear filters so the freshly-added tile is visible once its drawer closes.
       setSearch('');
       setKindFilter('all');
+      setCategoryFilter('all');
+      setTierFilter('all');
       setEditingTileId(data.id);
       router.refresh();
     } finally {
@@ -77,12 +80,21 @@ export default function TilesClient({ event, tiles }: Props) {
   // Filter state — essential once a Leagues board imports hundreds of tiles.
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [tierFilter, setTierFilter] = useState<'all' | TileTierKey>('all');
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
+
+  // Categories present on the board, for the category dropdown.
+  const categories = useMemo(() => tileCategories(localTiles), [localTiles]);
+  // Tiers only matter on points boards (the tier band is derived from a tile's point value).
+  const showTierFilter = pointsMode;
 
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
     return localTiles.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
+      if (categoryFilter !== 'all' && (t.category?.trim() || '') !== categoryFilter) return false;
+      if (tierFilter !== 'all' && tileTier(t.points) !== tierFilter) return false;
       if (!q) return true;
       return (
         t.label?.toLowerCase().includes(q) ||
@@ -93,10 +105,10 @@ export default function TilesClient({ event, tiles }: Props) {
         false
       );
     });
-  }, [localTiles, search, kindFilter]);
+  }, [localTiles, search, kindFilter, categoryFilter, tierFilter]);
 
   // Collapse back to the first page whenever the result set changes.
-  useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter]);
+  useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
 
   const visibleTiles = filteredTiles.slice(0, visibleLimit);
 
@@ -254,6 +266,8 @@ export default function TilesClient({ event, tiles }: Props) {
           setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
           setSearch('');
           setKindFilter('all');
+          setCategoryFilter('all');
+          setTierFilter('all');
         }
       } catch {
         /* ignore — router.refresh below still re-syncs server data */
@@ -363,6 +377,54 @@ export default function TilesClient({ event, tiles }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Category + difficulty-tier filters */}
+        {(categories.length > 0 || showTierFilter) && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+            {categories.length > 0 && (
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="shrink-0 text-xs px-2.5 py-1.5 bg-brown-dark border border-card-border rounded-lg text-foreground focus:border-gold/50 focus:outline-none"
+                aria-label="Filter by category"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
+            {showTierFilter && (
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                <button
+                  onClick={() => setTierFilter('all')}
+                  className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    tierFilter === 'all'
+                      ? 'bg-gold/20 border-gold text-gold'
+                      : 'border-card-border text-text-muted hover:border-gold/40'
+                  }`}
+                >
+                  All tiers
+                </button>
+                {TILE_TIERS.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTierFilter(t.key)}
+                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                      tierFilter === t.key
+                        ? 'bg-gold/20 border-gold text-gold'
+                        : 'border-card-border text-text-muted hover:border-gold/40'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <p className="text-xs text-text-muted mb-3">
           {filteredTiles.length === localTiles.length

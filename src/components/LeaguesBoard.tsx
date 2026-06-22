@@ -38,6 +38,7 @@ interface LeaguesBoardProps {
   dropProgress?: Map<number, { current: number; required: number }>;
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
+  matchedTileIds?: Set<number> | null;
 }
 
 /**
@@ -54,8 +55,11 @@ export default function LeaguesBoard({
   dropProgress,
   statProgress,
   expanded: wide,
+  matchedTileIds,
 }: LeaguesBoardProps) {
-  const sorted = [...tiles].sort((a, b) => a.position - b.position);
+  const sorted = [...tiles]
+    .filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true))
+    .sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -168,7 +172,11 @@ export default function LeaguesBoard({
           </div>
         );
       })}
-      {sorted.length === 0 && <div className="px-3 py-6 text-center text-sm text-text-muted">No tiles yet.</div>}
+      {sorted.length === 0 && (
+        <div className="px-3 py-6 text-center text-sm text-text-muted">
+          {matchedTileIds ? 'No tiles match this filter.' : 'No tiles yet.'}
+        </div>
+      )}
     </div>
   );
 }

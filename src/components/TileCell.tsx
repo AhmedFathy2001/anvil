@@ -14,9 +14,11 @@ interface TileCellProps {
   statProgress?: { current: number; goal: number; statType?: string };
   expanded?: boolean;
   points?: number;
+  /** Outside the active board filter — render faded + desaturated to recede. */
+  dimmed?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   // Drop and kill tiles both show a count-based partial-progress indicator.
@@ -38,6 +40,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         interactive && isCompleted && 'cursor-pointer hover:scale-[1.03] hover:brightness-110',
         !interactive && onClick && 'cursor-pointer hover:border-gold/40 hover:scale-[1.02]',
         !interactive && !onClick && 'cursor-default',
+        dimmed && 'opacity-30 grayscale',
       )}
       style={
         isCompleted

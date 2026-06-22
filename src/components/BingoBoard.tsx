@@ -40,6 +40,7 @@ interface BingoBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   pointsMode?: boolean;
+  matchedTileIds?: Set<number> | null;
 }
 
 export default function BingoBoard({
@@ -54,6 +55,7 @@ export default function BingoBoard({
   statProgress,
   expanded,
   pointsMode,
+  matchedTileIds,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -97,6 +99,7 @@ export default function BingoBoard({
             statProgress={tileStat}
             expanded={expanded}
             points={pointsMode && !tile.optional ? (tile.points ?? 1) : undefined}
+            dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
           />
         );
       })}

@@ -45,6 +45,8 @@ interface EventBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   pointsMode?: boolean;
+  /** When set, tiles outside this set are de-emphasised (grid/track) or hidden (list). */
+  matchedTileIds?: Set<number> | null;
 }
 
 /**

@@ -1,0 +1,14 @@
+label,description,type,points,category,optional,requiredAmount,trackedStat,statType,statGoal,targetNpcs,timedActivity,timeThresholdSeconds,items
+Firecape screenshot,Manual photo proof of a fire cape,standard,5,Misc,false,,,,,,,,
+10M Mining XP,,standard,10,Skilling,false,,mining,skill,10000000,,,,
+99 Slayer,,standard,15,Skilling,false,,slayer,skill,13034431,,,,
+50 Zulrah KC,,standard,8,Zulrah,false,,zulrah,boss,50,,,,
+25 CoX KC,,standard,12,Raids,false,,chambersOfXeric,boss,25,,,,
+Any Bandos unique,Any one drop from the Bandos pool,drop,15,GWD,false,1,,,,,,,"Bandos chestplate; Bandos tassets; Bandos boots; Bandos hilt"
+Full Bandos set,One of each Bandos armour piece,drop,25,GWD,false,,,,,,,,"Bandos chestplate:1; Bandos tassets:1; Bandos boots:1"
+Any CoX purple,Any Chambers of Xeric unique,drop,20,Raids,false,1,,,,,,,"Twisted bow; Kodai insignia; Elder maul; Dragon claws; Ancestral hat top"
+Pet from GWD,Long-shot bonus tile,drop,40,Pets,true,,,,,,,,Pet zilyana#12651
+Kill 100 cows,,kill,3,Skilling,false,100,,,,Cow|Cow calf,,,
+Kill 250 chickens,,kill,3,Skilling,false,250,,,,Chicken,,,
+Sub-30 Inferno,Clear the Inferno in under 30 minutes,timed,50,Inferno,false,,,,,,Inferno,1800,
+Sub-25 CoX,Chambers of Xeric clear under 25 minutes,timed,30,Raids,false,,,,,,Chambers of Xeric,1500,
