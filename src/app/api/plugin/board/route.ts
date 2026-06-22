@@ -163,6 +163,11 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
         optional: t.optional ? 1 : 0,
+        category: t.category ?? null,
+        // tileType + statType let the plugin's preview classify the tile's kind (drop / collection /
+        // kill / timed / skill / boss) the same way the enrolled config view does.
+        tileType: t.tileType ?? null,
+        statType: t.statType ?? null,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
         ...(itemRequirements ? { itemRequirements } : {}),
       };
