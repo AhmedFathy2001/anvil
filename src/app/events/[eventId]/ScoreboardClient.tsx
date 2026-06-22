@@ -6,7 +6,7 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
-import { TILE_TIERS, tileTier, tileCategories, type TileTierKey } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Tile {
   id: number;
@@ -66,6 +66,7 @@ interface Props {
   tiles: Tile[];
   teams: Team[];
   completions: Completion[];
+  tierBands?: TierBand[];
 }
 
 function formatTimeLeft(ms: number): string {
@@ -93,14 +94,14 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [timeDisplay, setTimeDisplay] = useState<string>('');
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [tierFilter, setTierFilter] = useState<'all' | TileTierKey>('all');
+  const [tierFilter, setTierFilter] = useState<string>('all');
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
@@ -246,12 +247,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
     ? new Set(
         tiles
           .filter((t) => categoryFilter === 'all' || (t.category?.trim() || '') === categoryFilter)
-          .filter((t) => tierFilter === 'all' || tileTier(t.points) === tierFilter)
+          .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
           .map((t) => t.id),
       )
     : null;
   // Tier bands only make sense when tiles carry distinct point values.
-  const showTierFilter = pointsMode;
+  const showTierFilter = pointsMode && tierBands.length > 0;
   const showFilters = categories.length > 0 || showTierFilter;
 
   return (
@@ -397,7 +398,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions }: P
                   >
                     All tiers
                   </button>
-                  {TILE_TIERS.map((t) => (
+                  {tierBands.map((t) => (
                     <button
                       key={t.key}
                       onClick={() => setTierFilter(t.key)}

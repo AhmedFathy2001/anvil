@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
+import { getTierBands } from '@/lib/pluginConfig';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -120,6 +121,7 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
   // lines up with the web BingoBoard.
   const sortedTiles = [...eventTiles].sort((a, b) => a.position - b.position);
   const cols = event.boardSize > 0 ? event.boardSize : 1;
+  const tierBands = await getTierBands();
 
   return {
     eventId: event.id,
@@ -129,6 +131,8 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
     boardSize: event.boardSize,
     yourTeamId: callerTeamId ?? -1,
     readOnly: callerTeamId == null,
+    // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter on previews.
+    tiers: tierBands,
     tiles: sortedTiles.map((t, index) => {
       // Compound tiles carry several distinct items; surface the per-item breakdown so the plugin's
       // detail page can render the whole set like the website (progress is 0 in read-only preview).

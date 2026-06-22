@@ -1,6 +1,7 @@
 import DiscordSettings from '@/components/DiscordSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import LineListSetting from '@/components/LineListSetting';
+import TierBandsSetting from '@/components/TierBandsSetting';
 
 export const dynamic = 'force-dynamic';
 
@@ -164,6 +165,22 @@ export default function AdminIntegrationsPage() {
         </p>
         <div className="border border-card-border rounded-xl p-5 bg-card-bg">
           <AlwaysNotifyItems />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Difficulty tiers</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          The difficulty bands that points map onto, used by the Tier filter on the board and in the
+          plugin&apos;s collection-log tab. Rename, add, remove, or retune the point thresholds here —
+          changes flow to the website immediately and to members on their next plugin login, with no
+          plugin update needed.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <TierBandsSetting />
         </div>
       </section>
 

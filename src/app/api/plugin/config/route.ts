@@ -12,6 +12,7 @@ import {
   getDeathTaunts,
   getSpoonTaunts,
   getAlwaysNotifyItems,
+  getTierBands,
 } from '@/lib/pluginConfig';
 import crypto from 'crypto';
 
@@ -190,7 +191,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, tiers] =
     await Promise.all([
       buildSchedule(),
       getActiveWeekly(),
@@ -199,6 +200,7 @@ export async function GET(request: Request) {
       getDeathTaunts(),
       getSpoonTaunts(),
       getAlwaysNotifyItems(),
+      getTierBands(),
     ]);
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
@@ -242,6 +244,8 @@ export async function GET(request: Request) {
     codeword: generateCodeword(auth.playerId, event.id),
     schedule,
     activeWeekly,
+    // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
+    tiers,
     webhooks,
     funDeathMessages,
     deathTaunts,

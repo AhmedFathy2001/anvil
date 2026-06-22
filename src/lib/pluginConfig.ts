@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import { FUN_DEATH_MESSAGES } from '@/lib/constants';
+import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -197,4 +198,21 @@ export async function getSpoonTaunts(): Promise<string[]> {
 // both lists — so this only needs to hold extras (e.g. new ornament kits). One name per line.
 export async function getAlwaysNotifyItems(): Promise<string[]> {
   return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+}
+
+// Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so
+// the bands can be retuned/renamed/added without a web *or* plugin release; served to the plugin
+// in /api/plugin/config + /api/plugin/board and used by the web filters. Falls back to the curated
+// default when unset or malformed.
+export const TIER_BANDS_SETTING_KEY = 'tier_bands';
+
+export async function getTierBands(): Promise<TierBand[]> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, TIER_BANDS_SETTING_KEY) });
+  if (!row?.value) return DEFAULT_TIER_BANDS;
+  try {
+    const bands = normalizeTierBands(JSON.parse(row.value));
+    return bands.length ? bands : DEFAULT_TIER_BANDS;
+  } catch {
+    return DEFAULT_TIER_BANDS;
+  }
 }

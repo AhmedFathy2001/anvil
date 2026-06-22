@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
+import { getTierBands } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ export default async function EventScoreboardPage({
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+  const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
   let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
@@ -96,6 +98,7 @@ export default async function EventScoreboardPage({
           tiles={eventTiles}
           teams={safeTeams}
           completions={eventCompletions}
+          tierBands={tierBands}
         />
       )}
     </>

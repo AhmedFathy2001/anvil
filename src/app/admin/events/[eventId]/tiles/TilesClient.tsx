@@ -7,14 +7,15 @@ import TileTrackingConfig from '@/components/TileTrackingConfig';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
-import { TILE_TIERS, tileTier, tileCategories, type TileTierKey } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
   tiles: Tile[];
+  tierBands?: TierBand[];
 }
 
-export default function TilesClient({ event, tiles }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
@@ -81,20 +82,20 @@ export default function TilesClient({ event, tiles }: Props) {
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [tierFilter, setTierFilter] = useState<'all' | TileTierKey>('all');
+  const [tierFilter, setTierFilter] = useState<string>('all');
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
 
   // Categories present on the board, for the category dropdown.
   const categories = useMemo(() => tileCategories(localTiles), [localTiles]);
   // Tiers only matter on points boards (the tier band is derived from a tile's point value).
-  const showTierFilter = pointsMode;
+  const showTierFilter = pointsMode && tierBands.length > 0;
 
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
     return localTiles.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && (t.category?.trim() || '') !== categoryFilter) return false;
-      if (tierFilter !== 'all' && tileTier(t.points) !== tierFilter) return false;
+      if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       if (!q) return true;
       return (
         t.label?.toLowerCase().includes(q) ||
@@ -105,7 +106,7 @@ export default function TilesClient({ event, tiles }: Props) {
         false
       );
     });
-  }, [localTiles, search, kindFilter, categoryFilter, tierFilter]);
+  }, [localTiles, search, kindFilter, categoryFilter, tierFilter, tierBands]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -408,7 +409,7 @@ export default function TilesClient({ event, tiles }: Props) {
                 >
                   All tiers
                 </button>
-                {TILE_TIERS.map((t) => (
+                {tierBands.map((t) => (
                   <button
                     key={t.key}
                     onClick={() => setTierFilter(t.key)}
