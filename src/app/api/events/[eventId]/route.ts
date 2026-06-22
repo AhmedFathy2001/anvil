@@ -150,6 +150,72 @@ export async function PATCH(
     return NextResponse.json(updated);
   }
 
+  // Handle change-mode action — switch the event's base type (classic / leagues / race)
+  // before it starts. Each type redefines the board shape and tile count, so we wipe the
+  // existing tiles and regenerate a fresh placeholder set (label + icon carried over by
+  // position where they overlap; per-tile config like points/type resets). Gated to
+  // not-yet-started events so we never reshape a board out from under live participants.
+  if (body.action === 'change-mode') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    const now = new Date().toISOString();
+    const started = !!event.startDate && event.startDate <= now;
+    if (started || event.forceEndedAt) {
+      return NextResponse.json(
+        { error: 'Cannot change the type of an event that has already started.' },
+        { status: 400 },
+      );
+    }
+
+    const { format, scoringMode, boardSize } = body;
+    if (format !== 'bingo' && format !== 'tilerace') {
+      return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+    }
+    if (scoringMode !== 'tiles' && scoringMode !== 'points') {
+      return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
+    }
+    // A tile race is always scored by furthest tile reached; force 'tiles' there.
+    const resolvedScoringMode = format === 'tilerace' ? 'tiles' : scoringMode;
+    if (!Number.isInteger(boardSize) || boardSize < 1) {
+      return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
+    }
+    const isClassicGrid = format === 'bingo' && resolvedScoringMode === 'tiles';
+    if (isClassicGrid && boardSize > 12) {
+      return NextResponse.json({ error: 'A classic grid is capped at 12×12.' }, { status: 400 });
+    }
+    if (!isClassicGrid && boardSize > 1000) {
+      return NextResponse.json({ error: 'Events are capped at 1000 tiles.' }, { status: 400 });
+    }
+    const expectedTiles = isClassicGrid ? boardSize * boardSize : boardSize;
+
+    const updated = await db.transaction(async (tx) => {
+      const oldTiles = await tx
+        .select({ position: tiles.position, label: tiles.label, icon: tiles.icon })
+        .from(tiles)
+        .where(eq(tiles.eventId, id));
+      const byPosition = new Map(oldTiles.map((t) => [t.position, t]));
+      await tx.delete(tiles).where(eq(tiles.eventId, id));
+      const tileValues = Array.from({ length: expectedTiles }, (_, i) => ({
+        eventId: id,
+        position: i,
+        label: byPosition.get(i)?.label ?? `Tile ${i + 1}`,
+        icon: byPosition.get(i)?.icon ?? null,
+      }));
+      await tx.insert(tiles).values(tileValues);
+      const [row] = await tx
+        .update(events)
+        .set({ format, scoringMode: resolvedScoringMode, boardSize })
+        .where(eq(events.id, id))
+        .returning();
+      return row;
+    });
+
+    return NextResponse.json(updated);
+  }
+
   // Default: update dates and/or sign-up config
   const updates: Record<string, unknown> = {};
   if ('startDate' in body) updates.startDate = body.startDate;
@@ -157,12 +223,6 @@ export async function PATCH(
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
   if ('captainSelectionDeadline' in body) updates.captainSelectionDeadline = body.captainSelectionDeadline;
-  if ('format' in body) {
-    if (body.format !== 'bingo' && body.format !== 'tilerace') {
-      return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
-    }
-    updates.format = body.format;
-  }
   if ('signupFee' in body) {
     if (body.signupFee !== null && (typeof body.signupFee !== 'number' || !Number.isFinite(body.signupFee) || body.signupFee < 0)) {
       return NextResponse.json({ error: 'signupFee must be a non-negative number or null' }, { status: 400 });
@@ -251,8 +311,10 @@ export async function DELETE(
 
   const now = new Date().toISOString();
   const isOver = !!event.forceEndedAt || (!!event.endDate && event.endDate < now);
-  const isDraft = !event.startDate && !event.forceEndedAt;
-  if (!isOver && !isDraft) {
+  // "Not started" covers both unscheduled drafts and upcoming events whose start is
+  // still in the future — neither has live participants, so both are safe to delete.
+  const notStarted = !event.forceEndedAt && (!event.startDate || event.startDate > now);
+  if (!isOver && !notStarted) {
     return NextResponse.json(
       { error: 'Event is still active. Force-end it first or wait for it to end.' },
       { status: 400 },

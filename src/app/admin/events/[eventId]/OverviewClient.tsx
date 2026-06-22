@@ -7,6 +7,7 @@ import EventBoard from '@/components/EventBoard';
 import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
+import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 
 interface Props {
   event: Event;
@@ -24,6 +25,13 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   const [savingDates, setSavingDates] = useState(false);
   const [forceEnding, setForceEnding] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const [editType, setEditType] = useState(false);
+  const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
+  const [typeSize, setTypeSize] = useState(event.boardSize);
+  const [savingType, setSavingType] = useState(false);
+  const [typeError, setTypeError] = useState('');
 
   const [localTiles, setLocalTiles] = useState<Tile[]>(tiles);
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
@@ -42,6 +50,12 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   const isActive = eventStarted && !eventEnded;
   const raceFormat = isTileRaceFormat(currentEvent.format);
   const pointsMode = isPointsMode(currentEvent.scoringMode);
+  // Type can only change before the event goes live; delete is allowed before start or
+  // once it's over — i.e. any time it isn't actively running. Mirrors the API gates.
+  const canChangeType = !eventStarted && !isForceEnded;
+  const canDelete = !isActive;
+
+  const typeMeta = EVENT_MODES.find((m) => m.key === typeMode)!;
 
   async function saveDates() {
     setSavingDates(true);
@@ -81,6 +95,78 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
       }
     } finally {
       setForceEnding(false);
+    }
+  }
+
+  function startEditType() {
+    setTypeMode(modeKeyFor(currentEvent.format, currentEvent.scoringMode));
+    setTypeSize(currentEvent.boardSize);
+    setTypeError('');
+    setEditType(true);
+  }
+
+  function pickTypeMode(next: EventMode) {
+    const m = EVENT_MODES.find((x) => x.key === next)!;
+    setTypeMode(next);
+    setTypeSize(m.default);
+    setTypeError('');
+  }
+
+  async function saveType() {
+    if (typeSize < typeMeta.min || typeSize > typeMeta.max) {
+      setTypeError(`${typeMeta.label} supports ${typeMeta.min}–${typeMeta.max}.`);
+      return;
+    }
+    const tileCount = typeMeta.square ? typeSize * typeSize : typeSize;
+    if (!confirm(
+      `Change this event to "${typeMeta.label}" (${tileCount} tiles)? This rebuilds the board — ` +
+      `tile labels and icons are kept where positions overlap, but per-tile settings (points, type, goals) reset.`,
+    )) return;
+    setSavingType(true);
+    setTypeError('');
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change-mode',
+          format: typeMeta.format,
+          scoringMode: typeMeta.scoringMode,
+          boardSize: typeSize,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        setEditType(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setTypeError(data.error || 'Could not change the event type.');
+      }
+    } finally {
+      setSavingType(false);
+    }
+  }
+
+  async function deleteEvent() {
+    if (!confirm(
+      `Permanently delete "${currentEvent.name}"? This wipes its tiles, teams, completions and signups. This cannot be undone.`,
+    )) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/admin/events');
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Could not delete event');
+        setDeleting(false);
+      }
+    } catch {
+      alert('Could not delete event');
+      setDeleting(false);
     }
   }
 
@@ -127,24 +213,57 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
           </span>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 mb-4">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Type</label>
-            <p className="text-sm font-medium">
-              {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
-            </p>
+        {editType ? (
+          <div className="mb-4 rounded-lg border border-card-border bg-brown-dark/30 p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+              {EVENT_MODES.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => pickTypeMode(m.key)}
+                  className={`px-3 py-2 text-sm rounded-lg border text-left transition-colors ${
+                    typeMode === m.key ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <label className="block text-xs text-text-muted mb-1">{typeMeta.sizeLabel}</label>
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="number"
+                value={typeSize}
+                onChange={(e) => setTypeSize(parseInt(e.target.value, 10) || typeMeta.default)}
+                min={typeMeta.min}
+                max={typeMeta.max}
+                className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold"
+              />
+              <span className="text-xs text-text-muted">{typeMeta.sizeHelp(typeSize)}</span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">{typeMeta.blurb}</p>
+            {typeError && <p className="text-red-400 text-xs mt-1">{typeError}</p>}
           </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">
-              {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
-            </label>
-            <p className="text-sm font-medium">
-              {raceFormat || pointsMode
-                ? `${currentEvent.boardSize} tiles`
-                : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
-            </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 mb-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Type</label>
+              <p className="text-sm font-medium">
+                {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
+              </label>
+              <p className="text-sm font-medium">
+                {raceFormat || pointsMode
+                  ? `${currentEvent.boardSize} tiles`
+                  : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {editMode ? (
           <div className="mb-3">
@@ -225,6 +344,42 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
               className="text-xs font-medium px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
             >
               {resuming ? 'Resuming...' : 'Resume Event'}
+            </button>
+          )}
+          {canChangeType && !editMode && (
+            editType ? (
+              <>
+                <button
+                  onClick={saveType}
+                  disabled={savingType}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/20 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+                >
+                  {savingType ? 'Saving...' : 'Save Type'}
+                </button>
+                <button
+                  onClick={() => setEditType(false)}
+                  disabled={savingType}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={startEditType}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/20 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+              >
+                Change Type
+              </button>
+            )
+          )}
+          {canDelete && !editMode && !editType && (
+            <button
+              onClick={deleteEvent}
+              disabled={deleting}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Delete Event'}
             </button>
           )}
         </div>
