@@ -15,6 +15,9 @@ interface DiscordEmbed {
 interface DiscordWebhookPayload {
   content?: string;
   embeds?: DiscordEmbed[];
+  // Restrict which mentions actually ping. When pinging a role we set `roles` explicitly so the
+  // role notifies even if it isn't "mentionable", and nothing else (e.g. @everyone) can slip in.
+  allowed_mentions?: { parse?: string[]; roles?: string[]; users?: string[] };
 }
 
 // General / plugin-updates webhook — clan-roster changes (member joins / leaves / renames / count)
@@ -79,6 +82,44 @@ async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload)
     return response.ok;
   } catch (error) {
     log.warn('discord.webhook-exception', {}, error);
+    return false;
+  }
+}
+
+// Forward a plugin-originated notification (death / kill / rare drop / CA) to a clan webhook. The
+// plugin POSTs these to /api/plugin/notify, which resolves the channel's webhook server-side and
+// calls this — so the plugin never holds or calls the Discord URL itself (RuneLite plugin-hub rule).
+// `embed` is arbitrary embed JSON built by the plugin; `image` is an optional screenshot the embed
+// references via "attachment://<filename>".
+export async function forwardPluginNotification(
+  webhookUrl: string,
+  payload: {
+    content?: string;
+    embed?: Record<string, unknown> | null;
+    image?: { bytes: ArrayBuffer; filename: string } | null;
+  },
+): Promise<boolean> {
+  const { content, embed, image } = payload;
+  const embeds = embed ? [embed as unknown as DiscordEmbed] : undefined;
+
+  if (!image) {
+    return sendToWebhook(webhookUrl, { content: content || undefined, embeds });
+  }
+
+  // Multipart upload so the screenshot rides along; Discord renders it inline via the embed's
+  // attachment:// reference. sendToWebhook is JSON-only, so this path posts directly.
+  try {
+    const form = new FormData();
+    form.append('payload_json', JSON.stringify({ content: content || undefined, embeds }));
+    form.append('files[0]', new Blob([image.bytes]), image.filename);
+    const response = await fetch(webhookUrl, { method: 'POST', body: form });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      log.warn('discord.plugin-notify-fail', { status: response.status, body: text.slice(0, 200) });
+    }
+    return response.ok;
+  } catch (error) {
+    log.warn('discord.plugin-notify-exception', {}, error);
     return false;
   }
 }
@@ -393,16 +434,48 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
   return sendBingoWebhook({ embeds: [embed] });
 }
 
-const BINGO_ROLE_ID = '1466184936934609008';
+// Role pinged on event start/finish posts. The member role so the whole clan is notified.
+const MEMBER_ROLE_ID = '1441294849369309274';
+
+// Public site origin, derived from the OAuth redirect URI (cron has no request context to read a
+// host header from). Used to build deep links into the app for Discord posts. Null if unconfigured.
+function siteBaseUrl(): string | null {
+  const uri = process.env.DISCORD_REDIRECT_URI;
+  if (!uri) return null;
+  try {
+    return new URL(uri).origin;
+  } catch {
+    return null;
+  }
+}
+
+// Live standings page for an event — the public board doubles as the leaderboard.
+function eventLeaderboardUrl(eventId: number): string | null {
+  const base = siteBaseUrl();
+  return base ? `${base}/events/${eventId}` : null;
+}
+
+// A clickable "Leaderboard" field, appended when the site URL is known. Mutates `fields`.
+function pushLeaderboardField(fields: { name: string; value: string; inline?: boolean }[], eventId: number) {
+  const url = eventLeaderboardUrl(eventId);
+  if (url) fields.push({ name: 'Leaderboard', value: `[View live standings →](${url})`, inline: false });
+}
+
+// Ping the member role: explicit allowed_mentions so it notifies reliably and nothing else pings.
+const memberPing = (): Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'> => ({
+  content: `<@&${MEMBER_ROLE_ID}>`,
+  allowed_mentions: { parse: [], roles: [MEMBER_ROLE_ID] },
+});
 
 interface EventStartNotifyParams {
+  eventId: number;
   eventName: string;
   startDate: string;
   endDate?: string | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventName, startDate, endDate } = params;
+  const { eventId, eventName, startDate, endDate } = params;
 
   const fields: { name: string; value: string; inline?: boolean }[] = [
     { name: 'Started', value: new Date(startDate).toLocaleString(), inline: true },
@@ -412,6 +485,8 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     fields.push({ name: 'Ends', value: new Date(endDate).toLocaleString(), inline: true });
   }
 
+  pushLeaderboardField(fields, eventId);
+
   const embed: DiscordEmbed = {
     title: '🚀 Bingo Event Started!',
     description: `**${eventName}** has begun! Good luck to all teams!\n━━━━━━━━━━━━━━━━━━━━`,
@@ -420,11 +495,11 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     timestamp: new Date().toISOString(),
   };
 
-  // Tag bingo role
-  return sendBingoWebhook({ content: `<@&${BINGO_ROLE_ID}>`, embeds: [embed] });
+  return sendBingoWebhook({ ...memberPing(), embeds: [embed] });
 }
 
 interface EventEndNotifyParams {
+  eventId: number;
   eventName: string;
   // `tilesCompleted`/`totalTiles` carry summed point weights for points-scoring
   // events; `unit` controls the label (defaults to 'tiles').
@@ -434,7 +509,7 @@ interface EventEndNotifyParams {
 }
 
 export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventName, standings, totalTiles, unit = 'tiles' } = params;
+  const { eventId, eventName, standings, totalTiles, unit = 'tiles' } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
@@ -443,22 +518,26 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
       return `${medal} **${s.teamName}** - ${s.tilesCompleted}/${totalTiles} ${unit}`;
     })
     .join('\n');
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
+  ];
+  pushLeaderboardField(fields, eventId);
 
   const embed: DiscordEmbed = {
     title: '🛑 Bingo Event Force-Ended!',
     description: `**${eventName}** has been force-ended by an admin.\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xff0000, // Red
-    fields: [
-      { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
-    ],
+    fields,
     timestamp: new Date().toISOString(),
   };
 
+  // No member ping on an admin force-end (abnormal termination, not a celebratory finish).
   return sendBingoWebhook({ embeds: [embed] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventName, standings, totalTiles, unit = 'tiles' } = params;
+  const { eventId, eventName, standings, totalTiles, unit = 'tiles' } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
@@ -468,17 +547,20 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     })
     .join('\n');
 
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
+  ];
+  pushLeaderboardField(fields, eventId);
+
   const embed: DiscordEmbed = {
     title: '🏁 Bingo Event Ended!',
     description: `**${eventName}** has concluded!\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xffd700, // Gold
-    fields: [
-      { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
-    ],
+    fields,
     timestamp: new Date().toISOString(),
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook({ ...memberPing(), embeds: [embed] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----

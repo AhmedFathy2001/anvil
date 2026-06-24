@@ -13,10 +13,24 @@ import {
   getSpoonTaunts,
   getAlwaysNotifyItems,
   getTierBands,
+  type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
+
+// The plugin only needs to know WHICH notification channels are live, never the webhook URLs
+// themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
+// URLs would let a plugin call them directly, which the RuneLite plugin hub forbids. Clips are
+// excluded: those post to a user-pasted webhook configured in the plugin, not via the site.
+function notifyFlags(webhooks: PluginWebhooks) {
+  return {
+    rareDrops: !!webhooks.rareDrops,
+    deaths: !!webhooks.deaths,
+    combatAchievements: !!webhooks.combatAchievements,
+    pvpKills: !!webhooks.pvpKills,
+  };
+}
 
 function generateCodeword(playerId: number, eventId: number): string {
   const date = new Date().toISOString().slice(0, 10);
@@ -58,7 +72,7 @@ export async function GET(request: Request) {
         noActiveEvent: true,
         schedule,
         activeWeekly,
-        webhooks,
+        notify: notifyFlags(webhooks),
         funDeathMessages,
         deathTaunts,
         spoonTaunts,
@@ -246,7 +260,7 @@ export async function GET(request: Request) {
     activeWeekly,
     // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
     tiers,
-    webhooks,
+    notify: notifyFlags(webhooks),
     funDeathMessages,
     deathTaunts,
     spoonTaunts,

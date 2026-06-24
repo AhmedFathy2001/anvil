@@ -55,6 +55,7 @@ export async function GET(request: Request) {
   for (const event of allEvents) {
     if (event.startDate && event.startDate <= now && !event.startNotified) {
       await notifyEventStart({
+        eventId: event.id,
         eventName: event.name,
         startDate: event.startDate,
         endDate: event.endDate,
@@ -88,6 +89,7 @@ export async function GET(request: Request) {
       });
 
       await notifyEventEnd({
+        eventId: event.id,
         eventName: event.name,
         standings,
         totalTiles: pointsMode ? totalScore : scoredTiles.length,

@@ -116,6 +116,7 @@ export async function PATCH(
     });
 
     notifyEventForceEnd({
+      eventId: event.id,
       eventName: event.name,
       standings,
       totalTiles: pointsMode ? totalScore : scoredTiles.length,
