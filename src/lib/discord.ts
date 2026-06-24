@@ -101,16 +101,20 @@ export async function forwardPluginNotification(
 ): Promise<boolean> {
   const { content, embed, image } = payload;
   const embeds = embed ? [embed as unknown as DiscordEmbed] : undefined;
+  // content/embed are plugin-supplied and reach here from anyone holding a plugin token, so neutralize
+  // mentions: these clan notifications never legitimately ping, and without this a tampered plugin
+  // could blast @everyone/@here/role pings through the webhook.
+  const allowed_mentions: DiscordWebhookPayload['allowed_mentions'] = { parse: [] };
 
   if (!image) {
-    return sendToWebhook(webhookUrl, { content: content || undefined, embeds });
+    return sendToWebhook(webhookUrl, { content: content || undefined, embeds, allowed_mentions });
   }
 
   // Multipart upload so the screenshot rides along; Discord renders it inline via the embed's
   // attachment:// reference. sendToWebhook is JSON-only, so this path posts directly.
   try {
     const form = new FormData();
-    form.append('payload_json', JSON.stringify({ content: content || undefined, embeds }));
+    form.append('payload_json', JSON.stringify({ content: content || undefined, embeds, allowed_mentions }));
     form.append('files[0]', new Blob([image.bytes]), image.filename);
     const response = await fetch(webhookUrl, { method: 'POST', body: form });
     if (!response.ok) {

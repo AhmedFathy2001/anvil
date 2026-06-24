@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification } from '@/lib/discord';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -28,6 +29,14 @@ export async function POST(request: Request) {
   const auth = await verifyPluginTokenUser(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
+  }
+
+  // The plugin's spam floors (min drop value, dedup windows) all live client-side, so a tampered
+  // client or raw API call could flood the clan's Discord through this endpoint. Cap per token holder.
+  // 30/min is well above real play (a few drops/deaths/CAs a minute at most) but kills a flood.
+  const limit = await rateLimit(request, `plugin-notify:${auth.userId}`, { limit: 30, windowMs: 60_000 });
+  if (!limit.ok) {
+    return NextResponse.json({ error: 'Too many notifications' }, { status: 429, headers: rateLimitHeaders(limit) });
   }
 
   let channel: unknown;
