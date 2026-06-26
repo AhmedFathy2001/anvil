@@ -348,7 +348,7 @@ function FeeCard({
 
       {/* Actions */}
       <div className="mt-4 pt-3 border-t border-card-border flex flex-wrap gap-2">
-        {canCollect && fee.status !== 'confirmed' && !collectMode && (
+        {canCollect && fee.status !== 'confirmed' && row.signup.status !== 'withdrawn' && !collectMode && (
           <button
             onClick={() => setCollectMode(true)}
             disabled={acting}

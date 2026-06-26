@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, eventSignups, events, signupFees, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, not } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 
 // Cross-event fee queue. Visible to admins and treasurers (mods read-only). Filters:
@@ -25,6 +25,14 @@ export async function GET(request: Request) {
   const reporter = alias(users, 'reporter_user');
 
   const filters = [];
+  // A still-pending (untouched) fee whose sign-up was withdrawn or rejected is dead money —
+  // nothing was collected and the player is out. Withdrawal/rejection is supposed to delete
+  // it, but stale rows from before that logic (and the reject path, which doesn't delete)
+  // can linger and pollute the Open queue as a phantom "collect me". Hide them everywhere;
+  // a *touched* fee (collected/disputed/confirmed) is kept so its refund trail stays visible.
+  filters.push(
+    not(and(eq(signupFees.status, 'pending'), inArray(eventSignups.status, ['withdrawn', 'rejected']))!),
+  );
   if (status) {
     if (status === 'open') {
       filters.push(inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']));

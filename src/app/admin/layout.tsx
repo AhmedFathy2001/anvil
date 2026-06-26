@@ -90,7 +90,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     groups.push({
       label: 'People',
       items: [
-        { href: '/admin/players', label: 'Player pool', icon: '👥' },
         { href: '/admin/users', label: 'Staff', icon: '🔑' },
       ],
     });

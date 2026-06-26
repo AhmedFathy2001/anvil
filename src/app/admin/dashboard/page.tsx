@@ -6,8 +6,10 @@ import {
   events,
   signupFees,
   teams,
+  users,
   weeklyCompetitions,
 } from '@/db/schema';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 
@@ -31,6 +33,9 @@ export default async function AdminDashboardPage() {
   });
   const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < now));
 
+  // Aliased so the audit feed can join users as the "actor" without colliding with any
+  // other users join.
+  const actor = alias(users, 'actor_user');
   const [provisionalCount, activeMembers, activeWeekly, rawRecentAudit, openFeeCount] = await Promise.all([
     db
       .select({ c: count() })
@@ -51,9 +56,14 @@ export default async function AdminDashboardPage() {
         notes: clanAuditLog.notes,
         occurredAt: clanAuditLog.occurredAt,
         memberRsn: clanMembers.rsn,
+        // Who performed the action. displayName preferred; fall back to the Discord
+        // handle so a logged actor never renders as a blank "by".
+        actorName: actor.displayName,
+        actorUsername: actor.discordUsername,
       })
       .from(clanAuditLog)
       .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+      .leftJoin(actor, eq(clanAuditLog.actorUserId, actor.id))
       .orderBy(desc(clanAuditLog.occurredAt))
       .limit(60),
     db
@@ -188,7 +198,13 @@ export default async function AdminDashboardPage() {
                           </span>
                         )}
                       </div>
-                      {a.notes && <div className="text-[11px] text-text-muted truncate">{a.notes}</div>}
+                      <div className="text-[11px] text-text-muted truncate">
+                        {(a.actorName || a.actorUsername) && (
+                          <span className="text-foreground/80">by {a.actorName || a.actorUsername}</span>
+                        )}
+                        {(a.actorName || a.actorUsername) && a.notes && ' · '}
+                        {a.notes}
+                      </div>
                     </div>
                     <span className="text-[11px] text-text-muted shrink-0">
                       {new Date(a.occurredAt).toLocaleDateString()}

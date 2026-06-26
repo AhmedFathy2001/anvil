@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { signupFees } from '@/db/schema';
+import { clanAuditLog, eventSignups, signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { del } from '@vercel/blob';
@@ -59,6 +59,19 @@ export async function POST(
     })
     .where(eq(signupFees.id, id))
     .returning();
+
+  // Central audit entry so the dashboard/audit feed names who signed off on the fee.
+  const signup = await db.query.eventSignups.findFirst({
+    where: eq(eventSignups.id, fee.signupId),
+  });
+  db.insert(clanAuditLog)
+    .values({
+      clanMemberId: signup?.clanMemberId ?? null,
+      eventType: 'fee_confirmed',
+      newValue: JSON.stringify({ feeId: id, amount: fee.amount, collectedByUserId: fee.collectedByUserId }),
+      actorUserId: session.userId > 0 ? session.userId : null,
+    })
+    .catch(() => {});
 
   return NextResponse.json({ fee: updated });
 }

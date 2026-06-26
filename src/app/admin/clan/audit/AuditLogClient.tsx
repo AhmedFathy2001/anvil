@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
 
@@ -56,6 +56,12 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   mod_approved: { label: 'Mod approved', color: 'text-accent-green-light' },
   mod_rejected: { label: 'Mod rejected', color: 'text-red-400' },
   user_signed_up: { label: 'Signed up', color: 'text-text-muted' },
+  signup_approved: { label: 'Sign-up approved', color: 'text-accent-green-light' },
+  signup_rejected: { label: 'Sign-up rejected', color: 'text-red-400' },
+  signup_withdrawn: { label: 'Sign-up withdrawn', color: 'text-yellow-400' },
+  captain_promoted: { label: 'Captain promoted', color: 'text-gold' },
+  captain_demoted: { label: 'Captain demoted', color: 'text-text-muted' },
+  fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
 };
 
 export default function AuditLogClient({
@@ -74,6 +80,13 @@ export default function AuditLogClient({
   const [targetId, setTargetId] = useState<number | null>(null);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronous re-entry lock for the mutating actions (merge/confirm/dismiss). The
+  // buttons' `disabled` prop only updates after a React re-render, so a burst of rapid
+  // native clicks can all fire their handler before that — firing the same merge 3+ times.
+  // A ref flips synchronously on the first click and blocks the rest until the request
+  // settles.
+  const actionLock = useRef(false);
 
   const [suggestions, setSuggestions] = useState<RenameSuggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
@@ -99,6 +112,8 @@ export default function AuditLogClient({
   }, []);
 
   async function confirmSuggestion(s: RenameSuggestion) {
+    if (actionLock.current) return;
+    actionLock.current = true;
     setActingOn(s.joinedMemberId);
     setError(null);
     try {
@@ -123,10 +138,13 @@ export default function AuditLogClient({
       setError(e instanceof Error ? e.message : 'Network error');
     } finally {
       setActingOn(null);
+      actionLock.current = false;
     }
   }
 
   async function dismissSuggestion(s: RenameSuggestion) {
+    if (actionLock.current) return;
+    actionLock.current = true;
     // Optimistically hide it, then persist so it doesn't return on the next load.
     setDismissed((prev) => {
       const next = new Set(prev);
@@ -162,6 +180,7 @@ export default function AuditLogClient({
       });
     } finally {
       setActingOn(null);
+      actionLock.current = false;
     }
   }
 
@@ -176,6 +195,8 @@ export default function AuditLogClient({
 
   async function doMerge() {
     if (!sourceId || !targetId) return;
+    if (actionLock.current) return;
+    actionLock.current = true;
     setMerging(true);
     setError(null);
     try {
@@ -197,6 +218,7 @@ export default function AuditLogClient({
       setError(e instanceof Error ? e.message : 'Network error');
     } finally {
       setMerging(false);
+      actionLock.current = false;
     }
   }
 

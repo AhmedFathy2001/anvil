@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, players, signupFees, teams } from '@/db/schema';
+import { clanAuditLog, clanMembers, eventSignups, players, signupFees, teams } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
@@ -23,8 +23,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; signupId: string }> },
 ) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  const session = await verifyUser();
+  if (!session || session.role !== 'admin') {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   }
 
@@ -53,6 +53,20 @@ export async function PATCH(
 
   const now = new Date().toISOString();
 
+  // Audit trail: record who did the sign-up action against the member's history so the
+  // dashboard/audit feed can name names. Fire-and-forget — a logging hiccup must not block
+  // the action itself.
+  const logAction = (eventType: string, extra?: Record<string, unknown>) => {
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId: signup.clanMemberId,
+        eventType,
+        newValue: JSON.stringify({ eventId: evtId, signupId: sigId, ...extra }),
+        actorUserId: session.userId > 0 ? session.userId : null,
+      })
+      .catch(() => {});
+  };
+
   switch (body.action) {
     case 'approve': {
       const [updated] = await db
@@ -60,6 +74,7 @@ export async function PATCH(
         .set({ status: 'approved', updatedAt: now })
         .where(eq(eventSignups.id, sigId))
         .returning();
+      logAction('signup_approved');
       return NextResponse.json({ signup: updated });
     }
 
@@ -69,6 +84,7 @@ export async function PATCH(
         .set({ status: 'rejected', updatedAt: now })
         .where(eq(eventSignups.id, sigId))
         .returning();
+      logAction('signup_rejected');
       return NextResponse.json({ signup: updated });
     }
 
@@ -110,6 +126,7 @@ export async function PATCH(
           ),
         );
 
+      logAction('signup_withdrawn', { by: 'admin' });
       return NextResponse.json({ signup: updated });
     }
 
@@ -190,6 +207,7 @@ export async function PATCH(
         .where(eq(eventSignups.id, sigId))
         .returning();
 
+      logAction('captain_promoted', { teamId: team.id, teamName: team.name });
       return NextResponse.json({ signup: updated, team });
     }
 
@@ -236,6 +254,7 @@ export async function PATCH(
 
       await db.delete(teams).where(eq(teams.id, captainTeam.id));
 
+      logAction('captain_demoted', { teamId: captainTeam.id, teamName: captainTeam.name });
       return NextResponse.json({ signup, removedTeamId: captainTeam.id });
     }
   }

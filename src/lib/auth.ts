@@ -166,6 +166,9 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // Use this for endpoints that should succeed for any valid token (e.g. "is my
 // token working?"). For endpoints that need an event/team/player row, use
 // `verifyPluginToken` which additionally resolves the active enrollment.
+//
+// Only the per-user account token (`users.plugin_token`) is accepted — legacy
+// per-event `players.player_token`s are no longer a plugin credential.
 export async function verifyPluginTokenUser(
   request: Request,
 ): Promise<{ userId: number } | null> {
@@ -175,13 +178,6 @@ export async function verifyPluginTokenUser(
   if (!token) return null;
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (user) return { userId: user.id };
-  const player = await db.query.players.findFirst({ where: eq(players.playerToken, token) });
-  if (player) {
-    const cm = player.clanMemberId
-      ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
-      : null;
-    return { userId: cm?.userId ?? 0 };
-  }
   return null;
 }
 
@@ -297,43 +293,10 @@ export async function verifyPluginToken(
     };
   }
 
-  // Path 2 — legacy per-event token. RSN check accepts the frozen player.name OR
-  // any previous alias on the linked clan_member, so a mid-event rename doesn't lock
-  // the user out before the next /hello sync catches up.
-  const player = await db.query.players.findFirst({ where: eq(players.playerToken, token) });
-  if (!player || !player.teamId) return null;
-
-  let userId: number | null = null;
-  if (normalizedRsn) {
-    const acceptedNames = new Set<string>([normalizeRsn(player.name)]);
-    if (player.clanMemberId) {
-      const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
-      if (cm) {
-        userId = cm.userId;
-        acceptedNames.add(cm.rsnNormalized);
-        if (cm.previousRsns) {
-          try {
-            const arr = JSON.parse(cm.previousRsns);
-            if (Array.isArray(arr)) {
-              for (const prev of arr) if (typeof prev === 'string') acceptedNames.add(normalizeRsn(prev));
-            }
-          } catch { /* ignore */ }
-        }
-      }
-    }
-    if (!acceptedNames.has(normalizedRsn)) return null;
-  } else if (player.clanMemberId) {
-    const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
-    userId = cm?.userId ?? null;
-  }
-
-  return {
-    playerId: player.id,
-    teamId: player.teamId,
-    eventId: player.eventId,
-    userId,
-    rsn: player.name,
-  };
+  // The token didn't match a per-user plugin token. We no longer accept legacy
+  // per-event `players.player_token`s here — the plugin authenticates with the single
+  // per-user account token only, so a stale per-event token reads as invalid.
+  return null;
 }
 
 // Admin plugin token: a long-lived token bound to a user (not an RSN). Authenticates
