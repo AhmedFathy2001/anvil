@@ -12,7 +12,7 @@ import {
   weeklyCompetitions,
   weeklyParticipants,
 } from '@/db/schema';
-import { count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
 import EventTimer from '@/components/EventTimer';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
@@ -57,11 +57,14 @@ export default async function HomePage() {
   });
   const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < now));
 
-  // Live stats: active clan member count
+  // Live stats: active clan member count. Excludes guests (is_guest=1) — those are
+  // plugin-pinged non-members who'd otherwise inflate the headcount past the real
+  // in-game clan count. Unranked non-guests are kept: still in the clan, just not
+  // currently reachable on the hiscores.
   const activeMemberCount = await db
     .select({ c: count() })
     .from(clanMembers)
-    .where(isNull(clanMembers.leftAt))
+    .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
     .then((r) => r[0]?.c ?? 0);
 
   // Active weekly competition with top 3 participants

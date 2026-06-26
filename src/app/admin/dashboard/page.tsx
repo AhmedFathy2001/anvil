@@ -45,7 +45,9 @@ export default async function AdminDashboardPage() {
     db
       .select({ c: count() })
       .from(clanMembers)
-      .where(isNull(clanMembers.leftAt))
+      // Exclude guests (is_guest=1) so "Active members" matches the real in-game clan
+      // count — guests are plugin-pinged non-members. Unranked non-guests stay counted.
+      .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
       .then((r) => r[0]?.c ?? 0),
     db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.status, 'active') }),
     db
