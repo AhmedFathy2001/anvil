@@ -299,8 +299,13 @@ export async function verifyPluginToken(
   return null;
 }
 
-// Admin plugin token: a long-lived token bound to a user (not an RSN). Authenticates
-// admin-only plugin actions like clan-sync from any character the admin plays.
+// Authenticates admin-only plugin actions like clan-sync. There is no separate
+// admin-linked token to manage anymore: an admin simply uses their single per-user
+// account token (`users.plugin_token`), and authority comes from their *site* role.
+//
+// Transition: a legacy dedicated admin link token (`pluginLinks`) is still accepted so
+// existing installs keep working until they switch to sending the account token. Drop
+// that fallback once every install has migrated.
 export async function verifyAdminPluginToken(
   request: Request
 ): Promise<{ userId: number } | null> {
@@ -309,6 +314,11 @@ export async function verifyAdminPluginToken(
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
+  // Preferred: the per-user account token, authorized by the user's admin role.
+  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  if (user) return user.role === 'admin' ? { userId: user.id } : null;
+
+  // Legacy: dedicated admin link token. Temporary back-compat during the cutover.
   const link = await db.query.pluginLinks.findFirst({
     where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
   });
