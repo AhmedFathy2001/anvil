@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users as usersTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -136,6 +137,7 @@ export default async function RootLayout({
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           {children}
         </main>
+        <Analytics />
       </body>
     </html>
   );
