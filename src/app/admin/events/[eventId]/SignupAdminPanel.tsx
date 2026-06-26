@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
+import Select from '@/components/Select';
 import Input from '@/components/Input';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
@@ -79,6 +80,9 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
   const [captainTeamName, setCaptainTeamName] = useState('');
   const [captainTeamColor, setCaptainTeamColor] = useState(DEFAULT_TEAM_COLORS[0]);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [feeFilter, setFeeFilter] = useState<string>('all');
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/events/${event.id}/signups`);
@@ -231,6 +235,40 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
   const activeSignups = signups.filter((s) => s.status !== 'withdrawn');
   const withdrawnCount = signups.length - activeSignups.length;
 
+  // Filtered view for the roster list. Search matches name / RSN / discord; the status
+  // filter accepts the four sign-up statuses plus a 'captain' pseudo-status; the fee
+  // filter matches the fee row's status (or 'none' for sign-ups with no fee row).
+  const visibleSignups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return signups.filter((s) => {
+      if (q) {
+        const haystack = [
+          s.user.displayName,
+          s.account.rsn,
+          s.user.discordUsername ?? '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (statusFilter === 'captain') {
+        if (!s.captainTeam) return false;
+      } else if (statusFilter !== 'all' && s.status !== statusFilter) {
+        return false;
+      }
+      if (feeFilter !== 'all') {
+        if (feeFilter === 'none') {
+          if (s.fee) return false;
+        } else if (s.fee?.status !== feeFilter) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [signups, search, statusFilter, feeFilter]);
+
+  const filtersActive = search.trim() !== '' || statusFilter !== 'all' || feeFilter !== 'all';
+
   return (
     <div className="space-y-6">
       {/* Configuration */}
@@ -327,7 +365,9 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
             <span className="text-xs text-text-muted">
               {loading
                 ? 'Loading…'
-                : `${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`}
+                : filtersActive
+                  ? `${visibleSignups.length} shown · ${signups.length} total`
+                  : `${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`}
             </span>
             {!loading && activeSignups.length > 0 && (
               <button
@@ -340,6 +380,49 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
             )}
           </div>
         </div>
+
+        {/* Filters */}
+        {!loading && signups.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <Input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, RSN, or discord…"
+              className="flex-1 px-3 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+            />
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              ariaLabel="Filter by status"
+              className="shrink-0 sm:w-40"
+              options={[
+                { value: 'all', label: 'All statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'captain', label: 'Captains' },
+                { value: 'rejected', label: 'Rejected' },
+                { value: 'withdrawn', label: 'Withdrawn' },
+              ]}
+            />
+            <Select
+              value={feeFilter}
+              onChange={setFeeFilter}
+              ariaLabel="Filter by fee"
+              className="shrink-0 sm:w-40"
+              options={[
+                { value: 'all', label: 'All fees' },
+                { value: 'pending', label: 'Fee: unpaid' },
+                { value: 'reported', label: 'Fee: reported' },
+                { value: 'collected', label: 'Fee: collected' },
+                { value: 'confirmed', label: 'Fee: confirmed' },
+                { value: 'disputed', label: 'Fee: disputed' },
+                { value: 'none', label: 'No fee' },
+              ]}
+            />
+          </div>
+        )}
+
         {(actionError || poolMessage) && (
           <div className="mb-3">
             {actionError && (
@@ -361,9 +444,15 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
           </div>
         )}
 
-        {signups.length > 0 && (
+        {signups.length > 0 && visibleSignups.length === 0 && (
+          <div className="text-center py-8 border border-dashed border-card-border rounded-xl">
+            <p className="text-text-muted text-sm">No sign-ups match these filters.</p>
+          </div>
+        )}
+
+        {visibleSignups.length > 0 && (
           <div className="space-y-2">
-            {signups.map((s) => {
+            {visibleSignups.map((s) => {
               const isExpanded = expanded.has(s.id);
               return (
                 <div
