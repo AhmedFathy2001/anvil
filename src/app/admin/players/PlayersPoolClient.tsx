@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import PlayerEditor from '@/components/PlayerEditor';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
 
 interface Player {
   id: number;
@@ -84,23 +86,20 @@ export default function PlayersPoolClient() {
 
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <input
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, discord, or team..."
             className="flex-1 px-4 py-2 bg-card-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
           />
-          <select
+          <Select
             value={filterEvent}
-            onChange={(e) => setFilterEvent(e.target.value)}
-            className="px-4 py-2 bg-card-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
-          >
-            <option value="all">All Events</option>
-            {events.map(e => (
-              <option key={e} value={e}>{e}</option>
-            ))}
-          </select>
+            onChange={setFilterEvent}
+            ariaLabel="Filter by event"
+            className="shrink-0 sm:w-48"
+            options={[{ value: 'all', label: 'All Events' }, ...events.map((e) => ({ value: e, label: e }))]}
+          />
         </div>
 
         {loading ? (

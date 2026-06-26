@@ -1,33 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Textarea from '@/components/Textarea';
 
-const SETTING_KEY = 'always_notify_items';
+const SETTING_KEY = 'show_kill_count';
 
-// Baked into the plugin already — shown here so admins know they don't need to re-add them.
-// Mirrors ALWAYS_NOTIFY_FALLBACK in OsrsBingoPlugin.java (substring-matched).
-const BAKED_IN = [
-  'Infernal cape',
-  "Dizana's quiver",
-  'Radiant sigil',
-  'Ancient blood ornament kit',
-  'Sanguine ornament kit',
-  'Holy ornament kit',
-  'Sanguine dust',
-  'Metamorphic dust',
-  'Twisted ancestral colour kit',
-  'Menaphite ornament kit',
-  'DT2 vestiges + quartz',
-  "Soulreaper axe pieces (axe head, eye of the duke, leviathan's lure, siren's staff)",
-  'DT2 rings + Soulreaper axe',
-  'Boss jars',
-  'Champion scrolls',
-];
-
-export default function AlwaysNotifyItems() {
-  const [value, setValue] = useState('');
-  const [original, setOriginal] = useState('');
+// Stored as the string 'off' when disabled; anything else (incl. empty) means on.
+export default function KillCountToggle() {
+  const [enabled, setEnabled] = useState(true);
+  const [original, setOriginal] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -38,8 +18,9 @@ export default function AlwaysNotifyItems() {
         const res = await fetch('/api/admin/settings');
         if (res.ok) {
           const data = await res.json();
-          setValue(data[SETTING_KEY] || '');
-          setOriginal(data[SETTING_KEY] || '');
+          const on = data[SETTING_KEY] !== 'off';
+          setEnabled(on);
+          setOriginal(on);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -56,10 +37,10 @@ export default function AlwaysNotifyItems() {
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [SETTING_KEY]: value }),
+        body: JSON.stringify({ [SETTING_KEY]: enabled ? '' : 'off' }),
       });
       if (res.ok) {
-        setOriginal(value);
+        setOriginal(enabled);
         setMessage({ type: 'success', text: 'Saved! Members pick this up on their next login.' });
       } else {
         const data = await res.json();
@@ -72,7 +53,7 @@ export default function AlwaysNotifyItems() {
     }
   }
 
-  const hasChanges = value !== original;
+  const hasChanges = enabled !== original;
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings...</div>;
@@ -80,29 +61,19 @@ export default function AlwaysNotifyItems() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <label htmlFor="always-notify-items" className="block text-sm font-medium mb-2">
-          Extra always-notify items
-        </label>
-        <Textarea
-          id="always-notify-items"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          rows={5}
-          placeholder={"One item name per line, e.g.\nTumeken's ornament kit\nVoidwaker"}
-          className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm font-mono focus:outline-none focus:border-gold"
+      <label className="flex items-center gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="h-4 w-4 accent-gold"
         />
-        <p className="text-xs text-text-muted mt-1">
-          One item name per line. Matching is case-insensitive and partial, so &quot;ornament kit&quot;
-          matches every kit. These are <em>added to</em> the plugin&apos;s built-in list — no need to
-          repeat the items below.
-        </p>
-      </div>
-
-      <div className="text-xs text-text-muted">
-        <span className="font-medium text-text">Built-in (always on):</span>{' '}
-        {BAKED_IN.join(', ')}
-      </div>
+        <span className="text-sm font-medium">Show kill count on rare-drop posts</span>
+      </label>
+      <p className="text-xs text-text-muted">
+        When on, a drop notification includes the boss/raid kill count the drop landed on (read from
+        the in-game &quot;kill count is&quot; message). Turn off to hide it.
+      </p>
 
       {message && (
         <div
@@ -124,7 +95,7 @@ export default function AlwaysNotifyItems() {
         >
           {saving ? 'Saving...' : 'Save'}
         </button>
-        {original && !hasChanges && <span className="text-xs text-green-400">Saved</span>}
+        {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
         {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
       </div>
     </div>

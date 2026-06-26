@@ -1,7 +1,7 @@
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { weeklyCompetitions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { computeLeaderboard } from '@/lib/weekly';
+import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -38,8 +38,8 @@ export default async function WeeklyLeaderboardPage({
   }
 
   const competition = comp[0];
-  const participants = await db.select().from(weeklyParticipants)
-    .where(eq(weeklyParticipants.competitionId, compId));
+  // Drops members who left the CC (unless an admin kept them) so the board matches the plugin.
+  const participants = await getEffectiveParticipants(compId);
 
   const leaderboard = computeLeaderboard(participants);
 

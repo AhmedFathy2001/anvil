@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Input from '@/components/Input';
 
 interface DiscordSettingsProps {
   // Which settings key this field reads/writes. Defaults to the main event webhook.
@@ -104,7 +105,7 @@ export default function DiscordSettings({
         <label htmlFor={`webhook-url-${settingKey}`} className="block text-sm font-medium mb-2">
           {label}
         </label>
-        <input
+        <Input
           id={`webhook-url-${settingKey}`}
           type="url"
           value={webhookUrl}

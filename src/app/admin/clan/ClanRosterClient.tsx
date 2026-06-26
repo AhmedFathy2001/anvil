@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
 
 interface ClanMember {
   id: number;
@@ -324,7 +326,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           The plugin's roster-sync payload must match this clan name. Leave blank to accept any clan.
         </p>
         <div className="flex gap-2 items-start">
-          <input
+          <Input
             type="text"
             value={clanName}
             onChange={(e) => {
@@ -438,7 +440,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             </button>
           ))}
         </div>
-        <input
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -455,7 +457,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-text-muted mb-1">RSN</label>
-                <input
+                <Input
                   type="text"
                   value={addRsn}
                   onChange={(e) => setAddRsn(e.target.value)}
@@ -466,7 +468,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               </div>
               <div>
                 <label className="block text-xs text-text-muted mb-1">Discord ID (optional)</label>
-                <input
+                <Input
                   type="text"
                   value={addDiscord}
                   onChange={(e) => setAddDiscord(e.target.value)}
@@ -478,7 +480,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-text-muted mb-1">Rank (optional)</label>
-                <input
+                <Input
                   type="text"
                   value={addRank}
                   onChange={(e) => setAddRank(e.target.value)}
@@ -672,15 +674,16 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             </p>
             <div className="mb-4">
               <label className="block text-xs text-text-muted mb-1">Role</label>
-              <select
+              <Select
                 value={roleValue}
-                onChange={(e) => setRoleValue(e.target.value as 'admin' | 'moderator' | 'none')}
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-              >
-                <option value="none">None (clear)</option>
-                <option value="moderator">Moderator</option>
-                <option value="admin">Admin</option>
-              </select>
+                onChange={(v) => setRoleValue(v as 'admin' | 'moderator' | 'none')}
+                ariaLabel="Role"
+                options={[
+                  { value: 'none', label: 'None (clear)' },
+                  { value: 'moderator', label: 'Moderator' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
             </div>
             {roleError && <p className="text-red-400 text-sm mb-3">{roleError}</p>}
             <div className="flex gap-2 justify-end">
@@ -728,7 +731,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             </div>
             <div className="mb-3">
               <label className="block text-xs text-text-muted mb-1">New RSN</label>
-              <input
+              <Input
                 type="text"
                 value={renameValue}
                 onChange={(e) => { setRenameValue(e.target.value); setRenameError(''); }}

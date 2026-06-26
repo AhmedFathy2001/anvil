@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { weeklyParticipants } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { clanMembers, weeklyParticipants } from '@/db/schema';
+import { and, eq, getTableColumns } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 
 export async function GET(
@@ -17,7 +17,16 @@ export async function GET(
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const participants = await db.select().from(weeklyParticipants)
+  // All participants (including leavers) plus their clan status, so the admin UI can flag who left
+  // and offer the keep-override toggle.
+  const participants = await db
+    .select({
+      ...getTableColumns(weeklyParticipants),
+      leftAt: clanMembers.leftAt,
+      clanStatus: clanMembers.status,
+    })
+    .from(weeklyParticipants)
+    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
     .where(eq(weeklyParticipants.competitionId, compId));
 
   return NextResponse.json(participants);
@@ -77,11 +86,25 @@ export async function PATCH(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
-  const { participantId, baselineValue } = await request.json();
+  const { participantId, baselineValue, keepIfLeft } = await request.json();
 
   if (typeof participantId !== 'number' || !Number.isInteger(participantId)) {
     return NextResponse.json({ error: 'participantId (number) is required' }, { status: 400 });
   }
+
+  // Toggle the keep-if-left override (re-include a participant who left the CC, or drop them again).
+  if (typeof keepIfLeft === 'boolean') {
+    const updated = await db
+      .update(weeklyParticipants)
+      .set({ keepIfLeft: keepIfLeft ? 1 : 0 })
+      .where(and(eq(weeklyParticipants.id, participantId), eq(weeklyParticipants.competitionId, compId)))
+      .returning({ id: weeklyParticipants.id });
+    if (updated.length === 0) {
+      return NextResponse.json({ error: 'Participant not found in this competition' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
   if (typeof baselineValue !== 'number' || !Number.isFinite(baselineValue) || baselineValue < 0) {
     return NextResponse.json({ error: 'baselineValue must be a non-negative number' }, { status: 400 });
   }

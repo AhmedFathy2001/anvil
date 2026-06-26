@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { SignupProfile } from '@/lib/signup';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
+import Textarea from '@/components/Textarea';
 
 interface FeeCollectorOption {
   id: number;
@@ -308,7 +311,7 @@ export default function SignupForm({
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="text-xs text-text-muted">Avg hours/day</span>
-            <input
+            <Input
               type="number"
               min={0}
               max={24}
@@ -321,7 +324,7 @@ export default function SignupForm({
           </label>
           <label className="block">
             <span className="text-xs text-text-muted">Avg hours/week</span>
-            <input
+            <Input
               type="number"
               min={0}
               max={168}
@@ -338,7 +341,7 @@ export default function SignupForm({
       {/* Bosses */}
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Bosses you regularly do</legend>
-        <input
+        <Input
           type="search"
           placeholder="Filter…"
           value={bossFilter}
@@ -403,7 +406,7 @@ export default function SignupForm({
       {/* Notes */}
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Anything else for captains?</legend>
-        <textarea
+        <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           disabled={isLocked}
@@ -541,25 +544,23 @@ function PaymentReportSection({
       {loaded && collectors.length > 0 && (
         <div className="space-y-2">
           <label className="block text-xs text-text-muted">I paid this person</label>
-          <select
-            value={reportedId ?? ''}
-            onChange={(e) => {
-              const v = e.target.value;
+          <Select
+            value={reportedId == null ? '' : String(reportedId)}
+            onChange={(v) => {
               const next = v === '' ? null : Number(v);
               setReportedId(next);
               save(next);
             }}
             disabled={saving || isLocked}
-            className="w-full px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60 disabled:opacity-50"
-          >
-            <option value="">— No report (skip) —</option>
-            {collectors.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.displayName}
-                {c.discordUsername ? ` (@${c.discordUsername})` : ''} · {c.role}
-              </option>
-            ))}
-          </select>
+            ariaLabel="I paid this person"
+            options={[
+              { value: '', label: '— No report (skip) —' },
+              ...collectors.map((c) => ({
+                value: String(c.id),
+                label: `${c.displayName}${c.discordUsername ? ` (@${c.discordUsername})` : ''} · ${c.role}`,
+              })),
+            ]}
+          />
           {currentStatus === 'disputed' && (
             <p className="text-xs text-red-400">
               Heads up: your report doesn&apos;t match who claimed they collected the fee. An

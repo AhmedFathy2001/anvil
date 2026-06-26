@@ -14,34 +14,11 @@ import {
 } from '@/db/schema';
 import { count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
+import EventTimer from '@/components/EventTimer';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
-
-function formatRemaining(target: string | null): string | null {
-  if (!target) return null;
-  const ms = new Date(target).getTime() - Date.now();
-  if (ms <= 0) return 'ending now';
-  const days = Math.floor(ms / 86_400_000);
-  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h left`;
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-  return `${minutes}m left`;
-}
-
-function formatUntilStart(target: string | null): string | null {
-  if (!target) return null;
-  const ms = new Date(target).getTime() - Date.now();
-  if (ms <= 0) return 'starting now';
-  const days = Math.floor(ms / 86_400_000);
-  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
-  if (days > 0) return `starts in ${days}d ${hours}h`;
-  if (hours > 0) return `starts in ${hours}h`;
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-  return `starts in ${minutes}m`;
-}
 
 function metricLabel(comp: { type: string; metric: string }): string {
   if (comp.type === 'skill') return SKILL_LABELS[comp.metric] ?? comp.metric;
@@ -243,7 +220,6 @@ export default async function HomePage() {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {upcomingWeeklies.map((w) => {
-              const untilStart = formatUntilStart(w.startDate);
               const partCount = upcomingWeeklyParticipantCounts.get(w.id) ?? 0;
               return (
                 <Link
@@ -266,7 +242,7 @@ export default async function HomePage() {
                     </span>
                   </div>
                   <div className="text-xs text-text-muted flex flex-wrap gap-x-3 gap-y-1">
-                    {untilStart && <span className="text-blue-300/90">{untilStart}</span>}
+                    <EventTimer startDate={w.startDate} endDate={w.endDate} className="text-blue-300/90" />
                     <span>{partCount} enrolled</span>
                   </div>
                 </Link>
@@ -293,9 +269,14 @@ export default async function HomePage() {
                   Live
                 </span>
               </div>
-              <div className="text-xs text-text-muted mb-3">
-                {weeklyParticipantCount} participant{weeklyParticipantCount !== 1 ? 's' : ''}
-                {activeWeekly.endDate && ` · ${formatRemaining(activeWeekly.endDate)}`}
+              <div className="text-xs text-text-muted mb-3 flex flex-wrap items-center gap-x-1.5">
+                <span>{weeklyParticipantCount} participant{weeklyParticipantCount !== 1 ? 's' : ''}</span>
+                {activeWeekly.endDate && (
+                  <>
+                    <span>·</span>
+                    <EventTimer startDate={activeWeekly.startDate} endDate={activeWeekly.endDate} />
+                  </>
+                )}
               </div>
               {weeklyTop.length === 0 ? (
                 <div className="text-sm text-text-muted py-4 text-center border border-dashed border-card-border rounded-lg">
@@ -330,7 +311,6 @@ export default async function HomePage() {
               {activeEvents.map((event) => {
                 const numTeams = teamCounts.get(event.id) || 0;
                 const stats = activeEventStats.get(event.id);
-                const remaining = formatRemaining(event.endDate);
                 return (
                   <Link
                     key={event.id}
@@ -351,7 +331,7 @@ export default async function HomePage() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-muted mb-3">
                       <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
                       <span>{eventTileCount(event.format, event.scoringMode, event.boardSize)} tiles</span>
-                      {remaining && <span className="text-gold/80">{remaining}</span>}
+                      <EventTimer startDate={event.startDate} endDate={event.endDate} className="text-gold/80" />
                     </div>
                     {stats?.topTeam && stats.topTeam.tiles > 0 ? (
                       <div className="flex items-center gap-2 text-sm pt-3 border-t border-card-border/50">

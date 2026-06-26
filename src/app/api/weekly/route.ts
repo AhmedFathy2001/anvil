@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc } from 'drizzle-orm';
+import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { count, desc, eq } from 'drizzle-orm';
+import { countsTowardLeaderboard } from '@/lib/weekly';
 
 export async function GET() {
   const comps = await db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.createdAt));
 
+  // Count only participants still in the CC (or kept by an admin), matching the leaderboard headcount.
   const participantCounts = await db
     .select({ competitionId: weeklyParticipants.competitionId, count: count() })
     .from(weeklyParticipants)
+    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .where(countsTowardLeaderboard())
     .groupBy(weeklyParticipants.competitionId);
 
   const countMap = new Map(participantCounts.map((p) => [p.competitionId, p.count]));

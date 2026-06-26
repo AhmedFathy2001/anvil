@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { TierBand } from '@/lib/tileFilter';
+import Input from '@/components/Input';
 
 // Admin editor for the difficulty-tier bands (points → tier). Backed by /api/admin/tier-bands.
 // Rows are { label, min }; the key is derived server-side from the label. The lowest band must
@@ -117,14 +118,14 @@ export default function TierBandsSetting() {
         </div>
         {rows.map((row, i) => (
           <div key={i} className="grid grid-cols-[1fr_120px_32px] gap-2 items-center">
-            <input
+            <Input
               type="text"
               value={row.label}
               onChange={(e) => updateRow(i, { label: e.target.value })}
               placeholder="e.g. Hard"
               className="px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
             />
-            <input
+            <Input
               type="number"
               min={0}
               value={row.min}

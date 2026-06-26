@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import LocalTime from '@/components/LocalTime';
+import Input from '@/components/Input';
 
 interface StatData {
   stat: string;
@@ -156,7 +157,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
 
                   {editingIdx === idx ? (
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         type="number"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}

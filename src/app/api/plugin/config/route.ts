@@ -12,6 +12,7 @@ import {
   getDeathTaunts,
   getSpoonTaunts,
   getAlwaysNotifyItems,
+  getShowKillCount,
   getTierBands,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems] =
+      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
@@ -59,6 +60,7 @@ export async function GET(request: Request) {
           getDeathTaunts(),
           getSpoonTaunts(),
           getAlwaysNotifyItems(),
+          getShowKillCount(),
         ]);
       return NextResponse.json({
         event: null,
@@ -77,6 +79,7 @@ export async function GET(request: Request) {
         deathTaunts,
         spoonTaunts,
         alwaysNotifyItems,
+        showKillCount,
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
@@ -205,7 +208,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, tiers] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, tiers] =
     await Promise.all([
       buildSchedule(),
       getActiveWeekly(),
@@ -214,6 +217,7 @@ export async function GET(request: Request) {
       getDeathTaunts(),
       getSpoonTaunts(),
       getAlwaysNotifyItems(),
+      getShowKillCount(),
       getTierBands(),
     ]);
 
@@ -265,6 +269,7 @@ export async function GET(request: Request) {
     deathTaunts,
     spoonTaunts,
     alwaysNotifyItems,
+    showKillCount,
     completedTiles,
     trackedStats,
     trackedDrops: dropTiles

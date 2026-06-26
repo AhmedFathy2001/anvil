@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { avatarUrl } from '@/lib/discord-oauth';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
 
 interface User {
   id: number;
@@ -168,7 +170,7 @@ export default function UsersClient() {
             {r === 'all' ? 'All' : r}
           </button>
         ))}
-        <input
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name…"
@@ -183,7 +185,7 @@ export default function UsersClient() {
           <form onSubmit={handleEdit} className="space-y-3">
             <div>
               <label className="block text-xs text-text-muted mb-1">Display Name</label>
-              <input
+              <Input
                 type="text"
                 value={editDisplayName}
                 onChange={(e) => setEditDisplayName(e.target.value)}
@@ -192,16 +194,17 @@ export default function UsersClient() {
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">Role</label>
-              <select
+              <Select
                 value={editRole}
-                onChange={(e) => setEditRole(e.target.value as Role)}
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-              >
-                <option value="member">Member</option>
-                <option value="moderator">Moderator</option>
-                <option value="treasurer">Treasurer</option>
-                <option value="admin">Admin</option>
-              </select>
+                onChange={(v) => setEditRole(v as Role)}
+                ariaLabel="Role"
+                options={[
+                  { value: 'member', label: 'Member' },
+                  { value: 'moderator', label: 'Moderator' },
+                  { value: 'treasurer', label: 'Treasurer' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
             </div>
             {editError && <p className="text-red-400 text-sm">{editError}</p>}
             <div className="flex gap-2 justify-end">

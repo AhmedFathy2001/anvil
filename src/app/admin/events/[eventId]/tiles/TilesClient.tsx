@@ -4,6 +4,8 @@ import type { Event, Tile } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
@@ -345,7 +347,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         {/* Search + kind filter */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
           <div className="relative flex-1">
-            <input
+            <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -383,19 +385,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         {(categories.length > 0 || showTierFilter) && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
             {categories.length > 0 && (
-              <select
+              <Select
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="shrink-0 text-xs px-2.5 py-1.5 bg-brown-dark border border-card-border rounded-lg text-foreground focus:border-gold/50 focus:outline-none"
-                aria-label="Filter by category"
-              >
-                <option value="all">All categories</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoryFilter}
+                options={[{ value: 'all', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]}
+                ariaLabel="Filter by category"
+                className="shrink-0 sm:w-48"
+              />
             )}
             {showTierFilter && (
               <div className="flex items-center gap-1 overflow-x-auto pb-0.5">

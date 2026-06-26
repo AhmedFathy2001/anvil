@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { avatarUrl } from '@/lib/discord-oauth';
+import Input from '@/components/Input';
 
 interface UserRow {
   id: number;
@@ -126,7 +127,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
 
       {open && (
         <div className="mt-3 border-t border-card-border pt-3">
-          <input
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Discord-linked users…"

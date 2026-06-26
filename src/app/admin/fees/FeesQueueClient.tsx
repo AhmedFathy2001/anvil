@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Textarea from '@/components/Textarea';
 
 interface FeeRow {
   fee: {
@@ -253,6 +254,11 @@ function FeeCard({
             )}
             <span className="text-xs text-text-muted">playing {row.account.rsn}</span>
             <FeeStatusBadge status={fee.status} />
+            {row.signup.status === 'withdrawn' && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border bg-yellow-500/15 text-yellow-300 border-yellow-500/25 capitalize">
+                withdrawn
+              </span>
+            )}
           </div>
           <div className="text-xs text-text-muted mt-1">
             <Link
@@ -425,7 +431,7 @@ function FeeCard({
             </div>
           )}
 
-          <textarea
+          <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes (e.g. paid in chunks, late by 30m)…"

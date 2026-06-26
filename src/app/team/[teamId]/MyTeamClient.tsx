@@ -11,6 +11,7 @@ import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
+import Input from '@/components/Input';
 
 interface Props {
   event: Event;
@@ -249,7 +250,7 @@ export default function MyTeamClient({
         <div className="w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background" style={{ backgroundColor: team.color }} />
         {editingName ? (
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}

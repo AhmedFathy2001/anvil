@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { avatarUrl } from '@/lib/discord-oauth';
+import Input from '@/components/Input';
 
 export interface PickableMember {
   id: number;
@@ -144,7 +145,7 @@ export default function ClanMemberPicker(props: Props) {
         </div>
       )}
       <div className="flex items-center gap-2 mb-2">
-        <input
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

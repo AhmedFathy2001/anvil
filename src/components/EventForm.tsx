@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TILE_CSV_COLUMNS, parseTileCsv, type TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
+import Input from '@/components/Input';
 
 export default function EventForm() {
   const router = useRouter();
@@ -119,7 +120,7 @@ export default function EventForm() {
     <form onSubmit={handleSubmit} className="space-y-5 max-w-lg">
       <div>
         <label className="block text-sm font-medium text-foreground/70 mb-1.5">Event Name</label>
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -153,7 +154,7 @@ export default function EventForm() {
       <div>
         <label className="block text-sm font-medium text-foreground/70 mb-1.5">{meta.sizeLabel}</label>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             type="number"
             value={size}
             onChange={(e) => {

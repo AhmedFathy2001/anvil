@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Input from '@/components/Input';
 
 interface Props {
   onImageSelected: (url: string) => void;
@@ -133,7 +134,7 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
         </div>
       ) : (
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}

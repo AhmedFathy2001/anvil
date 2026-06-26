@@ -1,5 +1,6 @@
 import DiscordSettings from '@/components/DiscordSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
+import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
 
@@ -165,6 +166,9 @@ export default function AdminIntegrationsPage() {
         </p>
         <div className="border border-card-border rounded-xl p-5 bg-card-bg">
           <AlwaysNotifyItems />
+        </div>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg mt-4">
+          <KillCountToggle />
         </div>
       </section>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Select from '@/components/Select';
 
 interface RenameSuggestion {
   leftMemberId: number;
@@ -301,33 +302,29 @@ export default function AuditLogClient({
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs uppercase tracking-wide text-text-muted mb-1">Source (left)</label>
-              <select
-                value={sourceId ?? ''}
-                onChange={(e) => setSourceId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-              >
-                <option value="">— pick a left record —</option>
-                {leftMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.rsn} (left {new Date(m.leftAt).toLocaleDateString()})
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={sourceId == null ? '' : String(sourceId)}
+                onChange={(v) => setSourceId(v ? Number(v) : null)}
+                ariaLabel="Source (left record)"
+                placeholder="— pick a left record —"
+                options={leftMembers.map((m) => ({
+                  value: String(m.id),
+                  label: `${m.rsn} (left ${new Date(m.leftAt).toLocaleDateString()})`,
+                }))}
+              />
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wide text-text-muted mb-1">Target (active)</label>
-              <select
-                value={targetId ?? ''}
-                onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-              >
-                <option value="">— pick an active record —</option>
-                {activeMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.rsn} (joined {new Date(m.joinedAt).toLocaleDateString()})
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={targetId == null ? '' : String(targetId)}
+                onChange={(v) => setTargetId(v ? Number(v) : null)}
+                ariaLabel="Target (active record)"
+                placeholder="— pick an active record —"
+                options={activeMembers.map((m) => ({
+                  value: String(m.id),
+                  label: `${m.rsn} (joined ${new Date(m.joinedAt).toLocaleDateString()})`,
+                }))}
+              />
             </div>
           </div>
           {error && <p className="text-red-400 text-sm mt-3">{error}</p>}

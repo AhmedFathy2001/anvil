@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Textarea from '@/components/Textarea';
 
 interface LineListSettingProps {
   // settings key this textarea reads/writes (one entry per line)
@@ -76,7 +77,7 @@ export default function LineListSetting({
         <label htmlFor={`lines-${settingKey}`} className="block text-sm font-medium mb-2">
           {label}
         </label>
-        <textarea
+        <Textarea
           id={`lines-${settingKey}`}
           value={value}
           onChange={(e) => setValue(e.target.value)}

@@ -200,6 +200,17 @@ export async function getAlwaysNotifyItems(): Promise<string[]> {
   return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
 }
 
+// Whether rare-drop posts include the boss/raid kill count the drop landed on. Default on; the
+// admin can switch it off from Admin → Integrations. Stored as the string 'off' when disabled.
+export const SHOW_KILL_COUNT_SETTING_KEY = 'show_kill_count';
+
+export async function getShowKillCount(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({
+    where: eq(settings.key, SHOW_KILL_COUNT_SETTING_KEY),
+  });
+  return row?.value !== 'off';
+}
+
 // Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so
 // the bands can be retuned/renamed/added without a web *or* plugin release; served to the plugin
 // in /api/plugin/config + /api/plugin/board and used by the web filters. Falls back to the curated

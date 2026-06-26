@@ -8,6 +8,7 @@ import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
+import Input from '@/components/Input';
 
 interface Props {
   event: Event;
@@ -231,7 +232,7 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
             </div>
             <label className="block text-xs text-text-muted mb-1">{typeMeta.sizeLabel}</label>
             <div className="flex items-center gap-2 mb-1">
-              <input
+              <Input
                 type="number"
                 value={typeSize}
                 onChange={(e) => setTypeSize(parseInt(e.target.value, 10) || typeMeta.default)}

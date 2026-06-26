@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import DateTimePicker from './DateTimePicker';
+import { formatUtcHint } from '@/lib/eventTime';
 
 // Date-range picker with two modes:
 //   - "range":  pick a start datetime + an end datetime explicitly
@@ -206,6 +207,7 @@ export default function DateRangeField({ startIso, endIso, onChange, required }:
           {endLocal && (
             <p className="text-[11px] text-text-muted mt-2">
               Ends <span className="text-foreground/80">{new Date(endLocal).toLocaleString()}</span>
+              {endIso && <span className="text-text-muted/80"> · {formatUtcHint(endIso)}</span>}
             </p>
           )}
         </div>

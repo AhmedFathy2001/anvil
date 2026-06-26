@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
 import DateRangeField from '@/components/DateRangeField';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
 
 interface Competition {
   id: number;
@@ -24,6 +26,9 @@ interface Participant {
   lastUpdated: string | null;
   flagged: number;
   flagReason: string | null;
+  keepIfLeft: number;
+  leftAt: string | null;
+  clanStatus: string | null;
 }
 
 export default function WeeklyManagementClient() {
@@ -159,6 +164,16 @@ export default function WeeklyManagementClient() {
     setFixValue(String(p.currentValue ?? p.baselineValue ?? 0));
   }
 
+  // Re-include (or drop again) a participant whose clan_member left the CC mid-comp.
+  async function toggleKeep(compId: number, p: Participant) {
+    const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId: p.id, keepIfLeft: p.keepIfLeft !== 1 }),
+    });
+    if (res.ok) loadParticipants(compId);
+  }
+
   async function handleSaveFix(compId: number) {
     if (fixingId === null) return;
     const baselineValue = Number(fixValue);
@@ -277,7 +292,7 @@ export default function WeeklyManagementClient() {
           <form onSubmit={handleEdit} className="space-y-3">
             <div>
               <label className="block text-xs text-text-muted mb-1">Title</label>
-              <input
+              <Input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
@@ -294,15 +309,16 @@ export default function WeeklyManagementClient() {
             />
             <div>
               <label className="block text-xs text-text-muted mb-1">Status</label>
-              <select
+              <Select
                 value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-              >
-                <option value="upcoming">Upcoming</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-              </select>
+                onChange={setEditStatus}
+                ariaLabel="Status"
+                options={[
+                  { value: 'upcoming', label: 'Upcoming' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+              />
             </div>
             <div className="flex gap-2 justify-end">
               <button
@@ -357,27 +373,23 @@ export default function WeeklyManagementClient() {
               <label className="block text-xs text-text-muted mb-1">
                 {type === 'skill' ? 'Skill' : 'Boss'}
               </label>
-              <select
+              <Select
                 value={metric}
-                onChange={(e) => setMetric(e.target.value)}
+                onChange={setMetric}
                 required
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-              >
-                <option value="">Select {type === 'skill' ? 'a skill' : 'a boss'}...</option>
-                {type === 'skill'
-                  ? SKILLS.map((key) => (
-                      <option key={key} value={key}>{SKILL_LABELS[key] || key}</option>
-                    ))
-                  : BOSSES.map((b) => (
-                      <option key={b.key} value={b.key}>{b.label}</option>
-                    ))
+                placeholder={`Select ${type === 'skill' ? 'a skill' : 'a boss'}...`}
+                ariaLabel={type === 'skill' ? 'Skill' : 'Boss'}
+                options={
+                  type === 'skill'
+                    ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key }))
+                    : BOSSES.map((b) => ({ value: b.key, label: b.label }))
                 }
-              </select>
+              />
             </div>
 
             <div>
               <label className="block text-xs text-text-muted mb-1">Title</label>
-              <input
+              <Input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -497,7 +509,7 @@ export default function WeeklyManagementClient() {
                       <div>
                         <label className="block text-xs text-text-muted mb-1">Add RSNs (comma or newline separated)</label>
                         <div className="flex gap-2">
-                          <input
+                          <Input
                             type="text"
                             value={addRsns}
                             onChange={(e) => setAddRsns(e.target.value)}
@@ -536,8 +548,11 @@ export default function WeeklyManagementClient() {
                                 .map((p) => {
                                   const gained = (p.currentValue ?? 0) - (p.baselineValue ?? 0);
                                   const isFlagged = p.flagged === 1;
+                                  const hasLeft = p.leftAt != null;
+                                  const kept = p.keepIfLeft === 1;
+                                  const dropped = hasLeft && !kept;
                                   return (
-                                    <tr key={p.id} className={`border-b border-card-border/50 ${isFlagged ? 'bg-red-500/5' : ''}`}>
+                                    <tr key={p.id} className={`border-b border-card-border/50 ${isFlagged ? 'bg-red-500/5' : ''} ${dropped ? 'opacity-50' : ''}`}>
                                       <td className="px-3 py-2 font-medium">
                                         <div className="flex items-center gap-1.5">
                                           {p.rsn}
@@ -547,6 +562,14 @@ export default function WeeklyManagementClient() {
                                               className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 cursor-help"
                                             >
                                               ⚠ Implausible
+                                            </span>
+                                          )}
+                                          {hasLeft && (
+                                            <span
+                                              title={kept ? 'Left the CC but kept on the leaderboard by an admin override.' : 'Left the CC — excluded from the leaderboard and headcount.'}
+                                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full cursor-help ${kept ? 'bg-gold/15 text-gold' : 'bg-text-muted/15 text-text-muted'}`}
+                                            >
+                                              {kept ? '↩ Kept (left CC)' : '✖ Left CC'}
                                             </span>
                                           )}
                                         </div>
@@ -566,7 +589,7 @@ export default function WeeklyManagementClient() {
                                       <td className="px-3 py-2 text-right">
                                         {fixingId === p.id ? (
                                           <div className="flex items-center gap-1.5 justify-end">
-                                            <input
+                                            <Input
                                               type="number"
                                               value={fixValue}
                                               onChange={(e) => setFixValue(e.target.value)}
@@ -587,15 +610,26 @@ export default function WeeklyManagementClient() {
                                             </button>
                                           </div>
                                         ) : (
-                                          p.baselineValue !== null && (
-                                            <button
-                                              onClick={() => startFix(p)}
-                                              title="Correct this participant's baseline"
-                                              className={`px-2 py-1 text-xs border rounded transition-colors ${isFlagged ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-card-border text-text-muted hover:border-gold/40'}`}
-                                            >
-                                              Fix baseline
-                                            </button>
-                                          )
+                                          <div className="flex items-center gap-1.5 justify-end">
+                                            {hasLeft && (
+                                              <button
+                                                onClick={() => toggleKeep(comp.id, p)}
+                                                title={kept ? 'Drop this leaver from the leaderboard again' : 'Keep this leaver on the leaderboard'}
+                                                className={`px-2 py-1 text-xs border rounded transition-colors ${kept ? 'border-gold/40 text-gold hover:bg-gold/10' : 'border-card-border text-text-muted hover:border-gold/40'}`}
+                                              >
+                                                {kept ? 'Drop' : 'Keep'}
+                                              </button>
+                                            )}
+                                            {p.baselineValue !== null && (
+                                              <button
+                                                onClick={() => startFix(p)}
+                                                title="Correct this participant's baseline"
+                                                className={`px-2 py-1 text-xs border rounded transition-colors ${isFlagged ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-card-border text-text-muted hover:border-gold/40'}`}
+                                              >
+                                                Fix baseline
+                                              </button>
+                                            )}
+                                          </div>
                                         )}
                                       </td>
                                     </tr>

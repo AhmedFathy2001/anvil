@@ -16,6 +16,7 @@ const EXPOSED_KEYS = [
   'webhook_pvp_kills',
   'webhook_clips',
   'always_notify_items',
+  'show_kill_count',
   'fun_death_messages',
   'death_taunts',
   'spoon_taunts',

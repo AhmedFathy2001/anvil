@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatUtcHint } from '@/lib/eventTime';
 
 // Self-contained custom date+time picker. Renders a button showing the current value
 // (or a placeholder) and opens a popover with a month-grid calendar plus HH:MM inputs.
@@ -208,6 +209,13 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
           className="sr-only absolute inset-0 pointer-events-none opacity-0"
           aria-hidden
         />
+      )}
+
+      {value && (
+        // The button shows local time; this spells out the UTC equivalent that
+        // actually gets stored, so admins don't mistake their local midnight for
+        // UTC midnight.
+        <p className="mt-1 text-[11px] text-text-muted/80">= {formatUtcHint(value)}</p>
       )}
 
       {open && (

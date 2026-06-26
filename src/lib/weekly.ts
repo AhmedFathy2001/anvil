@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, asc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, or } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
@@ -537,6 +537,35 @@ export async function reviewPendingRenames(
   }
 
   return { reviewed: pending.length, approved, denied, deferred };
+}
+
+/**
+ * SQL predicate for "this participant still counts": no clan link (a manually-added guest),
+ * or their clan_member hasn't left, or an admin set keepIfLeft to force-include them. Shared by
+ * every leaderboard/headcount surface so the plugin, website, and public pages agree on who's in.
+ */
+export const countsTowardLeaderboard = () =>
+  or(
+    isNull(weeklyParticipants.clanMemberId),
+    isNull(clanMembers.leftAt),
+    eq(weeklyParticipants.keepIfLeft, 1),
+  );
+
+/**
+ * Participants whose standings should count for a competition — everyone enrolled minus those
+ * whose clan_member has left the CC (unless overridden). Drives the leaderboard and the headcount.
+ */
+export async function getEffectiveParticipants(competitionId: number) {
+  return db
+    .select({
+      id: weeklyParticipants.id,
+      rsn: weeklyParticipants.rsn,
+      baselineValue: weeklyParticipants.baselineValue,
+      currentValue: weeklyParticipants.currentValue,
+    })
+    .from(weeklyParticipants)
+    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), countsTowardLeaderboard()));
 }
 
 /**

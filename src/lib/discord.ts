@@ -178,6 +178,17 @@ function teamColorToDecimal(hexColor: string): number {
   return parseInt(hex, 16) || 0x5865f2; // Default to Discord blurple
 }
 
+// Discord renders <t:UNIX:STYLE> dynamically per viewer: the timezone is the
+// reader's own, and the `R` (relative) style is a live countdown that ticks
+// down on its own — no re-posting needed. Far better than a server-side
+// toLocaleString(), which would bake in the server's UTC clock for everyone.
+//   F = full date+time (e.g. "Friday, June 26, 2026 8:00 PM")
+//   R = relative/countdown (e.g. "in 3 days")
+function discordTime(date: string | Date, style: 'F' | 'R' = 'F'): string {
+  const secs = Math.floor(new Date(date).getTime() / 1000);
+  return `<t:${secs}:${style}>`;
+}
+
 interface SubmissionNotifyParams {
   eventName: string;
   tileLabel: string;
@@ -482,11 +493,12 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
   const { eventId, eventName, startDate, endDate } = params;
 
   const fields: { name: string; value: string; inline?: boolean }[] = [
-    { name: 'Started', value: new Date(startDate).toLocaleString(), inline: true },
+    { name: 'Started', value: discordTime(startDate), inline: true },
   ];
 
   if (endDate) {
-    fields.push({ name: 'Ends', value: new Date(endDate).toLocaleString(), inline: true });
+    // Exact end time + a live countdown that ticks down in everyone's client.
+    fields.push({ name: 'Ends', value: `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`, inline: true });
   }
 
   pushLeaderboardField(fields, eventId);
@@ -591,7 +603,8 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     color: 0x00ff00, // Green
     fields: [
       { name: 'Metric', value: metric, inline: true },
-      { name: 'Ends', value: new Date(endDate).toLocaleString(), inline: true },
+      // Exact end time + a live countdown that ticks down in everyone's client.
+      { name: 'Ends', value: `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`, inline: true },
     ],
     timestamp: new Date().toISOString(),
   };

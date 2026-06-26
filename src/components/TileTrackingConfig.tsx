@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SKILLS, SKILL_LABELS, BOSSES } from "@/lib/constants";
+import Select from '@/components/Select';
+import Input from '@/components/Input';
+import Textarea from '@/components/Textarea';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -446,7 +449,7 @@ export default function TileTrackingConfig({
       {/* Label */}
       <div>
         <label className="block text-xs text-text-muted mb-1">Label</label>
-        <input
+        <Input
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
@@ -459,7 +462,7 @@ export default function TileTrackingConfig({
       {/* Description */}
       <div>
         <label className="block text-xs text-text-muted mb-1">Description</label>
-        <textarea
+        <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
@@ -474,7 +477,7 @@ export default function TileTrackingConfig({
           <label className="block text-xs text-text-muted mb-1">
             Point Value <span className="text-text-muted/60">(score awarded on completion)</span>
           </label>
-          <input
+          <Input
             type="number"
             value={points}
             onChange={(e) => setPoints(e.target.value)}
@@ -493,7 +496,7 @@ export default function TileTrackingConfig({
         <label className="block text-xs text-text-muted mb-1">
           Category <span className="text-text-muted/60">(groups tasks in the plugin, e.g. Zulrah, Slayer)</span>
         </label>
-        <input
+        <Input
           type="text"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -508,29 +511,22 @@ export default function TileTrackingConfig({
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">{kind === 'skill' ? 'Skill' : 'Boss'}</label>
-            <select
+            <Select
               value={trackedStat}
-              onChange={(e) => setTrackedStat(e.target.value)}
-              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-            >
-              <option value="">Select {kind === 'skill' ? 'a skill' : 'a boss'}...</option>
-              {kind === 'skill'
-                ? SKILLS.map((key) => (
-                    <option key={key} value={key}>
-                      {SKILL_LABELS[key] || key}
-                    </option>
-                  ))
-                : BOSSES.map((b) => (
-                    <option key={b.key} value={b.key}>
-                      {b.label}
-                    </option>
-                  ))}
-            </select>
+              onChange={setTrackedStat}
+              placeholder={`Select ${kind === 'skill' ? 'a skill' : 'a boss'}...`}
+              ariaLabel={kind === 'skill' ? 'Skill' : 'Boss'}
+              options={
+                kind === 'skill'
+                  ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key }))
+                  : BOSSES.map((b) => ({ value: b.key, label: b.label }))
+              }
+            />
           </div>
 
           <div>
             <label className="block text-xs text-text-muted mb-1">Goal ({kind === 'skill' ? 'XP' : 'KC'})</label>
-            <input
+            <Input
               type="number"
               value={statGoal}
               onChange={(e) => setStatGoal(e.target.value)}
@@ -574,7 +570,7 @@ export default function TileTrackingConfig({
               <label className="block text-xs text-text-muted mb-1">
                 Required Amount <span className="text-text-muted/60">(any tracked item counts)</span>
               </label>
-              <input
+              <Input
                 type="number"
                 value={requiredAmount}
                 onChange={(e) => setRequiredAmount(e.target.value)}
@@ -618,7 +614,7 @@ export default function TileTrackingConfig({
                       <span className="text-text-muted/60 ml-1">#{item.id}</span>
                     </span>
                     {isCollection && (
-                      <input
+                      <Input
                         type="number"
                         value={item.perItemAmount}
                         onChange={(e) => {
@@ -643,7 +639,7 @@ export default function TileTrackingConfig({
             )}
 
             <div ref={itemSearchRef} className="relative">
-              <input
+              <Input
                 type="text"
                 value={itemSearch}
                 onChange={(e) => {
@@ -693,7 +689,7 @@ export default function TileTrackingConfig({
             <label className="block text-xs text-text-muted mb-1">
               Restrict to source(s) <span className="text-text-muted/60">(optional)</span>
             </label>
-            <input
+            <Input
               type="text"
               list="source-npc-suggestions"
               value={sourceNpcsText}
@@ -753,7 +749,7 @@ export default function TileTrackingConfig({
 
             {/* Search + free-text add. Enter adds the typed text verbatim (override). */}
             <div ref={npcSearchRef} className="relative">
-              <input
+              <Input
                 type="text"
                 value={npcSearch}
                 onChange={(e) => {
@@ -815,7 +811,7 @@ export default function TileTrackingConfig({
 
           <div>
             <label className="block text-xs text-text-muted mb-1">Required Kills</label>
-            <input
+            <Input
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
@@ -860,7 +856,7 @@ export default function TileTrackingConfig({
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">Activity</label>
-            <input
+            <Input
               type="text"
               list="timed-activity-suggestions"
               value={timedActivity}
@@ -883,7 +879,7 @@ export default function TileTrackingConfig({
             <label className="block text-xs text-text-muted mb-1">
               Time Cap <span className="text-text-muted/60">(complete if cleared at or under)</span>
             </label>
-            <input
+            <Input
               type="text"
               value={timeThresholdClock}
               onChange={(e) => setTimeThresholdClock(e.target.value)}

@@ -239,6 +239,10 @@ export const weeklyParticipants = sqliteTable('weekly_participants', {
   // baseline. flagReason carries a human-readable summary for the admin UI tooltip.
   flagged: integer('flagged').notNull().default(0),
   flagReason: text('flag_reason'),
+  // Admin override: when 1, keep this participant on the leaderboard even if their clan_member
+  // has left the CC. Default 0 means a leaver is dropped from the standings (and the headcount)
+  // for the rest of the comp. Lets mods re-include someone who left by accident.
+  keepIfLeft: integer('keep_if_left').notNull().default(0),
 }, (table) => [
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
   index('weekly_participants_comp_id_idx').on(table.competitionId),

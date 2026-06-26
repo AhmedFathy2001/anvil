@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
+import Select from '@/components/Select';
+import Input from '@/components/Input';
+import Textarea from '@/components/Textarea';
 import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -603,26 +606,21 @@ export default function TileDetailModal({
               {/* Who got this drop/kill */}
               <div>
                 <label className="block text-xs text-text-muted mb-1">Who got this {countNoun}? *</label>
-                <select
+                <Select
                   value={creditPlayerId}
-                  onChange={(e) => setCreditPlayerId(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                  onChange={setCreditPlayerId}
                   required
-                >
-                  <option value="">Select team member...</option>
-                  {teamPlayers?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select team member..."
+                  ariaLabel="Who got this drop"
+                  options={(teamPlayers ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
+                />
               </div>
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">
                   Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
                 </label>
-                <input
+                <Input
                   type="number"
                   value={amount}
                   onChange={(e) => {
@@ -670,7 +668,7 @@ export default function TileDetailModal({
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
-                <input
+                <Input
                   type="text"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -706,7 +704,7 @@ export default function TileDetailModal({
                 <label className="block text-xs text-text-muted mb-1">
                   Clear Time *{tile.timeThresholdSeconds ? <span className="text-yellow-400 ml-1">(must be ≤ {secondsToClock(tile.timeThresholdSeconds)})</span> : null}
                 </label>
-                <input
+                <Input
                   type="text"
                   value={clearTime}
                   onChange={(e) => setClearTime(e.target.value)}
@@ -719,16 +717,15 @@ export default function TileDetailModal({
               {teamPlayers && teamPlayers.length > 0 && (
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Who cleared it? (optional)</label>
-                  <select
+                  <Select
                     value={creditPlayerId}
-                    onChange={(e) => setCreditPlayerId(e.target.value)}
-                    className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-                  >
-                    <option value="">Team clear / unattributed</option>
-                    {teamPlayers.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    onChange={setCreditPlayerId}
+                    ariaLabel="Who cleared it"
+                    options={[
+                      { value: '', label: 'Team clear / unattributed' },
+                      ...teamPlayers.map((p) => ({ value: String(p.id), label: p.name })),
+                    ]}
+                  />
                 </div>
               )}
 
@@ -742,7 +739,7 @@ export default function TileDetailModal({
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
-                <input
+                <Input
                   type="text"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -776,7 +773,7 @@ export default function TileDetailModal({
             </p>
             <div className="mb-4">
               <label className="block text-xs text-text-muted mb-1">Reason for deletion *</label>
-              <textarea
+              <Textarea
                 value={deleteReason}
                 onChange={(e) => setDeleteReason(e.target.value)}
                 placeholder="e.g., Duplicate submission, Wrong tile, etc."

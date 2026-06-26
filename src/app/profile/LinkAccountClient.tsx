@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SKILL_LABELS } from '@/lib/constants';
+import Input from '@/components/Input';
+import Textarea from '@/components/Textarea';
 
 type Tab = 'plugin' | 'no-plugin' | 'manual';
 
@@ -218,7 +220,7 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
         Discord ping or in-game vouch is enough.
       </p>
       <label className="block text-sm font-medium text-foreground/70 mb-1.5">RuneScape Name</label>
-      <input
+      <Input
         value={rsn}
         onChange={(e) => setRsn(e.target.value)}
         placeholder="Display name"
@@ -228,7 +230,7 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       <label className="block text-sm font-medium text-foreground/70 mb-1.5 mt-3">
         Note for moderators <span className="text-text-muted text-xs font-normal">(optional)</span>
       </label>
-      <textarea
+      <Textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="e.g. ironman with hidden Hiscores; ping me on Discord (#username)"
@@ -329,7 +331,7 @@ function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
     return (
       <div>
         <label className="block text-sm font-medium text-foreground/70 mb-1.5">RuneScape Name</label>
-        <input
+        <Input
           value={rsn}
           onChange={(e) => setRsn(e.target.value)}
           placeholder="Display name"

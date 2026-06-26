@@ -170,6 +170,11 @@ export async function POST(
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
 
+  // Re-signing up after a withdrawal flips the row back to 'pending'. Other statuses
+  // (approved/rejected) are left to admin actions — editing answers shouldn't silently
+  // re-open a rejected sign-up or downgrade an approved one.
+  const isReactivation = !!existing && existing.status === 'withdrawn';
+
   let signupRow;
   if (existing) {
     [signupRow] = await db
@@ -178,6 +183,7 @@ export async function POST(
         clanMemberId: body.clanMemberId,
         profileData: profileJson,
         updatedAt: now,
+        ...(isReactivation ? { status: 'pending' as const } : {}),
       })
       .where(eq(eventSignups.id, existing.id))
       .returning();
@@ -194,15 +200,28 @@ export async function POST(
         updatedAt: now,
       })
       .returning();
+  }
 
+  // For an active sign-up (new or re-activated), make sure the fee request and the
+  // draft-pool player row both exist. Withdrawal deletes the pending fee + pool row, so
+  // this is what restores them on a re-signup. Both inserts are idempotent (skip when a
+  // row already exists), so this is also a no-op for ordinary answer edits. Skipped for
+  // rejected sign-ups so a rejected user can't re-add themselves by editing the form.
+  const isActive = signupRow.status === 'pending' || signupRow.status === 'approved';
+  if (isActive) {
     // Auto-create a fee row when the event has a fee. Keeping a 1:1 row even for free
     // events would be noise — easier to gate on event.signupFee everywhere if it's null.
     if (event.signupFee && event.signupFee > 0) {
-      await db.insert(signupFees).values({
-        signupId: signupRow.id,
-        amount: event.signupFee,
-        status: 'pending',
+      const existingFee = await db.query.signupFees.findFirst({
+        where: eq(signupFees.signupId, signupRow.id),
       });
+      if (!existingFee) {
+        await db.insert(signupFees).values({
+          signupId: signupRow.id,
+          amount: event.signupFee,
+          status: 'pending',
+        });
+      }
     }
 
     // Auto-add the signed-up player to the event's draft pool. Mirrors the bulk
@@ -265,6 +284,15 @@ export async function DELETE(
     );
   }
 
+  // Self-withdrawal is only available until teams get picked. Once the draft is under
+  // way (or done), the roster is locked — they have to contact a mod to be removed.
+  if (event.draftStatus !== 'none') {
+    return NextResponse.json(
+      { error: 'Teams have already been picked; contact a moderator to withdraw' },
+      { status: 403 },
+    );
+  }
+
   const existing = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
@@ -272,17 +300,37 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   }
 
-  // Soft "withdraw" instead of delete: we keep the row so the event roster and audit
-  // history stay intact even after a player drops. Fee row (if any) hangs around for
-  // refund tracking; only admin can clear it.
+  // A fee that's been touched (reported/collected/confirmed/disputed) means money has
+  // changed hands — they can't just self-withdraw and vanish. They contact an admin, who
+  // removes them manually and handles the refund. Only an untouched 'pending' fee lets
+  // them bail on their own.
+  const fee = await db.query.signupFees.findFirst({
+    where: eq(signupFees.signupId, existing.id),
+  });
+  if (fee && fee.status !== 'pending') {
+    return NextResponse.json(
+      { error: 'Your fee has already been paid — contact an admin to withdraw.' },
+      { status: 403 },
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  // Soft "withdraw" instead of delete: we keep the sign-up row so the roster and audit
+  // history stay intact even after a player drops.
   await db
     .update(eventSignups)
-    .set({ status: 'withdrawn', updatedAt: new Date().toISOString() })
+    .set({ status: 'withdrawn', updatedAt: now })
     .where(eq(eventSignups.id, existing.id));
 
-  // Pull them back out of the pool — but only if they aren't already on a team.
-  // Once drafted, withdrawing the signup is bookkeeping; the team needs a manual
-  // intervention from an admin (the captain may want to keep / replace them).
+  // Remove the (untouched) fee request entirely — nothing to track once they're out, and
+  // it keeps the fee queue clean. A re-signup before the deadline re-creates it.
+  if (fee) {
+    await db.delete(signupFees).where(eq(signupFees.id, fee.id));
+  }
+
+  // Pull them back out of the pool. Pre-draft they can't be on a team yet, but we keep
+  // the teamId guard for safety/consistency with the admin path.
   await db
     .delete(players)
     .where(

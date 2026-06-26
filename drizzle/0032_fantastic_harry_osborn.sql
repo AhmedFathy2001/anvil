@@ -1,0 +1,1 @@
+ALTER TABLE `weekly_participants` ADD `keep_if_left` integer DEFAULT 0 NOT NULL;

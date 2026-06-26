@@ -35,9 +35,19 @@ export default async function MyTeamPage({
   if (event.draftStatus === 'active' || event.draftStatus === 'paused') {
     return (
       <div>
-        <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4">
-          &larr; My teams
-        </Link>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+            &larr; My teams
+          </Link>
+          {membership.isCaptain && (
+            <Link
+              href={`/team/${tId}/applicants`}
+              className="text-sm text-gold hover:text-gold/80 transition-colors"
+            >
+              View applicants &rarr;
+            </Link>
+          )}
+        </div>
         {membership.isCaptain ? (
           <DraftBoardClient event={event} team={safeTeam} />
         ) : (
@@ -67,9 +77,19 @@ export default async function MyTeamPage({
 
   return (
     <div>
-      <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4">
-        &larr; My teams
-      </Link>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+          &larr; My teams
+        </Link>
+        {membership.isCaptain && (
+          <Link
+            href={`/team/${tId}/applicants`}
+            className="text-sm text-gold hover:text-gold/80 transition-colors"
+          >
+            View applicants &rarr;
+          </Link>
+        )}
+      </div>
       <MyTeamClient
         event={event}
         team={safeTeam}

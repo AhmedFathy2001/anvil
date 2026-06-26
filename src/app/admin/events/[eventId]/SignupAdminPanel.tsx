@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
+import Input from '@/components/Input';
+import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
@@ -76,6 +78,7 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
   const [captainPromptId, setCaptainPromptId] = useState<number | null>(null);
   const [captainTeamName, setCaptainTeamName] = useState('');
   const [captainTeamColor, setCaptainTeamColor] = useState(DEFAULT_TEAM_COLORS[0]);
+  const [statsRsn, setStatsRsn] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/events/${event.id}/signups`);
@@ -100,7 +103,7 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
 
   async function performAction(
     sigId: number,
-    body: { action: 'approve' | 'reject' | 'promote-captain' | 'demote-captain'; teamName?: string; teamColor?: string },
+    body: { action: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain'; teamName?: string; teamColor?: string },
   ) {
     setActingId(sigId);
     setActionError(null);
@@ -242,7 +245,7 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-xs text-text-muted">Fee (gp)</span>
-            <input
+            <Input
               type="number"
               min={0}
               step={1000}
@@ -470,7 +473,7 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
                         {captainPromptId === s.id ? (
                           <div className="w-full space-y-2 rounded-lg bg-brown-dark p-2">
                             <div className="grid grid-cols-2 gap-2">
-                              <input
+                              <Input
                                 value={captainTeamName}
                                 onChange={(e) => setCaptainTeamName(e.target.value)}
                                 placeholder="Team name"
@@ -509,6 +512,12 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
                           </div>
                         ) : (
                           <>
+                            <button
+                              onClick={() => setStatsRsn(s.account.rsn)}
+                              className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
+                            >
+                              View stats
+                            </button>
                             {s.captainTeam ? (
                               <button
                                 onClick={() => {
@@ -559,6 +568,23 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
                                 Reject
                               </button>
                             )}
+                            {s.status !== 'withdrawn' && !s.captainTeam && (
+                              <button
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `Withdraw ${s.user.displayName} from this event? They'll be marked withdrawn and pulled from the draft pool. A paid fee is kept for the refund trail; an unpaid one is cleared.`,
+                                    )
+                                  ) {
+                                    performAction(s.id, { action: 'withdraw' });
+                                  }
+                                }}
+                                disabled={actingId === s.id}
+                                className="text-xs font-medium px-3 py-1 rounded border border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
+                              >
+                                Withdraw / remove
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -570,6 +596,10 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
           </div>
         )}
       </div>
+
+      {statsRsn && (
+        <PlayerStatsPanel rsn={statsRsn} onClose={() => setStatsRsn(null)} />
+      )}
     </div>
   );
 }

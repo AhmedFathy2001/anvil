@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanMemberPicker, { type PickableMember } from './ClanMemberPicker';
+import Input from '@/components/Input';
 
 const PRESET_COLORS = [
   '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71',
@@ -60,7 +61,7 @@ export default function TeamForm({ eventId, onCreated }: TeamFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4 border border-card-border rounded-xl p-4 bg-card-bg">
       <div>
         <label className="block text-sm font-medium text-foreground/70 mb-1.5">Team Name</label>
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import LocalTime from '@/components/LocalTime';
+import Select from '@/components/Select';
+import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -69,23 +71,13 @@ interface Props {
   tierBands?: TierBand[];
 }
 
-function formatTimeLeft(ms: number): string {
-  if (ms <= 0) return 'Now';
-
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h ${minutes % 60}m`;
-  } else if (hours > 0) {
-    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  } else {
-    return `${seconds}s`;
-  }
+type TimeTone = 'starts' | 'ends' | 'ended';
+interface TimeInfo {
+  tone: TimeTone;
+  /** Primary status line (live countdown when imminent, else exact time). */
+  text: string;
+  /** Exact time kept visible while counting down; null when text is already exact. */
+  exact: string | null;
 }
 
 interface TeamGains {
@@ -98,46 +90,56 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [timeDisplay, setTimeDisplay] = useState<string>('');
+  const [timeInfo, setTimeInfo] = useState<TimeInfo | null>(null);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
 
-  // Countdown / time remaining timer
+  // Shows the exact start/end time, switching to a live countdown within 24h.
   useEffect(() => {
     const updateTime = () => {
-      if (event.forceEndedAt) {
-        setTimeDisplay('Event force-ended');
+      const now = Date.now();
+      const state = eventTimeState({
+        startDate: event.startDate,
+        endDate: event.endDate,
+        forceEndedAt: event.forceEndedAt,
+        now,
+      });
+
+      if (state.phase === 'force-ended') {
+        setTimeInfo({ tone: 'ended', text: 'Event force-ended', exact: null });
+        return;
+      }
+      if (state.phase === 'ended') {
+        setTimeInfo({ tone: 'ended', text: 'Event ended', exact: null });
+        return;
+      }
+      if (state.target === null) {
+        setTimeInfo(null);
         return;
       }
 
-      const now = Date.now();
-
-      if (event.startDate) {
-        const start = new Date(event.startDate).getTime();
-        if (now < start) {
-          setTimeDisplay(`Starts in ${formatTimeLeft(start - now)}`);
-          return;
-        }
+      const exact = formatExactTime(state.target);
+      if (state.phase === 'upcoming') {
+        setTimeInfo(
+          state.imminent
+            ? { tone: 'starts', text: `Starts in ${formatCountdown(state.target - now)}`, exact }
+            : { tone: 'starts', text: `Starts ${exact}`, exact: null },
+        );
+        return;
       }
-
-      if (event.endDate) {
-        const end = new Date(event.endDate).getTime();
-        if (now < end) {
-          setTimeDisplay(`${formatTimeLeft(end - now)} remaining`);
-          return;
-        } else {
-          setTimeDisplay('Event ended');
-          return;
-        }
-      }
-
-      setTimeDisplay('');
+      // active
+      setTimeInfo(
+        state.imminent
+          ? { tone: 'ends', text: `Ends in ${formatCountdown(state.target - now)}`, exact }
+          : { tone: 'ends', text: `Ends ${exact}`, exact: null },
+      );
     };
 
     updateTime();
@@ -240,14 +242,21 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const totalCompleted = completions.length;
   const draftActive = event.draftStatus === 'active' || event.draftStatus === 'paused';
 
-  // Board filters — by content category and by difficulty tier (derived from points).
+  // Board filters — by text search, content category, and difficulty tier (derived from points).
   const categories = tileCategories(tiles);
-  const filterActive = categoryFilter !== 'all' || tierFilter !== 'all';
+  const search = searchQuery.trim().toLowerCase();
+  const filterActive = categoryFilter !== 'all' || tierFilter !== 'all' || search !== '';
   const matchedTileIds = filterActive
     ? new Set(
         tiles
           .filter((t) => categoryFilter === 'all' || (t.category?.trim() || '') === categoryFilter)
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
+          .filter(
+            (t) =>
+              search === '' ||
+              t.label.toLowerCase().includes(search) ||
+              (t.description?.toLowerCase().includes(search) ?? false),
+          )
           .map((t) => t.id),
       )
     : null;
@@ -284,15 +293,16 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
         {/* Time display and view controls */}
         <div className="flex items-center gap-3 mt-4">
-          {timeDisplay && (
+          {timeInfo && (
             <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${
-              timeDisplay.includes('Starts')
+              timeInfo.tone === 'starts'
                 ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25'
-                : timeDisplay.includes('remaining')
+                : timeInfo.tone === 'ends'
                 ? 'bg-accent-green/15 text-accent-green-light border border-accent-green/25'
                 : 'bg-red-500/15 text-red-400 border border-red-500/25'
             }`}>
-              {timeDisplay}
+              {timeInfo.text}
+              {timeInfo.exact && <span className="opacity-60 font-normal"> · {timeInfo.exact}</span>}
             </span>
           )}
           <button
@@ -369,22 +379,45 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
 
+          <div className="relative mb-3">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tiles…"
+              className="w-full text-sm pl-9 pr-9 py-2 bg-brown-dark border border-card-border rounded-lg text-foreground placeholder:text-text-muted focus:border-gold/50 focus:outline-none"
+              aria-label="Search tiles"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-foreground text-lg leading-none"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
           {showFilters && (
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
               {categories.length > 0 && (
-                <select
+                <Select
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="shrink-0 text-xs px-2.5 py-1.5 bg-brown-dark border border-card-border rounded-lg text-foreground focus:border-gold/50 focus:outline-none"
-                  aria-label="Filter board by category"
-                >
-                  <option value="all">All categories</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setCategoryFilter}
+                  options={[{ value: 'all', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]}
+                  ariaLabel="Filter board by category"
+                  className="shrink-0 sm:w-48"
+                />
               )}
               {showTierFilter && (
                 <div className="flex items-center gap-1 overflow-x-auto pb-0.5">

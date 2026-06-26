@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { weeklyCompetitions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { computeLeaderboard } from '@/lib/weekly';
+import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -26,14 +26,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
   }
 
-  const participants = await db
-    .select({
-      rsn: weeklyParticipants.rsn,
-      baselineValue: weeklyParticipants.baselineValue,
-      currentValue: weeklyParticipants.currentValue,
-    })
-    .from(weeklyParticipants)
-    .where(eq(weeklyParticipants.competitionId, comp.id));
+  // Excludes anyone whose clan_member has left the CC (unless an admin set keepIfLeft) so the
+  // headcount + standings reflect current members. See getEffectiveParticipants.
+  const participants = await getEffectiveParticipants(comp.id);
 
   // Dedupe by RSN (case-insensitive): a rename/re-enroll can leave two participant rows for the
   // same player, which otherwise shows them twice. Keep the row with the most progress.

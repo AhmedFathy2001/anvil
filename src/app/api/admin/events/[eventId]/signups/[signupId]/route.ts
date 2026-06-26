@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, players, teams } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { clanMembers, eventSignups, players, signupFees, teams } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 
@@ -11,6 +11,10 @@ import { generatePlayerToken } from '@/lib/auth';
 // Actions:
 //   approve         → status = 'approved'
 //   reject          → status = 'rejected'
+//   withdraw        → status = 'withdrawn'. The manual "remove from the event" action for
+//                     when a player who already paid asks to drop (self-withdraw is blocked
+//                     for them). Clears an untouched fee; keeps a paid one for the refund
+//                     trail. Removes them from the draft pool if not yet on a team.
 //   promote-captain → create a team with captainUserId = signup.userId, and a players
 //                     row for the captain on that team. Idempotent: re-running upgrades
 //                     the existing assignment if the user already has a team.
@@ -32,7 +36,7 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as {
-    action?: 'approve' | 'reject' | 'promote-captain' | 'demote-captain';
+    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain';
     teamName?: string;
     teamColor?: string;
   } | null;
@@ -65,6 +69,47 @@ export async function PATCH(
         .set({ status: 'rejected', updatedAt: now })
         .where(eq(eventSignups.id, sigId))
         .returning();
+      return NextResponse.json({ signup: updated });
+    }
+
+    case 'withdraw': {
+      // Don't strand a team without its captain — make the admin demote first.
+      const captainTeam = await db.query.teams.findFirst({
+        where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
+      });
+      if (captainTeam) {
+        return NextResponse.json(
+          { error: 'This sign-up captains a team — demote them first.' },
+          { status: 409 },
+        );
+      }
+
+      const [updated] = await db
+        .update(eventSignups)
+        .set({ status: 'withdrawn', updatedAt: now })
+        .where(eq(eventSignups.id, sigId))
+        .returning();
+
+      // Clear an untouched fee request; keep one with payment activity so the refund
+      // stays on the books.
+      const fee = await db.query.signupFees.findFirst({
+        where: eq(signupFees.signupId, sigId),
+      });
+      if (fee && fee.status === 'pending') {
+        await db.delete(signupFees).where(eq(signupFees.id, fee.id));
+      }
+
+      // Remove from the draft pool if they aren't already drafted onto a team.
+      await db
+        .delete(players)
+        .where(
+          and(
+            eq(players.eventId, evtId),
+            eq(players.clanMemberId, signup.clanMemberId),
+            isNull(players.teamId),
+          ),
+        );
+
       return NextResponse.json({ signup: updated });
     }
 

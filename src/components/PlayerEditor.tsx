@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Input from '@/components/Input';
 
 interface Props {
   eventId: number;
@@ -70,7 +71,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
         <div className="p-4 space-y-4">
           <div>
             <label className="block text-xs text-text-muted mb-1">RSN (In-Game Name)</label>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -81,7 +82,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
 
           <div>
             <label className="block text-xs text-text-muted mb-1">Discord Username</label>
-            <input
+            <Input
               type="text"
               value={discord}
               onChange={(e) => setDiscord(e.target.value)}
@@ -92,7 +93,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
 
           <div>
             <label className="block text-xs text-text-muted mb-1">Timezone</label>
-            <input
+            <Input
               type="text"
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
