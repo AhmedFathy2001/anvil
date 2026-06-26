@@ -6,12 +6,7 @@ import { SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 
-type Tab = 'plugin' | 'no-plugin' | 'manual';
-
-interface CodeState {
-  code: string;
-  expiresAt: string;
-}
+type Tab = 'no-plugin' | 'manual';
 
 interface AttemptState {
   attemptId: number;
@@ -37,25 +32,21 @@ function formatSkill(s: string | null | undefined): string {
   return SKILL_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function LinkAccountClient({ hasAny }: { hasAny: boolean }) {
+export default function LinkAccountClient() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('plugin');
+  const [tab, setTab] = useState<Tab>('no-plugin');
 
   return (
     <div>
       <div className="flex border border-card-border rounded-lg overflow-hidden mb-4 text-xs sm:text-sm">
-        <TabButton active={tab === 'plugin'} onClick={() => setTab('plugin')}>
-          RuneLite plugin
-        </TabButton>
-        <TabButton active={tab === 'no-plugin'} onClick={() => setTab('no-plugin')} bordered>
-          Mobile / official
+        <TabButton active={tab === 'no-plugin'} onClick={() => setTab('no-plugin')}>
+          Verify by XP
         </TabButton>
         <TabButton active={tab === 'manual'} onClick={() => setTab('manual')} bordered>
           Manual review
         </TabButton>
       </div>
 
-      {tab === 'plugin' && <PluginPath router={router} hasAny={hasAny} />}
       {tab === 'no-plugin' && <StatDeltaPath router={router} />}
       {tab === 'manual' && <ManualReviewPath router={router} />}
     </div>
@@ -84,89 +75,6 @@ function TabButton({
     >
       {children}
     </button>
-  );
-}
-
-function PluginPath({ router, hasAny }: { router: ReturnType<typeof useRouter>; hasAny: boolean }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [codeState, setCodeState] = useState<CodeState | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-
-  useEffect(() => {
-    if (!codeState) return;
-    const tick = () => {
-      const remaining = Math.max(0, Math.floor((new Date(codeState.expiresAt).getTime() - Date.now()) / 1000));
-      setSecondsLeft(remaining);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [codeState]);
-
-  useEffect(() => {
-    if (!codeState) return;
-    const id = setInterval(() => router.refresh(), 5000);
-    return () => clearInterval(id);
-  }, [codeState, router]);
-
-  async function generate() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/auth/link-code', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) setError(data.error || 'Could not generate code');
-      else setCodeState({ code: data.code, expiresAt: data.expiresAt });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!codeState) {
-    return (
-      <div>
-        <button
-          onClick={generate}
-          disabled={loading}
-          className="bg-gold hover:bg-gold-light text-brown-dark font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Generating…' : hasAny ? 'Link another account' : 'Link RuneScape account'}
-        </button>
-        {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-        <p className="text-xs text-text-muted mt-3 leading-relaxed">
-          Captures your account hash automatically — strongest verification, no waiting, no provisional state.
-        </p>
-      </div>
-    );
-  }
-
-  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
-  const ss = String(secondsLeft % 60).padStart(2, '0');
-
-  return (
-    <div className="border border-gold/30 bg-gold/5 rounded-lg p-4">
-      <div className="text-xs uppercase tracking-wide text-text-muted mb-1">Your link code</div>
-      <div className="font-mono text-3xl font-bold text-gold tracking-[0.2em] mb-3 select-all">
-        {codeState.code}
-      </div>
-      <ol className="text-sm space-y-1 list-decimal list-inside text-foreground/80">
-        <li>Open RuneLite → Anvil plugin → Link account</li>
-        <li>Paste this code</li>
-        <li>Wait — your account will appear here automatically</li>
-      </ol>
-      <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
-        <span>Expires in {mm}:{ss}</span>
-        <button
-          onClick={() => setCodeState(null)}
-          className="hover:text-foreground underline-offset-2 hover:underline"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
   );
 }
 

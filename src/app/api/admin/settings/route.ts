@@ -20,6 +20,13 @@ const EXPOSED_KEYS = [
   'fun_death_messages',
   'death_taunts',
   'spoon_taunts',
+  // Discord role/nickname sync (bot-driven). The remaining role-map keys
+  // (discord_rank_role_map, discord_default_role_*, discord_guest_role_*) stay
+  // out of this whitelist — they need the guild-roles picker, not a plain text box.
+  'discord_role_sync_enabled',
+  'discord_guild_id',
+  'discord_auto_match_rank_by_name',
+  'discord_nickname_sync_enabled',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

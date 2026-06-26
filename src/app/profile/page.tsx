@@ -254,7 +254,7 @@ export default async function ProfilePage() {
           </div>
         )}
 
-        <LinkAccountClient hasAny={linkedAccounts.length > 0} />
+        <LinkAccountClient />
       </section>
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">

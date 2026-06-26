@@ -12,7 +12,7 @@
  */
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings, users } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -136,6 +136,11 @@ interface RoleSyncConfig {
   // rank names ("General", "Captain", "Deputy Owner"), zero rank-role config is
   // needed — this just works.
   autoMatchRankByName: boolean;
+  // When true, on each sync we set the member's Discord server nickname to their
+  // linked RSN(s) — but ONLY if they don't already have a nickname (Discord can't
+  // tell us who set an existing one, so "blank" is the safe proxy for "not set by
+  // an admin"). Gated by the `discord_nickname_sync_enabled` setting.
+  setNicknameOnLink: boolean;
 }
 
 async function readSetting(key: string): Promise<string | null> {
@@ -204,6 +209,7 @@ export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
     defaultRoleNames: parseJsonArray(await readSetting('discord_default_role_names')),
     guestRoleNames: parseJsonArray(await readSetting('discord_guest_role_names')),
     autoMatchRankByName,
+    setNicknameOnLink: (await readSetting('discord_nickname_sync_enabled')) === 'true',
   };
 }
 
@@ -318,6 +324,45 @@ async function getGuildMember(
   return (await res.json()) as DiscordGuildMember;
 }
 
+// Discord server nicknames cap at 32 characters. Join the user's RSNs with " / "
+// (the same alias convention splitDisplayAliases reads back), and if that overflows
+// the cap fall back to just the first (primary) RSN, hard-truncated.
+const DISCORD_NICK_MAX = 32;
+function buildLinkedNickname(rsns: string[]): string | null {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const raw of rsns) {
+    const trimmed = (raw ?? '').trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(trimmed);
+  }
+  if (cleaned.length === 0) return null;
+  const joined = cleaned.join(' / ');
+  if (joined.length <= DISCORD_NICK_MAX) return joined;
+  return cleaned[0].slice(0, DISCORD_NICK_MAX);
+}
+
+// PATCH the member's server nickname. Returns false (and logs) on failure — notably
+// 403 when the target is the guild owner or outranks the bot, which we just skip.
+async function setGuildMemberNick(
+  cfg: RoleSyncConfig,
+  discordUserId: string,
+  nick: string,
+): Promise<boolean> {
+  const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members/${discordUserId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ nick }),
+  });
+  if (!res.ok) {
+    log.warn('discord-roles.set-nick-fail', { status: res.status, discordUserId });
+    return false;
+  }
+  return true;
+}
+
 // Display names sometimes pack multiple RSNs separated by /, |, or comma. We split
 // and trim so a nickname like "Drenvox / Drenvox mdps / Drenvox alt" matches each
 // of the three RSNs independently.
@@ -406,6 +451,8 @@ interface SyncReport {
   discordUserId?: string;
   added: string[];
   removed: string[];
+  // The nickname we set on this sync (RSN(s)), or undefined if we left it alone.
+  nickSet?: string;
 }
 
 /**
@@ -621,7 +668,33 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
       .where(eq(clanMembers.id, member.id));
   }
 
-  return { ok: true, discordUserId, added, removed };
+  // Nickname sync — only when enabled AND the member currently has no nickname, so we
+  // never overwrite one set deliberately (Discord doesn't tell us who set it, so a
+  // blank nick is our proxy for "not set by an admin"). Sets it to the user's verified
+  // RSN(s). Skips silently on any Discord error (e.g. guild owner / outranked bot).
+  let nickSet: string | undefined;
+  if (cfg.setNicknameOnLink && !(currentMember.nick && currentMember.nick.trim())) {
+    const accounts = await db
+      .select({ rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
+      .from(clanMembers)
+      .innerJoin(users, eq(clanMembers.userId, users.id))
+      .where(
+        and(
+          eq(users.discordId, discordUserId),
+          isNull(clanMembers.leftAt),
+          isNotNull(clanMembers.verifiedAt),
+        ),
+      )
+      .orderBy(desc(clanMembers.isPrimary));
+    const rsns = accounts.map((a) => a.rsn);
+    if (rsns.length === 0 && member.rsn) rsns.push(member.rsn);
+    const desired = buildLinkedNickname(rsns);
+    if (desired && (await setGuildMemberNick(cfg, discordUserId, desired))) {
+      nickSet = desired;
+    }
+  }
+
+  return { ok: true, discordUserId, added, removed, nickSet };
 }
 
 /**

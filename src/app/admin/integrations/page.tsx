@@ -1,4 +1,5 @@
 import DiscordSettings from '@/components/DiscordSettings';
+import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
@@ -114,6 +115,22 @@ export default function AdminIntegrationsPage() {
               helpText="On-demand OBS replay clips (captured via the plugin's clip hotkey) are posted here when small enough for Discord. Requires OBS + replay buffer set up by the member."
             />
           </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Discord roles &amp; nicknames</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Bot-driven sync (separate from the webhooks above): give linked members their rank + default
+          Discord roles, and optionally set their nickname to their linked RSN(s). Needs a bot token in
+          the environment plus the server ID. Rank→role-ID maps and default/guest role lists are still
+          settings-driven (no picker UI yet).
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <DiscordRoleSyncSettings />
         </div>
       </section>
 
