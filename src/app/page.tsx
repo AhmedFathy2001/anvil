@@ -17,6 +17,7 @@ import LocalTime from '@/components/LocalTime';
 import EventTimer from '@/components/EventTimer';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { eventTileCount, eventShapeBadge } from '@/lib/utils';
+import { signupWindowState } from '@/lib/signup';
 
 export const dynamic = 'force-dynamic';
 
@@ -314,6 +315,12 @@ export default async function HomePage() {
               {activeEvents.map((event) => {
                 const numTeams = teamCounts.get(event.id) || 0;
                 const stats = activeEventStats.get(event.id);
+                const started = !!event.startDate && event.startDate <= now;
+                const signupsOpen = signupWindowState({
+                  signupOpensAt: event.signupOpensAt,
+                  signupDeadline: event.signupDeadline,
+                  startDate: event.startDate,
+                }).open;
                 return (
                   <Link
                     key={event.id}
@@ -322,14 +329,23 @@ export default async function HomePage() {
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <div className="text-xs uppercase tracking-wider text-text-muted mb-1">Active Bingo</div>
+                        <div className="text-xs uppercase tracking-wider text-text-muted mb-1">
+                          {started ? 'Active Bingo' : 'Upcoming Bingo'}
+                        </div>
                         <h2 className="text-2xl font-bold text-foreground group-hover:text-gold transition-colors">
                           {event.name}
                         </h2>
                       </div>
-                      <span className="text-xs bg-gold/15 text-gold px-2 py-1 rounded-full font-medium">
-                        {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span className="text-xs bg-gold/15 text-gold px-2 py-1 rounded-full font-medium whitespace-nowrap">
+                          {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
+                        </span>
+                        {signupsOpen && (
+                          <span className="text-xs bg-accent-green/15 text-accent-green-light px-2 py-1 rounded-full font-medium whitespace-nowrap">
+                            Sign-ups open
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-muted mb-3">
                       <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>

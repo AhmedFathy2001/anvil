@@ -28,6 +28,9 @@ const GENERAL_WEBHOOK_KEY = 'discord_webhook_url';
 const BINGO_WEBHOOK_KEY = 'discord_webhook_bingo';
 // Dedicated weekly competition (SOTW/BOTW) start/end/winner webhook.
 const WEEKLY_WEBHOOK_KEY = 'discord_webhook_weekly';
+// Dedicated sign-up channel — posts when an admin approves a sign-up, nudging the member to pay
+// their entry fee. No fallback: stays silent until a dedicated webhook is set.
+const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
 
 async function getSettingUrl(key: string): Promise<string | null> {
   try {
@@ -149,6 +152,57 @@ export async function sendWeeklyWebhook(payload: DiscordWebhookPayload): Promise
   const webhookUrl = await getSettingUrl(WEEKLY_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
+}
+
+// Dedicated sign-up channel (no fallback — silent until configured).
+export async function sendSignupWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await getSettingUrl(SIGNUP_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload);
+}
+
+interface SignupApprovedNotifyParams {
+  eventId: number;
+  eventName: string;
+  displayName: string;
+  discordId: string | null;
+  rsn: string;
+  feeAmount: number | null; // gp; null / 0 = free event
+  feeAlreadyPaid: boolean;
+}
+
+// Posted when an admin approves a sign-up. Pings the approved member and nudges them to pay the
+// entry fee so approvals convert into paid, committed seats. Fire-and-forget from the approve action.
+export async function notifySignupApproved(params: SignupApprovedNotifyParams): Promise<boolean> {
+  const { eventId, eventName, displayName, discordId, rsn, feeAmount, feeAlreadyPaid } = params;
+  const base = siteBaseUrl();
+  const signupUrl = base ? `${base}/events/${eventId}/signup` : null;
+  const hasFee = !!feeAmount && feeAmount > 0;
+
+  const lines = [`**${displayName}** (\`${rsn}\`) is approved for **${eventName}**! 🎉`];
+  if (hasFee && !feeAlreadyPaid) {
+    lines.push(
+      '',
+      `💰 Lock your spot — pay the **${feeAmount!.toLocaleString()} gp** entry fee, then report it on the site.`,
+    );
+    if (signupUrl) lines.push(`→ [Pay & report your fee](${signupUrl})`);
+  } else if (hasFee && feeAlreadyPaid) {
+    lines.push('', "✅ Fee already received — you're locked in. Good luck!");
+  }
+
+  const embed: DiscordEmbed = {
+    title: '✅ Sign-up approved',
+    description: lines.join('\n'),
+    color: 0x16a34a, // accent green
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendSignupWebhook({
+    content: discordId ? `<@${discordId}>` : undefined,
+    embeds: [embed],
+    // Ping only the approved member; never @everyone/roles.
+    allowed_mentions: discordId ? { parse: [], users: [discordId] } : { parse: [] },
+  });
 }
 
 export async function sendTestWebhook(webhookUrl: string): Promise<boolean> {

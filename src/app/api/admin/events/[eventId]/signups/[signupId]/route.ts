@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, eventSignups, players, signupFees, teams } from '@/db/schema';
+import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
+import { notifySignupApproved } from '@/lib/discord';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -75,6 +76,35 @@ export async function PATCH(
         .where(eq(eventSignups.id, sigId))
         .returning();
       logAction('signup_approved');
+
+      // Nudge the approved member to pay their fee (incentive to convert + stay active).
+      // Only on a real transition into 'approved' — re-approving an already-approved sign-up
+      // shouldn't re-ping. Fire-and-forget: gather the post's data, then post without blocking
+      // the response; a missing/unconfigured webhook just no-ops, and a Discord hiccup never
+      // fails approval.
+      if (signup.status !== 'approved') void (async () => {
+        try {
+          const [event, user, account, fee] = await Promise.all([
+            db.query.events.findFirst({ where: eq(events.id, evtId) }),
+            db.query.users.findFirst({ where: eq(users.id, signup.userId) }),
+            db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) }),
+            db.query.signupFees.findFirst({ where: eq(signupFees.signupId, sigId) }),
+          ]);
+          if (!event) return;
+          await notifySignupApproved({
+            eventId: evtId,
+            eventName: event.name,
+            displayName: user?.displayName ?? account?.rsn ?? 'A member',
+            discordId: user?.discordId ?? null,
+            rsn: account?.rsn ?? '—',
+            feeAmount: event.signupFee ?? null,
+            feeAlreadyPaid: fee?.status === 'collected' || fee?.status === 'confirmed',
+          });
+        } catch {
+          /* fire-and-forget */
+        }
+      })();
+
       return NextResponse.json({ signup: updated });
     }
 

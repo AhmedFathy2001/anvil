@@ -9,6 +9,7 @@ const EXPOSED_KEYS = [
   'discord_webhook_url',
   'discord_webhook_bingo',
   'discord_webhook_weekly',
+  'discord_webhook_signups',
   'clan_name',
   'webhook_rare_drops',
   'webhook_deaths',

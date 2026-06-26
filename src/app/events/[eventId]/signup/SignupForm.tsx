@@ -130,6 +130,13 @@ export default function SignupForm({
     setter(next);
   }
 
+  // Bulk select all currently-filtered bosses (so "filter raid → select all" adds just the
+  // raids), unioned into whatever's already picked. Clear empties the whole set.
+  const selectAllBosses = () =>
+    setBosses(new Set([...bosses, ...filteredBosses.map((b) => b.key)]));
+  const selectAllSkills = () =>
+    setSkills(new Set(SKILLS.filter((s) => s !== 'overall')));
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -349,6 +356,29 @@ export default function SignupForm({
           disabled={isLocked}
           className="w-full px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
         />
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={selectAllBosses}
+              disabled={isLocked}
+              className="text-xs px-2 py-1 rounded border border-card-border hover:border-gold/40 transition-colors disabled:opacity-50"
+            >
+              {bossFilter.trim() ? 'Select all shown' : 'Select all'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBosses(new Set())}
+              disabled={isLocked || bosses.size === 0}
+              className="text-xs px-2 py-1 rounded border border-card-border hover:border-gold/40 transition-colors disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+          {bosses.size > 0 && (
+            <span className="text-xs text-text-muted">{bosses.size} selected</span>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-64 overflow-y-auto pr-1">
           {filteredBosses.map((b) => {
             const checked = bosses.has(b.key);
@@ -371,14 +401,34 @@ export default function SignupForm({
             );
           })}
         </div>
-        {bosses.size > 0 && (
-          <p className="text-xs text-text-muted">{bosses.size} selected</p>
-        )}
       </fieldset>
 
       {/* Skills */}
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Skills you regularly train</legend>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={selectAllSkills}
+              disabled={isLocked}
+              className="text-xs px-2 py-1 rounded border border-card-border hover:border-gold/40 transition-colors disabled:opacity-50"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSkills(new Set())}
+              disabled={isLocked || skills.size === 0}
+              className="text-xs px-2 py-1 rounded border border-card-border hover:border-gold/40 transition-colors disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+          {skills.size > 0 && (
+            <span className="text-xs text-text-muted">{skills.size} selected</span>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {SKILLS.filter((s) => s !== 'overall').map((s) => {
             const checked = skills.has(s);

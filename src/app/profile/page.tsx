@@ -198,7 +198,7 @@ export default async function ProfilePage() {
         </section>
       )}
 
-      {/* Linked accounts */}
+      {/* Linked accounts — status list */}
       <section className="border border-card-border rounded-xl bg-card-bg p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -213,11 +213,12 @@ export default async function ProfilePage() {
         </div>
 
         {linkedAccounts.length === 0 ? (
-          <div className="mb-4 text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
-            Link an account to participate in events.
+          <div className="text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
+            No account linked yet. On RuneLite, the plugin links it for you automatically — just add
+            your token below. On mobile or the official client, use the manual options.
           </div>
         ) : (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2">
             {linkedAccounts.map((m) => {
               const verified = Boolean(m.verifiedAt);
               const provisional = Boolean(m.provisional);
@@ -252,16 +253,35 @@ export default async function ProfilePage() {
             })}
           </div>
         )}
-
-        <LinkAccountClient />
       </section>
 
-      <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
-        <div className="flex items-center gap-2 mb-4">
+      {/* PRIMARY path: RuneLite plugin token */}
+      <section className="border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
+        <div className="flex items-center gap-2 mb-1">
           <span className="w-1 h-5 bg-gold rounded-full" />
-          <h2 className="text-lg font-semibold">RuneLite plugin token</h2>
+          <h2 className="text-lg font-semibold">RuneLite plugin</h2>
+          <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
+            recommended
+          </span>
         </div>
+        <p className="text-sm text-text-muted mb-4">
+          The easiest way in: paste this token into the Anvil plugin. It links your RuneScape account
+          automatically and tracks your bingo drops — no manual verification needed.
+        </p>
         <PluginPlayerTokenClient />
+      </section>
+
+      {/* Secondary path: no plugin */}
+      <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-1 h-5 bg-text-muted rounded-full" />
+          <h2 className="text-lg font-semibold">Not using RuneLite?</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-4">
+          On mobile or the official client? Link your account here instead — verify by gaining a bit
+          of XP, or request a manual review.
+        </p>
+        <LinkAccountClient />
       </section>
     </div>
   );

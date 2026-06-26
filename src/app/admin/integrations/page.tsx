@@ -121,6 +121,24 @@ export default function AdminIntegrationsPage() {
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-3">
           <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Sign-up approvals webhook</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          When an admin approves a sign-up, a post here pings the member and nudges them to pay their
+          entry fee — turning approvals into committed, paid seats. Leave blank to disable.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <DiscordSettings
+            settingKey="discord_webhook_signups"
+            label="Sign-up approvals channel"
+            helpText="Posts a fee-payment nudge (pinging the member) each time a sign-up is approved."
+          />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
           <h2 className="font-semibold">Discord roles &amp; nicknames</h2>
         </div>
         <p className="text-sm text-text-muted mb-3">
