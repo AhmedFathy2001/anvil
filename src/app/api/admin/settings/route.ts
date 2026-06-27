@@ -28,6 +28,11 @@ const EXPOSED_KEYS = [
   'discord_guild_id',
   'discord_auto_match_rank_by_name',
   'discord_nickname_sync_enabled',
+  // Discord team channels (bot-driven, see lib/discord-teams.ts): per-team roles +
+  // locked voice/text channels, plus the two shared role IDs every event reuses.
+  'discord_team_sync_enabled',
+  'discord_bingo_role_id',
+  'discord_captain_role_id',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

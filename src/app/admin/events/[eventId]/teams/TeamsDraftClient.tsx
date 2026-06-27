@@ -13,6 +13,7 @@ import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
+import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 
@@ -313,6 +314,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
       </div>
+
+      {/* Discord team channels & roles (only renders when the feature is enabled) */}
+      <DiscordTeamProvisioning eventId={event.id} />
 
       {/* Draft */}
       <div className="pt-8 border-t border-card-border">

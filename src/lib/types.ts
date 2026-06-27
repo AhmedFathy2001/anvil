@@ -19,6 +19,7 @@ export interface Event {
   captainSelectionDeadline: string | null;
   scoringMode?: string; // 'tiles' (classic) | 'points'
   format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)
+  discordCategoryId?: string | null; // Discord category holding this event's team channels
 }
 
 export interface Tile {
@@ -50,6 +51,10 @@ export interface Team {
   eventId: number;
   name: string;
   color: string;
+  captainUserId?: number | null;
+  discordRoleId?: string | null;
+  discordTextChannelId?: string | null;
+  discordVoiceChannelId?: string | null;
 }
 
 export interface Player {

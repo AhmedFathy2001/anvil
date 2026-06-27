@@ -148,6 +148,23 @@ async function readSetting(key: string): Promise<string | null> {
   return row?.value ?? null;
 }
 
+/**
+ * Resolve the bot credentials shared by every bot-driven Discord feature (role sync,
+ * nickname sync, team channels). Independent of any feature's enabled flag — callers
+ * gate on their own setting, then call this for the token + guild. Returns null when
+ * the token env or guild ID is missing, which callers treat as "skip silently".
+ *
+ * Guild ID is settings-driven (not env) so admins can change/test without redeploying;
+ * an env override is allowed for local dev.
+ */
+export async function getBotCredentials(): Promise<{ botToken: string; guildId: string } | null> {
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!botToken) return null;
+  const guildId = (await readSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
+  if (!guildId) return null;
+  return { botToken, guildId };
+}
+
 function parseJsonRecord(raw: string | null): Record<string, string> {
   if (!raw) return {};
   try {
@@ -188,21 +205,16 @@ export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
   const enabled = (await readSetting('discord_role_sync_enabled')) === 'true';
   if (!enabled) return null;
 
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!botToken) return null;
-
-  // Guild ID is settings-driven (not env) so admins can change/test without
-  // redeploying. Env override is allowed for local dev.
-  const guildId = (await readSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
-  if (!guildId) return null;
+  const creds = await getBotCredentials();
+  if (!creds) return null;
 
   // Auto-match defaults to true — turn it off by setting the value to literal 'false'.
   const autoMatchRaw = await readSetting('discord_auto_match_rank_by_name');
   const autoMatchRankByName = autoMatchRaw !== 'false';
 
   return {
-    botToken,
-    guildId,
+    botToken: creds.botToken,
+    guildId: creds.guildId,
     rankRoleMap: parseJsonRecord(await readSetting('discord_rank_role_map')),
     defaultRoleIds: parseJsonArray(await readSetting('discord_default_role_ids')),
     guestRoleIds: parseJsonArray(await readSetting('discord_guest_role_ids')),
@@ -251,14 +263,19 @@ function findRoleIdForRankByName(rankKey: string, guildRoles: DiscordRole[]): st
 
 const MAX_RETRY_MS = 5000;
 
-async function discordFetch(
-  cfg: RoleSyncConfig,
+/**
+ * Authenticated Discord REST call with single-shot 429 retry. Shared by every
+ * bot-driven feature (role sync here, team channels in lib/discord-teams.ts) so the
+ * rate-limit handling lives in one place. `path` is appended to the v10 API base.
+ */
+export async function discordRest(
+  botToken: string,
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const url = `${DISCORD_API}${path}`;
   const headers: Record<string, string> = {
-    Authorization: `Bot ${cfg.botToken}`,
+    Authorization: `Bot ${botToken}`,
     'Content-Type': 'application/json',
     ...((init.headers as Record<string, string>) ?? {}),
   };
@@ -281,6 +298,10 @@ async function discordFetch(
     res = await fetch(url, { ...init, headers });
   }
   return res;
+}
+
+function discordFetch(cfg: RoleSyncConfig, path: string, init: RequestInit = {}): Promise<Response> {
+  return discordRest(cfg.botToken, path, init);
 }
 
 // =============================================================================

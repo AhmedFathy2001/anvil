@@ -1,5 +1,6 @@
 import DiscordSettings from '@/components/DiscordSettings';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
+import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
@@ -149,6 +150,22 @@ export default function AdminIntegrationsPage() {
         </p>
         <div className="border border-card-border rounded-xl p-5 bg-card-bg">
           <DiscordRoleSyncSettings />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Discord team channels</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Bot-driven per-team Discord setup. Once enabled, each event&apos;s Teams tab gets a panel to
+          create a private voice + text channel per team (locked to that team&apos;s role), assign the
+          captain role, and — when the draft completes — give every contestant their bingo + team role.
+          Reuses the bot token and Server ID from the section above.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <DiscordTeamChannelSettings />
         </div>
       </section>
 

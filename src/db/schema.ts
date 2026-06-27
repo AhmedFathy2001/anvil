@@ -33,6 +33,10 @@ export const events = sqliteTable('events', {
   //                furthest-reached tile is each team's position.
   // The RuneLite plugin's Anvil clog tab branches its in-game view on this column.
   format: text('format').default('bingo').notNull(),
+  // Discord team-channel provisioning (bot-driven, see lib/discord-teams.ts). The
+  // category channel that holds every team's locked text + voice channels for this
+  // event. Null = not yet provisioned. Cleared on teardown.
+  discordCategoryId: text('discord_category_id'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -101,6 +105,13 @@ export const teams = sqliteTable('teams', {
   // SQLite makes drops painful, but no code reads or writes it.
   captainPassword: text('captain_password'),
   captainUserId: integer('captain_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // Discord team-channel provisioning (bot-driven, see lib/discord-teams.ts). The
+  // dedicated role gating this team's locked channels, plus the channels themselves.
+  // All null until provisioned; cleared on teardown. The role is what contestants on
+  // this team are given so they can see/join the team's text + voice channels.
+  discordRoleId: text('discord_role_id'),
+  discordTextChannelId: text('discord_text_channel_id'),
+  discordVoiceChannelId: text('discord_voice_channel_id'),
 }, (table) => [
   index('teams_event_id_idx').on(table.eventId),
   index('teams_captain_user_id_idx').on(table.captainUserId),

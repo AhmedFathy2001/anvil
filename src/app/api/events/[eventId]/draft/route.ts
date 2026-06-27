@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
 import { notifyDraftComplete } from '@/lib/discord';
+import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 
 export async function GET(
   _request: Request,
@@ -188,6 +189,10 @@ export async function POST(
         eventName: event.name,
         teams: teamsWithPlayers,
       }).catch(() => {}); // Silently ignore errors
+
+      // Roster is final — provision per-team Discord roles/channels (if not already) and
+      // give every contestant their bingo + team role. No-op when the feature is off.
+      syncTeamDiscordOnDraftCompleteFireAndForget(id);
 
       return NextResponse.json({ success: true, status: 'completed' });
     }

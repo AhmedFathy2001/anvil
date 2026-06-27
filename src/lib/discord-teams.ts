@@ -1,0 +1,454 @@
+/**
+ * Discord team-channel provisioning — turns a bingo event's teams into real Discord
+ * infrastructure so each team gets a private voice + text channel, and contestants
+ * are given the roles that gate access to them.
+ *
+ * Three operations, all bot-driven over the REST API (no running bot process):
+ *   1. provision  — create a category for the event, then per team: a role + a locked
+ *                   text channel + a locked voice channel. Captains also get the captain
+ *                   role. Safe to run before the draft ends and re-runnable (idempotent:
+ *                   anything already created is reused, not duplicated).
+ *   2. assign     — give every drafted contestant the shared "bingo" role + their team's
+ *                   role (which unlocks their team channels). Gated on draftStatus
+ *                   === 'completed' since rosters aren't final until then.
+ *   3. teardown   — delete the per-team roles/channels + the event category. Leaves the
+ *                   shared bingo/captain roles alone (they're admin-configured, not ours).
+ *
+ * Feature flag: `discord_team_sync_enabled` setting must be 'true' AND a bot token +
+ * guild ID must be resolvable (see getBotCredentials). Either missing → all ops are
+ * no-ops, so this is safe to deploy before the bot is provisioned.
+ *
+ * Reuses the bot REST helper + credential resolution from lib/discord-roles.ts.
+ */
+import { db } from '@/db';
+import { events, teams, players, clanMembers, users, settings } from '@/db/schema';
+import { and, eq, isNotNull } from 'drizzle-orm';
+import { log } from '@/lib/logger';
+import { discordRest, getBotCredentials } from '@/lib/discord-roles';
+
+// Discord permission bits (https://discord.com/developers/docs/topics/permissions).
+// All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
+// combined value to a decimal string (what the API expects) at the overwrite site.
+const VIEW_CHANNEL = 1 << 10;
+const SEND_MESSAGES = 1 << 11;
+const CONNECT = 1 << 20;
+const SPEAK = 1 << 21;
+
+// Channel types.
+const CHANNEL_TEXT = 0;
+const CHANNEL_VOICE = 2;
+const CHANNEL_CATEGORY = 4;
+
+// Permission-overwrite target types.
+const OVERWRITE_ROLE = 0;
+
+interface TeamChannelConfig {
+  botToken: string;
+  guildId: string;
+  // The shared role every contestant in the event gets. Admin-configured; not created
+  // or deleted by us. Null = skip assigning it.
+  bingoRoleId: string | null;
+  // The shared role every team captain gets. Admin-configured. Null = skip.
+  captainRoleId: string | null;
+}
+
+async function readSetting(key: string): Promise<string | null> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+  return row?.value ?? null;
+}
+
+/**
+ * Resolve live config. Returns null when the feature is disabled OR the bot
+ * credentials are missing — callers treat that as "skip silently".
+ */
+export async function loadTeamChannelConfig(): Promise<TeamChannelConfig | null> {
+  const enabled = (await readSetting('discord_team_sync_enabled')) === 'true';
+  if (!enabled) return null;
+  const creds = await getBotCredentials();
+  if (!creds) return null;
+  return {
+    botToken: creds.botToken,
+    guildId: creds.guildId,
+    bingoRoleId: (await readSetting('discord_bingo_role_id')) || null,
+    captainRoleId: (await readSetting('discord_captain_role_id')) || null,
+  };
+}
+
+// =============================================================================
+// Discord helpers
+// =============================================================================
+
+/** '#rrggbb' (or 'rrggbb') → the integer Discord wants for a role colour. 0 on parse fail. */
+function hexColorToInt(hex: string | null | undefined): number {
+  if (!hex) return 0;
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  return m ? parseInt(m[1], 16) : 0;
+}
+
+// Text channel names must be lowercase, no spaces. Collapse to a kebab slug and trim to
+// Discord's 100-char channel-name cap (a slug that long is already pathological).
+function channelSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return (slug || 'team').slice(0, 100);
+}
+
+async function createRole(
+  cfg: TeamChannelConfig,
+  name: string,
+  color: number,
+): Promise<string | null> {
+  const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({ name: name.slice(0, 100), color, mentionable: true, hoist: false }),
+  });
+  if (!res.ok) {
+    log.warn('discord-teams.create-role-fail', { status: res.status, name });
+    return null;
+  }
+  const role = (await res.json()) as { id: string };
+  return role.id;
+}
+
+interface CreateChannelOpts {
+  name: string;
+  type: number;
+  parentId?: string | null;
+  // Role IDs that may see/use the channel. Everyone else (@everyone) is denied view.
+  allowRoleIds: string[];
+  // Permission bits to grant the allowed roles (on top of VIEW_CHANNEL).
+  allowBits: number;
+}
+
+async function createChannel(
+  cfg: TeamChannelConfig,
+  opts: CreateChannelOpts,
+): Promise<string | null> {
+  const overwrites: { id: string; type: number; allow?: string; deny?: string }[] = [
+    // @everyone (role id == guild id) can't even see the channel.
+    { id: cfg.guildId, type: OVERWRITE_ROLE, deny: String(VIEW_CHANNEL) },
+  ];
+  for (const roleId of opts.allowRoleIds) {
+    overwrites.push({
+      id: roleId,
+      type: OVERWRITE_ROLE,
+      allow: String(VIEW_CHANNEL | opts.allowBits),
+    });
+  }
+  const body: Record<string, unknown> = {
+    name: opts.name.slice(0, 100),
+    type: opts.type,
+    permission_overwrites: overwrites,
+  };
+  if (opts.parentId) body.parent_id = opts.parentId;
+
+  const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/channels`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    log.warn('discord-teams.create-channel-fail', { status: res.status, name: opts.name });
+    return null;
+  }
+  const channel = (await res.json()) as { id: string };
+  return channel.id;
+}
+
+async function addRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<void> {
+  const res = await discordRest(
+    cfg.botToken,
+    `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`,
+    { method: 'PUT' },
+  );
+  if (!res.ok) {
+    log.warn('discord-teams.add-role-fail', { status: res.status, discordUserId, roleId });
+  }
+}
+
+// DELETE a role or channel; 404 (already gone) is treated as success. Returns false only
+// on a real error so teardown can keep the DB column populated for a retry.
+async function deleteResource(cfg: TeamChannelConfig, path: string): Promise<boolean> {
+  const res = await discordRest(cfg.botToken, path, { method: 'DELETE' });
+  if (res.ok || res.status === 404) return true;
+  log.warn('discord-teams.delete-fail', { status: res.status, path });
+  return false;
+}
+
+// =============================================================================
+// Discord-id resolution
+// =============================================================================
+
+async function discordIdForUserId(userId: number | null | undefined): Promise<string | null> {
+  if (userId == null) return null;
+  const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return u?.discordId ?? null;
+}
+
+/**
+ * Resolve a Discord user ID for a player. Priority mirrors discord-roles.ts:
+ *   1) players.clanMemberId → clan_members.userId → users.discordId (OAuth-linked)
+ *   2) clan_members.discordId (legacy/cached match)
+ * Returns null when neither produces one — caller skips that player.
+ */
+async function discordIdForPlayerClanMember(clanMemberId: number | null): Promise<string | null> {
+  if (clanMemberId == null) return null;
+  const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  if (!cm) return null;
+  const viaOauth = await discordIdForUserId(cm.userId);
+  if (viaOauth) return viaOauth;
+  return cm.discordId ?? null;
+}
+
+// =============================================================================
+// Provision
+// =============================================================================
+
+export interface ProvisionReport {
+  ok: boolean;
+  reason?: string;
+  categoryId?: string;
+  // Per-team summary of what now exists (created this run or already present).
+  teams: { teamId: number; name: string; roleId?: string; textChannelId?: string; voiceChannelId?: string }[];
+  captainsAssigned: number;
+}
+
+/**
+ * Create (or reuse) the Discord category + per-team role + locked text/voice channels for
+ * an event, and give each team captain the captain role + their team role. Idempotent —
+ * anything already recorded on the row is left as-is. Persists new IDs as it goes so a
+ * partial failure (rate limit, perms) leaves a resumable state.
+ */
+export async function provisionTeamDiscord(eventId: number): Promise<ProvisionReport> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', teams: [], captainsAssigned: 0 };
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
+
+  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  if (eventTeams.length === 0) {
+    return { ok: false, reason: 'no teams to provision', teams: [], captainsAssigned: 0 };
+  }
+
+  // 1) Category (one per event).
+  let categoryId = event.discordCategoryId;
+  if (!categoryId) {
+    categoryId = await createChannel(cfg, {
+      name: event.name,
+      type: CHANNEL_CATEGORY,
+      allowRoleIds: [],
+      allowBits: 0,
+    });
+    if (!categoryId) {
+      return { ok: false, reason: 'could not create category', teams: [], captainsAssigned: 0 };
+    }
+    await db.update(events).set({ discordCategoryId: categoryId }).where(eq(events.id, eventId));
+  }
+
+  // 2) Per-team role + channels.
+  const teamReports: ProvisionReport['teams'] = [];
+  let captainsAssigned = 0;
+
+  for (const team of eventTeams) {
+    let roleId = team.discordRoleId;
+    if (!roleId) {
+      roleId = await createRole(cfg, team.name, hexColorToInt(team.color));
+      if (roleId) await db.update(teams).set({ discordRoleId: roleId }).where(eq(teams.id, team.id));
+    }
+
+    let textChannelId = team.discordTextChannelId;
+    if (!textChannelId && roleId) {
+      textChannelId = await createChannel(cfg, {
+        name: channelSlug(team.name),
+        type: CHANNEL_TEXT,
+        parentId: categoryId,
+        allowRoleIds: [roleId],
+        allowBits: SEND_MESSAGES,
+      });
+      if (textChannelId) {
+        await db.update(teams).set({ discordTextChannelId: textChannelId }).where(eq(teams.id, team.id));
+      }
+    }
+
+    let voiceChannelId = team.discordVoiceChannelId;
+    if (!voiceChannelId && roleId) {
+      voiceChannelId = await createChannel(cfg, {
+        name: team.name,
+        type: CHANNEL_VOICE,
+        parentId: categoryId,
+        allowRoleIds: [roleId],
+        allowBits: CONNECT | SPEAK,
+      });
+      if (voiceChannelId) {
+        await db.update(teams).set({ discordVoiceChannelId: voiceChannelId }).where(eq(teams.id, team.id));
+      }
+    }
+
+    // Captain: give them the captain role + their team role (so they can see the channels
+    // before the draft even ends). Resolved off the Discord-linked captain user.
+    if (roleId && team.captainUserId != null) {
+      const captainDiscordId = await discordIdForUserId(team.captainUserId);
+      if (captainDiscordId) {
+        if (cfg.captainRoleId) await addRole(cfg, captainDiscordId, cfg.captainRoleId);
+        await addRole(cfg, captainDiscordId, roleId);
+        if (cfg.bingoRoleId) await addRole(cfg, captainDiscordId, cfg.bingoRoleId);
+        captainsAssigned++;
+      }
+    }
+
+    teamReports.push({
+      teamId: team.id,
+      name: team.name,
+      roleId: roleId ?? undefined,
+      textChannelId: textChannelId ?? undefined,
+      voiceChannelId: voiceChannelId ?? undefined,
+    });
+  }
+
+  return { ok: true, categoryId, teams: teamReports, captainsAssigned };
+}
+
+// =============================================================================
+// Assign rosters
+// =============================================================================
+
+export interface AssignReport {
+  ok: boolean;
+  reason?: string;
+  assigned: number;
+  skipped: number;
+}
+
+/**
+ * Give every drafted contestant the shared bingo role + their team's role. Requires the
+ * draft to be completed (rosters are final) and the teams to be provisioned (each team
+ * must have a discordRoleId). Players whose Discord account can't be resolved are skipped.
+ */
+export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+  if (event.draftStatus !== 'completed') {
+    return { ok: false, reason: 'draft is not completed', assigned: 0, skipped: 0 };
+  }
+
+  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const roleByTeam = new Map<number, string>();
+  for (const t of eventTeams) if (t.discordRoleId) roleByTeam.set(t.id, t.discordRoleId);
+  if (roleByTeam.size === 0) {
+    return { ok: false, reason: 'teams not provisioned — run provision first', assigned: 0, skipped: 0 };
+  }
+
+  // Only drafted players (teamId set).
+  const drafted = await db
+    .select()
+    .from(players)
+    .where(and(eq(players.eventId, eventId), isNotNull(players.teamId)));
+
+  let assigned = 0;
+  let skipped = 0;
+  for (const player of drafted) {
+    const teamRoleId = player.teamId != null ? roleByTeam.get(player.teamId) : undefined;
+    if (!teamRoleId) {
+      skipped++;
+      continue;
+    }
+    const discordId = await discordIdForPlayerClanMember(player.clanMemberId);
+    if (!discordId) {
+      skipped++;
+      continue;
+    }
+    if (cfg.bingoRoleId) await addRole(cfg, discordId, cfg.bingoRoleId);
+    await addRole(cfg, discordId, teamRoleId);
+    assigned++;
+  }
+
+  return { ok: true, assigned, skipped };
+}
+
+// =============================================================================
+// Teardown
+// =============================================================================
+
+export interface TeardownReport {
+  ok: boolean;
+  reason?: string;
+  rolesDeleted: number;
+  channelsDeleted: number;
+  categoryDeleted: boolean;
+}
+
+/**
+ * Delete the per-team roles + channels and the event category, clearing the stored IDs.
+ * Leaves the shared bingo/captain roles untouched (admin-owned). Deleting a role
+ * auto-strips it from members, so contestants lose channel access cleanly.
+ */
+export async function teardownTeamDiscord(eventId: number): Promise<TeardownReport> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) {
+    return { ok: false, reason: 'team sync disabled or unconfigured', rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false };
+  }
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false };
+
+  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+
+  let rolesDeleted = 0;
+  let channelsDeleted = 0;
+
+  for (const team of eventTeams) {
+    const cleared: Partial<typeof teams.$inferInsert> = {};
+    if (team.discordTextChannelId) {
+      if (await deleteResource(cfg, `/channels/${team.discordTextChannelId}`)) {
+        channelsDeleted++;
+        cleared.discordTextChannelId = null;
+      }
+    }
+    if (team.discordVoiceChannelId) {
+      if (await deleteResource(cfg, `/channels/${team.discordVoiceChannelId}`)) {
+        channelsDeleted++;
+        cleared.discordVoiceChannelId = null;
+      }
+    }
+    if (team.discordRoleId) {
+      if (await deleteResource(cfg, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`)) {
+        rolesDeleted++;
+        cleared.discordRoleId = null;
+      }
+    }
+    if (Object.keys(cleared).length > 0) {
+      await db.update(teams).set(cleared).where(eq(teams.id, team.id));
+    }
+  }
+
+  let categoryDeleted = false;
+  if (event.discordCategoryId) {
+    if (await deleteResource(cfg, `/channels/${event.discordCategoryId}`)) {
+      categoryDeleted = true;
+      await db.update(events).set({ discordCategoryId: null }).where(eq(events.id, eventId));
+    }
+  }
+
+  return { ok: true, rolesDeleted, channelsDeleted, categoryDeleted };
+}
+
+/**
+ * Fire-and-forget: provision then assign, for use from the draft-complete handler. Errors
+ * are swallowed into the log so a Discord-side outage can't fail ending the draft. No-op
+ * when the feature is disabled (loadTeamChannelConfig returns null inside each call).
+ */
+export function syncTeamDiscordOnDraftCompleteFireAndForget(eventId: number): void {
+  (async () => {
+    const cfg = await loadTeamChannelConfig();
+    if (!cfg) return; // feature off — skip entirely
+    await provisionTeamDiscord(eventId);
+    await assignTeamRoles(eventId);
+  })().catch((err) => {
+    log.warn('discord-teams.draft-complete-sync-throw', { eventId }, err);
+  });
+}
