@@ -1,0 +1,83 @@
+# Contributing to Anvil
+
+Thanks for your interest in improving Anvil — the open-source clan-operations
+platform for Old School RuneScape clans. Contributions of all sizes are welcome:
+bug fixes, features, docs, and plugin improvements.
+
+## Ground rules
+
+- Be respectful. This is a hobby project run by and for the OSRS community.
+- The author attribution in the site footer is required by the [LICENSE](LICENSE)
+  and must stay in place. Everything else is fair game to change.
+- Keep PRs focused — one logical change per pull request is easier to review.
+
+## Project layout
+
+This repo contains two separate projects:
+
+- The **web app** (Next.js 16 / React 19 / Drizzle ORM on libSQL) at the root.
+- The **RuneLite plugin** (Java / Gradle) under `plugin/`, which is tracked in
+  its own git repository. See [`plugin/README.md`](plugin/README.md).
+
+See the [README](README.md) for the full repository map and stack details.
+
+## Local development
+
+1. **Prerequisites:** Node 20+, npm, and a libSQL database (a free
+   [Turso](https://turso.tech) database, or a local SQLite file).
+2. **Install:** `npm install`
+3. **Configure:** copy `.env.example` to `.env.local` and fill in the values.
+   Every variable is documented in that file. For local dev you mainly need the
+   `TURSO_*` database vars; session secrets fall back to dev placeholders.
+4. **Migrate:** `npm run db:push` applies the schema to your database.
+5. **Run:** `npm run dev` — the app serves on http://localhost:3000.
+
+A full self-hosting / deployment guide lives in
+[`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
+
+## Database changes
+
+The schema lives in `src/db/schema.ts`. After editing it:
+
+```bash
+npm run db:generate   # creates a new drizzle/NNNN_*.sql migration + meta snapshot
+npm run db:push       # applies it
+```
+
+Commit the generated migration files alongside the schema change. For
+`ALTER TABLE ... ADD ... NOT NULL` on existing tables, hand-edit the migration to
+include a backfill default (SQLite requirement) — see existing migrations for
+examples.
+
+## Making clan-specific values configurable
+
+Anvil is built to be self-hosted by any clan, so **don't hardcode clan-specific
+values** (Discord server/role IDs, invite links, clan names, RSNs). Put them
+behind:
+
+- the `settings` table (admin-editable at `/admin/integrations` or `/admin/clan`),
+  exposed via the whitelist in `src/app/api/admin/settings/route.ts`, **or**
+- an environment variable documented in `.env.example`.
+
+## Code style
+
+- TypeScript throughout. Run `npm run lint` before opening a PR.
+- API routes use async params (`{ params: Promise<{ id: string }> }`) per
+  Next.js 16.
+- Dates are stored as ISO UTC text strings.
+- Match the surrounding code's conventions (the gold accent theme, section header
+  bars, fire-and-forget Discord notifications, etc.).
+
+## Submitting a pull request
+
+1. Fork the repo and create a branch off `main`.
+2. Make your change, including any docs and migrations.
+3. Run `npm run lint` and `npm run build` to confirm it compiles.
+4. Open a PR describing **what** changed and **why**. Screenshots help for UI
+   changes.
+
+## Reporting bugs / requesting features
+
+Open a GitHub issue with clear reproduction steps (for bugs) or a description of
+the use case (for features). For plugin issues, mention your RuneLite version and
+which clan instance / Site URL you're pointing at.

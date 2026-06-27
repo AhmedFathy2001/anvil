@@ -46,6 +46,10 @@ public/uploads/*
 *.db-wal
 *.db-shm
 
+# data exports / backups (may contain real player data — never commit)
+*_backup_*.json
+weekly_participants_backup_*.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

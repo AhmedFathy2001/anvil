@@ -10,7 +10,7 @@ via a companion RuneLite plugin.
 - **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript
 - **Drizzle ORM** on SQLite via **libSQL / Turso**
 - **Tailwind CSS 4** (custom gold/brown theme)
-- **bcryptjs** for user auth, **HMAC-signed tokens** for admin/captain/player sessions
+- **Discord OAuth** for login, **HMAC-signed tokens** for admin/captain/player sessions
 - Deployed on **Vercel**; scheduled refresh jobs via `vercel.json`
 - Companion **RuneLite plugin** (Java / Gradle) in `plugin/` that auto-submits drops
   and syncs the clan roster
@@ -57,10 +57,12 @@ plugin/               RuneLite plugin sources (separate Gradle project)
    This applies every file in `drizzle/*.sql` against the database. After any
    schema change, run `npx drizzle-kit generate` to produce a new migration file.
 
-4. **Seed a first admin**. Set `ADMIN_PASSWORD` in `.env.local`, start the app,
-   and log in at `/admin` with any username + that password. The first successful
-   login creates a bootstrap admin row; you can then manage users at
-   `/admin/users` and unset `ADMIN_PASSWORD`.
+4. **Seed a first admin**. Login is **Discord OAuth only**. Set
+   `ADMIN_DISCORD_ID` in `.env.local` to your own Discord user ID, configure the
+   Discord OAuth vars (see `.env.example`), then sign in at `/login`. The first
+   sign-in matching that ID is promoted to `admin`. Unset `ADMIN_DISCORD_ID`
+   afterward so nobody else can self-promote. Full walkthrough in
+   [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
 
 5. **Start the dev server**
    ```bash
@@ -154,10 +156,13 @@ On Vercel:
    (Production + Preview).
 3. Create a Blob store and copy `BLOB_READ_WRITE_TOKEN` into the env.
 4. Add your Turso database URL + auth token.
-5. Deploy. On first deploy, visit `/admin` and log in with `ADMIN_PASSWORD` to
-   seed the first admin.
+5. Deploy. On first deploy, set `ADMIN_DISCORD_ID` to your Discord user ID and
+   sign in at `/login` to seed the first admin (then unset it).
 6. Run migrations: `npx drizzle-kit push` (either locally with prod creds or via
    a CI step). Migrations are not auto-applied on deploy.
+
+See [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) for the full clan-by-clan
+deployment walkthrough, including non-Vercel hosting notes.
 
 Cron jobs are declared in `vercel.json` and are scheduled automatically.
 
@@ -167,3 +172,20 @@ Cron jobs are declared in `vercel.json` and are scheduled automatically.
 - Dates stored as ISO UTC text strings
 - Discord notifications fire-and-forget (`.catch(() => {})`)
 - Gold is the accent colour. Section headers use `<span className="w-1 h-5 bg-gold rounded-full" />`.
+- **No hardcoded clan-specific values.** Discord IDs/invites, the clan name,
+  webhooks, and role maps are all admin-editable (`settings` table) or env-driven.
+
+## Contributing
+
+Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for local
+setup, the database-migration workflow, and PR guidelines.
+
+## License
+
+Released under the [MIT License with an Attribution requirement](LICENSE). You're
+free to self-host, modify, and redistribute Anvil; the only condition is that the
+**"Built by Ahmed Fathy"** credit in the site footer stays visible. The optional
+"Buy me a coffee" link may be removed or replaced.
+
+Built by [Ahmed Fathy](https://github.com/AhmedFathy2001). If Anvil saved your
+clan some time, you can [buy me a coffee](https://buymeacoffee.com/ahmedfathy2001) ☕.
