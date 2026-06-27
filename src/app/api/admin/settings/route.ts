@@ -11,6 +11,10 @@ const EXPOSED_KEYS = [
   'discord_webhook_weekly',
   'discord_webhook_signups',
   'clan_name',
+  // Public Discord invite shown in the nav + home quick links. Hidden when blank.
+  'discord_invite_url',
+  // Role pinged on bingo event start/finish posts. Blank = no ping.
+  'discord_member_ping_role_id',
   'webhook_rare_drops',
   'webhook_deaths',
   'webhook_combat_achievements',

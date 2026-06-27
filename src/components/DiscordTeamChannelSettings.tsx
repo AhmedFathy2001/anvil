@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 
-// Sensible defaults for this clan's existing shared roles — prefilled when nothing is
-// saved yet so the admin can just hit Save. Both are editable.
-const DEFAULT_BINGO_ROLE_ID = '1466184936934609008';
-const DEFAULT_CAPTAIN_ROLE_ID = '1520258702139986101';
+// No baked-in defaults — these are clan-specific Discord role IDs each instance enters once.
+const DEFAULT_BINGO_ROLE_ID = '';
+const DEFAULT_CAPTAIN_ROLE_ID = '';
 
 // Mirrors loadTeamChannelConfig() in lib/discord-teams.ts. The bot token + server ID
 // come from the "Discord roles & nicknames" section / env — this section reuses them.

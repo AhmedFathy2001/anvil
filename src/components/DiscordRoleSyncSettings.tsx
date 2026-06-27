@@ -144,7 +144,7 @@ export default function DiscordRoleSyncSettings() {
         <Input
           value={guildId}
           onChange={(e) => setGuildId(e.target.value)}
-          placeholder="e.g. 1324522160315961365"
+          placeholder="e.g. 123456789012345678"
           className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
         />
         <p className="text-xs text-text-muted mt-1">

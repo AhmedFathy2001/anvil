@@ -503,8 +503,12 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
   return sendBingoWebhook({ embeds: [embed] });
 }
 
-// Role pinged on event start/finish posts. The member role so the whole clan is notified.
-const MEMBER_ROLE_ID = '1441294849369309274';
+// Role pinged on event start/finish posts so the whole clan is notified. Clan-specific, so it's
+// settings-driven (admin UI) with an env fallback; no role is pinged when neither is set.
+const MEMBER_ROLE_KEY = 'discord_member_ping_role_id';
+async function memberPingRoleId(): Promise<string | null> {
+  return (await getSettingUrl(MEMBER_ROLE_KEY)) || process.env.DISCORD_MEMBER_ROLE_ID?.trim() || null;
+}
 
 // Public site origin, derived from the OAuth redirect URI (cron has no request context to read a
 // host header from). Used to build deep links into the app for Discord posts. Null if unconfigured.
@@ -531,10 +535,15 @@ function pushLeaderboardField(fields: { name: string; value: string; inline?: bo
 }
 
 // Ping the member role: explicit allowed_mentions so it notifies reliably and nothing else pings.
-const memberPing = (): Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'> => ({
-  content: `<@&${MEMBER_ROLE_ID}>`,
-  allowed_mentions: { parse: [], roles: [MEMBER_ROLE_ID] },
-});
+// Returns no content when no role is configured, so the post simply goes out without a ping.
+const memberPing = async (): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> => {
+  const roleId = await memberPingRoleId();
+  if (!roleId) return {};
+  return {
+    content: `<@&${roleId}>`,
+    allowed_mentions: { parse: [], roles: [roleId] },
+  };
+};
 
 interface EventStartNotifyParams {
   eventId: number;
@@ -565,7 +574,7 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     timestamp: new Date().toISOString(),
   };
 
-  return sendBingoWebhook({ ...memberPing(), embeds: [embed] });
+  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
 }
 
 interface EventEndNotifyParams {
@@ -630,7 +639,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     timestamp: new Date().toISOString(),
   };
 
-  return sendBingoWebhook({ ...memberPing(), embeds: [embed] });
+  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----

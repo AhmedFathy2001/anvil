@@ -5,6 +5,7 @@ import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
+import PlainSetting from '@/components/PlainSetting';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,31 @@ export default function AdminIntegrationsPage() {
           Clan → Roster.
         </p>
       </header>
+
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="font-semibold">Clan identity</h2>
+        </div>
+        <p className="text-sm text-text-muted mb-3">
+          Public-facing links shown across the site. Leave the invite blank to hide the Discord
+          links entirely. The clan name itself lives under Clan → Roster.
+        </p>
+        <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-6">
+          <PlainSetting
+            settingKey="discord_invite_url"
+            label="Discord invite URL"
+            placeholder="https://discord.gg/your-invite"
+            helpText="Shown as the Discord link in the top nav and on the home page. Hidden when blank."
+          />
+          <PlainSetting
+            settingKey="discord_member_ping_role_id"
+            label="Member ping role ID"
+            placeholder="e.g. 123456789012345678"
+            helpText="Role pinged when a bingo event starts or finishes. Leave blank for no ping."
+          />
+        </div>
+      </section>
 
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-3">

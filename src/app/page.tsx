@@ -31,6 +31,11 @@ export default async function HomePage() {
   const clanNameRow = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
   const clanName = clanNameRow?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
 
+  // Clan-specific Discord invite — admin-configurable with an env fallback; the quick link is
+  // omitted entirely when neither is set.
+  const inviteRow = await db.query.settings.findFirst({ where: eq(settings.key, 'discord_invite_url') });
+  const discordInvite = inviteRow?.value?.trim() || process.env.DISCORD_INVITE_URL?.trim() || null;
+
   const allEvents = await db.select().from(events).orderBy(desc(events.createdAt));
 
   const teamCounts = new Map<number, number>();
@@ -401,7 +406,7 @@ export default async function HomePage() {
         <QuickLink href="/weekly" emoji="🏆" label="Weekly" />
         <QuickLink href="/captain" emoji="⚔️" label="Captain" />
         <QuickLink href="/profile" emoji="👤" label="My Profile" />
-        <QuickLink href="https://discord.gg/xvuhwTGZyR" emoji="💬" label="Discord" external />
+        {discordInvite && <QuickLink href={discordInvite} emoji="💬" label="Discord" external />}
       </section>
 
       {/* Past events — secondary */}
