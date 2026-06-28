@@ -12,8 +12,8 @@ via a companion RuneLite plugin.
 - **Tailwind CSS 4** (custom gold/brown theme)
 - **Discord OAuth** for login, **HMAC-signed tokens** for admin/captain/player sessions
 - Deployed on **Vercel**; scheduled refresh jobs via `vercel.json`
-- Companion **RuneLite plugin** (Java / Gradle) in `plugin/` that auto-submits drops
-  and syncs the clan roster
+- Companion **RuneLite plugin** (Java / Gradle, in a [separate repo](https://github.com/AhmedFathy2001/anvil-plugin))
+  that auto-submits drops and syncs the clan roster
 
 ## Repository layout
 
@@ -27,8 +27,9 @@ src/
   middleware.ts       Edge middleware: admin/captain/player route protection
 drizzle/              Generated SQL migrations + meta snapshots
 scripts/              Node scripts runnable via `npx tsx`
-plugin/               RuneLite plugin sources (separate Gradle project)
 ```
+
+The companion RuneLite plugin lives in its own repository (see below).
 
 ## Prerequisites
 
@@ -142,11 +143,11 @@ npx tsx scripts/backfill-clan-members.ts
 
 ## RuneLite plugin
 
-The plugin source lives in `plugin/`. Build with `./gradlew build`. The built
-jar lands in `plugin/build/libs/`. Drop it into RuneLite's sideloaded-plugins
-directory to test locally. See `plugin/README.md` for the plugin-specific
-install notes and `PLUGIN_BACKLOG.md` for the shared feature backlog between
-the two sessions.
+The companion RuneLite plugin lives in its **own repository**
+([anvil-plugin](https://github.com/AhmedFathy2001/anvil-plugin)) — it is not part
+of this repo. Self-hosters just point the plugin's **Site URL** setting at their
+instance; see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md). Build it locally
+with `./gradlew build` (jar lands in `build/libs/`).
 
 ## Deployment
 
