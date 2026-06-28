@@ -172,7 +172,7 @@ export default async function RootLayout({
               </a>
             </p>
             <a
-              href="https://buymeacoffee.com/ahmedfathy2001"
+              href="https://buymeacoffee.com/ahmedfathy"
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-md bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30 transition-all flex items-center gap-1.5"

@@ -126,7 +126,7 @@ export default function EventForm() {
           onChange={(e) => setName(e.target.value)}
           required
           className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-          placeholder="The AFK Spot Bingo"
+          placeholder="Summer Bingo 2026"
         />
       </div>
 

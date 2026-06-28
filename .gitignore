@@ -58,15 +58,8 @@ next-env.d.ts
 /plugin/
 sounds/
 leagues-bingo-tiles.csv
-anvil-reddit-post.md
 assets/
-docs/examples/leagues-bingo-marathon.csv
 
-# Internal planning notes & local dev files (kept locally, not part of the project)
-/anvil_hub_plan.md
-/plugin_plan.md
-/plugin_clog_plan.md
-/plugin_notifications_plan.md
-/PLUGIN_BACKLOG.md
+# Local dev files (kept locally, not part of the project)
 /bingo_items_points.csv
 .vscode/
