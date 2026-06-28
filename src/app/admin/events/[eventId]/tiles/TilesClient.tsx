@@ -9,8 +9,33 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
-import TileGridEditor from '@/components/TileGridEditor';
 import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+
+// Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
+// and the Quick Build two-pane editor so both drive the exact same complete config form.
+function tileToTrackingInitial(tile: Tile) {
+  return {
+    label: tile.label,
+    description: tile.description ?? null,
+    tileType: tile.tileType || 'standard',
+    requiredAmount: tile.requiredAmount ?? null,
+    trackedStat: tile.trackedStat ?? null,
+    statType: tile.statType ?? null,
+    statGoal: tile.statGoal ?? null,
+    trackingMode: tile.trackingMode || 'team',
+    optional: !!tile.optional,
+    trackedItemIds: tile.trackedItemIds ? (JSON.parse(tile.trackedItemIds) as number[]) : null,
+    itemRequirements: tile.itemRequirements
+      ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[])
+      : null,
+    points: tile.points ?? 1,
+    category: tile.category ?? null,
+    sourceNpcs: tile.sourceNpcs ? (JSON.parse(tile.sourceNpcs) as string[]) : null,
+    targetNpcs: tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : null,
+    timedActivity: tile.timedActivity ?? null,
+    timeThresholdSeconds: tile.timeThresholdSeconds ?? null,
+  };
+}
 
 interface Props {
   event: Event;
@@ -28,6 +53,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   const [adding, setAdding] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
@@ -62,6 +89,44 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     } finally {
       setAdding(false);
     }
+  }
+
+  // Bulk-create N blank tiles (or one per pasted label) for the Quick Build list. Sequential so
+  // each POST computes the next board position server-side without racing. Selects the first new
+  // tile so the editor lands on it.
+  async function bulkCreate(labels: (string | null)[]) {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const created: Tile[] = [];
+      for (const label of labels) {
+        const res = await fetch(`/api/events/${event.id}/tiles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(label ? { label } : {}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setImportMsg({ type: 'error', text: data.error || 'Could not add tiles.' });
+          break;
+        }
+        created.push(data as Tile);
+      }
+      if (created.length) {
+        setLocalTiles((prev) => [...prev, ...created]);
+        setEditingTileId(created[0].id);
+      }
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function applyPasteLabels() {
+    const labels = pasteText.split('\n').map((s) => s.trim()).filter(Boolean);
+    setPasteOpen(false);
+    setPasteText('');
+    if (labels.length) void bulkCreate(labels);
   }
 
   async function handleDeleteTile(tileId: number) {
@@ -304,7 +369,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 onClick={() => setViewMode('grid')}
                 className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
               >
-                Grid
+                ⚡ Quick build
               </button>
             </div>
             {dynamicBoard && viewMode === 'cards' && (
@@ -321,24 +386,77 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
 
         {viewMode === 'grid' ? (
-          <TileGridEditor
-            eventId={event.id}
-            tiles={localTiles}
-            canAddRows={canEditTileSet}
-            eventStarted={eventStarted}
-            onSaved={async () => {
-              try {
-                const refreshed = await fetch(`/api/events/${event.id}/tiles`);
-                if (refreshed.ok) {
-                  const fresh = (await refreshed.json()) as Tile[];
-                  setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
-                }
-              } catch {
-                /* router.refresh below still re-syncs */
-              }
-              router.refresh();
-            }}
-          />
+          <div className="flex flex-col lg:flex-row gap-4 items-start">
+            {/* Left: tile list + bulk create */}
+            <div className="w-full lg:w-72 shrink-0 flex flex-col border border-card-border rounded-xl bg-card-bg overflow-hidden">
+              <div className="p-2.5 border-b border-card-border flex items-center gap-1.5 flex-wrap">
+                {canEditTileSet ? (
+                  <>
+                    <button onClick={() => bulkCreate([null])} disabled={adding} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50">+ Row</button>
+                    <button onClick={() => bulkCreate(Array(10).fill(null))} disabled={adding} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50">+ 10</button>
+                    <button onClick={() => setPasteOpen(true)} disabled={adding} className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50">Paste labels…</button>
+                  </>
+                ) : (
+                  <span className="text-[11px] text-text-muted px-1">{eventStarted ? 'Board locked — event started' : 'Fixed board'}</span>
+                )}
+                {adding && <span className="text-[11px] text-text-muted">working…</span>}
+              </div>
+              <ul className="overflow-y-auto max-h-[72vh]">
+                {localTiles.map((t) => {
+                  const k = tileKind(t);
+                  const sel = editingTileId === t.id;
+                  return (
+                    <li key={t.id}>
+                      <button
+                        onClick={() => setEditingTileId(t.id)}
+                        className={`w-full text-left px-2.5 py-2 flex items-center gap-2 border-b border-card-border/40 transition-colors ${sel ? 'bg-gold/10' : 'hover:bg-card-bg-hover'}`}
+                      >
+                        <span className="text-[10px] font-mono text-text-muted w-7 shrink-0">#{t.position + 1}</span>
+                        <span className={`flex-1 truncate text-sm ${sel ? 'text-gold font-medium' : 'text-foreground'}`}>{t.label}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+                {localTiles.length === 0 && (
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
+                )}
+              </ul>
+            </div>
+
+            {/* Right: the full tile editor for the selected tile */}
+            <div className="flex-1 min-w-0 w-full border border-card-border rounded-xl bg-card-bg">
+              {editingTile ? (
+                <div className="p-5">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <h3 className="text-sm font-bold text-foreground">
+                      <span className="text-text-muted font-mono mr-1.5">#{editingTile.position + 1}</span>
+                      {editingTile.label}
+                    </h3>
+                    {canEditTileSet && (
+                      <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
+                    )}
+                  </div>
+                  <TileTrackingConfig
+                    key={editingTile.id}
+                    tileId={editingTile.id}
+                    eventId={event.id}
+                    initial={tileToTrackingInitial(editingTile)}
+                    onSaved={(updated) => {
+                      handleTileConfigSaved(editingTile.id, updated);
+                      router.refresh();
+                    }}
+                    eventStarted={eventStarted}
+                    pointsMode={pointsMode}
+                  />
+                </div>
+              ) : (
+                <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
+                  Select a tile on the left to edit it — full config with item &amp; NPC autocomplete.
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <>
 
@@ -483,8 +601,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         )}
       </div>
 
-      {/* Configuration drawer */}
-      {editingTile && (
+      {/* Configuration drawer — Cards view only. In Quick Build the editor is the right pane. */}
+      {viewMode === 'cards' && editingTile && (
         <TileConfigDrawer
           key={editingTile.id}
           tile={editingTile}
@@ -499,6 +617,28 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             setEditingTileId(null);
           }}
         />
+      )}
+
+      {/* Paste-labels bulk create (Quick Build) */}
+      {pasteOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm" onClick={() => setPasteOpen(false)}>
+          <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-foreground">Paste labels</h3>
+            <p className="text-xs text-text-muted">One tile per line. Each becomes a new tile you can configure on the right.</p>
+            <textarea
+              autoFocus
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={8}
+              className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-gold/50 focus:outline-none"
+              placeholder={'Cluck Norris\nBeefcake\nRat King'}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPasteOpen(false)} className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground">Cancel</button>
+              <button onClick={applyPasteLabels} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25">Add tiles</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -629,25 +769,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
           <TileTrackingConfig
             tileId={tile.id}
             eventId={eventId}
-            initial={{
-              label: tile.label,
-              description: tile.description ?? null,
-              tileType: tile.tileType || 'standard',
-              requiredAmount: tile.requiredAmount ?? null,
-              trackedStat: tile.trackedStat ?? null,
-              statType: tile.statType ?? null,
-              statGoal: tile.statGoal ?? null,
-              trackingMode: tile.trackingMode || 'team',
-              optional: !!tile.optional,
-              trackedItemIds: tile.trackedItemIds ? JSON.parse(tile.trackedItemIds) : null,
-              itemRequirements: tile.itemRequirements ? JSON.parse(tile.itemRequirements) : null,
-              points: tile.points ?? 1,
-              category: tile.category ?? null,
-              sourceNpcs: tile.sourceNpcs ? JSON.parse(tile.sourceNpcs) : null,
-              targetNpcs: tile.targetNpcs ? JSON.parse(tile.targetNpcs) : null,
-              timedActivity: tile.timedActivity ?? null,
-              timeThresholdSeconds: tile.timeThresholdSeconds ?? null,
-            }}
+            initial={tileToTrackingInitial(tile)}
             onSaved={onSaved}
             eventStarted={eventStarted}
             pointsMode={pointsMode}
