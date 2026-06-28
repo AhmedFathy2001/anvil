@@ -147,7 +147,7 @@ export default async function RootLayout({
         {/*
           AUTHOR ATTRIBUTION — required by LICENSE.
           The "Built by Ahmed Fathy" credit and its link must remain visible in any deployment or
-          derivative work. The "Buy me a coffee" link is optional and may be removed or replaced.
+          derivative work.
         */}
         <footer className="border-t border-card-border mt-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-text-muted">
@@ -171,14 +171,6 @@ export default async function RootLayout({
                 Anvil is open source
               </a>
             </p>
-            <a
-              href="https://buymeacoffee.com/ahmedfathy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-md bg-gold/10 text-gold hover:bg-gold/20 border border-gold/30 transition-all flex items-center gap-1.5"
-            >
-              ☕ Buy me a coffee
-            </a>
           </div>
         </footer>
         <Analytics />
