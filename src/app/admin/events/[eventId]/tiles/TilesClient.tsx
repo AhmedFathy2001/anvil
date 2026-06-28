@@ -9,6 +9,7 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
+import TileGridEditor from '@/components/TileGridEditor';
 import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
@@ -26,6 +27,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
@@ -290,17 +292,55 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             Tile Configuration
             <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
           </h2>
-          {dynamicBoard && (
-            <button
-              onClick={handleAddTile}
-              disabled={adding || eventStarted}
-              title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
-              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {adding ? 'Adding…' : '+ Add tile'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                Grid
+              </button>
+            </div>
+            {dynamicBoard && viewMode === 'cards' && (
+              <button
+                onClick={handleAddTile}
+                disabled={adding || eventStarted}
+                title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {adding ? 'Adding…' : '+ Add tile'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {viewMode === 'grid' ? (
+          <TileGridEditor
+            eventId={event.id}
+            tiles={localTiles}
+            canAddRows={canEditTileSet}
+            eventStarted={eventStarted}
+            onSaved={async () => {
+              try {
+                const refreshed = await fetch(`/api/events/${event.id}/tiles`);
+                if (refreshed.ok) {
+                  const fresh = (await refreshed.json()) as Tile[];
+                  setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
+                }
+              } catch {
+                /* router.refresh below still re-syncs */
+              }
+              router.refresh();
+            }}
+          />
+        ) : (
+          <>
 
         {/* Search + kind filter */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
@@ -438,6 +478,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               Show {Math.min(PAGE_SIZE, filteredTiles.length - visibleTiles.length)} more
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
 
