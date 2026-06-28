@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, completions } from '@/db/schema';
+import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { del } from '@vercel/blob';
 import { verifyAdmin } from '@/lib/auth';
 import { notifyEventForceEnd } from '@/lib/discord';
 
@@ -320,6 +321,22 @@ export async function DELETE(
       { error: 'Event is still active. Force-end it first or wait for it to end.' },
       { status: 400 },
     );
+  }
+
+  // Free the submission screenshots from Blob storage before the rows cascade away with the event —
+  // otherwise the images are orphaned and bill forever (the DB delete drops the rows, not the blobs).
+  // Best-effort and chunked so a single failed delete never blocks tearing the event down.
+  const eventTiles = await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, id));
+  const tileIds = eventTiles.map((t) => t.id);
+  if (tileIds.length > 0) {
+    const subs = await db
+      .select({ imageUrl: submissions.imageUrl })
+      .from(submissions)
+      .where(inArray(submissions.tileId, tileIds));
+    const urls = subs.map((s) => s.imageUrl).filter((u): u is string => !!u);
+    for (let i = 0; i < urls.length; i += 100) {
+      await del(urls.slice(i, i + 100)).catch(() => {});
+    }
   }
 
   await db.delete(events).where(eq(events.id, id));
