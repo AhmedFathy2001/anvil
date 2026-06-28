@@ -17,12 +17,13 @@ interface User {
   lastLoginAt: string | null;
 }
 
-type Role = 'admin' | 'treasurer' | 'moderator' | 'member';
+type Role = 'admin' | 'treasurer' | 'editor' | 'moderator' | 'member';
 type RoleFilter = 'all' | Role;
 
 const ROLE_BADGE_CLS: Record<Role, string> = {
   admin: 'bg-gold/15 text-gold',
   treasurer: 'bg-purple-500/15 text-purple-300',
+  editor: 'bg-accent-green/15 text-accent-green-light',
   moderator: 'bg-blue-500/15 text-blue-400',
   member: 'bg-brown-light text-text-muted',
 };
@@ -67,6 +68,7 @@ export default function UsersClient() {
     return {
       admin: users.filter((u) => u.role === 'admin').length,
       treasurer: users.filter((u) => u.role === 'treasurer').length,
+      editor: users.filter((u) => u.role === 'editor').length,
       moderator: users.filter((u) => u.role === 'moderator').length,
       member: users.filter((u) => u.role === 'member').length,
     };
@@ -143,7 +145,7 @@ export default function UsersClient() {
         <div>
           <h1 className="text-2xl font-bold text-gold">User Management</h1>
           <p className="text-text-muted text-sm mt-1">
-            {users.length} total · {counts.admin} admin · {counts.treasurer} treasurer · {counts.moderator} moderator · {counts.member} member
+            {users.length} total · {counts.admin} admin · {counts.treasurer} treasurer · {counts.editor} editor · {counts.moderator} moderator · {counts.member} member
           </p>
         </div>
         <div className="flex gap-2">
@@ -157,7 +159,7 @@ export default function UsersClient() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {(['all', 'admin', 'treasurer', 'moderator', 'member'] as const).map((r) => (
+        {(['all', 'admin', 'treasurer', 'editor', 'moderator', 'member'] as const).map((r) => (
           <button
             key={r}
             onClick={() => setFilter(r)}
@@ -294,6 +296,15 @@ export default function UsersClient() {
                           title="Set as treasurer (mod + fee collection)"
                         >
                           Make treasurer
+                        </button>
+                      )}
+                      {user.role !== 'editor' && (
+                        <button
+                          onClick={() => quickPromote(user, 'editor')}
+                          className="px-2 py-1 text-xs border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 rounded transition-colors"
+                          title="Set as bingo editor (mod + edit event tiles)"
+                        >
+                          Make editor
                         </button>
                       )}
                       {user.role !== 'moderator' && (

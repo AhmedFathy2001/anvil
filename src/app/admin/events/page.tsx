@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { count, desc } from 'drizzle-orm';
+import { verifyUser } from '@/lib/auth';
 import EventsClient, { type ListItem } from './EventsClient';
 
 export const dynamic = 'force-dynamic';
@@ -78,5 +79,8 @@ export default async function AdminEventsPage() {
   const active = all.filter((i) => !isPast(i)).sort(byDateDesc);
   const past = all.filter(isPast).sort(byDateDesc);
 
-  return <EventsClient active={active} past={past} />;
+  const session = await verifyUser();
+  const canManage = session?.role === 'admin';
+
+  return <EventsClient active={active} past={past} canManage={canManage} />;
 }

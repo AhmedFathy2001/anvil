@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyTileEditor } from '@/lib/auth';
 
 // Remove a tile from a Leagues (bingo+points) or Tile-race board and close the position gap
 // so positions stay contiguous (0..n-1). Classic bingo grids are a fixed N×N shape and reject
@@ -11,8 +11,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  const editor = await verifyTileEditor();
+  if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

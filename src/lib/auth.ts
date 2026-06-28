@@ -69,10 +69,20 @@ export async function verifyAdmin(): Promise<boolean> {
 export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  // Treasurers do everything moderators can; this gate accepts all three mod-tier roles.
-  if (user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator') {
+  // Treasurers and editors do everything moderators can; this gate accepts all mod-tier roles.
+  if (user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator' || user.role === 'editor') {
     return user;
   }
+  return null;
+}
+
+// Bingo-authoring gate. Editors are moderators who can additionally build/edit an event's tiles
+// (the Quick Build grid, CSV import, per-tile config, add/remove tiles). They cannot create events,
+// or manage teams/signups/players/fees — those stay admin-only. Admins pass too.
+export async function verifyTileEditor(): Promise<UserPayload | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+  if (user.role === 'admin' || user.role === 'editor') return user;
   return null;
 }
 

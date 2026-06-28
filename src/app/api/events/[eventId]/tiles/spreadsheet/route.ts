@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles as tilesTable, events } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyTileEditor } from '@/lib/auth';
 import { getItemMapping } from '@/lib/osrsItems';
 import { buildTileSpreadsheet } from '@/lib/tileSpreadsheet';
 import type { Tile } from '@/lib/types';
@@ -12,7 +12,7 @@ import type { Tile } from '@/lib/types';
 // the full item list, valid skill/boss keys, examples, and instructions. Built for collaborative
 // drafting in Google Sheets, then re-importing the Tiles tab as CSV. Admin-only.
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  if (!(await verifyAdmin())) {
+  if (!(await verifyTileEditor())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { eventId } = await params;

@@ -38,9 +38,11 @@ export type ListItem = EventRow | WeeklyRow;
 interface Props {
   active: ListItem[];
   past: ListItem[];
+  // Admins manage events (create/delete); bingo editors only open a board's Tiles tab.
+  canManage: boolean;
 }
 
-export default function EventsClient({ active, past }: Props) {
+export default function EventsClient({ active, past, canManage }: Props) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const total = active.length + past.length;
@@ -74,6 +76,7 @@ export default function EventsClient({ active, past }: Props) {
         active={!item.forceEndedAt && !(item.endDate && item.endDate < new Date().toISOString())}
         onDelete={() => deleteEvent(item)}
         deleting={deletingId === item.id}
+        canManage={canManage}
       />
     );
   }
@@ -88,12 +91,14 @@ export default function EventsClient({ active, past }: Props) {
             <span className="text-text-muted/60"> · bingo, tile race &amp; weekly competitions</span>
           </p>
         </div>
-        <Link
-          href="/admin/events/new"
-          className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
-        >
-          + New event
-        </Link>
+        {canManage && (
+          <Link
+            href="/admin/events/new"
+            className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
+          >
+            + New event
+          </Link>
+        )}
       </header>
 
       <section className="mb-8">
@@ -104,9 +109,11 @@ export default function EventsClient({ active, past }: Props) {
         {active.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
             No active events.{' '}
-            <Link href="/admin/events/new" className="text-gold hover:underline">
-              Create one →
-            </Link>
+            {canManage && (
+              <Link href="/admin/events/new" className="text-gold hover:underline">
+                Create one →
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">{active.map(renderCard)}</div>
@@ -132,14 +139,19 @@ function EventCard({
   active,
   onDelete,
   deleting,
+  canManage,
 }: {
   event: EventRow;
   active?: boolean;
   onDelete: () => void;
   deleting: boolean;
+  canManage: boolean;
 }) {
   const isDraft = !event.startDate && !event.forceEndedAt;
-  const canDelete = !active || isDraft;
+  // Editors can't delete events; admins can delete past or draft ones.
+  const canDelete = canManage && (!active || isDraft);
+  // Editors only author tiles — send them straight to the Tiles tab.
+  const cardHref = canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`;
   const tileCount = eventTileCount(event.format, event.scoringMode, event.boardSize);
   const shapeBadge = eventShapeBadge(event.format, event.scoringMode, event.boardSize);
 
@@ -151,7 +163,7 @@ function EventCard({
           : 'border-card-border/60 bg-card-bg/50 hover:border-gold/30'
       }`}
     >
-      <Link href={`/admin/events/${event.id}`} className="block p-4">
+      <Link href={cardHref} className="block p-4">
         <div className="flex items-start justify-between mb-2 gap-2 pr-8">
           <h3
             className={`font-semibold group-hover:text-gold transition-colors ${

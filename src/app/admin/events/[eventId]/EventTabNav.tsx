@@ -5,6 +5,9 @@ import { usePathname } from 'next/navigation';
 
 interface Props {
   eventId: number;
+  // Bingo editors author tiles only — they see just the Tiles tab (the other surfaces are
+  // admin-only and their write APIs reject editors anyway).
+  tilesOnly?: boolean;
 }
 
 // Independent sub-route tabs for an event. Each tab is its own route with its own
@@ -17,13 +20,14 @@ const TABS = [
   { slug: 'stats', label: 'Stats' },
 ] as const;
 
-export default function EventTabNav({ eventId }: Props) {
+export default function EventTabNav({ eventId, tilesOnly = false }: Props) {
   const pathname = usePathname();
   const base = `/admin/events/${eventId}`;
+  const tabs = tilesOnly ? TABS.filter((t) => t.slug === 'tiles') : TABS;
 
   return (
     <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const href = tab.slug ? `${base}/${tab.slug}` : base;
         // Overview is active only on the exact base path; other tabs match their
         // prefix so deeper routes (e.g. teams/[teamId]) keep their tab highlighted.

@@ -4,6 +4,7 @@ import { eq, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { verifyUser } from '@/lib/auth';
 import EventTabNav from './EventTabNav';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,9 @@ export default async function EventLayout({
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
+
+  const session = await verifyUser();
+  const isEditor = session?.role === 'editor';
 
   const [[tileCount], [teamCount]] = await Promise.all([
     db.select({ c: count() }).from(tiles).where(eq(tiles.eventId, id)),
@@ -80,7 +84,7 @@ export default async function EventLayout({
         <span>{teamCount.c} team{teamCount.c !== 1 ? 's' : ''}</span>
       </div>
 
-      <EventTabNav eventId={id} />
+      <EventTabNav eventId={id} tilesOnly={isEditor} />
 
       {children}
     </div>

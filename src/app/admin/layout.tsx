@@ -11,7 +11,7 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 // two-column layout with a contextual sidebar.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || (session.role !== 'admin' && session.role !== 'moderator' && session.role !== 'editor')) {
     // No session (or wrong role) — render plain children. /admin itself is the
     // login page, so this is the expected path for unauthed users.
     return <>{children}</>;
@@ -32,6 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const isAdmin = session.role === 'admin';
   const isMod = session.role === 'moderator';
+  const isEditor = session.role === 'editor';
 
   const groups: SidebarGroup[] = [];
 
@@ -41,8 +42,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
   });
 
-  // Bingo events — admin only (mods don't manage events).
-  if (isAdmin) {
+  // Bingo events — admins manage everything; editors get the event list to open a board's Tiles
+  // tab (tile authoring only); mods just see the schedule.
+  if (isAdmin || isEditor) {
     groups.push({
       label: 'Events',
       items: [
@@ -79,11 +81,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   });
 
   // Fee collection queue — visible to admin + moderator (treasurer routing is
-  // gated downstream). Sign-up fees flow through here.
-  groups.push({
-    label: 'Money',
-    items: [{ href: '/admin/fees', label: 'Fees', icon: '💰' }],
-  });
+  // gated downstream). Editors aren't a fee role, so they don't see it.
+  if (!isEditor) {
+    groups.push({
+      label: 'Money',
+      items: [{ href: '/admin/fees', label: 'Fees', icon: '💰' }],
+    });
+  }
 
   // Players + staff — admin only.
   if (isAdmin) {

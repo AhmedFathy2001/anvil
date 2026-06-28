@@ -70,8 +70,8 @@ export async function middleware(request: NextRequest) {
       const data = JSON.parse(payload);
       const role = data.role;
 
-      // Must be admin/treasurer/moderator. Members get sent home.
-      if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator') {
+      // Must be admin/treasurer/moderator/editor. Members get sent home.
+      if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator' && role !== 'editor') {
         return NextResponse.redirect(new URL('/', request.url));
       }
 
@@ -88,6 +88,23 @@ export async function middleware(request: NextRequest) {
           '/admin/fees',
         ];
         if (!allowed.some((p) => pathname.startsWith(p))) {
+          return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+        }
+      }
+
+      // Editors = moderator access PLUS bingo-tile authoring on existing events. They reach the
+      // event pages (to open the Tiles tab) but cannot create events; other event sub-tabs are
+      // read-only for them since the non-tile write APIs stay admin-only.
+      if (role === 'editor') {
+        const allowed = [
+          '/admin/dashboard',
+          '/admin/weekly',
+          '/admin/clan',
+          '/admin/schedule',
+          '/admin/verifications',
+        ];
+        const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
+        if (!canEvents && !allowed.some((p) => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url));
         }
       }

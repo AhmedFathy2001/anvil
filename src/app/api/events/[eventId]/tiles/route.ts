@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyTileEditor } from '@/lib/auth';
 
 export async function GET(
   _request: Request,
@@ -22,8 +22,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  const editor = await verifyTileEditor();
+  if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -269,8 +269,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  const editor = await verifyTileEditor();
+  if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
