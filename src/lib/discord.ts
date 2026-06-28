@@ -341,6 +341,69 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   return sendBingoWebhook({ embeds: [embed] });
 }
 
+// Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
+// arrived within a quiet window collapse into ONE post: `pendingAmount` is the total accrued since
+// the last flush, `currentTotal`/`requiredAmount` the live standing. Used by the server-side
+// notification debounce so a kill spree (or a downtime boss ticking one kill at a time) is a single
+// embed instead of one per submission. Mirrors notifySubmission's layout so the feed reads uniformly.
+interface MergedSubmissionParams {
+  eventName: string;
+  tileLabel: string;
+  teamName: string;
+  teamColor: string;
+  tileType?: string | null;
+  pendingAmount: number;
+  currentTotal: number | null;
+  requiredAmount: number | null;
+  note: string | null;
+  imageUrl: string | null;
+  completed: boolean;
+}
+
+export async function notifyMergedSubmission(params: MergedSubmissionParams): Promise<boolean> {
+  const {
+    eventName, tileLabel, teamName, teamColor, tileType,
+    pendingAmount, currentTotal, requiredAmount, note, imageUrl, completed,
+  } = params;
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Event', value: eventName, inline: true },
+    { name: 'Tile', value: tileLabel, inline: true },
+    { name: 'Team', value: teamName, inline: true },
+  ];
+
+  const progress = requiredAmount != null && currentTotal != null
+    ? ` (${currentTotal}/${requiredAmount} total)`
+    : '';
+  if (tileType === 'kill') {
+    fields.push({ name: 'Kills', value: `+${pendingAmount}${progress}`, inline: true });
+  } else {
+    fields.push({ name: 'Progress', value: `+${pendingAmount}${progress}`, inline: true });
+  }
+
+  if (note) {
+    fields.push({ name: 'Note', value: note, inline: false });
+  }
+  if (completed) {
+    fields.push({ name: '​', value: '✅ **This completed the tile!**', inline: false });
+  }
+
+  const embed: DiscordEmbed = {
+    title: completed
+      ? '✅ Tile Completed!'
+      : tileType === 'kill' ? '⚔️ Kill Progress' : '🎯 Drop Progress',
+    description: '━━━━━━━━━━━━━━━━━━━━',
+    color: teamColorToDecimal(teamColor),
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+  if (imageUrl) {
+    embed.image = { url: imageUrl };
+  }
+
+  return sendBingoWebhook({ embeds: [embed] });
+}
+
 interface SubmissionDeletedParams {
   eventName: string;
   tileLabel: string;

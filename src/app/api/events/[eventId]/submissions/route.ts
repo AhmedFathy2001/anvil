@@ -5,6 +5,7 @@ import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
+import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 
 export async function GET(
   request: Request,
@@ -74,29 +75,6 @@ export async function POST(
     return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
   }
 
-  // Require image and validate URL
-  if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
-    return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
-  }
-  let imageUrlParsed: URL;
-  try {
-    imageUrlParsed = new URL(imageUrl.trim());
-  } catch {
-    return NextResponse.json({ error: 'imageUrl must be a valid URL' }, { status: 400 });
-  }
-  // Only accept Vercel Blob URLs — prevents Discord embeds from pointing at arbitrary/phishy hosts.
-  // Vercel Blob hostnames look like `<id>.public.blob.vercel-storage.com`.
-  const isVercelBlob =
-    imageUrlParsed.protocol === 'https:' &&
-    (imageUrlParsed.hostname.endsWith('.public.blob.vercel-storage.com') ||
-      imageUrlParsed.hostname.endsWith('.blob.vercel-storage.com'));
-  if (!isVercelBlob) {
-    return NextResponse.json(
-      { error: 'imageUrl must be a Vercel Blob URL — upload via /api/upload first' },
-      { status: 400 },
-    );
-  }
-
   // Validate note
   if (note !== undefined && note !== null) {
     if (typeof note !== 'string' || note.trim().length > 500) {
@@ -156,6 +134,35 @@ export async function POST(
   }
   if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed') {
     return NextResponse.json({ error: 'Submissions are only for drop, kill, or timed tiles' }, { status: 400 });
+  }
+
+  // Image/proof rules. Drops and timed clears always need a screenshot. Kill tiles auto-detected by
+  // the plugin may arrive as lightweight count-only pings (no image) — the proof screenshot lands on
+  // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
+  // captain submissions still require proof. When present, an image must be a Vercel Blob URL (keeps
+  // Discord embeds off arbitrary/phishy hosts).
+  const isPluginKillPing = !!pluginAuth && tile.tileType === 'kill';
+  let imageUrlValue: string | null = null;
+  if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
+    let imageUrlParsed: URL;
+    try {
+      imageUrlParsed = new URL(imageUrl.trim());
+    } catch {
+      return NextResponse.json({ error: 'imageUrl must be a valid URL' }, { status: 400 });
+    }
+    const isVercelBlob =
+      imageUrlParsed.protocol === 'https:' &&
+      (imageUrlParsed.hostname.endsWith('.public.blob.vercel-storage.com') ||
+        imageUrlParsed.hostname.endsWith('.blob.vercel-storage.com'));
+    if (!isVercelBlob) {
+      return NextResponse.json(
+        { error: 'imageUrl must be a Vercel Blob URL — upload via /api/upload first' },
+        { status: 400 },
+      );
+    }
+    imageUrlValue = imageUrl.trim();
+  } else if (!isPluginKillPing) {
+    return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
   }
 
   // Timed tiles carry a completion duration instead of a count. Validate it up front so the
@@ -262,7 +269,7 @@ export async function POST(
       playerId: uploaderId,
       creditPlayerId: resolvedCreditPlayerId,
       amount: amount || 1,
-      imageUrl: imageUrl.trim(),
+      imageUrl: imageUrlValue,
       note: note || null,
       itemId: itemId || null,
       durationSeconds: durationSecondsValue,
@@ -291,21 +298,42 @@ export async function POST(
   // separate completion announcement is suppressed; the team-win post still fires from inside sync.
   const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
 
-  notifySubmission({
-    eventName: event?.name || 'Unknown Event',
-    tileLabel: tile.label,
-    teamName: team.name,
-    teamColor: team.color,
-    creditPlayerName,
-    amount: amount || 1,
-    currentTotal,
-    requiredAmount: tile.requiredAmount,
-    note: note || null,
-    imageUrl: imageUrl.trim(),
-    tileType: tile.tileType,
-    durationSeconds: durationSecondsValue,
-    completed: syncResult?.isComplete ?? false,
-  }).catch(() => {}); // Silently ignore errors
+  if (tile.tileType === 'timed') {
+    // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post
+    // them immediately, unchanged.
+    notifySubmission({
+      eventName: event?.name || 'Unknown Event',
+      tileLabel: tile.label,
+      teamName: team.name,
+      teamColor: team.color,
+      creditPlayerName,
+      amount: amount || 1,
+      currentTotal,
+      requiredAmount: tile.requiredAmount,
+      note: note || null,
+      imageUrl: imageUrlValue,
+      tileType: tile.tileType,
+      durationSeconds: durationSecondsValue,
+      completed: syncResult?.isComplete ?? false,
+    }).catch(() => {}); // Silently ignore errors
+  } else {
+    // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
+    // own bucket inside queueSubmissionNotification; the opportunistic flush posts any *other* buckets
+    // that have gone quiet. Both fire-and-forget so the response isn't held on Discord.
+    await queueSubmissionNotification({
+      eventId: eId,
+      tileId,
+      teamId,
+      amount: amount || 1,
+      currentTotal,
+      requiredAmount: tile.requiredAmount,
+      imageUrl: imageUrlValue,
+      note: note || null,
+      creditPlayerName,
+      completed: syncResult?.isComplete ?? false,
+    });
+    flushPendingNotifications().catch(() => {});
+  }
 
   return NextResponse.json({ submission }, { status: 201 });
 }

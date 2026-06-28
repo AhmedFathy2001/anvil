@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const events = sqliteTable('events', {
@@ -485,4 +485,34 @@ export const pluginLinkCodes = sqliteTable('plugin_link_codes', {
 }, (table) => [
   uniqueIndex('plugin_link_codes_code_unique').on(table.code),
   index('plugin_link_codes_user_id_idx').on(table.userId),
+]);
+
+// Server-side debounce buffer for bingo submission notifications. The plugin auto-submits drop/kill
+// proof per event, which naively posts one Discord embed per submission — spammy for kill tiles that
+// tick once per NPC (a boss with downtime flushes one post per kill). Instead each submission upserts
+// a bucket here keyed by (tile, team); a flush — opportunistic on the next request plus a per-minute
+// cron backstop — posts ONE merged embed per quiet window, or immediately when a submission completes
+// the tile. The submission row itself is always written first, so nothing here is load-bearing: a
+// dropped bucket loses a cosmetic post, never progress. Rows are deleted on flush.
+export const pendingNotifications = sqliteTable('pending_notifications', {
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // Sum of submission amounts buffered since the last flush (the "+N" in the merged post).
+  pendingAmount: integer('pending_amount').notNull().default(0),
+  // Latest team total + the tile's required amount, for the "(current/required)" line.
+  latestTotal: integer('latest_total'),
+  requiredAmount: integer('required_amount'),
+  // Latest proof image (count-only kill pings carry none; the completion submission supplies one),
+  // plus the latest note and credited player name — names/colours are re-joined at flush time.
+  latestImageUrl: text('latest_image_url'),
+  latestNote: text('latest_note'),
+  latestCreditName: text('latest_credit_name'),
+  // 1 once a buffered submission completed the tile — forces an immediate flush.
+  completed: integer('completed').notNull().default(0),
+  firstQueuedAt: text('first_queued_at').notNull(),
+  lastEventAt: text('last_event_at').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.tileId, table.teamId] }),
+  index('pending_notifications_last_event_idx').on(table.lastEventAt),
 ]);
