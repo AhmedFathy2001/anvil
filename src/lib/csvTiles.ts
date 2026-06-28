@@ -41,6 +41,8 @@ export const TILE_CSV_COLUMNS = [
   'items',
 ] as const;
 
+import type { Tile } from '@/lib/types';
+
 export interface TileCsvItem {
   /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
   name: string;
@@ -222,4 +224,76 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
   });
   return { rows, labels };
+}
+
+// ---------------------------------------------------------------------------
+// Serialization (tiles → CSV cell values)
+// ---------------------------------------------------------------------------
+
+/** A JSON string-array column ("[\"Cow\",\"Cow calf\"]") → pipe-joined "Cow|Cow calf". */
+function jsonNamesToPipes(v: string | null | undefined): string {
+  if (!v) return '';
+  try {
+    const arr = JSON.parse(v) as string[];
+    return Array.isArray(arr) ? arr.join('|') : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Build the `items` cell for a tile. Lossless round-trip: collection items emit
+ * "Name#id:count" (the id pins it even if the name is an untradeable the importer can't
+ * resolve); simple-drop pools emit bare ids.
+ */
+function tileItemsCell(t: Tile): string {
+  if (t.itemRequirements) {
+    try {
+      const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
+      if (Array.isArray(reqs) && reqs.length) {
+        return reqs
+          .map((r) => {
+            const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
+            return `${labelled}:${r.requiredAmount}`;
+          })
+          .join('; ');
+      }
+    } catch {
+      /* ignore malformed JSON */
+    }
+  }
+  if (t.trackedItemIds) {
+    try {
+      const ids = JSON.parse(t.trackedItemIds) as number[];
+      if (Array.isArray(ids) && ids.length) return ids.map(String).join('; ');
+    } catch {
+      /* ignore malformed JSON */
+    }
+  }
+  return '';
+}
+
+/**
+ * Serialize a tile to raw cell values in TILE_CSV_COLUMNS order (NOT CSV-escaped — callers
+ * emitting CSV must quote cells with commas/quotes/newlines themselves; the .xlsx generator
+ * uses the raw values directly). Shared by the client "Download template CSV" and the
+ * server-side spreadsheet generator so a round-trip preserves kill/timed/collection config.
+ */
+export function tileToCsvCells(t: Tile): string[] {
+  return [
+    t.label ?? '',
+    t.description ?? '',
+    t.tileType ?? 'standard',
+    String(t.points ?? 1),
+    t.category ?? '',
+    t.optional ? 'true' : 'false',
+    t.requiredAmount != null ? String(t.requiredAmount) : '',
+    t.trackedStat ?? '',
+    t.statType ?? '',
+    t.statGoal != null ? String(t.statGoal) : '',
+    jsonNamesToPipes(t.targetNpcs),
+    t.timedActivity ?? '',
+    t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
+    tileItemsCell(t),
+  ];
 }

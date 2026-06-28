@@ -8,7 +8,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
-import { TILE_CSV_COLUMNS, parseTileCsv } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
@@ -160,65 +160,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   function downloadTemplate() {
-    // Seed the template with the current tiles so the admin edits in-place. Emits every column
-    // in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
+    // Seed the template with the current tiles so the admin edits in-place. tileToCsvCells emits
+    // every column in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
     const header = TILE_CSV_COLUMNS.join(',');
     const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const jsonNames = (v: string | null | undefined): string => {
-      if (!v) return '';
-      try {
-        const arr = JSON.parse(v) as string[];
-        return Array.isArray(arr) ? arr.join('|') : '';
-      } catch {
-        return '';
-      }
-    };
-    // Lossless round-trip: collection items emit "Name#id:count" (id pins it even if the name
-    // is an untradeable the importer couldn't resolve); simple-drop pools emit bare ids.
-    const itemsCell = (t: Tile): string => {
-      if (t.itemRequirements) {
-        try {
-          const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
-          if (Array.isArray(reqs) && reqs.length) {
-            return reqs
-              .map((r) => {
-                const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
-                return `${labelled}:${r.requiredAmount}`;
-              })
-              .join('; ');
-          }
-        } catch {
-          /* ignore malformed JSON */
-        }
-      }
-      if (t.trackedItemIds) {
-        try {
-          const ids = JSON.parse(t.trackedItemIds) as number[];
-          if (Array.isArray(ids) && ids.length) return ids.map(String).join('; ');
-        } catch {
-          /* ignore malformed JSON */
-        }
-      }
-      return '';
-    };
-    const lines = localTiles.map((t) =>
-      [
-        escape(t.label ?? ''),
-        escape(t.description ?? ''),
-        t.tileType ?? 'standard',
-        String(t.points ?? 1),
-        escape(t.category ?? ''),
-        t.optional ? 'true' : 'false',
-        t.requiredAmount != null ? String(t.requiredAmount) : '',
-        escape(t.trackedStat ?? ''),
-        escape(t.statType ?? ''),
-        t.statGoal != null ? String(t.statGoal) : '',
-        escape(jsonNames(t.targetNpcs)),
-        escape(t.timedActivity ?? ''),
-        t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
-        escape(itemsCell(t)),
-      ].join(','),
-    );
+    const lines = localTiles.map((t) => tileToCsvCells(t).map(escape).join(','));
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -293,11 +239,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             Bulk Import
           </h2>
           <div className="flex items-center gap-2">
+            <a
+              href={`/api/events/${event.id}/tiles/spreadsheet`}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 bg-gold/10 text-gold hover:bg-gold/20 transition-colors"
+              title="Download a Google-Sheets-ready workbook (current tiles + dropdowns, item list, examples, instructions) to draft the board with your team"
+            >
+              Download spreadsheet
+            </a>
             <button
               onClick={downloadTemplate}
               className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
             >
-              Download template CSV
+              Template CSV
             </button>
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} className="hidden" />
             <button
@@ -316,6 +269,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
             : ' Extra rows beyond the board size are ignored.'}
           {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+        </p>
+        <p className="text-xs text-text-muted leading-relaxed mt-2">
+          <span className="text-gold">Drafting with your team?</span> Use <span className="text-gold">Download spreadsheet</span> for an
+          Excel file with the current tiles, dropdowns, the full item list and instructions baked in — upload it to Google Drive,
+          open with Google Sheets, and draft together. When done, download the <em>Tiles</em> tab as CSV and upload it here.
         </p>
         {importMsg && (
           <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
