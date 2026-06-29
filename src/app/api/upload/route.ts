@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage';
 import crypto from 'crypto';
 import sharp from 'sharp';
 
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
   }
 
   const filename = `submissions/${crypto.randomUUID()}.${finalExt}`;
-  const { url } = await put(filename, body, { access: 'public', contentType });
+  const { url } = await put(filename, body, contentType);
 
   return NextResponse.json({ url });
 }

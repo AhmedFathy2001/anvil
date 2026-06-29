@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/storage';
 import crypto from 'crypto';
 import { verifyFeeCollector } from '@/lib/auth';
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   const finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
   const filename = `fees/${crypto.randomUUID()}.${finalExt}`;
-  const { url } = await put(filename, file, { access: 'public' });
+  const { url } = await put(filename, file);
 
   return NextResponse.json({ url });
 }

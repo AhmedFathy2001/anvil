@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { del } from '@vercel/blob';
+import { del } from '@/lib/storage';
 
 // Admin escape hatch — wipes collection state on a fee. Used when a collection was
 // recorded against the wrong person, the screenshot was bad, or a confirmed fee needs

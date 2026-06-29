@@ -9,12 +9,14 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:migrate": "node scripts/migrate.mjs",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.0.1",
+    "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.1",
     "exceljs": "^4.4.0",
     "next": "16.1.6",

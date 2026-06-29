@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { del } from '@vercel/blob';
+import { del } from '@/lib/storage';
 import { verifyAdmin } from '@/lib/auth';
 import { notifyEventForceEnd } from '@/lib/discord';
 

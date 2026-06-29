@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyFeeCollector } from '@/lib/auth';
-import { del } from '@vercel/blob';
+import { del } from '@/lib/storage';
 
 // A treasurer/admin claims they collected the fee in-game and uploads proof.
 //

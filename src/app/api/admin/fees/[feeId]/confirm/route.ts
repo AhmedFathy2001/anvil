@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, eventSignups, signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
-import { del } from '@vercel/blob';
+import { del } from '@/lib/storage';
 
 // Final approval. Admin-only: even a treasurer who collected the fee can't sign off
 // on their own collection — separation of duties.
