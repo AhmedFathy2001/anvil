@@ -2,27 +2,39 @@
 
 This guide walks a clan through standing up its **own** Anvil instance from
 scratch. Anvil is single-tenant: one deployment serves one clan. To run Anvil for
-several clans, deploy it once per clan (each with its own database and Discord
-app).
-
-The happy path is **Vercel + Turso**, which needs no servers to manage. Notes for
-non-Vercel hosting are at the end.
+several clans, deploy it once per clan (each with its own database and Discord app).
 
 > **Don't want to self-host?** I can run and maintain Anvil for your clan for a fee —
 > no infrastructure to manage on your end. [Reach out on Discord](https://discord.gg/nqTxCQAbv4)
 > if you'd rather have it hosted for you (or just want to support the project).
 
+## Choose a hosting path
+
+Anvil runs the same either way — pick the one that fits you:
+
+- **A · Dedicated VPS with Docker** (recommended) — one container + a local SQLite
+  file + Cloudflare R2 for media. Full control, predictable cost, no per-request
+  pricing. Jump to [**Self-hosting with Docker**](#self-hosting-with-docker), then
+  do the shared **Discord** (§3) and **admin bootstrap** (§6) steps.
+- **B · Serverless on Vercel + Turso** — zero servers to manage, generous free
+  tiers. Follow steps **§2–§8** below.
+
+Either way you'll need a **Discord application** (login; optionally a bot for role
+sync) and your clan's Discord server. The **plugin** setup (§8) is identical.
+
+> Config note: clan-specific settings (clan name, Discord invite, webhooks, role
+> maps) live in the in-app admin UI (`settings` table) — env vars are only first-boot
+> fallbacks. Nothing clan-specific is hardcoded.
+
 ---
 
 ## 1. Prerequisites
 
-- A **GitHub account** (fork this repo).
-- A **[Turso](https://turso.tech)** account — the free tier is plenty. (Any
-  libSQL endpoint, or a local SQLite file, also works.)
-- A **[Vercel](https://vercel.com)** account for hosting (free Hobby tier works).
-- A **Discord application** for login (and optionally a bot for role sync).
-- Your clan's Discord server, where you can create webhooks and (optionally) add
-  a bot.
+For **A (Docker/VPS)**: a Linux box with Docker, a domain, and a Cloudflare R2 (or
+any S3-compatible) bucket for media. For **B (serverless)**: a **GitHub** account
+(fork this repo), a **[Vercel](https://vercel.com)** account, and a
+**[Turso](https://turso.tech)** account (free tier is plenty). Both paths need a
+**Discord application** and your clan's Discord server.
 
 ---
 
