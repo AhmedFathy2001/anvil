@@ -54,8 +54,6 @@ weekly_participants_backup_*.json
 *.tsbuildinfo
 next-env.d.ts
 
-# RuneLite plugin (separate git repo)
-/plugin/
 sounds/
 leagues-bingo-tiles.csv
 assets/
