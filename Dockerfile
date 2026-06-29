@@ -27,7 +27,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
-    TURSO_DATABASE_URL=file:/data/anvil.db
+    DATABASE_URL=file:/data/anvil.db
 
 # Run as non-root; /data holds the clan's SQLite DB (+ WAL/SHM) and must be writable by it.
 RUN groupadd --system --gid 1001 nodejs \
