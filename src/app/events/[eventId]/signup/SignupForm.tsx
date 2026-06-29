@@ -70,26 +70,34 @@ const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
   event_started: 'This event has already started.',
 };
 
-// Purely-for-laughs clan banter shown once per event next to the hours fields.
-// No input, nothing stored — just flavour. One line is picked deterministically
-// per event (see pickTrollLine) so everyone signing up for the same event sees
-// the same one, but different events get different lines.
-const TROLL_LINES = [
-  'Be honest about those hours — employed, unemployed, or no social life? kek',
-  'Do you resemble EVScape or Odablock for physique? No wrong answers (there is).',
-  'Putting 168 hours/week? Touch grass speedrun any%.',
-  'AFK hours = the hours your account plays while you stare at the wall, yes.',
-  'Min 0, max 24? Bold of you to assume you have a sleep schedule.',
-  'These hours are a contract. The clan WILL check your /played.',
-  'If your weekly hours exceed your shower count we need to talk.',
-  'Filling this out at 4am? Couldn’t be me (it is me).',
-];
+// Tongue-in-cheek clan banter shown next to the hours fields — but it now reacts to what
+// they actually type instead of a fixed "kek" line. Nothing is stored or validated; it just
+// "diagnoses" their lifestyle from the active hours so the joke lands on their own numbers.
 
-// Stable hash of the event id → an index into TROLL_LINES, so the chosen line is
-// consistent for a given event but varies between events.
-function pickTrollLine(eventId: number): string {
-  const idx = Math.abs(Math.trunc(eventId)) % TROLL_LINES.length;
-  return TROLL_LINES[idx];
+// Derive a representative active-hours-per-week figure from whatever's filled in: prefer the
+// weekly range (upper bound, else lower), otherwise extrapolate from the daily range × 7.
+function weeklyActiveHours(dailyMin: string, dailyMax: string, weeklyMin: string, weeklyMax: string): number | null {
+  const num = (s: string) => {
+    const v = parseFloat(s);
+    return Number.isFinite(v) ? v : null;
+  };
+  const wk = num(weeklyMax) ?? num(weeklyMin);
+  if (wk != null) return wk;
+  const day = num(dailyMax) ?? num(dailyMin);
+  if (day != null) return day * 7;
+  return null;
+}
+
+// Map active hours/week → an employed / unemployed / no-social-life verdict.
+function activityVerdict(hoursPerWeek: number | null): string {
+  if (hoursPerWeek == null) return 'Fill in your hours and we’ll diagnose your lifestyle.';
+  if (hoursPerWeek <= 0) return 'Zero hours? Bold strategy for a bingo signup.';
+  if (hoursPerWeek <= 10) return 'Verdict: employed, well-adjusted, touches grass. Suspicious.';
+  if (hoursPerWeek <= 25) return 'Verdict: part-time job, part-time gamer — respectable balance.';
+  if (hoursPerWeek <= 45) return 'Verdict: unemployed (allegedly). Plenty of free time.';
+  if (hoursPerWeek <= 70) return 'Verdict: no social life detected. The clan thanks you.';
+  if (hoursPerWeek <= 112) return 'Verdict: OSRS is your whole personality now. Respect.';
+  return 'Verdict: touch grass speedrun any%. Please see sunlight.';
 }
 
 // Read one bound of an HoursRange as a form string ('' when absent).
@@ -218,7 +226,10 @@ export default function SignupForm({
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   // One troll line per event, stable across renders and visitors.
-  const trollLine = useMemo(() => pickTrollLine(eventId), [eventId]);
+  const trollLine = useMemo(
+    () => activityVerdict(weeklyActiveHours(activeDailyMin, activeDailyMax, activeWeeklyMin, activeWeeklyMax)),
+    [activeDailyMin, activeDailyMax, activeWeeklyMin, activeWeeklyMax],
+  );
 
   const filteredBosses = useMemo(() => {
     if (!bossFilter.trim()) return BOSSES;
