@@ -22,21 +22,10 @@ interface ClanMember {
   pendingRole: 'admin' | 'moderator' | null;
 }
 
-interface PluginLink {
-  id: number;
-  userId: number;
-  username: string | null;
-  displayName: string | null;
-  createdAt: string;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-}
-
 type FilterMode = 'active' | 'guests' | 'left' | 'all';
 
 export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [members, setMembers] = useState<ClanMember[]>([]);
-  const [links, setLinks] = useState<PluginLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('active');
@@ -55,11 +44,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [roleError, setRoleError] = useState('');
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
 
-  const [linkCode, setLinkCode] = useState<string | null>(null);
-  const [linkExpiresAt, setLinkExpiresAt] = useState<string | null>(null);
-  const [codeGenerating, setCodeGenerating] = useState(false);
-  const [codeError, setCodeError] = useState('');
-
   const [clanName, setClanName] = useState('');
   const [clanNameOriginal, setClanNameOriginal] = useState('');
   const [clanNameSaving, setClanNameSaving] = useState(false);
@@ -72,13 +56,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
   async function fetchAll() {
     setLoading(true);
-    const [mRes, lRes, sRes] = await Promise.all([
+    const [mRes, sRes] = await Promise.all([
       fetch('/api/admin/clan'),
-      fetch('/api/admin/plugin/links'),
       fetch('/api/admin/settings'),
     ]);
     if (mRes.ok) setMembers(await mRes.json());
-    if (lRes.ok) setLinks(await lRes.json());
     if (sRes.ok) {
       const s = await sRes.json();
       setClanName(s.clan_name || '');
@@ -131,22 +113,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     }
     return { active, guests, left, total: members.length };
   }, [members]);
-
-  async function generateLinkCode() {
-    setCodeError('');
-    setCodeGenerating(true);
-    const res = await fetch('/api/admin/plugin/link-code', { method: 'POST' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setCodeError(data.error || 'Failed to generate code');
-      setCodeGenerating(false);
-      return;
-    }
-    const data = await res.json();
-    setLinkCode(data.code);
-    setLinkExpiresAt(data.expiresAt);
-    setCodeGenerating(false);
-  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -225,11 +191,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       if (data.error === 'mergeRequired') {
-        const counts = data.conflictCounts as { players: number; weeklyParticipants: number; pluginLinks: number } | undefined;
+        const counts = data.conflictCounts as { players: number; weeklyParticipants: number } | undefined;
         const parts: string[] = [];
         if (counts?.players) parts.push(`${counts.players} player${counts.players === 1 ? '' : 's'}`);
         if (counts?.weeklyParticipants) parts.push(`${counts.weeklyParticipants} weekly entr${counts.weeklyParticipants === 1 ? 'y' : 'ies'}`);
-        if (counts?.pluginLinks) parts.push(`${counts.pluginLinks} plugin link${counts.pluginLinks === 1 ? '' : 's'}`);
         setRenameError(
           `That RSN already exists with activity (${parts.join(', ') || 'linked history'}). Remove the other member manually first, then rename.`,
         );
@@ -281,14 +246,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     setTimeout(() => setRoleNotice(null), 6000);
     fetchAll();
   }
-
-  async function revokeLink(link: PluginLink) {
-    if (!confirm(`Revoke plugin link for ${link.username ?? link.displayName ?? `user ${link.userId}`}?`)) return;
-    const res = await fetch(`/api/admin/plugin/links/${link.id}`, { method: 'DELETE' });
-    if (res.ok) fetchAll();
-  }
-
-  const activeLinks = links.filter((l) => !l.revokedAt);
 
   return (
     <div>
@@ -352,73 +309,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           >
             {clanNameMessage.text}
           </p>
-        )}
-      </div>
-
-      {/* Plugin link section */}
-      <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              Plugin Linking
-            </h2>
-            <p className="text-text-muted text-sm mt-1">
-              Link your in-game account to the site so the RuneLite plugin can push clan roster updates.
-            </p>
-          </div>
-          <button
-            onClick={generateLinkCode}
-            disabled={codeGenerating}
-            className="px-4 py-1.5 text-sm font-semibold bg-gold/15 hover:bg-gold/25 text-gold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
-            {codeGenerating ? 'Generating...' : 'Generate Link Code'}
-          </button>
-        </div>
-
-        {codeError && <p className="text-red-400 text-sm mt-3">{codeError}</p>}
-
-        {linkCode && (
-          <div className="mt-4 border border-gold/30 rounded-lg p-4 bg-gold/5">
-            <p className="text-xs text-text-muted mb-1">Paste this into the plugin config:</p>
-            <p className="text-3xl font-mono font-bold tracking-[0.3em] text-gold">{linkCode}</p>
-            {linkExpiresAt && (
-              <p className="text-xs text-text-muted mt-2">
-                Expires {new Date(linkExpiresAt).toLocaleTimeString()} — generate a new one if it lapses.
-              </p>
-            )}
-          </div>
-        )}
-
-        {activeLinks.length > 0 && (
-          <div className="mt-4">
-            <p className="text-xs text-text-muted mb-2 font-medium uppercase tracking-wide">Active links</p>
-            <div className="space-y-2">
-              {activeLinks.map((link) => (
-                <div
-                  key={link.id}
-                  className="flex items-center justify-between border border-card-border/60 rounded-lg px-3 py-2 text-sm"
-                >
-                  <div>
-                    <span className="font-semibold">{link.username ?? link.displayName ?? `user ${link.userId}`}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-text-muted">
-                      {link.lastUsedAt
-                        ? `used ${new Date(link.lastUsedAt).toLocaleString()}`
-                        : 'never used'}
-                    </span>
-                    <button
-                      onClick={() => revokeLink(link)}
-                      className="px-2 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         )}
       </div>
 
