@@ -53,10 +53,13 @@ The companion RuneLite plugin lives in its own repository (see below).
 
 3. **Run migrations**
    ```bash
-   npx drizzle-kit push
+   npm run db:migrate
    ```
-   This applies every file in `drizzle/*.sql` against the database. After any
-   schema change, run `npx drizzle-kit generate` to produce a new migration file.
+   This replays `drizzle/*.sql` from `0000` against the database (idempotent — it
+   skips already-applied migrations via the `__drizzle_migrations` ledger). After any
+   schema change, run `npm run db:generate` to produce a new migration file and commit
+   it. Don't use `drizzle-kit push` on a database you intend to keep — it drifts the DB
+   out of sync with `drizzle/`. See [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
 
 4. **Seed a first admin**. Login is **Discord OAuth only**. Set
    `ADMIN_DISCORD_ID` in `.env.local` to your own Discord user ID, configure the
@@ -119,17 +122,22 @@ an "upcoming & active" list underneath.
 
 ## Migrations
 
-Schema lives at `src/db/schema.ts`. To add or change a column:
+The migration chain in `drizzle/` is the source of truth and **must always apply
+cleanly from `0000` against an empty database** — every fresh self-host clan boots by
+replaying it. Schema lives at `src/db/schema.ts`. To add or change a column:
 
 ```bash
 # Edit src/db/schema.ts, then:
-npx drizzle-kit generate   # creates drizzle/NNNN_<name>.sql + updates meta
-npx drizzle-kit push       # applies against the DB in env
+npm run db:generate   # creates drizzle/NNNN_<name>.sql + updates drizzle/meta
+npm run db:migrate    # applies the chain to the DB in env (NOT drizzle-kit push)
 ```
 
-Review the generated SQL — for `ALTER TABLE ... ADD NOT NULL` on existing tables,
-SQLite requires a default; hand-edit the migration to include a backfill if so
-(see `drizzle/0016_acoustic_hiroim.sql` for an example).
+Commit the generated `drizzle/NNNN_*.sql` and updated `drizzle/meta/` alongside the
+`schema.ts` change. Before opening the PR, verify against a fresh DB
+(`TURSO_DATABASE_URL=file:/tmp/fresh.db npm run db:migrate` → `up to date`) and re-run
+`npm run db:generate` (must say *"No schema changes"*). For `ALTER TABLE ... ADD NOT
+NULL` on existing tables SQLite requires a default; hand-edit the migration to
+seed-then-backfill if needed. Full policy: [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
 
 ## Scripts
 
@@ -159,8 +167,9 @@ On Vercel:
 4. Add your Turso database URL + auth token.
 5. Deploy. On first deploy, set `ADMIN_DISCORD_ID` to your Discord user ID and
    sign in at `/login` to seed the first admin (then unset it).
-6. Run migrations: `npx drizzle-kit push` (either locally with prod creds or via
-   a CI step). Migrations are not auto-applied on deploy.
+6. Run migrations: `npm run db:migrate` (locally with prod creds, or via a CI step) —
+   not auto-applied on a Vercel deploy. An existing `drizzle-kit push` DB must be
+   reconciled once first; see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
 
 See [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) for the full clan-by-clan
 deployment walkthrough, including non-Vercel hosting notes.

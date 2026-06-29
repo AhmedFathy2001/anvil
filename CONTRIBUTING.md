@@ -29,7 +29,8 @@ See the [README](README.md) for the full repository map and stack details.
 3. **Configure:** copy `.env.example` to `.env.local` and fill in the values.
    Every variable is documented in that file. For local dev you mainly need the
    `TURSO_*` database vars; session secrets fall back to dev placeholders.
-4. **Migrate:** `npm run db:push` applies the schema to your database.
+4. **Migrate:** `npm run db:migrate` applies the committed migrations to your
+   database (works against an empty DB — this is the same path the app runs on boot).
 5. **Run:** `npm run dev` — the app serves on http://localhost:3000.
 
 A full self-hosting / deployment guide lives in
@@ -37,17 +38,42 @@ A full self-hosting / deployment guide lives in
 
 ## Database changes
 
-The schema lives in `src/db/schema.ts`. After editing it:
+**Migrations are the source of truth, and the chain must always apply cleanly from
+`0000` against an empty database.** Every self-hosting clan boots by replaying the
+`drizzle/` migrations from scratch (`scripts/migrate.mjs` runs on container start),
+so a broken or skipped migration breaks every fresh install — even if it happens to
+match your already-migrated dev DB. Treat the migration chain as a public contract.
+
+The schema lives in `src/db/schema.ts`. After editing it, **always**:
 
 ```bash
 npm run db:generate   # creates a new drizzle/NNNN_*.sql migration + meta snapshot
-npm run db:push       # applies it
+npm run db:migrate    # applies the chain to your DB (use this, not db:push)
 ```
 
-Commit the generated migration files alongside the schema change. For
-`ALTER TABLE ... ADD ... NOT NULL` on existing tables, hand-edit the migration to
-include a backfill default (SQLite requirement) — see existing migrations for
-examples.
+Then **commit the generated `drizzle/NNNN_*.sql` and the updated `drizzle/meta/`
+snapshot in the same commit as the `schema.ts` change.** A schema change without its
+migration is an incomplete change and will be sent back in review.
+
+Rules, non-negotiable:
+
+- **Never use `db:push` to evolve a schema you intend to keep** (shared/staging/prod).
+  `db:push` diffs and mutates the DB *without* writing a migration or updating the
+  ledger, so the DB silently drifts ahead of `drizzle/`. That drift is what forces a
+  painful history squash later. `db:push` is only acceptable for a throwaway local
+  scratch DB you're about to delete.
+- **One change, one migration, one commit.** Don't batch unrelated schema edits, and
+  don't hand-rename generated files (the `drizzle/meta/_journal.json` tag must match).
+- **Verify before you push the PR:** run `npm run db:migrate` against a *fresh empty*
+  DB (e.g. `TURSO_DATABASE_URL=file:/tmp/fresh.db npm run db:migrate`) and confirm it
+  reports `up to date`. Then run `npm run db:generate` again — it must print
+  *"No schema changes"*, proving `schema.ts` and the migration chain are in sync.
+- For `ALTER TABLE ... ADD ... NOT NULL` on existing tables, the generated migration
+  needs a `DEFAULT` (SQLite requirement). Drizzle adds one for column defaults. If the
+  value must be backfilled from another column, hand-edit the migration to do it in
+  three steps in one file: add the column with a placeholder default, `UPDATE` to
+  backfill, then add the index/constraint — keep each step on its own
+  `--> statement-breakpoint` line.
 
 ## Making clan-specific values configurable
 
