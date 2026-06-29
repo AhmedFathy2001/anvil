@@ -1,14 +1,25 @@
-// Behind a reverse proxy (Caddy) the Next standalone server sees its own bind address in
-// `request.url` (e.g. http://0.0.0.0:3000), so absolute redirects built from it point at the
-// container instead of the public host. Build them from the proxy's forwarded headers instead.
-// Caddy's reverse_proxy sets X-Forwarded-Proto / X-Forwarded-Host by default; we fall back to the
-// Host header, then to request.url for local/non-proxied runs. Works for subdomains and custom
-// domains alike without any per-instance config.
+// Public origin for building absolute redirect URLs (post-login, logout).
+//
+// Behind a reverse proxy the Next standalone server sees its own bind address in `request.url`
+// (e.g. http://0.0.0.0:3000), so redirects built from it point at the container, not the public
+// host. We must NOT instead trust Host / X-Forwarded-Host — those are attacker-controllable and
+// would be an open-redirect / host-header-injection vector. Each Anvil instance is single-tenant
+// with a known canonical URL, so derive the origin from configured env and never from headers.
+//
+// Resolution order: APP_URL → the origin of DISCORD_REDIRECT_URI (always set when OAuth is used)
+// → request.url (local dev only, where there's no proxy and no config).
+function originOf(u: string | undefined): string | null {
+  if (!u) return null;
+  try {
+    return new URL(u).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function publicOrigin(request: Request): string {
-  const h = request.headers;
-  const proto = h.get('x-forwarded-proto')?.split(',')[0]?.trim();
-  const fwdHost = h.get('x-forwarded-host')?.split(',')[0]?.trim();
-  const host = fwdHost || h.get('host');
-  if (host) return `${proto || 'https'}://${host}`;
+  const configured = originOf(process.env.APP_URL) || originOf(process.env.DISCORD_REDIRECT_URI);
+  if (configured) return configured;
+  // No proxy, no config (local dev): the server's own origin is correct.
   return new URL(request.url).origin;
 }
