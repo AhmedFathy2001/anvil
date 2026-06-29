@@ -6,6 +6,7 @@ import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTea
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
+import { isManagedMediaUrl } from '@/lib/storage';
 
 export async function GET(
   request: Request,
@@ -139,8 +140,8 @@ export async function POST(
   // Image/proof rules. Drops and timed clears always need a screenshot. Kill tiles auto-detected by
   // the plugin may arrive as lightweight count-only pings (no image) — the proof screenshot lands on
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
-  // captain submissions still require proof. When present, an image must be a Vercel Blob URL (keeps
-  // Discord embeds off arbitrary/phishy hosts).
+  // captain submissions still require proof. When present, an image must be one of our managed
+  // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
   const isPluginKillPing = !!pluginAuth && tile.tileType === 'kill';
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
@@ -150,13 +151,9 @@ export async function POST(
     } catch {
       return NextResponse.json({ error: 'imageUrl must be a valid URL' }, { status: 400 });
     }
-    const isVercelBlob =
-      imageUrlParsed.protocol === 'https:' &&
-      (imageUrlParsed.hostname.endsWith('.public.blob.vercel-storage.com') ||
-        imageUrlParsed.hostname.endsWith('.blob.vercel-storage.com'));
-    if (!isVercelBlob) {
+    if (!isManagedMediaUrl(imageUrlParsed.toString())) {
       return NextResponse.json(
-        { error: 'imageUrl must be a Vercel Blob URL — upload via /api/upload first' },
+        { error: 'imageUrl must be an uploaded proof URL — upload via /api/upload first' },
         { status: 400 },
       );
     }

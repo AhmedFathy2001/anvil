@@ -114,6 +114,31 @@ export async function put(key: string, body: StorageBody, contentType?: string):
   return { url };
 }
 
+/**
+ * Is this URL one we serve media from? Used to reject arbitrary/phishy image hosts on submission.
+ * Accepts the configured S3/R2 public base (current uploads) and Vercel Blob hosts (the previous
+ * driver — keeps already-stored proof URLs valid after a migration to R2).
+ */
+export function isManagedMediaUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:') return false;
+  if (u.hostname.endsWith('.blob.vercel-storage.com')) return true;
+  const base = process.env.S3_PUBLIC_BASE_URL;
+  if (base) {
+    try {
+      if (u.host === new URL(base).host) return true;
+    } catch {
+      /* ignore a malformed base */
+    }
+  }
+  return false;
+}
+
 /** Best-effort delete of one or more previously stored objects, addressed by public URL. */
 export async function del(urls: string | string[]): Promise<void> {
   const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
