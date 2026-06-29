@@ -82,7 +82,7 @@ export async function GET(request: Request) {
         showKillCount,
       });
     }
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
 
   const event = await db.query.events.findFirst({
@@ -99,14 +99,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 
+  // Tiles stay hidden in-game until the host reveals them: with `tilesRevealed` off we
+  // feed the tracked-tile builders empty inputs, so trackedStats/Drops/Kills/Timed all
+  // come back empty while the rest of the config (schedule, weekly, notify flags) still
+  // flows. Mirrors the web board + plugin board gates.
+  const tilesRevealed = !!event.tilesRevealed;
+
   // Get drop tiles with tracked item IDs
-  const dropTiles = await db.query.tiles.findMany({
-    where: and(eq(tiles.eventId, auth.eventId), eq(tiles.tileType, 'drop')),
-  });
+  const dropTiles = tilesRevealed
+    ? await db.query.tiles.findMany({
+        where: and(eq(tiles.eventId, auth.eventId), eq(tiles.tileType, 'drop')),
+      })
+    : [];
 
   // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
   // for these — match on the presence of a trackedStat field instead.
-  const allEventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) });
+  const allEventTiles = tilesRevealed
+    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) })
+    : [];
   const statTilesRaw = allEventTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
 
   // Get current submission totals per tile for this team
@@ -223,11 +233,13 @@ export async function GET(request: Request) {
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
   // fire a banner for the whole team when any tile is completed, regardless of who finished it.
-  const teamCompletions = await db
-    .select({ tileId: completions.tileId })
-    .from(completions)
-    .where(eq(completions.teamId, auth.teamId))
-    .all();
+  const teamCompletions = tilesRevealed
+    ? await db
+        .select({ tileId: completions.tileId })
+        .from(completions)
+        .where(eq(completions.teamId, auth.teamId))
+        .all()
+    : [];
   const tileById = new Map(allEventTiles.map((t) => [t.id, t]));
   const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
   const completedTiles = teamCompletions.map((c) => {

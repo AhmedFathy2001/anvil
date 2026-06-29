@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditor, verifyAdminOrModerator } from '@/lib/auth';
 
 export async function GET(
   _request: Request,
@@ -10,6 +10,15 @@ export async function GET(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+
+  // Tiles hidden from members until an admin reveals them. Staff (admin/treasurer/
+  // moderator/editor) still get the full list so the admin tooling works pre-reveal;
+  // everyone else gets an empty list. Mirrors the web board + plugin gates.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
+  if (event && !event.tilesRevealed) {
+    const staff = await verifyAdminOrModerator();
+    if (!staff) return NextResponse.json([]);
+  }
 
   const eventTiles = await db.query.tiles.findMany({
     where: eq(tiles.eventId, eId),

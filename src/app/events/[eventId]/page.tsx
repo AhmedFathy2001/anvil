@@ -69,12 +69,12 @@ export default async function EventScoreboardPage({
     hasVerifiedAccount = verifiedCount.length > 0;
   }
 
-  // Hide the board from non-staff viewers until sign-ups open. Staff (admin /
-  // treasurer / moderator) always see it so they can finish configuring tiles
-  // ahead of the public launch. Once sign-ups are open everyone sees the board,
-  // including the period between sign-ups closing and the event starting.
+  // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
+  // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
+  // always see it so they can finish configuring tiles ahead of the public launch.
   const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
-  const hideBoardFromPlayer = !isStaff && window.reason === 'not_open_yet';
+  const tilesHidden = !event.tilesRevealed;
+  const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
 
   const approvedCount = await countApprovedSignups(id);
   const prizePool = computePrizePool({
@@ -101,12 +101,19 @@ export default async function EventScoreboardPage({
         signupFee={event.signupFee}
       />
       {hideBoardFromPlayer ? (
-        <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
-          <p className="text-lg font-semibold mb-1">The board is hidden until sign-ups open</p>
-          {event.signupOpensAt && (
-            <p className="text-sm">Opens {new Date(event.signupOpensAt).toLocaleString()}.</p>
-          )}
-        </div>
+        window.reason === 'not_open_yet' ? (
+          <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+            <p className="text-lg font-semibold mb-1">The board is hidden until sign-ups open</p>
+            {event.signupOpensAt && (
+              <p className="text-sm">Opens {new Date(event.signupOpensAt).toLocaleString()}.</p>
+            )}
+          </div>
+        ) : (
+          <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+            <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
+            <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+          </div>
+        )
       ) : (
         <ScoreboardClient
           event={event}

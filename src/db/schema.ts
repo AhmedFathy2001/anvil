@@ -44,6 +44,13 @@ export const events = sqliteTable('events', {
   // category channel that holds every team's locked text + voice channels for this
   // event. Null = not yet provisioned. Cleared on teardown.
   discordCategoryId: text('discord_category_id'),
+  // Member-facing tile visibility. 0 = tiles are hidden from non-staff: the web board
+  // renders a "tiles not revealed yet" placeholder and the plugin returns empty tile
+  // lists. 1 = revealed to everyone. Admin-only toggle on the event Overview tab. New
+  // events start hidden so tiles can be authored privately; staff (admin/treasurer/
+  // moderator) always see the board regardless. Existing events were backfilled to 1
+  // so their current (visible) behavior is preserved.
+  tilesRevealed: integer('tiles_revealed').default(0).notNull(),
 });
 
 export const tiles = sqliteTable('tiles', {

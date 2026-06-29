@@ -76,6 +76,30 @@ type EventRow = typeof events.$inferSelect;
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
 // interactive for that team (per-cell + per-item progress).
 async function buildBoard(event: EventRow, callerTeamId: number | null) {
+  // Tiles stay hidden in-game until the host reveals them. Return the event shell with
+  // an empty tile list (and no per-team completions, since those reference tiles) plus a
+  // `tilesRevealed: false` flag the plugin can branch on. Mirrors the web board gate.
+  if (!event.tilesRevealed) {
+    const eventTeams = await db.query.teams.findMany({ where: eq(teams.eventId, event.id) });
+    return {
+      eventId: event.id,
+      name: event.name,
+      format: event.format,
+      scoringMode: event.scoringMode,
+      boardSize: event.boardSize,
+      yourTeamId: callerTeamId ?? -1,
+      readOnly: callerTeamId == null,
+      tilesRevealed: false,
+      tiles: [] as never[],
+      teams: eventTeams.map((tm) => ({
+        teamId: tm.id,
+        name: tm.name,
+        color: tm.color,
+        completedTileIds: [] as number[],
+      })),
+    };
+  }
+
   const [eventTiles, eventTeams] = await Promise.all([
     db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) }),
     db.query.teams.findMany({ where: eq(teams.eventId, event.id) }),
@@ -130,6 +154,7 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
     boardSize: event.boardSize,
     yourTeamId: callerTeamId ?? -1,
     readOnly: callerTeamId == null,
+    tilesRevealed: true,
     tiles: sortedTiles.map((t, index) => {
       // Compound tiles carry several distinct items; surface the per-item breakdown so the plugin's
       // detail page can render the whole set like the website (progress is 0 in read-only preview).
@@ -202,7 +227,7 @@ export async function GET(request: Request) {
   // Interactive path — the caller's own active event, scoped to their team.
   const auth = await verifyPluginToken(request);
   if (!auth) {
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <playerToken>' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
   const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
   if (!event) {

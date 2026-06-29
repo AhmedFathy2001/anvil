@@ -27,6 +27,7 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   const [forceEnding, setForceEnding] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingReveal, setSavingReveal] = useState(false);
 
   const [editType, setEditType] = useState(false);
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
@@ -171,6 +172,26 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
     }
   }
 
+  async function toggleReveal() {
+    const next = currentEvent.tilesRevealed ? 0 : 1;
+    if (next === 0 && !confirm('Hide the tiles from members again? They\'ll see a "tiles not revealed yet" placeholder on the board and in the plugin until you re-reveal.')) return;
+    setSavingReveal(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tilesRevealed: next }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        router.refresh();
+      }
+    } finally {
+      setSavingReveal(false);
+    }
+  }
+
   async function resumeEvent() {
     const originalEnd = currentEvent.originalEndDate;
     const originalPassed = originalEnd && new Date(originalEnd) < new Date();
@@ -301,6 +322,17 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
           </div>
         )}
 
+        <div className={`mb-3 flex items-center gap-2 text-xs rounded-lg border px-3 py-2 ${
+          currentEvent.tilesRevealed
+            ? 'border-accent-green/30 text-accent-green-light bg-accent-green/10'
+            : 'border-gold/30 text-gold bg-gold/10'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${currentEvent.tilesRevealed ? 'bg-accent-green' : 'bg-gold'}`} />
+          {currentEvent.tilesRevealed
+            ? 'Tiles are revealed — members can see the board.'
+            : 'Tiles are hidden — only staff can see the board until you reveal them.'}
+        </div>
+
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => {
@@ -347,6 +379,21 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
               {resuming ? 'Resuming...' : 'Resume Event'}
             </button>
           )}
+          <button
+            onClick={toggleReveal}
+            disabled={savingReveal}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+              currentEvent.tilesRevealed
+                ? 'border-card-border text-text-muted hover:text-foreground'
+                : 'border-gold/30 text-gold bg-gold/10 hover:bg-gold/20'
+            }`}
+          >
+            {savingReveal
+              ? 'Saving...'
+              : currentEvent.tilesRevealed
+                ? 'Hide Tiles from Members'
+                : 'Reveal Tiles to Members'}
+          </button>
           {canChangeType && !editMode && (
             editType ? (
               <>

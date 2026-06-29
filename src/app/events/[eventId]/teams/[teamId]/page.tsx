@@ -40,7 +40,8 @@ export default async function TeamBoardPage({
   const { captainPassword: _, ...safeTeam } = team;
 
   // Same gate as the event scoreboard: non-staff viewers don't see the team board
-  // until sign-ups have opened. Staff bypass for setup access.
+  // until sign-ups have opened AND the host has revealed the tiles. Staff bypass for
+  // setup access.
   const session = await verifyUser();
   const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
   const window = signupWindowState({
@@ -55,6 +56,14 @@ export default async function TeamBoardPage({
         {event.signupOpensAt && (
           <p className="text-sm">Opens {new Date(event.signupOpensAt).toLocaleString()}.</p>
         )}
+      </div>
+    );
+  }
+  if (!isStaff && !event.tilesRevealed) {
+    return (
+      <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+        <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
+        <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
       </div>
     );
   }

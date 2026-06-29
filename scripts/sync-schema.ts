@@ -73,6 +73,18 @@ async function main() {
     'users.password_hash -> nullable',
   );
 
+  console.log('--- events ---');
+  if (!(await columnExists('events', 'tiles_revealed'))) {
+    await runSql('ALTER TABLE events ADD COLUMN tiles_revealed INTEGER NOT NULL DEFAULT 0', 'events.tiles_revealed');
+    // One-time backfill: every event that already exists keeps its current (visible)
+    // behavior. Only events created from now on start hidden-until-revealed. Guarded by
+    // the column-not-exists check so re-running this sync never re-reveals an event an
+    // admin has since chosen to hide.
+    await runSql('UPDATE events SET tiles_revealed = 1', 'events.tiles_revealed backfill');
+  } else {
+    console.log('  -- events.tiles_revealed (already present)');
+  }
+
   console.log('--- players ---');
   await addColumnIfMissing('players', 'clan_member_id', 'INTEGER REFERENCES clan_members(id)');
 

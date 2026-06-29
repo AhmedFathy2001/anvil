@@ -220,6 +220,8 @@ export async function PATCH(
 
   // Default: update dates and/or sign-up config
   const updates: Record<string, unknown> = {};
+  // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
+  if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
   if ('startDate' in body) updates.startDate = body.startDate;
   if ('endDate' in body) updates.endDate = body.endDate;
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;

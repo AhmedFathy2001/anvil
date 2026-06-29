@@ -24,24 +24,28 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const tileRows = await db
-    .select({
-      id: tiles.id,
-      position: tiles.position,
-      label: tiles.label,
-      icon: tiles.icon,
-      description: tiles.description,
-      tileType: tiles.tileType,
-      requiredAmount: tiles.requiredAmount,
-      trackedStat: tiles.trackedStat,
-      statType: tiles.statType,
-      statGoal: tiles.statGoal,
-      trackingMode: tiles.trackingMode,
-      optional: tiles.optional,
-    })
-    .from(tiles)
-    .where(eq(tiles.eventId, id))
-    .orderBy(tiles.position);
+  // Tiles stay hidden in this anonymous preview until the host reveals them — return an
+  // empty list so the schedule detail view shows the event without leaking its board.
+  const tileRows = event.tilesRevealed
+    ? await db
+        .select({
+          id: tiles.id,
+          position: tiles.position,
+          label: tiles.label,
+          icon: tiles.icon,
+          description: tiles.description,
+          tileType: tiles.tileType,
+          requiredAmount: tiles.requiredAmount,
+          trackedStat: tiles.trackedStat,
+          statType: tiles.statType,
+          statGoal: tiles.statGoal,
+          trackingMode: tiles.trackingMode,
+          optional: tiles.optional,
+        })
+        .from(tiles)
+        .where(eq(tiles.eventId, id))
+        .orderBy(tiles.position)
+    : [];
 
   return NextResponse.json({
     id: event.id,
@@ -50,6 +54,7 @@ export async function GET(
     startDate: event.startDate,
     endDate: event.endDate,
     forceEndedAt: event.forceEndedAt,
+    tilesRevealed: !!event.tilesRevealed,
     tiles: tileRows.map((t) => ({
       id: t.id,
       position: t.position,

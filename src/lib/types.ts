@@ -22,6 +22,7 @@ export interface Event {
   scoringMode?: string; // 'tiles' (classic) | 'points'
   format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)
   discordCategoryId?: string | null; // Discord category holding this event's team channels
+  tilesRevealed?: number; // 0 = tiles hidden from non-staff until an admin reveals them; 1 = visible
 }
 
 export interface Tile {
