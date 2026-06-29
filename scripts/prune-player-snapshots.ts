@@ -70,7 +70,7 @@ async function boundarySnapshot(
           LIMIT 1`,
     args: [memberId, start, end],
   });
-  return r.rows[0] as { payload: string; overall_xp: number | null; captured_at: string } | undefined;
+  return r.rows[0] as unknown as { payload: string; overall_xp: number | null; captured_at: string } | undefined;
 }
 
 async function main() {
@@ -82,7 +82,7 @@ async function main() {
 
   const comps = (await c.execute(
     'SELECT id, title, start_date, end_date, status FROM weekly_competitions ORDER BY datetime(start_date)',
-  )).rows as Array<{ id: number; title: string; start_date: string; end_date: string; status: string }>;
+  )).rows as unknown as Array<{ id: number; title: string; start_date: string; end_date: string; status: string }>;
 
   // Dedupe to unique (competition, member) pairs. A member with multiple RSNs (alts) can have
   // several weekly_participants rows in the SAME competition — the unique key there is on
@@ -90,7 +90,7 @@ async function main() {
   // competition, so processing a pair twice would violate the snapshot unique index.
   const rawParts = (await c.execute(
     'SELECT competition_id, clan_member_id FROM weekly_participants WHERE clan_member_id IS NOT NULL',
-  )).rows as Array<{ competition_id: number; clan_member_id: number }>;
+  )).rows as unknown as Array<{ competition_id: number; clan_member_id: number }>;
   const seenPairs = new Set<string>();
   const parts: Array<{ competition_id: number; clan_member_id: number }> = [];
   for (const p of rawParts) {
@@ -121,14 +121,14 @@ async function main() {
   }
 
   // Orphan latest-per-member for anyone with snapshots but no competition-scoped current.
-  const allMembers = (await c.execute('SELECT DISTINCT clan_member_id FROM player_snapshots')).rows as Array<{ clan_member_id: number }>;
+  const allMembers = (await c.execute('SELECT DISTINCT clan_member_id FROM player_snapshots')).rows as unknown as Array<{ clan_member_id: number }>;
   let orphans = 0;
   for (const { clan_member_id } of allMembers) {
     if (membersWithCurrent.has(clan_member_id)) continue;
     const latest = (await c.execute({
       sql: 'SELECT payload, overall_xp, captured_at FROM player_snapshots WHERE clan_member_id = ? ORDER BY datetime(captured_at) DESC, id DESC LIMIT 1',
       args: [clan_member_id],
-    })).rows[0] as { payload: string; overall_xp: number | null; captured_at: string } | undefined;
+    })).rows[0] as unknown as { payload: string; overall_xp: number | null; captured_at: string } | undefined;
     if (latest) {
       rebuilt.push({ clanMemberId: clan_member_id, weeklyCompetitionId: null, kind: 'current', payload: latest.payload, overallXp: latest.overall_xp, capturedAt: latest.captured_at });
       orphans++;
