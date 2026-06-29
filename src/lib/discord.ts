@@ -719,16 +719,16 @@ interface WeeklyStartParams {
 }
 
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
-  const { type, title, metric, endDate } = params;
+  const { type, title, endDate } = params;
   const kind = weeklyKind(type);
   const emoji = type === 'skill' ? '📈' : '⚔️';
 
   const embed: DiscordEmbed = {
     title: `${emoji} ${kind} has started!`,
-    description: `**${title}** is live — tracking **${metric}**.\nEnroll in-game with the Anvil plugin and start grinding!\n━━━━━━━━━━━━━━━━━━━━`,
+    // Just the admin-set title — no raw metric key (e.g. "lunarChests").
+    description: `**${title}** is live!\nEnroll in-game with the Anvil plugin and start grinding!\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0x00ff00, // Green
     fields: [
-      { name: 'Metric', value: metric, inline: true },
       // Exact end time + a live countdown that ticks down in everyone's client.
       { name: 'Ends', value: `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`, inline: true },
     ],
@@ -748,9 +748,10 @@ interface WeeklyResultsParams {
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
 export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<boolean> {
-  const { type, title, metric, standings } = params;
+  const { type, title, standings } = params;
   const kind = weeklyKind(type);
   const winner = standings[0];
+  const unit = type === 'skill' ? 'XP' : 'KC'; // human unit, not the raw metric key
 
   const standingsText = standings
     .slice(0, 10)
@@ -763,7 +764,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   const embed: DiscordEmbed = {
     title: `🏁 ${kind} Results — ${title}`,
     description: winner
-      ? `🥇 **${winner.rsn}** wins with **+${winner.gained.toLocaleString()}** ${metric}!\n━━━━━━━━━━━━━━━━━━━━`
+      ? `🥇 **${winner.rsn}** wins with **+${winner.gained.toLocaleString()}** ${unit}!\n━━━━━━━━━━━━━━━━━━━━`
       : `**${title}** has ended.\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xffd700, // Gold
     fields: [
