@@ -57,7 +57,7 @@ export default function PluginPlayerTokenClient() {
   return (
     <div>
       <p className="text-sm text-text-muted mb-3">
-        Paste this into your RuneLite plugin&rsquo;s <span className="text-foreground">Player Token</span> field.
+        Paste this into your RuneLite plugin&rsquo;s <span className="text-foreground">Account Token</span> field.
         It works across every event you&rsquo;re signed up for — no need to re-paste each event.
         Rotate if you ever suspect it&rsquo;s leaked.
       </p>

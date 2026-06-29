@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanMembers, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 
@@ -191,21 +191,73 @@ export async function verifyPluginTokenUser(
   return null;
 }
 
-// Plugin auth: resolve playerToken UUID from Authorization: Bearer header.
+// Upgrade a clan_member to plugin-verified when authenticated plugin play confirms
+// the caller is logged into that (RSN-matched) account. Only ever upgrades: it sets
+// verifiedAt/method/provisional and captures the accountHash anchor, but never
+// re-attributes the row to another user (the caller already owns it) and never
+// downgrades. No-ops when the row is already fully verified, so the common request
+// does zero extra writes. Best-effort — failures (e.g. an accountHash uniqueness
+// collision) are swallowed so plugin auth is never blocked by verification.
+async function ensurePluginVerifiedOnPlay(
+  member: { id: number; verifiedAt: string | null; provisional: number | null; accountHash: string | null },
+  userId: number,
+  accountHash: string | null,
+  nowIso: string,
+): Promise<void> {
+  const needsVerify = member.verifiedAt == null || member.provisional === 1;
+  const needsHash = !!accountHash && !member.accountHash;
+  if (!needsVerify && !needsHash) return;
+
+  try {
+    await db
+      .update(clanMembers)
+      .set({
+        verifiedAt: member.verifiedAt ?? nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        accountHash: member.accountHash ?? accountHash,
+        lastSeenInClan: nowIso,
+      })
+      .where(eq(clanMembers.id, member.id));
+
+    if (needsVerify) {
+      db.insert(clanAuditLog)
+        .values({
+          clanMemberId: member.id,
+          eventType: 'verified',
+          newValue: JSON.stringify({
+            method: 'plugin',
+            via: 'play',
+            accountHash: accountHash ?? member.accountHash ?? null,
+          }),
+          actorUserId: userId,
+        })
+        .catch(() => {});
+    }
+  } catch {
+    // Verification is best-effort; a failure must not break the plugin request.
+  }
+}
+
+// Plugin auth: resolve the active player row from an Authorization: Bearer header.
 //
-// Two token shapes are accepted, in order:
+// Only the **per-user account token** (`users.plugin_token`) is accepted. It is
+// long-lived and configured once; the active event/team/player row is resolved
+// server-side from the caller's `clan_members` and the in-game RSN they pass on
+// each call. (Legacy per-event `players.player_token`s are no longer a plugin
+// credential — see the trailing comment.)
 //
-//   1. **Per-user plugin token** (`users.plugin_token`). Long-lived, configured
-//      once. The active event/team/player row is resolved server-side using the
-//      caller's `clan_members` and the in-game RSN they pass with each call.
-//   2. **Legacy per-event token** (`players.player_token`). Bound to a single
-//      `players` row, kept working for any plugin/install that hasn't migrated.
+// `currentRsn` (header `X-RSN`, fallback `?rsn=`) is the in-game name reported by
+// the client. When provided it scopes the resolution to the matching clan_member,
+// which is what blocks "a drop on the wrong account credits the right account"
+// (the multi-RSN-on-one-Jagex problem). When omitted, the resolver picks any
+// active-event player row owned by the user — convenient but loses that check.
 //
-// `currentRsn` is the in-game name reported by the client. When provided it
-// scopes the resolution to the matching clan_member, which is what blocks "drop
-// on the wrong account credits the right account" (the multi-RSN-on-one-Jagex
-// problem). When omitted, the resolver picks any active-event player row owned
-// by the user — convenient for back-compat but loses the cross-account check.
+// Auto-verify on play: when the RSN matches one of the user's own clan_members,
+// that's proof the caller controls the account, so an unverified/provisional row
+// is upgraded to verified (`verificationMethod: 'plugin'`). The optional
+// `X-Account-Hash` header is captured as the rename-proof identity anchor. This
+// makes normal plugin play a verification path — no separate link-code dance.
 //
 // Returns null when the token is invalid OR when the token is valid but the
 // caller has no active event enrollment. Callers that need to distinguish these
@@ -226,6 +278,10 @@ export async function verifyPluginToken(
   }
   const normalizedRsn = currentRsn ? normalizeRsn(currentRsn) : null;
 
+  // Stable Jagex identifier (client.getAccountHash()), captured for auto-verify so
+  // a later in-game rename stays anchored to the same clan_member.
+  const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
+
   // Path 1 — per-user plugin token.
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (user) {
@@ -234,6 +290,9 @@ export async function verifyPluginToken(
         id: clanMembers.id,
         rsnNormalized: clanMembers.rsnNormalized,
         previousRsns: clanMembers.previousRsns,
+        verifiedAt: clanMembers.verifiedAt,
+        provisional: clanMembers.provisional,
+        accountHash: clanMembers.accountHash,
       })
       .from(clanMembers)
       .where(and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)));
@@ -281,6 +340,7 @@ export async function verifyPluginToken(
     if (live.length === 0) return null;
 
     let pick = null as typeof live[number] | null;
+    let matchedMember: typeof memberRows[number] | null = null;
     if (normalizedRsn) {
       // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
       const matchingMember = memberRows.find((m) =>
@@ -289,9 +349,17 @@ export async function verifyPluginToken(
       if (!matchingMember) return null; // current account isn't on this user's roster
       pick = live.find((p) => p.clanMemberId === matchingMember.id) ?? null;
       if (!pick) return null; // not signed up under this RSN
+      matchedMember = matchingMember;
     } else {
       // No RSN hint — pick any live event row. Cross-account safety degrades.
       pick = live[0];
+    }
+
+    // A confirmed RSN match means the caller is logged into an account they own —
+    // proof enough to verify it. Skip when there's no RSN hint (we can't tell which
+    // account they're actually on). Best-effort: never blocks the request.
+    if (matchedMember) {
+      await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
     }
 
     return {
