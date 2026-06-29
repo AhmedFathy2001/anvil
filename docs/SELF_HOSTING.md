@@ -8,6 +8,10 @@ app).
 The happy path is **Vercel + Turso**, which needs no servers to manage. Notes for
 non-Vercel hosting are at the end.
 
+> **Don't want to self-host?** I can run and maintain Anvil for your clan for a fee —
+> no infrastructure to manage on your end. [Reach out on Discord](https://discord.gg/nqTxCQAbv4)
+> if you'd rather have it hosted for you (or just want to support the project).
+
 ---
 
 ## 1. Prerequisites

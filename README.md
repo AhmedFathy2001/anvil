@@ -181,6 +181,16 @@ Cron jobs are declared in `vercel.json` and are scheduled automatically.
 Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for local
 setup, the database-migration workflow, and PR guidelines.
 
+## Managed hosting & support
+
+Don't want to run the infrastructure yourself? I can **host and maintain Anvil for
+your clan for a fee** — you get the full platform without touching Turso, Vercel, or
+deployments. [Get in touch on Discord](https://discord.gg/nqTxCQAbv4) to talk it through.
+
+And if you'd simply like to support continued development, the door's open — reach
+out on the same [Discord](https://discord.gg/nqTxCQAbv4) (or
+[buy me a coffee](https://buymeacoffee.com/ahmedfathy2001) ☕).
+
 ## License
 
 Released under the [MIT License with an Attribution requirement](LICENSE). You're
