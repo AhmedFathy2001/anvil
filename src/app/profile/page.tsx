@@ -8,6 +8,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
+import LinkedAccountsClient from './LinkedAccountsClient';
 
 export default async function ProfilePage() {
   const session = await verifyUser();
@@ -46,6 +47,7 @@ export default async function ProfilePage() {
         .select({
           id: players.id,
           name: players.name,
+          clanMemberId: players.clanMemberId,
           teamId: players.teamId,
           eventId: players.eventId,
           playerToken: players.playerToken,
@@ -69,6 +71,19 @@ export default async function ProfilePage() {
     if (p.eventEndDate && new Date(p.eventEndDate).getTime() < nowMs) return false;
     return true;
   });
+
+  // Accounts currently in a live event can't be removed (the Remove button is disabled, and
+  // the API rejects it). Mirrors the live-event check in /api/profile/accounts/[id].
+  const activeMemberIds = new Set(myActiveEvents.map((p) => p.clanMemberId));
+  const linkedForClient = linkedAccounts.map((m) => ({
+    id: m.id,
+    rsn: m.rsn,
+    isPrimary: m.isPrimary === 1,
+    verified: Boolean(m.verifiedAt),
+    verificationMethod: m.verificationMethod,
+    provisional: Boolean(m.provisional),
+    inActiveEvent: activeMemberIds.has(m.id),
+  }));
 
   // Captain seats this user holds.
   const captainSeats = await db
@@ -232,40 +247,7 @@ export default async function ProfilePage() {
             manual options.
           </div>
         ) : (
-          <div className="space-y-2">
-            {linkedAccounts.map((m) => {
-              const verified = Boolean(m.verifiedAt);
-              const provisional = Boolean(m.provisional);
-              return (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-brown-dark/40"
-                >
-                  <div>
-                    <div className="font-medium flex items-center gap-2">
-                      {m.rsn}
-                      {m.isPrimary === 1 && (
-                        <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
-                          primary
-                        </span>
-                      )}
-                      {provisional && (
-                        <span
-                          className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded"
-                          title="Verified via stat-delta — awaiting moderator confirmation"
-                        >
-                          provisional
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-text-muted">
-                      {verified ? `Verified via ${m.verificationMethod}` : 'Not verified'}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <LinkedAccountsClient accounts={linkedForClient} />
         )}
       </section>
 

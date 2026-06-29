@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type Detected = { id: number; rsn: string; lastSeenAt: string };
 
@@ -8,6 +9,7 @@ type Detected = { id: number; rsn: string; lastSeenAt: string };
 // attaches + verifies the account; Ignore opts out (the server keeps it dismissed so it
 // won't be re-suggested). The whole section hides itself once the list is empty.
 export default function DetectedAccountsClient({ initial }: { initial: Detected[] }) {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<Detected[]>(initial);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -27,6 +29,9 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
         return;
       }
       setAccounts((list) => list.filter((a) => a.id !== id));
+      // A linked account now belongs in the server-rendered "RuneScape Accounts" list above —
+      // re-fetch the page's server data so it appears without a manual reload.
+      if (action === 'link') router.refresh();
     } catch {
       setError('Something went wrong — try again');
     } finally {
