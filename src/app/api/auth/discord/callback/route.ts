@@ -4,6 +4,7 @@ import { users, clanAuditLog, clanMembers } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { exchangeCodeForToken, fetchDiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
+import { publicOrigin } from '@/lib/request-origin';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
@@ -227,7 +228,7 @@ export async function GET(request: Request) {
   const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role);
   const isProd = process.env.NODE_ENV === 'production';
 
-  const res = NextResponse.redirect(new URL(returnTo, request.url));
+  const res = NextResponse.redirect(new URL(returnTo, publicOrigin(request)));
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
