@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `optional` integer DEFAULT 0;

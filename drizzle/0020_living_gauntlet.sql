@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `accepted_sources` text;

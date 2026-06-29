@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `source_npcs` text;

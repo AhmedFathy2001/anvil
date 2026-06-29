@@ -1,1 +1,0 @@
-ALTER TABLE `events` ADD `format` text DEFAULT 'bingo' NOT NULL;

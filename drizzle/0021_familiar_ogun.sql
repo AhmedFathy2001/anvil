@@ -1,1 +1,0 @@
-ALTER TABLE `clan_members` ADD `pending_role` text;

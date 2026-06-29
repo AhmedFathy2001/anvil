@@ -1,15 +1,25 @@
 /**
- * One-shot helper: marks all already-applied migrations as applied in the
- * `__drizzle_migrations` tracking table so `drizzle-kit migrate` only runs the
- * new ones going forward. Use this once when switching a database that was
- * previously bootstrapped via `drizzle-kit push`.
+ * One-shot reconcile helper: marks already-applied migrations as applied in the
+ * `__drizzle_migrations` tracking table so `npm run db:migrate` only runs the new
+ * ones going forward. Use this ONCE when switching a database that was previously
+ * built with `drizzle-kit push` (and therefore has no ledger) onto the migration
+ * path — e.g. an early Turso install whose schema already matches src/db/schema.ts.
  *
- * Defaults to marking everything EXCEPT the latest migration (0018) as applied,
- * so the next `drizzle-kit migrate` actually runs the pending one. Pass
- * `--mark-all` to also include the latest entry (useful if you've already
- * applied it manually).
+ * Pick the mode by what schema the push DB ALREADY has:
  *
- * Run:  npx tsx scripts/bootstrap-migrations-table.ts
+ *   default (no flag)  — stamp every migration EXCEPT the latest as applied, leaving the
+ *                        newest for `db:migrate` to run. Use when the DB has all prior
+ *                        schema but is missing just the most recent migration. This is the
+ *                        case when reconciling prod onto a newly-added migration, e.g. an
+ *                        existing Turso install that has 0000_init's schema but not 0001:
+ *                          npx tsx scripts/bootstrap-migrations-table.ts   # stamps 0000
+ *                          npm run db:migrate                              # applies 0001
+ *
+ *   --mark-all         — stamp EVERY migration as applied. Use when the DB already matches
+ *                        the full current schema and nothing is pending:
+ *                          npx tsx scripts/bootstrap-migrations-table.ts --mark-all
+ *
+ * On a fresh DB, don't run this at all — `db:migrate` applies the chain from 0000 cleanly.
  */
 import { createClient } from '@libsql/client';
 import { createHash } from 'crypto';

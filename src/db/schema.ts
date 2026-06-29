@@ -210,10 +210,16 @@ export const users = sqliteTable('users', {
   username: text('username').unique(),
   displayName: text('display_name').notNull(),
   passwordHash: text('password_hash'),
-  // 'admin' | 'treasurer' | 'moderator' | 'member'. Treasurer is a mod-tier role that
-  // additionally has fee-collection authority for sign-ups. Hierarchy:
-  //   admin > treasurer > moderator > member.
+  // 'admin' | 'treasurer' | 'editor' | 'moderator' | 'member'. Treasurer and editor are
+  // mod-tier roles with one extra capability each (fee collection / tile authoring).
+  //   admin > {treasurer, editor} > moderator > member.
   role: text('role').notNull().default('member'),
+  // The clan owner — the person who provisioned this instance. Exactly one user has this set.
+  // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
+  // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can
+  // transfer ownership. Granted once at genesis to the ADMIN_DISCORD_ID user on a fresh
+  // instance; never auto-reassigned afterwards. See transfer-ownership route.
+  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   createdBy: integer('created_by'),
   // Discord OAuth identity (the primary login path for non-staff users)
@@ -372,6 +378,27 @@ export const verificationAttempts = sqliteTable('verification_attempts', {
   index('verification_attempts_expires_at_idx').on(table.expiresAt),
 ]);
 
+// Opt-in inbox for plugin-detected accounts. When a user authenticates the plugin with
+// their Account Token and plays a RuneScape account that isn't yet attributed to anyone,
+// the site records a suggestion here (it never auto-claims). The user then Adds (claims +
+// verifies the clan_member) or Ignores (status → 'dismissed', so it isn't re-suggested) the
+// account from /profile. One row per (user, rsn); accountHash captured when the plugin
+// reports it so an Add survives a later in-game rename.
+export const detectedAccounts = sqliteTable('detected_accounts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  rsn: text('rsn').notNull(),                       // display casing as last reported in-game
+  rsnNormalized: text('rsn_normalized').notNull(),  // lowercased for the per-user uniqueness guard
+  accountHash: text('account_hash'),                // stable Jagex id when the plugin reports it
+  status: text('status').notNull().default('pending'), // 'pending' | 'dismissed'
+  detectedAt: text('detected_at').notNull(),
+  lastSeenAt: text('last_seen_at').notNull(),       // bumped each time we see them play it
+}, (table) => [
+  uniqueIndex('detected_accounts_user_rsn_unique').on(table.userId, table.rsnNormalized),
+  index('detected_accounts_user_id_idx').on(table.userId),
+  index('detected_accounts_status_idx').on(table.status),
+]);
+
 // Long-lived plugin tokens issued to an admin after they've verified via the link flow.
 // Distinct from per-event `players.playerToken` (which scopes a player to one event/team).
 // Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the
@@ -478,13 +505,23 @@ export const pendingRenames = sqliteTable('pending_renames', {
 export const playerSnapshots = sqliteTable('player_snapshots', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // Competition this snapshot belongs to. Snapshots are scoped to a weekly competition so we
+  // keep exactly two per (member, competition): a frozen 'baseline' at event start and a
+  // 'current' overwritten every cron tick until the event ends. NULL only for legacy/orphan
+  // rows the backfill keeps purely as a member's most-recent stats (rename detection).
+  weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  // 'baseline' (insert-once, frozen at enrollment) | 'current' (upserted each tick).
+  kind: text('kind').notNull().default('current'),
   capturedAt: text('captured_at').default(sql`(datetime('now'))`).notNull(),
   // JSON: { skills: { attack: {xp,level,rank}, ... }, bosses: { zulrah: {score,rank}, ... } }
   payload: text('payload').notNull(),
-  // Denormalized for cheap "did anything change since last snapshot" probes and ORDER BY.
+  // Denormalized for cheap ORDER BY and the rename detector's "latest overall XP" probe.
   overallXp: integer('overall_xp'),
 }, (table) => [
   index('player_snapshots_member_captured_idx').on(table.clanMemberId, table.capturedAt),
+  // One baseline + one current per member per competition. NULLs are distinct in SQLite, so
+  // legacy/orphan rows (NULL competition) never collide here.
+  uniqueIndex('player_snapshots_member_comp_kind_idx').on(table.clanMemberId, table.weeklyCompetitionId, table.kind),
 ]);
 
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.
