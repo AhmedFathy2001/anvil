@@ -3,7 +3,9 @@ import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
-import { parseProfile, signupWindowState } from '@/lib/signup';
+import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
+import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
 
 export const dynamic = 'force-dynamic';
@@ -64,10 +66,28 @@ export default async function EventSignupPage({
     }
   }
 
-  const window = signupWindowState({
-    signupOpensAt: event.signupOpensAt,
-    signupDeadline: event.signupDeadline,
-    startDate: event.startDate,
+  // An existing, non-withdrawn sign-up is in "edit" mode, so it gets the payment-deadline
+  // grace window; everyone else (new sign-up, or re-joining after withdrawal) uses the
+  // normal sign-up window.
+  const isEditingActive = !!signup && signup.status !== 'withdrawn';
+  const window = isEditingActive
+    ? signupEditState({
+        signupOpensAt: event.signupOpensAt,
+        signupDeadline: event.signupDeadline,
+        startDate: event.startDate,
+        paymentDeadline: event.paymentDeadline,
+      })
+    : signupWindowState({
+        signupOpensAt: event.signupOpensAt,
+        signupDeadline: event.signupDeadline,
+        startDate: event.startDate,
+      });
+
+  const approvedCount = await countApprovedSignups(id);
+  const prizePool = computePrizePool({
+    addedPrizePool: event.addedPrizePool,
+    signupFee: event.signupFee,
+    approvedCount,
   });
 
   return (
@@ -80,6 +100,13 @@ export default async function EventSignupPage({
         One sign-up per Discord account. Pick the RSN you&apos;ll play with — that&apos;s the
         only account that&apos;ll be tracked for this event.
       </p>
+
+      <PrizePoolHero
+        prizePool={prizePool}
+        signupFee={event.signupFee}
+        addedPrizePool={event.addedPrizePool}
+        approvedCount={approvedCount}
+      />
 
       <SignupForm
         eventId={event.id}

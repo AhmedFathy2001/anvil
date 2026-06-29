@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { SignupProfile } from '@/lib/signup';
+import { formatHoursRange } from '@/lib/signup';
 
 interface Applicant {
   id: number;
@@ -176,8 +177,11 @@ function Section({
               {isExpanded && (
                 <div className="px-3 pb-3 pt-1 border-t border-card-border space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                    <Stat label="Daily hours" value={a.profile.dailyHours} />
-                    <Stat label="Weekly hours" value={a.profile.weeklyHours} />
+                    <Stat label="Active /day" value={formatHoursRange(a.profile.activeDailyHours)} />
+                    <Stat label="Active /week" value={formatHoursRange(a.profile.activeWeeklyHours)} />
+                    <Stat label="AFK /day" value={formatHoursRange(a.profile.afkDailyHours)} />
+                    <Stat label="AFK /week" value={formatHoursRange(a.profile.afkWeeklyHours)} />
+                    <Stat label="Timezone" value={a.profile.timezone} />
                     <Stat
                       label="Submitted"
                       value={new Date(a.signedUpAt).toLocaleDateString()}

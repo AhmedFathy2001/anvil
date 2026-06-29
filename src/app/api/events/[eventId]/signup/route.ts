@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanMembers, eventSignups, events, players, signupFees } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
-import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState } from '@/lib/signup';
+import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 
 export async function GET(
   _request: Request,
@@ -130,14 +130,32 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const window = signupWindowState({
-    signupOpensAt: event.signupOpensAt,
-    signupDeadline: event.signupDeadline,
-    startDate: event.startDate,
+  // Whether this is an edit of an existing active sign-up decides the window: editing gets
+  // the payment-deadline grace period (keep tweaking answers + pay until then); a new
+  // sign-up or a re-join after withdrawal must be inside the normal sign-up window.
+  const existing = await db.query.eventSignups.findFirst({
+    where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
+  const isEditingActive = !!existing && existing.status !== 'withdrawn';
+
+  const window = isEditingActive
+    ? signupEditState({
+        signupOpensAt: event.signupOpensAt,
+        signupDeadline: event.signupDeadline,
+        startDate: event.startDate,
+        paymentDeadline: event.paymentDeadline,
+      })
+    : signupWindowState({
+        signupOpensAt: event.signupOpensAt,
+        signupDeadline: event.signupDeadline,
+        startDate: event.startDate,
+      });
   if (!window.open) {
     return NextResponse.json(
-      { error: 'Signups are not open', reason: window.reason },
+      {
+        error: isEditingActive ? 'Editing is closed for this sign-up' : 'Signups are not open',
+        reason: window.reason,
+      },
       { status: 403 },
     );
   }
@@ -166,10 +184,7 @@ export async function POST(
 
   // Upsert: edit if a signup already exists, else insert. We don't allow status changes
   // through this endpoint — admin/mod actions live elsewhere.
-  const existing = await db.query.eventSignups.findFirst({
-    where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
-  });
-
+  //
   // Re-signing up after a withdrawal flips the row back to 'pending'. Other statuses
   // (approved/rejected) are left to admin actions — editing answers shouldn't silently
   // re-open a rejected sign-up or downgrade an approved one.
@@ -237,6 +252,9 @@ export async function POST(
         eventId: id,
         clanMemberId: body.clanMemberId,
         name: account.rsn,
+        // Seed the per-player timezone from the signup so captains see it on the draft
+        // board. Only set at creation — later admin edits to the player row win.
+        timezone: profile.timezone ?? null,
         playerToken: generatePlayerToken(),
       });
     }

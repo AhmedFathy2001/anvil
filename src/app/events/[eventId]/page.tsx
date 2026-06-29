@@ -6,6 +6,8 @@ import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
+import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
@@ -74,8 +76,21 @@ export default async function EventScoreboardPage({
   const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
   const hideBoardFromPlayer = !isStaff && window.reason === 'not_open_yet';
 
+  const approvedCount = await countApprovedSignups(id);
+  const prizePool = computePrizePool({
+    addedPrizePool: event.addedPrizePool,
+    signupFee: event.signupFee,
+    approvedCount,
+  });
+
   return (
     <>
+      <PrizePoolHero
+        prizePool={prizePool}
+        signupFee={event.signupFee}
+        addedPrizePool={event.addedPrizePool}
+        approvedCount={approvedCount}
+      />
       <SignupBanner
         eventId={event.id}
         loggedIn={!!session}

@@ -224,12 +224,19 @@ export async function PATCH(
   if ('endDate' in body) updates.endDate = body.endDate;
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
+  if ('paymentDeadline' in body) updates.paymentDeadline = body.paymentDeadline;
   if ('captainSelectionDeadline' in body) updates.captainSelectionDeadline = body.captainSelectionDeadline;
   if ('signupFee' in body) {
     if (body.signupFee !== null && (typeof body.signupFee !== 'number' || !Number.isFinite(body.signupFee) || body.signupFee < 0)) {
       return NextResponse.json({ error: 'signupFee must be a non-negative number or null' }, { status: 400 });
     }
     updates.signupFee = body.signupFee;
+  }
+  if ('addedPrizePool' in body) {
+    if (body.addedPrizePool !== null && (typeof body.addedPrizePool !== 'number' || !Number.isFinite(body.addedPrizePool) || body.addedPrizePool < 0)) {
+      return NextResponse.json({ error: 'addedPrizePool must be a non-negative number or null' }, { status: 400 });
+    }
+    updates.addedPrizePool = body.addedPrizePool;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -240,7 +247,7 @@ export async function PATCH(
   const isIsoString = (v: unknown): v is string =>
     typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
-  for (const field of ['startDate', 'endDate', 'signupOpensAt', 'signupDeadline', 'captainSelectionDeadline'] as const) {
+  for (const field of ['startDate', 'endDate', 'signupOpensAt', 'signupDeadline', 'paymentDeadline', 'captainSelectionDeadline'] as const) {
     if (field in body && body[field] !== null && !isIsoString(body[field])) {
       return NextResponse.json({ error: `${field} must be an ISO date string or null` }, { status: 400 });
     }

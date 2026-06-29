@@ -9,6 +9,7 @@ import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
+import { formatHoursRange } from '@/lib/signup';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -62,8 +63,12 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
   const [feeInput, setFeeInput] = useState<string>(
     event.signupFee != null ? String(event.signupFee) : '',
   );
+  const [addedPrizeInput, setAddedPrizeInput] = useState<string>(
+    event.addedPrizePool != null ? String(event.addedPrizePool) : '',
+  );
   const [opensAt, setOpensAt] = useState(event.signupOpensAt ?? '');
   const [signupDeadline, setSignupDeadline] = useState(event.signupDeadline ?? '');
+  const [paymentDeadline, setPaymentDeadline] = useState(event.paymentDeadline ?? '');
   const [captainDeadline, setCaptainDeadline] = useState(event.captainSelectionDeadline ?? '');
   const [savingConfig, setSavingConfig] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -198,13 +203,19 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
       if (parsedFee !== null && (!Number.isFinite(parsedFee) || parsedFee < 0)) {
         throw new Error('Fee must be a non-negative number, or blank for free.');
       }
+      const parsedAddedPrize = addedPrizeInput.trim() === '' ? null : Number(addedPrizeInput);
+      if (parsedAddedPrize !== null && (!Number.isFinite(parsedAddedPrize) || parsedAddedPrize < 0)) {
+        throw new Error('Added prize pool must be a non-negative number, or blank.');
+      }
       const res = await fetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signupFee: parsedFee,
+          addedPrizePool: parsedAddedPrize,
           signupOpensAt: opensAt || null,
           signupDeadline: signupDeadline || null,
+          paymentDeadline: paymentDeadline || null,
           captainSelectionDeadline: captainDeadline || null,
         }),
       });
@@ -269,6 +280,12 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
 
   const filtersActive = search.trim() !== '' || statusFilter !== 'all' || feeFilter !== 'all';
 
+  // Live preview of the public prize pool: added bonus + entry fee × approved entries.
+  // Mirrors lib/prizePool.ts (approved entries count regardless of fee payment).
+  const approvedSignupCount = signups.filter((s) => s.status === 'approved').length;
+  const livePrizePool =
+    (Number(addedPrizeInput) || 0) + (Number(feeInput) || 0) * approvedSignupCount;
+
   return (
     <div className="space-y-6">
       {/* Configuration */}
@@ -293,6 +310,22 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
               className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
             />
             <p className="text-xs text-text-muted mt-1">Leave blank for a free event.</p>
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-text-muted">Added prize pool (gp)</span>
+            <Input
+              type="number"
+              min={0}
+              step={1000}
+              value={addedPrizeInput}
+              onChange={(e) => setAddedPrizeInput(e.target.value)}
+              placeholder="0 = none"
+              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              Bonus you&apos;re adding on top of entry fees.
+            </p>
           </label>
 
           <div>
@@ -320,6 +353,22 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
           </div>
 
           <div>
+            <span className="text-xs text-text-muted">Payment deadline</span>
+            <div className="mt-1">
+              <DateTimePicker
+                value={paymentDeadline}
+                onChange={setPaymentDeadline}
+                placeholder="No grace — follows sign-up deadline"
+                ariaLabel="Payment deadline"
+              />
+            </div>
+            <p className="text-xs text-text-muted mt-1">
+              Players can keep editing their answers and pay until this passes — even after
+              sign-ups close. Leave blank to lock edits at the sign-up deadline.
+            </p>
+          </div>
+
+          <div>
             <span className="text-xs text-text-muted">Captains finalized by</span>
             <div className="mt-1">
               <DateTimePicker
@@ -334,6 +383,22 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
             </p>
           </div>
         </div>
+
+        <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex items-baseline justify-between gap-3">
+          <div className="text-xs uppercase tracking-wide text-text-muted">
+            Total prize pool so far
+          </div>
+          <div className="text-xl font-extrabold text-gold tabular-nums">
+            {livePrizePool.toLocaleString()} gp
+          </div>
+        </div>
+        <p className="text-xs text-text-muted -mt-2">
+          {addedPrizeInput.trim() ? `${(Number(addedPrizeInput) || 0).toLocaleString()} gp added` : 'No bonus'}
+          {' + '}
+          {approvedSignupCount} approved {approvedSignupCount === 1 ? 'entry' : 'entries'}
+          {feeInput.trim() ? ` × ${(Number(feeInput) || 0).toLocaleString()} gp` : ' (free)'}
+          . Approved entries count even if the fee isn&apos;t paid yet. Save to publish.
+        </p>
 
         {configError && (
           <div className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">
@@ -502,8 +567,11 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
                   {isExpanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-card-border space-y-3">
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                        <ProfileStat label="Daily hours" value={s.profile.dailyHours} />
-                        <ProfileStat label="Weekly hours" value={s.profile.weeklyHours} />
+                        <ProfileStat label="Active /day" value={formatHoursRange(s.profile.activeDailyHours)} />
+                        <ProfileStat label="Active /week" value={formatHoursRange(s.profile.activeWeeklyHours)} />
+                        <ProfileStat label="AFK /day" value={formatHoursRange(s.profile.afkDailyHours)} />
+                        <ProfileStat label="AFK /week" value={formatHoursRange(s.profile.afkWeeklyHours)} />
+                        <ProfileStat label="Timezone" value={s.profile.timezone} />
                         <ProfileStat
                           label="Submitted"
                           value={new Date(s.signedUpAt).toLocaleDateString()}

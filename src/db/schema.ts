@@ -17,8 +17,15 @@ export const events = sqliteTable('events', {
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.
   signupFee: integer('signup_fee'),
+  // Host-added bonus to the prize pool, in gp; null = nothing added. The displayed
+  // total pool is this plus signupFee × (count of approved signups) — see lib/prizePool.ts.
+  addedPrizePool: integer('added_prize_pool'),
   signupOpensAt: text('signup_opens_at'),
   signupDeadline: text('signup_deadline'),
+  // Grace cutoff for paying the fee. While unpassed, players may keep editing their
+  // sign-up answers (and pay) even after signupDeadline / event start. Null = no grace;
+  // editing then follows the normal sign-up window. See lib/signup.ts signupEditState.
+  paymentDeadline: text('payment_deadline'),
   captainSelectionDeadline: text('captain_selection_deadline'),
   // Scoring mode. 'tiles' (default, classic) = a team's score is the count of
   // completed required tiles. 'points' (Leagues/Grid-Master style) = each tile

@@ -14,8 +14,10 @@ export interface Event {
   forceEndedAt: string | null;
   originalEndDate: string | null;
   signupFee: number | null;
+  addedPrizePool?: number | null;
   signupOpensAt: string | null;
   signupDeadline: string | null;
+  paymentDeadline?: string | null;
   captainSelectionDeadline: string | null;
   scoringMode?: string; // 'tiles' (classic) | 'points'
   format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)

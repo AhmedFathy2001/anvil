@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
-import type { SignupProfile } from '@/lib/signup';
+import type { SignupProfile, HoursRange } from '@/lib/signup';
+import { TIMEZONE_OPTIONS } from '@/lib/signup';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
@@ -69,6 +70,79 @@ const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
   event_started: 'This event has already started.',
 };
 
+// Read one bound of an HoursRange as a form string ('' when absent).
+function hoursBound(range: HoursRange | undefined, bound: 'min' | 'max'): string {
+  const v = range?.[bound];
+  return v === undefined ? '' : String(v);
+}
+
+// Build an HoursRange from two form strings, or undefined when both are blank.
+// The server sanitizer clamps and normalizes, so we just collect what was typed.
+function rangeFromInputs(min: string, max: string): HoursRange | undefined {
+  const lo = min === '' ? undefined : Number(min);
+  const hi = max === '' ? undefined : Number(max);
+  const out: HoursRange = {};
+  if (lo !== undefined && Number.isFinite(lo)) out.min = lo;
+  if (hi !== undefined && Number.isFinite(hi)) out.max = hi;
+  return out.min === undefined && out.max === undefined ? undefined : out;
+}
+
+// A labelled min–max number-input pair.
+function RangeRow({
+  label,
+  min,
+  max,
+  onMin,
+  onMax,
+  disabled,
+  maxVal,
+  step,
+}: {
+  label: string;
+  min: string;
+  max: string;
+  onMin: (v: string) => void;
+  onMax: (v: string) => void;
+  disabled: boolean;
+  maxVal: number;
+  step: number;
+}) {
+  const inputCls =
+    'w-full px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60';
+  return (
+    <div className="block">
+      <span className="text-xs text-text-muted">{label}</span>
+      <div className="flex items-center gap-1.5 mt-1">
+        <Input
+          type="number"
+          min={0}
+          max={maxVal}
+          step={step}
+          value={min}
+          onChange={(e) => onMin(e.target.value)}
+          disabled={disabled}
+          placeholder="min"
+          aria-label={`${label} minimum`}
+          className={inputCls}
+        />
+        <span className="text-text-muted text-xs">–</span>
+        <Input
+          type="number"
+          min={0}
+          max={maxVal}
+          step={step}
+          value={max}
+          onChange={(e) => onMax(e.target.value)}
+          disabled={disabled}
+          placeholder="max"
+          aria-label={`${label} maximum`}
+          className={inputCls}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function SignupForm({
   eventId,
   event,
@@ -95,13 +169,17 @@ export default function SignupForm({
       ? prefillClanMemberId
       : verifiedAccounts[0]?.id ?? 0);
 
+  const initialProfile = (existingSignup ?? { profile: prefillProfile }).profile;
   const [clanMemberId, setClanMemberId] = useState<number>(initialAccountId);
-  const [dailyHours, setDailyHours] = useState<string>(
-    String((existingSignup ?? { profile: prefillProfile }).profile.dailyHours ?? ''),
-  );
-  const [weeklyHours, setWeeklyHours] = useState<string>(
-    String((existingSignup ?? { profile: prefillProfile }).profile.weeklyHours ?? ''),
-  );
+  const [activeDailyMin, setActiveDailyMin] = useState<string>(hoursBound(initialProfile.activeDailyHours, 'min'));
+  const [activeDailyMax, setActiveDailyMax] = useState<string>(hoursBound(initialProfile.activeDailyHours, 'max'));
+  const [activeWeeklyMin, setActiveWeeklyMin] = useState<string>(hoursBound(initialProfile.activeWeeklyHours, 'min'));
+  const [activeWeeklyMax, setActiveWeeklyMax] = useState<string>(hoursBound(initialProfile.activeWeeklyHours, 'max'));
+  const [afkDailyMin, setAfkDailyMin] = useState<string>(hoursBound(initialProfile.afkDailyHours, 'min'));
+  const [afkDailyMax, setAfkDailyMax] = useState<string>(hoursBound(initialProfile.afkDailyHours, 'max'));
+  const [afkWeeklyMin, setAfkWeeklyMin] = useState<string>(hoursBound(initialProfile.afkWeeklyHours, 'min'));
+  const [afkWeeklyMax, setAfkWeeklyMax] = useState<string>(hoursBound(initialProfile.afkWeeklyHours, 'max'));
+  const [timezone, setTimezone] = useState<string>(initialProfile.timezone ?? '');
   const [bosses, setBosses] = useState<Set<string>>(
     new Set((existingSignup?.profile ?? prefillProfile).bosses ?? []),
   );
@@ -147,8 +225,11 @@ export default function SignupForm({
     setSubmitting(true);
     try {
       const profile: SignupProfile = {
-        dailyHours: dailyHours === '' ? undefined : Number(dailyHours),
-        weeklyHours: weeklyHours === '' ? undefined : Number(weeklyHours),
+        activeDailyHours: rangeFromInputs(activeDailyMin, activeDailyMax),
+        activeWeeklyHours: rangeFromInputs(activeWeeklyMin, activeWeeklyMax),
+        afkDailyHours: rangeFromInputs(afkDailyMin, afkDailyMax),
+        afkWeeklyHours: rangeFromInputs(afkWeeklyMin, afkWeeklyMax),
+        timezone: timezone || undefined,
         bosses: Array.from(bosses),
         skills: Array.from(skills),
         notes: notes.trim() || undefined,
@@ -313,36 +394,39 @@ export default function SignupForm({
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Activity</legend>
         <p className="text-xs text-text-muted">
-          Helps captains gauge your commitment. Estimates are fine.
+          Give a rough range — estimates are fine, and either end can be left blank.
+          <span className="text-foreground"> Active</span> = hands-on content;
+          <span className="text-foreground"> AFK</span> = afkable content you run in the background.
         </p>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="text-xs text-text-muted">Avg hours/day</span>
-            <Input
-              type="number"
-              min={0}
-              max={24}
-              step={0.5}
-              value={dailyHours}
-              onChange={(e) => setDailyHours(e.target.value)}
-              disabled={isLocked}
-              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs text-text-muted">Avg hours/week</span>
-            <Input
-              type="number"
-              min={0}
-              max={168}
-              step={1}
-              value={weeklyHours}
-              onChange={(e) => setWeeklyHours(e.target.value)}
-              disabled={isLocked}
-              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
-            />
-          </label>
+
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Active hours</div>
+          <div className="grid grid-cols-2 gap-3">
+            <RangeRow label="Per day" min={activeDailyMin} max={activeDailyMax} onMin={setActiveDailyMin} onMax={setActiveDailyMax} disabled={isLocked} maxVal={24} step={0.5} />
+            <RangeRow label="Per week" min={activeWeeklyMin} max={activeWeeklyMax} onMin={setActiveWeeklyMin} onMax={setActiveWeeklyMax} disabled={isLocked} maxVal={168} step={1} />
+          </div>
         </div>
+
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">AFK hours</div>
+          <div className="grid grid-cols-2 gap-3">
+            <RangeRow label="Per day" min={afkDailyMin} max={afkDailyMax} onMin={setAfkDailyMin} onMax={setAfkDailyMax} disabled={isLocked} maxVal={24} step={0.5} />
+            <RangeRow label="Per week" min={afkWeeklyMin} max={afkWeeklyMax} onMin={setAfkWeeklyMin} onMax={setAfkWeeklyMax} disabled={isLocked} maxVal={168} step={1} />
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="text-xs text-text-muted">Timezone (optional)</span>
+          <div className="mt-1">
+            <Select
+              value={timezone}
+              onChange={(v) => setTimezone(v)}
+              disabled={isLocked}
+              ariaLabel="Timezone"
+              options={[{ value: '', label: '— Not specified —' }, ...TIMEZONE_OPTIONS]}
+            />
+          </div>
+        </label>
       </fieldset>
 
       {/* Bosses */}
