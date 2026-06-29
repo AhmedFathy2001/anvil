@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanMembers, events, players, teams, users } from '@/db/schema';
+import { clanMembers, detectedAccounts, events, players, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
+import DetectedAccountsClient from './DetectedAccountsClient';
 
 export default async function ProfilePage() {
   const session = await verifyUser();
@@ -25,6 +26,18 @@ export default async function ProfilePage() {
     where: and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)),
     orderBy: (m, { desc }) => [desc(m.isPrimary), desc(m.verifiedAt)],
   });
+
+  // Plugin-detected accounts awaiting an opt-in decision. Filter out any that are already
+  // linked (owned by this user) so we never suggest an account that's on the list above.
+  const ownedRsns = new Set(linkedAccounts.map((m) => m.rsnNormalized));
+  const ownedHashes = new Set(linkedAccounts.map((m) => m.accountHash).filter(Boolean) as string[]);
+  const detectedPending = await db.query.detectedAccounts.findMany({
+    where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
+    orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
+  });
+  const detectedForClient = detectedPending
+    .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
+    .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
 
   // Player participations: events the user is signed up for via any of their linked accounts.
   const linkedIds = linkedAccounts.map((m) => m.id);
@@ -214,8 +227,9 @@ export default async function ProfilePage() {
 
         {linkedAccounts.length === 0 ? (
           <div className="text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
-            No account linked yet. On RuneLite, the plugin links it for you automatically — just add
-            your token below. On mobile or the official client, use the manual options.
+            No account linked yet. On RuneLite, add your token below and play — the accounts you play
+            show up here for you to add with one click. On mobile or the official client, use the
+            manual options.
           </div>
         ) : (
           <div className="space-y-2">
@@ -255,6 +269,9 @@ export default async function ProfilePage() {
         )}
       </section>
 
+      {/* Opt-in inbox for accounts the plugin detected but that aren't linked yet */}
+      <DetectedAccountsClient initial={detectedForClient} />
+
       {/* PRIMARY path: RuneLite plugin token */}
       <section className="border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
         <div className="flex items-center gap-2 mb-1">
@@ -265,8 +282,9 @@ export default async function ProfilePage() {
           </span>
         </div>
         <p className="text-sm text-text-muted mb-4">
-          The easiest way in: paste this token into the Anvil plugin. It links your RuneScape account
-          automatically and tracks your bingo drops — no manual verification needed.
+          The easiest way in: paste this token into the Anvil plugin and play. It tracks your bingo
+          drops, and any account you play shows up above under &ldquo;Accounts we noticed you
+          playing&rdquo; for you to add with one click — no manual verification needed.
         </p>
         <PluginPlayerTokenClient />
       </section>

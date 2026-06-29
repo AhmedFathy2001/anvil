@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, players, pluginLinks, teams, users } from '@/db/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { clanAuditLog, clanMembers, detectedAccounts, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
+import { applyPendingRole } from '@/lib/pending-role';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -239,6 +240,160 @@ async function ensurePluginVerifiedOnPlay(
   }
 }
 
+// Record a plugin-detected account as an opt-in suggestion on play. We do NOT auto-claim:
+// a member may run several accounts (alts, irons, mules) through one RuneLite install and
+// only wants some attached to their public profile. So when the token's user plays an
+// account that isn't already owned by anyone, we drop a row in `detected_accounts` for them
+// to Add or Ignore from /profile. Already-owned accounts (theirs or someone else's) are
+// skipped — the caller's `ensurePluginVerifiedOnPlay` handles verifying their own.
+//
+// A previously Ignored account stays 'dismissed' (we never bump it back to 'pending'), so
+// opting out sticks. Best-effort — never blocks plugin auth.
+async function ensureAccountDetectedOnPlay(
+  userId: number,
+  rsn: string,
+  normalizedRsn: string,
+  accountHash: string | null,
+  nowIso: string,
+): Promise<void> {
+  try {
+    // Match any existing clan_member by accountHash (rename-proof) or RSN. If it's owned by
+    // anyone, there's nothing to suggest — owned-by-them is already linked, owned-by-someone-
+    // -else is not theirs to claim.
+    const matchCond = accountHash
+      ? or(eq(clanMembers.accountHash, accountHash), eq(clanMembers.rsnNormalized, normalizedRsn))
+      : eq(clanMembers.rsnNormalized, normalizedRsn);
+    const member = await db.query.clanMembers.findFirst({ where: matchCond });
+    if (member && member.userId != null) return;
+
+    const existing = await db.query.detectedAccounts.findFirst({
+      where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
+    });
+    if (existing) {
+      // Keep an Ignore sticky; just refresh recency + the latest casing/hash otherwise.
+      await db
+        .update(detectedAccounts)
+        .set({ lastSeenAt: nowIso, rsn, accountHash: accountHash ?? existing.accountHash })
+        .where(eq(detectedAccounts.id, existing.id));
+    } else {
+      await db.insert(detectedAccounts).values({
+        userId,
+        rsn,
+        rsnNormalized: normalizedRsn,
+        accountHash: accountHash ?? null,
+        status: 'pending',
+        detectedAt: nowIso,
+        lastSeenAt: nowIso,
+      });
+    }
+  } catch {
+    // Detection is best-effort — never block plugin auth on it.
+  }
+}
+
+// Attribute a RuneScape account to a user — the explicit opt-in "Add" action behind a
+// detected-accounts suggestion (or any server-side claim). Mirrors /api/plugin/link:
+// match an existing clan_member by accountHash (strongest, survives renames) then by
+// rsnNormalized (ghosts / roster rows):
+//   • already owned by this user → no-op success (idempotent);
+//   • owned by a different user  → refused (never steals);
+//   • unowned ghost              → claim it (userId) + plugin-verify;
+//   • no row at all              → create one, owned + plugin-verified.
+// The first account a user attributes becomes their primary. Returns the outcome so the
+// caller can surface a 409 on a cross-user conflict.
+export async function claimAccountForUser(
+  userId: number,
+  rsn: string,
+  normalizedRsn: string,
+  accountHash: string | null,
+): Promise<{ ok: true; clanMemberId: number } | { ok: false; reason: 'owned-by-other' }> {
+  const nowIso = new Date().toISOString();
+
+  let existing = accountHash
+    ? (await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })) ?? null
+    : null;
+  if (!existing) {
+    existing = (await db.query.clanMembers.findFirst({
+      where: eq(clanMembers.rsnNormalized, normalizedRsn),
+    })) ?? null;
+  }
+
+  if (existing?.userId != null) {
+    if (existing.userId === userId) return { ok: true, clanMemberId: existing.id };
+    return { ok: false, reason: 'owned-by-other' };
+  }
+
+  let clanMemberId: number;
+  if (existing) {
+    // Unowned ghost → claim + verify.
+    await db
+      .update(clanMembers)
+      .set({
+        userId,
+        accountHash: accountHash ?? existing.accountHash,
+        verifiedAt: existing.verifiedAt ?? nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        source: existing.source === 'manual' ? 'manual' : 'plugin-self',
+        claimedAt: existing.claimedAt ?? nowIso,
+        // A previously-left ghost that's now linking is treated as returned; manual
+        // removals stay marked-left (an admin decision we don't override).
+        leftAt: existing.source === 'manual' ? existing.leftAt : null,
+        lastSeenInClan: nowIso,
+      })
+      .where(eq(clanMembers.id, existing.id));
+    clanMemberId = existing.id;
+  } else {
+    // No row anywhere → create one, owned + verified.
+    const inserted = await db
+      .insert(clanMembers)
+      .values({
+        rsn,
+        rsnNormalized: normalizedRsn,
+        accountHash: accountHash ?? null,
+        source: 'plugin-self',
+        isGuest: 0,
+        userId,
+        verifiedAt: nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        claimedAt: nowIso,
+        isPrimary: 0,
+        lastSeenInClan: nowIso,
+      })
+      .returning({ id: clanMembers.id });
+    clanMemberId = inserted[0].id;
+  }
+
+  db.insert(clanAuditLog)
+    .values({
+      clanMemberId,
+      eventType: 'claimed',
+      newValue: JSON.stringify({ userId, via: 'opt-in', method: 'plugin', accountHash: accountHash ?? null, rsn }),
+      actorUserId: userId,
+    })
+    .catch(() => {});
+
+  // First account a user attributes becomes their primary.
+  const owned = await db.query.clanMembers.findMany({
+    where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),
+    columns: { id: true, isPrimary: true },
+  });
+  if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
+    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
+  }
+
+  // Now that the account is attributed to a Discord-authenticated user, apply any
+  // pre-assigned pending role and sync Discord roles. Both fire-and-forget; the dynamic
+  // import on discord-roles avoids a static import cycle (it imports normalizeRsn here).
+  applyPendingRole(clanMemberId, userId, 'plugin').catch(() => {});
+  import('@/lib/discord-roles')
+    .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
+    .catch(() => {});
+
+  return { ok: true, clanMemberId };
+}
+
 // Plugin auth: resolve the active player row from an Authorization: Bearer header.
 //
 // Only the **per-user account token** (`users.plugin_token`) is accepted. It is
@@ -285,6 +440,17 @@ export async function verifyPluginToken(
   // Path 1 — per-user plugin token.
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (user) {
+    const nowIso = new Date().toISOString();
+
+    // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
+    // suggestion the user can Add/Ignore from /profile rather than auto-claiming it (a member
+    // may run alts/irons/mules through one install and only want some attached). Already-owned
+    // accounts are skipped here and verified below by ensurePluginVerifiedOnPlay. Needs the RSN
+    // to know which account they're on.
+    if (currentRsn && normalizedRsn) {
+      await ensureAccountDetectedOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
+    }
+
     const memberRows = await db
       .select({
         id: clanMembers.id,
@@ -333,7 +499,6 @@ export async function verifyPluginToken(
       .innerJoin(events, eq(players.eventId, events.id))
       .where(inArray(players.clanMemberId, memberIds));
 
-    const nowIso = new Date().toISOString();
     const live = playerRows.filter(
       (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
     );

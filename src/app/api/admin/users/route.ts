@@ -13,6 +13,7 @@ export async function GET() {
     id: users.id,
     displayName: users.displayName,
     role: users.role,
+    isOwner: users.isOwner,
     createdAt: users.createdAt,
     discordId: users.discordId,
     discordUsername: users.discordUsername,

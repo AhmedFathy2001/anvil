@@ -73,6 +73,16 @@ export async function GET(request: Request) {
     role = 'admin';
   }
 
+  // Genesis ownership: on a brand-new instance, the very first ADMIN_DISCORD_ID login becomes the
+  // protected owner (see users.isOwner). Gated on "no owner exists yet" purely to avoid ever minting
+  // a second owner — this is NOT a reclaim path. If the owner is later removed, ownership is restored
+  // out-of-band (edit the DB on self-host; the provider handles it on managed hosting), never by env.
+  // Only fires while inserting a brand-new user, so a returning user never silently regains the crown.
+  const grantOwner =
+    !user &&
+    role === 'admin' &&
+    (await db.query.users.findFirst({ where: eq(users.isOwner, true) })) == null;
+
   if (!user) {
     const inserted = await db
       .insert(users)
@@ -83,6 +93,7 @@ export async function GET(request: Request) {
         discordAvatar: discordUser.avatar,
         email: discordUser.email,
         role,
+        isOwner: grantOwner,
         lastLoginAt: nowIso,
       })
       .returning();

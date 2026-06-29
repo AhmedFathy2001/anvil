@@ -24,6 +24,15 @@ export async function PUT(
     return NextResponse.json({ error: 'Role must be admin, treasurer, editor, moderator, or member' }, { status: 400 });
   }
 
+  // The owner's role is locked — it can only change via the transfer-ownership flow. This protects
+  // the person who provisioned the instance from being demoted by another admin.
+  if (role !== undefined) {
+    const target = await db.query.users.findFirst({ where: eq(users.id, targetId) });
+    if (target?.isOwner) {
+      return NextResponse.json({ error: "Cannot change the owner's role — transfer ownership instead" }, { status: 403 });
+    }
+  }
+
   // Prevent demoting last admin
   if (role && role !== 'admin') {
     const admins = await db.select().from(users).where(eq(users.role, 'admin'));
@@ -89,12 +98,18 @@ export async function DELETE(
     return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
   }
 
-  // Prevent deleting last admin
   const target = await db.select().from(users).where(eq(users.id, targetId));
   if (target.length === 0) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  // The owner account can never be deleted (by anyone, including the owner themselves) — ownership
+  // must be transferred to another admin first. Keeps the instance from being orphaned or hijacked.
+  if (target[0].isOwner) {
+    return NextResponse.json({ error: 'Cannot delete the owner — transfer ownership first' }, { status: 403 });
+  }
+
+  // Prevent deleting last admin
   if (target[0].role === 'admin') {
     const admins = await db.select().from(users).where(eq(users.role, 'admin'));
     if (admins.length <= 1) {

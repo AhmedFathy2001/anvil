@@ -77,8 +77,20 @@ export function normalizeTierBands(raw: unknown): TierBand[] {
 export function tileCategories(tiles: { category?: string | null }[]): string[] {
   const set = new Set<string>();
   for (const t of tiles) {
-    const c = t.category?.trim();
+    const c = normalizeCategory(t.category);
     if (c) set.add(c);
   }
   return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Coerce a tile's `category` to a trimmed string. Old/legacy events can store a
+ * non-string value (e.g. a number), so we can't rely on optional chaining alone —
+ * `value?.trim()` still throws when `value` is a number. Returns '' for absent or
+ * non-stringifiable values.
+ */
+export function normalizeCategory(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
 }

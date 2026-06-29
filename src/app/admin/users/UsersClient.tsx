@@ -10,6 +10,7 @@ interface User {
   id: number;
   displayName: string;
   role: Role;
+  isOwner: boolean;
   createdAt: string;
   discordId: string | null;
   discordUsername: string | null;
@@ -28,7 +29,7 @@ const ROLE_BADGE_CLS: Record<Role, string> = {
   member: 'bg-brown-light text-text-muted',
 };
 
-export default function UsersClient() {
+export default function UsersClient({ currentUserId }: { currentUserId: number | null }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -73,6 +74,29 @@ export default function UsersClient() {
       member: users.filter((u) => u.role === 'member').length,
     };
   }, [users]);
+
+  // Is the person viewing this page the protected owner? Only they see the transfer-ownership action.
+  const viewerIsOwner = useMemo(
+    () => users.some((u) => u.isOwner && u.id === currentUserId),
+    [users, currentUserId]
+  );
+
+  async function handleTransferOwnership(user: User) {
+    if (
+      !confirm(
+        `Transfer ownership to "${user.displayName}"?\n\nThey will become the protected owner and you will become a regular admin. Only they will be able to transfer it back.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/users/${user.id}/transfer-ownership`, { method: 'POST' });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || 'Failed to transfer ownership');
+      return;
+    }
+    fetchUsers();
+  }
 
   function startEdit(user: User) {
     setEditingUser(user);
@@ -267,11 +291,21 @@ export default function UsersClient() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE_CLS[user.role] ?? ROLE_BADGE_CLS.member}`}
-                    >
-                      {user.role}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {user.isOwner && (
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold/25 text-gold border border-gold/40"
+                          title="Clan owner — provisioned this instance. Cannot be demoted or removed."
+                        >
+                          👑 Owner
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE_CLS[user.role] ?? ROLE_BADGE_CLS.member}`}
+                      >
+                        {user.role}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-text-muted text-xs">
                     {user.lastLoginAt
@@ -279,7 +313,23 @@ export default function UsersClient() {
                       : new Date(user.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {user.isOwner ? (
+                      // The owner row is protected: no demote/edit/delete for anyone. The owner
+                      // themselves manages succession from a non-owner admin's row ("Make owner").
+                      <span className="text-xs text-text-muted italic" title="The owner cannot be demoted or removed. Transfer ownership to hand it off.">
+                        🔒 Protected
+                      </span>
+                    ) : (
                     <div className="flex gap-1.5 justify-end flex-wrap">
+                      {viewerIsOwner && user.role === 'admin' && (
+                        <button
+                          onClick={() => handleTransferOwnership(user)}
+                          className="px-2 py-1 text-xs border border-gold/40 text-gold hover:bg-gold/10 rounded transition-colors"
+                          title="Transfer ownership to this admin"
+                        >
+                          Make owner
+                        </button>
+                      )}
                       {user.role !== 'admin' && (
                         <button
                           onClick={() => quickPromote(user, 'admin')}
@@ -338,6 +388,7 @@ export default function UsersClient() {
                         Delete
                       </button>
                     </div>
+                    )}
                   </td>
                 </tr>
               );

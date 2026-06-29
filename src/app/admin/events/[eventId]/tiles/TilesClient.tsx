@@ -9,7 +9,7 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
-import { tileTierKey, tileCategories, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, normalizeCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -163,7 +163,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     const q = search.trim().toLowerCase();
     return localTiles.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
-      if (categoryFilter !== 'all' && (t.category?.trim() || '') !== categoryFilter) return false;
+      if (categoryFilter !== 'all' && normalizeCategory(t.category) !== categoryFilter) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       if (!q) return true;
       return (

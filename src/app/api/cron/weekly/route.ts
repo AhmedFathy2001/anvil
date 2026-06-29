@@ -238,10 +238,6 @@ export async function GET(request: Request) {
     let lastDispatch = 0;
     const dispatchQueue = [...batch];
     const unrankedMemberIds = new Set<number>();
-    // De-dupe snapshot writes within a single tick. With 15-min ticks we'd still get
-    // ~96 snapshots/member/day untunneled; this guard caps it to one per clan_member
-    // per tick (~1/15min) for the small cost of a Set lookup.
-    const snapshotWrittenThisTick = new Set<number>();
 
     async function takeToken() {
       const wait = Math.max(0, PER_REQUEST_GAP_MS - (Date.now() - lastDispatch));
@@ -307,12 +303,11 @@ export async function GET(request: Request) {
             await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
             compResult.participantsUpdated++;
 
-            // Persist a per-member snapshot for force-end recovery + retroactive
-            // leaderboard recomputes. Capped at one write per clan_member per tick
-            // (multiple comps may share members) so we don't bloat the table.
-            if (p.clanMemberId != null && !snapshotWrittenThisTick.has(p.clanMemberId)) {
-              snapshotWrittenThisTick.add(p.clanMemberId);
-              await writePlayerSnapshot(p.clanMemberId, result.snapshot);
+            // Persist this member's stats scoped to the competition: a frozen baseline on
+            // their first tick, and a 'current' row overwritten each tick. Bounded at two
+            // rows per (member, competition) — see writePlayerSnapshot.
+            if (p.clanMemberId != null) {
+              await writePlayerSnapshot(p.clanMemberId, comp.id, result.snapshot);
             }
           } else if (result.kind === 'unranked') {
             // Quarantine the clan_member row so future ticks skip it entirely. The display

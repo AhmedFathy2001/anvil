@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, asc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
@@ -182,23 +182,44 @@ export async function fetchParticipantStat(
 }
 
 /**
- * Persist a player_snapshots row. Best-effort — callers don't fail the surrounding
- * fetch loop when this errors (logging happens here). `overallXp` is denormalized
- * out of the JSON payload for cheap ORDER BY / "did anything change" queries.
+ * Persist a player's stats for one competition. We keep exactly two rows per
+ * (member, competition):
+ *   - 'baseline': inserted once on the member's first tick in the competition, then frozen.
+ *   - 'current':  upserted every tick — overwritten with the latest stats until the event ends.
+ *
+ * This bounds player_snapshots at 2 rows per member per competition (the unbounded
+ * append-per-tick model is what ballooned the table to 260k rows / 1.2GB). Best-effort:
+ * callers don't fail the surrounding fetch loop when this errors. `overallXp` is denormalized
+ * out of the JSON payload for cheap ORDER BY and the rename detector's "latest XP" probe.
  */
 export async function writePlayerSnapshot(
   clanMemberId: number,
+  weeklyCompetitionId: number,
   snapshot: HiscoresSnapshot,
 ): Promise<void> {
-  const overallXp = snapshot.skills?.overall?.xp;
+  const rawOverall = snapshot.skills?.overall?.xp;
+  const overallXp = typeof rawOverall === 'number' ? rawOverall : null;
+  const payload = JSON.stringify(snapshot);
   try {
-    await db.insert(playerSnapshots).values({
-      clanMemberId,
-      payload: JSON.stringify(snapshot),
-      overallXp: typeof overallXp === 'number' ? overallXp : null,
-    });
+    // Baseline: write once, never touch again (ON CONFLICT DO NOTHING freezes it).
+    await db
+      .insert(playerSnapshots)
+      .values({ clanMemberId, weeklyCompetitionId, kind: 'baseline', payload, overallXp })
+      .onConflictDoNothing();
+
+    // Current: one row per (member, competition), overwritten each tick. The setWhere guard
+    // skips the write entirely when the stats are byte-identical to what's already stored, so
+    // an idle player costs nothing.
+    await db
+      .insert(playerSnapshots)
+      .values({ clanMemberId, weeklyCompetitionId, kind: 'current', payload, overallXp })
+      .onConflictDoUpdate({
+        target: [playerSnapshots.clanMemberId, playerSnapshots.weeklyCompetitionId, playerSnapshots.kind],
+        set: { payload, overallXp, capturedAt: sql`(datetime('now'))` },
+        setWhere: ne(playerSnapshots.payload, payload),
+      });
   } catch (err) {
-    log.warn('player-snapshots.write-fail', { clanMemberId }, err);
+    log.warn('player-snapshots.write-fail', { clanMemberId, weeklyCompetitionId }, err);
   }
 }
 

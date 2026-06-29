@@ -70,6 +70,28 @@ const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
   event_started: 'This event has already started.',
 };
 
+// Purely-for-laughs clan banter shown once per event next to the hours fields.
+// No input, nothing stored — just flavour. One line is picked deterministically
+// per event (see pickTrollLine) so everyone signing up for the same event sees
+// the same one, but different events get different lines.
+const TROLL_LINES = [
+  'Be honest about those hours — employed, unemployed, or no social life? kek',
+  'Do you resemble EVScape or Odablock for physique? No wrong answers (there is).',
+  'Putting 168 hours/week? Touch grass speedrun any%.',
+  'AFK hours = the hours your account plays while you stare at the wall, yes.',
+  'Min 0, max 24? Bold of you to assume you have a sleep schedule.',
+  'These hours are a contract. The clan WILL check your /played.',
+  'If your weekly hours exceed your shower count we need to talk.',
+  'Filling this out at 4am? Couldn’t be me (it is me).',
+];
+
+// Stable hash of the event id → an index into TROLL_LINES, so the chosen line is
+// consistent for a given event but varies between events.
+function pickTrollLine(eventId: number): string {
+  const idx = Math.abs(Math.trunc(eventId)) % TROLL_LINES.length;
+  return TROLL_LINES[idx];
+}
+
 // Read one bound of an HoursRange as a form string ('' when absent).
 function hoursBound(range: HoursRange | undefined, bound: 'min' | 'max'): string {
   const v = range?.[bound];
@@ -194,6 +216,9 @@ export default function SignupForm({
   const [error, setError] = useState<string | null>(null);
   const [bossFilter, setBossFilter] = useState('');
   const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // One troll line per event, stable across renders and visitors.
+  const trollLine = useMemo(() => pickTrollLine(eventId), [eventId]);
 
   const filteredBosses = useMemo(() => {
     if (!bossFilter.trim()) return BOSSES;
@@ -398,6 +423,7 @@ export default function SignupForm({
           <span className="text-foreground"> Active</span> = hands-on content;
           <span className="text-foreground"> AFK</span> = afkable content you run in the background.
         </p>
+        <p className="text-xs italic text-gold/70">🗿 {trollLine}</p>
 
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Active hours</div>
