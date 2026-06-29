@@ -21,4 +21,12 @@ if (process.env.NODE_ENV === 'production' && isRemote && !authToken) {
 
 const client = createClient({ url, authToken });
 
+// Self-hosted instances run against a local SQLite file (libsql `file:` scheme). WAL lets readers
+// and the single writer proceed concurrently, and a busy timeout makes brief write contention retry
+// instead of throwing SQLITE_BUSY under a full clan's load. Remote Turso manages this server-side.
+if (url.startsWith('file:')) {
+  client.execute('PRAGMA journal_mode=WAL;').catch(() => {});
+  client.execute('PRAGMA busy_timeout=5000;').catch(() => {});
+}
+
 export const db = drizzle(client, { schema });

@@ -101,14 +101,22 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 5. Apply database migrations
 
-Migrations are **not** auto-applied on deploy. With your production (or local)
-database creds in the environment:
+With your production (or local) database creds in the environment, replay the
+committed migration chain:
 
 ```bash
-npm run db:push
+npm run db:migrate
 ```
 
-This creates every table, index, and trigger.
+This applies `drizzle/` from `0000` onward, creating every table, index, and
+trigger. It is idempotent and safe to re-run — already-applied migrations are
+skipped via the `__drizzle_migrations` ledger. The Docker image runs this same
+command automatically on container start (see §7), so a containerised deploy needs
+nothing here.
+
+> **Don't use `db:push` to provision or upgrade a real database.** It bypasses the
+> migration ledger and drifts the DB out of sync with `drizzle/`, which breaks future
+> `db:migrate` runs. `db:push` is for throwaway local scratch DBs only.
 
 ---
 
@@ -170,19 +178,50 @@ If you'd rather ship a build that defaults to your own URL, change the default i
 
 ---
 
+## Self-hosting with Docker
+
+Anvil ships a `Dockerfile` that builds a self-contained image (Next.js standalone
+output) — the recommended path for running on your own box (Hetzner, a VPS, etc.).
+
+```bash
+docker build -t anvil .
+docker run -d --name my-clan \
+  -p 3000:3000 \
+  -v /srv/my-clan/data:/data \                # SQLite DB lives here (file:/data/anvil.db)
+  --env-file .env \                            # secrets + S3/R2 + Discord config
+  anvil
+```
+
+- **Database.** Defaults to a local SQLite file at `file:/data/anvil.db` (WAL mode,
+  on the mounted volume). Override `TURSO_DATABASE_URL` to point at remote Turso.
+- **Migrations are applied automatically on container start** (`scripts/migrate.mjs`
+  runs before the server). A migration failure aborts boot rather than serving a
+  half-built schema — no manual schema step needed for a fresh instance.
+- **Media storage.** Set `STORAGE_DRIVER=s3` plus the `S3_*` vars to send drop-proof
+  screenshots + fee proofs to Cloudflare R2 (or any S3-compatible store). See
+  `.env.example`. Leave it unset on Vercel to use `@vercel/blob`.
+- **Back up the SQLite file.** Snapshot the `/data` volume, or run **Litestream**
+  alongside the container to stream the DB continuously to R2.
+
+> **Reconciling an existing `db:push` database** (e.g. an early Vercel + Turso install
+> set up before the migration chain existed). It has no `__drizzle_migrations` ledger,
+> so `db:migrate` would try to recreate tables it already has and fail. Reconcile it
+> **once** before switching onto `db:migrate`:
+>
+> 1. Confirm the live schema already matches `src/db/schema.ts` (`npx drizzle-kit check`).
+> 2. Stamp the squashed `0000_init` baseline as already-applied, with prod creds in env:
+>    ```bash
+>    npx tsx scripts/bootstrap-migrations-table.ts --mark-all
+>    ```
+>    This creates the `__drizzle_migrations` ledger and records the baseline as done.
+> 3. From then on `db:migrate` runs only *future* migrations. Fresh instances need none
+>    of this — they migrate from `0000` cleanly.
+
 ## Non-Vercel hosting notes
 
-Anvil runs on any Node host (Docker, a VPS, etc.), with two Vercel-specific
-pieces to replace:
+The only remaining Vercel-specific piece is **cron**. `vercel.json` schedules the
+refresh routes (`/api/cron/stats`, `/api/cron/weekly`, `/api/cron/flush-notifications`).
+Off Vercel, hit those from any scheduler (system cron, the Anvil control plane,
+GitHub Actions, a Kubernetes CronJob), sending `Authorization: Bearer $CRON_SECRET`.
 
-- **Cron jobs.** `vercel.json` schedules the two refresh routes. Off Vercel, hit
-  `GET /api/cron/stats` and `GET /api/cron/weekly` from any scheduler (system
-  cron, GitHub Actions, a Kubernetes CronJob, etc.), sending
-  `Authorization: Bearer $CRON_SECRET`.
-- **Blob storage.** Screenshot uploads go through `@vercel/blob` in
-  `src/app/api/upload/route.ts`. To host elsewhere, swap that for S3 / MinIO /
-  Backblaze B2 or a disk-backed store. (If you skip uploads, plugin drop-proof
-  screenshots won't be stored.)
-
-The database (libSQL/Turso or a local SQLite file) and all Discord integrations
-work from any host.
+All Discord integrations work from any host.

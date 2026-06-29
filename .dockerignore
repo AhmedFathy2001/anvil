@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*_backup_*.json
+*.tsbuildinfo
+.vscode
+.claude
+coverage
+npm-debug.log*
+docs
