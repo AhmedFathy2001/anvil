@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
+import { notifyWeeklyStart } from '@/lib/discord';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -65,6 +66,14 @@ export async function POST(request: Request) {
 
   // Auto-enroll all registered players
   const enrolled = await enrollAllPlayers(comp.id);
+
+  // A comp created to start immediately is born 'active', so the weekly cron's upcoming→active
+  // transition never fires for it — announce the start here instead. Future-dated ('upcoming')
+  // comps are announced by the cron when it flips them. Fire-and-forget so a webhook hiccup
+  // never fails creation.
+  if (status === 'active') {
+    notifyWeeklyStart({ type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
+  }
 
   return NextResponse.json({ ...comp, enrolled });
 }
