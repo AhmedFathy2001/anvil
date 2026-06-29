@@ -49,12 +49,15 @@ const local = createClient({ url: `file:${OUT}` });
 
 console.log(`Exporting ${url.replace(/\?.*$/, '')}\n            -> ${OUT}\n`);
 
-// Read the full schema. Skip SQLite internals and the migration ledger (recreated below).
+// Read the full schema. Skip SQLite internals and the large player_snapshots_backup safety table
+// (the cleanup session's rollback copy — not needed on the box). Carry __drizzle_migrations AS-IS
+// so the box's boot migrator sees prod's real applied level and applies only what's missing (prod
+// is at 0001; the image's 0002 detected_accounts then gets created on first boot).
 const master = await remote.execute(
   `SELECT type, name, sql FROM sqlite_master
    WHERE sql IS NOT NULL
      AND name NOT LIKE 'sqlite_%'
-     AND name <> '__drizzle_migrations'`,
+     AND name <> 'player_snapshots_backup'`,
 );
 const tableDDL = master.rows.filter((r) => r.type === 'table');
 const restDDL = master.rows.filter((r) => r.type !== 'table'); // views, indexes, triggers
@@ -109,23 +112,6 @@ for (const row of restDDL) {
   await local.execute(String(row.sql));
 }
 
-// 3. Stamp the migration ledger. The libsql migrator only compares created_at to decide what to
-//    apply, so inserting every migration's (hash, folderMillis) makes it a no-op on boot.
-const migs = readMigrationFiles({ migrationsFolder: './drizzle' });
-await local.execute(
-  `CREATE TABLE IF NOT EXISTS __drizzle_migrations (
-     id SERIAL PRIMARY KEY,
-     hash text NOT NULL,
-     created_at numeric
-   );`,
-);
-for (const m of migs) {
-  await local.execute({
-    sql: `INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`,
-    args: [m.hash, m.folderMillis],
-  });
-}
-
 await local.close();
 remote.close();
 
@@ -134,6 +120,6 @@ const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
 console.log('Tables exported:');
 for (const t of tables) console.log(`  ${t.padEnd(28)} ${counts[t]} rows`);
 console.log(`\n${tables.length} tables, ${totalRows} rows total.`);
-console.log(`Stamped ${migs.length} migrations as applied (boot migrator will be a no-op).`);
+console.log(`Carried prod __drizzle_migrations as-is; boot migrator applies anything newer (e.g. 0002).`);
 console.log(`\nWrote ${OUT}. Verify with:`);
 console.log(`  sqlite3 ${OUT} "PRAGMA integrity_check;"`);
