@@ -6,6 +6,8 @@ import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { rosterCapStatus } from '@/lib/member-cap';
+import { log } from '@/lib/logger';
 
 interface IncomingMember {
   rsn: string;
@@ -364,6 +366,14 @@ export async function POST(request: Request) {
     }).catch(() => {});
   }
 
+  // Member-cap (plan limit). Soft-enforced: we never reject the sync — breaking a paying clan's
+  // plugin mid-event would be worse than a brief overage — but we report the roster status so the
+  // plugin/admin can prompt an upgrade, and log it for the control plane to act on.
+  const roster = await rosterCapStatus();
+  if (roster.overLimit) {
+    log.warn('member-cap.over-limit', { active: roster.active, cap: roster.cap });
+  }
+
   // Detailed change list for the plugin to render as in-game chat lines (one per
   // event), in addition to the count summary it has always returned.
   return NextResponse.json({
@@ -373,6 +383,7 @@ export async function POST(request: Request) {
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,
     syncedAt: now,
+    roster, // { cap, active, overLimit, remaining } — cap=null means unlimited
     changes: changes.map((c) => ({
       type: c.type,
       rsn: c.rsn,
