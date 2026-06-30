@@ -9,6 +9,7 @@
 // else Vercel Blob. Call sites only see put()/del() and a public URL string — they never
 // know which backend stored the bytes.
 
+import https from 'node:https';
 import { put as blobPut, del as blobDel } from '@vercel/blob';
 import { AwsClient } from 'aws4fetch';
 import { requireSecret } from './env';
@@ -68,20 +69,41 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
   const cfg = s3Config();
   const objectKey = prefixedKey(cfg, key);
   const target = `${cfg.endpoint}/${cfg.bucket}/${objectKey}`;
-  // Always send a fixed-length body (Uint8Array). Passing a File/Blob streams it without a
-  // Content-Length header, which R2 rejects with 411 MissingContentLength. Buffers are already
-  // length-known. Convert a File to bytes here so both the submissions (Buffer) and fee-proof
-  // (File) callers work. Default the content-type from the File when the caller didn't pass one.
   const ct = contentType ?? (body instanceof File ? body.type : undefined);
-  const payload = body instanceof File ? new Uint8Array(await body.arrayBuffer()) : new Uint8Array(body);
-  const res = await cfg.client.fetch(target, {
+  const bytes = body instanceof File ? Buffer.from(await body.arrayBuffer()) : Buffer.from(body);
+
+  // Sign with aws4fetch, then send the PUT over node:https — NOT global fetch. Next.js's patched
+  // fetch doesn't reliably emit Content-Length for a binary body, so R2 rejects it with 411
+  // MissingContentLength (plain-Node undici does emit it, which is why the migrate/CDN scripts
+  // worked but the app route didn't). node:https lets us set Content-Length explicitly and is
+  // immune to whatever the framework does to fetch. aws4fetch computes x-amz-content-sha256 from the
+  // same bytes we send, so the signature stays valid.
+  const signed = await cfg.client.sign(target, {
     method: 'PUT',
-    body: payload,
+    body: bytes,
     headers: ct ? { 'content-type': ct } : {},
   });
-  if (!res.ok) {
-    throw new Error(`S3 put failed (${res.status}) for ${objectKey}: ${await res.text().catch(() => '')}`);
-  }
+  const headers: Record<string, string> = {};
+  signed.headers.forEach((v, k) => { headers[k] = v; });
+  headers['content-length'] = String(bytes.byteLength);
+
+  const u = new URL(target);
+  await new Promise<void>((resolve, reject) => {
+    const req = https.request(
+      { hostname: u.hostname, port: 443, path: `${u.pathname}${u.search}`, method: 'PUT', headers },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const status = res.statusCode ?? 0;
+          if (status >= 200 && status < 300) resolve();
+          else reject(new Error(`S3 put failed (${status}) for ${objectKey}: ${Buffer.concat(chunks).toString()}`));
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end(bytes);
+  });
   return { url: `${cfg.publicBase}/${objectKey}` };
 }
 
