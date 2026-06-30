@@ -68,12 +68,16 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
   const cfg = s3Config();
   const objectKey = prefixedKey(cfg, key);
   const target = `${cfg.endpoint}/${cfg.bucket}/${objectKey}`;
-  // aws4fetch wants a BodyInit; a Buffer is a Uint8Array, and File is accepted directly.
-  const payload: BodyInit = body instanceof File ? body : new Uint8Array(body);
+  // Always send a fixed-length body (Uint8Array). Passing a File/Blob streams it without a
+  // Content-Length header, which R2 rejects with 411 MissingContentLength. Buffers are already
+  // length-known. Convert a File to bytes here so both the submissions (Buffer) and fee-proof
+  // (File) callers work. Default the content-type from the File when the caller didn't pass one.
+  const ct = contentType ?? (body instanceof File ? body.type : undefined);
+  const payload = body instanceof File ? new Uint8Array(await body.arrayBuffer()) : new Uint8Array(body);
   const res = await cfg.client.fetch(target, {
     method: 'PUT',
     body: payload,
-    headers: contentType ? { 'content-type': contentType } : {},
+    headers: ct ? { 'content-type': ct } : {},
   });
   if (!res.ok) {
     throw new Error(`S3 put failed (${res.status}) for ${objectKey}: ${await res.text().catch(() => '')}`);
