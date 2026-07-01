@@ -26,7 +26,7 @@ export default function EventTabNav({ eventId, tilesOnly = false }: Props) {
   const tabs = tilesOnly ? TABS.filter((t) => t.slug === 'tiles') : TABS;
 
   return (
-    <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto">
+    <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto overflow-y-hidden">
       {tabs.map((tab) => {
         const href = tab.slug ? `${base}/${tab.slug}` : base;
         // Overview is active only on the exact base path; other tabs match their

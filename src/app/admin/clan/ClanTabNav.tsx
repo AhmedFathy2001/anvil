@@ -22,7 +22,7 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
   ];
 
   return (
-    <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto">
+    <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto overflow-y-hidden">
       {tabs
         .filter((t) => t.show)
         .map((tab) => {
