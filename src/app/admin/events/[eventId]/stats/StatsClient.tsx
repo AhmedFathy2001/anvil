@@ -136,11 +136,11 @@ export default function StatsClient({ event, teams }: Props) {
         {/* Step 1 — baseline */}
         <div className="rounded-lg border border-card-border bg-brown-dark/30 p-3 flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <div className="text-sm font-medium">1. Capture starting stats</div>
+            <div className="text-sm font-medium">1. Starting stats <span className="text-text-muted font-normal">(usually automatic)</span></div>
             <p className="text-xs text-text-muted mt-0.5 max-w-md leading-relaxed">
               {eventStarted
-                ? 'Your event has already started, so this only captures a starting line for players who joined late — everyone else keeps theirs.'
-                : 'Do this once, right before the event begins. It records everyone’s current stats as the starting line to measure gains from.'}
+                ? 'Drafted players get their starting line automatically on the hourly sync. Tap this to grab one right now for late joiners instead of waiting.'
+                : 'Anvil captures everyone’s starting line automatically once the event begins. Tapping this right before kickoff just makes it exact — otherwise the first hourly sync (top of the hour) sets it, missing any gains made in between.'}
             </p>
           </div>
           <button

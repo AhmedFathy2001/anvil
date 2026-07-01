@@ -164,7 +164,9 @@ export async function POST(request: Request) {
         rsn: attempt.rsn,
         rsnNormalized: attempt.rsnNormalized,
         source: 'manual',
-        isGuest: 0,
+        // Verification proves account ownership, not clan membership. Start as a guest;
+        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
+        isGuest: 1,
         lastSeenInClan: nowIso,
         userId: session.userId,
         verifiedAt: nowIso,

@@ -57,21 +57,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ knownMember: false, isGuest: true, ...(await activeNow()) });
   }
 
-  if (existing.leftAt) {
-    await db
-      .update(clanMembers)
-      .set({ leftAt: null, lastSeenInClan: new Date().toISOString() })
-      .where(eq(clanMembers.id, existing.id));
-  } else {
+  // A login ping is NOT roster evidence — never resurrect a departed row here.
+  // Someone logging into the game hasn't rejoined the clan; only clan-sync (the in-game
+  // roster) or an admin may clear leftAt. We only bump liveness for rows still in the roster.
+  if (!existing.leftAt) {
     await db
       .update(clanMembers)
       .set({ lastSeenInClan: new Date().toISOString() })
       .where(eq(clanMembers.id, existing.id));
   }
 
+  const knownMember = existing.isGuest === 0 && !existing.leftAt;
   return NextResponse.json({
-    knownMember: existing.isGuest === 0,
-    isGuest: existing.isGuest === 1,
+    knownMember,
+    isGuest: !knownMember,
     ...(await activeNow()),
   });
 }

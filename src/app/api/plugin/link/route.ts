@@ -181,7 +181,9 @@ export async function POST(request: Request) {
         rsnNormalized,
         accountHash: accountHash || null,
         source: 'plugin-self',
-        isGuest: 0,
+        // Verification proves account ownership, not clan membership. Start as a guest;
+        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
+        isGuest: 1,
         lastSeenInClan: nowIso,
         userId: issuingUser.id,
         verifiedAt: nowIso,

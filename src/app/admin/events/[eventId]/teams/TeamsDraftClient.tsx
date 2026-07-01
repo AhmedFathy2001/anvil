@@ -81,6 +81,22 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     poolRemaining: initialPlayers.filter((p) => p.teamId === null).length,
   });
 
+  // One-step-at-a-time view: which phase's section is on screen. Starts at the first unfinished
+  // phase; the phase bar (below) navigates between them so nothing off-step is on screen.
+  const [activeStep, setActiveStep] = useState<number>(() => {
+    if (draft.status !== 'none') return 3;
+    if (teams.length < 2) return 0;
+    if (draft.players.length < 1) return 1;
+    if (draft.teamOrder.length < 1) return 2;
+    return 3;
+  });
+  // Jump to the Run-draft view the moment the draft starts or finishes.
+  useEffect(() => {
+    if (draft.status === 'active' || draft.status === 'paused' || draft.status === 'completed') {
+      setActiveStep(3);
+    }
+  }, [draft.status]);
+
   const fetchDraft = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/draft`);
     if (res.ok) setDraft(await res.json());
@@ -239,13 +255,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     { label: 'Set draft order', done: orderDone },
     { label: 'Run draft', done: draftDone },
   ];
-  // Which phase is "current": completed → past the end; running → the draft step; otherwise the
-  // first unfinished setup step.
-  const currentPhase = draftDone
-    ? phases.length
-    : isDraftInProgress
-      ? 3
-      : Math.max(0, phases.findIndex((p) => !p.done));
   const nextHint = draftDone
     ? 'Draft complete — team rosters are locked. Reset the draft to make changes.'
     : isDraftInProgress
@@ -258,32 +267,38 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             ? 'Set the draft order, then start the draft.'
             : 'Everything’s ready — start the draft below.';
 
+  // Whether the on-screen step is finished, so "Continue" only unlocks when it's safe to move on.
+  const stepDone = [teamsDone, poolDone, orderDone][activeStep] ?? true;
+
   return (
     <div className="space-y-12">
       {/* Guided phase bar — visible in every state so staff always know where they are. */}
       <div className="rounded-xl border border-card-border bg-card-bg p-4 !mt-0">
         <ol className="flex flex-wrap items-center gap-2">
           {phases.map((p, i) => {
-            const isCurrent = i === currentPhase;
+            const selected = i === activeStep;
             return (
-              <li
-                key={p.label}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                  p.done
-                    ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light'
-                    : isCurrent
-                      ? 'border-gold/40 bg-gold/10 text-gold'
-                      : 'border-card-border text-text-muted'
-                }`}
-              >
-                <span
-                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                    p.done ? 'bg-accent-green text-brown-dark' : isCurrent ? 'bg-gold text-brown-dark' : 'bg-card-border'
+              <li key={p.label}>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(i)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    selected
+                      ? 'border-gold bg-gold/15 text-gold'
+                      : p.done
+                        ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light hover:border-accent-green/60'
+                        : 'border-card-border text-text-muted hover:text-foreground hover:border-gold/40'
                   }`}
                 >
-                  {p.done ? '✓' : i + 1}
-                </span>
-                {p.label}
+                  <span
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                      p.done ? 'bg-accent-green text-brown-dark' : selected ? 'bg-gold text-brown-dark' : 'bg-card-border'
+                    }`}
+                  >
+                    {p.done ? '✓' : i + 1}
+                  </span>
+                  {p.label}
+                </button>
               </li>
             );
           })}
@@ -292,12 +307,47 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           <span className="text-foreground/80 font-medium">Next:</span> {nextHint}
         </p>
       </div>
+
+      {/* Plain-language model — open by default until the first team exists, then out of the way. */}
+      <details open={teams.length === 0} className="rounded-xl border border-card-border bg-card-bg/60 group !mt-4">
+        <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center gap-2 text-sm font-medium">
+          <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
+          How teams &amp; the draft work
+        </summary>
+        <div className="px-4 pb-4 text-sm text-text-muted leading-relaxed space-y-2">
+          <p>A draft splits your players into balanced teams by taking turns picking:</p>
+          <ol className="list-decimal ml-5 space-y-1.5">
+            <li>
+              <span className="text-foreground/80">Create teams</span> — add each team and give it a captain.
+            </li>
+            <li>
+              <span className="text-foreground/80">Fill the player pool</span> — add everyone who&apos;s playing
+              (their names come straight from your synced roster).
+            </li>
+            <li>
+              <span className="text-foreground/80">Set the draft order</span> — the sequence teams pick in. It{' '}
+              <span className="text-foreground/80">snakes</span> (1→2→3, then 3→2→1) so no team gets first pick every
+              round.
+            </li>
+            <li>
+              <span className="text-foreground/80">Run the draft</span> — teams take turns picking players from the
+              pool onto their rosters. You can pick for everyone right here, or let each captain pick from their own{' '}
+              <span className="text-foreground/80">My Team</span> page. When the pool is empty the draft ends, rosters
+              lock, and Discord roles are handed out.
+            </li>
+          </ol>
+        </div>
+      </details>
+
+      {activeStep === 0 && (
+        <>
       {/* Teams */}
       <div>
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
           Teams
         </h2>
+        <p className="text-xs text-text-muted mb-4">The teams players get drafted into. Give each one a captain (a captain can also play).</p>
         {teams.length > 0 ? (
           <div className="space-y-2 mb-6">
             {teams.map((team) => {
@@ -371,15 +421,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
       {/* Discord team channels & roles (only renders when the feature is enabled) */}
       <DiscordTeamProvisioning eventId={event.id} />
+        </>
+      )}
 
-      {/* Draft */}
-      <div className="pt-8 border-t border-card-border">
-        <h2 className="text-xl font-bold text-gold mb-6 flex items-center gap-2">
-          <span className="w-1 h-6 bg-gold rounded-full" />
-          Player Draft
-        </h2>
-
-        {(draft.status !== 'none' || draft.teamOrder.length > 0) && (
+      {/* Draft — steps 1-3 each render their own section, one at a time. */}
+      <div className={activeStep === 0 ? 'hidden' : ''}>
+        {(activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">
             <DraftStatus
               status={draft.status}
@@ -395,16 +442,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
 
-        {draft.status === 'none' && !signupsOpen && (
+        {activeStep === 1 && draft.status === 'none' && !signupsOpen && (
           <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
             Player pool fills once sign-ups open ({new Date(event.signupOpensAt!).toLocaleString()}). Players who fill the
             sign-up form are added automatically; admins can also add clan members manually here once the window opens.
           </div>
         )}
 
-        {draft.status === 'none' && signupsOpen && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Player Pool */}
+        {activeStep === 1 && draft.status === 'none' && signupsOpen && (
             <div>
               <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
@@ -489,13 +534,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 </div>
               )}
             </div>
+        )}
 
-            {/* Draft Order */}
+        {activeStep === 2 && draft.status === 'none' && signupsOpen && (
             <div>
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Draft Order
               </h3>
+              <p className="text-xs text-text-muted mb-3">The order teams pick in — it snakes each round so it stays fair.</p>
               {teams.length >= 2 ? (
                 <>
                   <DraftOrderSetup teams={teams} currentOrder={draft.teamOrder} onSave={saveDraftOrder} saving={savingOrder} />
@@ -515,11 +562,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 </div>
               )}
             </div>
-          </div>
         )}
 
         {/* Active / Paused */}
-        {isDraftInProgress && (
+        {activeStep === 3 && isDraftInProgress && (
           <div className="space-y-6">
             <div className="flex flex-wrap gap-2">
               {draft.status === 'active' && (
@@ -588,8 +634,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
 
+        {/* Not started yet — nudge back to the order step where Start lives. */}
+        {activeStep === 3 && draft.status === 'none' && (
+          <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
+            Nothing to run yet. Finish the <span className="text-foreground/80">draft order</span> and press{' '}
+            <span className="text-foreground/80">Start Draft</span> on the previous step to begin picking.
+          </div>
+        )}
+
         {/* Completed */}
-        {draft.status === 'completed' && (
+        {activeStep === 3 && draft.status === 'completed' && (
           <div className="space-y-6">
             <div className="flex flex-wrap gap-2 items-center">
               <button
@@ -670,6 +724,31 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               </h3>
               <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} />
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Step navigation — one clear way forward/back, so the phase chips aren't the only path. */}
+      <div className="flex items-center justify-between border-t border-card-border pt-4 !mt-6">
+        <button
+          type="button"
+          onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
+          disabled={activeStep === 0}
+          className="text-sm text-text-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          ← Back
+        </button>
+        {activeStep < 3 && (
+          <div className="flex items-center gap-3">
+            {!stepDone && <span className="text-xs text-text-muted">{nextHint}</span>}
+            <button
+              type="button"
+              onClick={() => setActiveStep((s) => Math.min(3, s + 1))}
+              disabled={!stepDone}
+              className="text-sm font-semibold px-4 py-2 rounded-lg bg-gold hover:bg-gold-light text-brown-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Continue →
+            </button>
           </div>
         )}
       </div>
