@@ -22,7 +22,14 @@ interface ClanMember {
   pendingRole: 'admin' | 'moderator' | null;
 }
 
-type FilterMode = 'active' | 'guests' | 'left' | 'all';
+type FilterMode = 'active' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+
+// How a member landed on the roster — friendlier than the raw source keys.
+const SOURCE_LABEL: Record<string, string> = {
+  manual: 'Added manually',
+  'plugin-self': 'Plugin (self-report)',
+  'plugin-roster': 'Clan sync',
+};
 
 export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [members, setMembers] = useState<ClanMember[]>([]);
@@ -70,6 +77,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount fetch
     fetchAll();
   }, []);
 
@@ -97,6 +105,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       if (filter === 'active' && (m.leftAt || m.isGuest)) return false;
       if (filter === 'guests' && (!m.isGuest || m.leftAt)) return false;
       if (filter === 'left' && !m.leftAt) return false;
+      // linked/unlinked cut across the current roster (exclude left members) by whether the RSN
+      // has a site account (userId).
+      if (filter === 'linked' && (m.leftAt || !m.userId)) return false;
+      if (filter === 'unlinked' && (m.leftAt || m.userId)) return false;
       if (q && !m.rsn.toLowerCase().includes(q) && !(m.rank || '').toLowerCase().includes(q)) {
         return false;
       }
@@ -105,13 +117,17 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }, [members, search, filter]);
 
   const counts = useMemo(() => {
-    let active = 0, guests = 0, left = 0;
+    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0;
     for (const m of members) {
       if (m.leftAt) left++;
       else if (m.isGuest) guests++;
       else active++;
+      if (!m.leftAt) {
+        if (m.userId) linked++;
+        else unlinked++;
+      }
     }
-    return { active, guests, left, total: members.length };
+    return { active, guests, left, linked, unlinked, total: members.length };
   }, [members]);
 
   async function handleAdd(e: React.FormEvent) {
@@ -280,7 +296,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           Clan Settings
         </h2>
         <p className="text-text-muted text-sm mb-3">
-          The plugin's roster-sync payload must match this clan name. Leave blank to accept any clan.
+          The plugin&apos;s roster-sync payload must match this clan name. Leave blank to accept any clan.
         </p>
         <div className="flex gap-2 items-start">
           <Input
@@ -314,19 +330,24 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex gap-1 border border-card-border rounded-lg p-1 bg-card-bg">
-          {(['active', 'guests', 'left', 'all'] as FilterMode[]).map((f) => (
+        <div className="flex gap-1 border border-card-border rounded-lg p-1 bg-card-bg flex-wrap">
+          {([
+            { key: 'active', label: 'Active', count: counts.active },
+            { key: 'guests', label: 'Guests', count: counts.guests },
+            { key: 'left', label: 'Left', count: counts.left },
+            { key: 'linked', label: 'Has account', count: counts.linked },
+            { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
+            { key: 'all', label: 'All', count: counts.total },
+          ] as { key: FilterMode; label: string; count: number }[]).map((f) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={f.key}
+              onClick={() => setFilter(f.key)}
               className={`px-3 py-1 text-xs rounded transition-colors ${
-                filter === f ? 'bg-gold text-brown-dark font-semibold' : 'text-text-muted hover:text-foreground'
+                filter === f.key ? 'bg-gold text-brown-dark font-semibold' : 'text-text-muted hover:text-foreground'
               }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-              <span className="ml-1.5 opacity-70">
-                ({f === 'active' ? counts.active : f === 'guests' ? counts.guests : f === 'left' ? counts.left : counts.total})
-              </span>
+              {f.label}
+              <span className="ml-1.5 opacity-70">({f.count})</span>
             </button>
           ))}
         </div>
@@ -434,7 +455,24 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   className={`border-b border-card-border/50 hover:bg-card-bg-hover transition-colors ${m.leftAt ? 'opacity-60' : ''}`}
                 >
                   <td className="px-4 py-3 font-medium">
-                    <div>{m.rsn}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>{m.rsn}</span>
+                      {m.userId ? (
+                        <span
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light"
+                          title="Has a site account — this person has signed in with Discord."
+                        >
+                          Account
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted"
+                          title="Roster entry only — no site login yet (synced from the clan or added by hand)."
+                        >
+                          Roster only
+                        </span>
+                      )}
+                    </div>
                     {m.pendingRole && (
                       <div className="mt-1">
                         <span
@@ -477,7 +515,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-text-muted text-xs">{m.source}</td>
+                  <td className="px-4 py-3 text-text-muted text-xs">{SOURCE_LABEL[m.source] ?? m.source}</td>
                   <td className="px-4 py-3 text-text-muted text-xs">
                     {m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleDateString() : '—'}
                   </td>
@@ -610,8 +648,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           >
             <h2 className="text-lg font-bold text-gold mb-1">Rename clan member</h2>
             <p className="text-text-muted text-sm mb-4">
-              Updates the RSN everywhere it's used — active event enrollments, weekly participants,
-              and any linked admin plugin token. Submissions and completed events aren't affected.
+              Updates the RSN everywhere it&apos;s used — active event enrollments, weekly participants,
+              and any linked admin plugin token. Submissions and completed events aren&apos;t affected.
             </p>
             <div className="mb-3">
               <label className="block text-xs text-text-muted mb-1">Current RSN</label>

@@ -1,8 +1,13 @@
 'use client';
 
 import type { Event, Team } from '@/lib/types';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
+
+// Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
+// after one runs we lock the whole panel for a cooldown to stop spam-clicking from hammering the
+// OSRS hiscores.
+const COOLDOWN_SECS = 30;
 
 interface Props {
   event: Event;
@@ -23,6 +28,7 @@ export default function StatsClient({ event, teams }: Props) {
   const [forceResetting, setForceResetting] = useState(false);
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
+  const [cooldown, setCooldown] = useState(0); // seconds left before hiscores actions re-enable
   const [snapshotResult, setSnapshotResult] = useState<{
     snapshotted: number;
     refreshed?: number;
@@ -32,6 +38,15 @@ export default function StatsClient({ event, teams }: Props) {
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
 
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+  const busy = snapshotting || refreshingStats || forceResetting;
+  const locked = busy || cooldown > 0;
+
+  // Tick the cooldown down once per second.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   useEventStream(event.id, {
     onUpdate: useCallback((data: EventStreamData) => {
@@ -54,6 +69,7 @@ export default function StatsClient({ event, teams }: Props) {
       if (res.ok) setSnapshotResult(await res.json());
     } finally {
       setSnapshotting(false);
+      setCooldown(COOLDOWN_SECS);
     }
   }
 
@@ -66,6 +82,7 @@ export default function StatsClient({ event, teams }: Props) {
       if (res.ok) setSnapshotResult(await res.json());
     } finally {
       setForceResetting(false);
+      setCooldown(COOLDOWN_SECS);
     }
   }
 
@@ -76,6 +93,7 @@ export default function StatsClient({ event, teams }: Props) {
       if (res.ok) setLastStatsRefresh(new Date());
     } finally {
       setRefreshingStats(false);
+      setCooldown(COOLDOWN_SECS);
     }
   }
 
@@ -101,61 +119,104 @@ export default function StatsClient({ event, teams }: Props) {
 
   return (
     <div className="space-y-10">
-      {/* Hiscores Management */}
-      <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-3 max-w-2xl">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <span className="w-1 h-5 bg-gold rounded-full" />
-          Hiscores Management
-        </h2>
-        <p className="text-xs text-text-muted">
-          {eventStarted
-            ? 'Event has started. Use "Refresh Stats" to update current stats.'
-            : 'Take a baseline snapshot before the event starts, then refresh stats to track gains.'}
-        </p>
-        <div className="flex gap-2">
+      {/* Skill & boss tracking */}
+      <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Skill &amp; boss tracking
+          </h2>
+          <p className="text-sm text-text-muted mt-1 leading-relaxed">
+            For tiles with a skill or boss goal, Anvil measures progress by comparing each player&apos;s stats{' '}
+            <span className="text-foreground/80">now</span> against their stats when the event started. There are just
+            two things you&apos;ll ever do here.
+          </p>
+        </div>
+
+        {/* Step 1 — baseline */}
+        <div className="rounded-lg border border-card-border bg-brown-dark/30 p-3 flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-sm font-medium">1. Capture starting stats</div>
+            <p className="text-xs text-text-muted mt-0.5 max-w-md leading-relaxed">
+              {eventStarted
+                ? 'Your event has already started, so this only captures a starting line for players who joined late — everyone else keeps theirs.'
+                : 'Do this once, right before the event begins. It records everyone’s current stats as the starting line to measure gains from.'}
+            </p>
+          </div>
           <button
             onClick={takeSnapshot}
-            disabled={snapshotting || forceResetting}
-            className="flex-1 py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
+            disabled={locked}
+            className="shrink-0 px-4 py-2 text-sm font-semibold rounded-lg bg-accent-green/20 border border-accent-green/40 text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
           >
-            {snapshotting ? 'Snapshotting...' : eventStarted ? 'Snapshot (New Players)' : 'Take Snapshot'}
+            {snapshotting
+              ? 'Capturing…'
+              : cooldown > 0
+                ? `Wait ${cooldown}s`
+                : eventStarted
+                  ? 'Capture late joiners'
+                  : 'Capture starting stats'}
           </button>
+        </div>
+
+        {/* Step 2 — refresh */}
+        <div className="rounded-lg border border-card-border bg-brown-dark/30 p-3 flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-sm font-medium">2. Update the leaderboard</div>
+            <p className="text-xs text-text-muted mt-0.5 max-w-md leading-relaxed">
+              Stats refresh <span className="text-foreground/80">automatically every hour</span> — you rarely need this.
+              Use it only for an instant update.
+              {lastStatsRefresh && <> Last updated at {lastStatsRefresh.toLocaleTimeString()}.</>}
+            </p>
+          </div>
           <button
             onClick={refreshStats}
-            disabled={refreshingStats || snapshotting || forceResetting}
-            className="flex-1 py-2 text-sm font-semibold rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+            disabled={locked}
+            className="shrink-0 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshingStats ? 'Refreshing...' : 'Refresh Stats'}
+            {refreshingStats ? 'Updating…' : cooldown > 0 ? `Wait ${cooldown}s` : 'Update now'}
           </button>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={forceResetBaselines}
-            disabled={forceResetting || snapshotting}
-            className="flex-1 py-2 text-sm font-semibold rounded bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
-          >
-            {forceResetting ? 'Resetting...' : 'Force Reset All'}
-          </button>
-        </div>
+
         {snapshotResult && (
-          <div className="text-xs space-y-1 p-2 bg-brown-dark rounded">
+          <div className="text-xs space-y-1 p-2.5 bg-brown-dark rounded-lg">
             {snapshotResult.snapshotted > 0 && (
               <p className="text-accent-green-light">
-                Snapshotted: {snapshotResult.snapshotted} player{snapshotResult.snapshotted !== 1 ? 's' : ''}
+                ✓ Captured starting stats for {snapshotResult.snapshotted} player{snapshotResult.snapshotted !== 1 ? 's' : ''}.
               </p>
             )}
             {snapshotResult.refreshed !== undefined && snapshotResult.refreshed > 0 && (
               <p className="text-blue-400">
-                Refreshed: {snapshotResult.refreshed} player{snapshotResult.refreshed !== 1 ? 's' : ''}
+                ✓ Updated {snapshotResult.refreshed} player{snapshotResult.refreshed !== 1 ? 's' : ''}.
               </p>
             )}
             {snapshotResult.failed && snapshotResult.failed.length > 0 && (
-              <p className="text-red-400">Failed: {snapshotResult.failed.join(', ')}</p>
+              <p className="text-red-400">Couldn&apos;t reach the hiscores for: {snapshotResult.failed.join(', ')}</p>
             )}
             {snapshotResult.error && <p className="text-red-400">Error: {snapshotResult.error}</p>}
           </div>
         )}
-        {lastStatsRefresh && <p className="text-xs text-text-muted">Last refreshed: {lastStatsRefresh.toLocaleTimeString()}</p>}
+
+        {/* Danger zone — destructive, tucked away */}
+        <details className="rounded-lg border border-red-500/20 bg-red-500/5 group">
+          <summary className="cursor-pointer select-none list-none px-3 py-2 text-xs text-red-400/90 flex items-center gap-2">
+            <span className="transition-transform group-open:rotate-90">▸</span>
+            Danger zone — reset starting stats
+          </summary>
+          <div className="px-3 pb-3">
+            <p className="text-xs text-text-muted mb-2 max-w-md leading-relaxed">
+              Overwrites <span className="text-red-400">every</span> player&apos;s starting stats with their current
+              stats, wiping all tracked gains for this event. Only use it if the starting line was captured at the
+              wrong time.
+            </p>
+            <button
+              onClick={forceResetBaselines}
+              disabled={locked}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 disabled:opacity-50 transition-colors"
+            >
+              {forceResetting ? 'Resetting…' : cooldown > 0 ? `Wait ${cooldown}s` : 'Reset all starting stats'}
+            </button>
+          </div>
+        </details>
       </div>
 
       {/* Player Activity */}

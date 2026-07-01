@@ -83,11 +83,17 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
   const anyProvisioned = status.teams.some((t) => t.hasRole || t.hasTextChannel || t.hasVoiceChannel);
 
   return (
-    <div className="pt-8 border-t border-card-border">
-      <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
-        <span className="w-1 h-5 bg-indigo-400 rounded-full" />
-        Discord Channels &amp; Roles
-      </h2>
+    <details className="pt-8 border-t border-card-border group" open={anyProvisioned}>
+      <summary className="cursor-pointer select-none list-none flex items-center gap-2 mb-2">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <span className="w-1 h-5 bg-indigo-400 rounded-full" />
+          Discord Channels &amp; Roles
+        </h2>
+        <span className="text-[10px] uppercase tracking-wide text-text-muted px-1.5 py-0.5 rounded border border-card-border">
+          Optional
+        </span>
+        <span className="ml-auto text-text-muted transition-transform group-open:rotate-90">▸</span>
+      </summary>
       <p className="text-xs text-text-muted mb-4">
         Create a private voice + text channel per team and assign Discord roles. You can provision
         roles &amp; channels now; contestant roles are assigned automatically when the draft completes
@@ -156,7 +162,7 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
           {message.text}
         </div>
       )}
-    </div>
+    </details>
   );
 }
 

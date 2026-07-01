@@ -437,7 +437,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               </div>
 
               {draft.players.length > 0 ? (
-                <div className="space-y-1.5">
+                <>
+                  <div className="text-xs text-text-muted mb-1.5">{draft.players.length} in the pool</div>
+                  <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                   {draft.players.map((player) => (
                     <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
                       <div className="flex items-center gap-2 min-w-0">
@@ -479,7 +481,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                </>
               ) : (
                 <div className="text-center py-6 border border-dashed border-card-border rounded-xl">
                   <p className="text-text-muted text-sm">No players in pool yet</p>
