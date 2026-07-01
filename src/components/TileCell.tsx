@@ -16,9 +16,11 @@ interface TileCellProps {
   points?: number;
   /** Outside the active board filter — render faded + desaturated to recede. */
   dimmed?: boolean;
+  /** Item can't be plugin-drop-tracked (shop/gamble reward) — show a manual-submit marker. */
+  manualOnly?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly }: TileCellProps) {
   const isCompleted = completedBy.length > 0;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   // Drop and kill tiles both show a count-based partial-progress indicator.
@@ -64,6 +66,17 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
           title={`${points} point${points !== 1 ? 's' : ''}`}
         >
           {points}
+        </div>
+      )}
+
+      {/* Manual-only marker — plugin can't drop-track this item. Top-right when free (checkmark
+          only shows once completed), so it never overlaps. */}
+      {manualOnly && !isCompleted && (
+        <div
+          className="absolute top-1 right-1 leading-none text-[10px] sm:text-xs"
+          title="Not auto-tracked by the plugin — submit manually"
+        >
+          ✋
         </div>
       )}
 

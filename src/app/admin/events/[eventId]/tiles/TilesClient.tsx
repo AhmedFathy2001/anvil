@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
+import ManualOnlyBadge from '@/components/ManualOnlyBadge';
+import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -447,6 +449,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       >
                         <span className="text-[10px] font-mono text-text-muted w-7 shrink-0">#{t.position + 1}</span>
                         <span className={`flex-1 truncate text-sm ${sel ? 'text-gold font-medium' : 'text-foreground'}`}>{t.label}</span>
+                        {isManualOnlyDropTile(t) && <ManualOnlyBadge compact className="shrink-0" />}
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
                       </button>
                     </li>
@@ -610,6 +613,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                         Optional
                       </span>
                     ) : null}
+                    {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
                   </div>
                 </div>

@@ -9,6 +9,8 @@ import clogData from '@/data/clog.json';
 // Admin-only (tile editors). The data is static and version-controlled, so it's cheap to import.
 
 const activities = clogData.activities as Record<string, { id: number; name: string }[]>;
+// Item IDs the plugin can't drop-track (shop/points/gamble rewards) — see build-clog-dataset.mjs.
+const manualOnly = new Set<number>((clogData as { manualOnlyIds?: number[] }).manualOnlyIds ?? []);
 
 export async function GET(request: Request) {
   const editor = await verifyTileEditor();
@@ -22,11 +24,18 @@ export async function GET(request: Request) {
     if (!items) {
       return NextResponse.json({ error: 'Unknown collection log page' }, { status: 404 });
     }
-    return NextResponse.json({ activity: activityParam, items });
+    return NextResponse.json({
+      activity: activityParam,
+      items: items.map((it) => ({ ...it, manualOnly: manualOnly.has(it.id) })),
+    });
   }
 
   const list = Object.entries(activities)
-    .map(([name, items]) => ({ name, count: items.length }))
+    .map(([name, items]) => ({
+      name,
+      count: items.length,
+      manualCount: items.filter((it) => manualOnly.has(it.id)).length,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return NextResponse.json({
     activities: list,

@@ -8,6 +8,8 @@ import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
+import ManualOnlyBadge from './ManualOnlyBadge';
+import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
@@ -129,6 +131,7 @@ export default function TileDetailModal({
   const isDrop = tile.tileType === 'drop';
   const isKill = tile.tileType === 'kill';
   const isTimed = tile.tileType === 'timed';
+  const manualOnly = isManualOnlyDropTile(tile);
   // Drop and kill share the count-based progress/gallery/submission UI.
   const isCount = isDrop || isKill;
   const isStatTile = !!tile.trackedStat;
@@ -316,6 +319,7 @@ export default function TileDetailModal({
                 }`}>
                   {kindLabel}
                 </span>
+                {manualOnly && <ManualOnlyBadge />}
                 {isStatTile && tile.statGoal && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}

@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 
 interface ClogItem {
   id: number;
   name: string;
+  manualOnly?: boolean;
 }
 interface ActivityMeta {
   name: string;
   count: number;
+  manualCount?: number;
 }
 
 interface Props {
@@ -131,6 +134,7 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
     a.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
   const keptCount = items ? items.length - excluded.size : 0;
+  const keptManual = items ? items.filter((it) => it.manualOnly && !excluded.has(it.id)).length : 0;
 
   return (
     <>
@@ -190,7 +194,10 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                             className="w-full flex items-center justify-between gap-2 text-left text-sm px-3 py-2 rounded-lg border border-card-border hover:border-gold/40 hover:bg-gold/5 transition-colors"
                           >
                             <span className="text-foreground">{a.name}</span>
-                            <span className="text-xs text-text-muted">{a.count}</span>
+                            <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                              {a.manualCount ? <span className="text-amber-300" title={`${a.manualCount} item(s) can’t be drop-tracked`}>✋{a.manualCount === a.count ? '' : ` ${a.manualCount}`}</span> : null}
+                              {a.count}
+                            </span>
                           </button>
                         </li>
                       ))}
@@ -227,6 +234,7 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                             <label className="flex items-center gap-2.5 text-sm px-2.5 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
                               <input type="checkbox" checked={on} onChange={() => toggle(it.id)} className="accent-gold" />
                               <span className={on ? 'text-foreground' : 'text-text-muted line-through'}>{it.name}</span>
+                              {it.manualOnly && <ManualOnlyBadge compact className="ml-auto shrink-0" />}
                             </label>
                           </li>
                         );
@@ -235,8 +243,13 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                   )}
                 </div>
                 <p className="text-[11px] text-text-muted mt-2 leading-relaxed">
-                  Clog-only rewards (e.g. shop-bought Barbarian Assault gear, gamble pets) auto-complete off the in-game
-                  collection-log unlock — which fires <em>once per account</em>, so a member who already owns the item won’t re-trigger it.
+                  {keptManual > 0 && (
+                    <span className="text-amber-300">
+                      ✋ {keptManual} of these can’t be drop-tracked (shop/gamble rewards) — they’ll be flagged <em>Manual</em> on the board.{' '}
+                    </span>
+                  )}
+                  Clog rewards auto-complete off the in-game collection-log unlock, which fires <em>once per account</em> — so a member who
+                  already owns the item won’t re-trigger it and must submit manually.
                 </p>
                 <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-card-border">
                   <span className="text-xs text-text-muted">{keptCount} tile{keptCount === 1 ? '' : 's'} to add</span>

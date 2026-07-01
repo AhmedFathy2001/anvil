@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import ManualOnlyBadge from './ManualOnlyBadge';
+import { isManualOnlyDropTile } from '@/lib/clogManual';
 
 interface Tile {
   id: number;
@@ -117,6 +119,7 @@ export default function LeaguesBoard({
                     {tile.label}
                   </span>
                   {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
+                  {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact className="shrink-0" />}
                 </div>
                 {pct !== null && (
                   <div className="mt-1 flex items-center gap-2">
