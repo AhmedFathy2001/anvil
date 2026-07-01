@@ -37,6 +37,12 @@ const EXPOSED_KEYS = [
   'discord_team_sync_enabled',
   'discord_bingo_role_id',
   'discord_captain_role_id',
+  // Advisory flag set when the owner finishes (or dismisses) the first-run Setup wizard.
+  // Gates the auto-open + dashboard checklist only; real step status is computed live in
+  // lib/setupStatus.ts.
+  'setup_completed',
+  // How many distinct staff confirmations a paid fee needs before it settles (default 1).
+  'fee_confirmations_required',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

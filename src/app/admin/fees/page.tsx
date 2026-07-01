@@ -1,14 +1,7 @@
 import { redirect } from 'next/navigation';
-import { verifyAdminOrModerator } from '@/lib/auth';
-import FeesQueueClient from './FeesQueueClient';
 
-export const dynamic = 'force-dynamic';
-
-export default async function FeesQueuePage() {
-  const session = await verifyAdminOrModerator();
-  if (!session) {
-    redirect('/admin');
-  }
-
-  return <FeesQueueClient viewerRole={session.role} viewerId={session.userId} />;
+// The standalone fee queue is retired — fees are now collected inline on each event's
+// Sign-ups tab. Kept as a redirect so old links / bookmarks land somewhere sensible.
+export default function FeesRedirect() {
+  redirect('/admin/events');
 }

@@ -2,7 +2,9 @@ import { db } from '@/db';
 import { events, tiles, teams, completions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
+import { verifyUser } from '@/lib/auth';
 import OverviewClient from './OverviewClient';
+import SaveAsPresetButton from '@/components/SaveAsPresetButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +29,18 @@ export default async function EventOverviewPage({
     ? (await db.select().from(completions)).filter((c) => tileIds.has(c.tileId))
     : [];
 
+  const session = await verifyUser();
+  const isAdmin = session?.role === 'admin';
+
   return (
-    <OverviewClient
-      event={event}
-      tiles={eventTiles}
-      teams={eventTeams}
-      completions={eventCompletions}
-    />
+    <>
+      <OverviewClient
+        event={event}
+        tiles={eventTiles}
+        teams={eventTeams}
+        completions={eventCompletions}
+      />
+      {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}
+    </>
   );
 }

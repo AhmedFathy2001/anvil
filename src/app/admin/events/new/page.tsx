@@ -1,9 +1,44 @@
 import Link from 'next/link';
+import { db } from '@/db';
+import { eventPresets, events, settings } from '@/db/schema';
+import { count, desc, eq } from 'drizzle-orm';
 import EventForm from '@/components/EventForm';
+import { BUILTIN_PRESETS, suggestEventName, type EventPreset } from '@/lib/eventPresets';
+import { modeKeyFor } from '@/lib/eventModes';
+import { parseTileCsv } from '@/lib/csvTiles';
 
 export const dynamic = 'force-dynamic';
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  // Auto-name: "{Clan} Bingo #N" so the name field is never blank. Pull the clan name +
+  // how many events exist so we can suggest the next number.
+  const [clanRow, [ec], savedRows] = await Promise.all([
+    db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') }),
+    db.select({ c: count() }).from(events),
+    db.select().from(eventPresets).orderBy(desc(eventPresets.createdAt)),
+  ]);
+  const suggestedName = suggestEventName(clanRow?.value || '', ec?.c ?? 0);
+
+  // Turn saved templates into gallery presets. Their captured tile CSV is parsed back into
+  // rows/labels here so applying one seeds the board through the same import pipeline a
+  // manual CSV upload uses.
+  const customPresets: EventPreset[] = savedRows.map((p) => {
+    const parsed = p.tiles ? parseTileCsv(p.tiles) : null;
+    const csv = parsed && !parsed.error ? { rows: parsed.rows, labels: parsed.labels } : null;
+    return {
+      key: `custom-${p.id}`,
+      id: p.id,
+      label: p.name,
+      blurb: csv ? `Your saved template · ${csv.labels.length} tiles` : 'Your saved template',
+      emoji: '⭐',
+      mode: modeKeyFor(p.format, p.scoringMode),
+      size: p.boardSize,
+      custom: true,
+      csv,
+    };
+  });
+  const presets = [...customPresets, ...BUILTIN_PRESETS];
+
   return (
     <div>
       <Link
@@ -16,13 +51,13 @@ export default function NewEventPage() {
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Create Event</h1>
         <p className="text-text-muted text-sm">
-          Spin up a bingo grid or a tile race. You&apos;ll land on the event&apos;s tabs to configure
-          tiles, teams, sign-ups and stats.
+          Pick a template to get going fast, or tweak the details below. You&apos;ll land on the
+          event&apos;s tabs to configure tiles, teams, sign-ups and stats.
         </p>
       </header>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 shadow-lg shadow-black/20 max-w-2xl">
-        <EventForm />
+        <EventForm presets={presets} suggestedName={suggestedName} />
         <p className="text-xs text-text-muted/70 mt-4 pt-4 border-t border-card-border">
           Looking to start a Skill/Boss of the Week instead?{' '}
           <Link href="/admin/weekly" className="text-gold hover:underline">

@@ -461,6 +461,11 @@ export const signupFees = sqliteTable('signup_fees', {
   proofBlobUrl: text('proof_blob_url'),
   confirmedByUserId: integer('confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   confirmedAt: text('confirmed_at'),
+  // JSON array of distinct confirmers: [{ userId, at }]. Backs the admin-configurable
+  // "require N confirmations" flow — the fee only flips to 'confirmed' (and its proof is
+  // deleted) once this reaches the `fee_confirmations_required` setting. confirmedByUserId /
+  // confirmedAt keep pointing at the final confirmer for back-compat.
+  confirmations: text('confirmations'),
   notes: text('notes'),
 }, (table) => [
   uniqueIndex('signup_fees_signup_unique').on(table.signupId),
@@ -566,4 +571,21 @@ export const pendingNotifications = sqliteTable('pending_notifications', {
 }, (table) => [
   primaryKey({ columns: [table.tileId, table.teamId] }),
   index('pending_notifications_last_event_idx').on(table.lastEventAt),
+]);
+
+// Admin-saved event templates. Capturing an existing event's shape (format/scoring/size) plus its
+// tiles-as-CSV lets staff re-launch a proven board in one click from the create gallery. `tiles` is
+// the canonical tile CSV (same format as the bulk importer) so applying a preset reuses the tested
+// import pipeline verbatim.
+export const eventPresets = sqliteTable('event_presets', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  format: text('format').notNull(),
+  scoringMode: text('scoring_mode').notNull(),
+  boardSize: integer('board_size').notNull(),
+  tiles: text('tiles'),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('event_presets_created_at_idx').on(table.createdAt),
 ]);

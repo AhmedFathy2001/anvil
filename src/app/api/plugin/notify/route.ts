@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
-import { forwardPluginNotification } from '@/lib/discord';
+import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -22,7 +22,9 @@ function isChannel(value: unknown): value is Channel {
 }
 
 function webhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
-  return webhooks[channel];
+  // A channel setting may hold multiple webhook URLs — cycle across them to spread load and dodge
+  // Discord's per-webhook rate limit on busy clans.
+  return pickWebhookUrl(webhooks[channel], `plugin:${channel}`);
 }
 
 export async function POST(request: Request) {

@@ -4,6 +4,7 @@ import { clanMembers, eventSignups, signupFees, teams, users } from '@/db/schema
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { parseProfile } from '@/lib/signup';
+import { parseConfirmations } from '@/lib/feeConfirmations';
 
 export async function GET(
   _request: Request,
@@ -72,6 +73,8 @@ export async function GET(
           reportedCollectorUserId: r.fee.reportedCollectorUserId,
           proofBlobUrl: r.fee.proofBlobUrl,
           confirmedAt: r.fee.confirmedAt,
+          // Number of distinct staff confirmations so far (for the "x/N" pill).
+          confirmationsCount: parseConfirmations(r.fee.confirmations).length,
           notes: r.fee.notes,
         }
       : null,
