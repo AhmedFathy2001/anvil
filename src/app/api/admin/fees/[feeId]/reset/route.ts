@@ -45,6 +45,7 @@ export async function POST(
       proofBlobUrl: null,
       confirmedByUserId: null,
       confirmedAt: null,
+      confirmations: null,
     })
     .where(eq(signupFees.id, id))
     .returning();

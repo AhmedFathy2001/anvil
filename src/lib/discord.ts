@@ -42,6 +42,48 @@ async function getSettingUrl(key: string): Promise<string | null> {
   }
 }
 
+// A webhook setting may hold MULTIPLE URLs (newline / comma / space separated). Splitting a
+// destination across several webhooks lets us round-robin posts and dodge Discord's per-webhook
+// rate limit on busy clans. Only well-formed https URLs are kept.
+export function parseWebhookUrls(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((u) => /^https:\/\/\S+/i.test(u));
+}
+
+// Best-effort round-robin cursor per setting key. In-process only (serverless may reset it between
+// invocations), but within a single cron tick — where a burst of posts actually risks the limit —
+// it spreads load across the configured URLs. The random seed stops every cold start from hammering
+// url[0] first.
+const rrCursors = new Map<string, number>();
+function pickCycledUrl(urls: string[], key: string): string | null {
+  if (urls.length === 0) return null;
+  if (urls.length === 1) return urls[0];
+  const start = rrCursors.get(key) ?? Math.floor(Math.random() * urls.length);
+  rrCursors.set(key, start + 1);
+  return urls[start % urls.length];
+}
+
+// Parse a raw multi-URL setting value and pick one round-robin. Exported for callers that already
+// hold the raw value (e.g. the plugin-notify route reads all channel webhooks in one batch).
+export function pickWebhookUrl(raw: string | null | undefined, cursorKey: string): string | null {
+  return pickCycledUrl(parseWebhookUrls(raw), cursorKey);
+}
+
+// Resolve a webhook destination: the first key in `keys` that has any URL(s) wins, and one of its
+// URLs is chosen round-robin. Pass the master key (`discord_webhook_url`) last so every destination
+// falls back to it — set only the master and everything posts there ("simple" mode); set the
+// specific keys to split channels ("advanced" mode).
+async function resolveWebhookUrl(...keys: string[]): Promise<string | null> {
+  for (const key of keys) {
+    const urls = parseWebhookUrls(await getSettingUrl(key));
+    if (urls.length) return pickCycledUrl(urls, key);
+  }
+  return null;
+}
+
 const MAX_RETRY_MS = 5000;
 
 async function postWebhook(
@@ -131,32 +173,32 @@ export async function forwardPluginNotification(
   }
 }
 
-// General / plugin-updates channel — clan-roster sync summaries and other non-event posts.
+// General / master channel — clan-roster sync summaries and other non-event posts. This is the
+// webhook every other destination falls back to.
 export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await getSettingUrl(GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookUrl(GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
-// Bingo-event channel; falls back to the general webhook when no dedicated bingo webhook is set so
-// existing single-webhook clans keep getting bingo posts until they split the channel.
+// Bingo-event channel; falls back to the master webhook so single-webhook clans keep getting bingo
+// posts until they split the channel.
 export async function sendBingoWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = (await getSettingUrl(BINGO_WEBHOOK_KEY)) || (await getSettingUrl(GENERAL_WEBHOOK_KEY));
+  const webhookUrl = await resolveWebhookUrl(BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
-// Dedicated weekly-competition webhook (no fallback — weekly posts simply don't fire when unset
-// rather than spilling into another channel).
+// Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await getSettingUrl(WEEKLY_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookUrl(WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
-// Dedicated sign-up channel (no fallback — silent until configured).
+// Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
 export async function sendSignupWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await getSettingUrl(SIGNUP_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookUrl(SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }

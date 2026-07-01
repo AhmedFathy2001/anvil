@@ -31,8 +31,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .then((r) => r[0]?.c ?? 0);
 
   const isAdmin = session.role === 'admin';
-  const isMod = session.role === 'moderator';
-  const isEditor = session.role === 'editor';
 
   const groups: SidebarGroup[] = [];
 
@@ -42,22 +40,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
   });
 
-  // Bingo events — admins manage everything; editors get the event list to open a board's Tiles
-  // tab (tile authoring only); mods just see the schedule.
-  if (isAdmin || isEditor) {
-    groups.push({
-      label: 'Events',
-      items: [
-        { href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true },
-        { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
-      ],
-    });
-  } else if (isMod) {
-    groups.push({
-      label: 'Events',
-      items: [{ href: '/admin/schedule', label: 'Schedule', icon: '📅' }],
-    });
-  }
+  // Bingo events — admins manage everything; editors open a board's Tiles tab; mods and
+  // treasurers reach the event list to collect fees on the Sign-ups tab (fees now live per
+  // event, not in a standalone queue).
+  groups.push({
+    label: 'Events',
+    items: [
+      { href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true },
+      { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
+    ],
+  });
 
   // Weekly is shared
   groups.push({
@@ -65,41 +57,32 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/weekly', label: 'Competitions', icon: '🏆', matchPrefix: true }],
   });
 
-  // Clan management — both roles.
+  // Clan management — one hub (Members · Needs review · Staff · History). The badge
+  // surfaces the provisional-member count that used to live on the Verifications item.
   groups.push({
     label: 'Clan',
     items: [
-      { href: '/admin/clan', label: 'Roster', icon: '🛡️' },
-      { href: '/admin/clan/audit', label: 'Audit log', icon: '📜' },
       {
-        href: '/admin/verifications',
-        label: 'Verifications',
-        icon: '✓',
+        href: '/admin/clan',
+        label: 'Members & staff',
+        icon: '🛡️',
         badge: provisionalCount,
+        matchPrefix: true,
       },
     ],
   });
 
-  // Fee collection queue — visible to admin + moderator (treasurer routing is
-  // gated downstream). Editors aren't a fee role, so they don't see it.
-  if (!isEditor) {
-    groups.push({
-      label: 'Money',
-      items: [{ href: '/admin/fees', label: 'Fees', icon: '💰' }],
-    });
-  }
+  // Fees now live on each event's Sign-ups tab (no standalone queue), so there's no Money
+  // group. Treasurers/mods reach them via Events → an event → Sign-ups.
 
-  // Players + staff — admin only.
+  // System — admin only. (Staff management now lives in the Clan hub.)
   if (isAdmin) {
     groups.push({
-      label: 'People',
-      items: [
-        { href: '/admin/users', label: 'Staff', icon: '🔑' },
-      ],
-    });
-    groups.push({
       label: 'System',
-      items: [{ href: '/admin/integrations', label: 'Integrations', icon: '🔌' }],
+      items: [
+        { href: '/admin/setup', label: 'Setup', icon: '🧭' },
+        { href: '/admin/integrations', label: 'Advanced settings', icon: '🔌' },
+      ],
     });
   }
 

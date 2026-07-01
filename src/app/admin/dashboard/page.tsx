@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import {
   clanAuditLog,
@@ -12,10 +13,17 @@ import {
 import { alias } from 'drizzle-orm/sqlite-core';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
+import { getSetupStatus } from '@/lib/setupStatus';
+import SetupChecklist from '@/components/SetupChecklist';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
+  // First-run: a brand-new clan (no name, no webhook, never dismissed) is sent straight
+  // to the guided wizard once. It's always escapable, and skipping sets the advisory flag
+  // so this never becomes a trap.
+  const setup = await getSetupStatus();
+  if (setup.isFresh) redirect('/admin/setup?welcome=1');
   const allEvents = await db.select().from(events).orderBy(desc(events.createdAt));
   const teamCounts = new Map<number, number>();
   if (allEvents.length > 0) {
@@ -101,6 +109,14 @@ export default async function AdminDashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Dashboard</h1>
         <p className="text-text-muted text-sm">Overview of clan activity and live events.</p>
       </header>
+
+      {!setup.allDone && !setup.dismissed && (
+        <SetupChecklist
+          steps={setup.steps}
+          completedCount={setup.completedCount}
+          totalCount={setup.totalCount}
+        />
+      )}
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -230,14 +246,14 @@ export default async function AdminDashboardPage() {
               <SnapshotRow
                 label="Pending mod review"
                 value={`${provisionalCount} member${provisionalCount === 1 ? '' : 's'}`}
-                href="/admin/verifications"
+                href="/admin/clan/needs-review"
                 emphasize={provisionalCount > 0}
               />
               <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/clan" />
               <SnapshotRow
                 label="Open sign-up fees"
                 value={`${openFeeCount} fee${openFeeCount === 1 ? '' : 's'}`}
-                href="/admin/fees"
+                href="/admin/events"
                 emphasize={openFeeCount > 0}
               />
             </div>

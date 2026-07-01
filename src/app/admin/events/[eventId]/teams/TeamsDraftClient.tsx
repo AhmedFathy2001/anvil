@@ -227,17 +227,71 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // that in the UI so the controls match what the API will accept.
   const draftLocked = draft.status !== 'none';
 
-  // Guided setup checklist (only meaningful pre-draft).
-  const steps = [
-    { label: 'Add ≥2 teams', done: teams.length >= 2 },
-    { label: 'Fill the player pool', done: draft.players.length >= 1 },
-    { label: 'Set draft order', done: draft.teamOrder.length > 0 },
-    { label: 'Start draft', done: false },
+  // Guided phase tracker across the whole Teams & Draft flow. Purely a clarity layer over the
+  // existing state — nothing here changes draft behaviour.
+  const teamsDone = teams.length >= 2;
+  const poolDone = draft.players.length >= 1;
+  const orderDone = draft.teamOrder.length > 0;
+  const draftDone = draft.status === 'completed';
+  const phases = [
+    { label: 'Set up teams', done: teamsDone },
+    { label: 'Fill player pool', done: poolDone },
+    { label: 'Set draft order', done: orderDone },
+    { label: 'Run draft', done: draftDone },
   ];
-  const nextStepIdx = steps.findIndex((s) => !s.done);
+  // Which phase is "current": completed → past the end; running → the draft step; otherwise the
+  // first unfinished setup step.
+  const currentPhase = draftDone
+    ? phases.length
+    : isDraftInProgress
+      ? 3
+      : Math.max(0, phases.findIndex((p) => !p.done));
+  const nextHint = draftDone
+    ? 'Draft complete — team rosters are locked. Reset the draft to make changes.'
+    : isDraftInProgress
+      ? 'Draft in progress — make your picks below. You can pause, undo, or reset anytime.'
+      : !teamsDone
+        ? 'Start by adding at least 2 teams below.'
+        : !poolDone
+          ? 'Fill the player pool — sign-ups add players automatically, or add clan members manually.'
+          : !orderDone
+            ? 'Set the draft order, then start the draft.'
+            : 'Everything’s ready — start the draft below.';
 
   return (
     <div className="space-y-12">
+      {/* Guided phase bar — visible in every state so staff always know where they are. */}
+      <div className="rounded-xl border border-card-border bg-card-bg p-4 !mt-0">
+        <ol className="flex flex-wrap items-center gap-2">
+          {phases.map((p, i) => {
+            const isCurrent = i === currentPhase;
+            return (
+              <li
+                key={p.label}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
+                  p.done
+                    ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light'
+                    : isCurrent
+                      ? 'border-gold/40 bg-gold/10 text-gold'
+                      : 'border-card-border text-text-muted'
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                    p.done ? 'bg-accent-green text-brown-dark' : isCurrent ? 'bg-gold text-brown-dark' : 'bg-card-border'
+                  }`}
+                >
+                  {p.done ? '✓' : i + 1}
+                </span>
+                {p.label}
+              </li>
+            );
+          })}
+        </ol>
+        <p className="text-sm text-text-muted mt-3">
+          <span className="text-foreground/80 font-medium">Next:</span> {nextHint}
+        </p>
+      </div>
       {/* Teams */}
       <div>
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -324,35 +378,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           <span className="w-1 h-6 bg-gold rounded-full" />
           Player Draft
         </h2>
-
-        {draft.status === 'none' && (
-          <ol className="flex flex-wrap items-center gap-2 mb-6">
-            {steps.map((s, i) => {
-              const isNext = i === nextStepIdx;
-              return (
-                <li
-                  key={s.label}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                    s.done
-                      ? 'border-accent-green/30 bg-accent-green/10 text-accent-green-light'
-                      : isNext
-                        ? 'border-gold/40 bg-gold/10 text-gold'
-                        : 'border-card-border text-text-muted'
-                  }`}
-                >
-                  <span
-                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                      s.done ? 'bg-accent-green text-brown-dark' : isNext ? 'bg-gold text-brown-dark' : 'bg-card-border'
-                    }`}
-                  >
-                    {s.done ? '✓' : i + 1}
-                  </span>
-                  {s.label}
-                </li>
-              );
-            })}
-          </ol>
-        )}
 
         {(draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">

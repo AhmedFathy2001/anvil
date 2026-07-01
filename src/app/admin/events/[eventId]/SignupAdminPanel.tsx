@@ -6,6 +6,7 @@ import DateTimePicker from '@/components/DateTimePicker';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
+import SignupFeeControls from '@/components/SignupFeeControls';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
@@ -45,6 +46,7 @@ interface SignupRow {
     reportedCollectorUserId: number | null;
     proofBlobUrl: string | null;
     confirmedAt: string | null;
+    confirmationsCount: number;
     notes: string | null;
   } | null;
 }
@@ -52,13 +54,22 @@ interface SignupRow {
 interface Props {
   event: Event;
   onEventUpdated: (event: Event) => void;
+  viewerRole: string;
+  viewerId: number;
+  confirmationsRequired: number;
 }
 
 const BOSS_LABEL: Record<string, string> = Object.fromEntries(
   BOSSES.map((b) => [b.key, b.label]),
 );
 
-export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
+export default function SignupAdminPanel({
+  event,
+  onEventUpdated,
+  viewerRole,
+  viewerId,
+  confirmationsRequired,
+}: Props) {
   const router = useRouter();
   const [feeInput, setFeeInput] = useState<string>(
     event.signupFee != null ? String(event.signupFee) : '',
@@ -601,28 +612,13 @@ export default function SignupAdminPanel({ event, onEventUpdated }: Props) {
                       )}
 
                       {s.fee && (
-                        <div className="border-t border-card-border pt-3 text-xs space-y-1">
-                          <div className="text-text-muted uppercase tracking-wide">Fee</div>
-                          <div>
-                            {s.fee.amount.toLocaleString()} gp · status:{' '}
-                            <span className="font-medium capitalize">{s.fee.status}</span>
-                          </div>
-                          {s.fee.confirmedAt && (
-                            <div className="text-accent-green-light">
-                              Confirmed {new Date(s.fee.confirmedAt).toLocaleString()}
-                            </div>
-                          )}
-                          {s.fee.proofBlobUrl && (
-                            <a
-                              href={s.fee.proofBlobUrl}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="text-gold underline decoration-gold/30 underline-offset-2"
-                            >
-                              View proof screenshot →
-                            </a>
-                          )}
-                        </div>
+                        <SignupFeeControls
+                          fee={s.fee}
+                          viewerRole={viewerRole}
+                          viewerId={viewerId}
+                          confirmationsRequired={confirmationsRequired}
+                          onChanged={load}
+                        />
                       )}
 
                       {/* Per-row admin actions */}

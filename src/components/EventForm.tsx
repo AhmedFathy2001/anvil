@@ -4,13 +4,23 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TILE_CSV_COLUMNS, parseTileCsv, type TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
+import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
 
-export default function EventForm() {
+interface EventFormProps {
+  presets?: EventPreset[];
+  suggestedName?: string;
+}
+
+export default function EventForm({ presets = [], suggestedName = '' }: EventFormProps) {
   const router = useRouter();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(suggestedName);
   const [mode, setMode] = useState<Mode>('classic');
   const [size, setSize] = useState(5);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  // Starter tile labels carried by a chosen preset (blank until picked). Merged into the
+  // create payload so the board arrives pre-seeded.
+  const [presetLabels, setPresetLabels] = useState<string[] | null>(null);
   const [csv, setCsv] = useState<{ rows: TileCsvRow[]; labels: string[]; fileName: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +33,35 @@ export default function EventForm() {
     setMode(next);
     setSize(m.default);
     setCsv(null); // tile count semantics differ per mode; re-import if needed
+    setActivePreset(null);
+    setPresetLabels(null);
     setError('');
+  }
+
+  function applyPreset(preset: EventPreset) {
+    setMode(preset.mode);
+    setSize(preset.size);
+    setActivePreset(preset.key);
+    setError('');
+    // A saved template carries full tile config as parsed CSV — feed it through the same csv
+    // state a manual upload uses. A built-in preset only carries optional plain labels.
+    if (preset.csv) {
+      setCsv({ rows: preset.csv.rows, labels: preset.csv.labels, fileName: preset.label });
+      setPresetLabels(null);
+    } else {
+      setCsv(null);
+      setPresetLabels(preset.tileLabels ?? null);
+    }
+    // Only auto-fill the name if the user hasn't typed their own (keeps the suggestion).
+    if (!name.trim() || name === suggestedName) setName(suggestedName);
+  }
+
+  async function deletePreset(preset: EventPreset) {
+    if (preset.id == null) return;
+    if (!confirm(`Delete the saved template "${preset.label}"? This can't be undone.`)) return;
+    await fetch(`/api/admin/event-presets/${preset.id}`, { method: 'DELETE' }).catch(() => {});
+    if (activePreset === preset.key) changeMode(mode);
+    router.refresh();
   }
 
   async function handleCsv(e: React.ChangeEvent<HTMLInputElement>) {
@@ -87,7 +125,7 @@ export default function EventForm() {
           boardSize: size,
           format: meta.format,
           scoringMode: meta.scoringMode,
-          ...(csv ? { tileLabels: csv.labels } : {}),
+          ...(csv ? { tileLabels: csv.labels } : presetLabels ? { tileLabels: presetLabels } : {}),
         }),
       });
       const data: { id?: number; error?: string } = await res.json().catch(() => ({}));
@@ -118,6 +156,53 @@ export default function EventForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 max-w-lg">
+      {/* Template gallery — one click pre-fills mode + size (+ any starter tiles). */}
+      {presets.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-foreground/70 mb-1.5">Start from a template</label>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {presets.map((p) => {
+              const active = activePreset === p.key;
+              return (
+                <div key={p.key} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                      active
+                        ? 'bg-gold/20 border-gold'
+                        : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden className="text-base leading-none">{p.emoji}</span>
+                      <span className={`text-sm font-medium ${active ? 'text-gold' : ''}`}>{p.label}</span>
+                      {p.custom && (
+                        <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                          saved
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-text-muted mt-0.5 leading-snug pr-4">{p.blurb}</p>
+                  </button>
+                  {p.custom && p.id != null && (
+                    <button
+                      type="button"
+                      onClick={() => deletePreset(p)}
+                      aria-label={`Delete template ${p.label}`}
+                      className="absolute top-1.5 right-1.5 text-text-muted hover:text-red-400 text-xs px-1"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-text-muted mt-1.5">Or set it up manually below.</p>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-foreground/70 mb-1.5">Event Name</label>
         <Input
@@ -160,6 +245,8 @@ export default function EventForm() {
             onChange={(e) => {
               setSize(parseInt(e.target.value, 10) || meta.default);
               setCsv(null);
+              setActivePreset(null);
+              setPresetLabels(null);
             }}
             min={meta.min}
             max={meta.max}

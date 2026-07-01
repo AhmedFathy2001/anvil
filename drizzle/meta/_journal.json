@@ -22,6 +22,20 @@
       "when": 1782762178145,
       "tag": "0002_yielding_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1782867159432,
+      "tag": "0003_clean_madame_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1782867864218,
+      "tag": "0004_smiling_apocalypse",
+      "breakpoints": true
     }
   ]
 }

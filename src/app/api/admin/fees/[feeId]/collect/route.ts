@@ -31,9 +31,9 @@ export async function POST(
     proofUrl?: string;
     notes?: string;
   } | null;
-  if (!body || typeof body.proofUrl !== 'string' || !body.proofUrl) {
-    return NextResponse.json({ error: 'proofUrl is required' }, { status: 400 });
-  }
+  // Proof is now OPTIONAL — "Mark paid" can be a single tap, with a screenshot attached
+  // only if the collector has one. A provided proofUrl must be a non-empty string.
+  const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
 
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, id) });
   if (!fee) {
@@ -46,9 +46,9 @@ export async function POST(
     );
   }
 
-  // If we're replacing an existing proof, clean up the previous blob first. Best-effort —
-  // a failed delete shouldn't block the new collection from being recorded.
-  if (fee.proofBlobUrl && fee.proofBlobUrl !== body.proofUrl) {
+  // If we're replacing an existing proof with a different one, clean up the previous blob
+  // first. Best-effort — a failed delete shouldn't block the collection from being recorded.
+  if (fee.proofBlobUrl && proofUrl && fee.proofBlobUrl !== proofUrl) {
     del(fee.proofBlobUrl).catch(() => {});
   }
 
@@ -63,9 +63,14 @@ export async function POST(
     .set({
       collectedByUserId: session.userId,
       collectedAt: now,
-      proofBlobUrl: body.proofUrl,
+      // Keep any existing proof when marking paid without a new upload.
+      proofBlobUrl: proofUrl ?? fee.proofBlobUrl,
       status,
-      notes: body.notes ?? fee.notes,
+      // Re-marking paid resets any confirmation tally — the fee changed hands again.
+      confirmations: null,
+      confirmedByUserId: null,
+      confirmedAt: null,
+      notes: body?.notes ?? fee.notes,
     })
     .where(eq(signupFees.id, id))
     .returning();

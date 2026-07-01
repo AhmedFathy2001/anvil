@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, users } from '@/db/schema';
 import { desc, eq, isNull, ne } from 'drizzle-orm';
@@ -68,20 +67,7 @@ export default async function ClanAuditPage() {
   }));
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <span className="w-1 h-7 bg-gold rounded-full" />
-          <h1 className="text-3xl font-bold text-gold">Clan Audit Log</h1>
-        </div>
-        <Link
-          href="/admin/clan"
-          className="text-sm text-text-muted hover:text-foreground underline-offset-2 hover:underline"
-        >
-          ← Back to roster
-        </Link>
-      </div>
-
+    <div>
       <p className="text-sm text-text-muted mb-4">
         Joins, leaves, renames, claims, and merges across the clan roster. Use the merge tool
         to reconcile a left/joined pair when it&apos;s actually the same player who renamed.
