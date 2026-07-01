@@ -50,7 +50,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen flex-col`}
       >
         <nav className="border-b-2 border-gold/20 bg-gradient-to-b from-card-bg to-background sticky top-0 z-50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
@@ -141,7 +141,7 @@ export default async function RootLayout({
             </div>
           </div>
         </nav>
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
           {children}
         </main>
         {/*
