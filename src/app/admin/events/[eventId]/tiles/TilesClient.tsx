@@ -4,6 +4,7 @@ import type { Event, Tile } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import ClogGenerator from './ClogGenerator';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -232,6 +233,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     const header = TILE_CSV_COLUMNS.join(',');
     const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
     const lines = localTiles.map((t) => tileToCsvCells(t).map(escape).join(','));
+    // Empty board → ship worked examples showing the friendly formats (skill/boss by name,
+    // "10m" numbers, "30:00" times, comma- or pipe-separated NPCs). Delete/replace before import.
+    if (lines.length === 0) {
+      const examples: string[][] = [
+        ['10M Mining XP', '', 'standard', '10', 'Skilling', 'false', '', 'Mining', '', '10m', '', '', '', ''],
+        ['50 Zulrah KC', '', 'standard', '8', 'Zulrah', 'false', '', 'Zulrah', '', '50', '', '', '', ''],
+        ['Any Bandos unique', '', 'drop', '15', 'GWD', 'false', '3', '', '', '', '', '', '', 'Bandos chestplate; Bandos tassets; Bandos boots'],
+        ['Kill 100 cows', '', 'kill', '3', 'Skilling', 'false', '100', '', '', '', 'Cow, Cow calf', '', '', ''],
+        ['Sub-30 Inferno', '', 'timed', '50', 'Inferno', 'false', '', '', '', '', '', 'Inferno', '30:00', ''],
+      ];
+      lines.push(...examples.map((cells) => cells.map(escape).join(',')));
+    }
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -275,25 +288,40 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         text: `Import complete — ${bits.join(', ')}${data.ignored ? ` · ${data.ignored} extra row(s) ignored` : ''}.`,
       });
       // Pull the fresh tile set so both updated and newly-created tiles render immediately.
-      try {
-        const refreshed = await fetch(`/api/events/${event.id}/tiles`);
-        if (refreshed.ok) {
-          const fresh = (await refreshed.json()) as Tile[];
-          setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
-          setSearch('');
-          setKindFilter('all');
-          setCategoryFilter('all');
-          setTierFilter('all');
-        }
-      } catch {
-        /* ignore — router.refresh below still re-syncs server data */
-      }
-      router.refresh();
+      await syncTilesFromServer();
     } catch {
       setImportMsg({ type: 'error', text: 'Could not read the CSV file.' });
     } finally {
       setImporting(false);
     }
+  }
+
+  // Re-fetch the whole tile set after a bulk operation (CSV import, clog generation) that returns
+  // counts rather than the created rows, so both updated and new tiles render immediately. Clears
+  // filters so freshly-added tiles aren't hidden. router.refresh() re-syncs the server component too.
+  async function syncTilesFromServer() {
+    try {
+      const refreshed = await fetch(`/api/events/${event.id}/tiles`);
+      if (refreshed.ok) {
+        const fresh = (await refreshed.json()) as Tile[];
+        setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
+        setSearch('');
+        setKindFilter('all');
+        setCategoryFilter('all');
+        setTierFilter('all');
+      }
+    } catch {
+      /* ignore — router.refresh below still re-syncs server data */
+    }
+    router.refresh();
+  }
+
+  async function handleClogCreated(summary: { created: number; ignored: number; activity: string }) {
+    setImportMsg({
+      type: 'success',
+      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} from ${summary.activity}${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+    });
+    await syncTilesFromServer();
   }
 
   return (
@@ -327,6 +355,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             >
               {importing ? 'Importing…' : 'Upload CSV'}
             </button>
+            <ClogGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              onCreated={handleClogCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+            />
           </div>
         </div>
         <p className="text-xs text-text-muted leading-relaxed">
