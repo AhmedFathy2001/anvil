@@ -42,6 +42,7 @@ export const TILE_CSV_COLUMNS = [
 ] as const;
 
 import type { Tile } from '@/lib/types';
+import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
 
 export interface TileCsvItem {
   /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
@@ -156,6 +157,56 @@ function toIntOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Forgiving number: accepts thousands separators/underscores and k/m/b suffixes so a human can
+// type "10m", "1.5k", "2,000,000" or "2b" instead of a bare integer. Used for the big-number
+// columns (XP goals, item/kill counts).
+function toNumberLoose(v: string): number | null {
+  const s = v.trim().toLowerCase().replace(/[,_ ]/g, '');
+  if (s === '') return null;
+  const m = s.match(/^(\d*\.?\d+)([kmb])?$/);
+  if (m) {
+    const mult = m[2] === 'b' ? 1e9 : m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1;
+    const n = Math.round(parseFloat(m[1]) * mult);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+// Forgiving duration → seconds. Accepts "mm:ss" / "hh:mm:ss", bare seconds ("1800"), or a
+// unit suffix ("30m", "30 min", "90s", "1h"). So the tricky "timeThresholdSeconds" column stops
+// forcing people to pre-convert minutes to seconds in their head.
+function toSecondsLoose(v: string): number | null {
+  const s = v.trim().toLowerCase();
+  if (s === '') return null;
+  if (s.includes(':')) {
+    const parts = s.split(':').map((p) => parseInt(p.trim(), 10));
+    if (parts.some((n) => !Number.isFinite(n))) return null;
+    return parts.reduce((acc, p) => acc * 60 + p, 0);
+  }
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|m|min|mins|s|sec|secs)?$/);
+  if (!m) return null;
+  const val = parseFloat(m[1]);
+  const unit = m[2] ?? '';
+  if (unit.startsWith('h')) return Math.round(val * 3600);
+  if (unit === 'm' || unit.startsWith('min')) return Math.round(val * 60);
+  return Math.round(val); // 's'/'sec'/none → seconds
+}
+
+// Resolve a tracked-stat cell to its stored key + inferred type, accepting either the bare key
+// ("mining", "zulrah") or the human label ("Mining", "Zulrah"). Returns null when it matches
+// nothing, in which case the raw value is kept for back-compat.
+function normalizeTrackedStat(raw: string): { key: string; type: 'skill' | 'boss' } | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  for (const k of SKILLS) {
+    if (k.toLowerCase() === s || (SKILL_LABELS[k] || '').toLowerCase() === s) return { key: k, type: 'skill' };
+  }
+  for (const b of BOSSES) {
+    if (b.key.toLowerCase() === s || b.label.toLowerCase() === s) return { key: b.key, type: 'boss' };
+  }
+  return null;
+}
+
 export interface ParsedTileCsv {
   rows: TileCsvRow[];
   /** Per-row label, auto-filled as "Tile N" when blank. Length === rows.length. */
@@ -205,17 +256,24 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     if (col.points >= 0) row.points = toIntOrNull(get(cells, col.points));
     if (col.category >= 0) row.category = get(cells, col.category).trim() || null;
     if (col.optional >= 0) row.optional = toBool(get(cells, col.optional));
-    if (col.requiredAmount >= 0) row.requiredAmount = toIntOrNull(get(cells, col.requiredAmount));
-    if (col.trackedStat >= 0) row.trackedStat = get(cells, col.trackedStat).trim() || null;
+    if (col.requiredAmount >= 0) row.requiredAmount = toNumberLoose(get(cells, col.requiredAmount));
     if (col.statType >= 0) row.statType = get(cells, col.statType).trim() || null;
-    if (col.statGoal >= 0) row.statGoal = toIntOrNull(get(cells, col.statGoal));
+    if (col.trackedStat >= 0) {
+      const rawStat = get(cells, col.trackedStat).trim();
+      const resolved = rawStat ? normalizeTrackedStat(rawStat) : null;
+      // Accept "Mining"/"Zulrah" labels, not just bare keys; infer skill-vs-boss when the
+      // statType column was left blank.
+      row.trackedStat = resolved ? resolved.key : rawStat || null;
+      if (resolved && !row.statType) row.statType = resolved.type;
+    }
+    if (col.statGoal >= 0) row.statGoal = toNumberLoose(get(cells, col.statGoal));
     if (col.targetNpcs >= 0) {
-      // Pipe-separated within the cell, since comma is the CSV delimiter.
-      const names = get(cells, col.targetNpcs).split('|').map((s) => s.trim()).filter(Boolean);
+      // Comma or pipe separated within the cell (comma works when the cell is quoted).
+      const names = get(cells, col.targetNpcs).split(/[|,]/).map((s) => s.trim()).filter(Boolean);
       row.targetNpcs = names.length > 0 ? names : null;
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
-    if (col.timeThresholdSeconds >= 0) row.timeThresholdSeconds = toIntOrNull(get(cells, col.timeThresholdSeconds));
+    if (col.timeThresholdSeconds >= 0) row.timeThresholdSeconds = toSecondsLoose(get(cells, col.timeThresholdSeconds));
     if (col.items >= 0) {
       const parsedItems = parseItemsCell(get(cells, col.items));
       row.items = parsedItems.length > 0 ? parsedItems : null;

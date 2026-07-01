@@ -139,4 +139,5 @@ export const BOSSES: { key: string; label: string }[] = [
   { key: "doomOfMokhaiotl", label: "Doom of Mokhaiotl" },
   { key: "royalTitans", label: "The Royal Titans" },
   { key: "yama", label: "Yama" },
+  { key: "maggotKing", label: "Maggot King" },
 ];

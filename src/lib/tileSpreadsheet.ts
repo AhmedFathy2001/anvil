@@ -111,7 +111,7 @@ export async function buildTileSpreadsheet(opts: {
   example({ label: 'Full Bandos set', type: 'drop', points: 25, category: 'GWD', items: 'Bandos chestplate:1; Bandos tassets:1; Bandos boots:1' },
     'COLLECTION: no requiredAmount → each item needs its own count; completes when all are met.');
   example({ label: 'Kill 100 cows', type: 'kill', points: 3, category: 'Skilling', requiredAmount: 100, targetNpcs: 'Cow|Cow calf' },
-    'Kill count of NPCs (even non-hiscores). targetNpcs is pipe-separated; requiredAmount = kills.');
+    'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
   example({ label: 'Sub-30 Inferno', type: 'timed', points: 50, category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: 1800 },
     'Timed clear: complete the activity under the cap (1800s = 30:00).');
 
@@ -153,9 +153,11 @@ export async function buildTileSpreadsheet(opts: {
     '  • points — score weight (Leagues). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
     '  • optional — true/false; optional tiles don\'t count toward the total.',
     '  • requiredAmount — drop tiles (items needed) OR kill tiles (kills needed). Leave blank otherwise.',
-    '  • trackedStat — skill/boss KEY (dropdown, sourced from the "Stat keys" tab). statType — skill/boss.',
-    '  • targetNpcs — kill tiles only; NPC name(s) PIPE-separated, e.g. Cow|Cow calf.',
-    '  • timedActivity / timeThresholdSeconds — timed tiles only (seconds, e.g. 1800 = 30:00).',
+    '  • trackedStat — a skill or boss, by NAME or key (e.g. Mining, Zulrah). statType (skill/boss) is',
+    '    auto-detected when left blank, so usually you only need trackedStat + statGoal.',
+    '  • statGoal / requiredAmount — plain numbers, or shorthand like 10m, 1.5k, 2b.',
+    '  • targetNpcs — kill tiles only; NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
+    '  • timedActivity / timeThresholdSeconds — timed tiles only; time as mm:ss (30:00), seconds (1800), or 30m.',
     '',
     'THE items CELL (drop / collection tiles)',
     '  • Format: Name:count; Name2:count2  — entries are SEMICOLON-separated, :count is optional (def 1).',
@@ -165,7 +167,7 @@ export async function buildTileSpreadsheet(opts: {
     '',
     'GOTCHAS',
     '  • Item names must match exactly or the whole import fails (it lists the bad names — just fix them).',
-    '  • items uses semicolons; targetNpcs uses pipes (commas are the CSV column separator).',
+    '  • items uses semicolons; targetNpcs accepts commas or pipes (quote a cell that contains commas).',
     '  • Classic N×N bingo grids are a fixed size — extra rows are ignored. Use a Leagues board to grow.',
     '  • Before the event starts you can change everything; after it starts label/type/items lock.',
   ];

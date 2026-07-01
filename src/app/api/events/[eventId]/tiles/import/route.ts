@@ -267,7 +267,7 @@ export async function POST(
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
 
-  let body: { rows?: unknown };
+  let body: { rows?: unknown; append?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -278,6 +278,10 @@ export async function POST(
   if (!Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: 'rows must be a non-empty array' }, { status: 400 });
   }
+  // Append mode: every row becomes a NEW tile after the last existing one, instead of the default
+  // position-mapped update. Used by the "generate from collection log" bulk-authoring flow, which
+  // wants to add a page's items without disturbing tiles already on the board.
+  const appendMode = body.append === true;
 
   const eventTiles = (await db.select().from(tiles).where(eq(tiles.eventId, eId))).sort(
     (a, b) => a.position - b.position,
@@ -287,10 +291,23 @@ export async function POST(
   }
 
   const existingCount = eventTiles.length;
-  const updates = Math.min(rows.length, existingCount);
-  // Extra rows become new tiles only on dynamic (Leagues/race) boards, pre-start, up to the cap.
+  // Extra/appended rows become new tiles only on dynamic (Leagues/race) boards, pre-start, up to the cap.
   const canGrow = !isClassicGrid && !eventStarted;
-  const creates = canGrow ? Math.max(0, Math.min(rows.length - existingCount, MAX_TILES - existingCount)) : 0;
+  if (appendMode && !canGrow) {
+    return NextResponse.json(
+      { error: 'Appending tiles needs a Leagues or Tile-race board that hasn\'t started yet.' },
+      { status: 400 },
+    );
+  }
+  // Non-append: row i updates the tile at position i; surplus rows create tiles. Append: every row
+  // is a create, so there are no updates and the create rows start at row 0.
+  const updates = appendMode ? 0 : Math.min(rows.length, existingCount);
+  const createRowOffset = appendMode ? 0 : existingCount;
+  const creates = appendMode
+    ? Math.min(rows.length, Math.max(0, MAX_TILES - existingCount))
+    : canGrow
+      ? Math.max(0, Math.min(rows.length - existingCount, MAX_TILES - existingCount))
+      : 0;
   const processed = updates + creates;
   const ignored = rows.length - processed;
 
@@ -362,8 +379,9 @@ export async function POST(
       );
     }
     // Existing tiles validate against their DB state (and the event's real started flag);
-    // new tiles validate against a blank template and are always pre-start.
-    const isExisting = i < existingCount;
+    // new tiles validate against a blank template and are always pre-start. In append mode every
+    // processed row is a new tile, so none count as existing.
+    const isExisting = !appendMode && i < existingCount;
     const kindErr = validateRowKind(
       i,
       row,
@@ -386,9 +404,9 @@ export async function POST(
       }
     }
     for (let j = 0; j < creates; j++) {
-      const row = rows[existingCount + j] as ImportRow;
+      const row = rows[createRowOffset + j] as ImportRow;
       const position = maxPos + 1 + j;
-      const fields = tileFieldsFromRow(row, true, derivedList[existingCount + j]);
+      const fields = tileFieldsFromRow(row, true, derivedList[createRowOffset + j]);
       const label = typeof fields.label === 'string' && fields.label ? fields.label : `Tile ${position + 1}`;
       await tx.insert(tiles).values({ eventId: eId, position, label, ...fields });
     }
