@@ -240,6 +240,83 @@ async function ensurePluginVerifiedOnPlay(
   }
 }
 
+// Apply an in-game rename detected during plugin play: the caller's stable account hash
+// matched a clan_member whose stored RSN differs from the name they're logged in as. Mirrors
+// the bookkeeping clan-sync/link already do — updates the display RSN, appends the old name to
+// previousRsns, lifts the member out of the `unranked` park (a rename, not a ban, explains the
+// old-name 404), writes a `renamed` audit row, and propagates into active weekly_participants so
+// leaderboard tracking resumes on the new name. Best-effort: never blocks the plugin request.
+//
+// Guards the rsn_normalized uniqueness index: if a *different* active member already holds the
+// new name (a phantom split an earlier name-only roster sync created), we leave the rows alone
+// for the mod-gated suspected-renames → merge flow rather than throw on the update.
+async function applyRenameOnPlay(
+  memberId: number,
+  oldRsn: string,
+  newRsnRaw: string,
+  userId: number,
+  nowIso: string,
+): Promise<void> {
+  try {
+    const newRsn = sanitizeRsn(newRsnRaw);
+    const newNorm = normalizeRsn(newRsn);
+    if (!newRsn || normalizeRsn(oldRsn) === newNorm) return;
+
+    // Uniqueness guard — another live member already owns the new name → defer to merge.
+    const clash = await db.query.clanMembers.findFirst({
+      where: and(eq(clanMembers.rsnNormalized, newNorm), isNull(clanMembers.leftAt)),
+    });
+    if (clash && clash.id !== memberId) return;
+
+    const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
+    if (!member) return;
+
+    // Append the old name to the alias history (dedup by normalized form).
+    let previous: string[] = [];
+    if (member.previousRsns) {
+      try {
+        const parsed = JSON.parse(member.previousRsns);
+        if (Array.isArray(parsed)) previous = parsed.filter((p): p is string => typeof p === 'string');
+      } catch { /* ignore malformed */ }
+    }
+    if (member.rsn && !previous.some((p) => normalizeRsn(p) === normalizeRsn(member.rsn))) {
+      previous.push(member.rsn);
+    }
+
+    await db
+      .update(clanMembers)
+      .set({
+        rsn: newRsn,
+        rsnNormalized: newNorm,
+        previousRsns: JSON.stringify(previous),
+        // A detected rename proves the old-name hiscores 404 was a rename, not a ban — re-activate
+        // so the weekly cron polls the new name again instead of waiting on the re-probe pass.
+        status: member.status === 'unranked' ? 'active' : member.status,
+        lastSeenInClan: nowIso,
+      })
+      .where(eq(clanMembers.id, memberId));
+
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId: memberId,
+        eventType: 'renamed',
+        oldValue: JSON.stringify({ rsn: oldRsn }),
+        newValue: JSON.stringify({ rsn: newRsn }),
+        notes: 'Detected via plugin play (accountHash matched)',
+        actorUserId: userId,
+      })
+      .catch(() => {});
+
+    // Propagate into active weekly comps (merge/rename participant rows). Dynamic import avoids a
+    // static cycle — weekly.ts imports normalizeRsn/sanitizeRsn from this module.
+    const { applyRenameToActiveWeeklyParticipants } = await import('@/lib/weekly');
+    await applyRenameToActiveWeeklyParticipants(memberId, oldRsn, newRsn).catch(() => {});
+  } catch {
+    // Rename application is best-effort — a failure must not break the plugin request. The
+    // suspected-renames → merge flow and the pendingRenames reviewer remain as backstops.
+  }
+}
+
 // Record a plugin-detected account as an opt-in suggestion on play. We do NOT auto-claim:
 // a member may run several accounts (alts, irons, mules) through one RuneLite install and
 // only wants some attached to their public profile. So when the token's user plays an
@@ -456,6 +533,7 @@ export async function verifyPluginToken(
     const memberRows = await db
       .select({
         id: clanMembers.id,
+        rsn: clanMembers.rsn,
         rsnNormalized: clanMembers.rsnNormalized,
         previousRsns: clanMembers.previousRsns,
         verifiedAt: clanMembers.verifiedAt,
@@ -510,13 +588,29 @@ export async function verifyPluginToken(
     let matchedMember: typeof memberRows[number] | null = null;
     if (normalizedRsn) {
       // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
-      const matchingMember = memberRows.find((m) =>
+      let matchingMember = memberRows.find((m) =>
         memberRsnSets.get(m.id)?.has(normalizedRsn),
       );
+      // Rename fallback: no name matched, but the stable account hash points at one of this
+      // user's members whose stored name differs — they renamed to a name we haven't recorded
+      // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
+      // would 404-park forever until a roster sync or rename request happened to fix the name.
+      // Record the rename now (best-effort) so it self-heals the moment they simply play.
+      let renamedFrom: string | null = null;
+      if (!matchingMember && accountHash) {
+        const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
+        if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
+          matchingMember = hashMatch;
+          renamedFrom = hashMatch.rsn;
+        }
+      }
       if (!matchingMember) return null; // current account isn't on this user's roster
       pick = live.find((p) => p.clanMemberId === matchingMember.id) ?? null;
       if (!pick) return null; // not signed up under this RSN
       matchedMember = matchingMember;
+      if (renamedFrom && currentRsn) {
+        await applyRenameOnPlay(matchingMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
+      }
     } else {
       // No RSN hint — pick any live event row. Cross-account safety degrades.
       pick = live[0];
