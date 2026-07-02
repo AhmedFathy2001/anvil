@@ -11,7 +11,11 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 // two-column layout with a contextual sidebar.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator' && session.role !== 'editor')) {
+  // Staff roles that get the admin shell — must mirror src/middleware.ts (admin, treasurer,
+  // moderator, editor). Treasurer was missing here, so a treasurer rendered admin pages with no
+  // sidebar (middleware let them in, but the shell dropped them to plain children).
+  const staffRoles = ['admin', 'treasurer', 'moderator', 'editor'];
+  if (!session || !staffRoles.includes(session.role)) {
     // No session (or wrong role) — render plain children. /admin itself is the
     // login page, so this is the expected path for unauthed users.
     return <>{children}</>;
@@ -31,6 +35,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .then((r) => r[0]?.c ?? 0);
 
   const isAdmin = session.role === 'admin';
+  // Who can open the event pages (/admin/events) — admins manage everything, editors open a
+  // board's Tiles tab. Mirrors the middleware gate; mods/treasurers are blocked there, so we don't
+  // show them an "All events" item that would just bounce back to the dashboard.
+  const canManageEvents = isAdmin || session.role === 'editor';
 
   const groups: SidebarGroup[] = [];
 
@@ -40,13 +48,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
   });
 
-  // Bingo events — admins manage everything; editors open a board's Tiles tab; mods and
-  // treasurers reach the event list to collect fees on the Sign-ups tab (fees now live per
-  // event, not in a standalone queue).
+  // Bingo events + schedule. Schedule is open to every staff role; the event list is admin/editor
+  // only (see canManageEvents), so mods/treasurers see just Schedule here.
   groups.push({
     label: 'Events',
     items: [
-      { href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true },
+      ...(canManageEvents
+        ? [{ href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true }]
+        : []),
       { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
     ],
   });

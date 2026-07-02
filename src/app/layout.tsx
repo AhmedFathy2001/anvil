@@ -40,7 +40,12 @@ export default async function RootLayout({
     if (found) userRow = found;
   }
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
-  const isStaff = session?.role === 'admin' || session?.role === 'moderator';
+  // Any staff role gets the Admin link — it lands on /admin/dashboard, which every staff role can
+  // reach; middleware + the admin sidebar scope what each sees from there. Must mirror the role set
+  // gated in src/middleware.ts (admin, treasurer, moderator, editor) or a role with access would
+  // have no visible way in (the bug this fixes: treasurers and editors were silently link-less).
+  const staffRoles = ['admin', 'treasurer', 'moderator', 'editor'];
+  const isStaff = !!session?.role && staffRoles.includes(session.role);
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
