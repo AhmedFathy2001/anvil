@@ -4,13 +4,24 @@ import { players, tiles, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { getStatsByGamemode } from 'osrs-json-hiscores';
 import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
+import { log } from '@/lib/logger';
 
-// Vercel Cron protection - only allow requests from Vercel's cron system
+// Cron protection — requests must carry the shared secret (Vercel injected it automatically; the
+// self-hosted host cron sends `Authorization: Bearer $CRON_SECRET`).
 const CRON_SECRET = process.env.CRON_SECRET;
 
-// Sequential hiscores polling per player — default Vercel function timeout (15 s on Pro,
-// 10 s on Hobby) is way under what this loop needs. Bump to the Pro cap; Hobby clips to 60 s.
+// maxDuration is a Vercel-only cap and a no-op on the self-hosted box, where the run is instead
+// bounded by TIME_BUDGET_MS below (with the host cron.sh's curl -m timeout as a hard backstop).
 export const maxDuration = 300;
+
+// Hiscores polling budget. Mirrors the weekly cron: CONCURRENCY workers behind a shared token
+// bucket (~1 request / PER_REQUEST_GAP_MS ≈ 2.5 rps, safely under Jagex's limit), the whole run
+// bounded by a wall-clock budget. Players are polled oldest-fetched-first, so when a roster
+// exceeds one tick's budget the remainder rolls to the next tick instead of the run being killed
+// mid-loop and the same head-of-list players being re-polled forever (the old failure mode).
+const CONCURRENCY = 3;
+const PER_REQUEST_GAP_MS = 400;
+const TIME_BUDGET_MS = 240_000;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,6 +30,47 @@ function delay(ms: number) {
 interface Snapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
   bosses: Record<string, { rank: number; score: number }>;
+}
+
+type EventRow = typeof events.$inferSelect;
+type PlayerRow = typeof players.$inferSelect;
+type TileRow = typeof tiles.$inferSelect;
+type TeamRow = typeof teams.$inferSelect;
+
+interface EventResult {
+  eventId: number;
+  eventName: string;
+  playersChecked: number;
+  playersSnapshotted: number;
+  tilesCompleted: { tileLabel: string; teamName: string; playerName: string }[];
+  errors: string[];
+}
+
+// Per-event working context, assembled once up front so the fetch and evaluate phases don't
+// re-query. completionSet / teamGains are mutated during evaluation.
+interface EventCtx {
+  event: EventRow;
+  eventTiles: TileRow[];
+  statTiles: TileRow[];
+  teams: TeamRow[];
+  teamMap: Map<number, TeamRow>;
+  completionSet: Set<string>;
+  teamGains: Map<string, number>;
+  hasStatTiles: boolean;
+  result: EventResult;
+}
+
+interface FetchTask {
+  ctx: EventCtx;
+  player: PlayerRow;
+  needsSnapshot: boolean;
+}
+
+interface Fetched {
+  ctx: EventCtx;
+  player: PlayerRow;
+  snapshot: Snapshot; // baseline
+  current: Snapshot;  // this tick
 }
 
 export async function GET(request: Request) {
@@ -38,14 +90,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const results: {
-    eventId: number;
-    eventName: string;
-    playersChecked: number;
-    playersSnapshotted: number;
-    tilesCompleted: { tileLabel: string; teamName: string; playerName: string }[];
-    errors: string[];
-  }[] = [];
+  const start = Date.now();
+  const results: EventResult[] = [];
 
   // Get all events
   const allEvents = await db.select().from(events);
@@ -112,239 +158,247 @@ export async function GET(request: Request) {
     return true;
   });
 
+  // ── Phase 1: assemble per-event context + the global fetch queue ──────────────────────────
+  const ctxList: EventCtx[] = [];
+  const tasks: FetchTask[] = [];
+
   for (const event of activeEvents) {
-    const eventResult = {
-      eventId: event.id,
-      eventName: event.name,
-      playersChecked: 0,
-      playersSnapshotted: 0,
-      tilesCompleted: [] as { tileLabel: string; teamName: string; playerName: string }[],
-      errors: [] as string[],
-    };
-
-    // Get all players for this event
-    const eventPlayers = await db.query.players.findMany({
-      where: eq(players.eventId, event.id),
-    });
-
-    // Auto-snapshot: Check if any players need snapshots (event started but no snapshot yet)
-    const playersNeedingSnapshot = eventPlayers.filter(p => p.teamId && !p.statsSnapshot);
-
-    for (const player of playersNeedingSnapshot) {
-      try {
-        const stats = await getStatsByGamemode(player.name) as Snapshot;
-        const statsJson = JSON.stringify(stats);
-        const timestamp = new Date().toISOString();
-        await db.update(players)
-          .set({
-            statsSnapshot: statsJson,
-            snapshotAt: timestamp,
-            cachedStats: statsJson,
-            lastStatsFetch: timestamp,
-          })
-          .where(eq(players.id, player.id));
-
-        eventResult.playersSnapshotted++;
-        await delay(1200);
-      } catch {
-        eventResult.errors.push(`Failed to snapshot ${player.name}`);
-      }
-    }
-
-    // Re-fetch players after snapshotting
-    const updatedPlayers = playersNeedingSnapshot.length > 0
-      ? await db.query.players.findMany({ where: eq(players.eventId, event.id) })
-      : eventPlayers;
-
-    // Get stat-tracked tiles for this event
-    const eventTiles = await db.query.tiles.findMany({
-      where: eq(tiles.eventId, event.id),
-    });
-
+    const eventPlayers = await db.query.players.findMany({ where: eq(players.eventId, event.id) });
+    const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) });
     const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal);
-    if (statTiles.length === 0) {
-      results.push(eventResult);
-      continue;
-    }
-
-    // Get all teams for this event
-    const eventTeams = await db.query.teams.findMany({
-      where: eq(teams.eventId, event.id),
-    });
+    const hasStatTiles = statTiles.length > 0;
+    const eventTeams = await db.query.teams.findMany({ where: eq(teams.eventId, event.id) });
     const teamMap = new Map(eventTeams.map((t) => [t.id, t]));
 
-    // Get existing completions for this event's tiles
-    const eventTileIds = eventTiles.map(t => t.id);
+    const eventTileIds = eventTiles.map((t) => t.id);
     const existingCompletions = eventTileIds.length > 0
       ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
       : [];
-    const completionSet = new Set(
-      existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)
-    );
+    const completionSet = new Set(existingCompletions.map((c) => `${c.teamId}-${c.tileId}`));
 
-    // Track gains per team per tile for team-mode tiles
-    const teamGains = new Map<string, number>(); // "teamId-tileId" -> total gained
+    const ctx: EventCtx = {
+      event,
+      eventTiles,
+      statTiles,
+      teams: eventTeams,
+      teamMap,
+      completionSet,
+      teamGains: new Map(),
+      hasStatTiles,
+      result: {
+        eventId: event.id,
+        eventName: event.name,
+        playersChecked: 0,
+        playersSnapshotted: 0,
+        tilesCompleted: [],
+        errors: [],
+      },
+    };
+    ctxList.push(ctx);
 
-    for (const player of updatedPlayers) {
-      if (!player.statsSnapshot || !player.teamId) continue;
-
-      let snapshot: Snapshot;
-      try {
-        snapshot = JSON.parse(player.statsSnapshot);
-      } catch {
-        eventResult.errors.push(`Invalid snapshot for ${player.name}`);
-        continue;
-      }
-
-      try {
-        const currentStats = await getStatsByGamemode(player.name) as Snapshot;
-
-        // Cache the stats
-        await db.update(players)
-          .set({
-            cachedStats: JSON.stringify(currentStats),
-            lastStatsFetch: new Date().toISOString(),
-          })
-          .where(eq(players.id, player.id));
-
-        eventResult.playersChecked++;
-
-        // Check each stat tile
-        for (const tile of statTiles) {
-          const key = `${player.teamId}-${tile.id}`;
-
-          // Skip if already completed
-          if (completionSet.has(key)) continue;
-
-          let gained = 0;
-          if (tile.statType === 'skill') {
-            const snapshotXp = snapshot.skills?.[tile.trackedStat!]?.xp ?? 0;
-            const currentXp = currentStats.skills?.[tile.trackedStat!]?.xp ?? 0;
-            gained = Math.max(0, currentXp - snapshotXp);
-          } else if (tile.statType === 'boss') {
-            const snapshotKc = snapshot.bosses?.[tile.trackedStat!]?.score ?? 0;
-            const currentKc = currentStats.bosses?.[tile.trackedStat!]?.score ?? 0;
-            const sKc = snapshotKc < 0 ? 0 : snapshotKc;
-            const cKc = currentKc < 0 ? 0 : currentKc;
-            gained = Math.max(0, cKc - sKc);
-          }
-
-          if (tile.trackingMode === 'individual') {
-            // Individual mode: any player meeting goal completes tile for team
-            if (gained >= tile.statGoal!) {
-              // Complete the tile
-              await db.insert(completions).values({
-                teamId: player.teamId,
-                tileId: tile.id,
-              }).onConflictDoNothing();
-
-              completionSet.add(key);
-              const team = teamMap.get(player.teamId);
-
-              eventResult.tilesCompleted.push({
-                tileLabel: tile.label,
-                teamName: team?.name || 'Unknown',
-                playerName: player.name,
-              });
-
-              // Send Discord notification
-              if (team) {
-                notifyTileCompletion({
-                  eventName: event.name,
-                  tileLabel: tile.label,
-                  teamName: team.name,
-                  teamColor: team.color,
-                  tileType: tile.tileType,
-                  trackedStat: tile.trackedStat,
-                  statType: tile.statType,
-                }).catch(() => {});
-              }
-            }
-          } else {
-            // Team mode: accumulate gains
-            const teamKey = `${player.teamId}-${tile.id}`;
-            const existing = teamGains.get(teamKey) || 0;
-            teamGains.set(teamKey, existing + gained);
-          }
-        }
-
-        await delay(1200);
-      } catch (err) {
-        eventResult.errors.push(`Failed to fetch stats for ${player.name}`);
+    for (const player of eventPlayers) {
+      if (!player.teamId) continue;
+      const needsSnapshot = !player.statsSnapshot;
+      // Fetch when the event has stat tiles (need current stats for gains) or when the player
+      // still needs a baseline snapshot. Events without stat tiles only snapshot missing baselines.
+      if (hasStatTiles || needsSnapshot) {
+        tasks.push({ ctx, player, needsSnapshot });
       }
     }
-
-    // Check team-mode tile completions
-    for (const tile of statTiles) {
-      if (tile.trackingMode !== 'team') continue;
-
-      for (const team of eventTeams) {
-        const key = `${team.id}-${tile.id}`;
-        if (completionSet.has(key)) continue;
-
-        const totalGained = teamGains.get(key) || 0;
-        if (totalGained >= tile.statGoal!) {
-          await db.insert(completions).values({
-            teamId: team.id,
-            tileId: tile.id,
-          }).onConflictDoNothing();
-
-          completionSet.add(key);
-
-          eventResult.tilesCompleted.push({
-            tileLabel: tile.label,
-            teamName: team.name,
-            playerName: '(team total)',
-          });
-
-          // Send Discord notification
-          notifyTileCompletion({
-            eventName: event.name,
-            tileLabel: tile.label,
-            teamName: team.name,
-            teamColor: team.color,
-            tileType: tile.tileType,
-            trackedStat: tile.trackedStat,
-            statType: tile.statType,
-          }).catch(() => {});
-        }
-      }
-    }
-
-    // Check if any team completed ALL required (non-optional) tiles (blackout/win)
-    const requiredTiles = eventTiles.filter((t) => !t.optional);
-    const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
-    const totalRequiredTiles = requiredTiles.length;
-
-    for (const team of eventTeams) {
-      // Only count completions of required tiles
-      const teamCompletionCount = Array.from(completionSet).filter(key => {
-        if (!key.startsWith(`${team.id}-`)) return false;
-        const tileId = parseInt(key.split('-')[1], 10);
-        return requiredTileIds.has(tileId);
-      }).length;
-
-      if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
-        // Check if we already notified for this team's win (check if they had all tiles before this run)
-        // We do this by checking if any tile was completed in this run for this team
-        const justCompletedTile = eventResult.tilesCompleted.some(tc => tc.teamName === team.name);
-        if (justCompletedTile) {
-          notifyTeamWin({
-            eventName: event.name,
-            teamName: team.name,
-            teamColor: team.color,
-            totalTiles: totalRequiredTiles,
-          }).catch(() => {});
-        }
-      }
-    }
-
-    results.push(eventResult);
   }
+
+  // Oldest-first: never-fetched (null) sorts to the front, then ascending lastStatsFetch. Guarantees
+  // every tick advances the queue so no player is perpetually starved when the roster exceeds one
+  // tick's budget.
+  tasks.sort((a, b) =>
+    (a.player.lastStatsFetch ?? '').localeCompare(b.player.lastStatsFetch ?? ''),
+  );
+
+  // ── Phase 2: fetch hiscores concurrently under a shared token bucket + wall-clock budget ──────
+  let lastDispatch = 0;
+  async function takeToken() {
+    const wait = Math.max(0, PER_REQUEST_GAP_MS - (Date.now() - lastDispatch));
+    if (wait > 0) await delay(wait);
+    lastDispatch = Date.now();
+  }
+
+  const fetched: Fetched[] = [];
+  const queue = [...tasks];
+
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      if (Date.now() - start > TIME_BUDGET_MS) break; // budget hit — leave the rest for next tick
+      const task = queue.shift();
+      if (!task) break;
+      await takeToken();
+      const ts = new Date().toISOString();
+      try {
+        const current = await getStatsByGamemode(task.player.name) as Snapshot;
+        const currentJson = JSON.stringify(current);
+        if (task.needsSnapshot) {
+          // First fetch doubles as the baseline; the gain this tick is 0.
+          await db.update(players)
+            .set({ statsSnapshot: currentJson, snapshotAt: ts, cachedStats: currentJson, lastStatsFetch: ts })
+            .where(eq(players.id, task.player.id));
+          task.ctx.result.playersSnapshotted++;
+          fetched.push({ ctx: task.ctx, player: task.player, snapshot: current, current });
+        } else {
+          await db.update(players)
+            .set({ cachedStats: currentJson, lastStatsFetch: ts })
+            .where(eq(players.id, task.player.id));
+          task.ctx.result.playersChecked++;
+          let snapshot: Snapshot;
+          try {
+            snapshot = JSON.parse(task.player.statsSnapshot!);
+          } catch {
+            task.ctx.result.errors.push(`Invalid snapshot for ${task.player.name}`);
+            continue;
+          }
+          fetched.push({ ctx: task.ctx, player: task.player, snapshot, current });
+        }
+      } catch {
+        task.ctx.result.errors.push(`Failed to fetch stats for ${task.player.name}`);
+      }
+    }
+  });
+  await Promise.all(workers);
+  const skipped = queue.length; // players left unfetched this tick (budget) — picked up next tick
+
+  // ── Phase 3: evaluate completions in-memory (single-threaded, so shared-state mutation is safe) ──
+  for (const f of fetched) {
+    const ctx = f.ctx;
+    if (!ctx.hasStatTiles || !f.player.teamId) continue;
+
+    for (const tile of ctx.statTiles) {
+      const key = `${f.player.teamId}-${tile.id}`;
+      if (ctx.completionSet.has(key)) continue;
+
+      let gained = 0;
+      if (tile.statType === 'skill') {
+        const snapshotXp = f.snapshot.skills?.[tile.trackedStat!]?.xp ?? 0;
+        const currentXp = f.current.skills?.[tile.trackedStat!]?.xp ?? 0;
+        gained = Math.max(0, currentXp - snapshotXp);
+      } else if (tile.statType === 'boss') {
+        const snapshotKc = f.snapshot.bosses?.[tile.trackedStat!]?.score ?? 0;
+        const currentKc = f.current.bosses?.[tile.trackedStat!]?.score ?? 0;
+        const sKc = snapshotKc < 0 ? 0 : snapshotKc;
+        const cKc = currentKc < 0 ? 0 : currentKc;
+        gained = Math.max(0, cKc - sKc);
+      }
+
+      if (tile.trackingMode === 'individual') {
+        // Individual mode: any player meeting the goal completes the tile for their team.
+        if (gained >= tile.statGoal!) {
+          await db.insert(completions).values({ teamId: f.player.teamId, tileId: tile.id }).onConflictDoNothing();
+          ctx.completionSet.add(key);
+          const team = ctx.teamMap.get(f.player.teamId);
+          ctx.result.tilesCompleted.push({
+            tileLabel: tile.label,
+            teamName: team?.name || 'Unknown',
+            playerName: f.player.name,
+          });
+          if (team) {
+            notifyTileCompletion({
+              eventName: ctx.event.name,
+              tileLabel: tile.label,
+              teamName: team.name,
+              teamColor: team.color,
+              tileType: tile.tileType,
+              trackedStat: tile.trackedStat,
+              statType: tile.statType,
+            }).catch(() => {});
+          }
+        }
+      } else {
+        // Team mode: accumulate gains across the team's fetched players.
+        const existing = ctx.teamGains.get(key) || 0;
+        ctx.teamGains.set(key, existing + gained);
+      }
+    }
+  }
+
+  // Per-event: team-mode completions + blackout win, using the accumulated gains.
+  for (const ctx of ctxList) {
+    if (ctx.hasStatTiles) {
+      // Team-mode tile completions
+      for (const tile of ctx.statTiles) {
+        if (tile.trackingMode !== 'team') continue;
+
+        for (const team of ctx.teams) {
+          const key = `${team.id}-${tile.id}`;
+          if (ctx.completionSet.has(key)) continue;
+
+          const totalGained = ctx.teamGains.get(key) || 0;
+          if (totalGained >= tile.statGoal!) {
+            await db.insert(completions).values({ teamId: team.id, tileId: tile.id }).onConflictDoNothing();
+            ctx.completionSet.add(key);
+            ctx.result.tilesCompleted.push({
+              tileLabel: tile.label,
+              teamName: team.name,
+              playerName: '(team total)',
+            });
+            notifyTileCompletion({
+              eventName: ctx.event.name,
+              tileLabel: tile.label,
+              teamName: team.name,
+              teamColor: team.color,
+              tileType: tile.tileType,
+              trackedStat: tile.trackedStat,
+              statType: tile.statType,
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // Check if any team completed ALL required (non-optional) tiles (blackout/win)
+      const requiredTiles = ctx.eventTiles.filter((t) => !t.optional);
+      const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+      const totalRequiredTiles = requiredTiles.length;
+
+      for (const team of ctx.teams) {
+        // Only count completions of required tiles
+        const teamCompletionCount = Array.from(ctx.completionSet).filter((key) => {
+          if (!key.startsWith(`${team.id}-`)) return false;
+          const tileId = parseInt(key.split('-')[1], 10);
+          return requiredTileIds.has(tileId);
+        }).length;
+
+        if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
+          // Only fire the win notice if a tile was completed for this team in this run.
+          const justCompletedTile = ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name);
+          if (justCompletedTile) {
+            notifyTeamWin({
+              eventName: ctx.event.name,
+              teamName: team.name,
+              teamColor: team.color,
+              totalTiles: totalRequiredTiles,
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+
+    results.push(ctx.result);
+  }
+
+  const durationMs = Date.now() - start;
+  log.info('stats-cron.tick', {
+    activeEvents: activeEvents.length,
+    queued: tasks.length,
+    fetched: fetched.length,
+    skipped,
+    snapshotted: results.reduce((s, r) => s + r.playersSnapshotted, 0),
+    checked: results.reduce((s, r) => s + r.playersChecked, 0),
+    tilesCompleted: results.reduce((s, r) => s + r.tilesCompleted.length, 0),
+    errors: results.reduce((s, r) => s + r.errors.length, 0),
+    durationMs,
+  });
 
   return NextResponse.json({
     success: true,
     timestamp: new Date().toISOString(),
+    skipped,
+    durationMs,
     results,
   });
 }
