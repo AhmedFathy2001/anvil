@@ -39,6 +39,10 @@ const USER_AGENT = 'anvil-bingo clog dataset builder (contact: clan admin)';
 // GOTR / BA high gamble). Shop purchases, skilling-pet rolls, and reward-interface handouts have no
 // such table. So: no {{Drop sources}} → the plugin can't drop-track it → "manual-only".
 const DROP_SOURCES_RE = /\{\{\s*drop sources/i;
+// Guaranteed completion awards the plugin credits off the Jagex kill-count chat line (see
+// GUARANTEED_AWARDS in the Anvil plugin). Their wiki pages have no {{Drop sources}} table — the
+// item is handed straight to the inventory — but they ARE auto-tracked, so never flag them manual.
+const KC_AWARD_TRACKED_NAMES = new Set(['Infernal cape', 'Fire cape']);
 // Some clog items share a name with the monster that drops them (e.g. "Crawling hand"), so the item
 // name redirects to the MONSTER page — which has drop tables but no {{Drop sources}} table of its
 // own. Landing on a monster page means we're not on the item page and can't judge it, so we skip
@@ -110,6 +114,7 @@ async function computeManualOnlyIds(items) {
       content = new Map();
     }
     for (const name of batch) {
+      if (KC_AWARD_TRACKED_NAMES.has(name)) continue;
       const c = content.get(name);
       // Unknown page or a monster page (name collision) → assume tracked. Known item page without a
       // Drop sources table → manual-only.
