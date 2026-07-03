@@ -12,7 +12,7 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
-import { tileTierKey, tileCategories, normalizeCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, tileHasCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -167,7 +167,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     const q = search.trim().toLowerCase();
     return localTiles.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
-      if (categoryFilter !== 'all' && normalizeCategory(t.category) !== categoryFilter) return false;
+      if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       if (!q) return true;
       return (
@@ -753,13 +753,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'diary';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'diary';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
 function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
   if (tile.tileType === 'timed') return 'timed';
+  if (tile.tileType === 'lms') return 'lms';
   if (tile.tileType === 'diary') return 'diary';
   if (tile.tileType === 'drop') {
     const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
@@ -778,6 +779,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   collection: { label: 'Collection', cls: 'bg-accent-green/20 text-accent-green-light' },
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
+  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300' },
 };
 
@@ -792,6 +794,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'collection', label: 'Collection' },
   { key: 'kill', label: 'Kill' },
   { key: 'timed', label: 'Timed' },
+  { key: 'lms', label: 'LMS' },
   { key: 'diary', label: 'Diary' },
 ];
 
@@ -818,6 +821,11 @@ function tileMeta(tile: Tile): string {
       return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
     case 'timed':
       return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
+    case 'lms': {
+      const cap = tile.timeThresholdSeconds ?? 1;
+      const games = tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : '';
+      return cap <= 1 ? `LMS · win${games}` : `LMS · top ${cap}${games}`;
+    }
     case 'diary': {
       let sels: string[] = [];
       try {

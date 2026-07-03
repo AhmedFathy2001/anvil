@@ -8,7 +8,7 @@ import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
 import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
-import { tileTierKey, tileCategories, normalizeCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, tileHasCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Tile {
   id: number;
@@ -249,7 +249,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const matchedTileIds = filterActive
     ? new Set(
         tiles
-          .filter((t) => categoryFilter === 'all' || normalizeCategory(t.category) === categoryFilter)
+          .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
           .filter(
             (t) =>

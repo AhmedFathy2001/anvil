@@ -34,9 +34,10 @@ export async function syncDropTileCompletion(
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
     isComplete = best != null && best <= tile.timeThresholdSeconds;
-  } else if (tile.tileType === 'kill' || tile.tileType === 'diary') {
-    // Kill count / diary completions: accumulate the submitted amount toward the required
-    // amount, exactly like a simple drop tile (no per-item breakdown).
+  } else if (tile.tileType === 'kill' || tile.tileType === 'diary' || tile.tileType === 'lms') {
+    // Kill count / diary completions / LMS qualifying games: accumulate the submitted amount
+    // toward the required amount, exactly like a simple drop tile (no per-item breakdown).
+    // (The LMS placement gate is enforced plugin-side before it submits, like kill targeting.)
     if (!tile.requiredAmount) return null;
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })

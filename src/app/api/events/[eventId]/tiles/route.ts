@@ -170,7 +170,7 @@ export async function PUT(
     // point weight is always editable (admin can tune standings even mid-event)
     points: points !== undefined && points !== null ? points : tile.points,
     // category (free-text grouping for plugin filters) is always editable
-    category: category !== undefined ? (category ? String(category).slice(0, 60) : null) : tile.category,
+    category: category !== undefined ? (category ? String(category).slice(0, 120) : null) : tile.category,
     // source-NPC restriction (drop tiles only) is always editable
     ...(sourceNpcsJson !== undefined ? { sourceNpcs: sourceNpcsJson } : {}),
     // kill-tile target NPCs and timed-tile activity/threshold are always editable
@@ -235,13 +235,17 @@ export async function PUT(
   const isKill = merged.tileType === 'kill';
   const isTimed = merged.tileType === 'timed';
   const isDiary = merged.tileType === 'diary';
-  // requiredAmount is shared by drop (item count), kill (kill count) and diary (completions).
+  // LMS placement tiles reuse timeThresholdSeconds as the placement cap (1 = win) and
+  // requiredAmount as the number of qualifying games. No timedActivity.
+  const isLms = merged.tileType === 'lms';
+  // requiredAmount is shared by drop (item count), kill (kill count), diary (completions)
+  // and lms (qualifying games).
   const hasRequiredAmount = merged.requiredAmount != null;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, or diary tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, diary, or LMS tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -255,11 +259,14 @@ export async function PUT(
   if (hasKillFields && !isKill && !isDiary) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary tiles, diary selectors).' }, { status: 400 });
   }
-  if (hasTimedFields && !isTimed) {
-    return NextResponse.json({ error: 'Only timed tiles can carry an activity or time threshold.' }, { status: 400 });
+  if (merged.timedActivity && !isTimed) {
+    return NextResponse.json({ error: 'Only timed tiles can carry an activity.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isDiary) {
-    return NextResponse.json({ error: 'Only drop, kill, or diary tiles can have a required amount.' }, { status: 400 });
+  if (merged.timeThresholdSeconds != null && !isTimed && !isLms) {
+    return NextResponse.json({ error: 'Only timed tiles (time cap) or LMS tiles (placement cap) can carry a threshold.' }, { status: 400 });
+  }
+  if (hasRequiredAmount && !isDrop && !isKill && !isDiary && !isLms) {
+    return NextResponse.json({ error: 'Only drop, kill, diary, or LMS tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

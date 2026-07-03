@@ -47,9 +47,9 @@ A blank `label` auto-fills as `Tile N`.
 |---|---|---|
 | `label` | Tile name shown on the board | Required for a meaningful tile; ≤200 chars |
 | `description` | Free text shown on the tile | Optional |
-| `type` | `standard` \| `drop` \| `kill` \| `timed` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
+| `type` | `standard` \| `drop` \| `kill` \| `timed` \| `lms` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
 | `points` | Integer score weight (Leagues scoring) | ≥ 0, default 1 |
-| `category` | Grouping label for the plugin/UI (e.g. `Zulrah`, `GWD`, `Skilling`) | ≤60 chars |
+| `category` | Grouping tag(s) for the plugin/UI — comma-separated for several (e.g. `"Inferno, PvM"`, quoted) | ≤120 chars |
 | `optional` | `true`/`false` (also `1`/`0`/`yes`/`y`) — doesn't count toward the total | |
 | `requiredAmount` | Integer — **drop** (items needed) or **kill** (kills needed) | ≥ 1; leave blank for other kinds |
 | `trackedStat` | Skill or boss **key** (e.g. `mining`, `zulrah`) | See §4 for valid keys |
@@ -57,7 +57,7 @@ A blank `label` auto-fills as `Tile N`.
 | `statGoal` | Integer XP (skill) or KC (boss) goal | ≥ 0 |
 | `targetNpcs` | **Kill** tiles — NPC name(s), **pipe-separated** | e.g. `Cow\|Cow calf`; up to 25, ≤40 chars each |
 | `timedActivity` | **Timed** tiles — activity to time (e.g. `Inferno`) | ≤60 chars |
-| `timeThresholdSeconds` | **Timed** tiles — time cap in seconds | 1–86400 (e.g. 1800 = 30:00) |
+| `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3) | 1–86400 (e.g. 1800 = 30:00) |
 | `items` | **Drop** tiles — tracked item(s) | See §3 for the mini-format |
 
 ---

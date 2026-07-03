@@ -73,14 +73,49 @@ export function normalizeTierBands(raw: unknown): TierBand[] {
   return out;
 }
 
-/** Sorted, de-duplicated list of the categories actually present on a set of tiles. */
-export function tileCategories(tiles: { category?: string | null }[]): string[] {
-  const set = new Set<string>();
-  for (const t of tiles) {
-    const c = normalizeCategory(t.category);
-    if (c) set.add(c);
+/**
+ * Split a tile's `category` field into its comma-separated tags — a tile can carry several
+ * (e.g. "Inferno, PvM"). Trimmed, empties dropped, de-duplicated case-insensitively with the
+ * first-seen casing kept.
+ */
+export function splitCategories(value: unknown): string[] {
+  const raw = normalizeCategory(value);
+  if (!raw) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const tag = part.trim();
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
   }
-  return [...set].sort((a, b) => a.localeCompare(b));
+  return out;
+}
+
+/** True when one of the tile's category tags equals `tag` (case-insensitive). */
+export function tileHasCategory(value: unknown, tag: string): boolean {
+  const needle = tag.trim().toLowerCase();
+  return splitCategories(value).some((c) => c.toLowerCase() === needle);
+}
+
+/**
+ * Sorted, de-duplicated list of the category tags actually present on a set of tiles.
+ * Multi-tag categories contribute each tag individually; casing collisions collapse to the
+ * first-seen form.
+ */
+export function tileCategories(tiles: { category?: string | null }[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of tiles) {
+    for (const tag of splitCategories(t.category)) {
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(tag);
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
 }
 
 /**

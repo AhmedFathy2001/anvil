@@ -223,7 +223,7 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   const s: Record<string, unknown> = {};
   if (row.description !== undefined) s.description = row.description || null;
   if (row.points !== undefined && row.points !== null) s.points = row.points;
-  if (row.category !== undefined) s.category = row.category ? String(row.category).slice(0, 60) : null;
+  if (row.category !== undefined) s.category = row.category ? String(row.category).slice(0, 120) : null;
   if (row.optional !== undefined) s.optional = row.optional ? 1 : 0;
   if (row.trackedStat !== undefined) s.trackedStat = row.trackedStat || null;
   if (row.statType !== undefined) s.statType = row.statType || null;

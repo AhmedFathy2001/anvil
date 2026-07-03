@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         trackedDrops: [],
         trackedKills: [],
         trackedTimed: [],
+        trackedLms: [],
         trackedDiaries: [],
         noActiveEvent: true,
         schedule,
@@ -393,6 +394,24 @@ export async function GET(request: Request) {
         category: t.category ?? null,
         activity: t.timedActivity ?? null,
         thresholdSeconds: t.timeThresholdSeconds ?? null,
+        completed: completedTileIdSet.has(t.id),
+      })),
+
+    // LMS placement tiles — the plugin watches Last Man Standing games and submits a baked
+    // screenshot each time the player places at or under `placementCap` (1 = win). The cap
+    // rides in the timeThresholdSeconds column; `requiredAmount` qualifying games complete
+    // the tile (summed like kill tiles).
+    trackedLms: allEventTiles
+      .filter((t) => t.tileType === 'lms')
+      .map((t) => ({
+        tileId: t.id,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        placementCap: t.timeThresholdSeconds ?? 1,
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: submissionMap[t.id] ?? 0,
         completed: completedTileIdSet.has(t.id),
       })),
   });

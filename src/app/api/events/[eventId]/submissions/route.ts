@@ -133,8 +133,8 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, or diary tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary' && tile.tileType !== 'lms') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, diary, or LMS tiles' }, { status: 400 });
   }
 
   // Image/proof rules. Drops and timed clears always need a screenshot. Kill tiles auto-detected by
@@ -142,7 +142,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  const isPluginKillPing = !!pluginAuth && tile.tileType === 'kill';
+  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lms');
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;

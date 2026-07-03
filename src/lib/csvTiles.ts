@@ -6,18 +6,20 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "timed" | "diary"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "timed" | "lms" | "diary"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
-//   category            grouping label for the plugin (e.g. "Zulrah")
+//   category            grouping tag(s) for the plugin/board filters, comma-separated for
+//                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
-//   requiredAmount      integer — drop tiles (item count) or kill tiles (kill count)
+//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lms tiles (qualifying games)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
 //                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard")
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
-//   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00)
+//   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
+//                       lms tiles — placement cap instead (1 = win, 3 = top-3)
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated
 //                       (e.g. "Blood moon helm:1; Blue moon helm:1"). Count is optional (def 1).
 //                       Each entry can be a NAME (resolved to an item ID on import — covers

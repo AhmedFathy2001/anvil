@@ -5,7 +5,9 @@ import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS }
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
+import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
+import { splitCategories } from '@/lib/tileFilter';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -20,7 +22,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'diary';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'diary';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -30,24 +32,55 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'collection', label: 'Collection', blurb: 'A set where each listed item needs its own count (e.g. full Moons).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
+  { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
 ];
 
 // Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
 const DIARY_ANY = 'Any';
 
-// Activity hints for timed tiles. The free-text field accepts any name the plugin can time.
+// Activity hints for timed tiles. The free-text field accepts any name the plugin can time —
+// anything that prints a "duration:" / "completion time:" chat line works when the tile's
+// activity text appears in the adjacent kill/completion-count message. These are the raids,
+// challenges, and bosses with an in-game kill timer; names are written the way the count line
+// prints them (article-free where the game drops the "The") so matching works out of the box.
 const TIMED_ACTIVITY_SUGGESTIONS = [
-  'Inferno',
-  'Fight Caves',
-  'Fortis Colosseum',
+  // Raids & wave challenges
   'Chambers of Xeric',
   'Theatre of Blood',
   'Tombs of Amascut',
+  'Inferno',
+  'Fight Caves',
+  'Fortis Colosseum',
+  'TzHaar-Ket-Rak',
+  'The Gauntlet',
+  'Corrupted Gauntlet',
+  // Bosses with in-game kill timers
   'TzKal-Zuk',
+  'Alchemical Hydra',
+  'Grotesque Guardians',
   'Vorkath',
   'Zulrah',
-  'Alchemical Hydra',
+  'Nex',
+  'Phantom Muspah',
+  'The Nightmare',
+  "Phosani's Nightmare",
+  'Duke Sucellus',
+  'Vardorvis',
+  'Leviathan',
+  'Whisperer',
+  'Scurrius',
+  'Araxxor',
+  'Amoxliatl',
+  'Hueycoatl',
+  'Royal Titans',
+  'Yama',
+  'Doom of Mokhaiotl',
+  'Hespori',
+  "Kree'arra",
+  'General Graardor',
+  'Commander Zilyana',
+  "K'ril Tsutsaroth",
 ];
 
 // Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
@@ -77,6 +110,7 @@ function deriveKind(initial: TileConfig): TileKind {
   }
   if (initial.tileType === 'kill') return 'kill';
   if (initial.tileType === 'timed') return 'timed';
+  if (initial.tileType === 'lms') return 'lms';
   if (initial.tileType === 'diary') return 'diary';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
@@ -141,9 +175,16 @@ export default function TileTrackingConfig({
   const [showNpcDropdown, setShowNpcDropdown] = useState(false);
   const npcSearchRef = useRef<HTMLDivElement>(null);
   const npcSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Timed-tile activity + threshold.
+  // Timed-tile activity + threshold. (timeThresholdSeconds doubles as the LMS placement cap,
+  // so only seed the clock field when this tile really is the timed kind.)
   const [timedActivity, setTimedActivity] = useState<string>(initial.timedActivity || "");
-  const [timeThresholdClock, setTimeThresholdClock] = useState<string>(secondsToClock(initial.timeThresholdSeconds));
+  const [timeThresholdClock, setTimeThresholdClock] = useState<string>(
+    secondsToClock(initial.tileType === 'timed' ? initial.timeThresholdSeconds : null),
+  );
+  // LMS placement cap (1 = must win; 3 = top-3). Rides the timeThresholdSeconds column.
+  const [lmsPlacementCap, setLmsPlacementCap] = useState<string>(
+    initial.tileType === 'lms' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '1',
+  );
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
@@ -163,6 +204,7 @@ export default function TileTrackingConfig({
   const isCollection = kind === 'collection';
   const isKill = kind === 'kill';
   const isTimed = kind === 'timed';
+  const isLms = kind === 'lms';
   const isDiary = kind === 'diary';
 
   // Resolve names for pre-existing tracked item IDs (simple-mode tiles store only IDs).
@@ -310,6 +352,16 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setLmsPlacementCap('1');
+    } else if (next === 'lms') {
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     } else {
       // standard
       setTrackedStat("");
@@ -354,6 +406,12 @@ export default function TileTrackingConfig({
       if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
       if (secs > 86400) return 'Time cap cannot exceed 24 hours.';
     }
+    if (kind === 'lms') {
+      const cap = parseInt(lmsPlacementCap, 10);
+      if (!Number.isInteger(cap) || cap < 1 || cap > 24) return 'Set a placement cap between 1 (win) and 24.';
+      const amt = parseInt(requiredAmount || '1', 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set how many qualifying games are needed (at least 1).';
+    }
     return null;
   }
 
@@ -376,7 +434,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isDiary ? 'diary' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isDiary ? 'diary' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -416,6 +474,10 @@ export default function TileTrackingConfig({
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
         payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
+      } else if (kind === 'lms') {
+        // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
+        payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
       }
 
       if (isDrop) {
@@ -531,18 +593,17 @@ export default function TileTrackingConfig({
         </div>
       )}
 
-      {/* Category */}
+      {/* Category — a tile can carry several tags (stored comma-separated), so it shows up
+          under every matching filter on the board and in the plugin (e.g. Inferno + PvM). */}
       <div>
         <label className="block text-xs text-text-muted mb-1">
-          Category <span className="text-text-muted/60">(groups tasks in the plugin, e.g. Zulrah, Slayer)</span>
+          Categories <span className="text-text-muted/60">(tags — Enter or comma adds; a tile can have several, e.g. Inferno + PvM)</span>
         </label>
-        <Input
-          type="text"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+        <ChipsInput
+          value={splitCategories(category)}
+          onChange={(tags) => setCategory(tags.join(', '))}
           placeholder="e.g. GWD"
-          maxLength={60}
-          className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+          ariaLabel="Category tags"
         />
       </div>
 
@@ -1030,6 +1091,42 @@ export default function TileTrackingConfig({
               Enter as <span className="text-foreground/70">mm:ss</span> (e.g. 30:00) or seconds. Pass/fail — the tile
               completes when a submitted clear time is at or under this cap.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- LMS KIND ---- */}
+      {isLms && (
+        <div className="space-y-3 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Placement Cap <span className="text-text-muted/60">(1 = must win; 3 = top-3 counts)</span>
+            </label>
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              value={lmsPlacementCap}
+              onChange={(e) => setLmsPlacementCap(e.target.value)}
+              placeholder="1"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5">
+              The plugin watches Last Man Standing and submits a baked screenshot whenever the player
+              finishes at or above this placement (survivors left when they fall; winning is 1st).
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Games Required <span className="text-text-muted/60">(qualifying games to complete the tile)</span>
+            </label>
+            <Input
+              type="number"
+              min={1}
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              placeholder="1"
+            />
           </div>
         </div>
       )}
