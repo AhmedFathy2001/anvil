@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SKILLS, SKILL_LABELS, BOSSES } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
@@ -518,8 +518,8 @@ export default function TileTrackingConfig({
               ariaLabel={kind === 'skill' ? 'Skill' : 'Boss'}
               options={
                 kind === 'skill'
-                  ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key }))
-                  : BOSSES.map((b) => ({ value: b.key, label: b.label }))
+                  ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))
+                  : BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))
               }
             />
           </div>

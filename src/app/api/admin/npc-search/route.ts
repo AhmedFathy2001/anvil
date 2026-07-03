@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyTileEditor } from '@/lib/auth';
+import { BOSSES } from '@/lib/constants';
 
 // In-memory cache — fetched once per server lifecycle (same pattern as items-search).
 let cachedNames: string[] | null = null;
@@ -60,8 +61,9 @@ async function getNames(): Promise<string[]> {
 }
 
 export async function GET(request: Request) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  // Tile-authoring support endpoint — editors configure kill tiles too, not just admins.
+  const editor = await verifyTileEditor();
+  if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -75,12 +77,25 @@ export async function GET(request: Request) {
   try {
     const names = await getNames();
 
+    // Boss aliases so "colosseum" finds Sol Heredit and "inferno" finds TzKal-Zuk. An alias
+    // hit resolves to the boss label, which is then matched against the wiki monster list
+    // like any other query — labels that aren't real monster pages simply match nothing.
+    const queries = [
+      query,
+      ...BOSSES.filter((b) => b.aliases?.some((a) => a.includes(query))).map((b) =>
+        b.label.toLowerCase(),
+      ),
+    ];
+
     // Prefix matches first (more relevant), then any substring match; cap at 30 so a broad
     // term like "nightmare" still surfaces every variant the admin might want to add.
-    const matches = names.filter((name) => name.toLowerCase().includes(query));
+    const matches = names.filter((name) => {
+      const n = name.toLowerCase();
+      return queries.some((q) => n.includes(q));
+    });
     matches.sort((a, b) => {
-      const ap = a.toLowerCase().startsWith(query) ? 0 : 1;
-      const bp = b.toLowerCase().startsWith(query) ? 0 : 1;
+      const ap = queries.some((q) => a.toLowerCase().startsWith(q)) ? 0 : 1;
+      const bp = queries.some((q) => b.toLowerCase().startsWith(q)) ? 0 : 1;
       return ap !== bp ? ap - bp : a.localeCompare(b);
     });
 

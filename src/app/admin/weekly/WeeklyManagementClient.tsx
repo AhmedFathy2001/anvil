@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES } from '@/lib/constants';
 import DateRangeField from '@/components/DateRangeField';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -381,8 +381,8 @@ export default function WeeklyManagementClient() {
                 ariaLabel={type === 'skill' ? 'Skill' : 'Boss'}
                 options={
                   type === 'skill'
-                    ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key }))
-                    : BOSSES.map((b) => ({ value: b.key, label: b.label }))
+                    ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))
+                    : BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))
                 }
               />
             </div>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
+import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
 import type { SignupProfile, HoursRange } from '@/lib/signup';
 import { TIMEZONE_OPTIONS } from '@/lib/signup';
 import Select from '@/components/Select';
@@ -223,6 +223,7 @@ export default function SignupForm({
   const [withdrawing, setWithdrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bossFilter, setBossFilter] = useState('');
+  const [skillFilter, setSkillFilter] = useState('');
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   // One troll line per event, stable across renders and visitors.
@@ -234,8 +235,19 @@ export default function SignupForm({
   const filteredBosses = useMemo(() => {
     if (!bossFilter.trim()) return BOSSES;
     const q = bossFilter.trim().toLowerCase();
-    return BOSSES.filter((b) => b.label.toLowerCase().includes(q));
+    return BOSSES.filter(
+      (b) => b.label.toLowerCase().includes(q) || b.aliases?.some((a) => a.includes(q)),
+    );
   }, [bossFilter]);
+
+  const filteredSkills = useMemo(() => {
+    const all = SKILLS.filter((s) => s !== 'overall');
+    if (!skillFilter.trim()) return all;
+    const q = skillFilter.trim().toLowerCase();
+    return all.filter(
+      (s) => (SKILL_LABELS[s] ?? s).toLowerCase().includes(q) || SKILL_ALIASES[s]?.some((a) => a.includes(q)),
+    );
+  }, [skillFilter]);
 
   function toggle(set: Set<string>, value: string, setter: (s: Set<string>) => void) {
     const next = new Set(set);
@@ -249,7 +261,7 @@ export default function SignupForm({
   const selectAllBosses = () =>
     setBosses(new Set([...bosses, ...filteredBosses.map((b) => b.key)]));
   const selectAllSkills = () =>
-    setSkills(new Set(SKILLS.filter((s) => s !== 'overall')));
+    setSkills(new Set([...skills, ...filteredSkills]));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -527,6 +539,14 @@ export default function SignupForm({
       {/* Skills */}
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Skills you regularly train</legend>
+        <Input
+          type="search"
+          placeholder="Filter…"
+          value={skillFilter}
+          onChange={(e) => setSkillFilter(e.target.value)}
+          disabled={isLocked}
+          className="w-full px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+        />
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex gap-1.5">
             <button
@@ -535,7 +555,7 @@ export default function SignupForm({
               disabled={isLocked}
               className="text-xs px-2 py-1 rounded border border-card-border hover:border-gold/40 transition-colors disabled:opacity-50"
             >
-              Select all
+              {skillFilter.trim() ? 'Select all shown' : 'Select all'}
             </button>
             <button
               type="button"
@@ -551,7 +571,7 @@ export default function SignupForm({
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {SKILLS.filter((s) => s !== 'overall').map((s) => {
+          {filteredSkills.map((s) => {
             const checked = skills.has(s);
             return (
               <label

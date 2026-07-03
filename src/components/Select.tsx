@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 // Themed dropdown that replaces native <select> across the app. Custom popover so
@@ -8,14 +8,21 @@ import { cn } from '@/lib/utils';
 // box. Values are plain strings — numeric callers convert in onChange, exactly as
 // they did with e.target.value.
 //
-// Keyboard: ↑/↓ move, Enter/Space select, Esc close, Home/End jump. Disabled
-// options are skipped. A hidden mirror input carries `required` so a wrapping
-// <form> still validates.
+// Long lists get a filter box in the popover (auto-on past SEARCH_AUTO_THRESHOLD
+// options, or forced via `searchable`). The filter matches option labels and their
+// `keywords` — aliases like "colosseum" for Sol Heredit.
+//
+// Keyboard: ↑/↓ move, Enter select, Esc close, Home/End jump; with the filter box
+// open, typing filters and Space types a space (Space only selects in plain mode).
+// Disabled options are skipped. A hidden mirror input carries `required` so a
+// wrapping <form> still validates.
 
 export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
+  /** Extra lowercase search terms the filter box matches besides the label. */
+  keywords?: string[];
 }
 
 interface Props {
@@ -28,7 +35,11 @@ interface Props {
   ariaLabel?: string;
   /** Layout/width classes for the wrapper. Defaults to full width (block). */
   className?: string;
+  /** Force the filter box on/off. Default: on when the list is long. */
+  searchable?: boolean;
 }
+
+const SEARCH_AUTO_THRESHOLD = 10;
 
 export default function Select({
   value,
@@ -39,20 +50,54 @@ export default function Select({
   disabled,
   ariaLabel,
   className,
+  searchable,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState<number>(-1);
+  const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+
+  const hasSearch = searchable ?? options.length > SEARCH_AUTO_THRESHOLD;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!hasSearch || !q) return options;
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.keywords?.some((k) => k.toLowerCase().includes(q)),
+    );
+  }, [options, query, hasSearch]);
 
   const selectedIndex = options.findIndex((o) => o.value === value);
   const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
 
   // Open the list with the highlight anchored to the current selection.
   function openMenu() {
+    setQuery('');
     setHighlight(selectedIndex >= 0 ? selectedIndex : firstEnabled(options, 0, 1));
     setOpen(true);
   }
+
+  function closeMenu(refocus = false) {
+    setOpen(false);
+    setQuery('');
+    if (refocus) buttonRef.current?.focus();
+  }
+
+  // Re-anchor the highlight whenever the filter narrows the list.
+  useEffect(() => {
+    if (!open) return;
+    if (!query.trim()) {
+      const sel = filtered.findIndex((o) => o.value === value);
+      setHighlight(sel >= 0 ? sel : firstEnabled(filtered, 0, 1));
+    } else {
+      setHighlight(firstEnabled(filtered, 0, 1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   // Close on outside click + Escape.
   useEffect(() => {
@@ -60,6 +105,7 @@ export default function Select({
     function onPointer(e: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setQuery('');
       }
     }
     document.addEventListener('pointerdown', onPointer);
@@ -74,50 +120,80 @@ export default function Select({
   }, [open, highlight]);
 
   function commit(index: number) {
-    const opt = options[index];
+    const opt = filtered[index];
     if (!opt || opt.disabled) return;
     onChange(opt.value);
-    setOpen(false);
+    closeMenu(true);
   }
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (disabled) return;
+  // Shared list navigation for both the trigger button and the filter input.
+  // Returns true when the key was handled.
+  function navKey(e: React.KeyboardEvent): boolean {
     if (e.key === 'Escape') {
-      setOpen(false);
-      return;
+      closeMenu(true);
+      return true;
     }
+    if (e.key === 'ArrowDown') {
+      setHighlight((h) => firstEnabled(filtered, h + 1, 1));
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      setHighlight((h) => firstEnabled(filtered, h - 1, -1));
+      return true;
+    }
+    if (e.key === 'Home') {
+      setHighlight(firstEnabled(filtered, 0, 1));
+      return true;
+    }
+    if (e.key === 'End') {
+      setHighlight(firstEnabled(filtered, filtered.length - 1, -1));
+      return true;
+    }
+    if (e.key === 'Enter') {
+      commit(highlight);
+      return true;
+    }
+    return false;
+  }
+
+  function onButtonKeyDown(e: React.KeyboardEvent) {
+    if (disabled) return;
     if (!open) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         openMenu();
+      } else if (hasSearch && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Type-to-open: the first character seeds the filter box.
+        e.preventDefault();
+        openMenu();
+        setQuery(e.key);
       }
       return;
     }
-    if (e.key === 'ArrowDown') {
+    if (navKey(e)) {
       e.preventDefault();
-      setHighlight((h) => firstEnabled(options, h + 1, 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlight((h) => firstEnabled(options, h - 1, -1));
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      setHighlight(firstEnabled(options, 0, 1));
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      setHighlight(firstEnabled(options, options.length - 1, -1));
-    } else if (e.key === 'Enter' || e.key === ' ') {
+    } else if (e.key === ' ' && !hasSearch) {
       e.preventDefault();
       commit(highlight);
     }
   }
 
+  function onSearchKeyDown(e: React.KeyboardEvent) {
+    if (navKey(e)) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Tab') closeMenu();
+  }
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && (open ? setOpen(false) : openMenu())}
-        onKeyDown={onKeyDown}
+        onClick={() => !disabled && (open ? closeMenu() : openMenu())}
+        onKeyDown={onButtonKeyDown}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -158,39 +234,58 @@ export default function Select({
       )}
 
       {open && (
-        <ul
-          ref={listRef}
-          role="listbox"
-          aria-label={ariaLabel}
-          className="absolute z-50 mt-1 w-full min-w-max max-h-60 overflow-auto rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 py-1"
-        >
-          {options.map((opt, i) => {
-            const isSelected = opt.value === value;
-            const isHighlight = i === highlight;
-            return (
-              <li
-                key={opt.value || `opt-${i}`}
-                role="option"
-                aria-selected={isSelected}
-                aria-disabled={opt.disabled}
-                onPointerEnter={() => !opt.disabled && setHighlight(i)}
-                onClick={() => commit(i)}
-                className={cn(
-                  'px-3 py-1.5 text-sm cursor-pointer transition-colors',
-                  opt.disabled
-                    ? 'text-text-muted/40 cursor-not-allowed'
-                    : isSelected
-                      ? 'bg-gold/20 text-gold'
-                      : isHighlight
-                        ? 'bg-brown-light text-foreground'
-                        : 'text-foreground',
-                )}
-              >
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="absolute z-50 mt-1 w-full min-w-max rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
+          {hasSearch && (
+            <div className="p-1.5 border-b border-card-border/60">
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onSearchKeyDown}
+                placeholder="Type to filter…"
+                aria-label={ariaLabel ? `Filter ${ariaLabel} options` : 'Filter options'}
+                className="w-full px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:border-gold/60"
+              />
+            </div>
+          )}
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-label={ariaLabel}
+            className="max-h-60 overflow-auto py-1"
+          >
+            {filtered.length === 0 && (
+              <li className="px-3 py-1.5 text-sm text-text-muted/60 cursor-default">No matches</li>
+            )}
+            {filtered.map((opt, i) => {
+              const isSelected = opt.value === value;
+              const isHighlight = i === highlight;
+              return (
+                <li
+                  key={opt.value || `opt-${i}`}
+                  role="option"
+                  aria-selected={isSelected}
+                  aria-disabled={opt.disabled}
+                  onPointerEnter={() => !opt.disabled && setHighlight(i)}
+                  onClick={() => commit(i)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm cursor-pointer transition-colors',
+                    opt.disabled
+                      ? 'text-text-muted/40 cursor-not-allowed'
+                      : isSelected
+                        ? 'bg-gold/20 text-gold'
+                        : isHighlight
+                          ? 'bg-brown-light text-foreground'
+                          : 'text-foreground',
+                  )}
+                >
+                  {opt.label}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
