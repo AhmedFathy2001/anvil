@@ -41,46 +41,39 @@ const DIARY_ANY = 'Any';
 
 // Activity hints for timed tiles. The free-text field accepts any name the plugin can time —
 // anything that prints a "duration:" / "completion time:" chat line works when the tile's
-// activity text appears in the adjacent kill/completion-count message. These are the raids,
-// challenges, and bosses with an in-game kill timer; names are written the way the count line
-// prints them (article-free where the game drops the "The") so matching works out of the box.
+// activity text appears in the adjacent kill/completion-count message. Nearly every boss has
+// an in-game kill timer these days, so derive the list from the boss-KC picker's BOSSES
+// constant instead of hand-curating. A few labels need fixing up first: display shorthands
+// ("Thermy") don't appear in the game's count line, "The …" names drop the article there,
+// boss-name duplicates of a named activity (TzKal-Zuk vs Inferno) would just be noise, and a
+// couple of activities end without any duration line the plugin can parse.
+const TIMED_LABEL_FIXES: Record<string, string | null> = {
+  'TzKal-Zuk': null,       // covered by 'Inferno'
+  'TzTok-Jad': null,       // covered by 'Fight Caves'
+  'Sol Heredit': null,     // covered by 'Fortis Colosseum'
+  'Thermy': 'Thermonuclear Smoke Devil',
+  'CoX: CM': 'Chambers of Xeric: Challenge Mode',
+  'ToB: HM': 'Theatre of Blood: Hard Mode',
+  'ToA: Expert': 'Tombs of Amascut: Expert Mode',
+  'The Leviathan': 'Leviathan',       // "Your Leviathan kill count is: N" — no article
+  'The Whisperer': 'Whisperer',
+  'The Hueycoatl': 'Hueycoatl',
+  'The Royal Titans': 'Royal Titans',
+  'Lunar Chests': 'Lunar Chest',      // "Your Lunar Chest count is: N" — singular
+  'Maggot King': null,     // Moons rooms have no timer — the Lunar Chest is the clear
+  'Tempoross': null,       // "Subdued in mm:ss" — no duration keyword the parser accepts
+  'Wintertodt': null,      // same — no duration line
+  'Zalcano': null,         // no in-game kill timer
+};
 const TIMED_ACTIVITY_SUGGESTIONS = [
-  // Raids & wave challenges
-  'Chambers of Xeric',
-  'Theatre of Blood',
-  'Tombs of Amascut',
+  // Named activities first — the usual phrasing on timed tiles.
   'Inferno',
   'Fight Caves',
   'Fortis Colosseum',
   'TzHaar-Ket-Rak',
-  'The Gauntlet',
-  'Corrupted Gauntlet',
-  // Bosses with in-game kill timers
-  'TzKal-Zuk',
-  'Alchemical Hydra',
-  'Grotesque Guardians',
-  'Vorkath',
-  'Zulrah',
-  'Nex',
-  'Phantom Muspah',
-  'The Nightmare',
-  "Phosani's Nightmare",
-  'Duke Sucellus',
-  'Vardorvis',
-  'Leviathan',
-  'Whisperer',
-  'Scurrius',
-  'Araxxor',
-  'Amoxliatl',
-  'Hueycoatl',
-  'Royal Titans',
-  'Yama',
-  'Doom of Mokhaiotl',
-  'Hespori',
-  "Kree'arra",
-  'General Graardor',
-  'Commander Zilyana',
-  "K'ril Tsutsaroth",
+  ...BOSSES
+    .map((b) => (b.label in TIMED_LABEL_FIXES ? TIMED_LABEL_FIXES[b.label] : b.label))
+    .filter((s): s is string => !!s),
 ];
 
 // Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
