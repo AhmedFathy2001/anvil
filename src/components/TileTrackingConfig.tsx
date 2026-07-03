@@ -59,8 +59,8 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'The Whisperer': 'Whisperer',
   'The Hueycoatl': 'Hueycoatl',
   'The Royal Titans': 'Royal Titans',
-  'Lunar Chests': 'Lunar Chest',      // "Your Lunar Chest count is: N" — singular
-  'Maggot King': null,     // Moons rooms have no timer — the Lunar Chest is the clear
+  'Lunar Chests': null,    // Moons of Peril has no timer — a chest count line, no duration to pair
+  'Maggot King': null,     // same — Moons rooms print no duration
   'Tempoross': null,       // "Subdued in mm:ss" — no duration keyword the parser accepts
   'Wintertodt': null,      // same — no duration line
   'Zalcano': null,         // no in-game kill timer
