@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import Combobox from '@/components/Combobox';
 import Textarea from '@/components/Textarea';
 import type { TileConfig } from '@/lib/types';
 
@@ -728,19 +729,14 @@ export default function TileTrackingConfig({
             <label className="block text-xs text-text-muted mb-1">
               Restrict to source(s) <span className="text-text-muted/60">(optional)</span>
             </label>
-            <Input
-              type="text"
-              list="source-npc-suggestions"
+            <Combobox
               value={sourceNpcsText}
-              onChange={(e) => setSourceNpcsText(e.target.value)}
-              placeholder="e.g. Zulrah  ·  Chambers of Xeric  ·  Barrows"
-              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              onChange={setSourceNpcsText}
+              suggestions={SOURCE_SUGGESTIONS}
+              multi
+              placeholder="e.g. Zulrah, Chambers of Xeric, Barrows"
+              ariaLabel="Source restriction"
             />
-            <datalist id="source-npc-suggestions">
-              {SOURCE_SUGGESTIONS.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
             <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
               Comma-separated. The drop only counts when it comes from one of these (case-insensitive). Leave blank to
               accept any source.
@@ -1006,20 +1002,14 @@ export default function TileTrackingConfig({
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">Activity</label>
-            <Input
-              type="text"
-              list="timed-activity-suggestions"
+            <Combobox
               value={timedActivity}
-              onChange={(e) => setTimedActivity(e.target.value)}
+              onChange={setTimedActivity}
+              suggestions={TIMED_ACTIVITY_SUGGESTIONS}
               placeholder="e.g. Inferno"
               maxLength={60}
-              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              ariaLabel="Timed activity"
             />
-            <datalist id="timed-activity-suggestions">
-              {TIMED_ACTIVITY_SUGGESTIONS.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
             <p className="text-[10px] text-text-muted mt-0.5">
               The activity the plugin times (region/boss it recognises). Raids, Inferno, Colosseum, or a boss.
             </p>
