@@ -564,6 +564,39 @@ export async function verifyPluginToken(
       }),
     );
 
+    // Resolve which of the user's members the caller is logged into (when they told us)
+    // and capture it BEFORE event resolution: verification and the accountHash anchor
+    // must not depend on a live-event enrollment, or the first authenticated hit outside
+    // an event captures nothing and the "plugin play verifies the account" promise breaks.
+    let matchedMember: typeof memberRows[number] | null = null;
+    if (normalizedRsn) {
+      // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
+      matchedMember =
+        memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
+      // Rename fallback: no name matched, but the stable account hash points at one of this
+      // user's members whose stored name differs — they renamed to a name we haven't recorded
+      // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
+      // would 404-park forever until a roster sync or rename request happened to fix the name.
+      // Record the rename now (best-effort) so it self-heals the moment they simply play.
+      let renamedFrom: string | null = null;
+      if (!matchedMember && accountHash) {
+        const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
+        if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
+          matchedMember = hashMatch;
+          renamedFrom = hashMatch.rsn;
+        }
+      }
+      if (!matchedMember) return null; // current account isn't on this user's roster
+      if (renamedFrom && currentRsn) {
+        await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
+      }
+      // A confirmed RSN match means the caller is logged into an account they own —
+      // proof enough to verify it, enrolled anywhere or not. Skip when there's no RSN
+      // hint (we can't tell which account they're actually on). Best-effort: never
+      // blocks the request, and no-ops once verified with the hash anchored.
+      await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
+    }
+
     const memberIds = memberRows.map((m) => m.id);
     const playerRows = await db
       .select({
@@ -585,42 +618,13 @@ export async function verifyPluginToken(
     if (live.length === 0) return null;
 
     let pick = null as typeof live[number] | null;
-    let matchedMember: typeof memberRows[number] | null = null;
-    if (normalizedRsn) {
-      // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
-      let matchingMember = memberRows.find((m) =>
-        memberRsnSets.get(m.id)?.has(normalizedRsn),
-      );
-      // Rename fallback: no name matched, but the stable account hash points at one of this
-      // user's members whose stored name differs — they renamed to a name we haven't recorded
-      // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
-      // would 404-park forever until a roster sync or rename request happened to fix the name.
-      // Record the rename now (best-effort) so it self-heals the moment they simply play.
-      let renamedFrom: string | null = null;
-      if (!matchingMember && accountHash) {
-        const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
-        if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
-          matchingMember = hashMatch;
-          renamedFrom = hashMatch.rsn;
-        }
-      }
-      if (!matchingMember) return null; // current account isn't on this user's roster
-      pick = live.find((p) => p.clanMemberId === matchingMember.id) ?? null;
+    if (matchedMember) {
+      const memberId = matchedMember.id;
+      pick = live.find((p) => p.clanMemberId === memberId) ?? null;
       if (!pick) return null; // not signed up under this RSN
-      matchedMember = matchingMember;
-      if (renamedFrom && currentRsn) {
-        await applyRenameOnPlay(matchingMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
-      }
     } else {
       // No RSN hint — pick any live event row. Cross-account safety degrades.
       pick = live[0];
-    }
-
-    // A confirmed RSN match means the caller is logged into an account they own —
-    // proof enough to verify it. Skip when there's no RSN hint (we can't tell which
-    // account they're actually on). Best-effort: never blocks the request.
-    if (matchedMember) {
-      await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
     }
 
     return {
