@@ -93,8 +93,9 @@ export async function middleware(request: NextRequest) {
       }
 
       // Editors = moderator access PLUS bingo-tile authoring on existing events. They reach the
-      // event pages (to open the Tiles tab) but cannot create events; other event sub-tabs are
-      // read-only for them since the non-tile write APIs stay admin-only.
+      // events list and each event's Tiles tab, but cannot create events, and never land on the
+      // other event surfaces (Overview/Teams/Sign-ups/Stats are admin-only actions) — any hit
+      // there bounces to that event's Tiles tab.
       if (role === 'editor') {
         const allowed = [
           '/admin/dashboard',
@@ -106,6 +107,10 @@ export async function middleware(request: NextRequest) {
         const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
         if (!canEvents && !allowed.some((p) => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+        }
+        const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
+        if (eventPage && eventPage[2] !== '/tiles' && !(eventPage[2] ?? '').startsWith('/tiles/')) {
+          return NextResponse.redirect(new URL(`/admin/events/${eventPage[1]}/tiles`, request.url));
         }
       }
     } catch {

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyTileEditor } from '@/lib/auth';
 import { getItemMapping } from '@/lib/osrsItems';
 
 export async function GET(request: Request) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  // Tile-authoring support endpoint — editors configure drop/collection tiles too, not just admins.
+  const editor = await verifyTileEditor();
+  if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
