@@ -55,6 +55,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -229,6 +230,49 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     );
   }
 
+  // Rewrite the whole board order (positions = array index). Pre-start only, enforced
+  // server-side too; feedback lands in the shared importMsg slot.
+  async function applyOrder(ids: number[], successText: string) {
+    setReordering(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not reorder tiles.' });
+        return;
+      }
+      setImportMsg({ type: 'success', text: successText });
+      await syncTilesFromServer();
+      router.refresh();
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  function handleShuffle() {
+    if (!confirm('Shuffle the board into a random order?')) return;
+    const ids = localTiles.map((t) => t.id);
+    // Fisher–Yates
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    void applyOrder(ids, 'Board shuffled into a random order.');
+  }
+
+  function handleSortByDifficulty() {
+    if (!confirm('Reorder the board by difficulty — lowest point value (easiest tier) first?')) return;
+    const ids = [...localTiles]
+      .sort((a, b) => (a.points ?? 1) - (b.points ?? 1) || a.position - b.position)
+      .map((t) => t.id);
+    void applyOrder(ids, 'Board sorted by difficulty — easiest tier first.');
+  }
+
   function downloadTemplate() {
     // Seed the template with the current tiles so the admin edits in-place. tileToCsvCells emits
     // every column in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
@@ -360,6 +404,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <ClogGenerator
               eventId={event.id}
               canGrow={canEditTileSet}
+              pointsMode={pointsMode}
               onCreated={handleClogCreated}
               onError={(text) => setImportMsg({ type: 'error', text })}
             />
@@ -394,6 +439,28 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
           </h2>
           <div className="flex items-center gap-2">
+            {!eventStarted && localTiles.length > 1 && (
+              <>
+                <button
+                  onClick={handleShuffle}
+                  disabled={reordering}
+                  title="Randomize the board order"
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                >
+                  🎲 Shuffle
+                </button>
+                {pointsMode && (
+                  <button
+                    onClick={handleSortByDifficulty}
+                    disabled={reordering}
+                    title="Group tiles by difficulty tier — lowest point value first"
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                  >
+                    Sort by difficulty
+                  </button>
+                )}
+              </>
+            )}
             <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
               <button
                 onClick={() => setViewMode('cards')}

@@ -18,17 +18,30 @@ interface Props {
   eventId: number;
   // Append needs a growable board (Leagues/Tile-race, pre-start). When false the button explains why.
   canGrow: boolean;
+  // Points-scoring event → show the per-tile points input.
+  pointsMode?: boolean;
   onCreated: (summary: { created: number; ignored: number; activity: string }) => void;
   onError: (message: string) => void;
 }
 
+// How the kept items become tiles. All three shapes are native to the import route:
+// per-item rows, a row with items + no requiredAmount (collection — each item needs its own
+// drop), and a row with items + requiredAmount (pool — any N drops from the set count).
+type GenMode = 'perItem' | 'allOf' | 'anyOf';
+
+const MODES: { key: GenMode; label: string; blurb: string }[] = [
+  { key: 'perItem', label: 'Tile per item', blurb: 'One 1× drop tile for every kept item.' },
+  { key: 'allOf', label: 'One tile: all of', blurb: 'A single collection tile — every kept item must drop (1× each).' },
+  { key: 'anyOf', label: 'One tile: any of', blurb: 'A single drop tile — any N drops from the kept items complete it.' },
+];
+
 // "Generate tiles from a collection log page" — pick any clog activity (boss, raid, minigame, clue
-// tab), review its full item list, exclude the ones you don't want, and append one drop tile per
-// kept item. Data comes from /api/admin/clog (bundled OSRS Wiki dataset). Each generated tile is a
-// 1× drop tile tracking that single item id; loot-fired items auto-detect via the plugin's drop
+// tab), review its full item list, exclude the ones you don't want, and append tiles for the rest:
+// one 1× drop tile per item, or a single all-of/any-of tile over the whole set. Data comes from
+// /api/admin/clog (bundled OSRS Wiki dataset). Loot-fired items auto-detect via the plugin's drop
 // pipeline, and clog-only rewards (Barbarian Assault torso, gamble pets) auto-detect via the
 // plugin's collection-log-unlock crediting.
-export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: Props) {
+export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated, onError }: Props) {
   const [open, setOpen] = useState(false);
   const [activities, setActivities] = useState<ActivityMeta[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
@@ -36,6 +49,10 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
   const [activity, setActivity] = useState<string | null>(null);
   const [items, setItems] = useState<ClogItem[] | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  const [mode, setMode] = useState<GenMode>('perItem');
+  const [tileLabel, setTileLabel] = useState('');
+  const [anyOfAmount, setAnyOfAmount] = useState('1');
+  const [points, setPoints] = useState('');
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -90,6 +107,10 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
     setItems(null);
     setExcluded(new Set());
     setSearch('');
+    setMode('perItem');
+    setTileLabel('');
+    setAnyOfAmount('1');
+    setPoints('');
   }
 
   function close() {
@@ -106,13 +127,34 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
     }
     setCreating(true);
     try {
-      const rows = kept.map((it) => ({
-        label: it.name,
-        tileType: 'drop',
-        requiredAmount: 1,
-        category: activity,
-        items: [{ id: it.id, name: it.name, count: 1 }],
-      }));
+      // Points only ride along when the admin typed one — otherwise tiles keep the default.
+      const pts = pointsMode && points.trim() ? Math.max(0, parseInt(points, 10) || 0) : undefined;
+      const anyN = Math.max(1, parseInt(anyOfAmount, 10) || 1);
+      const rows =
+        mode === 'perItem'
+          ? kept.map((it) => ({
+              label: it.name,
+              tileType: 'drop',
+              requiredAmount: 1,
+              category: activity,
+              ...(pts !== undefined ? { points: pts } : {}),
+              items: [{ id: it.id, name: it.name, count: 1 }],
+            }))
+          : [
+              {
+                label:
+                  tileLabel.trim() ||
+                  (mode === 'allOf'
+                    ? `${activity}: all ${kept.length} items`
+                    : `${activity}: any ${anyN} of ${kept.length}`),
+                tileType: 'drop',
+                category: activity,
+                ...(pts !== undefined ? { points: pts } : {}),
+                // requiredAmount set → drop pool ("any N of"); omitted → collection ("all of").
+                ...(mode === 'anyOf' ? { requiredAmount: anyN } : {}),
+                items: kept.map((it) => ({ id: it.id, name: it.name, count: 1 })),
+              },
+            ];
       const res = await fetch(`/api/events/${eventId}/tiles/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +210,8 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
             {!activity && (
               <>
                 <p className="text-xs text-text-muted mb-3">
-                  Pick a page — boss, raid, minigame or clue tab. Every item becomes a 1× drop tile you can trim.
+                  Pick a page — boss, raid, minigame or clue tab. Trim the item list, then add a tile per item or one
+                  all-of / any-of tile over the set.
                   {generatedAt && (
                     <span className="block mt-1 opacity-70">Dataset built {new Date(generatedAt).toLocaleDateString()}.</span>
                   )}
@@ -242,6 +285,70 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                     </ul>
                   )}
                 </div>
+                {/* How the kept items become tiles + per-run config */}
+                <div className="mt-3 pt-3 border-t border-card-border space-y-2">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setMode(m.key)}
+                        className={`px-2 py-1.5 text-xs rounded border transition-colors ${
+                          mode === m.key
+                            ? 'bg-gold/20 border-gold text-gold'
+                            : 'border-card-border text-text-muted hover:border-gold/50'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-text-muted leading-relaxed">{MODES.find((m) => m.key === mode)?.blurb}</p>
+
+                  <div className="flex gap-2">
+                    {mode !== 'perItem' && (
+                      <input
+                        value={tileLabel}
+                        onChange={(e) => setTileLabel(e.target.value)}
+                        maxLength={200}
+                        placeholder={
+                          mode === 'allOf'
+                            ? `${activity}: all ${keptCount} items`
+                            : `${activity}: any ${Math.max(1, parseInt(anyOfAmount, 10) || 1)} of ${keptCount}`
+                        }
+                        aria-label="Tile label"
+                        className="flex-1 min-w-0 text-sm rounded-lg border border-card-border bg-background px-3 py-1.5 focus:border-gold/50 focus:outline-none"
+                      />
+                    )}
+                    {mode === 'anyOf' && (
+                      <label className="flex items-center gap-1.5 text-xs text-text-muted shrink-0">
+                        Drops
+                        <input
+                          type="number"
+                          min="1"
+                          value={anyOfAmount}
+                          onChange={(e) => setAnyOfAmount(e.target.value)}
+                          className="w-16 text-sm rounded-lg border border-card-border bg-background px-2 py-1.5 focus:border-gold/50 focus:outline-none"
+                        />
+                      </label>
+                    )}
+                    {pointsMode && (
+                      <label className="flex items-center gap-1.5 text-xs text-text-muted shrink-0">
+                        Points
+                        <input
+                          type="number"
+                          min="0"
+                          value={points}
+                          onChange={(e) => setPoints(e.target.value)}
+                          placeholder="1"
+                          title={mode === 'perItem' ? 'Point value applied to every created tile' : 'Point value for the tile'}
+                          className="w-16 text-sm rounded-lg border border-card-border bg-background px-2 py-1.5 focus:border-gold/50 focus:outline-none"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
                 <p className="text-[11px] text-text-muted mt-2 leading-relaxed">
                   {keptManual > 0 && (
                     <span className="text-amber-300">
@@ -249,10 +356,15 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                     </span>
                   )}
                   Clog rewards auto-complete off the in-game collection-log unlock, which fires <em>once per account</em> — so a member who
-                  already owns the item won’t re-trigger it and must submit manually.
+                  already owns the item won’t re-trigger it and must submit manually. Exception: guaranteed completion awards
+                  (Infernal cape, Fire cape) credit off the kill-count message instead, so those track on <em>every</em> completion.
                 </p>
                 <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-card-border">
-                  <span className="text-xs text-text-muted">{keptCount} tile{keptCount === 1 ? '' : 's'} to add</span>
+                  <span className="text-xs text-text-muted">
+                    {mode === 'perItem'
+                      ? `${keptCount} tile${keptCount === 1 ? '' : 's'} to add`
+                      : `1 tile over ${keptCount} item${keptCount === 1 ? '' : 's'}`}
+                  </span>
                   <div className="flex items-center gap-2">
                     <button onClick={close} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors">Cancel</button>
                     <button
@@ -260,7 +372,11 @@ export default function ClogGenerator({ eventId, canGrow, onCreated, onError }: 
                       disabled={creating || keptCount === 0}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/20 border border-gold/40 text-gold hover:bg-gold/30 transition-colors disabled:opacity-50"
                     >
-                      {creating ? 'Adding…' : `Add ${keptCount} tile${keptCount === 1 ? '' : 's'}`}
+                      {creating
+                        ? 'Adding…'
+                        : mode === 'perItem'
+                          ? `Add ${keptCount} tile${keptCount === 1 ? '' : 's'}`
+                          : 'Add 1 tile'}
                     </button>
                   </div>
                 </div>
