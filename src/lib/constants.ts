@@ -88,6 +88,7 @@ export const BOSSES: BossOption[] = [
   { key: "araxxor", label: "Araxxor", aliases: ["rax"] },
   { key: "artio", label: "Artio" },
   { key: "barrows", label: "Barrows" },
+  { key: "brutus", label: "Brutus", aliases: ["demonic brutus", "ides of milk"] },
   { key: "bryophyta", label: "Bryophyta" },
   { key: "callisto", label: "Callisto" },
   { key: "calvarion", label: "Calvar'ion", aliases: ["calvarion"] },

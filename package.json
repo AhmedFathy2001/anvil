@@ -21,7 +21,7 @@
     "drizzle-orm": "^0.45.1",
     "exceljs": "^4.4.0",
     "next": "16.1.6",
-    "osrs-json-hiscores": "^2.24.1",
+    "osrs-json-hiscores": "^2.25.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sharp": "^0.33.5",
