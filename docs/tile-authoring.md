@@ -145,6 +145,15 @@ royalTitans, yama`
 "Sub-30 Inferno",,timed,50,Inferno,false,,,,,,Inferno,1800,
 ```
 
+### Diary (achievement-diary completions during the event)
+`type=diary`. Reuses the `targetNpcs` column for `<Area> <Tier>` selectors — `Any` is a wildcard on
+either side (`Any Elite`, `Wilderness Any`); `requiredAmount` = completions needed. The plugin credits
+off the in-game completion message, which only fires the moment a tier is finished — tiers completed
+before the event can't re-trigger it.
+```
+"Complete any elite diary",,diary,25,Diaries,false,1,,,,"Any Elite",,,
+```
+
 ---
 
 ## 5. Header row (copy/paste)

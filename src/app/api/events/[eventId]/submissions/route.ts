@@ -133,8 +133,8 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, or timed tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, or diary tiles' }, { status: 400 });
   }
 
   // Image/proof rules. Drops and timed clears always need a screenshot. Kill tiles auto-detected by

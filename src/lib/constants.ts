@@ -152,6 +152,27 @@ export const BOSSES: BossOption[] = [
   { key: "zulrah", label: "Zulrah" },
 ];
 
+// Achievement diary areas + tiers, for diary-tile selectors. A selector is the string
+// "<Area> <Tier>" ("Ardougne Elite") with "Any" as a wildcard on either side ("Any Elite",
+// "Wilderness Any"). Stored in tiles.targetNpcs (the diary tileType reinterprets that
+// column); the plugin parses the same strings when matching completion chat lines.
+export const DIARY_AREAS = [
+  "Ardougne",
+  "Desert",
+  "Falador",
+  "Fremennik",
+  "Kandarin",
+  "Karamja",
+  "Kourend & Kebos",
+  "Lumbridge & Draynor",
+  "Morytania",
+  "Varrock",
+  "Western Provinces",
+  "Wilderness",
+] as const;
+
+export const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"] as const;
+
 // Same idea for skills — shorthand players type into filter boxes. Lowercase.
 export const SKILL_ALIASES: Record<string, string[]> = {
   attack: ["atk"],

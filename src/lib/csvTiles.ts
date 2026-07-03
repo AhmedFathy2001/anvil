@@ -6,7 +6,7 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "timed"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "timed" | "diary"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping label for the plugin (e.g. "Zulrah")
 //   optional            true/false — doesn't count toward the total
@@ -14,7 +14,8 @@
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
-//   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf")
+//   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
+//                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard")
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00)
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated

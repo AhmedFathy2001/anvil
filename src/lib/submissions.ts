@@ -34,9 +34,9 @@ export async function syncDropTileCompletion(
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
     isComplete = best != null && best <= tile.timeThresholdSeconds;
-  } else if (tile.tileType === 'kill') {
-    // Kill count: accumulate submitted kills toward the required amount, exactly like a
-    // simple drop tile (no per-item breakdown).
+  } else if (tile.tileType === 'kill' || tile.tileType === 'diary') {
+    // Kill count / diary completions: accumulate the submitted amount toward the required
+    // amount, exactly like a simple drop tile (no per-item breakdown).
     if (!tile.requiredAmount) return null;
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })

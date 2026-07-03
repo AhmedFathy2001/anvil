@@ -85,7 +85,7 @@ export async function buildTileSpreadsheet(opts: {
   });
   const lastRow = VALIDATION_ROWS + 1;
   for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,timed"']);
+    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,timed,diary"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);

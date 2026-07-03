@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
@@ -19,7 +19,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'diary';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -29,7 +29,11 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'collection', label: 'Collection', blurb: 'A set where each listed item needs its own count (e.g. full Moons).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
+  { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
 ];
+
+// Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
+const DIARY_ANY = 'Any';
 
 // Activity hints for timed tiles. The free-text field accepts any name the plugin can time.
 const TIMED_ACTIVITY_SUGGESTIONS = [
@@ -72,6 +76,7 @@ function deriveKind(initial: TileConfig): TileKind {
   }
   if (initial.tileType === 'kill') return 'kill';
   if (initial.tileType === 'timed') return 'timed';
+  if (initial.tileType === 'diary') return 'diary';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
   return 'standard';
@@ -117,8 +122,18 @@ export default function TileTrackingConfig({
   // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
   const [sourceNpcsText, setSourceNpcsText] = useState<string>((initial.sourceNpcs || []).join(", "));
   // Kill-tile target NPC names — a multi-pick set (any listed name counts). Variants like
-  // "The Nightmare" + "Phosani's Nightmare" can all be added so any of them count.
-  const [targetNpcNames, setTargetNpcNames] = useState<string[]>(initial.targetNpcs || []);
+  // "The Nightmare" + "Phosani's Nightmare" can all be added so any of them count. The same
+  // column carries diary selectors when the tile is the diary kind, so scope each state to
+  // its own kind here.
+  const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
+    initial.tileType === 'diary' ? [] : initial.targetNpcs || [],
+  );
+  // Diary selectors — "<Area> <Tier>" strings, "Any" wildcard on either side.
+  const [diarySelectors, setDiarySelectors] = useState<string[]>(
+    initial.tileType === 'diary' ? initial.targetNpcs || [] : [],
+  );
+  const [diaryArea, setDiaryArea] = useState<string>(DIARY_ANY);
+  const [diaryTier, setDiaryTier] = useState<string>('Elite');
   const [npcSearch, setNpcSearch] = useState("");
   const [npcResults, setNpcResults] = useState<string[]>([]);
   const [npcSearching, setNpcSearching] = useState(false);
@@ -147,6 +162,7 @@ export default function TileTrackingConfig({
   const isCollection = kind === 'collection';
   const isKill = kind === 'kill';
   const isTimed = kind === 'timed';
+  const isDiary = kind === 'diary';
 
   // Resolve names for pre-existing tracked item IDs (simple-mode tiles store only IDs).
   useEffect(() => {
@@ -259,12 +275,14 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setSourceNpcsText("");
       setTargetNpcNames([]);
+      setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'drop' || next === 'collection') {
       setTrackedStat("");
       setStatGoal("");
       setTargetNpcNames([]);
+      setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'kill') {
@@ -272,6 +290,15 @@ export default function TileTrackingConfig({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
+      setDiarySelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'diary') {
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'timed') {
@@ -281,6 +308,7 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setSourceNpcsText("");
       setTargetNpcNames([]);
+      setDiarySelectors([]);
     } else {
       // standard
       setTrackedStat("");
@@ -289,6 +317,7 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setSourceNpcsText("");
       setTargetNpcNames([]);
+      setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     }
@@ -312,6 +341,11 @@ export default function TileTrackingConfig({
       if (targetNpcNames.length === 0) return 'Add at least one NPC to count kills for.';
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    }
+    if (kind === 'diary') {
+      if (diarySelectors.length === 0) return 'Add at least one diary (or "Any") to count completions for.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
     }
     if (kind === 'timed') {
       if (!timedActivity.trim()) return 'Name the activity to time (e.g. Inferno).';
@@ -341,7 +375,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isDiary ? 'diary' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -372,6 +406,11 @@ export default function TileTrackingConfig({
       } else if (kind === 'kill') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = targetNpcNames;
+        payload.trackingMode = trackingMode;
+      } else if (kind === 'diary') {
+        // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = diarySelectors;
         payload.trackingMode = trackingMode;
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
@@ -846,6 +885,117 @@ export default function TileTrackingConfig({
             </div>
             <p className="text-[10px] text-text-muted mt-0.5">
               Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- DIARY KIND ---- */}
+      {isDiary && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Diaries that count <span className="text-text-muted/60">(any listed one counts)</span>
+            </label>
+
+            {diarySelectors.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {diarySelectors.map((sel) => (
+                  <span
+                    key={sel}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    {sel}
+                    <button
+                      type="button"
+                      onClick={() => setDiarySelectors((prev) => prev.filter((s) => s !== sel))}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                      aria-label={`Remove ${sel}`}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Select
+                value={diaryArea}
+                onChange={setDiaryArea}
+                ariaLabel="Diary area"
+                className="flex-1"
+                options={[
+                  { value: DIARY_ANY, label: 'Any area' },
+                  ...DIARY_AREAS.map((a) => ({ value: a, label: a })),
+                ]}
+              />
+              <Select
+                value={diaryTier}
+                onChange={setDiaryTier}
+                ariaLabel="Diary tier"
+                className="w-32"
+                options={[
+                  { value: DIARY_ANY, label: 'Any tier' },
+                  ...DIARY_TIERS.map((t) => ({ value: t, label: t })),
+                ]}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const sel = `${diaryArea} ${diaryTier}`;
+                  setDiarySelectors((prev) => (prev.includes(sel) ? prev : [...prev, sel]));
+                }}
+                className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded border border-gold/40 bg-gold/15 text-gold hover:bg-gold/25 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              A completion counts when the in-game &ldquo;completed all of the &lt;tier&gt; tasks&rdquo; message matches{' '}
+              <span className="text-foreground/70">any</span> selector. &ldquo;Any Elite&rdquo; = any area&rsquo;s elite
+              diary; &ldquo;Wilderness Any&rdquo; = any Wilderness tier. The message only fires at the moment a tier is
+              finished — diaries completed before the event can&rsquo;t re-trigger it.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Required Completions</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="e.g. 1"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrackingMode("team")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Team Total
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrackingMode("solo")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Solo (Any Member)
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Team Total sums every member&rsquo;s completions; Solo completes when any one member reaches the count.
             </p>
           </div>
         </div>

@@ -192,9 +192,11 @@ function validateRowKind(
   const isDrop = effTileType === 'drop';
   const isKill = effTileType === 'kill';
   const isTimed = effTileType === 'timed';
+  // Diary tiles carry their "<Area> <Tier>" selectors in the targetNpcs column.
+  const isDiary = effTileType === 'diary';
 
-  if (hasStat && (isDrop || isKill || isTimed || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, or timed tile.`;
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, timed, or diary tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
@@ -202,14 +204,14 @@ function validateRowKind(
   if (dropItemFields && !isDrop) {
     return `Row ${i + 1}: only drop tiles can carry items.`;
   }
-  if (effTargetNpcsLen > 0 && !isKill) {
-    return `Row ${i + 1}: only kill tiles can target NPCs.`;
+  if (effTargetNpcsLen > 0 && !isKill && !isDiary) {
+    return `Row ${i + 1}: only kill tiles can target NPCs (or diary tiles, diary selectors).`;
   }
   if (effTimed && !isTimed) {
     return `Row ${i + 1}: only timed tiles can carry an activity or time threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill) {
-    return `Row ${i + 1}: only drop or kill tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isDiary) {
+    return `Row ${i + 1}: only drop, kill, or diary tiles can have a required amount.`;
   }
   return null;
 }

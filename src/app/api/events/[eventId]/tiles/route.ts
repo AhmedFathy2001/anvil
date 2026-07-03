@@ -227,18 +227,21 @@ export async function PUT(
     parseLen(merged.trackedItemIds) > 0 ||
     parseLen(merged.itemRequirements) > 0 ||
     parseLen(merged.sourceNpcs) > 0;
+  // targetNpcs doubles as the diary-selector list ("Ardougne Elite", "Any Elite") when the
+  // tile is the diary kind — same column, per-tileType interpretation.
   const hasKillFields = parseLen(merged.targetNpcs) > 0;
   const hasTimedFields = merged.timeThresholdSeconds != null || !!merged.timedActivity;
   const isDrop = merged.tileType === 'drop';
   const isKill = merged.tileType === 'kill';
   const isTimed = merged.tileType === 'timed';
-  // requiredAmount is shared by drop (item count) and kill (kill count).
+  const isDiary = merged.tileType === 'diary';
+  // requiredAmount is shared by drop (item count), kill (kill count) and diary (completions).
   const hasRequiredAmount = merged.requiredAmount != null;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isTimed || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, or timed tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, or diary tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -249,14 +252,14 @@ export async function PUT(
   if (dropItemFields && !isDrop) {
     return NextResponse.json({ error: 'Only drop tiles can carry tracked items or source restrictions.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill) {
-    return NextResponse.json({ error: 'Only kill tiles can target NPCs.' }, { status: 400 });
+  if (hasKillFields && !isKill && !isDiary) {
+    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary tiles, diary selectors).' }, { status: 400 });
   }
   if (hasTimedFields && !isTimed) {
     return NextResponse.json({ error: 'Only timed tiles can carry an activity or time threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill) {
-    return NextResponse.json({ error: 'Only drop or kill tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isDiary) {
+    return NextResponse.json({ error: 'Only drop, kill, or diary tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

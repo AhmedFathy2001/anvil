@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         trackedDrops: [],
         trackedKills: [],
         trackedTimed: [],
+        trackedDiaries: [],
         noActiveEvent: true,
         schedule,
         activeWeekly,
@@ -348,6 +349,32 @@ export async function GET(request: Request) {
           points: t.points ?? 0,
           category: t.category ?? null,
           targetNpcs,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: submissionMap[t.id] ?? 0,
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+
+    // Achievement-diary tiles — the plugin credits a completion when the in-game diary
+    // completion line matches one of the tile's selectors ("Ardougne Elite", "Any Elite",
+    // "Wilderness Any"). Selectors live in the targetNpcs column (reused per-tileType).
+    trackedDiaries: allEventTiles
+      .filter((t) => t.tileType === 'diary')
+      .map((t) => {
+        let diaries: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) diaries = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          diaries,
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
           trackingMode: t.trackingMode ?? 'team',
