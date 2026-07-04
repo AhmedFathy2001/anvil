@@ -255,6 +255,30 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
+  // Quick-build drag-and-drop: the dragged tile takes the drop target's slot. Optimistic
+  // local reorder for instant feedback, then the same reorder POST Shuffle uses (pre-start
+  // only, enforced server-side; applyOrder re-syncs so positions always match the server).
+  const [dragTileId, setDragTileId] = useState<number | null>(null);
+  const [dragOverTileId, setDragOverTileId] = useState<number | null>(null);
+
+  function handleTileDrop(targetId: number) {
+    const dragged = dragTileId;
+    setDragTileId(null);
+    setDragOverTileId(null);
+    if (dragged == null || dragged === targetId) return;
+    const ids = localTiles.map((t) => t.id);
+    const from = ids.indexOf(dragged);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, dragged);
+    setLocalTiles((prev) => {
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
+    });
+    void applyOrder(ids, 'Tile order updated.');
+  }
+
   function handleShuffle() {
     if (!confirm('Shuffle the board into a random order?')) return;
     const ids = localTiles.map((t) => t.id);
@@ -529,12 +553,43 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 {localTiles.map((t) => {
                   const k = tileKind(t);
                   const sel = editingTileId === t.id;
+                  const draggable = !eventStarted && !reordering;
+                  const isDragging = dragTileId === t.id;
+                  const isDragOver = dragOverTileId === t.id && dragTileId !== t.id;
                   return (
-                    <li key={t.id}>
+                    <li
+                      key={t.id}
+                      draggable={draggable}
+                      onDragStart={(e) => {
+                        setDragTileId(t.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        if (dragTileId == null) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setDragOverTileId(t.id);
+                      }}
+                      onDragLeave={() => setDragOverTileId((cur) => (cur === t.id ? null : cur))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleTileDrop(t.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragTileId(null);
+                        setDragOverTileId(null);
+                      }}
+                      className={`${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'border-t-2 border-t-gold' : ''}`}
+                    >
                       <button
                         onClick={() => setEditingTileId(t.id)}
                         className={`w-full text-left px-2.5 py-2 flex items-center gap-2 border-b border-card-border/40 transition-colors ${sel ? 'bg-gold/10' : 'hover:bg-card-bg-hover'}`}
                       >
+                        {draggable && (
+                          <span className="text-text-muted/50 cursor-grab select-none shrink-0" title="Drag to reorder" aria-hidden>
+                            ⠿
+                          </span>
+                        )}
                         <span className="text-[10px] font-mono text-text-muted w-7 shrink-0">#{t.position + 1}</span>
                         <span className={`flex-1 truncate text-sm ${sel ? 'text-gold font-medium' : 'text-foreground'}`}>{t.label}</span>
                         {isManualOnlyDropTile(t) && <ManualOnlyBadge compact className="shrink-0" />}
