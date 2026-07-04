@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
+import BoardBalancePanel from './BoardBalancePanel';
 import SkillTileGenerator from './SkillTileGenerator';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
@@ -577,6 +578,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </p>
         )}
       </div>
+
+      {/* Live structural balance read — recomputes as tiles change */}
+      <BoardBalancePanel tiles={localTiles} pointsMode={pointsMode} tierBands={tierBands} />
 
       {/* Per-tile configuration */}
       <div>
