@@ -38,6 +38,7 @@ function tileToTrackingInitial(tile: Tile) {
     targetNpcs: tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : null,
     timedActivity: tile.timedActivity ?? null,
     timeThresholdSeconds: tile.timeThresholdSeconds ?? null,
+    updatedAt: tile.updatedAt ?? null,
   };
 }
 
@@ -63,7 +64,56 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
-  const editingTile = editingTileId != null ? localTiles.find((t) => t.id === editingTileId) ?? null : null;
+
+  // Concurrent-edit protection. Opening a tile re-fetches it (a save then starts from the
+  // latest state, not the page-load list) and takes an advisory lock so a second admin sees
+  // who's already editing. A heartbeat keeps the lock alive while the editor stays open;
+  // closing releases it. The lock only warns — the hard guard is the updatedAt check the
+  // tiles PUT enforces, which 409s a stale save instead of clobbering.
+  const [editingFresh, setEditingFresh] = useState<Tile | null>(null);
+  const [lockHolder, setLockHolder] = useState<string | null>(null);
+  useEffect(() => {
+    if (editingTileId == null) return;
+    let cancelled = false;
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+    setEditingFresh(null);
+    setLockHolder(null);
+    const lockUrl = `/api/events/${event.id}/tiles/${editingTileId}/lock`;
+    const applyLock = (lock: { mine?: boolean; holder?: string } | null) => {
+      if (cancelled || !lock) return;
+      setLockHolder(lock.mine === false ? lock.holder ?? 'another editor' : null);
+    };
+    (async () => {
+      const [tileRes, lockRes] = await Promise.all([
+        fetch(`/api/events/${event.id}/tiles/${editingTileId}`),
+        fetch(lockUrl, { method: 'POST' }),
+      ]);
+      if (cancelled) return;
+      if (tileRes.ok) {
+        const fresh = (await tileRes.json()) as Tile;
+        if (cancelled) return;
+        setEditingFresh(fresh);
+        // Keep the list row in step so card meta/labels reflect the other admin's edits too.
+        setLocalTiles((prev) => prev.map((t) => (t.id === fresh.id ? fresh : t)));
+      }
+      applyLock(await lockRes.json().catch(() => null));
+      heartbeat = setInterval(() => {
+        fetch(lockUrl, { method: 'POST' })
+          .then((r) => r.json())
+          .then(applyLock)
+          .catch(() => {});
+      }, 30_000);
+    })();
+    return () => {
+      cancelled = true;
+      if (heartbeat) clearInterval(heartbeat);
+      fetch(lockUrl, { method: 'DELETE', keepalive: true }).catch(() => {});
+    };
+  }, [editingTileId, event.id]);
+
+  // Only hand the editor the freshly-fetched row — the page-load list may be stale.
+  const editingTile = editingTileId != null && editingFresh?.id === editingTileId ? editingFresh : null;
+  const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
   // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
   const dynamicBoard = isTileRaceFormat(event.format) || pointsMode;
@@ -617,6 +667,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
                     )}
                   </div>
+                  {lockHolder && (
+                    <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
+                      save, the second save is rejected instead of overwriting.
+                    </p>
+                  )}
                   <TileTrackingConfig
                     key={editingTile.id}
                     tileId={editingTile.id}
@@ -630,6 +686,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     pointsMode={pointsMode}
                     tierBands={tierBands}
                   />
+                </div>
+              ) : editingLoading ? (
+                <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
+                  Loading tile…
                 </div>
               ) : (
                 <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
@@ -796,6 +856,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           eventId={event.id}
           eventStarted={eventStarted}
           pointsMode={pointsMode}
+          tierBands={tierBands}
+          lockHolder={lockHolder}
           canDelete={canEditTileSet}
           onClose={() => setEditingTileId(null)}
           onDelete={() => handleDeleteTile(editingTile.id)}
@@ -939,10 +1001,12 @@ interface DrawerProps {
   canDelete?: boolean;
   onClose: () => void;
   onDelete?: () => void;
-  onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];
+  onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
+  /** Advisory lock holder (someone else editing right now), for the warning banner. */
+  lockHolder?: string | null;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -982,6 +1046,12 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
 
         {/* Form */}
         <div className="flex-1 min-h-0 p-5 overflow-y-auto">
+          {lockHolder && (
+            <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
+              🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
+              save, the second save is rejected instead of overwriting.
+            </p>
+          )}
           <TileTrackingConfig
             tileId={tile.id}
             eventId={eventId}
@@ -989,6 +1059,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
             onSaved={onSaved}
             eventStarted={eventStarted}
             pointsMode={pointsMode}
+            tierBands={tierBands}
           />
 
           {canDelete && onDelete && (

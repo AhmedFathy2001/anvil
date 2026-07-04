@@ -104,9 +104,26 @@ export const tiles = sqliteTable('tiles', {
   // event's scoringMode is 'tiles'). Harder tiles carry more points. Defaults to
   // 1 so a points event behaves like a tile-count event until weights are set.
   points: integer('points').default(1).notNull(),
+  // Optimistic-concurrency stamp: bumped on every config edit (PUT/import). The editor
+  // sends the value it loaded as `baseUpdatedAt`; a mismatch means someone else saved in
+  // between and the write is rejected (409) instead of silently clobbering theirs.
+  // Nullable: legacy rows have no stamp until their first post-migration edit.
+  updatedAt: text('updated_at'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
+
+// Advisory per-tile edit locks: opening the tile editor acquires one (TTL + heartbeat),
+// so a second admin opening the same tile is warned who's already in it. Purely advisory —
+// the hard guard against clobbering is tiles.updatedAt above. Expired rows are reaped on
+// the next acquire attempt; tile deletion cascades the lock away.
+export const tileLocks = sqliteTable('tile_locks', {
+  tileId: integer('tile_id').primaryKey().references(() => tiles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull(),
+  username: text('username').notNull(),
+  acquiredAt: text('acquired_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+});
 
 export const teams = sqliteTable('teams', {
   id: integer('id').primaryKey({ autoIncrement: true }),

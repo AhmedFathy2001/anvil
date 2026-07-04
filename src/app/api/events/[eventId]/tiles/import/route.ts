@@ -182,9 +182,10 @@ function validateRowKind(
       ? row.requiredAmount ?? null
       : base.requiredAmount;
   const effTargetNpcsLen = row.targetNpcs !== undefined ? (row.targetNpcs?.length ?? 0) : parseLen(base.targetNpcs);
-  const effTimed =
-    (row.timedActivity !== undefined ? !!row.timedActivity : !!base.timedActivity) ||
-    (row.timeThresholdSeconds !== undefined ? row.timeThresholdSeconds != null : base.timeThresholdSeconds != null);
+  const effActivity = row.timedActivity !== undefined ? !!row.timedActivity : !!base.timedActivity;
+  const effThreshold =
+    row.timeThresholdSeconds !== undefined ? row.timeThresholdSeconds != null : base.timeThresholdSeconds != null;
+  const effTimed = effActivity || effThreshold;
   const hasStat = !!effTrackedStat || !!effStatType || effStatGoal != null;
   const dropItemFields = derived
     ? (derived.trackedItemIds?.length ?? 0) > 0 || (derived.itemRequirements?.length ?? 0) > 0
@@ -194,9 +195,13 @@ function validateRowKind(
   const isTimed = effTileType === 'timed';
   // Diary tiles carry their "<Area> <Tier>" selectors in the targetNpcs column.
   const isDiary = effTileType === 'diary';
+  // LMS reuses timeThresholdSeconds (placement cap) + requiredAmount (games); loot-value
+  // tiles reuse requiredAmount (gp threshold) — mirrors the single-tile PUT validation.
+  const isLms = effTileType === 'lms';
+  const isValue = effTileType === 'value' || effTileType === 'valuetotal';
 
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, timed, or diary tile.`;
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, timed, diary, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
@@ -207,11 +212,14 @@ function validateRowKind(
   if (effTargetNpcsLen > 0 && !isKill && !isDiary) {
     return `Row ${i + 1}: only kill tiles can target NPCs (or diary tiles, diary selectors).`;
   }
-  if (effTimed && !isTimed) {
-    return `Row ${i + 1}: only timed tiles can carry an activity or time threshold.`;
+  if (effActivity && !isTimed) {
+    return `Row ${i + 1}: only timed tiles can carry an activity.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isDiary) {
-    return `Row ${i + 1}: only drop, kill, or diary tiles can have a required amount.`;
+  if (effThreshold && !isTimed && !isLms) {
+    return `Row ${i + 1}: only timed tiles (time cap) or LMS tiles (placement cap) can carry a threshold.`;
+  }
+  if (effRequiredAmount != null && !isDrop && !isKill && !isDiary && !isLms && !isValue) {
+    return `Row ${i + 1}: only drop, kill, diary, LMS, or value tiles can have a required amount.`;
   }
   return null;
 }
@@ -220,7 +228,8 @@ function validateRowKind(
 // the event starts (label/tileType/requiredAmount and the item config). `derived` (when present)
 // is the drop config from the row's `items` and overrides type/amount/items. Used for updates+inserts.
 function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: DerivedItemFields | null): Record<string, unknown> {
-  const s: Record<string, unknown> = {};
+  // Concurrency stamp — imports count as edits, so open editors detect the change on save.
+  const s: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (row.description !== undefined) s.description = row.description || null;
   if (row.points !== undefined && row.points !== null) s.points = row.points;
   if (row.category !== undefined) s.category = row.category ? String(row.category).slice(0, 120) : null;

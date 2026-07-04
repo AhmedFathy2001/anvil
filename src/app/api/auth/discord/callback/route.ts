@@ -65,6 +65,7 @@ export async function GET(request: Request) {
   let user = await db.query.users.findFirst({
     where: eq(users.discordId, discordUser.id),
   });
+  const isNewUser = !user;
 
   // Bootstrap path: if ADMIN_DISCORD_ID matches and there is no admin yet, this user
   // gets promoted to admin so we never end up locked out of staff functions.
@@ -228,7 +229,12 @@ export async function GET(request: Request) {
   const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role);
   const isProd = process.env.NODE_ENV === 'production';
 
-  const res = NextResponse.redirect(new URL(returnTo, publicOrigin(request)));
+  // First-ever login lands on the profile getting-started checklist instead of the
+  // homepage — but only when there's no deep link to honor (a returnTo other than "/"
+  // means they were already heading somewhere specific, e.g. an event signup page).
+  const destination = isNewUser && returnTo === '/' ? '/profile?welcome=1' : returnTo;
+
+  const res = NextResponse.redirect(new URL(destination, publicOrigin(request)));
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',

@@ -38,7 +38,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, baseUpdatedAt } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -50,6 +50,17 @@ export async function PUT(
   });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
+  }
+
+  // Optimistic concurrency: the editor sends the updatedAt stamp it loaded. A mismatch means
+  // someone else saved this tile in between — reject instead of silently clobbering their
+  // edit, and return the current row so the client can reload it. Callers that don't send
+  // baseUpdatedAt (CSV import, older clients) keep last-write-wins.
+  if (baseUpdatedAt !== undefined && (baseUpdatedAt ?? null) !== (tile.updatedAt ?? null)) {
+    return NextResponse.json(
+      { error: 'This tile was updated by someone else while you were editing. Reopen it to load their version.', conflict: true, tile },
+      { status: 409 },
+    );
   }
 
   // Get event to check start date
@@ -158,6 +169,8 @@ export async function PUT(
 
   // Build update set
   const updateSet: Record<string, unknown> = {
+    // Concurrency stamp — every successful edit gets a fresh one (see baseUpdatedAt above).
+    updatedAt: new Date().toISOString(),
     // description is always editable
     description: description !== undefined ? (description || null) : tile.description,
     // stat tracking is always editable

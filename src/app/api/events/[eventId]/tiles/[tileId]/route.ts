@@ -4,6 +4,27 @@ import { tiles, events } from '@/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
 
+// Fresh single-tile read for the editor: opening a tile re-fetches it (instead of trusting
+// the page-load list) so a save starts from the latest state — and carries the updatedAt
+// stamp the concurrency check on PUT compares against.
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ eventId: string; tileId: string }> },
+) {
+  const editor = await verifyTileEditor();
+  if (!editor) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const { eventId, tileId } = await params;
+  const tile = await db.query.tiles.findFirst({
+    where: and(eq(tiles.id, parseInt(tileId, 10)), eq(tiles.eventId, parseInt(eventId, 10))),
+  });
+  if (!tile) {
+    return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
+  }
+  return NextResponse.json(tile);
+}
+
 // Remove a tile from a Leagues (bingo+points) or Tile-race board and close the position gap
 // so positions stay contiguous (0..n-1). Classic bingo grids are a fixed N×N shape and reject
 // deletes. Pre-start only. Completions/submissions for the tile cascade-delete via their FK.

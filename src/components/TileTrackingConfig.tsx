@@ -53,13 +53,14 @@ function parseGp(raw: string): number | null {
 const DIARY_ANY = 'Any';
 
 // Activity hints for timed tiles. The free-text field accepts any name the plugin can time —
-// anything that prints a "duration:" / "completion time:" chat line works when the tile's
-// activity text appears in the adjacent kill/completion-count message. Nearly every boss has
-// an in-game kill timer these days, so derive the list from the boss-KC picker's BOSSES
-// constant instead of hand-curating. A few labels need fixing up first: display shorthands
-// ("Thermy") don't appear in the game's count line, "The …" names drop the article there,
-// boss-name duplicates of a named activity (TzKal-Zuk vs Inferno) would just be noise, and a
-// couple of activities end without any duration line the plugin can parse.
+// anything that prints a "duration:" / "completion time:" / "Time:" / "Subdued in" chat line
+// works when the tile's activity text appears in the adjacent kill/completion-count message
+// (or the plugin's alias table covers it). Nearly every boss has an in-game kill timer these
+// days, so derive the list from the boss-KC picker's BOSSES constant instead of hand-curating.
+// A few labels need fixing up first: display shorthands ("Thermy") don't appear in the game's
+// count line, "The …" names drop the article there, boss-name duplicates of a named activity
+// (TzKal-Zuk vs Inferno) would just be noise, and a couple of activities end without any
+// duration line the plugin can parse.
 const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'TzKal-Zuk': null,       // covered by 'Inferno'
   'TzTok-Jad': null,       // covered by 'Fight Caves'
@@ -73,9 +74,7 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'The Hueycoatl': 'Hueycoatl',
   'The Royal Titans': 'Royal Titans',
   'Lunar Chests': null,    // Moons of Peril has no timer — a chest count line, no duration to pair
-  'Maggot King': null,     // same — Moons rooms print no duration
-  'Tempoross': null,       // "Subdued in mm:ss" — no duration keyword the parser accepts
-  'Wintertodt': null,      // same — no duration line
+  'Wintertodt': null,      // no duration line
   'Zalcano': null,         // no in-game kill timer
 };
 const TIMED_ACTIVITY_SUGGESTIONS = [
@@ -84,6 +83,14 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
   'Fight Caves',
   'Fortis Colosseum',
   'TzHaar-Ket-Rak',
+  // Non-boss timed content the plugin parses: Sailing's Barracuda Trials ("Time: 6:04.20"
+  // flanked by lines naming the course; 'Barracuda Trials' matches any course via the
+  // plugin's alias table) and Hallowed Sepulchre ("Overall time:" on the exit).
+  'Barracuda Trials',
+  'Tempor Tantrum',
+  'Jubbly Jive',
+  'Gwenith Glide',
+  'Hallowed Sepulchre',
   ...BOSSES
     .map((b) => (b.label in TIMED_LABEL_FIXES ? TIMED_LABEL_FIXES[b.label] : b.label))
     .filter((s): s is string => !!s),
@@ -224,6 +231,9 @@ export default function TileTrackingConfig({
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Concurrency stamp from the freshly-fetched tile; refreshed after each save so
+  // consecutive saves in one sitting keep passing the PUT's baseUpdatedAt check.
+  const [baseStamp, setBaseStamp] = useState<string | null>(initial.updatedAt ?? null);
 
   const isStat = kind === 'skill' || kind === 'boss';
   const isDrop = kind === 'drop' || kind === 'collection';
@@ -469,6 +479,7 @@ export default function TileTrackingConfig({
       // so the row is always internally consistent.
       const payload: Record<string, unknown> = {
         tileId,
+        baseUpdatedAt: baseStamp,
         label: label || undefined,
         description: description || null,
         optional,
@@ -536,6 +547,7 @@ export default function TileTrackingConfig({
       });
       if (res.ok) {
         const updated = await res.json();
+        setBaseStamp(updated.updatedAt ?? null);
         onSaved({
           label: updated.label,
           description: updated.description,
@@ -554,10 +566,15 @@ export default function TileTrackingConfig({
           targetNpcs: updated.targetNpcs ? JSON.parse(updated.targetNpcs) : null,
           timedActivity: updated.timedActivity ?? null,
           timeThresholdSeconds: updated.timeThresholdSeconds ?? null,
+          updatedAt: updated.updatedAt ?? null,
         });
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Could not save tile.');
+        setError(
+          res.status === 409
+            ? data.error || 'Someone else saved this tile while you were editing — reopen it to load their version.'
+            : data.error || 'Could not save tile.',
+        );
       }
     } finally {
       setSaving(false);

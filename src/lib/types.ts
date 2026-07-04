@@ -46,7 +46,8 @@ export interface Tile {
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
   targetNpcs?: string | null; // JSON array of target NPC names (kill tiles only)
   timedActivity?: string | null; // activity identifier (timed tiles only)
-  timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
+  timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)  // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.
+  updatedAt?: string | null;
 }
 
 export interface Team {
@@ -130,6 +131,7 @@ export interface TileConfig {
   // Timed tiles: activity to time + completion-time cap in seconds. null for non-timed tiles.
   timedActivity: string | null;
   timeThresholdSeconds: number | null;
+  updatedAt?: string | null;
 }
 
 export interface PlayerGain {

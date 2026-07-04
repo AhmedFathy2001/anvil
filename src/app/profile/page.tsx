@@ -1,16 +1,33 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanMembers, detectedAccounts, events, players, teams, users } from '@/db/schema';
+import {
+  clanMembers,
+  detectedAccounts,
+  events,
+  eventSignups,
+  players,
+  settings,
+  teams,
+  users,
+  weeklyCompetitions,
+  weeklyParticipants,
+} from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
+import { signupWindowState } from '@/lib/signup';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import LinkedAccountsClient from './LinkedAccountsClient';
+import GettingStarted, { type GettingStartedProps } from './GettingStarted';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const session = await verifyUser();
   if (!session) {
     redirect('/login?return=/profile');
@@ -85,6 +102,95 @@ export default async function ProfilePage() {
     inActiveEvent: activeMemberIds.has(m.id),
   }));
 
+  // Getting-started checklist. Shown on first login (?welcome=1 from the OAuth callback)
+  // and organically until the user has at least one verified account — the gate for
+  // event sign-ups. The extra queries only run while the checklist is visible.
+  const welcomeParam = (await searchParams).welcome === '1';
+  const hasVerifiedAccount = linkedAccounts.some((m) => m.verifiedAt);
+  let gettingStarted: GettingStartedProps | null = null;
+  if (welcomeParam || !hasVerifiedAccount) {
+    const clanNameRow = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
+    const clanName = clanNameRow?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+
+    // Weekly: roster members are enrolled automatically by the cron, so this step is
+    // informational — "you're tracked" / "you will be once you're on the roster".
+    const activeWeeklyRows = await db.query.weeklyCompetitions.findMany({
+      where: eq(weeklyCompetitions.status, 'active'),
+    });
+    const enrolledCompIds = new Set<number>();
+    if (activeWeeklyRows.length > 0 && linkedIds.length > 0) {
+      const rows = await db
+        .select({ competitionId: weeklyParticipants.competitionId })
+        .from(weeklyParticipants)
+        .where(
+          and(
+            inArray(weeklyParticipants.competitionId, activeWeeklyRows.map((w) => w.id)),
+            inArray(weeklyParticipants.clanMemberId, linkedIds),
+          ),
+        );
+      for (const r of rows) enrolledCompIds.add(r.competitionId);
+    }
+    const nextWeekly = activeWeeklyRows.length
+      ? null
+      : (await db.query.weeklyCompetitions.findMany({
+          where: eq(weeklyCompetitions.status, 'upcoming'),
+          orderBy: (w, { asc }) => [asc(w.startDate)],
+          limit: 1,
+        }))[0] ?? null;
+
+    // Bingo: same public-visibility rules as the home page (drafts hidden, force-ended
+    // and past events excluded), split into signup-open vs already-underway.
+    const allEvents = await db.select().from(events);
+    const visibleEvents = allEvents.filter((e) => {
+      if (e.forceEndedAt) return false;
+      if (!e.startDate) return false;
+      if (e.endDate && new Date(e.endDate).getTime() < nowMs) return false;
+      return true;
+    });
+    const signupOpen = visibleEvents.filter((e) => signupWindowState(e).open);
+    const liveEvents = visibleEvents.filter(
+      (e) => e.startDate && new Date(e.startDate).getTime() <= nowMs,
+    );
+    const mySignupStatus = new Map<number, string>();
+    if (signupOpen.length > 0) {
+      const rows = await db
+        .select({ eventId: eventSignups.eventId, status: eventSignups.status })
+        .from(eventSignups)
+        .where(
+          and(
+            eq(eventSignups.userId, user.id),
+            inArray(eventSignups.eventId, signupOpen.map((e) => e.id)),
+          ),
+        );
+      for (const r of rows) mySignupStatus.set(r.eventId, r.status);
+    }
+
+    const verifiedRsns = linkedAccounts.filter((m) => m.verifiedAt).map((m) => m.rsn);
+    const unverifiedRsns = linkedAccounts.filter((m) => !m.verifiedAt).map((m) => m.rsn);
+    gettingStarted = {
+      clanName,
+      welcomeParam,
+      accountState: hasVerifiedAccount ? 'verified' : linkedAccounts.length > 0 ? 'unverified' : 'none',
+      verifiedRsns,
+      unverifiedRsns,
+      isRosterMember: linkedAccounts.some((m) => m.isGuest === 0),
+      activeWeeklies: activeWeeklyRows.map((w) => ({
+        id: w.id,
+        title: w.title,
+        enrolled: enrolledCompIds.has(w.id),
+      })),
+      nextWeekly: nextWeekly
+        ? { id: nextWeekly.id, title: nextWeekly.title, startDate: nextWeekly.startDate }
+        : null,
+      signupOpenEvents: signupOpen.map((e) => ({
+        id: e.id,
+        name: e.name,
+        mySignupStatus: mySignupStatus.get(e.id) ?? null,
+      })),
+      liveEvents: liveEvents.map((e) => ({ id: e.id, name: e.name })),
+    };
+  }
+
   // Captain seats this user holds.
   const captainSeats = await db
     .select({
@@ -109,6 +215,8 @@ export default async function ProfilePage() {
         <span className="w-1 h-7 bg-gold rounded-full" />
         <h1 className="text-3xl font-bold text-gold">Profile</h1>
       </div>
+
+      {gettingStarted && <GettingStarted {...gettingStarted} />}
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
         <div className="flex items-center gap-4">
