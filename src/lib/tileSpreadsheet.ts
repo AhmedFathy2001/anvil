@@ -1,7 +1,8 @@
 // Builds the per-event tile-authoring workbook (.xlsx) that the "Download spreadsheet" button
-// on the Tiles tab streams down. Designed to be uploaded to Google Drive and opened with
-// Google Sheets for collaborative drafting by non-technical clan members, then exported back
-// to CSV (File → Download → CSV of the Tiles tab) and re-imported on the site.
+// on the Tiles tab streams down, and parses it back on upload. The round trip is 1:1: download
+// the workbook, upload the same file, and nothing changes — the Tiles sheet serializes via the
+// same csvTiles cells the importer reads. For drafting elsewhere, upload it to Google Drive and
+// open with Google Sheets; when done, upload the .xlsx (or a CSV export of the Tiles tab) back.
 //
 // Why .xlsx and not just CSV: the workbook carries what a CSV can't — dropdown validation for
 // the tricky columns, a full filterable item-name list, the valid skill/boss keys, worked
@@ -9,11 +10,11 @@
 // Google API setup, so it works for every self-host out of the box.
 //
 // IMPORTANT: only the **Tiles** sheet maps onto tiles on import; the other sheets are helpers
-// and are ignored (the admin downloads just the Tiles tab as CSV). So examples live on their
-// own sheet, never appended to Tiles, where extra rows would become real tiles on a Leagues board.
+// and are ignored. So examples live on their own sheet, never appended to Tiles, where extra
+// rows would become real tiles on a Leagues board.
 import ExcelJS from 'exceljs';
 import type { Event, Tile } from '@/lib/types';
-import { TILE_CSV_COLUMNS, tileToCsvCells } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, tileToCsvCells, parseTileGrid, type ParsedTileCsv } from '@/lib/csvTiles';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
 import type { MappingItem } from '@/lib/osrsItems';
 
@@ -85,7 +86,7 @@ export async function buildTileSpreadsheet(opts: {
   });
   const lastRow = VALIDATION_ROWS + 1;
   for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,timed,diary"']);
+    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,gain,timed,deathless,diary,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
@@ -135,10 +136,15 @@ export async function buildTileSpreadsheet(opts: {
     `Event: ${event.name}`,
     '',
     'WORKFLOW',
-    '  1. Upload this file to Google Drive and "Open with Google Sheets" (this makes a collaborative copy).',
-    '  2. Share it with your team and draft the board together on the "Tiles" tab.',
-    '  3. When done: File → Download → Comma-separated values (.csv) — this exports the Tiles tab.',
-    '  4. On the site: Admin → your event → Tiles tab → Upload CSV.',
+    '  Tip: the site\'s Tiles tab is collaborative (live edits, per-tile locks) — for most drafting you',
+    '  can skip this file entirely and build the board together right on the page. This spreadsheet is',
+    '  best for seeding a board in bulk or drafting away from the site.',
+    '  1. Draft on the "Tiles" tab — either in Excel, or upload to Google Drive and "Open with',
+    '     Google Sheets" to work on it together.',
+    '  2. When done: Admin → your event → Tiles tab → Upload CSV / Excel — upload this .xlsx directly',
+    '     (only the Tiles sheet is read). From Google Sheets, File → Download → .xlsx or a CSV of the',
+    '     Tiles tab both work.',
+    '  3. Uploading an unchanged file changes nothing — the sheet and the board stay 1:1.',
     '',
     'THE TILES TAB',
     '  • One row per tile. Row order = tile order (row 2 → tile #1, row 3 → tile #2, …).',
@@ -148,7 +154,8 @@ export async function buildTileSpreadsheet(opts: {
     '  • Only the Tiles tab is imported — the other tabs (Examples, Item list, Stat keys) are helpers.',
     '',
     'COLUMNS',
-    '  • type — one of standard / drop / kill / timed (dropdown). SKILL & BOSS goals are NOT a type:',
+    '  • type — one of standard / drop / kill / timed / diary (dropdown; advanced boards can also use',
+    '    lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
     '    leave type = standard and fill trackedStat + statType + statGoal instead.',
     '  • points — score weight (Leagues). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
     '  • optional — true/false; optional tiles don\'t count toward the total.',
@@ -168,6 +175,8 @@ export async function buildTileSpreadsheet(opts: {
     'GOTCHAS',
     '  • Item names must match exactly or the whole import fails (it lists the bad names — just fix them).',
     '  • items uses semicolons; targetNpcs accepts commas or pipes (quote a cell that contains commas).',
+    '  • Collection tiles (items WITHOUT requiredAmount) compute their total from the item counts —',
+    '    leave requiredAmount blank for them; filling it turns the tile into a pool ("any N of these").',
     '  • Classic N×N bingo grids are a fixed size — extra rows are ignored. Use a Leagues board to grow.',
     '  • Before the event starts you can change everything; after it starts label/type/items lock.',
   ];
@@ -176,4 +185,34 @@ export async function buildTileSpreadsheet(opts: {
 
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
+}
+
+/**
+ * Parse an uploaded tile workbook (.xlsx) into the same typed rows the CSV path produces, so
+ * the downloaded spreadsheet can be uploaded straight back — no export-to-CSV step. Reads ONLY
+ * the "Tiles" sheet (falling back to the first sheet if it was renamed); the helper sheets
+ * (Examples, Item list, Stat keys, How to use) are ignored by design.
+ */
+export async function parseTileWorkbook(data: Buffer): Promise<ParsedTileCsv> {
+  const wb = new ExcelJS.Workbook();
+  try {
+    await wb.xlsx.load(data as unknown as ExcelJS.Buffer);
+  } catch {
+    return { rows: [], labels: [], error: 'Could not read the file as an Excel workbook (.xlsx).' };
+  }
+  const ws = wb.getWorksheet(SHEET_TILES) ?? wb.worksheets[0];
+  if (!ws) {
+    return { rows: [], labels: [], error: 'The workbook has no sheets.' };
+  }
+  const grid: string[][] = [];
+  // includeEmpty:false skips blank rows (e.g. the pre-wired validation rows), matching the CSV
+  // parser's blank-line handling; cell.text renders numbers/booleans/formula results as strings.
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const cells: string[] = [];
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      cells[col - 1] = cell.text != null ? String(cell.text) : '';
+    });
+    grid.push(Array.from(cells, (c) => c ?? ''));
+  });
+  return parseTileGrid(grid);
 }

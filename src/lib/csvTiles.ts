@@ -6,7 +6,7 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "timed" | "lms" | "value" | "valuetotal" | "diary"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
@@ -194,7 +194,7 @@ function toNumberLoose(v: string): number | null {
 // unit suffix ("30m", "30 min", "90s", "1h"). So the tricky "timeThresholdSeconds" column stops
 // forcing people to pre-convert minutes to seconds in their head.
 function toSecondsLoose(v: string): number | null {
-  const s = v.trim().toLowerCase();
+  const s = v.trim().toLowerCase().replace(/[,_]/g, '');
   if (s === '') return null;
   if (s.includes(':')) {
     const parts = s.split(':').map((p) => parseInt(p.trim(), 10));
@@ -234,9 +234,17 @@ export interface ParsedTileCsv {
 
 /** Parse a tile CSV (with a header row) into typed rows + labels. */
 export function parseTileCsv(text: string): ParsedTileCsv {
-  const grid = parseCsvGrid(text);
+  return parseTileGrid(parseCsvGrid(text));
+}
+
+/**
+ * Parse a raw cell grid (header row + data rows) into typed rows + labels. The grid comes from
+ * either CSV text (parseTileCsv) or the Tiles sheet of an uploaded .xlsx workbook (server-side
+ * parseTileWorkbook), so both upload paths behave identically.
+ */
+export function parseTileGrid(grid: string[][]): ParsedTileCsv {
   if (grid.length < 2) {
-    return { rows: [], labels: [], error: 'CSV needs a header row and at least one data row.' };
+    return { rows: [], labels: [], error: 'The sheet needs a header row and at least one data row.' };
   }
   const header = grid[0].map((h) => h.trim().toLowerCase());
   const idx = (name: string) => header.indexOf(name.toLowerCase());
@@ -270,7 +278,7 @@ export function parseTileCsv(text: string): ParsedTileCsv {
     const row: TileCsvRow = {};
     if (col.label >= 0) row.label = get(cells, col.label).trim();
     if (col.description >= 0) row.description = get(cells, col.description).trim() || null;
-    if (col.type >= 0) row.tileType = get(cells, col.type).trim() || undefined;
+    if (col.type >= 0) row.tileType = get(cells, col.type).trim().toLowerCase() || undefined;
     if (col.points >= 0) row.points = toIntOrNull(get(cells, col.points));
     if (col.category >= 0) row.category = get(cells, col.category).trim() || null;
     if (col.optional >= 0) row.optional = toBool(get(cells, col.optional));
@@ -317,27 +325,32 @@ function jsonNamesToPipes(v: string | null | undefined): string {
   }
 }
 
+/** Parse a tile's collection config, or null when it isn't a collection tile. */
+function parsedItemRequirements(t: Tile): { itemId: number; name: string; requiredAmount: number; group?: string | null }[] | null {
+  if (!t.itemRequirements) return null;
+  try {
+    const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[];
+    return Array.isArray(reqs) && reqs.length ? reqs : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Build the `items` cell for a tile. Lossless round-trip: collection items emit
  * "Name#id:count" (the id pins it even if the name is an untradeable the importer can't
  * resolve); simple-drop pools emit bare ids.
  */
 function tileItemsCell(t: Tile): string {
-  if (t.itemRequirements) {
-    try {
-      const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[];
-      if (Array.isArray(reqs) && reqs.length) {
-        return reqs
-          .map((r) => {
-            const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
-            const set = r.group?.trim() ? `@${r.group.trim()}` : '';
-            return `${labelled}:${r.requiredAmount}${set}`;
-          })
-          .join('; ');
-      }
-    } catch {
-      /* ignore malformed JSON */
-    }
+  const reqs = parsedItemRequirements(t);
+  if (reqs) {
+    return reqs
+      .map((r) => {
+        const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
+        const set = r.group?.trim() ? `@${r.group.trim()}` : '';
+        return `${labelled}:${r.requiredAmount}${set}`;
+      })
+      .join('; ');
   }
   if (t.trackedItemIds) {
     try {
@@ -357,6 +370,10 @@ function tileItemsCell(t: Tile): string {
  * server-side spreadsheet generator so a round-trip preserves kill/timed/collection config.
  */
 export function tileToCsvCells(t: Tile): string[] {
+  // Collection tiles must NOT emit their stored requiredAmount: it's the derived completion
+  // total (recomputed from the items on import), and "items + requiredAmount" is the documented
+  // pool syntax — emitting it would silently flip the collection into a pool on re-upload.
+  const isCollection = parsedItemRequirements(t) != null;
   return [
     t.label ?? '',
     t.description ?? '',
@@ -364,7 +381,7 @@ export function tileToCsvCells(t: Tile): string[] {
     String(t.points ?? 1),
     t.category ?? '',
     t.optional ? 'true' : 'false',
-    t.requiredAmount != null ? String(t.requiredAmount) : '',
+    !isCollection && t.requiredAmount != null ? String(t.requiredAmount) : '',
     t.trackedStat ?? '',
     t.statType ?? '',
     t.statGoal != null ? String(t.statGoal) : '',

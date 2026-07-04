@@ -9,8 +9,9 @@ import type { Tile } from '@/lib/types';
 
 // GET /api/events/{eventId}/tiles/spreadsheet
 // Streams an .xlsx tile-authoring workbook for the event — current tiles baked in, plus dropdowns,
-// the full item list, valid skill/boss keys, examples, and instructions. Built for collaborative
-// drafting in Google Sheets, then re-importing the Tiles tab as CSV. Admin-only.
+// the full item list, valid skill/boss keys, examples, and instructions. Draft in Excel or Google
+// Sheets, then upload the workbook (or a CSV of its Tiles tab) back on the Tiles tab — the round
+// trip is 1:1, so an unchanged re-upload is a no-op. Admin-only.
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   if (!(await verifyTileEditor())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
