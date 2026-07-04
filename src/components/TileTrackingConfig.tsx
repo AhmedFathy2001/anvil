@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -301,6 +301,39 @@ export default function TileTrackingConfig({
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Live NPC hits for the source fields — the curated SOURCE_SUGGESTIONS only cover event/chest
+  // loot; direct-kill sources are any NPC, so search the wiki monster list as the admin types
+  // (same dataset as the kill-tile picker) and merge the hits into the suggestions.
+  const [sourceNpcHits, setSourceNpcHits] = useState<string[]>([]);
+  const sourceNpcTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const segment = (sourceNpcsText.split(',').pop() ?? '').trim();
+    if (segment.length < 2) {
+      setSourceNpcHits([]);
+      return;
+    }
+    if (sourceNpcTimeout.current) clearTimeout(sourceNpcTimeout.current);
+    sourceNpcTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/npc-search?q=${encodeURIComponent(segment)}`);
+        if (res.ok) {
+          const results = (await res.json()) as { name: string }[];
+          setSourceNpcHits(results.map((r) => r.name).slice(0, 10));
+        }
+      } catch { /* ignore */ }
+    }, 300);
+    return () => {
+      if (sourceNpcTimeout.current) clearTimeout(sourceNpcTimeout.current);
+    };
+  }, [sourceNpcsText]);
+  const sourceSuggestions = useMemo(
+    () => [...new Set([...SOURCE_SUGGESTIONS, ...sourceNpcHits])],
+    [sourceNpcHits],
+  );
+  const valueSourceSuggestions = useMemo(
+    () => [...new Set([...VALUE_SOURCE_SUGGESTIONS, ...sourceNpcHits])],
+    [sourceNpcHits],
+  );
   // Concurrency stamp from the freshly-fetched tile; refreshed after each save so
   // consecutive saves in one sitting keep passing the PUT's baseUpdatedAt check.
   const [baseStamp, setBaseStamp] = useState<string | null>(initial.updatedAt ?? null);
@@ -1045,7 +1078,7 @@ export default function TileTrackingConfig({
             <Combobox
               value={sourceNpcsText}
               onChange={setSourceNpcsText}
-              suggestions={SOURCE_SUGGESTIONS}
+              suggestions={sourceSuggestions}
               multi
               placeholder="e.g. Zulrah, Chambers of Xeric, Barrows"
               ariaLabel="Source restriction"
@@ -1586,7 +1619,7 @@ export default function TileTrackingConfig({
             <Combobox
               value={sourceNpcsText}
               onChange={setSourceNpcsText}
-              suggestions={VALUE_SOURCE_SUGGESTIONS}
+              suggestions={valueSourceSuggestions}
               multi
               placeholder="e.g. PvP, Loot Chest, Vorkath"
               ariaLabel="Value source restriction"
