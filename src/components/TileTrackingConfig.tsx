@@ -7,7 +7,7 @@ import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
 import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
-import { splitCategories } from '@/lib/tileFilter';
+import { splitCategories, tileTierKey, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -17,6 +17,8 @@ interface Props {
   onSaved: (updated: TileConfig) => void;
   eventStarted?: boolean;
   pointsMode?: boolean;
+  /** Admin-configured difficulty bands — drives the tier picker on the points field. */
+  tierBands?: TierBand[];
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -136,7 +138,12 @@ export default function TileTrackingConfig({
   onSaved,
   eventStarted,
   pointsMode,
+  tierBands,
 }: Props) {
+  // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
+  // current points value maps back to whichever band it falls in.
+  const bands = (tierBands && tierBands.length > 0 ? [...tierBands] : [...DEFAULT_TIER_BANDS])
+    .sort((a, b) => a.min - b.min);
   const [kind, setKind] = useState<TileKind>(() => deriveKind(initial));
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
@@ -566,22 +573,41 @@ export default function TileTrackingConfig({
         />
       </div>
 
-      {/* Point value (points events only) */}
+      {/* Point value (points events only) — picked by difficulty tier, with the raw number
+          alongside for fine-tuning. Choosing a tier sets the band's floor; typing a number
+          snaps the tier picker to whichever band it falls in. */}
       {pointsMode && (
         <div>
           <label className="block text-xs text-text-muted mb-1">
-            Point Value <span className="text-text-muted/60">(score awarded on completion)</span>
+            Difficulty &amp; Points <span className="text-text-muted/60">(score awarded on completion)</span>
           </label>
-          <Input
-            type="number"
-            value={points}
-            onChange={(e) => setPoints(e.target.value)}
-            min="0"
-            placeholder="e.g. 10"
-            className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-          />
+          <div className="flex gap-2">
+            <Select
+              className="flex-1"
+              ariaLabel="Difficulty tier"
+              value={tileTierKey(parseInt(points, 10) || 0, bands) ?? ''}
+              onChange={(key) => {
+                const band = bands.find((b) => b.key === key);
+                if (band) setPoints(String(Math.max(1, band.min)));
+              }}
+              options={bands.map((b, i) => ({
+                value: b.key,
+                label: `${b.label} · ${b.min}${i < bands.length - 1 ? `–${bands[i + 1].min - 1}` : '+'} pts`,
+              }))}
+            />
+            <Input
+              type="number"
+              value={points}
+              onChange={(e) => setPoints(e.target.value)}
+              min="0"
+              placeholder="e.g. 10"
+              className="w-24 shrink-0"
+              aria-label="Point value"
+            />
+          </div>
           <p className="text-[10px] text-text-muted mt-0.5">
-            Higher = harder tile. A team&rsquo;s standing is the sum of points for the tiles it completes.
+            Tiers are your bands from Advanced settings — picking one sets its base points. The exact
+            number still decides standings (sum of completed tiles) and can be fine-tuned freely.
           </p>
         </div>
       )}
