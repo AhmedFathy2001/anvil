@@ -109,6 +109,10 @@
     "mobKillSeconds": [10, 16, 26],
     "bossKillSeconds": [90, 140, 220]
   },
+  "gated": {
+    "_comment": "Superiors can't be farmed — one encounter is ~200 on-task kills plus task availability, so a 'kill' of a superior source costs a whole encounter. The superior list is derived from the drop dataset (sources dropping the imbued heart).",
+    "superiorEncounterSeconds": [1500, 3000, 6000]
+  },
   "lms": {
     "gameMinutes": [12, 15, 18],
     "placementMultiplier": [4, 1, 0.3]

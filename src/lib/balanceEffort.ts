@@ -34,6 +34,7 @@ export interface BalanceRates {
   skills: Record<string, SkillRate>;
   activities: Record<string, ActivityRate>;
   generic: { mobKillSeconds: Triplet; bossKillSeconds: Triplet };
+  gated?: { superiorEncounterSeconds?: Triplet };
   lms: { gameMinutes: Triplet; placementMultiplier: Triplet };
 }
 
@@ -72,6 +73,7 @@ export function mergeRates(overrides: unknown): BalanceRates {
     skills: { ...base.skills, ...(o.skills as BalanceRates['skills'] | undefined) },
     activities: { ...base.activities, ...(o.activities as BalanceRates['activities'] | undefined) },
     generic: { ...base.generic, ...(o.generic as Partial<BalanceRates['generic']> | undefined) },
+    gated: { ...base.gated, ...(o.gated as BalanceRates['gated'] | undefined) },
     lms: { ...base.lms, ...(o.lms as Partial<BalanceRates['lms']> | undefined) },
   };
 }
@@ -108,6 +110,19 @@ function itemSources(itemId: number): DropSource[] {
   return dropIndex.get(itemId) ?? [];
 }
 
+// Superior slayer monsters can't be farmed back-to-back: one "kill" costs ~200 on-task
+// kills waiting for the spawn, gated further by task availability. The set is derived from
+// the dataset itself — a source is a superior iff it drops the imbued heart (20724) — so it
+// tracks dataset regens with zero curation.
+const IMBUED_HEART_ID = 20724;
+let superiorSet: Set<string> | null = null;
+function isSuperiorSource(source: string): boolean {
+  if (!superiorSet) {
+    superiorSet = new Set(itemSources(IMBUED_HEART_ID).map((s) => s.source.toLowerCase()));
+  }
+  return superiorSet.has(source.trim().toLowerCase());
+}
+
 /** Best (cheapest) source for an item, optionally restricted to the tile's source filter. */
 function bestSource(itemId: number, restrict: string[] | null): DropSource | null {
   const sources = itemSources(itemId);
@@ -131,6 +146,12 @@ function floorFromHours(hours: Triplet, declared: Floor): Floor {
 }
 
 function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor: Floor; defaulted: boolean } {
+  // Spawn-gated sources first: a superior "kill" costs a whole encounter (task kills +
+  // task availability), not a respawn timer.
+  if (isSuperiorSource(source)) {
+    const sec = rates.gated?.superiorEncounterSeconds ?? [1500, 3000, 6000];
+    return { sec, floor: 'mid', defaulted: false };
+  }
   const act = activityFor(rates, source);
   if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false };
   // Attempt-model activities (CG, raids, Inferno) have no flat kill time — a "kill" costs
@@ -256,7 +277,7 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
   if (type === 'kill') {
     const targets = parseJsonArray<string>(tile.targetNpcs);
     if (!tile.requiredAmount) return { hours: null, floor: 'anyone', note: 'no required amount' };
-    const known = targets?.find((t) => activityFor(rates, t));
+    const known = targets?.find((t) => activityFor(rates, t) || isSuperiorSource(t));
     if (known) {
       const kt = killTriplet(rates, known);
       return {
