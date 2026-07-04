@@ -121,9 +121,26 @@ function bestSource(itemId: number, restrict: string[] | null): DropSource | nul
 const maxFloor = (a: Floor, b: Floor): Floor =>
   FLOOR_ORDER[Math.max(FLOOR_ORDER.indexOf(a), FLOOR_ORDER.indexOf(b))];
 
+// When the average (or slow) band mathematically can't finish, the tile's effective floor
+// rises regardless of what the activity entry declares.
+function floorFromHours(hours: Triplet, declared: Floor): Floor {
+  if (!Number.isFinite(hours[0])) return 'elite'; // nobody modelled can — flag as hardest
+  if (!Number.isFinite(hours[1])) return maxFloor(declared, 'elite');
+  if (!Number.isFinite(hours[2])) return maxFloor(declared, 'high');
+  return declared;
+}
+
 function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor: Floor; defaulted: boolean } {
   const act = activityFor(rates, source);
   if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false };
+  // Attempt-model activities (CG, raids, Inferno) have no flat kill time — a "kill" costs
+  // an attempt divided by the band's success rate (Infinity where that band can't finish).
+  if (act?.attemptMinutes && act.successRate) {
+    const sec = [0, 1, 2].map((b) =>
+      act.successRate![b] > 0 ? (act.attemptMinutes![b] * 60) / act.successRate![b] : Infinity,
+    ) as Triplet;
+    return { sec, floor: act.floor ?? 'high', defaulted: false };
+  }
   return { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true };
 }
 
@@ -239,29 +256,50 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
   if (type === 'kill') {
     const targets = parseJsonArray<string>(tile.targetNpcs);
     if (!tile.requiredAmount) return { hours: null, floor: 'anyone', note: 'no required amount' };
-    const act = targets?.map((t) => activityFor(rates, t)).find((a) => a?.killSeconds);
-    const sec = act?.killSeconds ?? rates.generic.mobKillSeconds;
+    const known = targets?.find((t) => activityFor(rates, t));
+    if (known) {
+      const kt = killTriplet(rates, known);
+      return {
+        hours: kt.sec.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
+        floor: kt.floor,
+        note: null,
+      };
+    }
     return {
-      hours: sec.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
-      floor: act?.floor ?? 'anyone',
-      note: act ? null : 'generic mob kill time used',
+      hours: rates.generic.mobKillSeconds.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
+      floor: 'anyone',
+      note: 'generic mob kill time used',
     };
   }
 
   if (type === 'timed') {
     const act = activityFor(rates, tile.timedActivity);
+    const cap = tile.timeThresholdSeconds ?? null;
+    // Attempts multiplier from how tight the cap sits against a band's typical time:
+    // comfortable → 1 try, at pace → a few, well under pace → out of reach for that band.
+    const capFactor = (typicalSeconds: number): number => {
+      if (cap == null || typicalSeconds <= 0) return 1;
+      const r = cap / typicalSeconds;
+      if (r >= 1.2) return 1;
+      if (r >= 0.9) return 3;
+      if (r >= 0.7) return 10;
+      return Infinity;
+    };
     if (act?.attemptMinutes && act.successRate) {
-      const hours = [0, 1, 2].map((b) =>
-        act.successRate![b] > 0 ? (act.attemptMinutes![b] / 60) / act.successRate![b] : Infinity,
-      ) as Triplet;
-      return { hours, floor: act.floor ?? 'high', note: 'time-cap tightness not modelled — assumes a completion-level cap' };
+      const hours = [0, 1, 2].map((b) => {
+        if (act.successRate![b] <= 0) return Infinity;
+        const attemptSec = act.attemptMinutes![b] * 60;
+        const factor = capFactor(attemptSec);
+        return Number.isFinite(factor) ? ((attemptSec / 3600) / act.successRate![b]) * factor : Infinity;
+      }) as Triplet;
+      return { hours, floor: floorFromHours(hours, act.floor ?? 'high'), note: 'cap tightness roughly modelled from typical clear times' };
     }
     if (act?.killSeconds) {
-      return {
-        hours: act.killSeconds.map((s) => s / 3600) as Triplet,
-        floor: act.floor ?? 'mid',
-        note: 'assumes the cap is reachable in one clear — cap tightness not modelled',
-      };
+      const hours = [0, 1, 2].map((b) => {
+        const factor = capFactor(act.killSeconds![b]);
+        return Number.isFinite(factor) ? (act.killSeconds![b] / 3600) * factor : Infinity;
+      }) as Triplet;
+      return { hours, floor: floorFromHours(hours, act.floor ?? 'mid'), note: 'cap tightness roughly modelled from typical clear times' };
     }
     return { hours: null, floor: 'high', note: `no attempt model for ${tile.timedActivity ?? 'activity'}` };
   }
