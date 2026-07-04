@@ -843,7 +843,7 @@ function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
   if (tile.tileType === 'timed') return 'timed';
   if (tile.tileType === 'lms') return 'lms';
-  if (tile.tileType === 'value') return 'value';
+  if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
   if (tile.tileType === 'diary') return 'diary';
   if (tile.tileType === 'drop') {
     const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
@@ -912,7 +912,10 @@ function tileMeta(tile: Tile): string {
       return cap <= 1 ? `LMS · win${games}` : `LMS · top ${cap}${games}`;
     }
     case 'value':
-      return tile.requiredAmount ? `Loot value · ≥${tile.requiredAmount.toLocaleString()} gp` : 'Loot value';
+      if (!tile.requiredAmount) return 'Loot value';
+      return tile.tileType === 'valuetotal'
+        ? `Loot value · ${tile.requiredAmount.toLocaleString()} gp total`
+        : `Loot value · ≥${tile.requiredAmount.toLocaleString()} gp haul`;
     case 'diary': {
       let sels: string[] = [];
       try {

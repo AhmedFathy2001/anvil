@@ -238,9 +238,10 @@ export async function PUT(
   // LMS placement tiles reuse timeThresholdSeconds as the placement cap (1 = win) and
   // requiredAmount as the number of qualifying games. No timedActivity.
   const isLms = merged.tileType === 'lms';
-  // Loot-value tiles reuse requiredAmount as the gp threshold a single haul must meet,
-  // and sourceNpcs as the optional source filter ("PvP", "Loot Chest", NPC names).
-  const isValue = merged.tileType === 'value';
+  // Loot-value tiles reuse requiredAmount as the gp threshold — one haul must meet it
+  // ('value') or all hauls together must reach it ('valuetotal') — and sourceNpcs as the
+  // optional source filter ("PvP", "Loot Chest", NPC names).
+  const isValue = merged.tileType === 'value' || merged.tileType === 'valuetotal';
   // requiredAmount is shared by drop (item count), kill (kill count), diary (completions),
   // lms (qualifying games) and value (gp threshold).
   const hasRequiredAmount = merged.requiredAmount != null;

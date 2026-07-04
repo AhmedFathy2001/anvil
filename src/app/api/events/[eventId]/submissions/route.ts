@@ -134,11 +134,11 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary' && tile.tileType !== 'lms' && tile.tileType !== 'value') {
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
     return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, diary, LMS, or value tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
-  if (tile.tileType !== 'value' && submitAmount > 10000) {
+  if (tile.tileType !== 'value' && tile.tileType !== 'valuetotal' && submitAmount > 10000) {
     return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
   }
 
@@ -147,7 +147,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lms' || tile.tileType === 'value');
+  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;
@@ -223,6 +223,16 @@ export async function POST(
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     if ((bestHaul[0]?.best ?? 0) >= tile.requiredAmount) {
+      return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
+    }
+  } else if (tile.tileType === 'valuetotal' && tile.requiredAmount) {
+    // Aggregate loot value: hauls sum toward the target, and the final haul may overshoot
+    // (a 10m key can finish a "collect 20m" tile from 15m) — so no remainder cap here.
+    const collected = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    if (Number(collected[0]?.total ?? 0) >= tile.requiredAmount) {
       return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
     }
   } else if (tile.requiredAmount) {

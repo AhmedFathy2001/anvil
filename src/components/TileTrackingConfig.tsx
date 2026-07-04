@@ -35,7 +35,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
-  { key: 'value', label: 'Loot value', blurb: 'One haul worth ≥ X gp — a loot key, a PvP kill, or any drop. Plugin prices the haul and bakes proof.' },
+  { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
 ];
 
@@ -121,7 +121,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'kill') return 'kill';
   if (initial.tileType === 'timed') return 'timed';
   if (initial.tileType === 'lms') return 'lms';
-  if (initial.tileType === 'value') return 'value';
+  if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
@@ -203,7 +203,13 @@ export default function TileTrackingConfig({
   );
   // Loot-value threshold in gp (rides the requiredAmount column for the value kind).
   const [valueGpText, setValueGpText] = useState<string>(
-    initial.tileType === 'value' && initial.requiredAmount ? String(initial.requiredAmount) : '',
+    (initial.tileType === 'value' || initial.tileType === 'valuetotal') && initial.requiredAmount
+      ? String(initial.requiredAmount)
+      : '',
+  );
+  // 'single' = one haul must meet the threshold; 'total' = hauls sum toward it.
+  const [valueMode, setValueMode] = useState<'single' | 'total'>(
+    initial.tileType === 'valuetotal' ? 'total' : 'single',
   );
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
@@ -469,7 +475,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isValue ? 'value' : isDiary ? 'diary' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -1193,8 +1199,39 @@ export default function TileTrackingConfig({
       {isValue && (
         <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
           <div>
+            <label className="block text-xs text-text-muted mb-1">Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setValueMode('single')}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  valueMode === 'single' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Single haul
+              </button>
+              <button
+                type="button"
+                onClick={() => setValueMode('total')}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  valueMode === 'total' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Collect total
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Single haul: one drop/key/kill worth the full amount. Collect total: every haul&rsquo;s
+              value adds up until the team reaches it.
+            </p>
+          </div>
+
+          <div>
             <label className="block text-xs text-text-muted mb-1">
-              Haul Value <span className="text-text-muted/60">(one drop/haul worth at least this)</span>
+              {valueMode === 'total' ? 'Target Value' : 'Haul Value'}{' '}
+              <span className="text-text-muted/60">
+                {valueMode === 'total' ? '(hauls sum to at least this)' : '(one drop/haul worth at least this)'}
+              </span>
             </label>
             <Input
               type="text"
@@ -1204,8 +1241,8 @@ export default function TileTrackingConfig({
               aria-label="Haul value threshold"
             />
             <p className="text-[10px] text-text-muted mt-0.5">
-              The plugin prices every loot haul (drops, loot keys, PvP kills) and submits a baked
-              screenshot when a single haul is worth at least this much. Accepts 5m / 500k / raw gp.
+              The plugin prices every loot haul (drops, loot keys, PvP kills) and submits it with a
+              baked screenshot. Accepts 5m / 500k / raw gp.
             </p>
           </div>
 

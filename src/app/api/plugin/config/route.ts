@@ -421,7 +421,7 @@ export async function GET(request: Request) {
     // `sources` optionally restricts where the haul may come from: NPC/chest names, or the
     // special "PvP" for player kills. Empty = any source.
     trackedValues: allEventTiles
-      .filter((t) => t.tileType === 'value')
+      .filter((t) => t.tileType === 'value' || t.tileType === 'valuetotal')
       .map((t) => {
         let sources: string[] = [];
         if (t.sourceNpcs) {
@@ -437,6 +437,9 @@ export async function GET(request: Request) {
           points: t.points ?? 0,
           category: t.category ?? null,
           thresholdGp: t.requiredAmount ?? 1,
+          // 'single' = one haul must meet the threshold; 'total' = hauls sum toward it.
+          mode: t.tileType === 'valuetotal' ? 'total' : 'single',
+          currentGp: submissionMap[t.id] ?? 0,
           sources,
           completed: completedTileIdSet.has(t.id),
         };
