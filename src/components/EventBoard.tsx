@@ -4,6 +4,7 @@ import BingoBoard from './BingoBoard';
 import TileRaceBoard from './TileRaceBoard';
 import LeaguesBoard from './LeaguesBoard';
 import { isTileRaceFormat } from '@/lib/utils';
+import { deriveTileIcon } from '@/lib/tileIcons';
 
 interface Tile {
   id: number;
@@ -18,6 +19,12 @@ interface Tile {
   statType?: string | null;
   optional?: number | null;
   points?: number | null;
+  // Structured tracking config — used to derive a display icon when `icon` is unset
+  // (the icon column is legacy; callers pass full API tiles so these ride along).
+  trackedItemIds?: string | null;
+  itemRequirements?: string | null;
+  timedActivity?: string | null;
+  targetNpcs?: string | null;
 }
 
 interface Completion {
@@ -54,14 +61,17 @@ interface EventBoardProps {
  * pass the same props plus `format`. Keeps the format branch in one place so every
  * board surface (scoreboard, captain, player, admin) stays consistent.
  */
-export default function EventBoard({ format, boardSize, pointsMode, ...rest }: EventBoardProps) {
+export default function EventBoard({ format, boardSize, pointsMode, tiles, ...rest }: EventBoardProps) {
+  // One derivation point for every board surface: tiles without an explicit icon get one
+  // derived from their tracking config (item / skill / signature-reward / coins).
+  const iconedTiles = tiles.map((t) => (t.icon ? t : { ...t, icon: deriveTileIcon(t) }));
   if (isTileRaceFormat(format)) {
-    return <TileRaceBoard {...rest} />;
+    return <TileRaceBoard tiles={iconedTiles} {...rest} />;
   }
   // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
   // so it isn't bound to a perfect-square tile count.
   if (pointsMode) {
-    return <LeaguesBoard {...rest} />;
+    return <LeaguesBoard tiles={iconedTiles} {...rest} />;
   }
-  return <BingoBoard boardSize={boardSize} pointsMode={pointsMode} {...rest} />;
+  return <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...rest} />;
 }

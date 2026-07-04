@@ -4,6 +4,7 @@ import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
+import { notableItemFor } from '@/lib/tileIcons';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -184,16 +185,21 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
-        itemId: representativeItemId(t.trackedItemIds, t.itemRequirements),
+        // Tracked item first; timed/deathless tiles fall back to the activity's signature
+        // reward (Colosseum → Dizana's quiver) so previews aren't a wall of book sprites.
+        itemId: representativeItemId(t.trackedItemIds, t.itemRequirements) !== -1
+          ? representativeItemId(t.trackedItemIds, t.itemRequirements)
+          : (t.tileType === 'timed' || t.tileType === 'deathless' ? notableItemFor(t.timedActivity) ?? -1 : -1),
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
         optional: t.optional ? 1 : 0,
         category: t.category ?? null,
-        // tileType + statType let the plugin's preview classify the tile's kind (drop / collection /
-        // kill / timed / skill / boss) the same way the enrolled config view does.
+        // tileType + statType + statName let the plugin's preview classify the tile's kind and
+        // show the skill icon, the same way the enrolled config view does.
         tileType: t.tileType ?? null,
         statType: t.statType ?? null,
+        statName: t.trackedStat ?? null,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
         ...(itemRequirements ? { itemRequirements } : {}),
       };
