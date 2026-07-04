@@ -23,6 +23,8 @@ export interface SelectOption {
   disabled?: boolean;
   /** Extra lowercase search terms the filter box matches besides the label. */
   keywords?: string[];
+  /** Optional indicator colour rendered as a leading dot (e.g. difficulty-tier ramp). */
+  dot?: string;
 }
 
 interface Props {
@@ -205,7 +207,12 @@ export default function Select({
           selected ? 'text-foreground' : 'text-text-muted',
         )}
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="truncate flex items-center gap-2 min-w-0">
+          {selected?.dot && (
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selected.dot }} aria-hidden />
+          )}
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
+        </span>
         <svg
           width="14"
           height="14"
@@ -270,7 +277,7 @@ export default function Select({
                   onPointerEnter={() => !opt.disabled && setHighlight(i)}
                   onClick={() => commit(i)}
                   className={cn(
-                    'px-3 py-1.5 text-sm cursor-pointer transition-colors',
+                    'px-3 py-1.5 text-sm cursor-pointer transition-colors flex items-center gap-2',
                     opt.disabled
                       ? 'text-text-muted/40 cursor-not-allowed'
                       : isSelected
@@ -280,6 +287,9 @@ export default function Select({
                           : 'text-foreground',
                   )}
                 >
+                  {opt.dot && (
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: opt.dot }} aria-hidden />
+                  )}
                   {opt.label}
                 </li>
               );

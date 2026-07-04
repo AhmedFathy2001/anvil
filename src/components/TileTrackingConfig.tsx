@@ -7,7 +7,7 @@ import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
 import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
-import { splitCategories, tileTierKey, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -593,6 +593,7 @@ export default function TileTrackingConfig({
               options={bands.map((b, i) => ({
                 value: b.key,
                 label: `${b.label} · ${b.min}${i < bands.length - 1 ? `–${bands[i + 1].min - 1}` : '+'} pts`,
+                dot: tierColor(i, bands.length),
               }))}
             />
             <Input

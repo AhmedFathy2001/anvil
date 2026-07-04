@@ -41,6 +41,18 @@ export function tileTierKey(points: number | null | undefined, bands: TierBand[]
   return key;
 }
 
+// Difficulty ramp for tier dot indicators — a band's position in the ascending list maps onto
+// a grey → green → yellow → orange → red → purple severity ramp, so it works for any number of
+// admin-configured bands (5 defaults hit grey/green/yellow/orange/purple).
+const TIER_RAMP = ['#9ca3af', '#4ade80', '#facc15', '#fb923c', '#f87171', '#c084fc'];
+
+/** Indicator colour for the band at `index` of `count` ascending bands. */
+export function tierColor(index: number, count: number): string {
+  if (count <= 1) return TIER_RAMP[1];
+  const t = Math.max(0, Math.min(1, index / (count - 1)));
+  return TIER_RAMP[Math.floor(t * (TIER_RAMP.length - 1))];
+}
+
 /** Slugify a label into a stable key (lowercase, alnum + dashes). */
 function slugify(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

@@ -8,7 +8,7 @@ import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
 import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
-import { tileTierKey, tileCategories, tileHasCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Tile {
   id: number;
@@ -431,16 +431,21 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                   >
                     All tiers
                   </button>
-                  {tierBands.map((t) => (
+                  {tierBands.map((t, i) => (
                     <button
                       key={t.key}
                       onClick={() => setTierFilter(t.key)}
-                      className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                      className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
                         tierFilter === t.key
                           ? 'bg-gold/20 border-gold text-gold'
                           : 'border-card-border text-text-muted hover:border-gold/40'
                       }`}
                     >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: tierColor(i, tierBands.length) }}
+                        aria-hidden
+                      />
                       {t.label}
                     </button>
                   ))}

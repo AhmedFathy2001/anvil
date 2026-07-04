@@ -12,7 +12,7 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
-import { tileTierKey, tileCategories, tileHasCategory, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -626,16 +626,21 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 >
                   All tiers
                 </button>
-                {tierBands.map((t) => (
+                {tierBands.map((t, i) => (
                   <button
                     key={t.key}
                     onClick={() => setTierFilter(t.key)}
-                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
                       tierFilter === t.key
                         ? 'bg-gold/20 border-gold text-gold'
                         : 'border-card-border text-text-muted hover:border-gold/40'
                     }`}
                   >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: tierColor(i, tierBands.length) }}
+                      aria-hidden
+                    />
                     {t.label}
                   </button>
                 ))}
