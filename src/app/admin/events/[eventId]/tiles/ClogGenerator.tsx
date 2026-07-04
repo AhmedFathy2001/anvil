@@ -130,6 +130,18 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
       // Points only ride along when the admin typed one — otherwise tiles keep the default.
       const pts = pointsMode && points.trim() ? Math.max(0, parseInt(points, 10) || 0) : undefined;
       const anyN = Math.max(1, parseInt(anyOfAmount, 10) || 1);
+      // Bake a human summary of the requirement into the description, so players see what
+      // completes the tile — and which uniques were picked — without opening the item list.
+      // A full page with nothing excluded says "all N" instead of enumerating everything.
+      const nameList = (names: string[]) => {
+        const MAX = 25;
+        return names.length > MAX
+          ? `${names.slice(0, MAX).join(', ')} … +${names.length - MAX} more`
+          : names.join(', ');
+      };
+      const keptNames = kept.map((it) => it.name);
+      const allKept = excluded.size === 0;
+      const anyPhrase = anyN > 1 ? `any ${anyN}` : 'any';
       const rows =
         mode === 'perItem'
           ? kept.map((it) => ({
@@ -137,6 +149,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
               tileType: 'drop',
               requiredAmount: 1,
               category: activity,
+              description: `Get 1× ${it.name}.`,
               ...(pts !== undefined ? { points: pts } : {}),
               items: [{ id: it.id, name: it.name, count: 1 }],
             }))
@@ -149,6 +162,14 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
                     : `${activity}: any ${anyN} of ${kept.length}`),
                 tileType: 'drop',
                 category: activity,
+                description:
+                  mode === 'allOf'
+                    ? allKept
+                      ? `Get every ${activity} unique — all ${kept.length} of them, 1× each.`
+                      : `Get all of these ${activity} uniques (1× each): ${nameList(keptNames)}.`
+                    : allKept
+                      ? `Get ${anyPhrase} drop${anyN > 1 ? 's' : ''} from the ${activity} uniques — all ${kept.length} count.`
+                      : `Get ${anyPhrase} of these ${activity} uniques: ${nameList(keptNames)}.`,
                 ...(pts !== undefined ? { points: pts } : {}),
                 // requiredAmount set → drop pool ("any N of"); omitted → collection ("all of").
                 ...(mode === 'anyOf' ? { requiredAmount: anyN } : {}),
