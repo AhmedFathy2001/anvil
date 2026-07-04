@@ -31,7 +31,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'skill', label: 'Skill XP', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
   { key: 'boss', label: 'Boss KC', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
-  { key: 'collection', label: 'Collection', blurb: 'A set where each listed item needs its own count (e.g. full Moons).' },
+  { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
@@ -100,6 +100,7 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
 // reports — raid/chest loot uses the chest name (not the room boss), direct kills use the NPC
 // name. Not exhaustive; the field accepts any free-text name.
 const SOURCE_SUGGESTIONS = [
+  'Loot Chest',
   'Chambers of Xeric',
   'Theatre of Blood',
   'Tombs of Amascut',
@@ -791,7 +792,7 @@ export default function TileTrackingConfig({
 
           <div>
             <label className="block text-xs text-text-muted mb-1">
-              {isCollection ? 'Collection Items' : 'Tracked Items'}
+              {isCollection ? 'Set Items (count per item)' : 'Tracked Items'}
               <span className="text-text-muted/60 ml-1">(RuneLite plugin auto-detects these drops)</span>
             </label>
 
@@ -933,6 +934,9 @@ export default function TileTrackingConfig({
               boss — Chambers of Xeric, Theatre of Blood, Tombs of Amascut, Barrows, Lunar Chest (Moons). The game
               reports the chest as the source, so an &ldquo;onyx from CoX&rdquo; tile uses{' '}
               <span className="text-foreground/70">Chambers of Xeric</span>.
+              <br />
+              • <span className="text-foreground/70">Loot keys</span> → <span className="text-foreground/70">Loot Chest</span> —
+              a specific item pulled from an opened PK loot key (use a Loot value tile for &ldquo;any key worth X&rdquo;).
             </p>
           </div>
         </div>

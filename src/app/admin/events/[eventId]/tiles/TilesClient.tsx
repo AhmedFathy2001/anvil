@@ -959,7 +959,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300' },
   boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300' },
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' },
-  collection: { label: 'Collection', cls: 'bg-accent-green/20 text-accent-green-light' },
+  collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light' },
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
   lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
@@ -975,7 +975,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'skill', label: 'Skill' },
   { key: 'boss', label: 'Boss' },
   { key: 'drop', label: 'Drop' },
-  { key: 'collection', label: 'Collection' },
+  { key: 'collection', label: 'Item set' },
   { key: 'kill', label: 'Kill' },
   { key: 'timed', label: 'Timed' },
   { key: 'lms', label: 'LMS' },
@@ -993,7 +993,7 @@ function tileMeta(tile: Tile): string {
       } catch {
         /* ignore */
       }
-      return `Collection · ${count} item${count !== 1 ? 's' : ''}`;
+      return `Item set · ${count} item${count !== 1 ? 's' : ''}`;
     }
     case 'drop':
       return tile.requiredAmount ? `Required: ${tile.requiredAmount}` : 'Item drop';
