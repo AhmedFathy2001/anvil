@@ -16,7 +16,7 @@ import {
   getTierBands,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
-import { notableItemFor } from '@/lib/tileIcons';
+import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -218,6 +218,9 @@ export async function GET(request: Request) {
       trackingMode,
       currentAmount: gainedTotal,
       goalAmount: goal,
+      // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
+      // keep -1 (the plugin shows the skill sprite instead).
+      itemId: (statType === 'boss' || statType === 'kc') ? bossItemForStatKey(statName) ?? -1 : -1,
     };
   });
 

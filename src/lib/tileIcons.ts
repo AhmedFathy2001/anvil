@@ -4,6 +4,7 @@
 // (the exact sprites the plugin renders in-game); skill icons come from the OSRS wiki.
 
 import { BOSSES, SKILLS } from './constants';
+import bossIcons from '@/data/bossIcons.json';
 
 export function itemIconUrl(itemId: number): string {
   return `https://static.runelite.net/cache/item/icon/${itemId}.png`;
@@ -41,6 +42,48 @@ export function notableItemFor(activity: string | null | undefined): number | nu
   return NOTABLE_ACTIVITY_ITEMS[base] ?? null;
 }
 
+// Generated from the clog dataset (npm run data:clog): activity name → first clog item.
+// Keys are lowercased with a leading "The " stripped.
+const BOSS_ICONS = bossIcons as Record<string, number>;
+
+// Boss labels / NPC names whose clog page is named differently (combined wildy pages,
+// display shorthands, raid-mode abbreviations). Values are BOSS_ICONS keys.
+const BOSS_NAME_ALIASES: Record<string, string> = {
+  'callisto': 'callisto and artio',
+  'artio': 'callisto and artio',
+  "vet'ion": "vet'ion and calvar'ion",
+  "calvar'ion": "vet'ion and calvar'ion",
+  'venenatis': 'venenatis and spindel',
+  'spindel': 'venenatis and spindel',
+  'barrows': 'barrows chests',
+  'dagannoth prime': 'dagannoth kings',
+  'dagannoth rex': 'dagannoth kings',
+  'dagannoth supreme': 'dagannoth kings',
+  'lunar chests': 'moons of peril',
+  'thermy': 'thermonuclear smoke devil',
+  'cox': 'chambers of xeric',
+  'tob': 'theatre of blood',
+  'toa': 'tombs of amascut',
+};
+
+/**
+ * Representative item for a boss/activity NAME — curated signature reward first, then the
+ * activity's first collection-log item. Covers every clog activity, so boss-KC and kill
+ * tiles get an icon even when nobody hand-picked one.
+ */
+export function bossItemFor(name: string | null | undefined): number | null {
+  if (!name) return null;
+  const notable = notableItemFor(name);
+  if (notable != null) return notable;
+  let key = name.trim().toLowerCase();
+  if (key.startsWith('the ')) key = key.slice(4);
+  key = BOSS_NAME_ALIASES[key] ?? key;
+  if (BOSS_ICONS[key] != null) return BOSS_ICONS[key];
+  const base = key.split(':')[0].trim();
+  const aliasedBase = BOSS_NAME_ALIASES[base] ?? base;
+  return BOSS_ICONS[aliasedBase] ?? null;
+}
+
 /** OSRS wiki icon for a hiscores skill key ("mining"), or null for unknown skills. */
 export function skillIconUrl(skill: string | null | undefined): string | null {
   if (!skill) return null;
@@ -66,6 +109,12 @@ const firstItemId = (trackedItemIds?: string | null, itemRequirements?: string |
   } catch { /* ignore malformed JSON */ }
   return null;
 };
+
+/** As {@link bossItemFor}, but from a hiscores boss KEY ("maggotKing") instead of a name. */
+export function bossItemForStatKey(key: string | null | undefined): number | null {
+  if (!key) return null;
+  return bossItemFor(BOSSES.find((b) => b.key === key)?.label ?? key);
+}
 
 export interface IconableTile {
   icon?: string | null;
@@ -98,18 +147,18 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   if (type === 'kill') {
     try {
       const npcs = tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : [];
-      const notable = notableItemFor(Array.isArray(npcs) ? npcs[0] : null);
-      return notable != null ? itemIconUrl(notable) : null;
+      const item = bossItemFor(Array.isArray(npcs) ? npcs[0] : null);
+      return item != null ? itemIconUrl(item) : null;
     } catch { return null; }
   }
   if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
 
-  // Stat tiles: skill icon for skill XP, the boss's signature reward for KC.
+  // Stat tiles: skill icon for skill XP, the boss's representative item for KC.
   if (tile.trackedStat) {
     if ((tile.statType ?? 'skill') === 'skill') return skillIconUrl(tile.trackedStat);
     const label = BOSSES.find((b) => b.key === tile.trackedStat)?.label;
-    const notable = notableItemFor(label);
-    return notable != null ? itemIconUrl(notable) : null;
+    const item = bossItemFor(label);
+    return item != null ? itemIconUrl(item) : null;
   }
   return null;
 }

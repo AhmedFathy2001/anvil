@@ -184,6 +184,18 @@ async function main() {
   writeFileSync(OUT_PATH, JSON.stringify(payload, null, 2) + '\n');
   writeFileSync(MANUAL_IDS_PATH, JSON.stringify(manualOnlyIds) + '\n');
 
+  // Small activity-name → representative-item map (first clog item, lowest id) for tile
+  // icons — bundleable client-side without dragging the whole clog dataset along. Keys are
+  // lowercased with a leading "The " stripped so boss labels and NPC names both match.
+  const bossIcons = {};
+  for (const [name, list] of Object.entries(activities)) {
+    if (!list.length) continue;
+    let key = name.toLowerCase().trim();
+    if (key.startsWith('the ')) key = key.slice(4);
+    bossIcons[key] = list[0].id;
+  }
+  writeFileSync(new URL('../src/data/bossIcons.json', import.meta.url), JSON.stringify(bossIcons, null, 0) + '\n');
+
   // Per-activity count of manual-only items, for a quick sanity read on the curation.
   const perActivity = {};
   for (const [name, list] of Object.entries(activities)) {

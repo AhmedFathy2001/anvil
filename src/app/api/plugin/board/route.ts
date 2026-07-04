@@ -4,7 +4,7 @@ import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
-import { notableItemFor } from '@/lib/tileIcons';
+import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -189,7 +189,9 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         // reward (Colosseum → Dizana's quiver) so previews aren't a wall of book sprites.
         itemId: representativeItemId(t.trackedItemIds, t.itemRequirements) !== -1
           ? representativeItemId(t.trackedItemIds, t.itemRequirements)
-          : (t.tileType === 'timed' || t.tileType === 'deathless' ? notableItemFor(t.timedActivity) ?? -1 : -1),
+          : (t.tileType === 'timed' || t.tileType === 'deathless'
+            ? notableItemFor(t.timedActivity) ?? -1
+            : ((t.statType === 'boss' || t.statType === 'kc') ? bossItemForStatKey(t.trackedStat) ?? -1 : -1)),
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
