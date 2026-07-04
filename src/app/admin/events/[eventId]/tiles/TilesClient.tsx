@@ -184,7 +184,45 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     if (labels.length) void bulkCreate(labels);
   }
 
-  async function handleDeleteTile(tileId: number) {
+  // True when a tile carries anything beyond what a freshly-added blank row gets ("Tile N",
+  // standard kind, 1 point, no tracking config). Deleting a blank row is friction-free;
+  // deleting a configured tile deserves a warning — hours of item/set setup can hide behind
+  // an innocent-looking label.
+  function tileHasCustomConfig(tile: Tile): boolean {
+    return !!(
+      !/^Tile \d+$/.test(tile.label ?? '') ||
+      tile.description ||
+      (tile.tileType && tile.tileType !== 'standard') ||
+      tile.requiredAmount ||
+      tile.trackedStat ||
+      tile.statGoal ||
+      tile.trackedItemIds ||
+      tile.itemRequirements ||
+      tile.category ||
+      tile.sourceNpcs ||
+      tile.targetNpcs ||
+      tile.timedActivity ||
+      tile.timeThresholdSeconds ||
+      (tile.points != null && tile.points !== 1) ||
+      tile.optional
+    );
+  }
+
+  async function handleDeleteTile(tileId: number, skipConfirm = false) {
+    // Configured tiles get a confirm; blank never-touched rows delete silently. The Cards
+    // drawer passes skipConfirm — it runs its own two-step confirm before calling this.
+    const tile = localTiles.find((t) => t.id === tileId);
+    if (!skipConfirm && tile && tileHasCustomConfig(tile)) {
+      const summary = [
+        tileKindKey(tile) !== 'standard' ? tileKindKey(tile) : null,
+        tile.points != null && tile.points !== 1 ? `${tile.points} pts` : null,
+        tile.itemRequirements || tile.trackedItemIds ? 'tracked items' : null,
+        tile.category ? `tagged ${tile.category}` : null,
+      ].filter(Boolean).join(', ');
+      if (!confirm(`"${tile.label}" has configuration${summary ? ` (${summary})` : ''} — delete it anyway?`)) {
+        return;
+      }
+    }
     const res = await fetch(`/api/events/${event.id}/tiles/${tileId}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -860,7 +898,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           lockHolder={lockHolder}
           canDelete={canEditTileSet}
           onClose={() => setEditingTileId(null)}
-          onDelete={() => handleDeleteTile(editingTile.id)}
+          onDelete={() => handleDeleteTile(editingTile.id, true)}
           onSaved={(updated) => {
             handleTileConfigSaved(editingTile.id, updated);
             setEditingTileId(null);
