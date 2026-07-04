@@ -70,10 +70,11 @@ export async function POST(
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
   }
 
-  // Validate amount
+  // Validate amount. The tight per-type cap is enforced after the tile is loaded — value
+  // tiles carry a haul's gp value in `amount` (tens of millions), everything else a count.
   const submitAmount = amount ?? 1;
-  if (!Number.isInteger(submitAmount) || submitAmount < 1 || submitAmount > 10000) {
-    return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
+  if (!Number.isInteger(submitAmount) || submitAmount < 1 || submitAmount > 2_147_483_647) {
+    return NextResponse.json({ error: 'amount must be a positive integer' }, { status: 400 });
   }
 
   // Validate note
@@ -133,8 +134,12 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary' && tile.tileType !== 'lms') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, diary, or LMS tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'timed' && tile.tileType !== 'diary' && tile.tileType !== 'lms' && tile.tileType !== 'value') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, timed, diary, LMS, or value tiles' }, { status: 400 });
+  }
+  // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
+  if (tile.tileType !== 'value' && submitAmount > 10000) {
+    return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
   }
 
   // Image/proof rules. Drops and timed clears always need a screenshot. Kill tiles auto-detected by
@@ -142,7 +147,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lms');
+  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lms' || tile.tileType === 'value');
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;
@@ -209,6 +214,16 @@ export async function POST(
     if (itemTotal + submitAmount > requirement.requiredAmount && !isAdmin) {
       const remaining = requirement.requiredAmount - itemTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more ${requirement.name}` }, { status: 400 });
+    }
+  } else if (tile.tileType === 'value' && tile.requiredAmount) {
+    // Value tiles: each submission is an independent haul, not a cumulative count — a 90m
+    // haul on a 5m tile is the whole point. Only refuse once a qualifying haul completed it.
+    const bestHaul = await db
+      .select({ best: sql<number | null>`MAX(${submissions.amount})` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    if ((bestHaul[0]?.best ?? 0) >= tile.requiredAmount) {
+      return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
     }
   } else if (tile.requiredAmount) {
     // Simple mode: existing behavior

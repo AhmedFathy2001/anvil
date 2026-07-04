@@ -47,7 +47,7 @@ A blank `label` auto-fills as `Tile N`.
 |---|---|---|
 | `label` | Tile name shown on the board | Required for a meaningful tile; ≤200 chars |
 | `description` | Free text shown on the tile | Optional |
-| `type` | `standard` \| `drop` \| `kill` \| `timed` \| `lms` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
+| `type` | `standard` \| `drop` \| `kill` \| `timed` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
 | `points` | Integer score weight (Leagues scoring) | ≥ 0, default 1 |
 | `category` | Grouping tag(s) for the plugin/UI — comma-separated for several (e.g. `"Inferno, PvM"`, quoted) | ≤120 chars |
 | `optional` | `true`/`false` (also `1`/`0`/`yes`/`y`) — doesn't count toward the total | |

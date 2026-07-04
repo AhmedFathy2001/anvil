@@ -34,6 +34,17 @@ export async function syncDropTileCompletion(
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
     isComplete = best != null && best <= tile.timeThresholdSeconds;
+  } else if (tile.tileType === 'value') {
+    // Loot-value tiles: pass/fail on a single haul. A submission's `amount` carries the haul's
+    // gp value; the tile completes when any one haul meets the threshold in requiredAmount.
+    if (!tile.requiredAmount) return null;
+    const richest = await db
+      .select({ best: sql<number | null>`MAX(${submissions.amount})` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    const best = richest[0]?.best ?? null;
+    totalAmount = best ?? 0;
+    isComplete = best != null && best >= tile.requiredAmount;
   } else if (tile.tileType === 'kill' || tile.tileType === 'diary' || tile.tileType === 'lms') {
     // Kill count / diary completions / LMS qualifying games: accumulate the submitted amount
     // toward the required amount, exactly like a simple drop tile (no per-item breakdown).

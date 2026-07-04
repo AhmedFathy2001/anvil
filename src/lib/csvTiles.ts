@@ -6,12 +6,13 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "timed" | "lms" | "diary"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "timed" | "lms" | "value" | "diary"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
-//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lms tiles (qualifying games)
+//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lms tiles (qualifying games),
+//                       value tiles (gp threshold one haul must meet)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal

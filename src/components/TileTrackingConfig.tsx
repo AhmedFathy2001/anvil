@@ -24,7 +24,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'diary';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -35,8 +35,19 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
+  { key: 'value', label: 'Loot value', blurb: 'One haul worth ≥ X gp — a loot key, a PvP kill, or any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
 ];
+
+// Accepts "5m", "500k", "2.5m" or plain gp figures (commas ok) for the loot-value threshold.
+function parseGp(raw: string): number | null {
+  const v = raw.trim().toLowerCase().replace(/,/g, '');
+  const m = v.match(/^(\d+(?:\.\d+)?)\s*([kmb])?$/);
+  if (!m) return null;
+  const mult = m[2] === 'b' ? 1_000_000_000 : m[2] === 'm' ? 1_000_000 : m[2] === 'k' ? 1_000 : 1;
+  const n = Math.round(parseFloat(m[1]) * mult);
+  return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
+}
 
 // Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
 const DIARY_ANY = 'Any';
@@ -99,6 +110,10 @@ const SOURCE_SUGGESTIONS = [
   'Corrupted Hunllef',
 ];
 
+// Source hints for loot-value tiles — the specials first ("PvP" = player-kill loot,
+// "Loot Chest" = opened loot keys), then the usual drop sources.
+const VALUE_SOURCE_SUGGESTIONS = ['PvP', 'Loot Chest', ...SOURCE_SUGGESTIONS];
+
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
@@ -106,6 +121,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'kill') return 'kill';
   if (initial.tileType === 'timed') return 'timed';
   if (initial.tileType === 'lms') return 'lms';
+  if (initial.tileType === 'value') return 'value';
   if (initial.tileType === 'diary') return 'diary';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
@@ -185,6 +201,10 @@ export default function TileTrackingConfig({
   const [lmsPlacementCap, setLmsPlacementCap] = useState<string>(
     initial.tileType === 'lms' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '1',
   );
+  // Loot-value threshold in gp (rides the requiredAmount column for the value kind).
+  const [valueGpText, setValueGpText] = useState<string>(
+    initial.tileType === 'value' && initial.requiredAmount ? String(initial.requiredAmount) : '',
+  );
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
@@ -205,6 +225,7 @@ export default function TileTrackingConfig({
   const isKill = kind === 'kill';
   const isTimed = kind === 'timed';
   const isLms = kind === 'lms';
+  const isValue = kind === 'value';
   const isDiary = kind === 'diary';
 
   // Resolve names for pre-existing tracked item IDs (simple-mode tiles store only IDs).
@@ -362,6 +383,17 @@ export default function TileTrackingConfig({
       setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
+      setValueGpText("");
+    } else if (next === 'value') {
+      setTrackedStat("");
+      setStatGoal("");
+      setRequiredAmount("");
+      setTrackedItems([]);
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+      setLmsPlacementCap('1');
     } else {
       // standard
       setTrackedStat("");
@@ -412,6 +444,9 @@ export default function TileTrackingConfig({
       const amt = parseInt(requiredAmount || '1', 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set how many qualifying games are needed (at least 1).';
     }
+    if (kind === 'value') {
+      if (parseGp(valueGpText) == null) return 'Set a haul value like 5m, 500k, or 5000000.';
+    }
     return null;
   }
 
@@ -434,7 +469,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isDiary ? 'diary' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isValue ? 'value' : isDiary ? 'diary' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -478,9 +513,12 @@ export default function TileTrackingConfig({
         // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
         payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+      } else if (kind === 'value') {
+        // The gp threshold rides the requiredAmount column; sources ride sourceNpcs.
+        payload.requiredAmount = parseGp(valueGpText);
       }
 
-      if (isDrop) {
+      if (isDrop || isValue) {
         const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
         payload.sourceNpcs = npcs.length > 0 ? npcs : null;
       }
@@ -1147,6 +1185,47 @@ export default function TileTrackingConfig({
               onChange={(e) => setRequiredAmount(e.target.value)}
               placeholder="1"
             />
+          </div>
+        </div>
+      )}
+
+      {/* ---- VALUE KIND ---- */}
+      {isValue && (
+        <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Haul Value <span className="text-text-muted/60">(one drop/haul worth at least this)</span>
+            </label>
+            <Input
+              type="text"
+              value={valueGpText}
+              onChange={(e) => setValueGpText(e.target.value)}
+              placeholder="e.g. 5m"
+              aria-label="Haul value threshold"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5">
+              The plugin prices every loot haul (drops, loot keys, PvP kills) and submits a baked
+              screenshot when a single haul is worth at least this much. Accepts 5m / 500k / raw gp.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Restrict to source(s) <span className="text-text-muted/60">(optional)</span>
+            </label>
+            <Combobox
+              value={sourceNpcsText}
+              onChange={setSourceNpcsText}
+              suggestions={VALUE_SOURCE_SUGGESTIONS}
+              multi
+              placeholder="e.g. PvP, Loot Chest, Vorkath"
+              ariaLabel="Value source restriction"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Comma-separated. <span className="text-foreground/70">PvP</span> = loot from killing another
+              player, <span className="text-foreground/70">Loot Chest</span> = opened loot keys; otherwise an
+              NPC/chest name. Leave blank to accept a qualifying haul from anywhere.
+            </p>
           </div>
         </div>
       )}

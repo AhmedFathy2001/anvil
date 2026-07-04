@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
+import SkillTileGenerator from './SkillTileGenerator';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
@@ -370,6 +371,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     await syncTilesFromServer();
   }
 
+  async function handleSkillsCreated(summary: { created: number; ignored: number; label: string }) {
+    setImportMsg({
+      type: 'success',
+      text: `Added ${summary.created} skill tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+    });
+    await syncTilesFromServer();
+  }
+
   return (
     <div className="space-y-8">
       {/* CSV import */}
@@ -401,14 +410,26 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             >
               {importing ? 'Importing…' : 'Upload CSV'}
             </button>
-            <ClogGenerator
-              eventId={event.id}
-              canGrow={canEditTileSet}
-              pointsMode={pointsMode}
-              onCreated={handleClogCreated}
-              onError={(text) => setImportMsg({ type: 'error', text })}
-            />
           </div>
+        </div>
+        {/* Generators — bulk tile builders, separated from the CSV import/export cluster so the
+            header row doesn't turn into a button soup as more of them land. */}
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Generate</span>
+          <ClogGenerator
+            eventId={event.id}
+            canGrow={canEditTileSet}
+            pointsMode={pointsMode}
+            onCreated={handleClogCreated}
+            onError={(text) => setImportMsg({ type: 'error', text })}
+          />
+          <SkillTileGenerator
+            eventId={event.id}
+            canGrow={canEditTileSet}
+            pointsMode={pointsMode}
+            onCreated={handleSkillsCreated}
+            onError={(text) => setImportMsg({ type: 'error', text })}
+          />
         </div>
         <p className="text-xs text-text-muted leading-relaxed">
           Configure many tiles at once — ideal for Leagues-style boards. Rows map onto tiles by order
@@ -759,7 +780,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'diary';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
@@ -767,6 +788,7 @@ function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
   if (tile.tileType === 'timed') return 'timed';
   if (tile.tileType === 'lms') return 'lms';
+  if (tile.tileType === 'value') return 'value';
   if (tile.tileType === 'diary') return 'diary';
   if (tile.tileType === 'drop') {
     const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
@@ -786,6 +808,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
   lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
+  value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300' },
 };
 
@@ -801,6 +824,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'kill', label: 'Kill' },
   { key: 'timed', label: 'Timed' },
   { key: 'lms', label: 'LMS' },
+  { key: 'value', label: 'Value' },
   { key: 'diary', label: 'Diary' },
 ];
 
@@ -832,6 +856,8 @@ function tileMeta(tile: Tile): string {
       const games = tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : '';
       return cap <= 1 ? `LMS · win${games}` : `LMS · top ${cap}${games}`;
     }
+    case 'value':
+      return tile.requiredAmount ? `Loot value · ≥${tile.requiredAmount.toLocaleString()} gp` : 'Loot value';
     case 'diary': {
       let sels: string[] = [];
       try {

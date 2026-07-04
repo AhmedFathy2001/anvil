@@ -238,14 +238,19 @@ export async function PUT(
   // LMS placement tiles reuse timeThresholdSeconds as the placement cap (1 = win) and
   // requiredAmount as the number of qualifying games. No timedActivity.
   const isLms = merged.tileType === 'lms';
-  // requiredAmount is shared by drop (item count), kill (kill count), diary (completions)
-  // and lms (qualifying games).
+  // Loot-value tiles reuse requiredAmount as the gp threshold a single haul must meet,
+  // and sourceNpcs as the optional source filter ("PvP", "Loot Chest", NPC names).
+  const isValue = merged.tileType === 'value';
+  // requiredAmount is shared by drop (item count), kill (kill count), diary (completions),
+  // lms (qualifying games) and value (gp threshold).
   const hasRequiredAmount = merged.requiredAmount != null;
+  const hasDropItems = parseLen(merged.trackedItemIds) > 0 || parseLen(merged.itemRequirements) > 0;
+  const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, diary, or LMS tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, diary, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -253,8 +258,11 @@ export async function PUT(
     return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
   }
   // Field/kind coherence for the submission-backed kinds.
-  if (dropItemFields && !isDrop) {
-    return NextResponse.json({ error: 'Only drop tiles can carry tracked items or source restrictions.' }, { status: 400 });
+  if (hasDropItems && !isDrop) {
+    return NextResponse.json({ error: 'Only drop tiles can carry tracked items.' }, { status: 400 });
+  }
+  if (hasSourceNpcs && !isDrop && !isValue) {
+    return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
   if (hasKillFields && !isKill && !isDiary) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary tiles, diary selectors).' }, { status: 400 });
@@ -265,8 +273,8 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms) {
     return NextResponse.json({ error: 'Only timed tiles (time cap) or LMS tiles (placement cap) can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isDiary && !isLms) {
-    return NextResponse.json({ error: 'Only drop, kill, diary, or LMS tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isDiary && !isLms && !isValue) {
+    return NextResponse.json({ error: 'Only drop, kill, diary, LMS, or value tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

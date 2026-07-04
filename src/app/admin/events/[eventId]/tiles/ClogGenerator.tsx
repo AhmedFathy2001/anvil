@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
+import { BOSSES } from '@/lib/constants';
 
 interface ClogItem {
   id: number;
@@ -22,6 +23,18 @@ interface Props {
   pointsMode?: boolean;
   onCreated: (summary: { created: number; ignored: number; activity: string }) => void;
   onError: (message: string) => void;
+}
+
+// A clog page counts as PvM when it names a boss/raid from the BOSSES picker (labels or
+// aliases, "The " stripped on both sides) — those tiles get tagged "PvM, <page>" so the
+// board's category filters group them, mirroring the skill generator's "Skilling, <skill>".
+// Clue tabs, minigames and skilling pages don't match and keep the plain page tag.
+function isPvmActivity(activity: string): boolean {
+  const strip = (s: string) => s.toLowerCase().replace(/^the /, '').trim();
+  const candidate = strip(activity);
+  return BOSSES.some(
+    (b) => strip(b.label) === candidate || b.aliases?.some((a) => strip(a) === candidate),
+  );
 }
 
 // How the kept items become tiles. All three shapes are native to the import route:
@@ -55,6 +68,8 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
   const [points, setPoints] = useState('');
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Success note shown on the page picker after a batch — the dialog stays open for the next page.
+  const [lastBatch, setLastBatch] = useState<string | null>(null);
 
   async function openModal() {
     setOpen(true);
@@ -116,6 +131,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
   function close() {
     setOpen(false);
     reset();
+    setLastBatch(null);
   }
 
   async function create() {
@@ -142,13 +158,14 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
       const keptNames = kept.map((it) => it.name);
       const allKept = excluded.size === 0;
       const anyPhrase = anyN > 1 ? `any ${anyN}` : 'any';
+      const tileCategory = isPvmActivity(activity) ? `PvM, ${activity}` : activity;
       const rows =
         mode === 'perItem'
           ? kept.map((it) => ({
               label: it.name,
               tileType: 'drop',
               requiredAmount: 1,
-              category: activity,
+              category: tileCategory,
               description: `Get 1× ${it.name}.`,
               ...(pts !== undefined ? { points: pts } : {}),
               items: [{ id: it.id, name: it.name, count: 1 }],
@@ -161,7 +178,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
                     ? `${activity}: all ${kept.length} items`
                     : `${activity}: any ${anyN} of ${kept.length}`),
                 tileType: 'drop',
-                category: activity,
+                category: tileCategory,
                 description:
                   mode === 'allOf'
                     ? allKept
@@ -187,7 +204,12 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
         return;
       }
       onCreated({ created: data.created ?? 0, ignored: data.ignored ?? 0, activity });
-      close();
+      // Back to the page picker (with a note) instead of closing — generating several pages
+      // back-to-back is the common flow when building a board.
+      const doneActivity = activity;
+      const created = data.created ?? 0;
+      reset();
+      setLastBatch(`Added ${created} tile${created === 1 ? '' : 's'} from ${doneActivity}. Pick another page, or close.`);
     } finally {
       setCreating(false);
     }
@@ -230,6 +252,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
 
             {!activity && (
               <>
+                {lastBatch && <p className="text-xs text-accent-green-light mb-2">{lastBatch}</p>}
                 <p className="text-xs text-text-muted mb-3">
                   Pick a page — boss, raid, minigame or clue tab. Trim the item list, then add a tile per item or one
                   all-of / any-of tile over the set.

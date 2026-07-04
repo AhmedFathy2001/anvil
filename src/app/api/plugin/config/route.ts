@@ -72,6 +72,7 @@ export async function GET(request: Request) {
         trackedKills: [],
         trackedTimed: [],
         trackedLms: [],
+        trackedValues: [],
         trackedDiaries: [],
         noActiveEvent: true,
         schedule,
@@ -414,5 +415,31 @@ export async function GET(request: Request) {
         currentAmount: submissionMap[t.id] ?? 0,
         completed: completedTileIdSet.has(t.id),
       })),
+
+    // Loot-value tiles — the plugin prices every loot haul (drop, loot key, PvP kill) and
+    // submits a baked screenshot when one meets `thresholdGp` (stored in requiredAmount).
+    // `sources` optionally restricts where the haul may come from: NPC/chest names, or the
+    // special "PvP" for player kills. Empty = any source.
+    trackedValues: allEventTiles
+      .filter((t) => t.tileType === 'value')
+      .map((t) => {
+        let sources: string[] = [];
+        if (t.sourceNpcs) {
+          try {
+            const parsed = JSON.parse(t.sourceNpcs);
+            if (Array.isArray(parsed)) sources = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          thresholdGp: t.requiredAmount ?? 1,
+          sources,
+          completed: completedTileIdSet.has(t.id),
+        };
+      }),
   });
 }
