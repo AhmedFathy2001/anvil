@@ -101,15 +101,51 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
 // Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
 // reports — raid/chest loot uses the chest name (not the room boss), direct kills use the NPC
 // name. Not exhaustive; the field accepts any free-text name.
+// Names must match what RuneLite's loot tracker emits (verified against its source list) —
+// a misspelled source silently never matches. Raid/chest loot uses the chest's event name,
+// direct kills the NPC name, clue caskets "Clue Scroll (Tier)".
 const SOURCE_SUGGESTIONS = [
-  'Loot Chest',
+  // Raids & bosses (chest-style event loot)
   'Chambers of Xeric',
   'Theatre of Blood',
   'Tombs of Amascut',
-  'Barrows',
-  'Lunar Chest',
   'Fortis Colosseum',
-  'Hallowed Sepulchre',
+  'Doom of Mokhaiotl',
+  'Lunar Chest',
+  'Barrows',
+  'Unsired',
+  // Clue caskets
+  'Clue Scroll (Beginner)',
+  'Clue Scroll (Easy)',
+  'Clue Scroll (Medium)',
+  'Clue Scroll (Hard)',
+  'Clue Scroll (Elite)',
+  'Clue Scroll (Master)',
+  // Wilderness keys & chests
+  'Loot Chest',
+  "Larran's big chest",
+  "Larran's small chest",
+  "Rogues' Chest",
+  // Skilling rewards
+  'Reward pool (Tempoross)',
+  'Supply crate (Wintertodt)',
+  'Reward cart (Wintertodt)',
+  'Guardians of the Rift',
+  'Hallowed Sack',
+  'Fishing Trawler',
+  'Herbiboar',
+  'Drift Net',
+  'Seed pack',
+  'Bird nest',
+  // Other chests
+  'Brimstone Chest',
+  'Grubby Chest',
+  'Crystal Chest',
+  'Elven Crystal Chest',
+  // Impling jars (opened)
+  'Dragon impling jar',
+  'Lucky impling jar',
+  // Direct kills (any NPC name works)
   'Zulrah',
   'Vorkath',
   'Nex',
