@@ -4,6 +4,7 @@ import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
+import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -15,11 +16,17 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 // Label/type/requiredAmount are only applied/created before the event starts (mirrors the
 // single-tile PUT); description/points/category/optional/stat fields are always applied.
 //
-// Body: { rows: Array<{
+// The round trip is 1:1: rows that exactly match a tile's current config are skipped
+// (no write, no updatedAt stamp) and reported as `unchanged`, so downloading the
+// spreadsheet and uploading it straight back is a verifiable no-op.
+//
+// JSON body: { rows: Array<{
 //   label?, description?, tileType?, requiredAmount?, points?, category?,
 //   optional?, trackedStat?, statType?, statGoal?,
-//   targetNpcs?, timedActivity?, timeThresholdSeconds?
+//   targetNpcs?, timedActivity?, timeThresholdSeconds?, items?
 // }> }
+// or multipart/form-data with `file` = the downloaded .xlsx workbook (only its Tiles
+// sheet is read), which parses into the same rows.
 
 interface ImportRow {
   label?: string;
@@ -48,6 +55,10 @@ interface DerivedItemFields {
 }
 
 const MAX_TILES = 1000;
+
+// Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
+// loudly rather than storing a junk type the trackers would never match.
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'gain', 'timed', 'deathless', 'diary', 'lms', 'value', 'valuetotal']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -89,6 +100,9 @@ function parseLen(v: unknown): number {
 
 // Validate a row's standalone numeric/array fields. Returns an error string or null.
 function validateRowFields(i: number, row: ImportRow): string | null {
+  if (row.tileType !== undefined && row.tileType !== '' && !VALID_TILE_TYPES.has(String(row.tileType).toLowerCase())) {
+    return `Row ${i + 1}: unknown type "${row.tileType}" — use one of ${[...VALID_TILE_TYPES].join(', ')}`;
+  }
   if (
     row.requiredAmount !== undefined && row.requiredAmount !== null &&
     (!Number.isInteger(row.requiredAmount) || row.requiredAmount < 1)
@@ -209,27 +223,31 @@ function validateRowKind(
   // tiles reuse requiredAmount (gp threshold) — mirrors the single-tile PUT validation.
   const isLms = effTileType === 'lms';
   const isValue = effTileType === 'value' || effTileType === 'valuetotal';
+  // Item-gain tiles reuse trackedItemIds (item pool) + requiredAmount (target count);
+  // deathless tiles reuse timedActivity (the raid) + requiredAmount (runs needed).
+  const isGain = effTileType === 'gain';
+  const isDeathless = effTileType === 'deathless';
 
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, timed, diary, LMS, or value tile.`;
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, gain, timed, deathless, diary, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
   }
-  if (dropItemFields && !isDrop) {
-    return `Row ${i + 1}: only drop tiles can carry items.`;
+  if (dropItemFields && !isDrop && !isGain) {
+    return `Row ${i + 1}: only drop or gain tiles can carry items.`;
   }
   if (effTargetNpcsLen > 0 && !isKill && !isDiary) {
     return `Row ${i + 1}: only kill tiles can target NPCs (or diary tiles, diary selectors).`;
   }
-  if (effActivity && !isTimed) {
-    return `Row ${i + 1}: only timed tiles can carry an activity.`;
+  if (effActivity && !isTimed && !isDeathless) {
+    return `Row ${i + 1}: only timed or deathless tiles can carry an activity.`;
   }
-  if (effThreshold && !isTimed && !isLms) {
-    return `Row ${i + 1}: only timed tiles (time cap) or LMS tiles (placement cap) can carry a threshold.`;
+  if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
+    return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isDiary && !isLms && !isValue) {
-    return `Row ${i + 1}: only drop, kill, diary, LMS, or value tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isGain && !isDiary && !isLms && !isValue && !isDeathless) {
+    return `Row ${i + 1}: only drop, kill, gain, diary, LMS, value, or deathless tiles can have a required amount.`;
   }
   return null;
 }
@@ -259,14 +277,78 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';
     if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
     // Item config (resolved from the row's `items`) wins over the raw type/requiredAmount above.
+    // A `type=gain` row keeps its kind: the items become the flat tracked pool (no per-item
+    // requirements) and the row's own requiredAmount is the gain target.
     if (derived) {
-      s.tileType = 'drop';
-      s.requiredAmount = derived.requiredAmount;
-      s.trackedItemIds = derived.trackedItemIds ? JSON.stringify(derived.trackedItemIds) : null;
-      s.itemRequirements = derived.itemRequirements ? JSON.stringify(derived.itemRequirements) : null;
+      if (row.tileType === 'gain') {
+        s.tileType = 'gain';
+        s.requiredAmount = row.requiredAmount ?? derived.requiredAmount;
+        // Flat pool either way — a per-item breakdown (row without requiredAmount) still
+        // flattens to its item ids for gain tiles.
+        const gainIds = derived.trackedItemIds ?? derived.itemRequirements?.map((r) => r.itemId) ?? null;
+        s.trackedItemIds = gainIds && gainIds.length > 0 ? JSON.stringify(gainIds) : null;
+        s.itemRequirements = null;
+      } else {
+        s.tileType = 'drop';
+        s.requiredAmount = derived.requiredAmount;
+        s.trackedItemIds = derived.trackedItemIds ? JSON.stringify(derived.trackedItemIds) : null;
+        s.itemRequirements = derived.itemRequirements ? JSON.stringify(derived.itemRequirements) : null;
+      }
     }
   }
   return s;
+}
+
+// ---------------------------------------------------------------------------
+// No-op detection — a row that exactly matches its tile's stored config is skipped (no write,
+// no updatedAt stamp), so re-uploading an unchanged sheet is a verifiable 1:1 no-op.
+// ---------------------------------------------------------------------------
+
+// Normalize a JSON-text column (targetNpcs, trackedItemIds) for comparison.
+function normalizeJsonCell(v: unknown): string {
+  if (v == null || v === '') return '';
+  try {
+    return JSON.stringify(typeof v === 'string' ? JSON.parse(v) : v);
+  } catch {
+    return String(v);
+  }
+}
+
+// itemRequirements rows can differ in key order / optional-group shape depending on which
+// editor wrote them, so compare a normalized [itemId, name, requiredAmount, group] projection.
+function normalizeItemReqsCell(v: unknown): string {
+  if (v == null || v === '') return '';
+  let arr: unknown;
+  try {
+    arr = typeof v === 'string' ? JSON.parse(v) : v;
+  } catch {
+    return String(v);
+  }
+  if (!Array.isArray(arr)) return '';
+  return JSON.stringify(
+    arr.map((r) => {
+      const req = r as { itemId?: number; name?: string; requiredAmount?: number; group?: string | null };
+      return [req.itemId ?? null, req.name ?? '', req.requiredAmount ?? 1, req.group ?? null];
+    }),
+  );
+}
+
+// True when applying `updateSet` to the tile would change nothing (updatedAt excluded).
+function isNoopUpdate(updateSet: Record<string, unknown>, tile: Record<string, unknown>): boolean {
+  for (const [k, v] of Object.entries(updateSet)) {
+    if (k === 'updatedAt') continue;
+    const cur = tile[k];
+    if (k === 'optional') {
+      if ((v ? 1 : 0) !== (cur ? 1 : 0)) return false;
+    } else if (k === 'targetNpcs' || k === 'trackedItemIds') {
+      if (normalizeJsonCell(v) !== normalizeJsonCell(cur)) return false;
+    } else if (k === 'itemRequirements') {
+      if (normalizeItemReqsCell(v) !== normalizeItemReqsCell(cur)) return false;
+    } else if ((v === '' ? null : v ?? null) !== (cur === '' ? null : cur ?? null)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export async function POST(
@@ -288,21 +370,52 @@ export async function POST(
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
 
-  let body: { rows?: unknown; append?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  // Rows arrive either as a JSON body (client-parsed CSV / programmatic use) or as a
+  // multipart upload of the downloaded .xlsx workbook, parsed server-side into the same rows
+  // so both paths behave identically.
+  let rows: unknown;
+  let appendMode = false;
+  const contentType = request.headers.get('content-type') ?? '';
+  if (contentType.includes('multipart/form-data')) {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json({ error: 'Invalid file upload' }, { status: 400 });
+    }
+    const file = form.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'Missing spreadsheet file' }, { status: 400 });
+    }
+    const parsed = await parseTileWorkbook(Buffer.from(await file.arrayBuffer()));
+    if (parsed.error) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    rows = parsed.rows;
+    appendMode = form.get('append') === 'true';
+  } else {
+    let body: { rows?: unknown; append?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    rows = body.rows;
+    // Append mode: every row becomes a NEW tile after the last existing one, instead of the default
+    // position-mapped update. Used by the "generate from collection log" bulk-authoring flow, which
+    // wants to add a page's items without disturbing tiles already on the board.
+    appendMode = body.append === true;
   }
 
-  const rows = body.rows;
   if (!Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: 'rows must be a non-empty array' }, { status: 400 });
   }
-  // Append mode: every row becomes a NEW tile after the last existing one, instead of the default
-  // position-mapped update. Used by the "generate from collection log" bulk-authoring flow, which
-  // wants to add a page's items without disturbing tiles already on the board.
-  const appendMode = body.append === true;
+  // Normalize type case up front ("Drop" → "drop") so validation and writes agree.
+  for (const r of rows) {
+    if (r && typeof r === 'object' && typeof (r as ImportRow).tileType === 'string') {
+      (r as ImportRow).tileType = (r as ImportRow).tileType!.trim().toLowerCase();
+    }
+  }
 
   const eventTiles = (await db.select().from(tiles).where(eq(tiles.eventId, eId))).sort(
     (a, b) => a.position - b.position,
@@ -392,10 +505,10 @@ export async function POST(
     if (fieldErr) {
       return NextResponse.json({ error: fieldErr }, { status: 400 });
     }
-    // Items can only live on a drop tile — an explicit conflicting type is an error, not a coerce.
-    if (derivedList[i] && row.tileType && row.tileType !== 'drop') {
+    // Items can only live on a drop or gain tile — an explicit conflicting type is an error, not a coerce.
+    if (derivedList[i] && row.tileType && row.tileType !== 'drop' && row.tileType !== 'gain') {
       return NextResponse.json(
-        { error: `Row ${i + 1}: items can only be set on drop tiles (got type "${row.tileType}").` },
+        { error: `Row ${i + 1}: items can only be set on drop or gain tiles (got type "${row.tileType}").` },
         { status: 400 },
       );
     }
@@ -417,12 +530,17 @@ export async function POST(
 
   const maxPos = existingCount > 0 ? eventTiles[existingCount - 1].position : -1;
 
+  let applied = 0;
+  let unchanged = 0;
   await db.transaction(async (tx) => {
     for (let i = 0; i < updates; i++) {
       const updateSet = tileFieldsFromRow(rows[i] as ImportRow, !eventStarted, derivedList[i]);
-      if (Object.keys(updateSet).length > 0) {
-        await tx.update(tiles).set(updateSet).where(eq(tiles.id, eventTiles[i].id));
+      if (isNoopUpdate(updateSet, eventTiles[i] as unknown as Record<string, unknown>)) {
+        unchanged++;
+        continue;
       }
+      await tx.update(tiles).set(updateSet).where(eq(tiles.id, eventTiles[i].id));
+      applied++;
     }
     for (let j = 0; j < creates; j++) {
       const row = rows[createRowOffset + j] as ImportRow;
@@ -438,7 +556,8 @@ export async function POST(
   });
 
   return NextResponse.json({
-    applied: updates,
+    applied,
+    unchanged,
     created: creates,
     ignored,
     total: existingCount + creates,

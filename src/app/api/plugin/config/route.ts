@@ -16,6 +16,7 @@ import {
   getTierBands,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
+import { notableItemFor } from '@/lib/tileIcons';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -73,6 +74,8 @@ export async function GET(request: Request) {
         trackedTimed: [],
         trackedLms: [],
         trackedValues: [],
+        trackedGains: [],
+        trackedDeathless: [],
         trackedDiaries: [],
         noActiveEvent: true,
         schedule,
@@ -320,6 +323,9 @@ export async function GET(request: Request) {
           currentAmount: submissionMap[t.id] ?? 0,
           acceptedSources,
           sourceNpcs,
+          // Exact raid party size required ("solo Cursed phalanx"); rides
+          // timeThresholdSeconds on drop tiles. 0 = any size.
+          partySize: t.timeThresholdSeconds ?? 0,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,
@@ -396,6 +402,9 @@ export async function GET(request: Request) {
         category: t.category ?? null,
         activity: t.timedActivity ?? null,
         thresholdSeconds: t.timeThresholdSeconds ?? null,
+        // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
+        // accordion's icon; -1 falls back to the book sprite.
+        itemId: notableItemFor(t.timedActivity) ?? -1,
         completed: completedTileIdSet.has(t.id),
       })),
 
@@ -445,5 +454,47 @@ export async function GET(request: Request) {
           completed: completedTileIdSet.has(t.id),
         };
       }),
+
+    // Item-gain tiles — the plugin counts tracked items appearing in the inventory
+    // (fishing catches, cooked food, jarred implings) and submits a baked running total,
+    // exactly like kill tiles. Bank/GE/trade gains are ignored plugin-side.
+    trackedGains: allEventTiles
+      .filter((t) => t.tileType === 'gain')
+      .map((t) => ({
+        tileId: t.id,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        itemIds: (() => {
+          try {
+            const ids = JSON.parse(t.trackedItemIds || '[]');
+            return Array.isArray(ids) ? ids.filter((n) => typeof n === 'number') : [];
+          } catch { return []; }
+        })(),
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: submissionMap[t.id] ?? 0,
+        completed: completedTileIdSet.has(t.id),
+      })),
+
+    // Deathless-raid tiles — the plugin counts player deaths inside the raid instance and
+    // credits a run off the completion message only when that count is zero. The raid name
+    // rides timedActivity; requiredAmount = deathless runs needed.
+    trackedDeathless: allEventTiles
+      .filter((t) => t.tileType === 'deathless')
+      .map((t) => ({
+        tileId: t.id,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        activity: t.timedActivity ?? null,
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: submissionMap[t.id] ?? 0,
+        // Exact party size required (rides timeThresholdSeconds); 0 = any size.
+        partySize: t.timeThresholdSeconds ?? 0,
+        itemId: notableItemFor(t.timedActivity) ?? -1,
+        completed: completedTileIdSet.has(t.id),
+      })),
   });
 }

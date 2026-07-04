@@ -24,7 +24,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -33,7 +33,9 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
   { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
+  { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
+  { key: 'deathless', label: 'Deathless raid', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance and credits off the completion message.' },
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
@@ -122,12 +124,35 @@ const SOURCE_SUGGESTIONS = [
 // "Loot Chest" = opened loot keys), then the usual drop sources.
 const VALUE_SOURCE_SUGGESTIONS = ['PvP', 'Loot Chest', ...SOURCE_SUGGESTIONS];
 
+// Party size is only knowable inside raid instances, so the drop-tile party gate only
+// shows once the source restriction names a raid.
+const RAID_SOURCES = ['chambers of xeric', 'theatre of blood', 'tombs of amascut'];
+function sourcesIncludeRaid(sourceText: string): boolean {
+  return sourceText
+    .toLowerCase()
+    .split(',')
+    .some((s) => RAID_SOURCES.some((raid) => s.trim().includes(raid)));
+}
+
+// Deathless tiles only make sense for group PvM with a completion message the plugin can
+// correlate — the raids. Free text still accepted for future content.
+const DEATHLESS_ACTIVITY_SUGGESTIONS = [
+  'Chambers of Xeric',
+  'Chambers of Xeric: Challenge Mode',
+  'Theatre of Blood',
+  'Theatre of Blood: Hard Mode',
+  'Tombs of Amascut',
+  'Tombs of Amascut: Expert Mode',
+];
+
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
   if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'gain') return 'gain';
   if (initial.tileType === 'timed') return 'timed';
+  if (initial.tileType === 'deathless') return 'deathless';
   if (initial.tileType === 'lms') return 'lms';
   if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
@@ -209,6 +234,14 @@ export default function TileTrackingConfig({
   const [lmsPlacementCap, setLmsPlacementCap] = useState<string>(
     initial.tileType === 'lms' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '1',
   );
+  // Deathless party size (blank = any size). Also rides the timeThresholdSeconds column.
+  const [deathlessPartySize, setDeathlessPartySize] = useState<string>(
+    initial.tileType === 'deathless' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '',
+  );
+  // Drop-tile raid party size (blank = any) — "solo Cursed phalanx". Rides timeThresholdSeconds.
+  const [dropPartySize, setDropPartySize] = useState<string>(
+    initial.tileType === 'drop' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '',
+  );
   // Loot-value threshold in gp (rides the requiredAmount column for the value kind).
   const [valueGpText, setValueGpText] = useState<string>(
     (initial.tileType === 'value' || initial.tileType === 'valuetotal') && initial.requiredAmount
@@ -240,7 +273,9 @@ export default function TileTrackingConfig({
   const isDrop = kind === 'drop' || kind === 'collection';
   const isCollection = kind === 'collection';
   const isKill = kind === 'kill';
+  const isGain = kind === 'gain';
   const isTimed = kind === 'timed';
+  const isDeathless = kind === 'deathless';
   const isLms = kind === 'lms';
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
@@ -374,6 +409,25 @@ export default function TileTrackingConfig({
       setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
+    } else if (next === 'gain') {
+      // Keeps trackedItems + requiredAmount — the gain kind's whole config.
+      setTrackedStat("");
+      setStatGoal("");
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'deathless') {
+      // Keeps timedActivity (the raid), requiredAmount (runs) + party size.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
+      setTimeThresholdClock("");
+      setLmsPlacementCap('1');
     } else if (next === 'diary') {
       setTrackedStat("");
       setStatGoal("");
@@ -435,6 +489,10 @@ export default function TileTrackingConfig({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required amount of at least 1.';
     }
+    if ((kind === 'drop' || kind === 'collection') && sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()) {
+      const size = parseInt(dropPartySize, 10);
+      if (!Number.isInteger(size) || size < 1 || size > 100) return 'Party size must be between 1 and 100 (or blank for any).';
+    }
     if (kind === 'collection') {
       if (trackedItems.length === 0) return 'Add at least one item to the collection.';
       if (trackedItems.some((i) => i.perItemAmount < 1)) return 'Each collection item needs a count of at least 1.';
@@ -449,11 +507,25 @@ export default function TileTrackingConfig({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
     }
+    if (kind === 'gain') {
+      if (trackedItems.length === 0) return 'Add at least one item to count gains for.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set how many must be gained (at least 1).';
+    }
     if (kind === 'timed') {
       if (!timedActivity.trim()) return 'Name the activity to time (e.g. Inferno).';
       const secs = clockToSeconds(timeThresholdClock);
       if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
       if (secs > 86400) return 'Time cap cannot exceed 24 hours.';
+    }
+    if (kind === 'deathless') {
+      if (!timedActivity.trim()) return 'Pick the raid this tile is for (e.g. Theatre of Blood).';
+      const amt = parseInt(requiredAmount || '1', 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set how many deathless runs are needed (at least 1).';
+      if (deathlessPartySize.trim()) {
+        const size = parseInt(deathlessPartySize, 10);
+        if (!Number.isInteger(size) || size < 1 || size > 100) return 'Party size must be between 1 and 100 (or blank for any).';
+      }
     }
     if (kind === 'lms') {
       const cap = parseInt(lmsPlacementCap, 10);
@@ -487,7 +559,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isTimed ? 'timed' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -525,9 +597,19 @@ export default function TileTrackingConfig({
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = diarySelectors;
         payload.trackingMode = trackingMode;
+      } else if (kind === 'gain') {
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+        payload.trackingMode = trackingMode;
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
         payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
+      } else if (kind === 'deathless') {
+        // The raid rides the timedActivity column; requiredAmount = deathless runs needed;
+        // an exact party size (optional) rides timeThresholdSeconds, like the LMS cap.
+        payload.timedActivity = timedActivity.trim();
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+        payload.timeThresholdSeconds = deathlessPartySize.trim() ? parseInt(deathlessPartySize, 10) : null;
       } else if (kind === 'lms') {
         // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
         payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
@@ -540,6 +622,14 @@ export default function TileTrackingConfig({
       if (isDrop || isValue) {
         const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
         payload.sourceNpcs = npcs.length > 0 ? npcs : null;
+      }
+      if (isDrop) {
+        // Optional raid party-size gate ("solo Cursed phalanx") — rides timeThresholdSeconds.
+        // Only persisted while a raid source backs it; without one the plugin could never
+        // know the party size and the tile would silently stop counting.
+        payload.timeThresholdSeconds = sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()
+          ? parseInt(dropPartySize, 10)
+          : null;
       }
 
       const res = await fetch(`/api/events/${eventId}/tiles`, {
@@ -942,6 +1032,97 @@ export default function TileTrackingConfig({
         </div>
       )}
 
+      {/* ---- GAIN KIND (catch/cook/gather — counted from inventory gains) ---- */}
+      {isGain && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Required Amount</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="e.g. 100"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Total gains needed across all tracked items combined — e.g. &ldquo;catch 100 raw karambwan&rdquo;.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Tracked Items
+              <span className="text-text-muted/60 ml-1">(the plugin counts these appearing in the inventory)</span>
+            </label>
+            {trackedItems.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {trackedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    <span className="flex-1 min-w-0 truncate">
+                      {item.name}
+                      <span className="text-text-muted/60 ml-1">#{item.id}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTrackedItems((prev) => prev.filter((i) => i.id !== item.id))}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div ref={itemSearchRef} className="relative">
+              <Input
+                type="text"
+                value={itemSearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setItemSearch(val);
+                  setShowItemDropdown(true);
+                  if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => searchItems(val), 300);
+                }}
+                onFocus={() => itemResults.length > 0 && setShowItemDropdown(true)}
+                placeholder="Search by name or item ID (e.g. Raw karambwan)..."
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              {itemSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
+              {showItemDropdown && itemResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
+                  {itemResults.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setTrackedItems((prev) => [...prev, { ...item, perItemAmount: 1 }]);
+                        setItemSearch("");
+                        setItemResults([]);
+                        setShowItemDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gold/10 transition-colors flex justify-between items-center"
+                    >
+                      <span className="text-foreground">{item.name}</span>
+                      <span className="text-text-muted/60 text-xs">#{item.id}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-text-muted mt-1 leading-relaxed">
+              Counts items appearing in the inventory — fishing catches, cooked food, jarred implings. Gains
+              while the bank, GE, deposit box, or a trade is open don&rsquo;t count, and the plugin bakes the
+              running total onto a screenshot like kill tiles.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ---- KILL KIND ---- */}
       {isKill && (
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
@@ -1219,6 +1400,57 @@ export default function TileTrackingConfig({
             <p className="text-[10px] text-text-muted mt-0.5">
               Enter as <span className="text-foreground/70">mm:ss</span> (e.g. 30:00) or seconds. Pass/fail — the tile
               completes when a submitted clear time is at or under this cap.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- DEATHLESS KIND (raid with zero party deaths) ---- */}
+      {isDeathless && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Raid</label>
+            <Combobox
+              value={timedActivity}
+              onChange={setTimedActivity}
+              suggestions={DEATHLESS_ACTIVITY_SUGGESTIONS}
+              placeholder="e.g. Theatre of Blood"
+              ariaLabel="Deathless raid activity"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              The plugin counts every player death inside the raid instance and credits a run only when the
+              completion message arrives with zero deaths. Note: if the runner disconnects mid-raid, deaths
+              during the disconnect are missed — the baked screenshot is the audit trail.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Deathless runs needed</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="1"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Party size <span className="text-text-muted/60">(optional — blank = any size)</span>
+            </label>
+            <Input
+              type="number"
+              value={deathlessPartySize}
+              onChange={(e) => setDeathlessPartySize(e.target.value)}
+              placeholder="any"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              min="1"
+              max="100"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Require exactly this many players in the raid (e.g. 5 for a 5-man ToB). The plugin counts
+              the distinct players it sees inside the instance.
             </p>
           </div>
         </div>

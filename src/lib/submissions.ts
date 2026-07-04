@@ -45,11 +45,12 @@ export async function syncDropTileCompletion(
     const best = richest[0]?.best ?? null;
     totalAmount = best ?? 0;
     isComplete = best != null && best >= tile.requiredAmount;
-  } else if (tile.tileType === 'kill' || tile.tileType === 'diary' || tile.tileType === 'lms' || tile.tileType === 'valuetotal') {
-    // Kill count / diary completions / LMS qualifying games / aggregate loot value: accumulate
-    // the submitted amount toward the required amount, exactly like a simple drop tile (no
-    // per-item breakdown). For 'valuetotal', amount is each haul's gp and requiredAmount the
-    // total gp to collect. (LMS placement gating happens plugin-side, like kill targeting.)
+  } else if (tile.tileType === 'kill' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'diary' || tile.tileType === 'lms' || tile.tileType === 'valuetotal') {
+    // Kill count / item gains / deathless runs / diary completions / LMS qualifying games /
+    // aggregate loot value: accumulate the submitted amount toward the required amount,
+    // exactly like a simple drop tile (no per-item breakdown). For 'valuetotal', amount is
+    // each haul's gp and requiredAmount the total gp to collect. (LMS placement / deathless
+    // gating happens plugin-side, like kill targeting.)
     if (!tile.requiredAmount) return null;
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })

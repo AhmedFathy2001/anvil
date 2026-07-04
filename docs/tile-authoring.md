@@ -15,9 +15,14 @@ in `src/lib/csvTiles.ts` and the import API in
 
 ## 1. How import works (read this first)
 
-- **Upload path:** Admin → an event's **Tiles** tab → *Import CSV* (or `POST
-  /api/events/{eventId}/tiles/import` with `{ rows: [...] }`). The Tiles tab also has a
-  *Download template* button that exports the current board as a CSV in this exact format.
+- **Upload path:** Admin → an event's **Tiles** tab → *Upload CSV / Excel* (or `POST
+  /api/events/{eventId}/tiles/import` with `{ rows: [...] }`, or multipart with `file` =
+  the downloaded .xlsx workbook — only its **Tiles** sheet is read). The Tiles tab also has
+  *Download spreadsheet* (.xlsx workbook with dropdowns/item list/instructions) and
+  *Template CSV* buttons that export the current board in this exact format.
+- **The round trip is 1:1.** Downloading the spreadsheet and uploading it unchanged is a
+  no-op: rows that exactly match a tile's config are skipped (reported as `unchanged`,
+  no `updatedAt` stamp), nothing is added and nothing is lost.
 - **Rows map to tiles by position.** Row 1 → tile 1, row 2 → tile 2, … Existing tiles at
   that position are **updated**; fields you don't include are left untouched.
 - **Growing the board:** extra rows beyond the current tile count **create new tiles**
@@ -47,7 +52,7 @@ A blank `label` auto-fills as `Tile N`.
 |---|---|---|
 | `label` | Tile name shown on the board | Required for a meaningful tile; ≤200 chars |
 | `description` | Free text shown on the tile | Optional |
-| `type` | `standard` \| `drop` \| `kill` \| `timed` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
+| `type` | `standard` \| `drop` \| `kill` \| `gain` \| `timed` \| `deathless` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
 | `points` | Integer score weight (Leagues scoring) | ≥ 0, default 1 |
 | `category` | Grouping tag(s) for the plugin/UI — comma-separated for several (e.g. `"Inferno, PvM"`, quoted) | ≤120 chars |
 | `optional` | `true`/`false` (also `1`/`0`/`yes`/`y`) — doesn't count toward the total | |
@@ -57,7 +62,7 @@ A blank `label` auto-fills as `Tile N`.
 | `statGoal` | Integer XP (skill) or KC (boss) goal | ≥ 0 |
 | `targetNpcs` | **Kill** tiles — NPC name(s), **pipe-separated** | e.g. `Cow\|Cow calf`; up to 25, ≤40 chars each |
 | `timedActivity` | **Timed** tiles — activity to time (e.g. `Inferno`) | ≤60 chars |
-| `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3) | 1–86400 (e.g. 1800 = 30:00) |
+| `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3); **Deathless** tiles — exact party size (blank = any); **Drop** tiles — exact raid party size for the drop to count (blank = any) | 1–86400 (e.g. 1800 = 30:00) |
 | `items` | **Drop** tiles — tracked item(s) | See §3 for the mini-format |
 
 ---
@@ -72,6 +77,10 @@ Semicolon-separated entries: `Item:count; Item2:count2`. The `:count` suffix is 
 - a **raw id** — `12651` → used verbatim, no label.
 - **`Name#id`** — `Pet zilyana#12651` → pins an exact id with a readable label. Use this
   when a name is ambiguous or you already know the id.
+
+**Raid party-size gate (optional):** put an exact party size in `timeThresholdSeconds` and the
+drop only counts when the raid team had exactly that many players — e.g. a solo Cursed phalanx
+tile is items `Cursed phalanx` + `timeThresholdSeconds=1`. Blank = any size.
 
 **Simple drop pool vs collection** (the distinction is driven by `requiredAmount`):
 
@@ -143,6 +152,26 @@ royalTitans, yama`
 `type=timed`. Set `timedActivity` and `timeThresholdSeconds`.
 ```
 "Sub-30 Inferno",,timed,50,Inferno,false,,,,,,Inferno,1800,
+```
+
+### Item gain (catch / cook / gather)
+`type=gain`. The `items` column lists the item pool (semicolon-separated, like drop tiles);
+`requiredAmount` = how many must be gained in total. The plugin counts the items appearing in the
+inventory (bank/GE/trade gains ignored) and bakes the running total onto a screenshot.
+```
+"Catch 100 karambwan",,gain,20,Skilling,false,100,,,,,,,"Raw karambwan"
+```
+
+### Deathless raid (zero party deaths)
+`type=deathless`. The raid rides `timedActivity` (all modes work: `Chambers of Xeric`,
+`Chambers of Xeric: Challenge Mode`, `Theatre of Blood`, `Theatre of Blood: Hard Mode`,
+`Tombs of Amascut`, `Tombs of Amascut: Expert Mode`); `requiredAmount` = deathless runs needed.
+An optional exact party size rides `timeThresholdSeconds` (blank = any size). The plugin counts
+every player death inside the raid instance and credits a run off the completion message only
+when the count is zero. Entry Mode clears never credit a base-raid tile; harder modes do.
+```
+"Deathless ToB",,deathless,60,Raids,false,1,,,,,Theatre of Blood,,
+"Deathless 5-man ToB",,deathless,80,Raids,false,1,,,,,Theatre of Blood,5,
 ```
 
 ### Diary (achievement-diary completions during the event)

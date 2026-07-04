@@ -270,16 +270,21 @@ export async function PUT(
   // ('value') or all hauls together must reach it ('valuetotal') — and sourceNpcs as the
   // optional source filter ("PvP", "Loot Chest", NPC names).
   const isValue = merged.tileType === 'value' || merged.tileType === 'valuetotal';
-  // requiredAmount is shared by drop (item count), kill (kill count), diary (completions),
-  // lms (qualifying games) and value (gp threshold).
+  // Item-gain tiles count tracked items appearing in the inventory (catch/cook/gather);
+  // they reuse trackedItemIds as the item pool and requiredAmount as the target count.
+  const isGain = merged.tileType === 'gain';
+  // Deathless tiles reuse timedActivity as the raid and requiredAmount as runs needed.
+  const isDeathless = merged.tileType === 'deathless';
+  // requiredAmount is shared by drop (item count), kill (kill count), gain (items gained),
+  // diary (completions), lms (qualifying games), value (gp threshold) and deathless (runs).
   const hasRequiredAmount = merged.requiredAmount != null;
   const hasDropItems = parseLen(merged.trackedItemIds) > 0 || parseLen(merged.itemRequirements) > 0;
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, timed, diary, LMS, or value tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, gain, timed, deathless, diary, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -287,8 +292,11 @@ export async function PUT(
     return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
   }
   // Field/kind coherence for the submission-backed kinds.
-  if (hasDropItems && !isDrop) {
-    return NextResponse.json({ error: 'Only drop tiles can carry tracked items.' }, { status: 400 });
+  if (hasDropItems && !isDrop && !isGain) {
+    return NextResponse.json({ error: 'Only drop or gain tiles can carry tracked items.' }, { status: 400 });
+  }
+  if (parseLen(merged.itemRequirements) > 0 && isGain) {
+    return NextResponse.json({ error: 'Gain tiles track a flat item list — per-item requirements are for drop collections.' }, { status: 400 });
   }
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
@@ -296,14 +304,14 @@ export async function PUT(
   if (hasKillFields && !isKill && !isDiary) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary tiles, diary selectors).' }, { status: 400 });
   }
-  if (merged.timedActivity && !isTimed) {
-    return NextResponse.json({ error: 'Only timed tiles can carry an activity.' }, { status: 400 });
+  if (merged.timedActivity && !isTimed && !isDeathless) {
+    return NextResponse.json({ error: 'Only timed or deathless tiles can carry an activity.' }, { status: 400 });
   }
-  if (merged.timeThresholdSeconds != null && !isTimed && !isLms) {
-    return NextResponse.json({ error: 'Only timed tiles (time cap) or LMS tiles (placement cap) can carry a threshold.' }, { status: 400 });
+  if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
+    return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isDiary && !isLms && !isValue) {
-    return NextResponse.json({ error: 'Only drop, kill, diary, LMS, or value tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isGain && !isDiary && !isLms && !isValue && !isDeathless) {
+    return NextResponse.json({ error: 'Only drop, kill, gain, diary, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

@@ -420,19 +420,26 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setImportMsg(null);
     setImporting(true);
     try {
-      const text = await file.text();
-      const parsed = parseTileCsv(text);
-      if (parsed.error) {
-        setImportMsg({ type: 'error', text: parsed.error });
-        return;
+      // The downloaded .xlsx workbook uploads as-is (its Tiles sheet is parsed server-side,
+      // where exceljs lives); CSVs parse right here. Both feed the same import rows.
+      let res: Response;
+      if (/\.xlsx$/i.test(file.name)) {
+        const form = new FormData();
+        form.append('file', file);
+        res = await fetch(`/api/events/${event.id}/tiles/import`, { method: 'POST', body: form });
+      } else {
+        const text = await file.text();
+        const parsed = parseTileCsv(text);
+        if (parsed.error) {
+          setImportMsg({ type: 'error', text: parsed.error });
+          return;
+        }
+        res = await fetch(`/api/events/${event.id}/tiles/import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: parsed.rows }),
+        });
       }
-      const rows = parsed.rows;
-
-      const res = await fetch(`/api/events/${event.id}/tiles/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows }),
-      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setImportMsg({ type: 'error', text: data.error || 'Import failed' });
@@ -441,7 +448,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       const bits: string[] = [];
       if (data.applied) bits.push(`updated ${data.applied}`);
       if (data.created) bits.push(`added ${data.created} new`);
-      if (!bits.length) bits.push('no tiles changed');
+      if (!bits.length) bits.push(data.unchanged ? 'board already matches the sheet — nothing to change' : 'no tiles changed');
       setImportMsg({
         type: 'success',
         text: `Import complete — ${bits.join(', ')}${data.ignored ? ` · ${data.ignored} extra row(s) ignored` : ''}.`,
@@ -449,7 +456,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       // Pull the fresh tile set so both updated and newly-created tiles render immediately.
       await syncTilesFromServer();
     } catch {
-      setImportMsg({ type: 'error', text: 'Could not read the CSV file.' });
+      setImportMsg({ type: 'error', text: 'Could not read the file.' });
     } finally {
       setImporting(false);
     }
@@ -504,7 +511,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <a
               href={`/api/events/${event.id}/tiles/spreadsheet`}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 bg-gold/10 text-gold hover:bg-gold/20 transition-colors"
-              title="Download a Google-Sheets-ready workbook (current tiles + dropdowns, item list, examples, instructions) to draft the board with your team"
+              title="Download an Excel workbook (current tiles + dropdowns, item list, examples, instructions) — draft in Excel or Google Sheets, then upload the same file straight back"
             >
               Download spreadsheet
             </a>
@@ -514,13 +521,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             >
               Template CSV
             </button>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={handleImportFile}
+              className="hidden"
+            />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
             >
-              {importing ? 'Importing…' : 'Upload CSV'}
+              {importing ? 'Importing…' : 'Upload CSV / Excel'}
             </button>
           </div>
         </div>
@@ -552,9 +565,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
         </p>
         <p className="text-xs text-text-muted leading-relaxed mt-2">
-          <span className="text-gold">Drafting with your team?</span> Use <span className="text-gold">Download spreadsheet</span> for an
-          Excel file with the current tiles, dropdowns, the full item list and instructions baked in — upload it to Google Drive,
-          open with Google Sheets, and draft together. When done, download the <em>Tiles</em> tab as CSV and upload it here.
+          <span className="text-gold">Drafting with your team?</span> The easiest way is right here — tile editing on this page is
+          collaborative (live edits with per-tile locks, so nobody overwrites anyone). Prefer to seed the board from a spreadsheet
+          first? <span className="text-gold">Download spreadsheet</span> gives an Excel file with the current tiles, dropdowns, the
+          full item list and instructions baked in — draft in Excel or Google Sheets, then upload the same file (or a CSV of the{' '}
+          <em>Tiles</em> tab) straight back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
         </p>
         {importMsg && (
           <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
@@ -935,13 +950,15 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
 function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
+  if (tile.tileType === 'gain') return 'gain';
   if (tile.tileType === 'timed') return 'timed';
+  if (tile.tileType === 'deathless') return 'deathless';
   if (tile.tileType === 'lms') return 'lms';
   if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
   if (tile.tileType === 'diary') return 'diary';
@@ -961,7 +978,9 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' },
   collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light' },
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
+  gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
+  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300' },
   lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
   value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300' },
@@ -977,7 +996,9 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'drop', label: 'Drop' },
   { key: 'collection', label: 'Item set' },
   { key: 'kill', label: 'Kill' },
+  { key: 'gain', label: 'Gain' },
   { key: 'timed', label: 'Timed' },
+  { key: 'deathless', label: 'Deathless' },
   { key: 'lms', label: 'LMS' },
   { key: 'value', label: 'Value' },
   { key: 'diary', label: 'Diary' },
@@ -1004,6 +1025,12 @@ function tileMeta(tile: Tile): string {
     }
     case 'kill':
       return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
+    case 'gain':
+      return tile.requiredAmount ? `Item gain · ${tile.requiredAmount}` : 'Item gain';
+    case 'deathless': {
+      const party = tile.timeThresholdSeconds ? ` · ${tile.timeThresholdSeconds}-man` : '';
+      return `Deathless · ${tile.timedActivity || 'raid'}${party}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+    }
     case 'timed':
       return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
     case 'lms': {
