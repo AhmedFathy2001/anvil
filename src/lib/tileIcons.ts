@@ -22,6 +22,7 @@ export const NOTABLE_ACTIVITY_ITEMS: Record<string, number> = {
   'theatre of blood': 22486,                                              // Scythe of vitur
   'tombs of amascut': 27277,                                              // Tumeken's shadow
   'the gauntlet': 25859, 'gauntlet': 25859, 'corrupted gauntlet': 25859,  // Enhanced crystal weapon seed
+  'crystalline hunllef': 25859, 'corrupted hunllef': 25859,               // kill tiles target the boss by name
   'hallowed sepulchre': 24844,                                            // Ring of endurance
   'tempoross': 25576,                                                     // Tome of water
   'the nightmare': 24417, 'nightmare': 24417, "phosani's nightmare": 24417, // Inquisitor's mace
