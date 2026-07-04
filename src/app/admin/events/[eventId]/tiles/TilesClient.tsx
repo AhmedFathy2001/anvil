@@ -66,6 +66,25 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
 
+  // Effort-model refetch trigger + the balance panel's one-click "apply suggested points".
+  const [tilesVersion, setTilesVersion] = useState(0);
+  useEffect(() => setTilesVersion((v) => v + 1), [localTiles]);
+  async function applySuggestedPoints(tileId: number, points: number): Promise<boolean> {
+    const res = await fetch(`/api/events/${event.id}/tiles`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tileId, points }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setImportMsg({ type: 'error', text: data.error || 'Could not update points.' });
+      return false;
+    }
+    const updated = await res.json();
+    setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, points: updated.points, updatedAt: updated.updatedAt } : t)));
+    return true;
+  }
+
   // Concurrent-edit protection. Opening a tile re-fetches it (a save then starts from the
   // latest state, not the page-load list) and takes an advisory lock so a second admin sees
   // who's already editing. A heartbeat keeps the lock alive while the editor stays open;
@@ -579,8 +598,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         )}
       </div>
 
-      {/* Live structural balance read — recomputes as tiles change */}
-      <BoardBalancePanel tiles={localTiles} pointsMode={pointsMode} tierBands={tierBands} />
+      {/* Live balance read — structural checks recompute client-side; the effort model
+          refetches (debounced) whenever the tile set changes */}
+      <BoardBalancePanel
+        eventId={event.id}
+        tiles={localTiles}
+        tilesVersion={tilesVersion}
+        pointsMode={pointsMode}
+        tierBands={tierBands}
+        onApplyPoints={applySuggestedPoints}
+      />
 
       {/* Per-tile configuration */}
       <div>

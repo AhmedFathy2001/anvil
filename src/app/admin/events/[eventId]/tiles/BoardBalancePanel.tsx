@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Tile } from '@/lib/types';
 import type { TierBand } from '@/lib/tileFilter';
-import { analyzeBoard, type BalanceLevel } from '@/lib/boardBalance';
+import { analyzeBoard, type BalanceLevel, type BalanceCheck } from '@/lib/boardBalance';
 import CollapsibleSection from '@/components/CollapsibleSection';
+import EffortTable from './EffortTable';
 
 // "Board balance" — live structural read of the tile set (recomputes as tiles change).
 // Phase 1: tier shape, category concentration, kind mix, luck exposure, hygiene checks.
@@ -32,15 +33,32 @@ function ShareBar({ label, share, color }: { label: string; share: number; color
 }
 
 export default function BoardBalancePanel({
+  eventId,
   tiles,
+  tilesVersion,
   pointsMode,
   tierBands,
+  onApplyPoints,
 }: {
+  eventId: number;
   tiles: Tile[];
+  /** Bumps whenever the tile set changes — triggers the effort refetch. */
+  tilesVersion: number;
   pointsMode: boolean;
   tierBands?: TierBand[];
+  onApplyPoints: (tileId: number, points: number) => Promise<boolean>;
 }) {
-  const report = useMemo(() => analyzeBoard(tiles, { pointsMode, tierBands }), [tiles, pointsMode, tierBands]);
+  const structural = useMemo(() => analyzeBoard(tiles, { pointsMode, tierBands }), [tiles, pointsMode, tierBands]);
+  const [effortChecks, setEffortChecks] = useState<BalanceCheck[]>([]);
+  const report = useMemo(() => {
+    // One unified checks list: structural + effort. The structural all-clear only survives
+    // when the effort side is quiet too.
+    const checks = [...structural.checks.filter((c) => c.id !== 'all-clear'), ...effortChecks];
+    if (checks.length === 0 && structural.checks.some((c) => c.id === 'all-clear')) {
+      checks.push(...structural.checks.filter((c) => c.id === 'all-clear'));
+    }
+    return { ...structural, checks };
+  }, [structural, effortChecks]);
   if (report.tileCount === 0) return null;
 
   const warns = report.checks.filter((c) => c.level === 'warn').length;
@@ -112,10 +130,17 @@ export default function BoardBalancePanel({
           )}
         </div>
 
+        {/* Effort model — server-computed (drop-rate dataset), debounced refetch on edits */}
+        <EffortTable
+          eventId={eventId}
+          pointsMode={pointsMode}
+          tilesVersion={tilesVersion}
+          onChecks={setEffortChecks}
+          onApplyPoints={onApplyPoints}
+        />
+
         <p className="text-[10px] text-text-muted leading-relaxed">
-          Structural checks only — points-per-expected-hour auditing (with fast/average/slow player
-          spread and accessibility floors) arrives with the effort model. Multi-tag tiles count toward
-          each of their tags; optional tiles are excluded.
+          Multi-tag tiles count toward each of their tags; optional tiles are excluded everywhere.
         </p>
       </div>
     </CollapsibleSection>
