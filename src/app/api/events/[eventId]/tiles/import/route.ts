@@ -35,7 +35,7 @@ interface ImportRow {
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
-  items?: { name?: string; count: number; id?: number }[] | null;
+  items?: { name?: string; count: number; id?: number; group?: string | null }[] | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -136,12 +136,13 @@ function deriveItemFields(
   if (!Array.isArray(row.items) || row.items.length === 0) return null;
   const reqs = row.items.map((it) => {
     const requiredAmount = Math.max(1, Math.floor(it.count) || 1);
+    const group = it.group?.trim() ? it.group.trim().slice(0, 30) : null;
     if (it.id != null) {
       const label = it.name && it.name.trim() ? it.name.trim() : byId.get(it.id)?.name ?? `Item #${it.id}`;
-      return { itemId: it.id, name: label, requiredAmount };
+      return { itemId: it.id, name: label, requiredAmount, group };
     }
     const hit = byName.get((it.name ?? '').trim().toLowerCase())!;
-    return { itemId: hit.id, name: hit.name, requiredAmount };
+    return { itemId: hit.id, name: hit.name, requiredAmount, group };
   });
   const simpleAmount =
     row.requiredAmount != null && Number.isInteger(row.requiredAmount) && row.requiredAmount >= 1
@@ -150,9 +151,18 @@ function deriveItemFields(
   if (simpleAmount != null) {
     return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null };
   }
+  // Collections: classic all-of totals sum every item; "any full set" groups (via @Set)
+  // count the ungrouped items plus the smallest set — the shortest path to completion.
+  const groupSums = new Map<string, number>();
+  let ungroupedSum = 0;
+  for (const r of reqs) {
+    const g = r.group?.toLowerCase();
+    if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
+    else ungroupedSum += r.requiredAmount;
+  }
   return {
     tileType: 'drop',
-    requiredAmount: reqs.reduce((s, r) => s + r.requiredAmount, 0),
+    requiredAmount: groupSums.size === 0 ? ungroupedSum : ungroupedSum + Math.min(...groupSums.values()),
     trackedItemIds: null,
     itemRequirements: reqs,
   };

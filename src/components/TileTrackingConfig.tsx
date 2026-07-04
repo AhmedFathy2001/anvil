@@ -218,9 +218,9 @@ export default function TileTrackingConfig({
   const [valueMode, setValueMode] = useState<'single' | 'total'>(
     initial.tileType === 'valuetotal' ? 'total' : 'single',
   );
-  const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number }[]>(
+  const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number; group?: string }[]>(
     initial.itemRequirements?.length
-      ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount }))
+      ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount, group: r.group ?? undefined }))
       : (initial.trackedItemIds || []).map((id) => ({ id, name: `Item #${id}`, perItemAmount: 1 })),
   );
   const [itemSearch, setItemSearch] = useState("");
@@ -510,6 +510,7 @@ export default function TileTrackingConfig({
           itemId: i.id,
           name: i.name,
           requiredAmount: i.perItemAmount,
+          group: i.group?.trim() || null,
         }));
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -773,7 +774,17 @@ export default function TileTrackingConfig({
                 Total Required <span className="text-text-muted/60">(auto-computed)</span>
               </label>
               <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
-                {trackedItems.reduce((sum, i) => sum + i.perItemAmount, 0)}
+                {(() => {
+                  const groups = new Map<string, number>();
+                  let ungrouped = 0;
+                  for (const i of trackedItems) {
+                    const g = i.group?.trim().toLowerCase();
+                    if (g) groups.set(g, (groups.get(g) ?? 0) + i.perItemAmount);
+                    else ungrouped += i.perItemAmount;
+                  }
+                  if (groups.size === 0) return ungrouped;
+                  return `${ungrouped + Math.min(...groups.values())} (smallest set of ${groups.size})`;
+                })()}
               </div>
             </div>
           )}
@@ -796,17 +807,31 @@ export default function TileTrackingConfig({
                       <span className="text-text-muted/60 ml-1">#{item.id}</span>
                     </span>
                     {isCollection && (
-                      <Input
-                        type="number"
-                        value={item.perItemAmount}
-                        onChange={(e) => {
-                          const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                          setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, perItemAmount: val } : i)));
-                        }}
-                        min="1"
-                        className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
-                        title="Required amount for this item"
-                      />
+                      <>
+                        <Input
+                          type="text"
+                          value={item.group ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, group: val } : i)));
+                          }}
+                          maxLength={30}
+                          placeholder="set"
+                          className="w-24 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground"
+                          title='Set name for "any full set" tiles — items sharing a set complete together; one whole set finishes the tile. Blank = always required.'
+                        />
+                        <Input
+                          type="number"
+                          value={item.perItemAmount}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, perItemAmount: val } : i)));
+                          }}
+                          min="1"
+                          className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
+                          title="Required amount for this item"
+                        />
+                      </>
                     )}
                     <button
                       type="button"
@@ -817,6 +842,25 @@ export default function TileTrackingConfig({
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {isCollection && trackedItems.length > 1 && (
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTrackedItems((prev) => prev.map((i) => ({ ...i, group: i.name.split(' ')[0] })))
+                  }
+                  className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                  title="Fill each item's set from the first word of its name (Dharok's, Ahrim's, Blood, …)"
+                >
+                  Auto-set by name prefix
+                </button>
+                <span className="text-[10px] text-text-muted leading-tight">
+                  Sets make this an <span className="text-gold">any-one-set</span> tile: one complete set finishes it
+                  (no mixing). Blank = item always required.
+                </span>
               </div>
             )}
 

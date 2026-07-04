@@ -59,7 +59,7 @@ export async function syncDropTileCompletion(
     isComplete = totalAmount >= tile.requiredAmount;
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
     const itemRequirements = tile.itemRequirements
-      ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[]
+      ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
       : null;
 
     if (itemRequirements) {
@@ -75,7 +75,23 @@ export async function syncDropTileCompletion(
 
       const itemTotalMap = new Map(perItemTotals.map(r => [r.itemId, Number(r.total)]));
       totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
-      isComplete = itemRequirements.every(req => (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount);
+      // Grouped ("any full set") mode: requirements carrying a `group` name form sets that are
+      // OR-ed — the tile completes when ONE set is fully collected (no mixing across sets).
+      // Ungrouped requirements stay AND-ed on top, and a tile with no groups at all keeps the
+      // classic all-of collection semantics.
+      const met = (req: { itemId: number; requiredAmount: number }) =>
+        (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
+      const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
+      const groups = new Map<string, typeof itemRequirements>();
+      for (const r of itemRequirements) {
+        const g = r.group?.trim();
+        if (!g) continue;
+        const key = g.toLowerCase();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(r);
+      }
+      const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
+      isComplete = ungrouped.every(met) && anySetDone;
     } else {
       // Simple mode: existing behavior
       const result = await db

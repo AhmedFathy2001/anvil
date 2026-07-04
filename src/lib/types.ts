@@ -104,6 +104,10 @@ export interface ItemRequirement {
   itemId: number;
   name: string;
   requiredAmount: number;
+  /** Set name for "any full set" collections — requirements sharing a group form a set that
+   *  is OR-ed against the other sets (one complete set finishes the tile; no mixing).
+   *  Absent/null = a classic always-required collection item. */
+  group?: string | null;
 }
 
 export interface ItemRequirementProgress extends ItemRequirement {

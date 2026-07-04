@@ -94,11 +94,12 @@ export async function PUT(
   if (itemRequirements !== undefined && itemRequirements !== null) {
     if (!Array.isArray(itemRequirements) ||
         !itemRequirements.every((r: unknown) => {
-          const req = r as { itemId?: unknown; requiredAmount?: unknown };
+          const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown };
+          const groupOk = req.group == null || (typeof req.group === 'string' && req.group.length <= 30);
           return req && Number.isInteger(req.itemId) && (req.itemId as number) > 0 &&
-                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1;
+                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk;
         })) {
-      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId and requiredAmount >= 1' }, { status: 400 });
+      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, and an optional set name (≤30 chars)' }, { status: 400 });
     }
   }
 
@@ -204,7 +205,21 @@ export async function PUT(
     if (itemRequirements && Array.isArray(itemRequirements) && itemRequirements.length > 0) {
       updateSet.itemRequirements = JSON.stringify(itemRequirements);
       updateSet.trackedItemIds = JSON.stringify(itemRequirements.map((r: { itemId: number }) => r.itemId));
-      updateSet.requiredAmount = itemRequirements.reduce((sum: number, r: { requiredAmount: number }) => sum + r.requiredAmount, 0);
+      // Display total: classic collections need every item, so the sum. "Any full set"
+      // collections need the ungrouped items plus ONE set — use the smallest set so the
+      // X/Y progress reflects the shortest path to completion.
+      updateSet.requiredAmount = (() => {
+        const reqs = itemRequirements as { requiredAmount: number; group?: string | null }[];
+        const groupSums = new Map<string, number>();
+        let ungroupedSum = 0;
+        for (const r of reqs) {
+          const g = r.group?.trim().toLowerCase();
+          if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
+          else ungroupedSum += r.requiredAmount;
+        }
+        if (groupSums.size === 0) return ungroupedSum;
+        return ungroupedSum + Math.min(...groupSums.values());
+      })();
     } else {
       // Cleared. Wipe derived trackedItemIds unless the admin explicitly set a non-empty
       // trackedItemIds in the same request (simple-mode drop tile).

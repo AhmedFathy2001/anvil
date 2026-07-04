@@ -21,7 +21,8 @@
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)
-//   items               drop tiles — tracked item(s), "Name:count" semicolon-separated
+//   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
+//                       append "@Set" for any-one-set collections ("Dharok's helm:1@Dharok")
 //                       (e.g. "Blood moon helm:1; Blue moon helm:1"). Count is optional (def 1).
 //                       Each entry can be a NAME (resolved to an item ID on import — covers
 //                       untradeables/pets too), a raw ID ("12651:1"), or "Name#id" to pin an
@@ -54,6 +55,8 @@ export interface TileCsvItem {
   count: number;
   /** Explicit item id ("12651:1" or "Name#12651:1") — bypasses name resolution when set. */
   id?: number;
+  /** "Any full set" group ("Name:count@Set") — items sharing a set complete together. */
+  group?: string;
 }
 
 export interface TileCsvRow {
@@ -81,8 +84,19 @@ function parseItemsCell(v: string): TileCsvItem[] {
     .split(';')
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((entry): TileCsvItem | null => {
-      // Split a trailing ":count" off the item part (count optional).
+    .map((rawEntry): TileCsvItem | null => {
+      // Split a trailing "@Set" off first ("Name:count@Set"), then ":count" (both optional).
+      let entry = rawEntry;
+      let group: string | undefined;
+      const at = entry.lastIndexOf('@');
+      if (at > 0) {
+        const g = entry.slice(at + 1).trim();
+        // Only treat it as a set name when it isn't part of the item name (no digits-only ids follow '@').
+        if (g && g.length <= 30 && !g.includes(':')) {
+          group = g;
+          entry = entry.slice(0, at).trim();
+        }
+      }
       let itemPart = entry;
       let count = 1;
       const ci = entry.lastIndexOf(':');
@@ -96,14 +110,14 @@ function parseItemsCell(v: string): TileCsvItem[] {
       // "Name#id" — explicit id with a label.
       const hashed = itemPart.match(/^(.*)#(\d+)$/);
       if (hashed) {
-        return { name: hashed[1].trim(), count, id: parseInt(hashed[2], 10) };
+        return { name: hashed[1].trim(), count, id: parseInt(hashed[2], 10), group };
       }
       // Bare numeric — a raw id, no label.
       if (/^\d+$/.test(itemPart)) {
-        return { name: '', count, id: parseInt(itemPart, 10) };
+        return { name: '', count, id: parseInt(itemPart, 10), group };
       }
       // Plain name.
-      return itemPart ? { name: itemPart, count } : null;
+      return itemPart ? { name: itemPart, count, group } : null;
     })
     .filter((it): it is TileCsvItem => it != null && (it.name.length > 0 || it.id != null));
 }
@@ -311,12 +325,13 @@ function jsonNamesToPipes(v: string | null | undefined): string {
 function tileItemsCell(t: Tile): string {
   if (t.itemRequirements) {
     try {
-      const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
+      const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[];
       if (Array.isArray(reqs) && reqs.length) {
         return reqs
           .map((r) => {
             const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
-            return `${labelled}:${r.requiredAmount}`;
+            const set = r.group?.trim() ? `@${r.group.trim()}` : '';
+            return `${labelled}:${r.requiredAmount}${set}`;
           })
           .join('; ');
       }

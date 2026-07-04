@@ -398,27 +398,65 @@ export default function TileDetailModal({
                 />
               </div>
 
-              {/* Per-item breakdown */}
-              {perItemProgress && perItemProgress.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {perItemProgress.map((item) => {
-                    const itemComplete = item.currentAmount >= item.requiredAmount;
-                    return (
-                      <div key={item.itemId} className="flex items-center gap-2 text-xs">
-                        <span className={`flex-shrink-0 w-4 text-center ${itemComplete ? 'text-accent-green-light' : 'text-text-muted'}`}>
-                          {itemComplete ? '\u2713' : ''}
-                        </span>
-                        <span className={`flex-1 min-w-0 truncate ${itemComplete ? 'text-accent-green-light' : 'text-foreground'}`}>
-                          {item.name}
-                        </span>
-                        <span className={`font-medium ${itemComplete ? 'text-accent-green-light' : 'text-gold'}`}>
-                          {item.currentAmount}/{item.requiredAmount}
-                        </span>
+              {/* Per-item breakdown. Items carrying a `group` form "any one set" alternatives \u2014
+                  one fully-collected set completes the tile (no mixing); ungrouped items are
+                  always required. Without groups this renders the classic flat list. */}
+              {perItemProgress && perItemProgress.length > 0 && (() => {
+                const row = (item: (typeof perItemProgress)[number]) => {
+                  const itemComplete = item.currentAmount >= item.requiredAmount;
+                  return (
+                    <div key={item.itemId} className="flex items-center gap-2 text-xs">
+                      <span className={`flex-shrink-0 w-4 text-center ${itemComplete ? 'text-accent-green-light' : 'text-text-muted'}`}>
+                        {itemComplete ? '\u2713' : ''}
+                      </span>
+                      <span className={`flex-1 min-w-0 truncate ${itemComplete ? 'text-accent-green-light' : 'text-foreground'}`}>
+                        {item.name}
+                      </span>
+                      <span className={`font-medium ${itemComplete ? 'text-accent-green-light' : 'text-gold'}`}>
+                        {item.currentAmount}/{item.requiredAmount}
+                      </span>
+                    </div>
+                  );
+                };
+                const ungrouped = perItemProgress.filter((i) => !i.group?.trim());
+                const sets = new Map<string, typeof perItemProgress>();
+                for (const i of perItemProgress) {
+                  const g = i.group?.trim();
+                  if (!g) continue;
+                  const key = g.toLowerCase();
+                  if (!sets.has(key)) sets.set(key, []);
+                  sets.get(key)!.push(i);
+                }
+                if (sets.size === 0) {
+                  return <div className="mt-3 space-y-1.5">{perItemProgress.map(row)}</div>;
+                }
+                return (
+                  <div className="mt-3 space-y-2.5">
+                    <p className="text-[11px] text-text-muted">
+                      Complete <span className="text-gold">any one set</span> below \u2014 pieces from different
+                      sets don&rsquo;t mix.
+                    </p>
+                    {ungrouped.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-text-muted mb-1">Always required</p>
+                        <div className="space-y-1.5">{ungrouped.map(row)}</div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+                    {[...sets.values()].map((set) => {
+                      const setDone = set.every((i) => i.currentAmount >= i.requiredAmount);
+                      const label = set[0].group!.trim();
+                      return (
+                        <div key={label.toLowerCase()} className={`rounded-lg border px-2.5 py-2 ${setDone ? 'border-accent-green/40 bg-accent-green/10' : 'border-card-border/60'}`}>
+                          <p className={`text-[11px] font-semibold mb-1 ${setDone ? 'text-accent-green-light' : 'text-foreground/80'}`}>
+                            {label}{setDone ? ' \u2713' : ''}
+                          </p>
+                          <div className="space-y-1.5">{set.map(row)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

@@ -291,7 +291,7 @@ export async function GET(request: Request) {
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {
         const itemReqs = t.itemRequirements
-          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[]
+          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
           : null;
         const tileItemTotals = perItemMap.get(t.id);
 
@@ -325,6 +325,7 @@ export async function GET(request: Request) {
               itemId: req.itemId,
               name: req.name,
               requiredAmount: req.requiredAmount,
+              group: req.group ?? null,
               currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
             })),
           } : {}),
