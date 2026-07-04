@@ -6,6 +6,7 @@ import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
+import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import CollapsibleSection from '@/components/CollapsibleSection';
 
@@ -224,6 +225,13 @@ export default function AdminIntegrationsPage() {
           summary="The difficulty bands points map onto, used by the Tier filter on the board and plugin clog."
         >
           <TierBandsSetting />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Board balance rates"
+          summary="Kill times, XP rates and skill floors behind the Tiles tab's effort model — tune them to your clan."
+        >
+          <BalanceRatesSetting />
         </CollapsibleSection>
       </div>
     </div>
