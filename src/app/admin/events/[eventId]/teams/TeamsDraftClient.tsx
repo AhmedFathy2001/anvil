@@ -90,9 +90,28 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (draft.teamOrder.length < 1) return 2;
     return 3;
   });
-  // Jump to the Run-draft view the moment the draft starts or finishes.
+  // Once everything's set up the initializer always lands on "Run draft" — which turns every
+  // visit to this tab into a forced jump there. Remember the admin's chosen step for the
+  // session instead (restored after mount to keep SSR hydration clean).
+  const stepStorageKey = `draft-step-${event.id}`;
   useEffect(() => {
-    if (draft.status === 'active' || draft.status === 'paused' || draft.status === 'completed') {
+    const saved = window.sessionStorage.getItem(stepStorageKey);
+    if (saved != null && draft.status === 'none') {
+      const n = parseInt(saved, 10);
+      if (Number.isInteger(n) && n >= 0 && n <= 3) setActiveStep(n);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    window.sessionStorage.setItem(stepStorageKey, String(activeStep));
+  }, [activeStep, stepStorageKey]);
+  // Jump to the Run-draft view the moment the draft actually starts or finishes — a live
+  // TRANSITION only, so it never fights the admin's own navigation.
+  const prevDraftStatus = useRef(draft.status);
+  useEffect(() => {
+    const prev = prevDraftStatus.current;
+    prevDraftStatus.current = draft.status;
+    if (prev !== draft.status && (draft.status === 'active' || draft.status === 'paused' || draft.status === 'completed')) {
       setActiveStep(3);
     }
   }, [draft.status]);
