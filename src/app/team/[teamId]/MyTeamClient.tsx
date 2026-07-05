@@ -44,6 +44,8 @@ export default function MyTeamClient({
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(initialTeam.name);
+  const [newColor, setNewColor] = useState(initialTeam.color);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<string | null>(null);
@@ -52,7 +54,9 @@ export default function MyTeamClient({
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
-  const canEditName = isCaptain && !eventStarted;
+  // Captains may rebrand (name + color) only between draft finalization and event start —
+  // the API enforces the same window.
+  const canEditName = isCaptain && !eventStarted && event.draftStatus === 'completed';
 
   const eventCountdown = useCountdown(!eventStarted ? event.startDate : null);
   const { countdown, setNextRefresh } = useRefreshCountdown();
@@ -195,22 +199,26 @@ export default function MyTeamClient({
   }
 
   async function saveTeamName() {
-    if (!newName.trim() || newName === team.name) {
+    if (!newName.trim() || (newName === team.name && newColor === team.color)) {
       setEditingName(false);
       return;
     }
     setSavingName(true);
+    setNameError(null);
     const res = await fetch(`/api/events/${event.id}/teams`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId: team.id, name: newName.trim() }),
+      body: JSON.stringify({ teamId: team.id, name: newName.trim(), color: newColor }),
     });
     if (res.ok) {
       const updated = await res.json();
-      setTeam({ ...team, name: updated.name });
+      setTeam({ ...team, name: updated.name, color: updated.color });
+      setEditingName(false);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setNameError(data.error || 'Could not save.');
     }
     setSavingName(false);
-    setEditingName(false);
   }
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
@@ -247,7 +255,18 @@ export default function MyTeamClient({
   return (
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
-        <div className="w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background" style={{ backgroundColor: team.color }} />
+        {editingName ? (
+          <label className="relative w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background cursor-pointer" style={{ backgroundColor: newColor }} title="Pick team color">
+            <input
+              type="color"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          </label>
+        ) : (
+          <div className="w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background" style={{ backgroundColor: team.color }} />
+        )}
         {editingName ? (
           <div className="flex items-center gap-2">
             <Input
@@ -258,21 +277,22 @@ export default function MyTeamClient({
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') saveTeamName();
-                if (e.key === 'Escape') { setEditingName(false); setNewName(team.name); }
+                if (e.key === 'Escape') { setEditingName(false); setNewName(team.name); setNewColor(team.color); setNameError(null); }
               }}
             />
             <button onClick={saveTeamName} disabled={savingName} className="text-xs text-accent-green-light hover:text-accent-green transition-colors">
               {savingName ? '...' : 'Save'}
             </button>
-            <button onClick={() => { setEditingName(false); setNewName(team.name); }} className="text-xs text-text-muted hover:text-foreground transition-colors">
+            <button onClick={() => { setEditingName(false); setNewName(team.name); setNewColor(team.color); setNameError(null); }} className="text-xs text-text-muted hover:text-foreground transition-colors">
               Cancel
             </button>
+            {nameError && <span className="text-xs text-red-400">{nameError}</span>}
           </div>
         ) : (
           <h1
             className={`text-2xl sm:text-3xl font-bold ${canEditName ? 'cursor-pointer hover:text-gold' : ''} transition-colors`}
             onClick={() => canEditName && setEditingName(true)}
-            title={canEditName ? 'Click to edit team name' : undefined}
+            title={canEditName ? 'Click to edit team name & color' : undefined}
           >
             {team.name}
           </h1>

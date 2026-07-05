@@ -383,6 +383,40 @@ export interface TeardownReport {
 }
 
 /**
+ * Mirror a team rebrand onto Discord: role name + color, text channel slug, voice
+ * channel name. No-ops silently when team sync is unconfigured or the team has no
+ * provisioned Discord resources yet (they'll be created with the new identity anyway).
+ */
+export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) return;
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
+  if (!team) return;
+
+  if (team.discordRoleId) {
+    const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: team.name.slice(0, 100), color: hexColorToInt(team.color) }),
+    });
+    if (!res.ok) log.warn('discord-teams.update-role-fail', { status: res.status, teamId });
+  }
+  if (team.discordTextChannelId) {
+    const res = await discordRest(cfg.botToken, `/channels/${team.discordTextChannelId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: channelSlug(team.name) }),
+    });
+    if (!res.ok) log.warn('discord-teams.update-text-channel-fail', { status: res.status, teamId });
+  }
+  if (team.discordVoiceChannelId) {
+    const res = await discordRest(cfg.botToken, `/channels/${team.discordVoiceChannelId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: team.name.slice(0, 100) }),
+    });
+    if (!res.ok) log.warn('discord-teams.update-voice-channel-fail', { status: res.status, teamId });
+  }
+}
+
+/**
  * Delete the per-team roles + channels and the event category, clearing the stored IDs.
  * Leaves the shared bingo/captain roles untouched (admin-owned). Deleting a role
  * auto-strips it from members, so contestants lose channel access cleanly.

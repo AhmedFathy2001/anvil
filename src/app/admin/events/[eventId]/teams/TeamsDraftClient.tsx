@@ -183,6 +183,32 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setPicking(false);
   }
 
+  const [editingTeam, setEditingTeam] = useState<{ id: number; name: string; color: string } | null>(null);
+  const [savingTeamEdit, setSavingTeamEdit] = useState(false);
+  const [teamEditError, setTeamEditError] = useState<string | null>(null);
+
+  async function saveTeamEdit() {
+    if (!editingTeam || !editingTeam.name.trim()) return;
+    setSavingTeamEdit(true);
+    setTeamEditError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/teams`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: editingTeam.id, name: editingTeam.name.trim(), color: editingTeam.color }),
+      });
+      if (res.ok) {
+        setEditingTeam(null);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setTeamEditError(data.error || 'Could not save team.');
+      }
+    } finally {
+      setSavingTeamEdit(false);
+    }
+  }
+
   async function resetPlayerSnapshot(playerId: number) {
     setResettingSnapshot(playerId);
     try {
@@ -360,16 +386,69 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               const pct = totalWeight > 0 ? Math.round((completed / totalWeight) * 100) : 0;
               return (
                 <div key={team.id} className="flex items-center justify-between border border-card-border rounded-xl p-3 bg-card-bg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: team.color }} />
-                    <div>
-                      <span className="font-semibold">{team.name}</span>
-                      <span className="text-text-muted text-xs ml-2">
-                        {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {editingTeam?.id === team.id ? (
+                      <>
+                        <label className="relative w-3.5 h-3.5 rounded-full cursor-pointer flex-shrink-0" style={{ backgroundColor: editingTeam.color }} title="Pick team color">
+                          <input
+                            type="color"
+                            value={editingTeam.color}
+                            onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          value={editingTeam.name}
+                          onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
+                          maxLength={50}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveTeamEdit();
+                            if (e.key === 'Escape') { setEditingTeam(null); setTeamEditError(null); }
+                          }}
+                          className="px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground w-44"
+                        />
+                        {teamEditError && <span className="text-xs text-red-400">{teamEditError}</span>}
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: team.color }} />
+                        <div>
+                          <span className="font-semibold">{team.name}</span>
+                          <span className="text-text-muted text-xs ml-2">
+                            {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {editingTeam?.id === team.id ? (
+                      <>
+                        <button
+                          onClick={saveTeamEdit}
+                          disabled={savingTeamEdit || !editingTeam.name.trim()}
+                          className="text-xs font-medium bg-accent-green/10 text-accent-green-light border border-accent-green/20 px-2.5 py-1 rounded-lg hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+                        >
+                          {savingTeamEdit ? '...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => { setEditingTeam(null); setTeamEditError(null); }}
+                          className="text-xs text-text-muted border border-card-border px-2.5 py-1 rounded-lg hover:text-foreground transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingTeam({ id: team.id, name: team.name, color: team.color }); setTeamEditError(null); }}
+                        className="text-xs text-text-muted border border-card-border px-2.5 py-1 rounded-lg hover:text-foreground hover:border-gold/40 transition-colors"
+                        title="Rename team / change color (updates the Discord role too)"
+                      >
+                        Edit
+                      </button>
+                    )}
                     <Link
                       href={`/admin/events/${event.id}/teams/${team.id}`}
                       className="text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"

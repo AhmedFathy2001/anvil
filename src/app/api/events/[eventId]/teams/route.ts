@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
+import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
 
 export async function GET(
   _request: Request,
@@ -51,6 +52,13 @@ export async function POST(
 
   if (!name || !color) {
     return NextResponse.json({ error: 'Name and color are required' }, { status: 400 });
+  }
+
+  // Unique within the event (case-insensitive) — duplicates make the scoreboard,
+  // Discord roles and draft board ambiguous.
+  const siblings = await db.query.teams.findMany({ where: eq(teams.eventId, id) });
+  if (siblings.some((t) => t.name.trim().toLowerCase() === String(name).trim().toLowerCase())) {
+    return NextResponse.json({ error: `A team named "${String(name).trim()}" already exists in this event.` }, { status: 409 });
   }
 
   const captainUserIdInt =
@@ -129,7 +137,7 @@ export async function PATCH(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { teamId, name } = await request.json();
+  const { teamId, name, color } = await request.json();
 
   if (!teamId) {
     return NextResponse.json({ error: 'teamId is required' }, { status: 400 });
@@ -137,7 +145,7 @@ export async function PATCH(
 
   // Check auth: admin or captain of this team
   const isAdmin = await verifyAdmin();
-  const captain = await verifyCaptain();
+  const captain = isAdmin ? null : await verifyCaptain();
 
   if (!isAdmin && (!captain || captain.teamId !== teamId)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -151,23 +159,55 @@ export async function PATCH(
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 
-  // Check if event has started
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
   });
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;
 
-  const updateData: { name?: string } = {};
-  if (name && typeof name === 'string' && name.trim()) {
+  // Captains may rebrand their team only in the window between the draft wrapping up and
+  // the event going live — before that the roster isn't theirs yet, after that renames
+  // would churn scoreboards mid-game. Admins can edit any time.
+  if (!isAdmin) {
+    if (event?.draftStatus !== 'completed') {
+      return NextResponse.json(
+        { error: 'Team name and color open up once the draft is finalized.' },
+        { status: 403 },
+      );
+    }
     if (eventStarted) {
-      return NextResponse.json({ error: 'Cannot change team name after event has started' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Team name and color are locked once the event starts.' },
+        { status: 403 },
+      );
+    }
+  }
+
+  const updateData: { name?: string; color?: string } = {};
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 50) {
+      return NextResponse.json({ error: 'Team name must be 1–50 characters.' }, { status: 400 });
     }
     updateData.name = name.trim();
+  }
+  if (color !== undefined) {
+    if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color.trim())) {
+      return NextResponse.json({ error: 'Color must be a hex value like #d4af37.' }, { status: 400 });
+    }
+    updateData.color = color.trim().toLowerCase();
   }
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
+  // Team names stay unique within the event (case-insensitive) — duplicate names make the
+  // scoreboard, Discord roles and draft board ambiguous.
+  if (updateData.name && updateData.name.toLowerCase() !== team.name.toLowerCase()) {
+    const siblings = await db.query.teams.findMany({ where: eq(teams.eventId, eId) });
+    if (siblings.some((t) => t.id !== teamId && t.name.trim().toLowerCase() === updateData.name!.toLowerCase())) {
+      return NextResponse.json({ error: `A team named "${updateData.name}" already exists in this event.` }, { status: 409 });
+    }
   }
 
   const [updated] = await db
@@ -175,6 +215,10 @@ export async function PATCH(
     .set(updateData)
     .where(eq(teams.id, teamId))
     .returning();
+
+  // Mirror the rebrand onto Discord (role name/color + channel names) — fire-and-forget,
+  // the site edit must not fail on a Discord hiccup.
+  updateTeamDiscordIdentity(teamId).catch(() => {});
 
   const { captainPassword: _, ...safeTeam } = updated;
   return NextResponse.json(safeTeam);
