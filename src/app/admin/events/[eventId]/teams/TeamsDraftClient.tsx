@@ -1,7 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TeamForm from '@/components/TeamForm';
@@ -186,6 +186,21 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [editingTeam, setEditingTeam] = useState<{ id: number; name: string; color: string } | null>(null);
   const [savingTeamEdit, setSavingTeamEdit] = useState(false);
   const [teamEditError, setTeamEditError] = useState<string | null>(null);
+
+  const colorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function saveTeamColor(teamId: number, color: string) {
+    // The native picker fires change continuously while dragging — debounce so one
+    // PATCH (and one Discord role update) lands after the admin settles on a color.
+    if (colorSaveTimer.current) clearTimeout(colorSaveTimer.current);
+    colorSaveTimer.current = setTimeout(async () => {
+      await fetch(`/api/events/${event.id}/teams`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, color }),
+      });
+      router.refresh();
+    }, 700);
+  }
 
   async function saveTeamEdit() {
     if (!editingTeam || !editingTeam.name.trim()) return;
@@ -413,7 +428,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       </>
                     ) : (
                       <>
-                        <div className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: team.color }} />
+                        <label
+                          className="relative w-3.5 h-3.5 rounded-full flex-shrink-0 cursor-pointer ring-1 ring-white/20 hover:ring-gold/60 transition-shadow"
+                          style={{ backgroundColor: team.color }}
+                          title="Click to change team color"
+                        >
+                          <input
+                            type="color"
+                            defaultValue={team.color}
+                            onChange={(e) => saveTeamColor(team.id, e.target.value)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                        </label>
                         <div>
                           <span className="font-semibold">{team.name}</span>
                           <span className="text-text-muted text-xs ml-2">

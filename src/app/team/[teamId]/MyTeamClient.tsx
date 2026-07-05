@@ -1,7 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -198,6 +198,24 @@ export default function MyTeamClient({
     if (res.ok) await fetchCompletions();
   }
 
+  const colorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function saveTeamColorDirect(color: string) {
+    setTeam((t) => ({ ...t, color }));
+    // Native pickers fire change continuously while dragging — debounce to one save.
+    if (colorSaveTimer.current) clearTimeout(colorSaveTimer.current);
+    colorSaveTimer.current = setTimeout(async () => {
+      const res = await fetch(`/api/events/${event.id}/teams`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: team.id, color }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTeam((t) => ({ ...t, color: updated.color }));
+      }
+    }, 700);
+  }
+
   async function saveTeamName() {
     if (!newName.trim() || (newName === team.name && newColor === team.color)) {
       setEditingName(false);
@@ -262,6 +280,19 @@ export default function MyTeamClient({
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          </label>
+        ) : canEditName ? (
+          <label
+            className="relative w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background cursor-pointer hover:ring-gold/70 transition-shadow"
+            style={{ backgroundColor: team.color }}
+            title="Click to change team color"
+          >
+            <input
+              type="color"
+              defaultValue={team.color}
+              onChange={(e) => saveTeamColorDirect(e.target.value)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
           </label>
         ) : (
