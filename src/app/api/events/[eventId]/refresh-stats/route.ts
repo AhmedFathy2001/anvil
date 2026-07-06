@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { players, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyPlayer, verifyUser, resolveTeamMembership } from '@/lib/auth';
-import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { getHiscoresStats } from '@/lib/hiscores';
 
 const CAPTAIN_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 const PLAYER_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
@@ -93,7 +93,7 @@ export async function POST(
 
     // Fetch stats from Jagex
     try {
-      const stats = await getStatsByGamemode(targetPlayer.name);
+      const stats = await getHiscoresStats(targetPlayer.name);
       await db.update(players)
         .set({
           cachedStats: JSON.stringify(stats),
@@ -157,7 +157,7 @@ export async function POST(
 
     for (const p of teamPlayers) {
       try {
-        const stats = await getStatsByGamemode(p.name);
+        const stats = await getHiscoresStats(p.name);
         await db.update(players)
           .set({
             cachedStats: JSON.stringify(stats),
@@ -190,7 +190,7 @@ export async function POST(
 
     for (const p of allPlayers) {
       try {
-        const stats = await getStatsByGamemode(p.name);
+        const stats = await getHiscoresStats(p.name);
         await db.update(players)
           .set({
             cachedStats: JSON.stringify(stats),

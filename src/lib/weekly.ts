@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
-import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { getHiscoresStats } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
@@ -87,7 +87,7 @@ async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
   // rows still in the table need this until they're backfilled.
   const cleanRsn = sanitizeRsn(rsn);
   return (await withTimeout(
-    getStatsByGamemode(cleanRsn) as Promise<HiscoresSnapshot>,
+    getHiscoresStats(cleanRsn) as Promise<HiscoresSnapshot>,
     HISCORES_TIMEOUT_MS,
     `hiscores(${cleanRsn})`,
   ));
@@ -175,9 +175,17 @@ export async function fetchParticipantStat(
     return { kind: 'value', value: xp, snapshot: stats };
   }
   const boss = stats.bosses?.[metric];
+  // A missing key means our parser doesn't know this boss AT ALL (hiscores lists every
+  // activity for a ranked player, unranked ones with score -1) — writing 0 here is what
+  // froze whole competitions at baseline 0 when Maggot King predated the parser's boss
+  // list. Treat it as a failed read so no value (and no baseline) is ever written.
+  if (!boss) {
+    log.warn('weekly.metric-unknown', { metric });
+    return { kind: 'transient' };
+  }
   // boss.score < 0 means the player is on hiscores but unranked for this boss — that's
   // a real "0 KC" value, not a fetch failure.
-  if (!boss || boss.score < 0) return { kind: 'value', value: 0, snapshot: stats };
+  if (boss.score < 0) return { kind: 'value', value: 0, snapshot: stats };
   return { kind: 'value', value: boss.score, snapshot: stats };
 }
 

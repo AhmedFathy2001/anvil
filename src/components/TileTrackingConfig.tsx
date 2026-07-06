@@ -98,67 +98,81 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
     .filter((s): s is string => !!s),
 ];
 
-// Autocomplete hints for the source filter. These are the source NAMES the RuneLite plugin
-// reports — raid/chest loot uses the chest name (not the room boss), direct kills use the NPC
-// name. Not exhaustive; the field accepts any free-text name.
-// Names must match what RuneLite's loot tracker emits (verified against its source list) —
-// a misspelled source silently never matches. Raid/chest loot uses the chest's event name,
-// direct kills the NPC name, clue caskets "Clue Scroll (Tier)".
+// Autocomplete hints for the source filter. The plugin matches entries EXACTLY
+// (case-insensitive) against the name RuneLite reports — a misspelled source silently never
+// matches. Raid/chest loot uses the chest's event name (not the room boss), direct kills the
+// NPC name, clue caskets "Clue Scroll (Tier)". The field still accepts any free-text name.
+//
+// Boss names come from the boss-KC picker's BOSSES constant (like the timed list), fixed up
+// where the hiscores label differs from the name loot is actually reported under.
+const SOURCE_LABEL_FIXES: Record<string, string | null> = {
+  'CoX: CM': null,          // the chest reports the plain raid name regardless of mode
+  'ToB: HM': null,
+  'ToA: Expert': null,
+  'Sol Heredit': null,      // colosseum loot is the chest → "Fortis Colosseum"
+  'Lunar Chests': 'Lunar Chest',          // RuneLite's event name is singular
+  'Nightmare': 'The Nightmare',           // NPC name carries the article
+  'Mimic': 'The Mimic',
+  'Thermy': 'Thermonuclear Smoke Devil',  // display shorthand
+  'The Gauntlet': 'Crystalline Hunllef',  // loot is attributed to the Hunllef, not a chest
+  'Corrupted Gauntlet': 'Corrupted Hunllef',
+  'Grotesque Guardians': 'Dusk',          // Dusk drops the loot
+  'Wintertodt': null,       // covered by the crate/cart event names below
+  'Tempoross': null,        // covered by the pool/casket event names below
+};
 const SOURCE_SUGGESTIONS = [
-  // Raids & bosses (chest-style event loot)
-  'Chambers of Xeric',
-  'Theatre of Blood',
-  'Tombs of Amascut',
-  'Fortis Colosseum',
-  'Doom of Mokhaiotl',
-  'Lunar Chest',
-  'Barrows',
-  'Unsired',
-  // Clue caskets
-  'Clue Scroll (Beginner)',
-  'Clue Scroll (Easy)',
-  'Clue Scroll (Medium)',
-  'Clue Scroll (Hard)',
-  'Clue Scroll (Elite)',
-  'Clue Scroll (Master)',
-  // Wilderness keys & chests
-  'Loot Chest',
-  "Larran's big chest",
-  "Larran's small chest",
-  "Rogues' Chest",
-  // Skilling rewards
-  'Reward pool (Tempoross)',
-  'Supply crate (Wintertodt)',
-  'Reward cart (Wintertodt)',
-  'Guardians of the Rift',
-  'Hallowed Sack',
-  'Fishing Trawler',
-  'Herbiboar',
-  'Drift Net',
-  'Seed pack',
-  'Bird nest',
-  // Other chests
-  'Brimstone Chest',
-  'Grubby Chest',
-  'Crystal Chest',
-  'Elven Crystal Chest',
-  // Impling jars (opened)
-  'Dragon impling jar',
-  'Lucky impling jar',
-  // Direct kills (any NPC name works)
-  'Zulrah',
-  'Vorkath',
-  'Nex',
-  'Alchemical Hydra',
-  'The Nightmare',
-  "Phosani's Nightmare",
-  'Cerberus',
-  'Corrupted Hunllef',
+  ...new Set([
+    // Raids & bosses (chest-style event loot)
+    'Chambers of Xeric',
+    'Theatre of Blood',
+    'Tombs of Amascut',
+    'Fortis Colosseum',
+    'Doom of Mokhaiotl',
+    'Lunar Chest',
+    'Barrows',
+    'Unsired',
+    // Clue caskets
+    'Clue Scroll (Beginner)',
+    'Clue Scroll (Easy)',
+    'Clue Scroll (Medium)',
+    'Clue Scroll (Hard)',
+    'Clue Scroll (Elite)',
+    'Clue Scroll (Master)',
+    // Wilderness keys & chests
+    'Loot Chest',
+    "Larran's big chest",
+    "Larran's small chest",
+    "Rogues' Chest",
+    // Skilling rewards
+    'Reward pool (Tempoross)',
+    'Casket (Tempoross)',
+    'Supply crate (Wintertodt)',
+    'Reward cart (Wintertodt)',
+    'Guardians of the Rift',
+    'Hallowed Sack',
+    'Fishing Trawler',
+    'Herbiboar',
+    'Drift Net',
+    'Seed pack',
+    'Bird nest',
+    // Other chests
+    'Brimstone Chest',
+    'Grubby Chest',
+    'Crystal Chest',
+    'Elven Crystal Chest',
+    // Impling jars (opened)
+    'Dragon impling jar',
+    'Lucky impling jar',
+    // Direct kills — every boss, by the name its loot is reported under.
+    ...BOSSES
+      .map((b) => (b.label in SOURCE_LABEL_FIXES ? SOURCE_LABEL_FIXES[b.label] : b.label))
+      .filter((s): s is string => !!s),
+  ]),
 ];
 
-// Source hints for loot-value tiles — the specials first ("PvP" = player-kill loot,
-// "Loot Chest" = opened loot keys), then the usual drop sources.
-const VALUE_SOURCE_SUGGESTIONS = ['PvP', 'Loot Chest', ...SOURCE_SUGGESTIONS];
+// Source hints for loot-value tiles — "PvP" (player-kill loot) first; "Loot Chest" (opened
+// loot keys) is already in the shared list.
+const VALUE_SOURCE_SUGGESTIONS = ['PvP', ...SOURCE_SUGGESTIONS];
 
 // Party size is only knowable inside raid instances, so the drop-tile party gate only
 // shows once the source restriction names a raid.

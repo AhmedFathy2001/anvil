@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players, tiles, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { getHiscoresStats } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
 import { log } from '@/lib/logger';
 
@@ -233,7 +233,7 @@ export async function GET(request: Request) {
       await takeToken();
       const ts = new Date().toISOString();
       try {
-        const current = await getStatsByGamemode(task.player.name) as Snapshot;
+        const current = await getHiscoresStats(task.player.name) as Snapshot;
         const currentJson = JSON.stringify(current);
         if (task.needsSnapshot) {
           // First fetch doubles as the baseline; the gain this tick is 0.

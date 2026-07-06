@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { players, tiles } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { getHiscoresStats } from '@/lib/hiscores';
 
 // GET player's snapshot data for editing
 export async function GET(
@@ -109,7 +109,7 @@ export async function PATCH(
   if (resetAll) {
     // Re-fetch full hiscores and store as new snapshot + cached
     try {
-      const currentStats = await getStatsByGamemode(player.name);
+      const currentStats = await getHiscoresStats(player.name);
       const now = new Date().toISOString();
       const statsJson = JSON.stringify(currentStats);
 

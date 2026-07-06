@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { players, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { getStatsByGamemode } from 'osrs-json-hiscores';
+import { getHiscoresStats } from '@/lib/hiscores';
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,7 +43,7 @@ export async function POST(
 
   for (const player of eventPlayers) {
     try {
-      const stats = await getStatsByGamemode(player.name);
+      const stats = await getHiscoresStats(player.name);
       const statsJson = JSON.stringify(stats);
 
       // If player already has a baseline snapshot and event has started (and not force reset),
