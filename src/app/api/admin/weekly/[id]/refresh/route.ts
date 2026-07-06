@@ -33,6 +33,16 @@ export async function POST(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // { rebaseline: true } resets every participant's baseline to null first; the refresh
+  // loop below then backfills baseline = current REAL value. The repair path for a comp
+  // whose baselines were poisoned (e.g. a boss the hiscores parser didn't know yet).
+  const { rebaseline } = await request.json().catch(() => ({ rebaseline: false }));
+  if (rebaseline === true) {
+    await db.update(weeklyParticipants)
+      .set({ baselineValue: null, currentValue: null, flagged: 0, flagReason: null })
+      .where(eq(weeklyParticipants.competitionId, compId));
+  }
+
   const participants = await db.select().from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, compId));
 

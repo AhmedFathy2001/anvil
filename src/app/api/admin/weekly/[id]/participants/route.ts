@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers, weeklyParticipants } from '@/db/schema';
-import { and, eq, getTableColumns } from 'drizzle-orm';
+import { clanMembers, settings, weeklyParticipants } from '@/db/schema';
+import { and, eq, getTableColumns, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 
 export async function GET(
@@ -29,7 +29,27 @@ export async function GET(
     .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
     .where(eq(weeklyParticipants.competitionId, compId));
 
-  return NextResponse.json(participants);
+  // Enrollment diagnostics — answers "why is the count one short?" without DB spelunking:
+  //   notEnrolled — active roster members (per the guest setting) with no participant row.
+  //   duplicates  — roster rows that collapse to the same normalized RSN; the unique index
+  //                 silently absorbs the second one at enroll time.
+  const guestsRow = await db.query.settings.findFirst({ where: eq(settings.key, 'weekly_track_guests') });
+  const trackGuests = guestsRow?.value === 'true';
+  const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
+  const roster = await db
+    .select({ rsn: clanMembers.rsn, isGuest: clanMembers.isGuest })
+    .from(clanMembers)
+    .where(trackGuests ? baseClause : and(baseClause, eq(clanMembers.isGuest, 0)));
+  const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
+  const notEnrolled = roster.filter((m) => !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
+  const byNorm = new Map<string, string[]>();
+  for (const m of roster) {
+    const n = normalizeRsn(m.rsn);
+    byNorm.set(n, [...(byNorm.get(n) ?? []), m.rsn]);
+  }
+  const duplicates = [...byNorm.values()].filter((names) => names.length > 1);
+
+  return NextResponse.json({ participants, notEnrolled, duplicates });
 }
 
 export async function POST(

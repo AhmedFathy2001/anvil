@@ -37,6 +37,8 @@ export default function WeeklyManagementClient() {
   const [showCreate, setShowCreate] = useState(false);
   const [expandedComp, setExpandedComp] = useState<number | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [notEnrolled, setNotEnrolled] = useState<string[]>([]);
+  const [duplicateRsns, setDuplicateRsns] = useState<string[][]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   // Create form
@@ -116,12 +118,21 @@ export default function WeeklyManagementClient() {
     setExpandedComp(compId);
     setLoadingParticipants(true);
     setRefreshResult(null);
+    await refetchParticipants(compId);
+    setLoadingParticipants(false);
+  }
 
+  // Reload the expanded comp's participants WITHOUT the toggle semantics — refresh/add
+  // handlers were collapsing the panel by calling loadParticipants on the open comp.
+  async function refetchParticipants(compId: number) {
     const res = await fetch(`/api/admin/weekly/${compId}/participants`);
     if (res.ok) {
-      setParticipants(await res.json());
+      const data = await res.json();
+      // Older shape was a bare array; current shape carries enrollment diagnostics.
+      setParticipants(Array.isArray(data) ? data : data.participants);
+      setNotEnrolled(Array.isArray(data) ? [] : data.notEnrolled ?? []);
+      setDuplicateRsns(Array.isArray(data) ? [] : data.duplicates ?? []);
     }
-    setLoadingParticipants(false);
   }
 
   async function handleAddRsns(compId: number) {
@@ -137,20 +148,27 @@ export default function WeeklyManagementClient() {
 
     if (res.ok) {
       setAddRsns('');
-      loadParticipants(compId);
+      refetchParticipants(compId);
     }
     setAddingRsns(false);
   }
 
-  async function handleRefresh(compId: number) {
+  async function handleRefresh(compId: number, rebaseline = false) {
+    if (rebaseline && !confirm(
+      'Reset EVERY participant\'s baseline to their current live stat? Gains restart from zero. Use after a tracking fix left baselines wrong.',
+    )) return;
     setRefreshing(compId);
     setRefreshResult(null);
 
-    const res = await fetch(`/api/admin/weekly/${compId}/refresh`, { method: 'POST' });
+    const res = await fetch(`/api/admin/weekly/${compId}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rebaseline }),
+    });
     if (res.ok) {
       const data = await res.json();
-      setRefreshResult(`Updated ${data.updated}/${data.total} participants. ${data.errors.length ? `Errors: ${data.errors.join(', ')}` : ''}`);
-      loadParticipants(compId);
+      setRefreshResult(`${rebaseline ? 'Re-baselined and updated' : 'Updated'} ${data.updated}/${data.total} participants. ${data.errors.length ? `Errors: ${data.errors.join(', ')}` : ''}`);
+      refetchParticipants(compId);
     } else {
       setRefreshResult('Refresh failed');
     }
@@ -201,6 +219,9 @@ export default function WeeklyManagementClient() {
     if (res.ok) {
       fetchCompetitions();
       if (expandedComp === compId) setExpandedComp(null);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || `Delete failed (HTTP ${res.status}).`);
     }
   }
 
@@ -500,7 +521,25 @@ export default function WeeklyManagementClient() {
                         >
                           {refreshing === comp.id ? 'Refreshing...' : 'Refresh Stats'}
                         </button>
+                        <button
+                          onClick={() => handleRefresh(comp.id, true)}
+                          disabled={refreshing === comp.id}
+                          className="px-3 py-1.5 text-xs font-semibold border border-amber-400/40 text-amber-300 rounded hover:bg-amber-400/10 disabled:opacity-50 transition-colors"
+                          title="Reset every baseline to the current live stat and restart gains from zero"
+                        >
+                          Re-baseline All
+                        </button>
                       </div>
+                      {(notEnrolled.length > 0 || duplicateRsns.length > 0) && (
+                        <div className="text-xs text-amber-300/90 space-y-0.5">
+                          {notEnrolled.length > 0 && (
+                            <p>Not enrolled ({notEnrolled.length}): {notEnrolled.join(', ')} — add via the box below.</p>
+                          )}
+                          {duplicateRsns.length > 0 && (
+                            <p>Roster names colliding after normalization (only one enrolls): {duplicateRsns.map((g) => g.join(' / ')).join('; ')}</p>
+                          )}
+                        </div>
+                      )}
                       {refreshResult && (
                         <p className="text-xs text-text-muted">{refreshResult}</p>
                       )}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET(
@@ -73,6 +73,15 @@ export async function DELETE(
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  await db.delete(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  // Delete children explicitly — the schema declares ON DELETE CASCADE, but the live
+  // tables predate the squashed migration baseline and may not carry it, which made
+  // this delete fail with a foreign-key error.
+  try {
+    await db.delete(playerSnapshots).where(eq(playerSnapshots.weeklyCompetitionId, compId));
+    await db.delete(weeklyParticipants).where(eq(weeklyParticipants.competitionId, compId));
+    await db.delete(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  } catch (err) {
+    return NextResponse.json({ error: `Delete failed: ${err instanceof Error ? err.message : 'unknown error'}` }, { status: 500 });
+  }
   return NextResponse.json({ success: true });
 }
