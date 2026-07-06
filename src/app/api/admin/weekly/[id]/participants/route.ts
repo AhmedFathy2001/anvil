@@ -36,12 +36,28 @@ export async function GET(
   const guestsRow = await db.query.settings.findFirst({ where: eq(settings.key, 'weekly_track_guests') });
   const trackGuests = guestsRow?.value === 'true';
   const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
-  const roster = await db
-    .select({ rsn: clanMembers.rsn, isGuest: clanMembers.isGuest })
+  // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
+  // "124 of 125" is usually one member sitting outside the enrollment filter.
+  const fullRoster = await db
+    .select({ rsn: clanMembers.rsn, isGuest: clanMembers.isGuest, status: clanMembers.status })
     .from(clanMembers)
-    .where(trackGuests ? baseClause : and(baseClause, eq(clanMembers.isGuest, 0)));
+    .where(baseClause);
+  const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.isGuest === 0);
   const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
   const notEnrolled = roster.filter((m) => !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
+  // Active members excluded from auto-enrollment by the guest filter (named so the admin
+  // can add them manually or flip weekly_track_guests / their guest flag).
+  const guestsExcluded = trackGuests
+    ? []
+    : fullRoster.filter((m) => m.isGuest === 1 && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
+  // Non-active roster rows are excluded too — name them for the same reason.
+  const inactive = await db
+    .select({ rsn: clanMembers.rsn, status: clanMembers.status })
+    .from(clanMembers)
+    .where(isNull(clanMembers.leftAt));
+  const inactiveExcluded = inactive
+    .filter((m) => m.status !== 'active' && !enrolledNorm.has(normalizeRsn(m.rsn)))
+    .map((m) => `${m.rsn} (${m.status})`);
   const byNorm = new Map<string, string[]>();
   for (const m of roster) {
     const n = normalizeRsn(m.rsn);
@@ -49,7 +65,7 @@ export async function GET(
   }
   const duplicates = [...byNorm.values()].filter((names) => names.length > 1);
 
-  return NextResponse.json({ participants, notEnrolled, duplicates });
+  return NextResponse.json({ participants, notEnrolled, duplicates, guestsExcluded, inactiveExcluded });
 }
 
 export async function POST(

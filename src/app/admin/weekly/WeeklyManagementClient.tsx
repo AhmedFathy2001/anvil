@@ -39,6 +39,8 @@ export default function WeeklyManagementClient() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [notEnrolled, setNotEnrolled] = useState<string[]>([]);
   const [duplicateRsns, setDuplicateRsns] = useState<string[][]>([]);
+  const [guestsExcluded, setGuestsExcluded] = useState<string[]>([]);
+  const [inactiveExcluded, setInactiveExcluded] = useState<string[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   // Create form
@@ -132,6 +134,8 @@ export default function WeeklyManagementClient() {
       setParticipants(Array.isArray(data) ? data : data.participants);
       setNotEnrolled(Array.isArray(data) ? [] : data.notEnrolled ?? []);
       setDuplicateRsns(Array.isArray(data) ? [] : data.duplicates ?? []);
+      setGuestsExcluded(Array.isArray(data) ? [] : data.guestsExcluded ?? []);
+      setInactiveExcluded(Array.isArray(data) ? [] : data.inactiveExcluded ?? []);
     }
   }
 
@@ -530,10 +534,16 @@ export default function WeeklyManagementClient() {
                           Re-baseline All
                         </button>
                       </div>
-                      {(notEnrolled.length > 0 || duplicateRsns.length > 0) && (
+                      {(notEnrolled.length > 0 || duplicateRsns.length > 0 || guestsExcluded.length > 0 || inactiveExcluded.length > 0) && (
                         <div className="text-xs text-amber-300/90 space-y-0.5">
                           {notEnrolled.length > 0 && (
                             <p>Not enrolled ({notEnrolled.length}): {notEnrolled.join(', ')} — add via the box below.</p>
+                          )}
+                          {guestsExcluded.length > 0 && (
+                            <p>Excluded as guests ({guestsExcluded.length}): {guestsExcluded.join(', ')} — weeklies skip guests; add manually, clear their guest flag, or enable guest tracking.</p>
+                          )}
+                          {inactiveExcluded.length > 0 && (
+                            <p>Excluded as inactive ({inactiveExcluded.length}): {inactiveExcluded.join(', ')}</p>
                           )}
                           {duplicateRsns.length > 0 && (
                             <p>Roster names colliding after normalization (only one enrolls): {duplicateRsns.map((g) => g.join(' / ')).join('; ')}</p>
