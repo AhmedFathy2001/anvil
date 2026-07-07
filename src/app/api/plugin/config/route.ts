@@ -210,6 +210,8 @@ export async function GET(request: Request) {
 
     return {
       tileId: t.id,
+      // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+      position: t.position ?? 0,
       label: t.label,
       description: t.description ?? null,
       points: t.points ?? 0,
@@ -318,6 +320,8 @@ export async function GET(request: Request) {
         }
         return {
           tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
           label: t.label,
           description: t.description ?? null,
           points: t.points ?? 0,
@@ -357,6 +361,8 @@ export async function GET(request: Request) {
         }
         return {
           tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
           label: t.label,
           description: t.description ?? null,
           points: t.points ?? 0,
@@ -383,6 +389,8 @@ export async function GET(request: Request) {
         }
         return {
           tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
           label: t.label,
           description: t.description ?? null,
           points: t.points ?? 0,
@@ -412,6 +420,8 @@ export async function GET(request: Request) {
         }
         return {
           tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
           label: t.label,
           description: t.description ?? null,
           points: t.points ?? 0,
@@ -429,6 +439,8 @@ export async function GET(request: Request) {
       .filter((t) => t.tileType === 'timed')
       .map((t) => ({
         tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
@@ -449,6 +461,8 @@ export async function GET(request: Request) {
       .filter((t) => t.tileType === 'lms')
       .map((t) => ({
         tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
@@ -475,6 +489,8 @@ export async function GET(request: Request) {
         }
         return {
           tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
           label: t.label,
           description: t.description ?? null,
           points: t.points ?? 0,
@@ -495,6 +511,8 @@ export async function GET(request: Request) {
       .filter((t) => t.tileType === 'gain')
       .map((t) => ({
         tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
@@ -517,6 +535,8 @@ export async function GET(request: Request) {
       .filter((t) => t.tileType === 'deathless')
       .map((t) => ({
         tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
