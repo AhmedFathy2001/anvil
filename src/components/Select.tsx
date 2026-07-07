@@ -241,7 +241,7 @@ export default function Select({
       )}
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full min-w-max rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
+        <div className="absolute z-50 mt-1 w-full min-w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
           {hasSearch && (
             <div className="p-1.5 border-b border-card-border/60">
               <input

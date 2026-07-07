@@ -187,7 +187,7 @@ export default function Combobox({
       </button>
 
       {showList && (
-        <div className="absolute z-50 mt-1 w-full min-w-max rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
+        <div className="absolute z-50 mt-1 w-full min-w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
           <ul ref={listRef} role="listbox" aria-label={ariaLabel} className="max-h-60 overflow-auto py-1">
             {filtered.map((s, i) => {
               const isSelected = s.toLowerCase() === segment.trim().toLowerCase();

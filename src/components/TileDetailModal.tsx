@@ -311,7 +311,7 @@ export default function TileDetailModal({
               {tile.description && (
                 <p className="text-sm text-text-muted mt-0.5">{tile.description}</p>
               )}
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   isCount
                     ? 'bg-accent-green/20 text-accent-green-light'

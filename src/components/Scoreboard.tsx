@@ -49,19 +49,19 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
             }}
           >
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-lg w-7 text-center">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-lg w-7 text-center shrink-0">
                   {index < 3 && completed > 0 ? MEDALS[index] : (
                     <span className="text-text-muted text-sm font-mono">#{index + 1}</span>
                   )}
                 </span>
                 <div
-                  className="w-3.5 h-3.5 rounded-full ring-2 ring-offset-1 ring-offset-background ring-current"
+                  className="w-3.5 h-3.5 rounded-full ring-2 ring-offset-1 ring-offset-background ring-current shrink-0"
                   style={{ backgroundColor: team.color, color: team.color }}
                 />
-                <span className="font-bold text-lg">{team.name}</span>
+                <span className="font-bold text-lg truncate">{team.name}</span>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span className="text-xl font-bold" style={{ color: team.color }}>
                   {completed}
                 </span>

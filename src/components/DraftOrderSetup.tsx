@@ -70,7 +70,7 @@ export default function DraftOrderSetup({ teams, currentOrder, onSave, saving }:
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: team.color }}
               />
-              <span className="font-medium text-sm flex-1">{team.name}</span>
+              <span className="font-medium text-sm flex-1 min-w-0 truncate">{team.name}</span>
               <div className="flex gap-1">
                 <button
                   onClick={() => moveUp(index)}

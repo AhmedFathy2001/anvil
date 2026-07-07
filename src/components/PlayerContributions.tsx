@@ -74,7 +74,7 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
                 <div key={s.id} className="flex items-center gap-2 text-xs text-text-muted">
                   <span className="text-gold font-medium">x{s.amount}</span>
                   {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
-                    <span className="text-text-muted">(uploaded by {s.uploaderName})</span>
+                    <span className="text-text-muted truncate min-w-0">(uploaded by {s.uploaderName})</span>
                   )}
                   {s.note && <span className="truncate">&mdash; {s.note}</span>}
                   <span className="ml-auto flex-shrink-0">

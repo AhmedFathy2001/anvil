@@ -252,7 +252,7 @@ export default function PlayerStatsPanel({
                     const gain = gains?.[key];
                     return (
                       <div key={key} className="contents">
-                        <span className={isTotal ? "font-bold text-gold" : ""}>
+                        <span className={`min-w-0 truncate ${isTotal ? "font-bold text-gold" : ""}`}>
                           {SKILL_LABELS[key] || key}
                         </span>
                         <span

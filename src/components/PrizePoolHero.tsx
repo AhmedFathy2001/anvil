@@ -29,9 +29,9 @@ export default function PrizePoolHero({
       <div className="text-xs font-semibold uppercase tracking-[0.2em] text-gold/80">
         Total prize pool so far
       </div>
-      <div className="mt-2 text-4xl sm:text-5xl font-extrabold text-gold tabular-nums leading-tight">
+      <div className="mt-2 text-3xl sm:text-5xl font-extrabold text-gold tabular-nums leading-tight">
         {prizePool.toLocaleString()}
-        <span className="ml-1.5 text-2xl sm:text-3xl font-bold align-baseline">gp</span>
+        <span className="ml-1.5 text-xl sm:text-3xl font-bold align-baseline">gp</span>
       </div>
       {parts.length > 0 && (
         <div className="mt-2 text-xs text-text-muted">{parts.join('  +  ')}</div>

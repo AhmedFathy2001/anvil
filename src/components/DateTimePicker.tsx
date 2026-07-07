@@ -222,7 +222,7 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
         <div
           role="dialog"
           aria-label="Date and time picker"
-          className="absolute z-50 mt-2 w-72 rounded-xl border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 p-3"
+          className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 p-3"
         >
           <div className="flex items-center justify-between mb-3">
             <button
