@@ -86,7 +86,7 @@ export async function buildTileSpreadsheet(opts: {
   });
   const lastRow = VALIDATION_ROWS + 1;
   for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,gain,timed,deathless,diary,lms,value,valuetotal"']);
+    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
@@ -115,6 +115,8 @@ export async function buildTileSpreadsheet(opts: {
     'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
   example({ label: 'Sub-30 Inferno', type: 'timed', points: 50, category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: 1800 },
     'Timed clear: complete the activity under the cap (1800s = 30:00).');
+  example({ label: 'Any Master combat task', type: 'ca', points: 20, category: 'PvM', requiredAmount: 1, targetNpcs: 'Any Master' },
+    'Combat Achievement: task names or "Any <Tier>" wildcards, PIPE-separated only (names contain commas).');
 
   // -- Item list (full, filterable; copy exact names into the items cell) --------------------
   const il = wb.addWorksheet(SHEET_ITEMS);
@@ -154,8 +156,8 @@ export async function buildTileSpreadsheet(opts: {
     '  • Only the Tiles tab is imported — the other tabs (Examples, Item list, Stat keys) are helpers.',
     '',
     'COLUMNS',
-    '  • type — one of standard / drop / kill / timed / diary (dropdown; advanced boards can also use',
-    '    lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
+    '  • type — one of standard / drop / kill / timed / diary / ca (dropdown; advanced boards can also',
+    '    use lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
     '    leave type = standard and fill trackedStat + statType + statGoal instead.',
     '  • points — score weight (Leagues). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
     '  • optional — true/false; optional tiles don\'t count toward the total.',
@@ -163,7 +165,9 @@ export async function buildTileSpreadsheet(opts: {
     '  • trackedStat — a skill or boss, by NAME or key (e.g. Mining, Zulrah). statType (skill/boss) is',
     '    auto-detected when left blank, so usually you only need trackedStat + statGoal.',
     '  • statGoal / requiredAmount — plain numbers, or shorthand like 10m, 1.5k, 2b.',
-    '  • targetNpcs — kill tiles only; NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
+    '  • targetNpcs — kill tiles: NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
+    '    diary tiles: "<Area> <Tier>" selectors ("Any Elite"). ca tiles: Combat Achievement task',
+    '    names or "Any <Tier>" wildcards, PIPE-separated ONLY (task names can contain commas).',
     '  • timedActivity / timeThresholdSeconds — timed tiles only; time as mm:ss (30:00), seconds (1800), or 30m.',
     '',
     'THE items CELL (drop / collection tiles)',

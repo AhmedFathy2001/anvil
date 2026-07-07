@@ -183,6 +183,18 @@ before the event can't re-trigger it.
 "Complete any elite diary",,diary,25,Diaries,false,1,,,,"Any Elite",,,
 ```
 
+### Combat Achievement (CA task completions during the event)
+`type=ca`. Reuses the `targetNpcs` column for selectors: exact task names (`Whack-a-Mole`) and/or
+`Any <Tier>` wildcards (`Any Master`); `requiredAmount` = completions needed. Selectors are
+**pipe-separated only** — CA task names legitimately contain commas (`Nylocas, On the Rocks`).
+The plugin credits off the in-game "you've completed a `<tier>` combat task" message. Players who
+already own a task can re-trigger that message by enabling **Settings → Combat Achievements →
+Repeat completion** in-game and meeting the task's conditions again during the event.
+```
+"Complete any master combat task",,ca,20,PvM,false,1,,,,"Any Master",,,
+"Whack-a-Mole or Playing with Lasers",,ca,30,PvM,false,1,,,,"Whack-a-Mole|Playing with Lasers",,,
+```
+
 ---
 
 ## 5. Header row (copy/paste)
@@ -201,7 +213,7 @@ See `docs/examples/tiles-example.csv` for a complete file covering every kind.
   `standard|drop|kill|timed`. Skill/boss is expressed via `trackedStat`+`statType`+`statGoal`
   on a `standard` row.
 - **`items` uses semicolons**, not commas (comma is the CSV delimiter). **`targetNpcs` uses
-  pipes** (`|`).
+  pipes** (`|`) — and on `ca` rows pipes are the ONLY separator (task names contain commas).
 - **Don't set `requiredAmount` on stat/standard/timed tiles** — it only belongs on drop/kill.
 - **Quote any cell containing a comma** (e.g. a description) per normal CSV rules; `""`
   escapes a literal quote.

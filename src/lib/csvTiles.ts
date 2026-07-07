@@ -6,7 +6,7 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
@@ -17,7 +17,9 @@
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
-//                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard")
+//                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard");
+//                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
+//                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks")
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)
@@ -294,8 +296,10 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     }
     if (col.statGoal >= 0) row.statGoal = toNumberLoose(get(cells, col.statGoal));
     if (col.targetNpcs >= 0) {
-      // Comma or pipe separated within the cell (comma works when the cell is quoted).
-      const names = get(cells, col.targetNpcs).split(/[|,]/).map((s) => s.trim()).filter(Boolean);
+      // Comma or pipe separated within the cell (comma works when the cell is quoted). CA rows
+      // split on pipes ONLY — task names legitimately contain commas ("Nylocas, On the Rocks").
+      const sep = row.tileType === 'ca' ? '|' : /[|,]/;
+      const names = get(cells, col.targetNpcs).split(sep).map((s) => s.trim()).filter(Boolean);
       row.targetNpcs = names.length > 0 ? names : null;
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
