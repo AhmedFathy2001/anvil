@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
@@ -69,7 +69,9 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'TzTok-Jad': null,       // covered by 'Fight Caves'
   'Sol Heredit': null,     // covered by 'Fortis Colosseum'
   'Thermy': 'Thermonuclear Smoke Devil',
-  'CoX: CM': 'Chambers of Xeric: Challenge Mode',
+  // Raid mode strings must match the game's count line EXACTLY (the plugin substring-matches
+  // it): CoX CM carries NO colon, ToB/ToA sub-modes DO. See RAID_MODE_VARIANTS in constants.
+  'CoX: CM': 'Chambers of Xeric Challenge Mode',
   'ToB: HM': 'Theatre of Blood: Hard Mode',
   'ToA: Expert': 'Tombs of Amascut: Expert Mode',
   'The Leviathan': 'Leviathan',       // "Your Leviathan kill count is: N" — no article
@@ -184,17 +186,22 @@ function sourcesIncludeRaid(sourceText: string): boolean {
     .split(',')
     .some((s) => RAID_SOURCES.some((raid) => s.trim().includes(raid)));
 }
+// Same gate for the timed kind: the party-size field only shows when the activity is a raid.
+function activityIsRaid(activity: string): boolean {
+  const a = activity.toLowerCase();
+  return RAID_SOURCES.some((raid) => a.includes(raid));
+}
 
 // Deathless tiles only make sense for group PvM with a completion message the plugin can
-// correlate — the raids. Free text still accepted for future content.
-const DEATHLESS_ACTIVITY_SUGGESTIONS = [
-  'Chambers of Xeric',
-  'Chambers of Xeric: Challenge Mode',
-  'Theatre of Blood',
-  'Theatre of Blood: Hard Mode',
-  'Tombs of Amascut',
-  'Tombs of Amascut: Expert Mode',
-];
+// correlate — the raids. Free text still accepted for future content. Base and per-mode
+// entries come from RAID_MODE_VARIANTS so the exact game strings live in one place
+// (the old hand-written list carried "Chambers of Xeric: Challenge Mode" — the game string
+// has no colon, so CM tiles authored from it never credited).
+const DEATHLESS_ACTIVITY_SUGGESTIONS = RAID_MODE_VARIANTS.flatMap((r) => [r.base, ...r.modes]);
+
+// The same base + per-mode strings, offered as one-click adds on kill tiles (the KC chat
+// line is matched exactly there, so "both normal and CM" means adding both strings).
+const RAID_KC_NAMES = DEATHLESS_ACTIVITY_SUGGESTIONS;
 
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
@@ -303,6 +310,11 @@ export default function TileTrackingConfig({
   // Drop-tile raid party size (blank = any) — "solo Cursed phalanx". Rides timeThresholdSeconds.
   const [dropPartySize, setDropPartySize] = useState<string>(
     initial.tileType === 'drop' && initial.timeThresholdSeconds ? String(initial.timeThresholdSeconds) : '',
+  );
+  // Timed raid party size (blank = any). Has its own column — timeThresholdSeconds already
+  // holds the time cap on timed tiles, so there's nothing left to overload.
+  const [timedPartySize, setTimedPartySize] = useState<string>(
+    initial.tileType === 'timed' && initial.partySize ? String(initial.partySize) : '',
   );
   // Loot-value threshold in gp (rides the requiredAmount column for the value kind).
   const [valueGpText, setValueGpText] = useState<string>(
@@ -667,6 +679,10 @@ export default function TileTrackingConfig({
       const secs = clockToSeconds(timeThresholdClock);
       if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
       if (secs > 86400) return 'Time cap cannot exceed 24 hours.';
+      if (timedPartySize.trim()) {
+        const size = parseInt(timedPartySize, 10);
+        if (!Number.isInteger(size) || size < 1 || size > 100) return 'Party size must be between 1 and 100 (or blank for any).';
+      }
     }
     if (kind === 'deathless') {
       if (!timedActivity.trim()) return 'Pick the raid this tile is for (e.g. Theatre of Blood).';
@@ -721,6 +737,7 @@ export default function TileTrackingConfig({
         targetNpcs: null,
         timedActivity: null,
         timeThresholdSeconds: null,
+        partySize: null,
       };
 
       if (isStat) {
@@ -759,6 +776,10 @@ export default function TileTrackingConfig({
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
         payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
+        // Party gate only makes sense where the plugin can see a party — the raids.
+        payload.partySize = activityIsRaid(timedActivity) && timedPartySize.trim()
+          ? parseInt(timedPartySize, 10)
+          : null;
       } else if (kind === 'deathless') {
         // The raid rides the timedActivity column; requiredAmount = deathless runs needed;
         // an exact party size (optional) rides timeThresholdSeconds, like the LMS cap.
@@ -813,6 +834,7 @@ export default function TileTrackingConfig({
           targetNpcs: updated.targetNpcs ? JSON.parse(updated.targetNpcs) : null,
           timedActivity: updated.timedActivity ?? null,
           timeThresholdSeconds: updated.timeThresholdSeconds ?? null,
+          partySize: updated.partySize ?? null,
           updatedAt: updated.updatedAt ?? null,
         });
       } else {
@@ -1368,6 +1390,23 @@ export default function TileTrackingConfig({
               &ldquo;Add all matches&rdquo;. These need not be on the hiscores (chickens, cows, etc.). Press Enter to add a
               name that isn&rsquo;t in the list — the plugin&rsquo;s reported name is the source of truth.
             </p>
+
+            {/* Raid quick-adds — completions credit off the game's kill-count line, which names the
+                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings. */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Raids</span>
+              {RAID_KC_NAMES.filter((n) => !targetNpcNames.some((t) => t.toLowerCase() === n.toLowerCase())).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => addNpc(n)}
+                  className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                  title="Add this raid mode — the completion counts off the in-game count line"
+                >
+                  + {n}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -1689,6 +1728,10 @@ export default function TileTrackingConfig({
             />
             <p className="text-[10px] text-text-muted mt-0.5">
               The activity the plugin times (region/boss it recognises). Raids, Inferno, Colosseum, or a boss.
+              For raids, the base name (e.g. <span className="text-foreground/70">Chambers of Xeric</span>) counts a
+              clear of <span className="text-foreground/70">any mode</span> — normal and CM/Hard/Expert alike. Pick a
+              mode-specific entry (e.g. <span className="text-foreground/70">Chambers of Xeric Challenge Mode</span>)
+              to count only that mode.
             </p>
           </div>
 
@@ -1708,6 +1751,28 @@ export default function TileTrackingConfig({
               completes when a submitted clear time is at or under this cap.
             </p>
           </div>
+
+          {/* Party gate — only raids expose a party the plugin can count. */}
+          {activityIsRaid(timedActivity) && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Party size <span className="text-text-muted/60">(optional — blank = any size)</span>
+              </label>
+              <Input
+                type="number"
+                value={timedPartySize}
+                onChange={(e) => setTimedPartySize(e.target.value)}
+                placeholder="any"
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                min="1"
+                max="100"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Require exactly this many players in the raid (e.g. 5 for a 5-man ToB speedrun). The plugin
+                counts the distinct players it sees inside the instance.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1726,7 +1791,9 @@ export default function TileTrackingConfig({
             <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
               The plugin counts every player death inside the raid instance and credits a run only when the
               completion message arrives with zero deaths. Note: if the runner disconnects mid-raid, deaths
-              during the disconnect are missed — the baked screenshot is the audit trail.
+              during the disconnect are missed — the baked screenshot is the audit trail. The base raid name
+              counts <span className="text-foreground/70">any mode</span> (normal and CM/Hard/Expert — Entry
+              never counts against a base tile); a mode-specific entry counts only that mode.
             </p>
           </div>
           <div>

@@ -181,6 +181,23 @@ export const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"] as const;
 // already own a task re-fire the line via the in-game "Repeat completion" setting.
 export const CA_TIERS = ["Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"] as const;
 
+// Raid difficulty variants, by the EXACT string the game's kill-count chat line carries — the
+// plugin matches these verbatim (case-insensitive, punctuation-sensitive), so the colon
+// conventions below are load-bearing game facts, not typos: CoX CM has NO colon
+// ("...Chambers of Xeric Challenge Mode count is:"), while ToB/ToA sub-modes DO
+// ("...Theatre of Blood: Hard Mode count is:").
+//
+// Matching semantics per tile kind:
+// - kill tiles: exact name match per mode — list every variant that should count.
+// - timed/deathless tiles: substring match, so the BASE name also matches every harder mode
+//   (deathless additionally refuses Entry clears against a base tile); a variant string pins
+//   that one mode.
+export const RAID_MODE_VARIANTS: { base: string; modes: string[] }[] = [
+  { base: "Chambers of Xeric", modes: ["Chambers of Xeric Challenge Mode"] },
+  { base: "Theatre of Blood", modes: ["Theatre of Blood: Entry Mode", "Theatre of Blood: Hard Mode"] },
+  { base: "Tombs of Amascut", modes: ["Tombs of Amascut: Entry Mode", "Tombs of Amascut: Expert Mode"] },
+];
+
 // Same idea for skills — shorthand players type into filter boxes. Lowercase.
 export const SKILL_ALIASES: Record<string, string[]> = {
   attack: ["atk"],
