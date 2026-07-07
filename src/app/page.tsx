@@ -198,7 +198,7 @@ export default async function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl mb-10 border border-gold/20 bg-gradient-to-br from-card-bg via-brown-dark to-background p-8 sm:p-12">
+      <section className="relative overflow-hidden rounded-2xl mb-10 border border-gold/20 bg-gradient-to-br from-card-bg via-brown-dark to-background p-6 sm:p-12">
         <div className="absolute inset-0 opacity-30 pointer-events-none" aria-hidden>
           <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-gold/20 blur-3xl" />
           <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-accent-green/10 blur-3xl" />

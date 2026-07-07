@@ -98,7 +98,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         &larr; Back to scoreboard
       </Link>
 
-      <div className="flex items-center gap-3 mb-1">
+      <div className="flex flex-wrap items-center gap-3 mb-1">
         <div
           className="w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background ring-current"
           style={{ backgroundColor: team.color, color: team.color }}

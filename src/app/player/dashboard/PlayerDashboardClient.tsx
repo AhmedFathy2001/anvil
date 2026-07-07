@@ -177,7 +177,7 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-1">
+      <div className="flex flex-wrap items-center gap-3 mb-1">
         <div
           className="w-5 h-5 rounded-full ring-2 ring-offset-2 ring-offset-background"
           style={{ backgroundColor: team.color }}

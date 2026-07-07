@@ -268,7 +268,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gold mb-1">{event.name}</h1>
-        <div className="flex items-center gap-3 text-sm text-text-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text-muted">
           <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
             {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
           </span>
@@ -292,7 +292,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         )}
 
         {/* Time display and view controls */}
-        <div className="flex items-center gap-3 mt-4">
+        <div className="flex flex-wrap items-center gap-3 mt-4">
           {timeInfo && (
             <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${
               timeInfo.tone === 'starts'

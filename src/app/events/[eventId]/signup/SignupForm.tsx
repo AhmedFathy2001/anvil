@@ -450,7 +450,7 @@ export default function SignupForm({
 
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Active hours</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
             <RangeRow label="Per day" min={activeDailyMin} max={activeDailyMax} onMin={setActiveDailyMin} onMax={setActiveDailyMax} disabled={isLocked} maxVal={24} step={0.5} />
             <RangeRow label="Per week" min={activeWeeklyMin} max={activeWeeklyMax} onMin={setActiveWeeklyMin} onMax={setActiveWeeklyMax} disabled={isLocked} maxVal={168} step={1} />
           </div>
@@ -458,7 +458,7 @@ export default function SignupForm({
 
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">AFK hours</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
             <RangeRow label="Per day" min={afkDailyMin} max={afkDailyMax} onMin={setAfkDailyMin} onMax={setAfkDailyMax} disabled={isLocked} maxVal={24} step={0.5} />
             <RangeRow label="Per week" min={afkWeeklyMin} max={afkWeeklyMax} onMin={setAfkWeeklyMin} onMax={setAfkWeeklyMax} disabled={isLocked} maxVal={168} step={1} />
           </div>
