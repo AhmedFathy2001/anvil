@@ -71,6 +71,8 @@ export async function GET(request: Request) {
         trackedStats: [],
         trackedDrops: [],
         trackedKills: [],
+        trackedPvp: [],
+        pvpRoster: [],
         trackedTimed: [],
         trackedLms: [],
         trackedValues: [],
@@ -263,6 +265,19 @@ export async function GET(request: Request) {
     };
   });
 
+  // PvP-kill tiles need the event roster so the plugin can tell whether a victim is on a
+  // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
+  // exists — otherwise it's payload (and roster) for nothing.
+  const hasPvpTiles = allEventTiles.some((t) => t.tileType === 'pvp');
+  const pvpRoster = hasPvpTiles
+    ? (
+        await db
+          .select({ name: players.name, teamId: players.teamId })
+          .from(players)
+          .where(eq(players.eventId, auth.eventId))
+      ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
+    : [];
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -373,6 +388,38 @@ export async function GET(request: Request) {
           trackingMode: t.trackingMode ?? 'team',
         };
       }),
+
+    // PvP-kill tiles — the plugin credits a kill off the "You have defeated <name>!" line
+    // (sent only to the player the game awards the kill/loot key to — one credit per death),
+    // gated to dangerous PvP (Wilderness / PvP worlds), when the victim matches a selector:
+    // 'team:other' = any member of a rival team (resolved against pvpRoster), 'rsn:<name>'
+    // = a named bounty.
+    // Selectors live in the targetNpcs column (reused per-tileType, like diary/CA).
+    trackedPvp: allEventTiles
+      .filter((t) => t.tileType === 'pvp')
+      .map((t) => {
+        let targets: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) targets = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          targets,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: submissionMap[t.id] ?? 0,
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+    pvpRoster,
 
     // Achievement-diary tiles — the plugin credits a completion when the in-game diary
     // completion line matches one of the tile's selectors ("Ardougne Elite", "Any Elite",

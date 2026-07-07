@@ -87,6 +87,8 @@ export const tiles = sqliteTable('tiles', {
   // need NOT be on the OSRS hiscores (that's the whole point — chickens, cows, etc.).
   // The kill count needed is stored in `requiredAmount`; `trackingMode` decides whether
   // kills accumulate across the team or any single member's kills count. NULL for non-kill tiles.
+  // Reused per-tileType (like diary/CA selectors): PVP tiles (tile_type='pvp') store
+  // '["team:other"]' (any rival team member counts) or '["rsn:<name>", ...]' bounties here.
   targetNpcs: text('target_npcs'),
   // TIMED tiles (tile_type='timed'). Free-text activity identifier the plugin maps to an
   // internal timer — e.g. "Inferno", "Chambers of Xeric", "Fortis Colosseum", or a boss

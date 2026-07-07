@@ -24,7 +24,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -33,6 +33,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
   { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
+  { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
   { key: 'deathless', label: 'Deathless raid', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance and credits off the completion message.' },
@@ -208,6 +209,7 @@ function deriveKind(initial: TileConfig): TileKind {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
   if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'pvp') return 'pvp';
   if (initial.tileType === 'gain') return 'gain';
   if (initial.tileType === 'timed') return 'timed';
   if (initial.tileType === 'deathless') return 'deathless';
@@ -269,11 +271,21 @@ export default function TileTrackingConfig({
   // column carries diary and CA selectors when the tile is one of those kinds, so scope each
   // state to its own kind here.
   const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
-    initial.tileType === 'diary' || initial.tileType === 'ca' ? [] : initial.targetNpcs || [],
+    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' ? [] : initial.targetNpcs || [],
   );
   // Diary selectors — "<Area> <Tier>" strings, "Any" wildcard on either side.
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
     initial.tileType === 'diary' ? initial.targetNpcs || [] : [],
+  );
+  // PvP-kill selectors ride the targetNpcs column too — 'team:other' (any rival team
+  // member) or 'rsn:<name>' bounty entries. Split back into mode + RSN text for the form.
+  const [pvpTargetMode, setPvpTargetMode] = useState<'other-team' | 'rsn'>(
+    initial.tileType === 'pvp' && (initial.targetNpcs || []).some((s) => s.startsWith('rsn:')) ? 'rsn' : 'other-team',
+  );
+  const [pvpRsnsText, setPvpRsnsText] = useState<string>(
+    initial.tileType === 'pvp'
+      ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
+      : '',
   );
   const [diaryArea, setDiaryArea] = useState<string>(DIARY_ANY);
   const [diaryTier, setDiaryTier] = useState<string>('Elite');
@@ -380,6 +392,7 @@ export default function TileTrackingConfig({
   const isDrop = kind === 'drop' || kind === 'collection';
   const isCollection = kind === 'collection';
   const isKill = kind === 'kill';
+  const isPvp = kind === 'pvp';
   const isGain = kind === 'gain';
   const isTimed = kind === 'timed';
   const isDeathless = kind === 'deathless';
@@ -549,6 +562,17 @@ export default function TileTrackingConfig({
       setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
+    } else if (next === 'pvp') {
+      // Keeps pvpTargetMode/pvpRsnsText + requiredAmount — the pvp kind's whole config.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     } else if (next === 'gain') {
       // Keeps trackedItems + requiredAmount — the gain kind's whole config.
       setTrackedStat("");
@@ -659,6 +683,13 @@ export default function TileTrackingConfig({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
     }
+    if (kind === 'pvp') {
+      if (pvpTargetMode === 'rsn' && !pvpRsnsText.split(',').some((s) => s.trim())) {
+        return 'Name at least one player (RSN) whose death counts, or switch to rival-team kills.';
+      }
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    }
     if (kind === 'diary') {
       if (diarySelectors.length === 0) return 'Add at least one diary (or "Any") to count completions for.';
       const amt = parseInt(requiredAmount, 10);
@@ -725,7 +756,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -758,6 +789,13 @@ export default function TileTrackingConfig({
       } else if (kind === 'kill') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = targetNpcNames;
+        payload.trackingMode = trackingMode;
+      } else if (kind === 'pvp') {
+        // PvP selectors ride the targetNpcs column — 'team:other' or 'rsn:<name>' entries.
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = pvpTargetMode === 'rsn'
+          ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
+          : ['team:other'];
         payload.trackingMode = trackingMode;
       } else if (kind === 'diary') {
         // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
@@ -1446,6 +1484,96 @@ export default function TileTrackingConfig({
             </div>
             <p className="text-[10px] text-text-muted mt-0.5">
               Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- PVP KILL KIND ---- */}
+      {isPvp && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Who counts as a target?</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPvpTargetMode('other-team')}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  pvpTargetMode === 'other-team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Any rival team member
+              </button>
+              <button
+                type="button"
+                onClick={() => setPvpTargetMode('rsn')}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  pvpTargetMode === 'rsn' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Specific player(s)
+              </button>
+            </div>
+            {pvpTargetMode === 'rsn' && (
+              <div className="mt-2">
+                <Input
+                  type="text"
+                  value={pvpRsnsText}
+                  onChange={(e) => setPvpRsnsText(e.target.value)}
+                  placeholder="e.g. Zezima, B0aty"
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Comma-separated RSNs — killing <span className="text-foreground/70">any</span> listed player counts
+                  (case-insensitive). A bounty target doesn&rsquo;t have to be signed up for the event.
+                </p>
+              </div>
+            )}
+            <p className="text-[10px] text-text-muted mt-1.5 leading-relaxed">
+              Kills only count in <span className="text-foreground/70">dangerous PvP</span> — the Wilderness or PvP
+              worlds. Safe minigames (LMS, Soul Wars, Castle Wars, PvP Arena) never count. Exactly one player credits
+              per kill: whoever the game awards it to (the one who gets the loot / loot key). Rival-team kills need
+              the victim signed up on another team in this event.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Required Kills</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="e.g. 5"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrackingMode("team")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Team Total
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrackingMode("solo")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Solo (Any Member)
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Team Total sums every member&rsquo;s PvP kills; Solo completes when any one member reaches the count.
             </p>
           </div>
         </div>

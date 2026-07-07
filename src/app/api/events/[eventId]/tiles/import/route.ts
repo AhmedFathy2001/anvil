@@ -58,7 +58,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -217,6 +217,8 @@ function validateRowKind(
     : parseLen(base.trackedItemIds) > 0 || parseLen(base.itemRequirements) > 0;
   const isDrop = effTileType === 'drop';
   const isKill = effTileType === 'kill';
+  // PvP tiles carry 'team:other' / 'rsn:<name>' selectors in the targetNpcs column.
+  const isPvp = effTileType === 'pvp';
   const isTimed = effTileType === 'timed';
   // Diary tiles carry their "<Area> <Tier>" selectors in the targetNpcs column; CA tiles
   // likewise carry task names / "Any <Tier>" selectors there.
@@ -231,8 +233,8 @@ function validateRowKind(
   const isGain = effTileType === 'gain';
   const isDeathless = effTileType === 'deathless';
 
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, gain, timed, deathless, diary, CA, LMS, or value tile.`;
+  if (hasStat && (isDrop || isKill || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
@@ -240,8 +242,8 @@ function validateRowKind(
   if (dropItemFields && !isDrop && !isGain) {
     return `Row ${i + 1}: only drop or gain tiles can carry items.`;
   }
-  if (effTargetNpcsLen > 0 && !isKill && !isDiary && !isCa) {
-    return `Row ${i + 1}: only kill tiles can target NPCs (or diary/CA tiles, their selectors).`;
+  if (effTargetNpcsLen > 0 && !isKill && !isDiary && !isCa && !isPvp) {
+    return `Row ${i + 1}: only kill tiles can target NPCs (or diary/CA/PvP tiles, their selectors).`;
   }
   if (effActivity && !isTimed && !isDeathless) {
     return `Row ${i + 1}: only timed or deathless tiles can carry an activity.`;
@@ -249,8 +251,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return `Row ${i + 1}: only drop, kill, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return `Row ${i + 1}: only drop, kill, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
   }
   return null;
 }
