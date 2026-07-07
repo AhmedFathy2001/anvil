@@ -255,7 +255,7 @@ function TrackTile({
   statProgress,
   dimmed,
 }: TrackTileProps) {
-  const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill';
+  const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill' || tile.tileType === 'pvp';
   const showDrop = isDrop && progress && progress.current > 0 && !reached;
   const showStat = statProgress && statProgress.current > 0 && !reached;
 

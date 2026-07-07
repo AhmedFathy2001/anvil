@@ -153,6 +153,8 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   }
   if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
   if (type === 'ca') return 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
+  // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
+  if (type === 'pvp') return 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
 
   // Stat tiles: skill icon for skill XP, the boss's representative item for KC.
   if (tile.trackedStat) {

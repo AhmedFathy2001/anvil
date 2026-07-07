@@ -534,7 +534,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                 </span>
               </div>
 
-              {['drop', 'kill', 'gain', 'diary', 'ca'].includes(selectedTile.tileType ?? '') && selectedTile.requiredAmount ? (
+              {['drop', 'kill', 'pvp', 'gain', 'diary', 'ca'].includes(selectedTile.tileType ?? '') && selectedTile.requiredAmount ? (
                 <div className="flex items-center gap-2">
                   <span className="text-text-muted">Required:</span>
                   <span className="text-accent-green-light font-medium">{selectedTile.requiredAmount}</span>

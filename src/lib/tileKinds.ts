@@ -17,6 +17,8 @@ export function tileKindLabel(tile: TileKindLike): string {
       return tile.itemRequirements ? 'Collection' : 'Drop';
     case 'kill':
       return 'Kill count';
+    case 'pvp':
+      return 'PvP kill';
     case 'gain':
       return 'Item gain';
     case 'timed':

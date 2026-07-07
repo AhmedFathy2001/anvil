@@ -131,16 +131,17 @@ export default function TileDetailModal({
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';
   const isKill = tile.tileType === 'kill';
+  const isPvp = tile.tileType === 'pvp';
   const isTimed = tile.tileType === 'timed';
   const isDiary = tile.tileType === 'diary';
   const isCa = tile.tileType === 'ca';
   const manualOnly = isManualOnlyDropTile(tile);
-  // Drop, kill, diary and CA share the count-based progress/gallery/submission UI.
-  const isCount = isDrop || isKill || isDiary || isCa;
+  // Drop, kill, PvP, diary and CA share the count-based progress/gallery/submission UI.
+  const isCount = isDrop || isKill || isPvp || isDiary || isCa;
   const isStatTile = !!tile.trackedStat;
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isDiary ? 'Diary' : isCa ? 'Combat task' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isDiary ? 'Diary' : isCa ? 'Combat task' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion").
-  const countNoun = isKill ? 'kill' : isDiary || isCa ? 'completion' : 'drop';
+  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : 'drop';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -328,7 +329,7 @@ export default function TileDetailModal({
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
                   </span>
                 )}
-                {isKill && tile.requiredAmount && (
+                {(isKill || isPvp) && tile.requiredAmount && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.requiredAmount.toLocaleString()} kill{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>
@@ -698,7 +699,7 @@ export default function TileDetailModal({
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {imageUrls.map((url, index) => (
                       <div key={index} className="border border-card-border/50 rounded-lg p-2 bg-brown-dark/30">
-                        <p className="text-xs text-text-muted mb-1">{isKill ? 'Kill' : isDiary || isCa ? 'Completion' : 'Drop'} #{index + 1}</p>
+                        <p className="text-xs text-text-muted mb-1">{isKill || isPvp ? 'Kill' : isDiary || isCa ? 'Completion' : 'Drop'} #{index + 1}</p>
                         <ImageUpload
                           onImageSelected={(newUrl) => {
                             setImageUrls((prev) => {

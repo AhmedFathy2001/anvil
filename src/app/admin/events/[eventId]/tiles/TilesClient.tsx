@@ -981,12 +981,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
 function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
+  if (tile.tileType === 'pvp') return 'pvp';
   if (tile.tileType === 'gain') return 'gain';
   if (tile.tileType === 'timed') return 'timed';
   if (tile.tileType === 'deathless') return 'deathless';
@@ -1010,6 +1011,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' },
   collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light' },
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
+  pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200' },
   gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
   deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300' },
@@ -1029,6 +1031,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'drop', label: 'Drop' },
   { key: 'collection', label: 'Item set' },
   { key: 'kill', label: 'Kill' },
+  { key: 'pvp', label: 'PvP' },
   { key: 'gain', label: 'Gain' },
   { key: 'timed', label: 'Timed' },
   { key: 'deathless', label: 'Deathless' },
@@ -1059,6 +1062,17 @@ function tileMeta(tile: Tile): string {
     }
     case 'kill':
       return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
+    case 'pvp': {
+      let sels: string[] = [];
+      try {
+        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
+      } catch {
+        /* ignore */
+      }
+      const bounties = sels.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
+      const who = bounties.length > 0 ? bounties.join(', ') : 'rival team';
+      return `PvP kill · ${who}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+    }
     case 'gain':
       return tile.requiredAmount ? `Item gain · ${tile.requiredAmount}` : 'Item gain';
     case 'deathless': {

@@ -340,7 +340,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
 
   if (tileType === 'timed' && durationSeconds != null) {
     fields.push({ name: 'Clear Time', value: formatClearTime(durationSeconds), inline: true });
-  } else if (tileType === 'kill') {
+  } else if (tileType === 'kill' || tileType === 'pvp') {
     fields.push({
       name: 'Kills',
       value: requiredAmount ? `${amount} submitted (${currentTotal}/${requiredAmount} total)` : `${amount} submitted`,
@@ -366,6 +366,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     ? '✅ Tile Completed!'
     : tileType === 'timed' ? '⏱️ New Timed Clear Submitted!'
     : tileType === 'kill' ? '⚔️ New Kill Submitted!'
+    : tileType === 'pvp' ? '💀 New PvP Kill Submitted!'
     : '🎯 New Drop Submitted!';
 
   const embed: DiscordEmbed = {
@@ -417,7 +418,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   const progress = requiredAmount != null && currentTotal != null
     ? ` (${currentTotal}/${requiredAmount} total)`
     : '';
-  if (tileType === 'kill') {
+  if (tileType === 'kill' || tileType === 'pvp') {
     fields.push({ name: 'Kills', value: `+${pendingAmount}${progress}`, inline: true });
   } else {
     fields.push({ name: 'Progress', value: `+${pendingAmount}${progress}`, inline: true });
@@ -433,7 +434,8 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   const embed: DiscordEmbed = {
     title: completed
       ? '✅ Tile Completed!'
-      : tileType === 'kill' ? '⚔️ Kill Progress' : '🎯 Drop Progress',
+      : tileType === 'kill' ? '⚔️ Kill Progress'
+      : tileType === 'pvp' ? '💀 PvP Kill Progress' : '🎯 Drop Progress',
     description: '━━━━━━━━━━━━━━━━━━━━',
     color: teamColorToDecimal(teamColor),
     fields,
