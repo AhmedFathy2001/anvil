@@ -910,7 +910,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-foreground truncate">{tile.label}</span>
+                <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>{tile.label}</span>
                 <span className="text-xs text-text-muted truncate">{tileMeta(tile)}</span>
               </button>
             );
@@ -1140,7 +1140,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wide text-text-muted">Tile #{tile.position + 1}</p>
-            <h3 id={titleId} className="text-base font-bold text-foreground truncate">
+            <h3 id={titleId} className="text-base font-bold text-foreground line-clamp-2 break-words">
               {tile.label}
             </h3>
           </div>
