@@ -38,7 +38,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, baseUpdatedAt } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -170,6 +170,18 @@ export async function PUT(
     }
   }
 
+  // partySize: optional exact-party-size gate for a TIMED raid tile (1..100).
+  let partySizeValue: number | null | undefined;
+  if (partySize !== undefined) {
+    if (partySize === null) {
+      partySizeValue = null;
+    } else if (Number.isInteger(partySize) && partySize >= 1 && partySize <= 100) {
+      partySizeValue = partySize;
+    } else {
+      return NextResponse.json({ error: 'partySize must be an integer between 1 and 100' }, { status: 400 });
+    }
+  }
+
   // Build update set
   const updateSet: Record<string, unknown> = {
     // Concurrency stamp — every successful edit gets a fresh one (see baseUpdatedAt above).
@@ -193,6 +205,7 @@ export async function PUT(
     ...(targetNpcsJson !== undefined ? { targetNpcs: targetNpcsJson } : {}),
     ...(timedActivityValue !== undefined ? { timedActivity: timedActivityValue } : {}),
     ...(timeThresholdValue !== undefined ? { timeThresholdSeconds: timeThresholdValue } : {}),
+    ...(partySizeValue !== undefined ? { partySize: partySizeValue } : {}),
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)

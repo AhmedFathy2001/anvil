@@ -447,6 +447,8 @@ export async function GET(request: Request) {
         category: t.category ?? null,
         activity: t.timedActivity ?? null,
         thresholdSeconds: t.timeThresholdSeconds ?? null,
+        // Exact party size required inside the raid (0 = any) — mirrors deathless partySize.
+        partySize: t.partySize ?? 0,
         // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
         // accordion's icon; -1 falls back to the book sprite.
         itemId: notableItemFor(t.timedActivity) ?? -1,

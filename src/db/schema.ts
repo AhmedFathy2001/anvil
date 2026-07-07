@@ -96,6 +96,10 @@ export const tiles = sqliteTable('tiles', {
   // TIMED tiles. The completion-time cap in seconds. The tile completes when a submission
   // reports a duration ≤ this value (pass/fail, not a leaderboard). NULL for non-timed tiles.
   timeThresholdSeconds: integer('time_threshold_seconds'),
+  // TIMED raid tiles — require exactly this many players in the raid instance (NULL = any).
+  // Deathless and drop tiles keep their party gates in the overloaded timeThresholdSeconds
+  // column (plugin back-compat); timed tiles can't reuse it since it already holds the cap.
+  partySize: integer('party_size'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
