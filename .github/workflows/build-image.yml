@@ -1,8 +1,8 @@
-name: Build & publish image
+name: Build & deploy
 
-# Build the Anvil clan-app image and push it to GitHub Container Registry (GHCR) on every push to
-# main. The box never builds — it pulls this pre-built image (Watchtower auto-updates running
-# containers). One image (anvil-site) serves the reference instance and every provisioned clan.
+# Build the Anvil clan-app image, push it to GitHub Container Registry (GHCR), then roll it out to
+# every active clan via the control plane's health-gated rollout endpoint. The box never builds —
+# it pulls this pre-built image. One image (anvil-site) serves every provisioned clan.
 
 on:
   push:
@@ -47,3 +47,46 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # One-time setup — add these repo secrets (Settings → Secrets and variables → Actions):
+    #   ROLLOUT_SECRET         — must match ROLLOUT_SECRET in admin.env on the box
+    #   DEPLOY_DISCORD_WEBHOOK — optional; posts rollout status
+    # Until ROLLOUT_SECRET is set the deploy is skipped (the build still publishes the image).
+    env:
+      ROLLOUT_SECRET: ${{ secrets.ROLLOUT_SECRET }}
+      DEPLOY_DISCORD_WEBHOOK: ${{ secrets.DEPLOY_DISCORD_WEBHOOK }}
+    steps:
+      - name: Roll out to all active clans (sequential, health-gated)
+        if: env.ROLLOUT_SECRET != ''
+        # The control plane pulls the image we just pushed, then recreates each active clan one at a
+        # time, health-checking each before moving on. 200 = every clan healthy; 207 = partial
+        # rollout (some clan failed its health check) — fail the job so it's loud, the report body
+        # says which clan. Generous timeout: image pull + N sequential recreates takes minutes.
+        run: |
+          report=$(mktemp)
+          status=$(curl -sS -o "$report" -w '%{http_code}' --max-time 900 \
+            -X POST -H "Authorization: Bearer $ROLLOUT_SECRET" \
+            https://anvilosrs.com/api/admin/rollout)
+          echo "HTTP $status"
+          cat "$report"; echo
+          if [ "$status" = "200" ]; then
+            echo "all clans healthy"
+          elif [ "$status" = "207" ]; then
+            echo "::error::partial rollout — at least one clan failed its health check (see report above)"
+            exit 1
+          else
+            echo "::error::rollout failed (HTTP $status)"
+            exit 1
+          fi
+
+      - name: Notify Discord
+        if: ${{ always() && env.DEPLOY_DISCORD_WEBHOOK != '' && env.ROLLOUT_SECRET != '' }}
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          curl -fsS -H 'Content-Type: application/json' \
+            -d "{\"content\":\"⚒️ anvil-site rollout **${STATUS}** — \`${GITHUB_SHA}\`\"}" \
+            "$DEPLOY_DISCORD_WEBHOOK" || true
