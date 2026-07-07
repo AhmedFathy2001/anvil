@@ -152,6 +152,7 @@ export function deriveTileIcon(tile: IconableTile): string | null {
     } catch { return null; }
   }
   if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
+  if (type === 'ca') return 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
 
   // Stat tiles: skill icon for skill XP, the boss's representative item for KC.
   if (tile.trackedStat) {

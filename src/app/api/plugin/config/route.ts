@@ -77,6 +77,7 @@ export async function GET(request: Request) {
         trackedGains: [],
         trackedDeathless: [],
         trackedDiaries: [],
+        trackedCombatTasks: [],
         noActiveEvent: true,
         schedule,
         activeWeekly,
@@ -387,6 +388,35 @@ export async function GET(request: Request) {
           points: t.points ?? 0,
           category: t.category ?? null,
           diaries,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: submissionMap[t.id] ?? 0,
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+
+    // Combat Achievement tiles — the plugin credits a completion when the in-game "you've
+    // completed a <tier> combat task" line matches one of the tile's selectors (exact task
+    // names like "Whack-a-Mole", or "Any <Tier>" wildcards). Selectors live in the targetNpcs
+    // column (reused per-tileType, like diary). Players who already own a task re-fire the
+    // line via the in-game "Repeat completion" setting. Consumed by a future plugin release —
+    // current plugins simply ignore the field.
+    trackedCombatTasks: allEventTiles
+      .filter((t) => t.tileType === 'ca')
+      .map((t) => {
+        let tasks: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) tasks = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          tasks,
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
           trackingMode: t.trackingMode ?? 'team',

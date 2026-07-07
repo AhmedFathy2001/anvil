@@ -49,6 +49,8 @@ function kindFamily(t: Tile): 'RNG drops' | 'Grind' | 'Execution' | 'Manual' {
   const type = t.tileType ?? 'standard';
   if (type === 'drop' || type === 'value') return 'RNG drops';
   if (type === 'timed' || type === 'lms' || type === 'deathless') return 'Execution';
+  // CA tiles sit with Execution — completing a combat task is a mechanics test, not a grind.
+  if (type === 'ca') return 'Execution';
   if (type === 'kill' || type === 'gain' || type === 'diary' || type === 'valuetotal') return 'Grind';
   if (t.trackedStat) return 'Grind'; // hiscores-polled skill/boss tiles store tileType 'standard'
   return 'Manual';

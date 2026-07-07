@@ -340,6 +340,7 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
     gain: 'gather rates not modelled yet',
     deathless: 'deathless success rates not modelled yet',
     diary: 'diary progress depends on each account',
+    ca: 'combat-task effort depends on each account',
     value: 'haul-value odds not modelled yet',
     valuetotal: 'haul-value odds not modelled yet',
   };
