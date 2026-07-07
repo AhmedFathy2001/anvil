@@ -117,6 +117,8 @@ export async function buildTileSpreadsheet(opts: {
     'Timed clear: complete the activity under the cap (1800s = 30:00).');
   example({ label: 'Any Master combat task', type: 'ca', points: 20, category: 'PvM', requiredAmount: 1, targetNpcs: 'Any Master' },
     'Combat Achievement: task names or "Any <Tier>" wildcards, PIPE-separated only (names contain commas).');
+  example({ label: 'Kill 3 rival team members', type: 'pvp', points: 15, category: 'Wilderness', requiredAmount: 3, targetNpcs: 'team:other' },
+    'PvP kill: "team:other" = any rival team member, or "rsn:<name>" bounties. Wilderness/PvP worlds only.');
 
   // -- Item list (full, filterable; copy exact names into the items cell) --------------------
   const il = wb.addWorksheet(SHEET_ITEMS);
@@ -168,6 +170,7 @@ export async function buildTileSpreadsheet(opts: {
     '  • targetNpcs — kill tiles: NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
     '    diary tiles: "<Area> <Tier>" selectors ("Any Elite"). ca tiles: Combat Achievement task',
     '    names or "Any <Tier>" wildcards, PIPE-separated ONLY (task names can contain commas).',
+    '    pvp tiles: team:other (any rival team member) or rsn:<name> bounty entries.',
     '  • timedActivity / timeThresholdSeconds — timed tiles only; time as mm:ss (30:00), seconds (1800), or 30m.',
     '',
     'THE items CELL (drop / collection tiles)',

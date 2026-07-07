@@ -342,6 +342,7 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
     diary: 'diary progress depends on each account',
     ca: 'combat-task effort depends on each account',
     value: 'haul-value odds not modelled yet',
+    pvp: 'PvP kill effort depends on the opposition',
     valuetotal: 'haul-value odds not modelled yet',
   };
   return { hours: null, floor: 'anyone', note: UNMODELLED[type] ?? 'not modelled' };

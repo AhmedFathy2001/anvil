@@ -52,7 +52,7 @@ A blank `label` auto-fills as `Tile N`.
 |---|---|---|
 | `label` | Tile name shown on the board | Required for a meaningful tile; ≤200 chars |
 | `description` | Free text shown on the tile | Optional |
-| `type` | `standard` \| `drop` \| `kill` \| `gain` \| `timed` \| `deathless` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
+| `type` | `standard` \| `drop` \| `kill` \| `pvp` \| `gain` \| `timed` \| `deathless` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
 | `points` | Integer score weight (Leagues scoring) | ≥ 0, default 1 |
 | `category` | Grouping tag(s) for the plugin/UI — comma-separated for several (e.g. `"Inferno, PvM"`, quoted) | ≤120 chars |
 | `optional` | `true`/`false` (also `1`/`0`/`yes`/`y`) — doesn't count toward the total | |
@@ -146,6 +146,17 @@ royalTitans, yama`
 `type=kill`. Set `targetNpcs` (pipe-separated names) and `requiredAmount` (kill count).
 ```
 "Kill 100 cows",,kill,3,Skilling,false,100,,,,"Cow|Cow calf",,,
+```
+
+### PvP kill (dangerous PvP only)
+`type=pvp`. `targetNpcs` carries the selectors: `team:other` (a member of any rival team
+counts) or `rsn:<name>` bounties (pipe-separated). `requiredAmount` = kills needed. Kills
+only credit in the Wilderness or on PvP worlds — safe minigames (LMS, Soul Wars, Castle
+Wars, PvP Arena) never count. Exactly one player credits per kill: whoever the game awards
+the kill (and loot / loot key) to.
+```
+"Kill 3 rival team members",,pvp,15,Wilderness,false,3,,,,"team:other",,,
+"Slay the host",,pvp,25,Wilderness,false,1,,,,"rsn:Ahmed",,,
 ```
 
 ### Timed (clear under a time cap)
