@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { players, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { statKeys } from '@/lib/tileKinds';
 
 interface Snapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
@@ -16,17 +17,23 @@ function computeGains(
   const gains: Record<string, number> = {};
 
   for (const { key, type } of trackedStats) {
-    if (type === 'skill') {
-      const snapshotXp = snapshot.skills?.[key]?.xp ?? 0;
-      const currentXp = current.skills?.[key]?.xp ?? 0;
-      gains[key] = Math.max(0, currentXp - snapshotXp);
-    } else if (type === 'boss') {
-      const snapshotKc = snapshot.bosses?.[key]?.score ?? 0;
-      const currentKc = current.bosses?.[key]?.score ?? 0;
-      const sKc = snapshotKc < 0 ? 0 : snapshotKc;
-      const cKc = currentKc < 0 ? 0 : currentKc;
-      gains[key] = Math.max(0, cKc - sKc);
+    // A composite key ("chambersOfXeric,chambersOfXericChallengeMode") sums its parts and is
+    // emitted under the composite string, so clients keep indexing by tile.trackedStat.
+    let total = 0;
+    for (const part of statKeys(key)) {
+      if (type === 'skill') {
+        const snapshotXp = snapshot.skills?.[part]?.xp ?? 0;
+        const currentXp = current.skills?.[part]?.xp ?? 0;
+        total += Math.max(0, currentXp - snapshotXp);
+      } else if (type === 'boss') {
+        const snapshotKc = snapshot.bosses?.[part]?.score ?? 0;
+        const currentKc = current.bosses?.[part]?.score ?? 0;
+        const sKc = snapshotKc < 0 ? 0 : snapshotKc;
+        const cKc = currentKc < 0 ? 0 : currentKc;
+        total += Math.max(0, cKc - sKc);
+      }
     }
+    gains[key] = total;
   }
 
   return gains;
@@ -116,12 +123,16 @@ export async function GET(
 
         const current: Record<string, number> = {};
         for (const { key, type } of uniqueStats) {
-          if (type === 'skill') {
-            current[key] = currentStats.skills?.[key]?.xp ?? 0;
-          } else if (type === 'boss') {
-            const kc = currentStats.bosses?.[key]?.score ?? 0;
-            current[key] = kc < 0 ? 0 : kc;
+          let total = 0;
+          for (const part of statKeys(key)) {
+            if (type === 'skill') {
+              total += currentStats.skills?.[part]?.xp ?? 0;
+            } else if (type === 'boss') {
+              const kc = currentStats.bosses?.[part]?.score ?? 0;
+              total += kc < 0 ? 0 : kc;
+            }
           }
+          current[key] = total;
         }
 
         result.push({

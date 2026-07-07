@@ -1,3 +1,5 @@
+import { BOSSES, SKILL_LABELS } from './constants';
+
 // Structural subset of a tile row that the kind/target helpers need — board clients keep
 // their own narrowed Tile interfaces, so we type against the shape, not the shared Tile.
 export interface TileKindLike {
@@ -34,6 +36,27 @@ export function tileKindLabel(tile: TileKindLike): string {
     default:
       return tile.trackedStat ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   }
+}
+
+// A stat tile's trackedStat can hold SEVERAL hiscores keys, comma-separated ("chambersOfXeric,
+// chambersOfXericChallengeMode" — CoX + CM count together). Single-key tiles are the common
+// case and pass through unchanged. Gains for a composite tile are the SUM across its keys.
+export function statKeys(trackedStat: string | null | undefined): string[] {
+  return (trackedStat ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Human labels for a (possibly composite) trackedStat — "CoX + CoX: CM" instead of raw keys.
+export function statLabel(trackedStat: string | null | undefined, statType?: string | null): string {
+  return statKeys(trackedStat)
+    .map((key) =>
+      statType === 'boss'
+        ? BOSSES.find((b) => b.key === key)?.label ?? key
+        : SKILL_LABELS[key] ?? key,
+    )
+    .join(' + ');
 }
 
 // Safe JSON.parse for the tiles table's JSON-array text columns (targetNpcs, sourceNpcs, …).
