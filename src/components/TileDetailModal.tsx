@@ -9,6 +9,7 @@ import Textarea from '@/components/Textarea';
 import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
+import TileTargets from './TileTargets';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
@@ -362,6 +363,10 @@ export default function TileDetailModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* What the tile tracks — the admin-configured items/NPCs/raid. Item lists are
+              suppressed when the per-item progress section below already names them. */}
+          <TileTargets tile={tile} hideItems={!!perItemProgress?.length} />
+
           {/* Completion status */}
           {completedBy.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

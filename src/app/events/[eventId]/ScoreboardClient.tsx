@@ -8,6 +8,8 @@ import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
 import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { tileKindLabel } from '@/lib/tileKinds';
+import TileTargets from '@/components/TileTargets';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Tile {
@@ -26,6 +28,13 @@ interface Tile {
   optional?: number | null;
   points?: number | null;
   category?: string | null;
+  // Tracking-target columns rendered by TileTargets (the page passes full DB rows).
+  trackedItemIds?: string | null;
+  itemRequirements?: string | null;
+  sourceNpcs?: string | null;
+  targetNpcs?: string | null;
+  timedActivity?: string | null;
+  timeThresholdSeconds?: number | null;
 }
 
 interface Team {
@@ -517,20 +526,23 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               <div className="flex items-center gap-2">
                 <span className="text-text-muted">Type:</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  selectedTile.tileType === 'drop'
+                  selectedTile.tileType !== 'standard' && !selectedTile.trackedStat
                     ? 'bg-accent-green/20 text-accent-green-light'
                     : 'bg-gold/15 text-gold'
                 }`}>
-                  {selectedTile.tileType === 'drop' ? 'Drop' : 'Standard'}
+                  {tileKindLabel(selectedTile)}
                 </span>
               </div>
 
-              {selectedTile.tileType === 'drop' && selectedTile.requiredAmount && (
+              {['drop', 'kill', 'gain', 'diary', 'ca'].includes(selectedTile.tileType ?? '') && selectedTile.requiredAmount ? (
                 <div className="flex items-center gap-2">
                   <span className="text-text-muted">Required:</span>
                   <span className="text-accent-green-light font-medium">{selectedTile.requiredAmount}</span>
                 </div>
-              )}
+              ) : null}
+
+              {/* What the tile tracks — items/NPCs/raid the admins configured */}
+              <TileTargets tile={selectedTile} />
 
               {selectedTile.trackedStat && (
                 <>
