@@ -527,7 +527,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <span className="w-1 h-5 bg-gold rounded-full" />
             Bulk Import
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a
               href={`/api/events/${event.id}/tiles/spreadsheet`}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 bg-gold/10 text-gold hover:bg-gold/20 transition-colors"
@@ -611,13 +611,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
       {/* Per-tile configuration */}
       <div>
-        <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
             Tile Configuration
             <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!eventStarted && localTiles.length > 1 && (
               <>
                 <button
@@ -954,7 +954,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
       {/* Paste-labels bulk create (Quick Build) */}
       {pasteOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm" onClick={() => setPasteOpen(false)}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPasteOpen(false)}>
           <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-foreground">Paste labels</h3>
             <p className="text-xs text-text-muted">One tile per line. Each becomes a new tile you can configure on the right.</p>

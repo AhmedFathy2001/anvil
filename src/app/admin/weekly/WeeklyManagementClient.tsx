@@ -289,7 +289,7 @@ export default function WeeklyManagementClient() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gold">Weekly Competitions</h1>
           <p className="text-text-muted text-sm mt-1">Skill of the Week / Boss of the Week</p>
@@ -473,23 +473,23 @@ export default function WeeklyManagementClient() {
               {comps.map((comp) => (
                 <div key={comp.id} className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
                   <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-card-bg-hover transition-colors"
+                    className="flex flex-wrap items-center justify-between gap-2 p-4 cursor-pointer hover:bg-card-bg-hover transition-colors"
                     onClick={() => loadParticipants(comp.id)}
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold">{comp.title}</span>
                         {getStatusBadge(comp.status)}
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">
                           {comp.type === 'skill' ? 'Skill' : 'Boss'}: {getMetricLabel(comp.type, comp.metric)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted mt-1">
                         <span>{comp.participantCount} participants</span>
                         <span>{new Date(comp.startDate).toLocaleDateString()} - {new Date(comp.endDate).toLocaleDateString()}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); startEdit(comp); }}
                         className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"

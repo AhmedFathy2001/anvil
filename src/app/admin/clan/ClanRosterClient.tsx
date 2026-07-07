@@ -265,7 +265,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gold">Clan Roster</h1>
           <p className="text-text-muted text-sm mt-1">
@@ -365,7 +365,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
           <h2 className="text-lg font-bold mb-4">Add Clan Member</h2>
           <form onSubmit={handleAdd} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-text-muted mb-1">RSN</label>
                 <Input
@@ -388,7 +388,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-text-muted mb-1">Rank (optional)</label>
                 <Input
@@ -436,7 +436,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       {loading ? (
         <div className="text-center py-12 text-text-muted">Loading roster...</div>
       ) : (
-        <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+        <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-text-muted">
@@ -576,7 +576,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Role-assignment notice */}
       {roleNotice && (
-        <div className="fixed bottom-6 right-6 z-40 max-w-sm border border-gold/30 bg-card-bg rounded-lg shadow-lg px-4 py-3 text-sm">
+        <div className="fixed bottom-6 right-4 left-4 sm:left-auto sm:right-6 z-40 sm:max-w-sm border border-gold/30 bg-card-bg rounded-lg shadow-lg px-4 py-3 text-sm">
           {roleNotice}
         </div>
       )}

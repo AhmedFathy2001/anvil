@@ -419,8 +419,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
               const pct = totalWeight > 0 ? Math.round((completed / totalWeight) * 100) : 0;
               return (
-                <div key={team.id} className="flex items-center justify-between border border-card-border rounded-xl p-3 bg-card-bg">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border border-card-border rounded-xl p-3 bg-card-bg">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {editingTeam?.id === team.id ? (
                       <>
                         <label className="relative w-3.5 h-3.5 rounded-full cursor-pointer flex-shrink-0" style={{ backgroundColor: editingTeam.color }} title="Pick team color">
@@ -441,7 +441,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             if (e.key === 'Enter') saveTeamEdit();
                             if (e.key === 'Escape') { setEditingTeam(null); setTeamEditError(null); }
                           }}
-                          className="px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground w-44"
+                          className="px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground w-full max-w-44 min-w-0"
                         />
                         {teamEditError && <span className="text-xs text-red-400">{teamEditError}</span>}
                       </>
@@ -459,16 +459,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           />
                         </label>
-                        <div>
-                          <span className="font-semibold">{team.name}</span>
-                          <span className="text-text-muted text-xs ml-2">
+                        <div className="min-w-0">
+                          <span className="font-semibold break-words">{team.name}</span>
+                          <span className="text-text-muted text-xs ml-2 whitespace-nowrap">
                             {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
                           </span>
                         </div>
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {editingTeam?.id === team.id ? (
                       <>
                         <button

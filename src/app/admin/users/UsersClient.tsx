@@ -231,7 +231,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         </div>
       )}
 
-      <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+      <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-card-border text-left text-text-muted">

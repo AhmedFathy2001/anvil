@@ -170,8 +170,9 @@ export default function ScheduleClient() {
         </div>
       </div>
 
-      {/* Calendar */}
-      <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+      {/* Calendar — min-width keeps day cells usable on phones; the card scrolls sideways instead */}
+      <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+        <div className="min-w-[560px]">
         <div className="grid grid-cols-7 border-b border-card-border text-xs text-text-muted">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <div key={d} className="px-2 py-2 text-center font-medium">
@@ -217,6 +218,7 @@ export default function ScheduleClient() {
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

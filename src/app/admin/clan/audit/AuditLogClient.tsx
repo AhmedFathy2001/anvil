@@ -372,11 +372,12 @@ export default function AuditLogClient({
             {filtered.map((e) => {
               const meta = EVENT_LABELS[e.eventType] ?? { label: e.eventType, color: 'text-foreground' };
               return (
-                <li key={e.id} className="px-4 py-3 flex items-start gap-4">
+                <li key={e.id} className="px-4 py-3 flex flex-wrap items-start gap-x-4 gap-y-1">
                   <div className={`text-xs font-semibold uppercase tracking-wide w-28 shrink-0 ${meta.color}`}>
                     {meta.label}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  {/* On phones the detail drops to its own full-width line under label + timestamp */}
+                  <div className="flex-1 min-w-0 basis-full order-last sm:basis-0 sm:order-none">
                     <div className="text-sm">
                       {e.memberRsn || (() => {
                         try {
@@ -399,7 +400,7 @@ export default function AuditLogClient({
                     </div>
                     {e.notes && <div className="text-xs text-text-muted mt-0.5">{e.notes}</div>}
                   </div>
-                  <div className="text-[11px] text-text-muted shrink-0 text-right">
+                  <div className="text-[11px] text-text-muted shrink-0 text-right ml-auto sm:ml-0">
                     <div>{new Date(e.occurredAt).toLocaleString()}</div>
                     {e.actorDisplayName && <div className="opacity-70">by {e.actorDisplayName}</div>}
                   </div>
