@@ -7,6 +7,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import SignupFeeControls from '@/components/SignupFeeControls';
+import SignupAnswersModal from './SignupAnswersModal';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
@@ -96,6 +97,9 @@ export default function SignupAdminPanel({
   const [captainTeamName, setCaptainTeamName] = useState('');
   const [captainTeamColor, setCaptainTeamColor] = useState(DEFAULT_TEAM_COLORS[0]);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
+  // Add/edit answers modal: null = closed, { signup: null } = add mode,
+  // { signup } = edit that sign-up's answers.
+  const [answersModal, setAnswersModal] = useState<{ signup: SignupRow | null } | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [feeFilter, setFeeFilter] = useState<string>('all');
@@ -445,6 +449,14 @@ export default function SignupAdminPanel({
                   ? `${visibleSignups.length} shown · ${signups.length} total`
                   : `${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`}
             </span>
+            {!loading && viewerRole === 'admin' && (
+              <button
+                onClick={() => setAnswersModal({ signup: null })}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+              >
+                Add member
+              </button>
+            )}
             {!loading && activeSignups.length > 0 && (
               <button
                 onClick={promoteToPool}
@@ -671,6 +683,14 @@ export default function SignupAdminPanel({
                             >
                               View stats
                             </button>
+                            {viewerRole === 'admin' && s.status !== 'withdrawn' && (
+                              <button
+                                onClick={() => setAnswersModal({ signup: s })}
+                                className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
+                              >
+                                Edit answers
+                              </button>
+                            )}
                             {s.captainTeam ? (
                               <button
                                 onClick={() => {
@@ -752,6 +772,31 @@ export default function SignupAdminPanel({
 
       {statsRsn && (
         <PlayerStatsPanel rsn={statsRsn} onClose={() => setStatsRsn(null)} />
+      )}
+
+      {answersModal && (
+        <SignupAnswersModal
+          eventId={event.id}
+          editTarget={
+            answersModal.signup
+              ? {
+                  id: answersModal.signup.id,
+                  displayName: answersModal.signup.user.displayName,
+                  rsn: answersModal.signup.account.rsn,
+                  profile: answersModal.signup.profile,
+                }
+              : null
+          }
+          signedUpUserIds={signups
+            .filter((s) => s.status !== 'withdrawn')
+            .map((s) => s.user.id)}
+          onClose={() => setAnswersModal(null)}
+          onSaved={async () => {
+            setAnswersModal(null);
+            await load();
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

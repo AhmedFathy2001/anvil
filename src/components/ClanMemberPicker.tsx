@@ -38,6 +38,9 @@ interface SingleProps extends CommonProps {
   onChange: (memberId: number | null, member: PickableMember | null) => void;
   // When true, reject members without a linked Discord user (captain seats need this).
   requireDiscordUser?: boolean;
+  // Tooltip shown on rows disabled by requireDiscordUser. Defaults to the captain-seat
+  // wording, the original consumer of this flag.
+  requireDiscordUserHint?: string;
 }
 
 interface MultiProps extends CommonProps {
@@ -172,7 +175,8 @@ export default function ClanMemberPicker(props: Props) {
             const disabledReason = enrolled
               ? 'Already added to this event'
               : requiresLink
-                ? 'No Discord login linked — captain access needs a Discord-linked user'
+                ? (props.mode === 'single' && props.requireDiscordUserHint) ||
+                  'No Discord login linked — captain access needs a Discord-linked user'
                 : '';
             return (
               <li key={m.id}>

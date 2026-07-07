@@ -4,6 +4,7 @@ import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, t
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
+import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
@@ -20,6 +21,9 @@ import { notifySignupApproved } from '@/lib/discord';
 //                     row for the captain on that team. Idempotent: re-running upgrades
 //                     the existing assignment if the user already has a team.
 //   demote-captain  → strip captain status, delete that captain's team if empty.
+//   edit-answers    → overwrite profileData with the supplied profile. The admin escape
+//                     hatch for "they told me on Discord" — no window check, unlike the
+//                     member's own edit flow.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; signupId: string }> },
@@ -37,9 +41,10 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as {
-    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain';
+    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'edit-answers';
     teamName?: string;
     teamColor?: string;
+    profile?: Record<string, unknown>;
   } | null;
   if (!body || !body.action) {
     return NextResponse.json({ error: 'action is required' }, { status: 400 });
@@ -239,6 +244,22 @@ export async function PATCH(
 
       logAction('captain_promoted', { teamId: team.id, teamName: team.name });
       return NextResponse.json({ signup: updated, team });
+    }
+
+    case 'edit-answers': {
+      if (!body.profile || typeof body.profile !== 'object') {
+        return NextResponse.json({ error: 'profile is required' }, { status: 400 });
+      }
+      const [updated] = await db
+        .update(eventSignups)
+        .set({
+          profileData: serializeProfile(sanitizeProfile(body.profile)),
+          updatedAt: now,
+        })
+        .where(eq(eventSignups.id, sigId))
+        .returning();
+      logAction('signup_answers_edited');
+      return NextResponse.json({ signup: updated });
     }
 
     case 'demote-captain': {

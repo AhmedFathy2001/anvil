@@ -59,6 +59,8 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   signup_approved: { label: 'Sign-up approved', color: 'text-accent-green-light' },
   signup_rejected: { label: 'Sign-up rejected', color: 'text-red-400' },
   signup_withdrawn: { label: 'Sign-up withdrawn', color: 'text-yellow-400' },
+  signup_admin_added: { label: 'Signed up by admin', color: 'text-gold' },
+  signup_answers_edited: { label: 'Sign-up answers edited', color: 'text-text-muted' },
   captain_promoted: { label: 'Captain promoted', color: 'text-gold' },
   captain_demoted: { label: 'Captain demoted', color: 'text-text-muted' },
   fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
