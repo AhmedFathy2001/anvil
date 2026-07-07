@@ -58,7 +58,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'gain', 'timed', 'deathless', 'diary', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -130,9 +130,10 @@ function validateRowFields(i: number, row: ImportRow): string | null {
   if (
     row.targetNpcs !== undefined && row.targetNpcs !== null &&
     (!Array.isArray(row.targetNpcs) || row.targetNpcs.length > 25 ||
-      !row.targetNpcs.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40))
+      // 60-char cap matches the single-tile PUT — CA task names run up to 44 chars.
+      !row.targetNpcs.every((n) => typeof n === 'string' && n.trim().length > 0 && n.length <= 60))
   ) {
-    return `Row ${i + 1}: targetNpcs must be up to 25 NPC names (≤40 chars each)`;
+    return `Row ${i + 1}: targetNpcs must be up to 25 NPC names (≤60 chars each)`;
   }
   return null;
 }
@@ -217,8 +218,10 @@ function validateRowKind(
   const isDrop = effTileType === 'drop';
   const isKill = effTileType === 'kill';
   const isTimed = effTileType === 'timed';
-  // Diary tiles carry their "<Area> <Tier>" selectors in the targetNpcs column.
+  // Diary tiles carry their "<Area> <Tier>" selectors in the targetNpcs column; CA tiles
+  // likewise carry task names / "Any <Tier>" selectors there.
   const isDiary = effTileType === 'diary';
+  const isCa = effTileType === 'ca';
   // LMS reuses timeThresholdSeconds (placement cap) + requiredAmount (games); loot-value
   // tiles reuse requiredAmount (gp threshold) — mirrors the single-tile PUT validation.
   const isLms = effTileType === 'lms';
@@ -228,8 +231,8 @@ function validateRowKind(
   const isGain = effTileType === 'gain';
   const isDeathless = effTileType === 'deathless';
 
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, gain, timed, deathless, diary, LMS, or value tile.`;
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, gain, timed, deathless, diary, CA, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
@@ -237,8 +240,8 @@ function validateRowKind(
   if (dropItemFields && !isDrop && !isGain) {
     return `Row ${i + 1}: only drop or gain tiles can carry items.`;
   }
-  if (effTargetNpcsLen > 0 && !isKill && !isDiary) {
-    return `Row ${i + 1}: only kill tiles can target NPCs (or diary tiles, diary selectors).`;
+  if (effTargetNpcsLen > 0 && !isKill && !isDiary && !isCa) {
+    return `Row ${i + 1}: only kill tiles can target NPCs (or diary/CA tiles, their selectors).`;
   }
   if (effActivity && !isTimed && !isDeathless) {
     return `Row ${i + 1}: only timed or deathless tiles can carry an activity.`;
@@ -246,8 +249,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isGain && !isDiary && !isLms && !isValue && !isDeathless) {
-    return `Row ${i + 1}: only drop, kill, gain, diary, LMS, value, or deathless tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return `Row ${i + 1}: only drop, kill, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
   }
   return null;
 }

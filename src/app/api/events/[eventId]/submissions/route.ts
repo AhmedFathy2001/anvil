@@ -134,8 +134,8 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, gain, timed, deathless, diary, LMS, or value tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, gain, timed, deathless, diary, CA, LMS, or value tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
   if (tile.tileType !== 'value' && tile.tileType !== 'valuetotal' && submitAmount > 10000) {

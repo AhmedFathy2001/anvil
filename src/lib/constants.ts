@@ -174,6 +174,13 @@ export const DIARY_AREAS = [
 
 export const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"] as const;
 
+// Combat Achievement tiers, for CA-tile selectors. A selector is either an exact task name
+// ("Whack-a-Mole" — unique in-game, it's what the completion chat line carries) or the wildcard
+// "Any <Tier>" ("Any Master"). Stored in tiles.targetNpcs (the ca tileType reinterprets that
+// column); the plugin matches the same strings against completion chat lines. Players who
+// already own a task re-fire the line via the in-game "Repeat completion" setting.
+export const CA_TIERS = ["Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"] as const;
+
 // Same idea for skills — shorthand players type into filter boxes. Lowercase.
 export const SKILL_ALIASES: Record<string, string[]> = {
   attack: ["atk"],

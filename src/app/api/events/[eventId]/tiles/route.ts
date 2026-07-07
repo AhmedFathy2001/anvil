@@ -123,6 +123,8 @@ export async function PUT(
   }
 
   // targetNpcs: optional JSON array of NPC names a KILL tile counts. Same shape as sourceNpcs.
+  // The 60-char cap fits the longest selector the column carries — CA task names run up to 44
+  // chars ("Chambers of Xeric: CM (5-Scale) Speed-Runner").
   let targetNpcsJson: string | null | undefined;
   if (targetNpcs !== undefined) {
     if (targetNpcs === null || (Array.isArray(targetNpcs) && targetNpcs.length === 0)) {
@@ -130,12 +132,12 @@ export async function PUT(
     } else if (
       Array.isArray(targetNpcs) &&
       targetNpcs.length <= 25 &&
-      targetNpcs.every((n: unknown) => typeof n === 'string' && n.trim().length > 0 && n.length <= 40)
+      targetNpcs.every((n: unknown) => typeof n === 'string' && n.trim().length > 0 && n.length <= 60)
     ) {
       targetNpcsJson = JSON.stringify(targetNpcs.map((n: string) => n.trim()));
     } else {
       return NextResponse.json(
-        { error: 'targetNpcs must be an array of up to 25 non-empty NPC names (≤40 chars each)' },
+        { error: 'targetNpcs must be an array of up to 25 non-empty NPC names (≤60 chars each)' },
         { status: 400 },
       );
     }
@@ -263,6 +265,10 @@ export async function PUT(
   const isKill = merged.tileType === 'kill';
   const isTimed = merged.tileType === 'timed';
   const isDiary = merged.tileType === 'diary';
+  // Combat-achievement tiles reuse targetNpcs as the task-selector list (exact task names like
+  // "Whack-a-Mole", or "Any <Tier>" wildcards) and requiredAmount as completions needed. Players
+  // who already own a task re-fire the completion line via the in-game "Repeat completion" toggle.
+  const isCa = merged.tileType === 'ca';
   // LMS placement tiles reuse timeThresholdSeconds as the placement cap (1 = win) and
   // requiredAmount as the number of qualifying games. No timedActivity.
   const isLms = merged.tileType === 'lms';
@@ -282,9 +288,9 @@ export async function PUT(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isTimed || isDiary || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, gain, timed, deathless, diary, LMS, or value tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -301,8 +307,8 @@ export async function PUT(
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill && !isDiary) {
-    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary tiles, diary selectors).' }, { status: 400 });
+  if (hasKillFields && !isKill && !isDiary && !isCa) {
+    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary/CA tiles, their selectors).' }, { status: 400 });
   }
   if (merged.timedActivity && !isTimed && !isDeathless) {
     return NextResponse.json({ error: 'Only timed or deathless tiles can carry an activity.' }, { status: 400 });
@@ -310,8 +316,8 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isGain && !isDiary && !isLms && !isValue && !isDeathless) {
-    return NextResponse.json({ error: 'Only drop, kill, gain, diary, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return NextResponse.json({ error: 'Only drop, kill, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db
