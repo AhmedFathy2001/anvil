@@ -981,7 +981,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
@@ -993,6 +993,7 @@ function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'lms') return 'lms';
   if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
   if (tile.tileType === 'diary') return 'diary';
+  if (tile.tileType === 'ca') return 'ca';
   if (tile.tileType === 'drop') {
     const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
     return isCollection ? 'collection' : 'drop';
@@ -1015,6 +1016,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
   lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
   value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300' },
+  ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300' },
 };
 
 const tileKind = (tile: Tile) => KIND_META[tileKindKey(tile)];
@@ -1033,6 +1035,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'lms', label: 'LMS' },
   { key: 'value', label: 'Value' },
   { key: 'diary', label: 'Diary' },
+  { key: 'ca', label: 'Combat task' },
 ];
 
 /** One-line summary of a tile's current configuration, shown under the label on each card. */
@@ -1083,6 +1086,16 @@ function tileMeta(tile: Tile): string {
       }
       const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
       return `Diary · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+    }
+    case 'ca': {
+      let sels: string[] = [];
+      try {
+        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
+      } catch {
+        /* ignore */
+      }
+      const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
+      return `Combat task · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
     }
     default:
       return 'Manual tile — no auto-tracking';

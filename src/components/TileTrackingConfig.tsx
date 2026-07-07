@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS } from "@/lib/constants";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
@@ -24,7 +24,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -39,6 +39,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
+  { key: 'ca', label: 'Combat task', blurb: 'Complete Combat Achievement tasks during the event — specific tasks or any task of a tier. Players who already own a task can re-trigger it via the in-game "Repeat completion" setting. Plugin-detected off the completion message.' },
 ];
 
 // Accepts "5m", "500k", "2.5m" or plain gp figures (commas ok) for the loot-value threshold.
@@ -206,6 +207,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'lms') return 'lms';
   if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
+  if (initial.tileType === 'ca') return 'ca';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'boss';
   return 'standard';
@@ -257,10 +259,10 @@ export default function TileTrackingConfig({
   const [sourceNpcsText, setSourceNpcsText] = useState<string>((initial.sourceNpcs || []).join(", "));
   // Kill-tile target NPC names — a multi-pick set (any listed name counts). Variants like
   // "The Nightmare" + "Phosani's Nightmare" can all be added so any of them count. The same
-  // column carries diary selectors when the tile is the diary kind, so scope each state to
-  // its own kind here.
+  // column carries diary and CA selectors when the tile is one of those kinds, so scope each
+  // state to its own kind here.
   const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
-    initial.tileType === 'diary' ? [] : initial.targetNpcs || [],
+    initial.tileType === 'diary' || initial.tileType === 'ca' ? [] : initial.targetNpcs || [],
   );
   // Diary selectors — "<Area> <Tier>" strings, "Any" wildcard on either side.
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
@@ -268,6 +270,16 @@ export default function TileTrackingConfig({
   );
   const [diaryArea, setDiaryArea] = useState<string>(DIARY_ANY);
   const [diaryTier, setDiaryTier] = useState<string>('Elite');
+  // CA selectors — exact task names ("Whack-a-Mole") or "Any <Tier>" wildcards.
+  const [caSelectors, setCaSelectors] = useState<string[]>(
+    initial.tileType === 'ca' ? initial.targetNpcs || [] : [],
+  );
+  const [caTier, setCaTier] = useState<string>('Master');
+  const [caSearch, setCaSearch] = useState('');
+  // The full task list, fetched once the CA kind is first shown (small: ~640 rows).
+  const [caTasks, setCaTasks] = useState<{ name: string; monster: string | null; tier: string; type: string | null }[] | null>(null);
+  const [showCaDropdown, setShowCaDropdown] = useState(false);
+  const caSearchRef = useRef<HTMLDivElement>(null);
   const [npcSearch, setNpcSearch] = useState("");
   const [npcResults, setNpcResults] = useState<string[]>([]);
   const [npcSearching, setNpcSearching] = useState(false);
@@ -362,6 +374,33 @@ export default function TileTrackingConfig({
   const isLms = kind === 'lms';
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
+  const isCa = kind === 'ca';
+
+  // Load the CA task list the first time the CA kind is shown; filter locally as the admin types.
+  useEffect(() => {
+    if (!isCa || caTasks !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/ca-tasks');
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setCaTasks(data.tasks ?? []);
+        }
+      } catch { /* ignore — the wildcard picker still works without the list */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isCa, caTasks]);
+
+  const caResults = useMemo(() => {
+    const q = caSearch.trim().toLowerCase();
+    if (!caTasks || q.length < 2) return [];
+    const chosen = new Set(caSelectors.map((s) => s.toLowerCase()));
+    return caTasks
+      .filter((t) => !chosen.has(t.name.toLowerCase()) &&
+        (t.name.toLowerCase().includes(q) || (t.monster ?? '').toLowerCase().includes(q)))
+      .slice(0, 12);
+  }, [caTasks, caSearch, caSelectors]);
 
   // Resolve names for pre-existing tracked item IDs (simple-mode tiles store only IDs).
   useEffect(() => {
@@ -407,6 +446,9 @@ export default function TileTrackingConfig({
       }
       if (npcSearchRef.current && !npcSearchRef.current.contains(e.target as Node)) {
         setShowNpcDropdown(false);
+      }
+      if (caSearchRef.current && !caSearchRef.current.contains(e.target as Node)) {
+        setShowCaDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -475,6 +517,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'drop' || next === 'collection') {
@@ -482,6 +525,7 @@ export default function TileTrackingConfig({
       setStatGoal("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'kill') {
@@ -490,6 +534,7 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setSourceNpcsText("");
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'gain') {
@@ -499,6 +544,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'deathless') {
@@ -509,6 +555,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
     } else if (next === 'diary') {
@@ -517,6 +564,17 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setSourceNpcsText("");
       setTargetNpcNames([]);
+      setCaSelectors([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'ca') {
+      // Keeps caSelectors + requiredAmount — the CA kind's whole config.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
+      setDiarySelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'timed') {
@@ -527,6 +585,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setLmsPlacementCap('1');
     } else if (next === 'lms') {
       setTrackedStat("");
@@ -535,6 +594,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setValueGpText("");
@@ -545,6 +605,7 @@ export default function TileTrackingConfig({
       setTrackedItems([]);
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
@@ -557,6 +618,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setCaSelectors([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     }
@@ -587,6 +649,11 @@ export default function TileTrackingConfig({
     }
     if (kind === 'diary') {
       if (diarySelectors.length === 0) return 'Add at least one diary (or "Any") to count completions for.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
+    }
+    if (kind === 'ca') {
+      if (caSelectors.length === 0) return 'Add at least one combat task (or an "Any <tier>" wildcard) to count completions for.';
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
     }
@@ -642,7 +709,7 @@ export default function TileTrackingConfig({
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -679,6 +746,11 @@ export default function TileTrackingConfig({
         // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = diarySelectors;
+        payload.trackingMode = trackingMode;
+      } else if (kind === 'ca') {
+        // CA selectors (task names / "Any <Tier>") likewise ride in targetNpcs.
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = caSelectors;
         payload.trackingMode = trackingMode;
       } else if (kind === 'gain') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -1446,6 +1518,157 @@ export default function TileTrackingConfig({
             </div>
             <p className="text-[10px] text-text-muted mt-0.5">
               Team Total sums every member&rsquo;s completions; Solo completes when any one member reaches the count.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---- COMBAT ACHIEVEMENT KIND ---- */}
+      {isCa && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Combat tasks that count <span className="text-text-muted/60">(any listed one counts)</span>
+            </label>
+
+            {caSelectors.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {caSelectors.map((sel) => (
+                  <span
+                    key={sel}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    {sel}
+                    <button
+                      type="button"
+                      onClick={() => setCaSelectors((prev) => prev.filter((s) => s !== sel))}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                      aria-label={`Remove ${sel}`}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Task search over the bundled wiki dataset. Enter adds the typed text verbatim
+                (override for tasks newer than the bundle). */}
+            <div ref={caSearchRef} className="relative">
+              <Input
+                type="text"
+                value={caSearch}
+                onChange={(e) => {
+                  setCaSearch(e.target.value);
+                  setShowCaDropdown(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && caSearch.trim()) {
+                    e.preventDefault();
+                    const typed = caSearch.trim();
+                    setCaSelectors((prev) =>
+                      prev.some((s) => s.toLowerCase() === typed.toLowerCase()) ? prev : [...prev, typed],
+                    );
+                    setCaSearch('');
+                    setShowCaDropdown(false);
+                  }
+                }}
+                onFocus={() => caResults.length > 0 && setShowCaDropdown(true)}
+                placeholder="Search tasks by name or monster (e.g. Whack-a-Mole, Zulrah)..."
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              {isCa && caTasks === null && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
+              {showCaDropdown && caResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
+                  {caResults.map((t) => (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => {
+                        setCaSelectors((prev) =>
+                          prev.some((s) => s.toLowerCase() === t.name.toLowerCase()) ? prev : [...prev, t.name],
+                        );
+                        setCaSearch('');
+                        setShowCaDropdown(false);
+                      }}
+                      className="w-full flex items-baseline justify-between gap-2 text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
+                    >
+                      <span className="truncate">{t.name}</span>
+                      <span className="shrink-0 text-[10px] text-text-muted">
+                        {t.tier}{t.monster ? ` · ${t.monster}` : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tier wildcard — "Any Master" counts every task of that tier. */}
+            <div className="flex gap-2 mt-2">
+              <Select
+                value={caTier}
+                onChange={setCaTier}
+                ariaLabel="Combat Achievement tier"
+                className="flex-1"
+                options={CA_TIERS.map((t) => ({ value: t, label: `Any ${t} task` }))}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const sel = `Any ${caTier}`;
+                  setCaSelectors((prev) => (prev.includes(sel) ? prev : [...prev, sel]));
+                }}
+                className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded border border-gold/40 bg-gold/15 text-gold hover:bg-gold/25 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              A completion counts when the in-game &ldquo;you&rsquo;ve completed a &lt;tier&gt; combat task&rdquo;
+              message matches <span className="text-foreground/70">any</span> selector — an exact task name or
+              &ldquo;Any &lt;tier&gt;&rdquo;. Players who already own a task can re-trigger the message by enabling{' '}
+              <span className="text-foreground/70">Settings &rarr; Combat Achievements &rarr; Repeat completion</span>{' '}
+              and meeting the task&rsquo;s conditions again during the event.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Required Completions</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={eventStarted}
+              placeholder="e.g. 1"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrackingMode("team")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Team Total
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrackingMode("solo")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                }`}
+              >
+                Solo (Any Member)
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Team Total sums every member&rsquo;s task completions; Solo completes when any one member reaches the count.
             </p>
           </div>
         </div>
