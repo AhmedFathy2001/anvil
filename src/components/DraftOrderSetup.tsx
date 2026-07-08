@@ -15,11 +15,28 @@ interface Props {
   saving: boolean;
 }
 
+// The saved order can drift from the live team list (teams deleted or added after it
+// was saved). Keep whatever of the saved sequence still applies, drop ghosts, and
+// append any team that isn't in it yet so the order always covers every team.
+function reconcileOrder(teams: Team[], saved: number[]): number[] {
+  const teamIds = new Set(teams.map((t) => t.id));
+  const kept = saved.filter((id, i) => teamIds.has(id) && saved.indexOf(id) === i);
+  const missing = teams.map((t) => t.id).filter((id) => !kept.includes(id));
+  return [...kept, ...missing];
+}
+
 export default function DraftOrderSetup({ teams, currentOrder, onSave, saving }: Props) {
-  const [order, setOrder] = useState<number[]>(() => {
-    if (currentOrder.length > 0) return currentOrder;
-    return teams.map((t) => t.id);
-  });
+  const [order, setOrder] = useState<number[]>(() => reconcileOrder(teams, currentOrder));
+
+  // Re-reconcile when the team set changes while this is on screen (a team added or
+  // deleted on the Teams step) — without discarding the admin's unsaved reordering.
+  // Render-time adjust (not an effect) per react.dev's "adjusting state when a prop changes".
+  const [prevTeams, setPrevTeams] = useState(teams);
+  if (teams !== prevTeams) {
+    setPrevTeams(teams);
+    const next = reconcileOrder(teams, order);
+    if (next.length !== order.length || next.some((id, i) => id !== order[i])) setOrder(next);
+  }
 
   function moveUp(index: number) {
     if (index === 0) return;

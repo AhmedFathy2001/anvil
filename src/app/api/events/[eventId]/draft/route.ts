@@ -39,7 +39,11 @@ export async function GET(
     .from(teams)
     .where(eq(teams.eventId, id));
 
-  const teamOrder: number[] = event.draftOrder ? JSON.parse(event.draftOrder) : [];
+  // Drop ids of since-deleted teams so clients never render (or count) ghost entries.
+  const existingTeamIds = new Set(eventTeams.map((t) => t.id));
+  const teamOrder: number[] = (event.draftOrder ? JSON.parse(event.draftOrder) : []).filter(
+    (tid: number) => existingTeamIds.has(tid),
+  );
   const pickedPlayers = eventPlayers.filter((p) => p.teamId !== null);
   const currentPickNumber = pickedPlayers.length;
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
@@ -102,6 +106,24 @@ export async function POST(
       if (!Array.isArray(teamOrder) || teamOrder.length === 0) {
         return NextResponse.json({ error: 'teamOrder must be a non-empty array of team IDs' }, { status: 400 });
       }
+      // The order must be a permutation of the event's teams — a team missing from the
+      // snake order would simply never pick, and a stale/duplicate id breaks pick math.
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+      const existingIds = new Set(eventTeams.map((t) => t.id));
+      const unknown = teamOrder.filter((tid: number) => !existingIds.has(tid));
+      const missing = eventTeams.filter((t) => !teamOrder.includes(t.id));
+      const hasDupes = new Set(teamOrder).size !== teamOrder.length;
+      if (unknown.length > 0 || missing.length > 0 || hasDupes) {
+        return NextResponse.json(
+          {
+            error:
+              missing.length > 0
+                ? `Draft order is missing: ${missing.map((t) => t.name).join(', ')}. Every team must be in the order.`
+                : 'Draft order contains unknown or duplicate teams. Re-save the order.',
+          },
+          { status: 400 },
+        );
+      }
       await db
         .update(events)
         .set({ draftOrder: JSON.stringify(teamOrder) })
@@ -127,6 +149,15 @@ export async function POST(
         return NextResponse.json({
           error: 'Draft order contains teams that no longer exist. Please reset the draft order.',
           invalidTeamIds: invalidTeams,
+        }, { status: 400 });
+      }
+
+      // Every team must be in the order — otherwise a team never gets a pick.
+      const orderSet = new Set(draftTeamOrder);
+      const missingTeams = eventTeams.filter((t) => !orderSet.has(t.id));
+      if (missingTeams.length > 0) {
+        return NextResponse.json({
+          error: `Draft order is missing: ${missingTeams.map((t) => t.name).join(', ')}. Re-save the draft order first.`,
         }, { status: 400 });
       }
 
