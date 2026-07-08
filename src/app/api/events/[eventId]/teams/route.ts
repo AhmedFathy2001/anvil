@@ -92,6 +92,19 @@ export async function POST(
     captainUserId: captainUserIdInt,
   }).returning();
 
+  // If a draft order was already saved, fold the new team in (at the end) so the order
+  // never silently drops teams created after it was first set.
+  if (eventRow.draftOrder) {
+    try {
+      const order: number[] = JSON.parse(eventRow.draftOrder);
+      const validIds = new Set(siblings.map((t) => t.id));
+      const nextOrder = [...order.filter((tid) => validIds.has(tid)), team.id];
+      await db.update(events).set({ draftOrder: JSON.stringify(nextOrder) }).where(eq(events.id, id));
+    } catch {
+      // Unparseable legacy value — leave it; set-order will overwrite it.
+    }
+  }
+
   const { captainPassword: _, ...safeTeam } = team;
   return NextResponse.json(safeTeam, { status: 201 });
 }
@@ -128,6 +141,21 @@ export async function DELETE(
 
   await db.delete(teams).where(and(eq(teams.id, tId), eq(teams.eventId, eId)));
 
+  // Scrub the deleted team from any saved draft order — otherwise the order keeps a
+  // ghost id and the setup UI reports "order set" while missing real teams.
+  if (eventRow?.draftOrder) {
+    try {
+      const order: number[] = JSON.parse(eventRow.draftOrder);
+      const nextOrder = order.filter((id) => id !== tId);
+      await db
+        .update(events)
+        .set({ draftOrder: nextOrder.length > 0 ? JSON.stringify(nextOrder) : null })
+        .where(eq(events.id, eId));
+    } catch {
+      // Unparseable legacy value — leave it; set-order will overwrite it.
+    }
+  }
+
   return NextResponse.json({ success: true });
 }
 
@@ -137,7 +165,7 @@ export async function PATCH(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { teamId, name, color } = await request.json();
+  const { teamId, name, color, captainUserId } = await request.json();
 
   if (!teamId) {
     return NextResponse.json({ error: 'teamId is required' }, { status: 400 });
@@ -183,7 +211,21 @@ export async function PATCH(
     }
   }
 
-  const updateData: { name?: string; color?: string } = {};
+  const updateData: { name?: string; color?: string; captainUserId?: number } = {};
+  if (captainUserId !== undefined) {
+    // Reassigning the captain seat is an admin call — captains can rebrand, not hand off.
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Only admins can change the team captain.' }, { status: 403 });
+    }
+    if (typeof captainUserId !== 'number' || !Number.isFinite(captainUserId) || captainUserId <= 0) {
+      return NextResponse.json({ error: 'captainUserId must be a user id.' }, { status: 400 });
+    }
+    const captainUser = await db.query.users.findFirst({ where: eq(users.id, captainUserId) });
+    if (!captainUser) {
+      return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
+    }
+    updateData.captainUserId = captainUserId;
+  }
   if (name !== undefined) {
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 50) {
       return NextResponse.json({ error: 'Team name must be 1–50 characters.' }, { status: 400 });
