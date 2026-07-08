@@ -1,5 +1,7 @@
 // Canonical shared types used across client components
 
+import type { SignupProfile } from '@/lib/signup';
+
 export interface Event {
   id: number;
   name: string;
@@ -77,6 +79,9 @@ export interface Player {
   snapshotAt?: string | null;
   cachedStats?: string | null;
   lastStatsFetch?: string | null;
+  // Frozen sign-up answers for this player's chosen RSN, joined in at read time on the
+  // draft surfaces (null when the player has no linked sign-up). See lib/draftProfiles.
+  profile?: SignupProfile | null;
 }
 
 export interface Completion {

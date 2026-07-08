@@ -4,6 +4,7 @@ import { events, players, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
+import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 
@@ -21,10 +22,12 @@ export async function GET(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const eventPlayers = await db
+  const rawPlayers = await db
     .select()
     .from(players)
     .where(eq(players.eventId, id));
+  // Surface each player's frozen sign-up answers so captains read them while drafting.
+  const eventPlayers = attachProfiles(rawPlayers, await loadEventProfiles(id));
 
   const eventTeams = await db
     .select({

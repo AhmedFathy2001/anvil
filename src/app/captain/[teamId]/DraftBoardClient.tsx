@@ -5,6 +5,7 @@ import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
+import type { SignupProfile } from '@/lib/signup';
 
 interface Team {
   id: number;
@@ -28,6 +29,8 @@ interface Player {
   teamId: number | null;
   pickNumber: number | null;
   pickedAt: string | null;
+  timezone?: string | null;
+  profile?: SignupProfile | null;
 }
 
 interface DraftState {

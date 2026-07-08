@@ -3,6 +3,7 @@ import { events, tiles, teams, players, completions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
+import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,11 +18,14 @@ export default async function EventTeamsPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, eventTeams, eventPlayers] = await Promise.all([
+  const [eventTiles, eventTeams, rawPlayers, profiles] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     db.select().from(teams).where(eq(teams.eventId, id)),
     db.select().from(players).where(eq(players.eventId, id)),
+    loadEventProfiles(id),
   ]);
+  // Join in each player's frozen sign-up answers for the draft-setup pool.
+  const eventPlayers = attachProfiles(rawPlayers, profiles);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const eventCompletions = tileIds.size

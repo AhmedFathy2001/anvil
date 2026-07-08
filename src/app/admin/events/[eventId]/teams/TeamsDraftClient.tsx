@@ -12,6 +12,7 @@ import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
+import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
@@ -55,6 +56,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [editingBaselinePlayer, setEditingBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<{ id: number; name: string; discord: string | null; timezone: string | null } | null>(null);
+  const [expandedPoolPlayers, setExpandedPoolPlayers] = useState<Set<number>>(new Set());
   const [localTiles, setLocalTiles] = useState<Tile[]>(tiles);
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
 
@@ -609,8 +611,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <>
                   <div className="text-xs text-text-muted mb-1.5">{draft.players.length} in the pool</div>
                   <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
-                  {draft.players.map((player) => (
-                    <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
+                  {draft.players.map((player) => {
+                    // Timezone from the sign-up form, unless an admin typed an override.
+                    const tz = player.timezone ?? player.profile?.timezone ?? null;
+                    const canExpand = hasProfileDetail(player.profile);
+                    const isExpanded = expandedPoolPlayers.has(player.id);
+                    return (
+                    <div key={player.id} className="border border-card-border rounded-lg bg-card-bg">
+                      <div className="flex items-center justify-between p-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <button
                           onClick={() => setStatsRsn(player.name)}
@@ -622,11 +630,27 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         {player.discord && player.discord !== player.name && (
                           <span className="text-xs text-text-muted truncate">({player.discord})</span>
                         )}
-                        {player.timezone && (
-                          <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded flex-shrink-0">{player.timezone}</span>
+                        {tz && (
+                          <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded flex-shrink-0">{tz}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        {canExpand && (
+                          <button
+                            onClick={() =>
+                              setExpandedPoolPlayers((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(player.id)) next.delete(player.id);
+                                else next.add(player.id);
+                                return next;
+                              })
+                            }
+                            className="text-[10px] text-text-muted hover:text-gold transition-colors border border-card-border px-1.5 py-0.5 rounded"
+                            title="Sign-up answers"
+                          >
+                            Answers {isExpanded ? '▾' : '▸'}
+                          </button>
+                        )}
                         <button
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
                           className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded"
@@ -648,8 +672,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           Remove
                         </button>
                       </div>
+                      </div>
+                      {canExpand && isExpanded && player.profile && (
+                        <div className="px-2 pb-2 pt-1 border-t border-card-border">
+                          <PlayerProfileDetail profile={player.profile} />
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                   </div>
                 </>
               ) : (
