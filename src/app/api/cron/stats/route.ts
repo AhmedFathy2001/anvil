@@ -7,6 +7,7 @@ import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
+import { parsePluginStats } from '@/lib/pluginStats';
 
 // Cron protection — requests must carry the shared secret (Vercel injected it automatically; the
 // self-hosted host cron sends `Authorization: Bearer $CRON_SECRET`).
@@ -73,6 +74,10 @@ interface Fetched {
   player: PlayerRow;
   snapshot: Snapshot; // baseline
   current: Snapshot;  // this tick
+  // Real-time boss KC pushed by the plugin, AFTER reconciling against this tick's hiscores (entries
+  // hiscores has caught up to are pruned). Completion uses max(hiscores, plugin) per key. Empty for
+  // players with no pushed KC.
+  pluginMap: Record<string, number>;
 }
 
 export async function GET(request: Request) {
@@ -192,16 +197,32 @@ export async function GET(request: Request) {
       try {
         const current = await getHiscoresStats(task.player.name) as Snapshot;
         const currentJson = JSON.stringify(current);
+        // Reconcile the plugin's real-time boss KC against this fresh hiscores read: drop any entry
+        // hiscores has caught up to (its value now IS the truth), keep only entries still ahead.
+        // This is what "readjusts an hour later" — a stale/over-reported push self-heals, and the
+        // stored plugin blob shrinks back to nothing once hiscores confirms every kill.
+        const rawPlugin = parsePluginStats(task.player.pluginStats);
+        const pluginMap: Record<string, number> = {};
+        for (const [k, v] of Object.entries(rawPlugin)) {
+          const h = current.bosses?.[k]?.score ?? 0;
+          if ((h < 0 ? 0 : h) < v) pluginMap[k] = v;
+        }
+        // Persist the pruned blob only when it actually changed, to avoid needless writes.
+        const prunedJson = Object.keys(pluginMap).length > 0 ? JSON.stringify(pluginMap) : null;
+        const pluginChanged = Object.keys(rawPlugin).length !== Object.keys(pluginMap).length
+          || Object.entries(pluginMap).some(([k, v]) => rawPlugin[k] !== v);
+        const pluginPatch = pluginChanged ? { pluginStats: prunedJson } : {};
+
         if (task.needsSnapshot) {
           // First fetch doubles as the baseline; the gain this tick is 0.
           await db.update(players)
-            .set({ statsSnapshot: currentJson, snapshotAt: ts, cachedStats: currentJson, lastStatsFetch: ts })
+            .set({ statsSnapshot: currentJson, snapshotAt: ts, cachedStats: currentJson, lastStatsFetch: ts, ...pluginPatch })
             .where(eq(players.id, task.player.id));
           task.ctx.result.playersSnapshotted++;
-          fetched.push({ ctx: task.ctx, player: task.player, snapshot: current, current });
+          fetched.push({ ctx: task.ctx, player: task.player, snapshot: current, current, pluginMap });
         } else {
           await db.update(players)
-            .set({ cachedStats: currentJson, lastStatsFetch: ts })
+            .set({ cachedStats: currentJson, lastStatsFetch: ts, ...pluginPatch })
             .where(eq(players.id, task.player.id));
           task.ctx.result.playersChecked++;
           let snapshot: Snapshot;
@@ -211,7 +232,7 @@ export async function GET(request: Request) {
             task.ctx.result.errors.push(`Invalid snapshot for ${task.player.name}`);
             continue;
           }
-          fetched.push({ ctx: task.ctx, player: task.player, snapshot, current });
+          fetched.push({ ctx: task.ctx, player: task.player, snapshot, current, pluginMap });
         }
       } catch {
         task.ctx.result.errors.push(`Failed to fetch stats for ${task.player.name}`);
@@ -242,7 +263,9 @@ export async function GET(request: Request) {
           const snapshotKc = f.snapshot.bosses?.[part]?.score ?? 0;
           const currentKc = f.current.bosses?.[part]?.score ?? 0;
           const sKc = snapshotKc < 0 ? 0 : snapshotKc;
-          const cKc = currentKc < 0 ? 0 : currentKc;
+          // Effective current = max(hiscores, plugin-pushed) so a real-time kill counts before the
+          // hiscores read catches up.
+          const cKc = Math.max(currentKc < 0 ? 0 : currentKc, f.pluginMap[part] ?? 0);
           gained += Math.max(0, cKc - sKc);
         }
       }
