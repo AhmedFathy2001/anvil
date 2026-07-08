@@ -49,6 +49,7 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
     error?: string;
   } | null>(null);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
+  const [standingsQuery, setStandingsQuery] = useState('');
 
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
   // Seed the cooldown from the persisted last-pull time so it survives a page refresh. Runs in an
@@ -304,8 +305,35 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
             If a baseline is missing or looks wrong, use &ldquo;Capture starting stats&rdquo; above, or
             edit it per-player from the Teams &amp; Draft tab.
           </p>
+          <input
+            type="text"
+            value={standingsQuery}
+            onChange={(e) => setStandingsQuery(e.target.value)}
+            placeholder="Search a player, boss or skill…"
+            className="w-full max-w-sm mb-4 px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:border-gold"
+          />
+          {(() => {
+            // Filter by player name; matching a tile's label or tracked stat keeps that tile's
+            // whole roster, so you can pull up a single boss/skill or a single player.
+            const q = standingsQuery.trim().toLowerCase();
+            const filtered = q
+              ? statStandings
+                  .map((tile) => {
+                    const tileMatches =
+                      tile.label.toLowerCase().includes(q) || tile.trackedStatLabel.toLowerCase().includes(q);
+                    return {
+                      ...tile,
+                      players: tileMatches ? tile.players : tile.players.filter((p) => p.name.toLowerCase().includes(q)),
+                    };
+                  })
+                  .filter((tile) => tile.players.length > 0)
+              : statStandings;
+            if (filtered.length === 0) {
+              return <p className="text-sm text-text-muted py-4">No players or stats match your search.</p>;
+            }
+            return (
           <div className="space-y-6">
-            {statStandings.map((tile) => {
+            {filtered.map((tile) => {
               const missing = tile.players.filter((p) => !p.hasBaseline).length;
               return (
                 <div key={tile.tileId} className="border border-card-border rounded-xl p-4 bg-card-bg">
@@ -369,6 +397,8 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
               );
             })}
           </div>
+            );
+          })()}
         </div>
       )}
 
