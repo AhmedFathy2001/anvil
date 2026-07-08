@@ -40,6 +40,9 @@ function tileToTrackingInitial(tile: Tile) {
     targetNpcs: tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : null,
     timedActivity: tile.timedActivity ?? null,
     timeThresholdSeconds: tile.timeThresholdSeconds ?? null,
+    // Timed raids keep their party size in its own column (deathless/drop ride
+    // timeThresholdSeconds). Without this the editor reloaded blank and the next save nulled it.
+    partySize: tile.partySize ?? null,
     updatedAt: tile.updatedAt ?? null,
   };
 }
@@ -316,6 +319,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       targetNpcs?: string[] | null;
       timedActivity?: string | null;
       timeThresholdSeconds?: number | null;
+      partySize?: number | null;
     },
   ) {
     const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, ...rest } = updated;
