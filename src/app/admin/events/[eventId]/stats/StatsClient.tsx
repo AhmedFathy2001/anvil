@@ -1,17 +1,30 @@
 'use client';
 
 import type { Event, Team } from '@/lib/types';
+import type { StatTileStanding, TeamStanding } from '@/lib/statStandings';
+import Link from 'next/link';
 import { useState, useCallback, useEffect } from 'react';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
-// after one runs we lock the whole panel for a cooldown to stop spam-clicking from hammering the
-// OSRS hiscores.
-const COOLDOWN_SECS = 30;
+// after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
+// the OSRS hiscores. Persisted server-side (see the snapshot route) so it survives a page refresh.
+const COOLDOWN_SECS = 30 * 60; // 30 minutes, alongside the hourly auto-refresh cron
+
+// Cooldown label, e.g. "29m 04s" or "12s".
+function fmtCooldown(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
+}
 
 interface Props {
   event: Event;
   teams: Team[];
+  statStandings: StatTileStanding[];
+  teamStandings: TeamStanding[];
+  // ISO time of the last manual stat pull (persisted), or null. Seeds the cooldown across refreshes.
+  statsPulledAt: string | null;
 }
 
 // Only the submission fields the activity rollup needs — keeps us decoupled from the
@@ -23,7 +36,7 @@ interface ActivitySubmission {
   amount: number;
 }
 
-export default function StatsClient({ event, teams }: Props) {
+export default function StatsClient({ event, teams, statStandings, teamStandings, statsPulledAt }: Props) {
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -38,8 +51,14 @@ export default function StatsClient({ event, teams }: Props) {
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
 
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
-  const busy = snapshotting || refreshingStats || forceResetting;
-  const locked = busy || cooldown > 0;
+  // Seed the cooldown from the persisted last-pull time so it survives a page refresh. Runs in an
+  // effect (not the initializer) to avoid an SSR/client clock hydration mismatch.
+  useEffect(() => {
+    if (!statsPulledAt) return;
+    const elapsed = (Date.now() - new Date(statsPulledAt).getTime()) / 1000;
+    const remaining = Math.max(0, Math.ceil(COOLDOWN_SECS - elapsed));
+    if (remaining > 0) setCooldown(remaining);
+  }, [statsPulledAt]);
 
   // Tick the cooldown down once per second.
   useEffect(() => {
@@ -66,10 +85,18 @@ export default function StatsClient({ event, teams }: Props) {
     setSnapshotResult(null);
     try {
       const res = await fetch(`/api/events/${event.id}/snapshot`, { method: 'POST' });
-      if (res.ok) setSnapshotResult(await res.json());
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSnapshotResult(data);
+        setCooldown(COOLDOWN_SECS);
+      } else if (res.status === 429 && data.nextRefresh) {
+        // Server enforced the cooldown (e.g. after a refresh) — sync the button to its clock.
+        const remaining = Math.max(0, Math.ceil((new Date(data.nextRefresh).getTime() - Date.now()) / 1000));
+        setCooldown(remaining);
+        setSnapshotResult({ snapshotted: 0, failed: [], error: data.error || 'Please wait before pulling again.' });
+      }
     } finally {
       setSnapshotting(false);
-      setCooldown(COOLDOWN_SECS);
     }
   }
 
@@ -78,47 +105,92 @@ export default function StatsClient({ event, teams }: Props) {
     setForceResetting(true);
     setSnapshotResult(null);
     try {
+      // Force-reset bypasses the cooldown server-side (it's a correction) but still restarts it.
       const res = await fetch(`/api/events/${event.id}/snapshot?forceReset=true`, { method: 'POST' });
-      if (res.ok) setSnapshotResult(await res.json());
+      if (res.ok) {
+        setSnapshotResult(await res.json());
+        setCooldown(COOLDOWN_SECS);
+      }
     } finally {
       setForceResetting(false);
-      setCooldown(COOLDOWN_SECS);
     }
   }
 
   async function refreshStats() {
+    // Reads cached gains (no hiscores pull) — not gated by the pull cooldown.
     setRefreshingStats(true);
     try {
       const res = await fetch(`/api/events/${event.id}/gains`);
       if (res.ok) setLastStatsRefresh(new Date());
     } finally {
       setRefreshingStats(false);
-      setCooldown(COOLDOWN_SECS);
     }
   }
 
-  // Aggregate live submissions into per-player drop totals.
-  const activityByPlayer = new Map<number, { name: string; teamId: number; submissions: number; totalAmount: number }>();
+  // Aggregate live submissions into per-player activity counts. Count discrete submissions
+  // (one screenshot = one contribution), NOT summed `amount` — for kill-count/value tiles
+  // `amount` is a kill count or gp value and summing it inflated the figure (e.g. one "35 Hill
+  // Giants" screenshot read as 35).
+  const activityByPlayer = new Map<number, { name: string; teamId: number; submissions: number }>();
   for (const s of submissions) {
     if (s.creditPlayerId) {
       const existing = activityByPlayer.get(s.creditPlayerId);
       if (existing) {
         existing.submissions++;
-        existing.totalAmount += s.amount;
       } else {
         activityByPlayer.set(s.creditPlayerId, {
           name: s.creditPlayerName || 'Unknown',
           teamId: s.teamId,
           submissions: 1,
-          totalAmount: s.amount,
         });
       }
     }
   }
-  const sortedActivity = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].totalAmount - a[1].totalAmount);
+  const sortedActivity = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].submissions - a[1].submissions);
 
   return (
     <div className="space-y-10">
+      {/* Team standings — at-a-glance leaderboard + a jump into each team's board to manage. */}
+      {teamStandings.length > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Team standings
+          </h2>
+          <p className="text-sm text-text-muted mb-4 max-w-2xl">
+            Each team&apos;s score so far. &ldquo;Manage board&rdquo; opens that team&apos;s board to see their
+            progress and mark tiles done/undone or add/remove submissions.
+          </p>
+          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+            {teamStandings.map((t, i) => (
+              <div key={t.teamId} className="flex items-center gap-3 px-4 py-3">
+                <span className="w-6 text-center text-sm font-bold text-text-muted shrink-0">
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                </span>
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-foreground truncate">{t.name}</span>
+                    <span className="text-sm text-text-muted shrink-0">
+                      <span className="font-semibold text-foreground">{t.score}</span>/{t.total} {t.unit} · {t.pct}%
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 bg-brown-dark rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${t.pct}%`, backgroundColor: t.color }} />
+                  </div>
+                </div>
+                <Link
+                  href={`/admin/events/${event.id}/teams/${t.teamId}`}
+                  className="shrink-0 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
+                >
+                  Manage board &rarr;
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Skill & boss tracking */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4 max-w-2xl">
         <div>
@@ -145,13 +217,13 @@ export default function StatsClient({ event, teams }: Props) {
           </div>
           <button
             onClick={takeSnapshot}
-            disabled={locked}
+            disabled={snapshotting || cooldown > 0}
             className="shrink-0 px-4 py-2 text-sm font-semibold rounded-lg bg-accent-green/20 border border-accent-green/40 text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
           >
             {snapshotting
               ? 'Capturing…'
               : cooldown > 0
-                ? `Wait ${cooldown}s`
+                ? `Wait ${fmtCooldown(cooldown)}`
                 : eventStarted
                   ? 'Capture late joiners'
                   : 'Capture starting stats'}
@@ -170,10 +242,10 @@ export default function StatsClient({ event, teams }: Props) {
           </div>
           <button
             onClick={refreshStats}
-            disabled={locked}
+            disabled={refreshingStats}
             className="shrink-0 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshingStats ? 'Updating…' : cooldown > 0 ? `Wait ${cooldown}s` : 'Update now'}
+            {refreshingStats ? 'Updating…' : 'Update now'}
           </button>
         </div>
 
@@ -210,14 +282,95 @@ export default function StatsClient({ event, teams }: Props) {
             </p>
             <button
               onClick={forceResetBaselines}
-              disabled={locked}
+              disabled={forceResetting}
               className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500/15 border border-red-500/40 text-red-400 hover:bg-red-500/25 disabled:opacity-50 transition-colors"
             >
-              {forceResetting ? 'Resetting…' : cooldown > 0 ? `Wait ${cooldown}s` : 'Reset all starting stats'}
+              {forceResetting ? 'Resetting…' : 'Reset all starting stats'}
             </button>
           </div>
         </details>
       </div>
+
+      {/* Stat tile standings — baseline (event start) vs current, so admins can confirm the
+          starting lines actually loaded and watch gains accrue. */}
+      {statStandings.length > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Stat tile standings
+          </h2>
+          <p className="text-sm text-text-muted mb-4 max-w-2xl">
+            Each drafted player&apos;s starting line (captured at event start) vs. their current stat.
+            If a baseline is missing or looks wrong, use &ldquo;Capture starting stats&rdquo; above, or
+            edit it per-player from the Teams &amp; Draft tab.
+          </p>
+          <div className="space-y-6">
+            {statStandings.map((tile) => {
+              const missing = tile.players.filter((p) => !p.hasBaseline).length;
+              return (
+                <div key={tile.tileId} className="border border-card-border rounded-xl p-4 bg-card-bg">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="font-bold text-foreground">{tile.label}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${tile.statType === 'skill' ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {tile.statType === 'skill' ? 'XP' : 'KC'}
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      {tile.trackedStatLabel} · goal {tile.statGoal.toLocaleString()}
+                    </span>
+                  </div>
+                  {missing > 0 && (
+                    <p className="text-xs text-yellow-400 mb-2">
+                      ⚠ {missing} player{missing !== 1 ? 's' : ''} with no starting stats captured yet — their gains won&apos;t track until a baseline is captured.
+                    </p>
+                  )}
+                  {tile.players.length === 0 ? (
+                    <p className="text-xs text-text-muted">No drafted players yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-text-muted text-left">
+                            <th className="font-medium py-1 pr-3">Player</th>
+                            <th className="font-medium py-1 pr-3">Team</th>
+                            <th className="font-medium py-1 pr-3 text-right">Baseline</th>
+                            <th className="font-medium py-1 pr-3 text-right">Current</th>
+                            <th className="font-medium py-1 text-right">Gained</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tile.players.map((p) => {
+                            const team = teams.find((t) => t.id === p.teamId);
+                            const pct = tile.statGoal > 0 ? Math.min(100, Math.round((p.gained / tile.statGoal) * 100)) : 0;
+                            return (
+                              <tr key={p.playerId} className="border-t border-card-border/50">
+                                <td className="py-1.5 pr-3 font-medium text-foreground">{p.name}</td>
+                                <td className="py-1.5 pr-3">
+                                  {team && (
+                                    <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: team.color + '20', color: team.color }}>
+                                      {team.name}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={`py-1.5 pr-3 text-right ${p.hasBaseline ? 'text-foreground' : 'text-yellow-400'}`}>
+                                  {p.hasBaseline ? p.baseline.toLocaleString() : '—'}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right text-foreground">{p.current.toLocaleString()}</td>
+                                <td className="py-1.5 text-right font-medium text-accent-green-light">
+                                  +{p.gained.toLocaleString()} <span className="text-text-muted">({pct}%)</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Player Activity */}
       <div>
@@ -242,9 +395,8 @@ export default function StatsClient({ event, teams }: Props) {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
-                    <span className="text-accent-green-light font-medium">{data.totalAmount} drops</span>
-                    <span className="text-text-muted">
-                      ({data.submissions} submission{data.submissions !== 1 ? 's' : ''})
+                    <span className="text-accent-green-light font-medium">
+                      {data.submissions} drop{data.submissions !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>

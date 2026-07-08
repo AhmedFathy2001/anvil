@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, events } from '@/db/schema';
+import { players, events, settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -8,6 +8,13 @@ import { getHiscoresStats } from '@/lib/hiscores';
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Manual stat pulls hammer the OSRS hiscores (one request per player), so they're throttled to
+// one every 30 minutes per event — alongside the hourly auto-refresh cron. The last-pull time is
+// persisted in `settings` (not just client state) so the cooldown survives a page refresh and is
+// actually enforced server-side. `forceReset` (fixing a mis-timed baseline) bypasses the wait.
+const STATS_PULL_COOLDOWN_MS = 30 * 60 * 1000;
+const statsPullKey = (eventId: number) => `stats_pull_at:${eventId}`;
 
 export async function POST(
   request: Request,
@@ -24,6 +31,24 @@ export async function POST(
   // Check for force reset flag
   const { searchParams } = new URL(request.url);
   const forceReset = searchParams.get('forceReset') === 'true';
+
+  // 30-minute cooldown (persisted, server-enforced) — skipped for a force-reset correction.
+  const cooldownKey = statsPullKey(eId);
+  if (!forceReset) {
+    const lastPull = await db.query.settings.findFirst({ where: eq(settings.key, cooldownKey) });
+    if (lastPull?.value) {
+      const lastMs = new Date(lastPull.value).getTime();
+      if (Number.isFinite(lastMs) && Date.now() - lastMs < STATS_PULL_COOLDOWN_MS) {
+        return NextResponse.json(
+          {
+            error: 'Stats were pulled recently — please wait before pulling again.',
+            nextRefresh: new Date(lastMs + STATS_PULL_COOLDOWN_MS).toISOString(),
+          },
+          { status: 429 },
+        );
+      }
+    }
+  }
 
   // Check if event has started
   const event = await db.query.events.findFirst({
@@ -77,5 +102,11 @@ export async function POST(
     await delay(1200);
   }
 
-  return NextResponse.json({ snapshotted, refreshed, failed });
+  // Record the pull time so the cooldown persists across refreshes and future requests.
+  await db
+    .insert(settings)
+    .values({ key: cooldownKey, value: timestamp })
+    .onConflictDoUpdate({ target: settings.key, set: { value: timestamp } });
+
+  return NextResponse.json({ snapshotted, refreshed, failed, pulledAt: timestamp });
 }

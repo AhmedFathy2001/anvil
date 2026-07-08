@@ -13,6 +13,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
+import { statLabel } from '@/lib/tileKinds';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -1058,7 +1059,7 @@ function tileMeta(tile: Tile): string {
     case 'skill':
     case 'boss': {
       const goal = tile.statGoal ? ` · goal ${tile.statGoal.toLocaleString()}` : '';
-      return `${tile.trackedStat}${goal} · ${tile.trackingMode}`;
+      return `${statLabel(tile.trackedStat, tile.statType)}${goal} · ${tile.trackingMode}`;
     }
     case 'kill':
       return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
