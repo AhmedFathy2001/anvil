@@ -32,6 +32,16 @@ export async function GET(
     return NextResponse.json({ error: 'Captains only' }, { status: 403 });
   }
 
+  // Captains are already seated on their own teams and can't be drafted, so exclude them from the
+  // scouting pool — a captain doing due diligence only cares about the draftable applicants.
+  const eventTeams = await db
+    .select({ captainUserId: teams.captainUserId })
+    .from(teams)
+    .where(eq(teams.eventId, team.eventId));
+  const captainUserIds = new Set(
+    eventTeams.map((t) => t.captainUserId).filter((v): v is number => v != null),
+  );
+
   const rows = await db
     .select({
       signup: eventSignups,
@@ -48,7 +58,9 @@ export async function GET(
     .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
     .where(eq(eventSignups.eventId, team.eventId));
 
-  const applicants = rows.map((r) => ({
+  const applicants = rows
+    .filter((r) => !captainUserIds.has(r.signup.userId))
+    .map((r) => ({
     id: r.signup.id,
     status: r.signup.status,
     signedUpAt: r.signup.signedUpAt,
