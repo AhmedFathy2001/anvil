@@ -95,17 +95,50 @@ function channelSlug(name: string): string {
   return (slug || 'team').slice(0, 100);
 }
 
+// Turn a failed Discord response into a human string that names the actual cause. Discord
+// errors are JSON `{ message, code }` (e.g. 403 "Missing Permissions" code 50013, 401
+// "401: Unauthorized", 404 "Unknown Guild" code 10004). For the common permission/token/guild
+// mistakes we append a plain-English hint, since the raw message alone ("Missing Permissions")
+// doesn't say WHICH permission or that it's the bot at fault.
+async function describeDiscordError(res: Response): Promise<string> {
+  let message = '';
+  let code: number | undefined;
+  try {
+    const body = (await res.clone().json()) as { message?: string; code?: number };
+    message = body.message ?? '';
+    code = body.code;
+  } catch {
+    /* body not JSON */
+  }
+  const base = `Discord ${res.status}${message ? `: ${message}` : ''}${code ? ` (code ${code})` : ''}`;
+  if (res.status === 401) return `${base} — the bot token is invalid or was reset. Re-check DISCORD_BOT_TOKEN.`;
+  if (res.status === 403 || code === 50013) {
+    return `${base} — the bot is missing the "Manage Channels" and/or "Manage Roles" permission, or its role sits too low in the server's role list. Give the bot those permissions (Server Settings → Roles) and drag its role above the team roles.`;
+  }
+  if (res.status === 404 || code === 10004) {
+    return `${base} — the bot isn't in this server or the server ID is wrong. Re-invite the bot and check the Server ID under Integrations.`;
+  }
+  return base;
+}
+
+// A caller-supplied sink so a failed create can hand back the diagnostic without changing the
+// happy-path return type (still string | null, so `if (id)` checks are unchanged).
+type ErrSink = { detail?: string };
+
 async function createRole(
   cfg: TeamChannelConfig,
   name: string,
   color: number,
+  err?: ErrSink,
 ): Promise<string | null> {
   const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles`, {
     method: 'POST',
     body: JSON.stringify({ name: name.slice(0, 100), color, mentionable: true, hoist: false }),
   });
   if (!res.ok) {
-    log.warn('discord-teams.create-role-fail', { status: res.status, name });
+    const detail = await describeDiscordError(res);
+    log.warn('discord-teams.create-role-fail', { status: res.status, name, detail });
+    if (err) err.detail = detail;
     return null;
   }
   const role = (await res.json()) as { id: string };
@@ -125,6 +158,7 @@ interface CreateChannelOpts {
 async function createChannel(
   cfg: TeamChannelConfig,
   opts: CreateChannelOpts,
+  err?: ErrSink,
 ): Promise<string | null> {
   const overwrites: { id: string; type: number; allow?: string; deny?: string }[] = [
     // @everyone (role id == guild id) can't even see the channel.
@@ -149,7 +183,9 @@ async function createChannel(
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    log.warn('discord-teams.create-channel-fail', { status: res.status, name: opts.name });
+    const detail = await describeDiscordError(res);
+    log.warn('discord-teams.create-channel-fail', { status: res.status, name: opts.name, detail });
+    if (err) err.detail = detail;
     return null;
   }
   const channel = (await res.json()) as { id: string };
@@ -232,17 +268,24 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
     return { ok: false, reason: 'no teams to provision', teams: [], captainsAssigned: 0 };
   }
 
-  // 1) Category (one per event).
+  // 1) Category (one per event). The very first Discord write, so a misconfigured bot
+  // (bad token / wrong guild / missing Manage Channels) trips here — surface the exact reason.
   let categoryId = event.discordCategoryId;
   if (!categoryId) {
+    const err: ErrSink = {};
     categoryId = await createChannel(cfg, {
       name: event.name,
       type: CHANNEL_CATEGORY,
       allowRoleIds: [],
       allowBits: 0,
-    });
+    }, err);
     if (!categoryId) {
-      return { ok: false, reason: 'could not create category', teams: [], captainsAssigned: 0 };
+      return {
+        ok: false,
+        reason: err.detail ? `Could not create the Discord category. ${err.detail}` : 'could not create category',
+        teams: [],
+        captainsAssigned: 0,
+      };
     }
     await db.update(events).set({ discordCategoryId: categoryId }).where(eq(events.id, eventId));
   }
@@ -250,40 +293,47 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
   // 2) Per-team role + channels.
   const teamReports: ProvisionReport['teams'] = [];
   let captainsAssigned = 0;
+  // First per-team failure detail (e.g. Manage Roles missing) — surfaced in the reason so a
+  // run that created the category but couldn't make roles/channels isn't silently "ok".
+  let firstTeamError: string | undefined;
 
   for (const team of eventTeams) {
     let roleId = team.discordRoleId;
     if (!roleId) {
-      roleId = await createRole(cfg, team.name, hexColorToInt(team.color));
+      const err: ErrSink = {};
+      roleId = await createRole(cfg, team.name, hexColorToInt(team.color), err);
       if (roleId) await db.update(teams).set({ discordRoleId: roleId }).where(eq(teams.id, team.id));
+      else if (err.detail && !firstTeamError) firstTeamError = err.detail;
     }
 
     let textChannelId = team.discordTextChannelId;
     if (!textChannelId && roleId) {
+      const err: ErrSink = {};
       textChannelId = await createChannel(cfg, {
         name: channelSlug(team.name),
         type: CHANNEL_TEXT,
         parentId: categoryId,
         allowRoleIds: [roleId],
         allowBits: SEND_MESSAGES,
-      });
+      }, err);
       if (textChannelId) {
         await db.update(teams).set({ discordTextChannelId: textChannelId }).where(eq(teams.id, team.id));
-      }
+      } else if (err.detail && !firstTeamError) firstTeamError = err.detail;
     }
 
     let voiceChannelId = team.discordVoiceChannelId;
     if (!voiceChannelId && roleId) {
+      const err: ErrSink = {};
       voiceChannelId = await createChannel(cfg, {
         name: team.name,
         type: CHANNEL_VOICE,
         parentId: categoryId,
         allowRoleIds: [roleId],
         allowBits: CONNECT | SPEAK,
-      });
+      }, err);
       if (voiceChannelId) {
         await db.update(teams).set({ discordVoiceChannelId: voiceChannelId }).where(eq(teams.id, team.id));
-      }
+      } else if (err.detail && !firstTeamError) firstTeamError = err.detail;
     }
 
     // Captain: give them the captain role + their team role (so they can see the channels
@@ -305,6 +355,19 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
       textChannelId: textChannelId ?? undefined,
       voiceChannelId: voiceChannelId ?? undefined,
     });
+  }
+
+  // The category exists, but if any role/channel create failed (typically Manage Roles
+  // missing or the bot's role too low), report it — provisioning is idempotent, so the admin
+  // fixes perms and re-runs to fill in what's missing rather than getting a false "success".
+  if (firstTeamError) {
+    return {
+      ok: false,
+      reason: `Category created, but a team role or channel failed. ${firstTeamError}`,
+      categoryId,
+      teams: teamReports,
+      captainsAssigned,
+    };
   }
 
   return { ok: true, categoryId, teams: teamReports, captainsAssigned };
