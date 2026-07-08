@@ -10,6 +10,7 @@ import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
+import { statLabel } from '@/lib/tileKinds';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
@@ -471,7 +472,7 @@ export default function TileDetailModal({
           {isStatTile && statProgress && statProgress.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
-                Player Progress ({tile.trackedStat})
+                Player Progress ({statLabel(tile.trackedStat, tile.statType)})
               </h3>
               {/* Team total */}
               {tile.statGoal && (

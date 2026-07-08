@@ -8,6 +8,7 @@ import Combobox from '@/components/Combobox';
 import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { statKeys } from '@/lib/tileKinds';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -998,20 +999,61 @@ export default function TileTrackingConfig({
       {/* ---- STAT KINDS (skill / boss) ---- */}
       {isStat && (
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">{kind === 'skill' ? 'Skill' : 'Boss'}</label>
-            <Select
-              value={trackedStat}
-              onChange={setTrackedStat}
-              placeholder={`Select ${kind === 'skill' ? 'a skill' : 'a boss'}...`}
-              ariaLabel={kind === 'skill' ? 'Skill' : 'Boss'}
-              options={
-                kind === 'skill'
-                  ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))
-                  : BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))
-              }
-            />
-          </div>
+          {kind === 'skill' ? (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Skill</label>
+              <Select
+                value={trackedStat}
+                onChange={setTrackedStat}
+                placeholder="Select a skill..."
+                ariaLabel="Skill"
+                options={SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
+              />
+            </div>
+          ) : (
+            /* Boss KC can track SEVERAL hiscores bosses on one tile — gains sum across them
+               (CoX + CoX: CM, or all four GWD bosses). Stored comma-separated in trackedStat. */
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Boss(es) <span className="text-text-muted/60">(KC gains sum across all listed)</span>
+              </label>
+              {statKeys(trackedStat).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {statKeys(trackedStat).map((key) => (
+                    <span
+                      key={key}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-gold/15 border border-gold/30 text-gold"
+                    >
+                      {BOSSES.find((b) => b.key === key)?.label ?? key}
+                      <button
+                        type="button"
+                        onClick={() => setTrackedStat(statKeys(trackedStat).filter((k) => k !== key).join(','))}
+                        className="text-red-400 hover:text-red-300 flex-shrink-0"
+                        aria-label={`Remove ${BOSSES.find((b) => b.key === key)?.label ?? key}`}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <Select
+                value=""
+                onChange={(key) => {
+                  if (!key) return;
+                  const keys = statKeys(trackedStat);
+                  if (!keys.includes(key)) setTrackedStat([...keys, key].join(','));
+                }}
+                placeholder={statKeys(trackedStat).length > 0 ? 'Add another boss...' : 'Select a boss...'}
+                ariaLabel="Boss"
+                options={BOSSES.filter((b) => !statKeys(trackedStat).includes(b.key)).map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))}
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Add more than one to combine modes — e.g. <span className="text-foreground/70">Chambers of Xeric</span> +{' '}
+                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs text-text-muted mb-1">Goal ({kind === 'skill' ? 'XP' : 'KC'})</label>

@@ -17,6 +17,7 @@ import {
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
+import { statKeys } from '@/lib/tileKinds';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -203,11 +204,15 @@ export async function GET(request: Request) {
       : teamPlayers;
 
     for (const p of sources) {
-      const baseline = readStatValue(p.statsSnapshot, statType, statName);
-      const current = readStatValue(p.cachedStats, statType, statName);
-      if (baseline == null || current == null) continue;
-      const gained = current - baseline;
-      if (gained > 0) gainedTotal += gained;
+      // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
+      // per-key gains — CoX and CM clears count toward the same tile.
+      for (const part of statKeys(statName)) {
+        const baseline = readStatValue(p.statsSnapshot, statType, part);
+        const current = readStatValue(p.cachedStats, statType, part);
+        if (baseline == null || current == null) continue;
+        const gained = current - baseline;
+        if (gained > 0) gainedTotal += gained;
+      }
     }
 
     return {
@@ -224,8 +229,9 @@ export async function GET(request: Request) {
       currentAmount: gainedTotal,
       goalAmount: goal,
       // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
-      // keep -1 (the plugin shows the skill sprite instead).
-      itemId: (statType === 'boss' || statType === 'kc') ? bossItemForStatKey(statName) ?? -1 : -1,
+      // keep -1 (the plugin shows the skill sprite instead). Composite keys use the first
+      // boss's icon (a CoX + CM tile shows the CoX item).
+      itemId: (statType === 'boss' || statType === 'kc') ? bossItemForStatKey(statKeys(statName)[0] ?? statName) ?? -1 : -1,
     };
   });
 

@@ -156,10 +156,12 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
   if (type === 'pvp') return 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
 
-  // Stat tiles: skill icon for skill XP, the boss's representative item for KC.
+  // Stat tiles: skill icon for skill XP, the boss's representative item for KC. Composite
+  // trackedStat (comma-separated keys, gains summed) uses the FIRST key's icon.
   if (tile.trackedStat) {
-    if ((tile.statType ?? 'skill') === 'skill') return skillIconUrl(tile.trackedStat);
-    const label = BOSSES.find((b) => b.key === tile.trackedStat)?.label;
+    const firstKey = tile.trackedStat.split(',')[0].trim();
+    if ((tile.statType ?? 'skill') === 'skill') return skillIconUrl(firstKey);
+    const label = BOSSES.find((b) => b.key === firstKey)?.label;
     const item = bossItemFor(label);
     return item != null ? itemIconUrl(item) : null;
   }

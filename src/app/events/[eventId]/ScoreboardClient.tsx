@@ -8,7 +8,7 @@ import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
 import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
-import { tileKindLabel } from '@/lib/tileKinds';
+import { tileKindLabel, statLabel } from '@/lib/tileKinds';
 import TileTargets from '@/components/TileTargets';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -548,7 +548,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                 <>
                   <div className="flex items-center gap-2">
                     <span className="text-text-muted">Tracked:</span>
-                    <span className="text-gold font-medium capitalize">{selectedTile.trackedStat}</span>
+                    <span className="text-gold font-medium">{statLabel(selectedTile.trackedStat, selectedTile.statType)}</span>
                   </div>
                   {selectedTile.statGoal && (
                     <div className="flex items-center gap-2">

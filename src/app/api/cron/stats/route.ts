@@ -5,6 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { getHiscoresStats } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
 import { log } from '@/lib/logger';
+import { statKeys } from '@/lib/tileKinds';
 
 // Cron protection — requests must carry the shared secret (Vercel injected it automatically; the
 // self-hosted host cron sends `Authorization: Bearer $CRON_SECRET`).
@@ -273,17 +274,21 @@ export async function GET(request: Request) {
       const key = `${f.player.teamId}-${tile.id}`;
       if (ctx.completionSet.has(key)) continue;
 
+      // A composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
+      // gains across its hiscores keys — CoX and CM clears count toward the same tile.
       let gained = 0;
-      if (tile.statType === 'skill') {
-        const snapshotXp = f.snapshot.skills?.[tile.trackedStat!]?.xp ?? 0;
-        const currentXp = f.current.skills?.[tile.trackedStat!]?.xp ?? 0;
-        gained = Math.max(0, currentXp - snapshotXp);
-      } else if (tile.statType === 'boss') {
-        const snapshotKc = f.snapshot.bosses?.[tile.trackedStat!]?.score ?? 0;
-        const currentKc = f.current.bosses?.[tile.trackedStat!]?.score ?? 0;
-        const sKc = snapshotKc < 0 ? 0 : snapshotKc;
-        const cKc = currentKc < 0 ? 0 : currentKc;
-        gained = Math.max(0, cKc - sKc);
+      for (const part of statKeys(tile.trackedStat)) {
+        if (tile.statType === 'skill') {
+          const snapshotXp = f.snapshot.skills?.[part]?.xp ?? 0;
+          const currentXp = f.current.skills?.[part]?.xp ?? 0;
+          gained += Math.max(0, currentXp - snapshotXp);
+        } else if (tile.statType === 'boss') {
+          const snapshotKc = f.snapshot.bosses?.[part]?.score ?? 0;
+          const currentKc = f.current.bosses?.[part]?.score ?? 0;
+          const sKc = snapshotKc < 0 ? 0 : snapshotKc;
+          const cKc = currentKc < 0 ? 0 : currentKc;
+          gained += Math.max(0, cKc - sKc);
+        }
       }
 
       if (tile.trackingMode === 'individual') {
