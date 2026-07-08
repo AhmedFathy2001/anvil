@@ -28,6 +28,7 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   const [resuming, setResuming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [savingReveal, setSavingReveal] = useState(false);
+  const [startingBingo, setStartingBingo] = useState(false);
 
   const [editType, setEditType] = useState(false);
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
@@ -189,6 +190,30 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
       }
     } finally {
       setSavingReveal(false);
+    }
+  }
+
+  async function startBingoNow() {
+    if (!confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+    setStartingBingo(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start-now' }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        setStartDate(updated.startDate ?? '');
+        setEndDate(updated.endDate ?? '');
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Could not start the bingo.');
+      }
+    } finally {
+      setStartingBingo(false);
     }
   }
 
@@ -359,6 +384,15 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
               className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
             >
               Cancel
+            </button>
+          )}
+          {!eventStarted && !isForceEnded && !editMode && (
+            <button
+              onClick={startBingoNow}
+              disabled={startingBingo}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+            >
+              {startingBingo ? 'Starting...' : 'Start Bingo Now'}
             </button>
           )}
           {isActive && !isForceEnded && (

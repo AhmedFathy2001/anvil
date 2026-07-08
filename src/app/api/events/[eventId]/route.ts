@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin } from '@/lib/auth';
-import { notifyEventForceEnd } from '@/lib/discord';
+import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 
 export async function GET(
   _request: Request,
@@ -148,6 +148,57 @@ export async function PATCH(
       })
       .where(eq(events.id, id))
       .returning();
+
+    return NextResponse.json(updated);
+  }
+
+  // Handle start-now action — kick the bingo off immediately from the admin UI instead of
+  // waiting for the scheduled start to be reached by the cron. Sets the start to now, reveals
+  // the tiles to members, and announces the start on Discord (exactly once). The end date is
+  // left untouched, so the event still ends when it was configured to.
+  if (body.action === 'start-now') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    const now = new Date().toISOString();
+
+    if (event.forceEndedAt) {
+      return NextResponse.json({ error: 'Event is force-ended. Resume it before starting.' }, { status: 400 });
+    }
+    // An end date is required so the bingo has a defined finish (see the "Keep end date as-is"
+    // decision) — and it must still be in the future, or the event would start already-ended.
+    if (!event.endDate) {
+      return NextResponse.json({ error: 'Set an end date before starting the bingo.' }, { status: 400 });
+    }
+    if (event.endDate <= now) {
+      return NextResponse.json({ error: 'The end date has already passed. Update it before starting.' }, { status: 400 });
+    }
+
+    // Flip startNotified atomically first — only the request that wins the flip sends the
+    // Discord embed, so a retried start-now (or the cron reaching the start time) can't
+    // double-post it.
+    const flipped = await db
+      .update(events)
+      .set({ startNotified: 1 })
+      .where(and(eq(events.id, id), eq(events.startNotified, 0)))
+      .returning({ id: events.id });
+
+    const [updated] = await db
+      .update(events)
+      .set({ startDate: now, tilesRevealed: 1 })
+      .where(eq(events.id, id))
+      .returning();
+
+    if (flipped.length > 0) {
+      notifyEventStart({
+        eventId: updated.id,
+        eventName: updated.name,
+        startDate: updated.startDate!,
+        endDate: updated.endDate,
+      }).catch(() => {});
+    }
 
     return NextResponse.json(updated);
   }

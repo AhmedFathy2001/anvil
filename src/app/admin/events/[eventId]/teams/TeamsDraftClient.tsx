@@ -44,6 +44,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [deleting, setDeleting] = useState<number | null>(null);
   const [selectedClanMemberIds, setSelectedClanMemberIds] = useState<number[]>([]);
   const [addingPlayer, setAddingPlayer] = useState(false);
+  // Post-draft roster tweaks.
+  const [removingPlayerId, setRemovingPlayerId] = useState<number | null>(null);
+  const [addToTeamId, setAddToTeamId] = useState<number | null>(null);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [draftAction, setDraftAction] = useState('');
@@ -51,6 +54,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [resettingSnapshot, setResettingSnapshot] = useState<number | null>(null);
   const [resendingRoster, setResendingRoster] = useState(false);
   const [rosterMessage, setRosterMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [startingBingo, setStartingBingo] = useState(false);
+  const [startBingoError, setStartBingoError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [lastUndone, setLastUndone] = useState<string | null>(null);
   const [showAddTeam, setShowAddTeam] = useState(false);
@@ -72,10 +77,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   const [draft, setDraft] = useState<DraftState>({
     status: event.draftStatus,
-    // Mirror the draft GET: drop ids of since-deleted teams from the stored order.
-    teamOrder: (event.draftOrder ? (JSON.parse(event.draftOrder) as number[]) : []).filter((id) =>
-      teams.some((t) => t.id === id),
-    ),
+    // Mirror the draft GET: drop ids of since-deleted teams, then append any team not yet placed
+    // in the saved order so the order (and the Draft Status preview) always covers the full
+    // current team set — teams added/recreated after the order was last saved don't vanish.
+    teamOrder: (() => {
+      const saved = (event.draftOrder ? (JSON.parse(event.draftOrder) as number[]) : []).filter((id) =>
+        teams.some((t) => t.id === id),
+      );
+      const placed = new Set(saved);
+      return [...saved, ...teams.filter((t) => !placed.has(t.id)).map((t) => t.id)];
+    })(),
     players: initialPlayers,
     teams,
     currentPickNumber: initialPlayers.filter((p) => p.teamId !== null).length,
@@ -92,11 +103,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (draft.status !== 'none') return 3;
     if (teams.length < 2) return 0;
     if (draft.players.length < 1) return 1;
-    // The saved order only counts if it covers every current team — a stale order
-    // (teams deleted/added since it was saved) must land back on the order step.
-    const ids = new Set(teams.map((t) => t.id));
-    if (draft.teamOrder.filter((id) => ids.has(id)).length !== teams.length) return 2;
-    return 3;
+    // Teams + pool are ready → land on the draft-order step, where the order is arranged and the
+    // Start Draft button lives. The order self-heals to cover every team, so we never strand the
+    // admin on a stale-order or empty "run" screen.
+    return 2;
   });
   const stepStorageKey = `draft-step-${event.id}`;
   // All step navigation goes through here: it stamps ?step= into browser history, so
@@ -200,6 +210,43 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setAddingPlayer(false);
   }
 
+  // Move a player back to the pool (remove from their team) — post-draft roster fix.
+  async function removeFromTeam(playerId: number) {
+    setRemovingPlayerId(playerId);
+    try {
+      await fetch(`/api/events/${event.id}/players`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, teamId: null }),
+      });
+      await fetchDraft();
+      router.refresh();
+    } finally {
+      setRemovingPlayerId(null);
+    }
+  }
+
+  // Add the picked clan member(s) straight onto a team — for someone missed during the draft.
+  async function addMembersToTeam(teamId: number) {
+    if (selectedClanMemberIds.length === 0) return;
+    setAddingPlayer(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/players?teamId=${teamId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedClanMemberIds.map((clanMemberId) => ({ clanMemberId }))),
+      });
+      if (res.ok) {
+        setSelectedClanMemberIds([]);
+        setAddToTeamId(null);
+        await fetchDraft();
+        router.refresh();
+      }
+    } finally {
+      setAddingPlayer(false);
+    }
+  }
+
   async function deletePlayer(playerId: number) {
     await fetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
     await fetchDraft();
@@ -281,6 +328,27 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
   }
 
+  async function startBingoNow() {
+    if (!confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+    setStartingBingo(true);
+    setStartBingoError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start-now' }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setStartBingoError(data.error || 'Could not start the bingo.');
+      }
+    } finally {
+      setStartingBingo(false);
+    }
+  }
+
   async function undoLastPick() {
     setUndoing(true);
     setLastUndone(null);
@@ -304,6 +372,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Once the draft leaves 'none', the team set + order are frozen server-side. Mirror
   // that in the UI so the controls match what the API will accept.
   const draftLocked = draft.status !== 'none';
+
+  // "Start Bingo Now" is offered once the draft is done but the event hasn't gone live yet.
+  const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
+  const bingoStartable = !eventStarted && !event.forceEndedAt;
 
   // Guided phase tracker across the whole Teams & Draft flow. Purely a clarity layer over the
   // existing state — nothing here changes draft behaviour.
@@ -339,7 +411,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   return (
     <div className="space-y-12">
-      {/* Guided phase bar — visible in every state so staff always know where they are. */}
+      {/* The 4-step wizard chrome (phase bar + explainer). Once the draft is complete we drop it
+          for the unified post-draft view below. */}
+      {!draftDone && (
+      <>
       <div className="rounded-xl border border-card-border bg-card-bg p-4 !mt-0">
         <ol className="flex flex-wrap items-center gap-2">
           {phases.map((p, i) => {
@@ -405,6 +480,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </ol>
         </div>
       </details>
+      </>
+      )}
 
       {activeStep === 0 && (
         <>
@@ -459,8 +536,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <Link
                       href={`/admin/events/${event.id}/teams/${team.id}`}
                       className="text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
+                      title="See this team's progress and mark tiles done/undone, add or remove submissions"
                     >
-                      Manage Tiles
+                      Manage Board
                     </Link>
                     {!draftLocked && (
                       <button
@@ -752,9 +830,45 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
 
-        {/* Completed */}
-        {activeStep === 3 && draft.status === 'completed' && (
+        {/* Completed — the unified post-draft view (no wizard steps): status, actions, and roster
+            management all in one place. */}
+        {draft.status === 'completed' && (
           <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <span className="w-1 h-5 bg-gold rounded-full" />
+                Draft complete
+              </h2>
+              <p className="text-sm text-text-muted mt-1">
+                Rosters are set. Start the bingo, adjust rosters, or re-send the roster to Discord below.
+              </p>
+            </div>
+            {bingoStartable && (
+              <div className="rounded-xl border border-accent-green/30 bg-accent-green/10 p-4">
+                <h3 className="text-sm font-bold text-accent-green-light mb-1 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-accent-green rounded-full" />
+                  Ready to go
+                </h3>
+                <p className="text-xs text-text-muted mb-3">
+                  The draft is done. Starting the bingo now reveals all tiles to members, marks the
+                  event live, and announces the start in Discord. The end date stays as configured.
+                </p>
+                <button
+                  onClick={startBingoNow}
+                  disabled={startingBingo}
+                  className="text-sm font-bold bg-accent-green/20 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/30 transition-colors disabled:opacity-50"
+                >
+                  {startingBingo ? 'Starting...' : 'Start Bingo Now'}
+                </button>
+                {startBingoError && <p className="text-red-400 text-xs mt-2">{startBingoError}</p>}
+              </div>
+            )}
+            {eventStarted && (
+              <div className="rounded-xl border border-accent-green/30 bg-accent-green/10 px-4 py-2.5 text-xs text-accent-green-light flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
+                Bingo is live — tiles are revealed and stats are tracking.
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 items-center">
               <button
                 onClick={() => doDraftAction('reset')}
@@ -773,6 +887,84 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               {rosterMessage && (
                 <span className={`text-sm ${rosterMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>{rosterMessage.text}</span>
               )}
+            </div>
+
+            {/* Manage rosters — fix mistakes after the draft: add a missed player onto a team, or
+                move one back to the pool. */}
+            <div>
+              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
+                <span className="w-1 h-4 bg-gold rounded-full" />
+                Manage rosters
+              </h3>
+              <p className="text-xs text-text-muted mb-3">
+                Add someone who was missed, or remove a player from a team (they go back to the pool).
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {draftTeams.map((team) => {
+                  const roster = draft.players.filter((p) => p.teamId === team.id);
+                  return (
+                    <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+                        <span className="font-semibold text-sm truncate">{team.name}</span>
+                        <span className="text-xs text-text-muted ml-auto shrink-0">{roster.length} player{roster.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="space-y-1 mb-2">
+                        {roster.length === 0 ? (
+                          <p className="text-xs text-text-muted">No players yet.</p>
+                        ) : (
+                          roster.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                              <span className="truncate">{p.name}</span>
+                              <button
+                                onClick={() => removeFromTeam(p.id)}
+                                disabled={removingPlayerId === p.id}
+                                className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 shrink-0"
+                              >
+                                {removingPlayerId === p.id ? '…' : 'Remove'}
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {addToTeamId === team.id ? (
+                        <div className="space-y-2 border-t border-card-border pt-2">
+                          <ClanMemberPicker
+                            mode="multi"
+                            eventId={event.id}
+                            value={selectedClanMemberIds}
+                            onChange={(ids) => setSelectedClanMemberIds(ids)}
+                            preferLinked
+                            disableEnrolled
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => addMembersToTeam(team.id)}
+                              disabled={addingPlayer || selectedClanMemberIds.length === 0}
+                              className="flex-1 text-xs font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/30 px-3 py-1.5 rounded-lg hover:bg-accent-green/25 transition-colors disabled:opacity-50"
+                            >
+                              {addingPlayer ? 'Adding…' : selectedClanMemberIds.length === 0 ? 'Select members' : `Add ${selectedClanMemberIds.length}`}
+                            </button>
+                            <button
+                              onClick={() => { setAddToTeamId(null); setSelectedClanMemberIds([]); }}
+                              className="text-xs text-text-muted hover:text-foreground border border-card-border px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setAddToTeamId(team.id); setSelectedClanMemberIds([]); }}
+                          className="w-full text-xs font-medium text-gold border border-gold/20 px-2 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
+                        >
+                          + Add player
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
@@ -838,7 +1030,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         )}
       </div>
 
-      {/* Step navigation — one clear way forward/back, so the phase chips aren't the only path. */}
+      {/* Step navigation — hidden once the draft is done; the unified view has its own actions. */}
+      {!draftDone && (
       <div className="flex items-center justify-between border-t border-card-border pt-4 !mt-6">
         <button
           type="button"
@@ -862,6 +1055,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           </div>
         )}
       </div>
+      )}
 
       {showAddTeam && (
         <TeamEditor
