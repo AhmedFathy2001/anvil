@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { flushPendingNotifications } from '@/lib/notifications';
+import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 
 // Per-minute backstop for the submission-notification debounce. Opportunistic flushes (run at the end
 // of each submission request) cover active events; this catches buckets that went quiet after the last
 // request — e.g. a team finishes a kill grind and stops submitting — so their merged post still fires.
 // A completing submission flushes inline, so this is only ever posting non-completion progress.
+//
+// It also fires the scheduled event start/end Discord posts. Running here (every minute) keeps them
+// timely; the hourly stats cron would otherwise be up to ~an hour late.
 
 export const maxDuration = 60;
 
@@ -24,6 +28,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Independent concerns — don't let a lifecycle-notification failure block the debounce flush.
+  await processEventLifecycleNotifications().catch(() => {});
   const posted = await flushPendingNotifications();
   return NextResponse.json({ posted });
 }

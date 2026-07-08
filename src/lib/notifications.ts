@@ -16,6 +16,25 @@ import { notifyMergedSubmission } from '@/lib/discord';
 const QUIET_WINDOW_MS = 45_000;       // post once a tile+team has been quiet this long
 const MAX_WINDOW_MS = 5 * 60_000;     // ...or this long since the first buffered submission, regardless
 
+// Milestone throttle for grindy count tiles. A 4000-kill task would otherwise fire a merged
+// progress post every window for days. Above LARGE_TILE_MIN we announce progress only when the
+// running total crosses a MILESTONE_FRACTION step of the goal (each 25% → ~4 posts), plus the
+// always-immediate completion post. Small tiles are unaffected. Every submission is still
+// recorded on the site regardless — this only throttles the Discord chatter, not the scoring.
+const LARGE_TILE_MIN = 25;
+const MILESTONE_FRACTION = 0.25;
+
+// Did this flush's running total cross a milestone step since the window opened? Stateless: the
+// bucket carries the true running total and the amount added this window, and a suppressed window
+// still advances the total, so crossings stay continuous across suppressed windows. Returns true
+// (post it) when there's no goal/total to measure against, or the tile is small.
+function crossesMilestone(pendingAmount: number, latestTotal: number | null, requiredAmount: number | null): boolean {
+  if (latestTotal == null || requiredAmount == null || requiredAmount < LARGE_TILE_MIN) return true;
+  const step = Math.max(1, requiredAmount * MILESTONE_FRACTION);
+  const before = latestTotal - pendingAmount;
+  return Math.floor(latestTotal / step) > Math.floor(before / step);
+}
+
 interface QueueParams {
   eventId: number;
   tileId: number;
@@ -91,12 +110,20 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
   const event = await db.query.events.findFirst({ where: eq(events.id, row.eventId) });
   if (!tile || !team || !event) return false; // tile/team/event vanished — drop the post silently
 
+  // Throttle grindy progress chatter to milestone crossings; a completing submission always posts.
+  // The bucket is already claimed (deleted) above, so a suppressed window just skips the Discord
+  // post — the underlying submissions stay recorded and the running total keeps advancing.
+  if (row.completed !== 1 && !crossesMilestone(row.pendingAmount, row.latestTotal, row.requiredAmount)) {
+    return false;
+  }
+
   await notifyMergedSubmission({
     eventName: event.name,
     tileLabel: tile.label,
     teamName: team.name,
     teamColor: team.color,
     tileType: tile.tileType,
+    creditPlayerName: row.latestCreditName,
     pendingAmount: row.pendingAmount,
     currentTotal: row.latestTotal,
     requiredAmount: row.requiredAmount,

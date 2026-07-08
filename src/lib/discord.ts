@@ -395,6 +395,7 @@ interface MergedSubmissionParams {
   teamName: string;
   teamColor: string;
   tileType?: string | null;
+  creditPlayerName?: string | null;
   pendingAmount: number;
   currentTotal: number | null;
   requiredAmount: number | null;
@@ -405,7 +406,7 @@ interface MergedSubmissionParams {
 
 export async function notifyMergedSubmission(params: MergedSubmissionParams): Promise<boolean> {
   const {
-    eventName, tileLabel, teamName, teamColor, tileType,
+    eventName, tileLabel, teamName, teamColor, tileType, creditPlayerName,
     pendingAmount, currentTotal, requiredAmount, note, imageUrl, completed,
   } = params;
 
@@ -414,6 +415,11 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     { name: 'Tile', value: tileLabel, inline: true },
     { name: 'Team', value: teamName, inline: true },
   ];
+
+  // Who the credit went to — matches notifySubmission's layout so merged posts read the same.
+  if (creditPlayerName) {
+    fields.push({ name: 'Player', value: creditPlayerName, inline: true });
+  }
 
   const progress = requiredAmount != null && currentTotal != null
     ? ` (${currentTotal}/${requiredAmount} total)`
@@ -584,6 +590,29 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
   };
 
   return sendBingoWebhook({ embeds: [embed] });
+}
+
+interface DraftStartNotifyParams {
+  eventName: string;
+  teamCount?: number;
+}
+
+export async function notifyDraftStart(params: DraftStartNotifyParams): Promise<boolean> {
+  const { eventName, teamCount } = params;
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [];
+  if (teamCount) fields.push({ name: 'Teams', value: `${teamCount}`, inline: true });
+
+  const embed: DiscordEmbed = {
+    title: '🎬 Draft Started!',
+    description: `The draft for **${eventName}** is underway — captains, make your picks!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0x5865f2, // Discord blurple
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Ping members so captains show up for their picks (same reach as start/finish posts).
+  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
 }
 
 interface TeamWinNotifyParams {

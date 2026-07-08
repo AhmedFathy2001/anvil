@@ -3,7 +3,8 @@ import { db } from '@/db';
 import { players, tiles, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { getHiscoresStats } from '@/lib/hiscores';
-import { notifyTileCompletion, notifyEventStart, notifyEventEnd, notifyTeamWin } from '@/lib/discord';
+import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 
@@ -98,55 +99,10 @@ export async function GET(request: Request) {
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
 
-  // Check for events that just started (need start notification)
-  for (const event of allEvents) {
-    if (event.startDate && event.startDate <= now && !event.startNotified) {
-      await notifyEventStart({
-        eventId: event.id,
-        eventName: event.name,
-        startDate: event.startDate,
-        endDate: event.endDate,
-      });
-      await db.update(events)
-        .set({ startNotified: 1 })
-        .where(eq(events.id, event.id));
-    }
-  }
-
-  // Check for events that just ended (need end notification)
-  for (const event of allEvents) {
-    if (event.endDate && event.endDate < now && !event.endNotified) {
-      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
-      const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
-      const eventTileIds = eventTiles.map(t => t.id);
-      const eventCompletions = eventTileIds.length > 0
-        ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
-        : [];
-
-      const pointsMode = event.scoringMode === 'points';
-      const scoredTiles = eventTiles.filter(t => !t.optional);
-      const weightById = new Map(scoredTiles.map(t => [t.id, pointsMode ? (t.points ?? 0) : 1]));
-      const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
-
-      const standings = eventTeams.map(team => {
-        const teamScore = eventCompletions
-          .filter(c => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
-        return { teamName: team.name, tilesCompleted: teamScore };
-      });
-
-      await notifyEventEnd({
-        eventId: event.id,
-        eventName: event.name,
-        standings,
-        totalTiles: pointsMode ? totalScore : scoredTiles.length,
-        unit: pointsMode ? 'pts' : 'tiles',
-      });
-      await db.update(events)
-        .set({ endNotified: 1 })
-        .where(eq(events.id, event.id));
-    }
-  }
+  // Fire scheduled event start/end Discord posts (idempotent via atomic flags). This is only
+  // the hourly backstop — the per-minute flush-notifications cron runs the same check, so these
+  // posts land on time rather than up to an hour late.
+  await processEventLifecycleNotifications();
 
   // Filter to only active events for stat tracking
   const activeEvents = allEvents.filter((e) => {

@@ -12,6 +12,13 @@ export const events = sqliteTable('events', {
   endDate: text('end_date'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  // Set once when the draft-complete roster is posted to Discord, so the pick auto-complete
+  // and the manual "End draft" action can't both fire the same embed (idempotency). Cleared
+  // by a draft reset. `resend-roster` intentionally bypasses it.
+  draftNotified: integer('draft_notified').default(0),
+  // Set once when the "Draft started" embed is posted to Discord (draft `start` action), so a
+  // retried request or a start-from-paused can't double-post it. Cleared by a draft reset.
+  draftStartNotified: integer('draft_start_notified').default(0),
   forceEndedAt: text('force_ended_at'),
   originalEndDate: text('original_end_date'),
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;

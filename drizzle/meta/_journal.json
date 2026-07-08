@@ -50,6 +50,20 @@
       "when": 1783454010542,
       "tag": "0006_third_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1783529800080,
+      "tag": "0007_cooing_morlocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783531474696,
+      "tag": "0008_tearful_diamondback",
+      "breakpoints": true
     }
   ]
 }
