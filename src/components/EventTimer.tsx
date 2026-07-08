@@ -46,7 +46,11 @@ export default function EventTimer({ startDate, endDate, forceEndedAt, className
   const label = LABEL[state.phase];
   const exact = formatExactTime(state.target);
 
-  if (!state.imminent) {
+  // Always count down for an upcoming event (how long until kickoff); a running event only
+  // switches to a live countdown once its end is within 24h.
+  const showCountdown = state.phase === 'upcoming' || state.imminent;
+
+  if (!showCountdown) {
     return (
       <span className={className}>
         {label} {exact}

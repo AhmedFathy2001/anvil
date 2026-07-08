@@ -136,11 +136,9 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
       const exact = formatExactTime(state.target);
       if (state.phase === 'upcoming') {
-        setTimeInfo(
-          state.imminent
-            ? { tone: 'starts', text: `Starts in ${formatCountdown(state.target - now)}`, exact }
-            : { tone: 'starts', text: `Starts ${exact}`, exact: null },
-        );
+        // Always count down to the start (days/hours/mins), with the exact time underneath — an
+        // upcoming bingo should show how long until kickoff, not just a static date.
+        setTimeInfo({ tone: 'starts', text: `Starts in ${formatCountdown(state.target - now)}`, exact });
         return;
       }
       // active
