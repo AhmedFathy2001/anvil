@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { tiles, players, teams, completions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { statKeys, statLabel } from '@/lib/tileKinds';
+import { parsePluginStats } from '@/lib/pluginStats';
 
 export interface StatStandingPlayer {
   playerId: number;
@@ -63,7 +64,12 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
     const rows: StatStandingPlayer[] = drafted
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
-        const current = readStat(p.cachedStats, tile.statType!, keys);
+        // Effective current folds in the plugin's real-time boss KC (max per key), so standings
+        // reflect a fresh kill before the hourly hiscores cron catches up. Skills never push.
+        const plug = parsePluginStats(p.pluginStats);
+        const current = tile.statType === 'skill'
+          ? readStat(p.cachedStats, tile.statType!, keys)
+          : keys.reduce((sum, k) => sum + Math.max(readStat(p.cachedStats, 'boss', [k]), plug[k] ?? 0), 0);
         return {
           playerId: p.id,
           name: p.name,

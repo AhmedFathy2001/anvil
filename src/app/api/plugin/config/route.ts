@@ -18,6 +18,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { parsePluginStats, kcNamesForKey } from '@/lib/pluginStats';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
         player: null,
         codeword: null,
         trackedStats: [],
+        trackedKcNames: [],
         trackedDrops: [],
         trackedKills: [],
         trackedPvp: [],
@@ -171,6 +173,7 @@ export async function GET(request: Request) {
       id: players.id,
       statsSnapshot: players.statsSnapshot,
       cachedStats: players.cachedStats,
+      pluginStats: players.pluginStats,
     })
     .from(players)
     .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
@@ -203,12 +206,17 @@ export async function GET(request: Request) {
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
 
+    const isBoss = statType === 'boss' || statType === 'kc';
     for (const p of sources) {
+      // Real-time boss KC (plugin push) folds into current as a per-key max, so the in-game
+      // progress reflects a fresh kill before the hourly hiscores cron catches up.
+      const plug = isBoss ? parsePluginStats(p.pluginStats) : {};
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
       for (const part of statKeys(statName)) {
         const baseline = readStatValue(p.statsSnapshot, statType, part);
-        const current = readStatValue(p.cachedStats, statType, part);
+        let current = readStatValue(p.cachedStats, statType, part);
+        if (isBoss) current = Math.max(current ?? 0, plug[part] ?? 0);
         if (baseline == null || current == null) continue;
         const gained = current - baseline;
         if (gained > 0) gainedTotal += gained;
@@ -234,6 +242,17 @@ export async function GET(request: Request) {
       itemId: (statType === 'boss' || statType === 'kc') ? bossItemForStatKey(statKeys(statName)[0] ?? statName) ?? -1 : -1,
     };
   });
+
+  // In-game KC-line boss names for the event's boss-KC tiles. The plugin watches for
+  // "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
+  // /api/plugin/stats so the tile updates in real time (see lib/pluginStats + the endpoint).
+  const trackedKcNames = Array.from(
+    new Set(
+      statTilesRaw
+        .filter((t) => t.statType === 'boss' || t.statType === 'kc')
+        .flatMap((t) => statKeys(t.trackedStat).flatMap((k) => kcNamesForKey(k))),
+    ),
+  );
 
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
@@ -317,6 +336,7 @@ export async function GET(request: Request) {
     showKillCount,
     completedTiles,
     trackedStats,
+    trackedKcNames,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {

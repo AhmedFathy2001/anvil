@@ -190,6 +190,11 @@ export const players = sqliteTable('players', {
   playerToken: text('player_token'),
   cachedStats: text('cached_stats'),
   lastStatsFetch: text('last_stats_fetch'),
+  // Real-time boss KC pushed by the plugin, as a flat JSON map of hiscores boss key -> absolute
+  // count ({"zulrah":1250}). Separate from cachedStats so the hourly hiscores cron never clobbers
+  // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
+  // hiscores catches up. Lets boss-KC tiles complete instantly instead of waiting on hiscores lag.
+  pluginStats: text('plugin_stats'),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),

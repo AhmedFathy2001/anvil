@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { players, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
+import { parsePluginStats } from '@/lib/pluginStats';
 
 interface Snapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
@@ -12,7 +13,10 @@ interface Snapshot {
 function computeGains(
   snapshot: Snapshot,
   current: Snapshot,
-  trackedStats: { key: string; type: string }[]
+  trackedStats: { key: string; type: string }[],
+  // Real-time boss KC pushed by the plugin (hiscores key -> absolute count); the effective current
+  // KC is max(hiscores, plugin) so a tile reflects a fresh kill before the hourly hiscores catches up.
+  pluginMap: Record<string, number> = {}
 ): Record<string, number> {
   const gains: Record<string, number> = {};
 
@@ -29,7 +33,7 @@ function computeGains(
         const snapshotKc = snapshot.bosses?.[part]?.score ?? 0;
         const currentKc = current.bosses?.[part]?.score ?? 0;
         const sKc = snapshotKc < 0 ? 0 : snapshotKc;
-        const cKc = currentKc < 0 ? 0 : currentKc;
+        const cKc = Math.max(currentKc < 0 ? 0 : currentKc, pluginMap[part] ?? 0);
         total += Math.max(0, cKc - sKc);
       }
     }
@@ -119,7 +123,8 @@ export async function GET(
     if (player.cachedStats) {
       try {
         const currentStats = JSON.parse(player.cachedStats) as Snapshot;
-        const gains = computeGains(snapshot, currentStats, uniqueStats);
+        const pluginMap = parsePluginStats(player.pluginStats);
+        const gains = computeGains(snapshot, currentStats, uniqueStats, pluginMap);
 
         const current: Record<string, number> = {};
         for (const { key, type } of uniqueStats) {
@@ -129,7 +134,7 @@ export async function GET(
               total += currentStats.skills?.[part]?.xp ?? 0;
             } else if (type === 'boss') {
               const kc = currentStats.bosses?.[part]?.score ?? 0;
-              total += kc < 0 ? 0 : kc;
+              total += Math.max(kc < 0 ? 0 : kc, pluginMap[part] ?? 0);
             }
           }
           current[key] = total;
