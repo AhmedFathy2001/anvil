@@ -60,6 +60,8 @@ export interface Team {
   name: string;
   color: string;
   captainUserId?: number | null;
+  // Read-time join of the captain's display name (admin teams page) — not a DB column.
+  captainName?: string | null;
   discordRoleId?: string | null;
   discordTextChannelId?: string | null;
   discordVoiceChannelId?: string | null;

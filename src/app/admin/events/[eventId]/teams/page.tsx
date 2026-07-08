@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { events, tiles, teams, players, completions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { events, tiles, teams, players, completions, users } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
@@ -32,7 +32,17 @@ export default async function EventTeamsPage({
     ? (await db.select().from(completions)).filter((c) => tileIds.has(c.tileId))
     : [];
 
-  const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
+  // Surface each captain's display name so the team list can show who holds the seat.
+  const captainIds = [...new Set(eventTeams.map((t) => t.captainUserId).filter((v): v is number => v != null))];
+  const captainRows = captainIds.length
+    ? await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, captainIds))
+    : [];
+  const captainNameById = new Map(captainRows.map((u) => [u.id, u.displayName]));
+
+  const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => ({
+    ...rest,
+    captainName: rest.captainUserId != null ? captainNameById.get(rest.captainUserId) ?? null : null,
+  }));
 
   return (
     <TeamsDraftClient

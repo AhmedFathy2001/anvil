@@ -4,7 +4,7 @@ import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import TeamForm from '@/components/TeamForm';
+import TeamEditor from '@/components/TeamEditor';
 import DraftOrderSetup from '@/components/DraftOrderSetup';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
@@ -72,7 +72,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   const [draft, setDraft] = useState<DraftState>({
     status: event.draftStatus,
-    teamOrder: event.draftOrder ? JSON.parse(event.draftOrder) : [],
+    // Mirror the draft GET: drop ids of since-deleted teams from the stored order.
+    teamOrder: (event.draftOrder ? (JSON.parse(event.draftOrder) as number[]) : []).filter((id) =>
+      teams.some((t) => t.id === id),
+    ),
     players: initialPlayers,
     teams,
     currentPickNumber: initialPlayers.filter((p) => p.teamId !== null).length,
@@ -89,24 +92,56 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (draft.status !== 'none') return 3;
     if (teams.length < 2) return 0;
     if (draft.players.length < 1) return 1;
-    if (draft.teamOrder.length < 1) return 2;
+    // The saved order only counts if it covers every current team — a stale order
+    // (teams deleted/added since it was saved) must land back on the order step.
+    const ids = new Set(teams.map((t) => t.id));
+    if (draft.teamOrder.filter((id) => ids.has(id)).length !== teams.length) return 2;
     return 3;
   });
-  // Once everything's set up the initializer always lands on "Run draft" — which turns every
-  // visit to this tab into a forced jump there. Remember the admin's chosen step for the
-  // session instead (restored after mount to keep SSR hydration clean).
   const stepStorageKey = `draft-step-${event.id}`;
+  // All step navigation goes through here: it stamps ?step= into browser history, so
+  // the browser Back button steps backward through the wizard instead of leaving the page.
+  const goToStep = useCallback((n: number, mode: 'push' | 'replace' = 'push') => {
+    setActiveStep(n);
+    const url = new URL(window.location.href);
+    url.searchParams.set('step', String(n));
+    if (mode === 'push') window.history.pushState({ draftStep: n }, '', url);
+    else window.history.replaceState({ draftStep: n }, '', url);
+  }, []);
+  const activeStepRef = useRef(activeStep);
+  activeStepRef.current = activeStep;
+  // Once everything's set up the initializer always lands on "Run draft" — which turns every
+  // visit to this tab into a forced jump there. Restore the admin's place instead: the URL's
+  // ?step= wins (back/forward, deep link), then the session's remembered step (restored after
+  // mount to keep SSR hydration clean).
   useEffect(() => {
-    const saved = window.sessionStorage.getItem(stepStorageKey);
-    if (saved != null && draft.status === 'none') {
+    const fromUrl = new URLSearchParams(window.location.search).get('step');
+    const saved = fromUrl ?? (draft.status === 'none' ? window.sessionStorage.getItem(stepStorageKey) : null);
+    if (saved != null) {
       const n = parseInt(saved, 10);
-      if (Number.isInteger(n) && n >= 0 && n <= 3) setActiveStep(n);
+      if (Number.isInteger(n) && n >= 0 && n <= 3) {
+        goToStep(n, 'replace');
+        return;
+      }
     }
+    // Stamp the initial entry so returning to it via Back restores the right step.
+    goToStep(activeStepRef.current, 'replace');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     window.sessionStorage.setItem(stepStorageKey, String(activeStep));
   }, [activeStep, stepStorageKey]);
+  // Back/forward: restore whatever step that history entry was stamped with.
+  useEffect(() => {
+    function onPopState(e: PopStateEvent) {
+      const fromState = (e.state as { draftStep?: number } | null)?.draftStep;
+      const fromUrl = new URLSearchParams(window.location.search).get('step');
+      const n = typeof fromState === 'number' ? fromState : fromUrl != null ? parseInt(fromUrl, 10) : NaN;
+      if (Number.isInteger(n) && n >= 0 && n <= 3) setActiveStep(n);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   // Jump to the Run-draft view the moment the draft actually starts or finishes — a live
   // TRANSITION only, so it never fights the admin's own navigation.
   const prevDraftStatus = useRef(draft.status);
@@ -114,9 +149,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     const prev = prevDraftStatus.current;
     prevDraftStatus.current = draft.status;
     if (prev !== draft.status && (draft.status === 'active' || draft.status === 'paused' || draft.status === 'completed')) {
-      setActiveStep(3);
+      goToStep(3, 'replace');
     }
-  }, [draft.status]);
+  }, [draft.status, goToStep]);
 
   const fetchDraft = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/draft`);
@@ -141,6 +176,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         alert(data.error || 'Could not delete team');
         return;
       }
+      // Pull the fresh draft state too — the delete may have scrubbed the saved order.
+      await fetchDraft();
       router.refresh();
     } finally {
       setDeleting(null);
@@ -204,46 +241,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setPicking(false);
   }
 
-  const [editingTeam, setEditingTeam] = useState<{ id: number; name: string; color: string } | null>(null);
-  const [savingTeamEdit, setSavingTeamEdit] = useState(false);
-  const [teamEditError, setTeamEditError] = useState<string | null>(null);
-
-  const colorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function saveTeamColor(teamId: number, color: string) {
-    // The native picker fires change continuously while dragging — debounce so one
-    // PATCH (and one Discord role update) lands after the admin settles on a color.
-    if (colorSaveTimer.current) clearTimeout(colorSaveTimer.current);
-    colorSaveTimer.current = setTimeout(async () => {
-      await fetch(`/api/events/${event.id}/teams`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, color }),
-      });
-      router.refresh();
-    }, 700);
-  }
-
-  async function saveTeamEdit() {
-    if (!editingTeam || !editingTeam.name.trim()) return;
-    setSavingTeamEdit(true);
-    setTeamEditError(null);
-    try {
-      const res = await fetch(`/api/events/${event.id}/teams`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: editingTeam.id, name: editingTeam.name.trim(), color: editingTeam.color }),
-      });
-      if (res.ok) {
-        setEditingTeam(null);
-        router.refresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setTeamEditError(data.error || 'Could not save team.');
-      }
-    } finally {
-      setSavingTeamEdit(false);
-    }
-  }
+  // One modal handles both create and edit (name, color, captain) — no more
+  // delete-and-recreate to change a captain or color.
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   async function resetPlayerSnapshot(playerId: number) {
     setResettingSnapshot(playerId);
@@ -309,7 +309,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // existing state — nothing here changes draft behaviour.
   const teamsDone = teams.length >= 2;
   const poolDone = draft.players.length >= 1;
-  const orderDone = draft.teamOrder.length > 0;
+  // "Done" means the saved order covers every current team — not merely "an order was
+  // once saved". Deleting/adding teams after saving used to leave a stale order that
+  // still read as complete.
+  const draftTeamIds = new Set(draftTeams.map((t) => t.id));
+  const validOrder = draft.teamOrder.filter((id) => draftTeamIds.has(id));
+  const orderDone = draftTeams.length >= 2 && new Set(validOrder).size === draftTeams.length;
   const draftDone = draft.status === 'completed';
   const phases = [
     { label: 'Set up teams', done: teamsDone },
@@ -326,7 +331,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         : !poolDone
           ? 'Fill the player pool — sign-ups add players automatically, or add clan members manually.'
           : !orderDone
-            ? 'Set the draft order, then start the draft.'
+            ? 'Set the draft order — every team must be in it — then start the draft.'
             : 'Everything’s ready — start the draft below.';
 
   // Whether the on-screen step is finished, so "Continue" only unlocks when it's safe to move on.
@@ -343,7 +348,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <li key={p.label}>
                 <button
                   type="button"
-                  onClick={() => setActiveStep(i)}
+                  onClick={() => goToStep(i)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                     selected
                       ? 'border-gold bg-gold/15 text-gold'
@@ -423,79 +428,34 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               return (
                 <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border border-card-border rounded-xl p-3 bg-card-bg">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {editingTeam?.id === team.id ? (
-                      <>
-                        <label className="relative w-3.5 h-3.5 rounded-full cursor-pointer flex-shrink-0" style={{ backgroundColor: editingTeam.color }} title="Pick team color">
-                          <input
-                            type="color"
-                            value={editingTeam.color}
-                            onChange={(e) => setEditingTeam({ ...editingTeam, color: e.target.value })}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                        </label>
-                        <input
-                          type="text"
-                          value={editingTeam.name}
-                          onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
-                          maxLength={50}
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveTeamEdit();
-                            if (e.key === 'Escape') { setEditingTeam(null); setTeamEditError(null); }
-                          }}
-                          className="px-2 py-1 bg-brown-dark border border-card-border rounded text-sm text-foreground w-full max-w-44 min-w-0"
-                        />
-                        {teamEditError && <span className="text-xs text-red-400">{teamEditError}</span>}
-                      </>
-                    ) : (
-                      <>
-                        <label
-                          className="relative w-3.5 h-3.5 rounded-full flex-shrink-0 cursor-pointer ring-1 ring-white/20 hover:ring-gold/60 transition-shadow"
-                          style={{ backgroundColor: team.color }}
-                          title="Click to change team color"
-                        >
-                          <input
-                            type="color"
-                            defaultValue={team.color}
-                            onChange={(e) => saveTeamColor(team.id, e.target.value)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
-                        </label>
-                        <div className="min-w-0">
-                          <span className="font-semibold break-words">{team.name}</span>
-                          <span className="text-text-muted text-xs ml-2 whitespace-nowrap">
-                            {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
-                          </span>
-                        </div>
-                      </>
-                    )}
+                    <span
+                      className="w-3.5 h-3.5 rounded-full flex-shrink-0 ring-1 ring-white/20"
+                      style={{ backgroundColor: team.color }}
+                    />
+                    <div className="min-w-0">
+                      <span className="font-semibold break-words">{team.name}</span>
+                      {team.captainName ? (
+                        <span className="text-xs text-gold/90 ml-2 whitespace-nowrap" title="Team captain">
+                          ♛ {team.captainName}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-yellow-400/90 ml-2 whitespace-nowrap" title="No captain assigned yet">
+                          ♛ no captain
+                        </span>
+                      )}
+                      <span className="text-text-muted text-xs ml-2 whitespace-nowrap">
+                        {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
+                      </span>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {editingTeam?.id === team.id ? (
-                      <>
-                        <button
-                          onClick={saveTeamEdit}
-                          disabled={savingTeamEdit || !editingTeam.name.trim()}
-                          className="text-xs font-medium bg-accent-green/10 text-accent-green-light border border-accent-green/20 px-2.5 py-1 rounded-lg hover:bg-accent-green/20 transition-colors disabled:opacity-50"
-                        >
-                          {savingTeamEdit ? '...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => { setEditingTeam(null); setTeamEditError(null); }}
-                          className="text-xs text-text-muted border border-card-border px-2.5 py-1 rounded-lg hover:text-foreground transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => { setEditingTeam({ id: team.id, name: team.name, color: team.color }); setTeamEditError(null); }}
-                        className="text-xs text-text-muted border border-card-border px-2.5 py-1 rounded-lg hover:text-foreground hover:border-gold/40 transition-colors"
-                        title="Rename team / change color (updates the Discord role too)"
-                      >
-                        Edit
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setEditingTeam(team)}
+                      className="text-xs text-text-muted border border-card-border px-2.5 py-1 rounded-lg hover:text-foreground hover:border-gold/40 transition-colors"
+                      title="Edit name, color or captain (updates the Discord role too)"
+                    >
+                      Edit
+                    </button>
                     <Link
                       href={`/admin/events/${event.id}/teams/${team.id}`}
                       className="text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
@@ -527,17 +487,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             🔒 Teams are locked while the draft is {draft.status}. Reset the draft to change the team set.
           </div>
         ) : signupsOpen ? (
-          <>
-            <button
-              onClick={() => setShowAddTeam(!showAddTeam)}
-              className="w-full text-base font-bold mb-4 flex items-center gap-2 hover:text-gold transition-colors text-left"
-            >
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              Add Team
-              <span className="ml-auto text-sm text-text-muted">{showAddTeam ? '▼' : '▶'}</span>
-            </button>
-            {showAddTeam && <TeamForm eventId={event.id} />}
-          </>
+          <button
+            onClick={() => setShowAddTeam(true)}
+            className="w-full border border-dashed border-card-border rounded-xl py-3.5 text-sm font-medium text-text-muted hover:text-gold hover:border-gold/50 transition-colors"
+          >
+            + Add Team
+          </button>
         ) : (
           <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
             Teams can be added once sign-ups open ({new Date(event.signupOpensAt!).toLocaleString()}).
@@ -701,7 +656,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               {teams.length >= 2 ? (
                 <>
                   <DraftOrderSetup teams={teams} currentOrder={draft.teamOrder} onSave={saveDraftOrder} saving={savingOrder} />
-                  {draft.teamOrder.length > 0 && draft.players.filter((p) => p.teamId === null).length > 0 && (
+                  {orderDone && draft.players.filter((p) => p.teamId === null).length > 0 && (
                     <button
                       onClick={() => doDraftAction('start')}
                       disabled={!!draftAction}
@@ -887,7 +842,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       <div className="flex items-center justify-between border-t border-card-border pt-4 !mt-6">
         <button
           type="button"
-          onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
+          onClick={() => goToStep(Math.max(0, activeStep - 1))}
           disabled={activeStep === 0}
           className="text-sm text-text-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
@@ -898,7 +853,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             {!stepDone && <span className="text-xs text-text-muted">{nextHint}</span>}
             <button
               type="button"
-              onClick={() => setActiveStep((s) => Math.min(3, s + 1))}
+              onClick={() => goToStep(Math.min(3, activeStep + 1))}
               disabled={!stepDone}
               className="text-sm font-semibold px-4 py-2 rounded-lg bg-gold hover:bg-gold-light text-brown-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -908,6 +863,27 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         )}
       </div>
 
+      {showAddTeam && (
+        <TeamEditor
+          eventId={event.id}
+          onClose={() => setShowAddTeam(false)}
+          onSaved={() => {
+            fetchDraft();
+            router.refresh();
+          }}
+        />
+      )}
+      {editingTeam && (
+        <TeamEditor
+          eventId={event.id}
+          team={editingTeam}
+          onClose={() => setEditingTeam(null)}
+          onSaved={() => {
+            fetchDraft();
+            router.refresh();
+          }}
+        />
+      )}
       {statsRsn && <PlayerStatsPanel rsn={statsRsn} onClose={() => setStatsRsn(null)} />}
       {editingBaselinePlayer && (
         <PlayerBaselineEditor
