@@ -2,7 +2,6 @@
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import LocalTime from '@/components/LocalTime';
@@ -21,7 +20,6 @@ interface Props {
 }
 
 export default function CaptainBoardClient({ event, team: initialTeam, tiles, completions: initialCompletions, players }: Props) {
-  const router = useRouter();
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -129,31 +127,15 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
     loadData();
   }, [fetchSubmissions, fetchGains]);
 
-  async function handleTileClick(tileId: number) {
+  function handleTileClick(tileId: number) {
     const tile = tiles.find((t) => t.id === tileId);
     if (!tile) return;
-
-    // Open modal for drop tiles and stat-tracked tiles
-    if (tile.tileType === 'drop' || tile.trackedStat) {
-      setSelectedTileId(tileId);
-    } else {
-      // Standard tile: toggle completion
-      const res = await fetch(`/api/events/${event.id}/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: team.id, tileId }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.action === 'added') {
-          setCompletions([...completions, { id: data.id, teamId: team.id, tileId, completedAt: data.completedAt }]);
-        } else {
-          setCompletions(completions.filter((c) => !(c.teamId === team.id && c.tileId === tileId)));
-        }
-      }
-      router.refresh();
-    }
+    // Always open the detail modal so the captain sees the tile overview — progress,
+    // submissions, who submitted them and the screenshots — and toggles done/undone
+    // deliberately from inside it (via "Mark Complete"). Previously only drop / stat-tracked
+    // tiles opened the modal; every other tile (standard, kill, timed, pvp…) blind-toggled on
+    // a single click with no context, which is what captains hit on Leagues / tile-race boards.
+    setSelectedTileId(tileId);
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
@@ -406,34 +388,32 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(() => {
-              const activityByPlayer = new Map<number, { name: string; submissions: number; totalAmount: number }>();
+              // Count discrete submissions (one screenshot = one contribution), NOT summed
+              // `amount` — for kill-count/value tiles `amount` is a kill count or gp value and
+              // summing it inflated the figure (e.g. one "35 Hill Giants" screenshot read as 35).
+              const activityByPlayer = new Map<number, { name: string; submissions: number }>();
               for (const s of submissions) {
                 if (s.creditPlayerId) {
                   const existing = activityByPlayer.get(s.creditPlayerId);
                   if (existing) {
                     existing.submissions++;
-                    existing.totalAmount += s.amount;
                   } else {
                     activityByPlayer.set(s.creditPlayerId, {
                       name: s.creditPlayerName || 'Unknown',
                       submissions: 1,
-                      totalAmount: s.amount,
                     });
                   }
                 }
               }
 
-              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].totalAmount - a[1].totalAmount);
+              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].submissions - a[1].submissions);
 
               return sorted.map(([playerId, data]) => (
                 <div key={playerId} className="border border-card-border rounded-lg p-3 bg-card-bg">
                   <div className="font-medium text-foreground mb-1">{data.name}</div>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="text-accent-green-light font-medium">
-                      {data.totalAmount} drops
-                    </span>
-                    <span className="text-text-muted">
-                      ({data.submissions} submission{data.submissions !== 1 ? 's' : ''})
+                      {data.submissions} drop{data.submissions !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
@@ -449,9 +429,9 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={selectedTile.tileType === 'drop' && eventStarted}
-          canManage={selectedTile.tileType === 'drop' && eventStarted}
-          canToggle={!selectedTile.trackedStat && selectedTile.tileType !== 'drop' && eventStarted}
+          canSubmit={eventStarted}
+          canManage={eventStarted}
+          canToggle={!selectedTile.trackedStat && eventStarted}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onToggle={handleToggle}

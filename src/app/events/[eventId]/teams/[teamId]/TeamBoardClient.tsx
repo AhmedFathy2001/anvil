@@ -184,36 +184,34 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(() => {
-              // Group submissions by creditPlayerId and count
-              const activityByPlayer = new Map<number, { name: string; submissions: number; totalAmount: number }>();
+              // Group submissions by crediting player. Count discrete submissions (one
+              // screenshot = one contribution) — NOT summed `amount`, which for kill-count and
+              // value tiles is a kill count / gp value and inflated the figure (e.g. one "35
+              // Hill Giants" screenshot read as 35).
+              const activityByPlayer = new Map<number, { name: string; submissions: number }>();
               for (const s of submissions) {
                 if (s.creditPlayerId) {
                   const existing = activityByPlayer.get(s.creditPlayerId);
                   if (existing) {
                     existing.submissions++;
-                    existing.totalAmount += s.amount;
                   } else {
                     activityByPlayer.set(s.creditPlayerId, {
                       name: s.creditPlayerName || 'Unknown',
                       submissions: 1,
-                      totalAmount: s.amount,
                     });
                   }
                 }
               }
 
-              // Sort by total amount descending
-              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].totalAmount - a[1].totalAmount);
+              // Sort by submission count descending
+              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].submissions - a[1].submissions);
 
               return sorted.map(([playerId, data]) => (
                 <div key={playerId} className="border border-card-border rounded-lg p-3 bg-card-bg">
                   <div className="font-medium text-foreground mb-1">{data.name}</div>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="text-accent-green-light font-medium">
-                      {data.totalAmount} drops
-                    </span>
-                    <span className="text-text-muted">
-                      ({data.submissions} submission{data.submissions !== 1 ? 's' : ''})
+                      {data.submissions} drop{data.submissions !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>

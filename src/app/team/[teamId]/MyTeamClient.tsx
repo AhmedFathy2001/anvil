@@ -2,7 +2,6 @@
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import PlayerContributions from '@/components/PlayerContributions';
@@ -36,7 +35,6 @@ export default function MyTeamClient({
   myPlayerId,
   myPlayerName,
 }: Props) {
-  const router = useRouter();
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -140,30 +138,13 @@ export default function MyTeamClient({
     loadData();
   }, [fetchSubmissions, fetchGains]);
 
-  async function handleTileClick(tileId: number) {
+  function handleTileClick(tileId: number) {
     const tile = tiles.find((t) => t.id === tileId);
     if (!tile) return;
-    // Drop + stat tiles open the detail modal for everyone.
-    if (tile.tileType === 'drop' || tile.trackedStat) {
-      setSelectedTileId(tileId);
-      return;
-    }
-    // Standard tile: only a captain can toggle completion directly.
-    if (!isCaptain) return;
-    const res = await fetch(`/api/events/${event.id}/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId: team.id, tileId }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.action === 'added') {
-        setCompletions([...completions, { id: data.id, teamId: team.id, tileId, completedAt: data.completedAt }]);
-      } else {
-        setCompletions(completions.filter((c) => !(c.teamId === team.id && c.tileId === tileId)));
-      }
-      router.refresh();
-    }
+    // Always open the detail modal: captains toggle / manage from inside it (with the tile
+    // overview, submissions and screenshots visible), members view read-only. Non-drop tiles
+    // used to blind-toggle for captains and do nothing for members — both hid the overview.
+    setSelectedTileId(tileId);
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
@@ -411,9 +392,9 @@ export default function MyTeamClient({
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={selectedTile.tileType === 'drop' && eventStarted}
-          canManage={isCaptain && selectedTile.tileType === 'drop' && eventStarted}
-          canToggle={isCaptain && !selectedTile.trackedStat && selectedTile.tileType !== 'drop' && eventStarted}
+          canSubmit={eventStarted}
+          canManage={isCaptain && eventStarted}
+          canToggle={isCaptain && !selectedTile.trackedStat && eventStarted}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onToggle={handleToggle}

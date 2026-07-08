@@ -147,7 +147,7 @@ export default async function HomePage() {
   // Past event analytics (preserved from previous version)
   const pastEventIds = pastEvents.map((e) => e.id);
   const pastEventWinners = new Map<number, { teamName: string; teamColor: string; tilesCompleted: number }>();
-  const pastEventContributors = new Map<number, { name: string; totalAmount: number }[]>();
+  const pastEventContributors = new Map<number, { name: string; submissions: number }[]>();
 
   if (pastEventIds.length > 0) {
     const allPastTeams = await db.select().from(teams).where(inArray(teams.eventId, pastEventIds));
@@ -177,19 +177,22 @@ export default async function HomePage() {
       if (bestTeam && bestTeam.tilesCompleted > 0) pastEventWinners.set(event.id, bestTeam);
 
       const evSubmissions = allPastSubmissions.filter((s) => tileEventMap.get(s.tileId) === event.id);
-      const playerTotals = new Map<number, number>();
+      // Rank contributors by number of submissions (one screenshot = one contribution), not
+      // summed `amount` — kill-count/value tiles store a kill count / gp value there, which
+      // would inflate the figure (e.g. one "35 Hill Giants" screenshot counting as 35).
+      const playerCounts = new Map<number, number>();
       for (const s of evSubmissions) {
         if (s.creditPlayerId) {
-          playerTotals.set(s.creditPlayerId, (playerTotals.get(s.creditPlayerId) || 0) + s.amount);
+          playerCounts.set(s.creditPlayerId, (playerCounts.get(s.creditPlayerId) || 0) + 1);
         }
       }
-      if (playerTotals.size > 0) {
-        const topIds = [...playerTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (playerCounts.size > 0) {
+        const topIds = [...playerCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
         const evPlayers = allPastPlayers.filter((p) => p.eventId === event.id);
         const playerMap = new Map(evPlayers.map((p) => [p.id, p.name]));
         pastEventContributors.set(
           event.id,
-          topIds.map(([pid, total]) => ({ name: playerMap.get(pid) || 'Unknown', totalAmount: total })),
+          topIds.map(([pid, count]) => ({ name: playerMap.get(pid) || 'Unknown', submissions: count })),
         );
       }
     }
@@ -460,7 +463,7 @@ export default async function HomePage() {
                   )}
                   {topContributors && topContributors.length > 0 && (
                     <div className="text-[11px] text-text-muted mt-1 truncate">
-                      🥇 {topContributors[0].name} ({topContributors[0].totalAmount} drops)
+                      🥇 {topContributors[0].name} ({topContributors[0].submissions} drop{topContributors[0].submissions !== 1 ? 's' : ''})
                     </div>
                   )}
                   {event.startDate && event.endDate && (

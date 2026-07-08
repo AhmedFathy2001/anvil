@@ -84,12 +84,28 @@ export default async function MyTeamPage({
         {membership.isCaptain && (
           <Link
             href={`/team/${tId}/applicants`}
-            className="text-sm text-gold hover:text-gold/80 transition-colors"
+            className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
           >
-            View applicants &rarr;
+            View applicants &amp; answers &rarr;
           </Link>
         )}
       </div>
+      {membership.isCaptain && event.draftStatus === 'none' && (
+        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>
+            <p className="text-sm text-text-muted">
+              Scout everyone who signed up — their answers, hours, timezone and stats — to plan your picks.
+            </p>
+          </div>
+          <Link
+            href={`/team/${tId}/applicants`}
+            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+          >
+            View applicants &amp; answers &rarr;
+          </Link>
+        </div>
+      )}
       <MyTeamClient
         event={event}
         team={safeTeam}
