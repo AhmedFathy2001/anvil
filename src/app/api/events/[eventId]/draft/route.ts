@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
-import { notifyDraftComplete } from '@/lib/discord';
+import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 
 export async function GET(
@@ -39,11 +39,20 @@ export async function GET(
     .from(teams)
     .where(eq(teams.eventId, id));
 
-  // Drop ids of since-deleted teams so clients never render (or count) ghost entries.
+  // Drop ids of since-deleted teams so clients never render (or count) ghost entries, then append
+  // any current team not yet placed in the saved order. This keeps the effective order in sync
+  // with the team set: teams added or recreated after the order was last saved show up in the
+  // preview and get a slot at draft start instead of silently vanishing. `set-order` still
+  // persists an explicit arrangement when the admin saves one.
   const existingTeamIds = new Set(eventTeams.map((t) => t.id));
-  const teamOrder: number[] = (event.draftOrder ? JSON.parse(event.draftOrder) : []).filter(
+  const savedOrder: number[] = (event.draftOrder ? JSON.parse(event.draftOrder) : []).filter(
     (tid: number) => existingTeamIds.has(tid),
   );
+  const orderedSet = new Set(savedOrder);
+  const teamOrder: number[] = [
+    ...savedOrder,
+    ...eventTeams.filter((t) => !orderedSet.has(t.id)).map((t) => t.id),
+  ];
   const pickedPlayers = eventPlayers.filter((p) => p.teamId !== null);
   const currentPickNumber = pickedPlayers.length;
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
@@ -135,31 +144,23 @@ export async function POST(
       if (event.draftStatus !== 'none' && event.draftStatus !== 'paused') {
         return NextResponse.json({ error: `Cannot start draft from status "${event.draftStatus}"` }, { status: 400 });
       }
-      if (!event.draftOrder) {
-        return NextResponse.json({ error: 'Draft order must be set before starting' }, { status: 400 });
-      }
 
-      // Validate all teams in draft order still exist
-      const draftTeamOrder: number[] = JSON.parse(event.draftOrder);
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-      const existingTeamIds = new Set(eventTeams.map(t => t.id));
-      const invalidTeams = draftTeamOrder.filter(tid => !existingTeamIds.has(tid));
-
-      if (invalidTeams.length > 0) {
-        return NextResponse.json({
-          error: 'Draft order contains teams that no longer exist. Please reset the draft order.',
-          invalidTeamIds: invalidTeams,
-        }, { status: 400 });
+      if (eventTeams.length < 2) {
+        return NextResponse.json({ error: 'Add at least 2 teams before starting the draft.' }, { status: 400 });
       }
 
-      // Every team must be in the order — otherwise a team never gets a pick.
-      const orderSet = new Set(draftTeamOrder);
-      const missingTeams = eventTeams.filter((t) => !orderSet.has(t.id));
-      if (missingTeams.length > 0) {
-        return NextResponse.json({
-          error: `Draft order is missing: ${missingTeams.map((t) => t.name).join(', ')}. Re-save the draft order first.`,
-        }, { status: 400 });
-      }
+      // Reconcile the saved order against the current teams: drop any deleted teams and append any
+      // that aren't placed yet (created/recreated after the order was last saved). Self-healing, so
+      // a stale order never blocks the start — the reconciled order is what we persist and run.
+      const existingTeamIds = new Set(eventTeams.map((t) => t.id));
+      const savedOrder: number[] = event.draftOrder ? JSON.parse(event.draftOrder) : [];
+      const cleaned = savedOrder.filter((tid) => existingTeamIds.has(tid));
+      const placed = new Set(cleaned);
+      const draftTeamOrder: number[] = [
+        ...cleaned,
+        ...eventTeams.filter((t) => !placed.has(t.id)).map((t) => t.id),
+      ];
 
       const poolCount = await db
         .select()
@@ -171,8 +172,23 @@ export async function POST(
       }
       await db
         .update(events)
-        .set({ draftStatus: 'active' })
+        .set({ draftStatus: 'active', draftOrder: JSON.stringify(draftTeamOrder) })
         .where(eq(events.id, id));
+
+      // Announce the draft start to Discord exactly once — the atomic flip guards against a
+      // retried request or a start-from-paused re-posting the same embed. Reset clears it.
+      const startFlipped = await db
+        .update(events)
+        .set({ draftStartNotified: 1 })
+        .where(and(eq(events.id, id), eq(events.draftStartNotified, 0)))
+        .returning({ id: events.id });
+      if (startFlipped.length > 0) {
+        notifyDraftStart({
+          eventName: event.name,
+          teamCount: draftTeamOrder.length,
+        }).catch(() => {}); // Silently ignore errors
+      }
+
       return NextResponse.json({ success: true, status: 'active' });
     }
 
@@ -207,22 +223,30 @@ export async function POST(
         .set({ draftStatus: 'completed' })
         .where(eq(events.id, id));
 
-      // Send Discord notification for draft completion
-      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+      // Post the roster to Discord exactly once (see the pick route) — the atomic flip guards
+      // against the pick auto-complete having already sent it.
+      const flipped = await db
+        .update(events)
+        .set({ draftNotified: 1 })
+        .where(and(eq(events.id, id), eq(events.draftNotified, 0)))
+        .returning({ id: events.id });
+      if (flipped.length > 0) {
+        const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+        const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
 
-      const teamsWithPlayers = eventTeams.map(team => ({
-        name: team.name,
-        color: team.color,
-        players: eventPlayers
-          .filter(p => p.teamId === team.id)
-          .map(p => p.name),
-      }));
+        const teamsWithPlayers = eventTeams.map(team => ({
+          name: team.name,
+          color: team.color,
+          players: eventPlayers
+            .filter(p => p.teamId === team.id)
+            .map(p => p.name),
+        }));
 
-      notifyDraftComplete({
-        eventName: event.name,
-        teams: teamsWithPlayers,
-      }).catch(() => {}); // Silently ignore errors
+        notifyDraftComplete({
+          eventName: event.name,
+          teams: teamsWithPlayers,
+        }).catch(() => {}); // Silently ignore errors
+      }
 
       // Roster is final — provision per-team Discord roles/channels (if not already) and
       // give every contestant their bingo + team role. No-op when the feature is off.
@@ -245,7 +269,7 @@ export async function POST(
       }
       await db
         .update(events)
-        .set({ draftStatus: 'none', draftOrder: null })
+        .set({ draftStatus: 'none', draftOrder: null, draftNotified: 0, draftStartNotified: 0 })
         .where(eq(events.id, id));
       return NextResponse.json({ success: true, status: 'none' });
     }

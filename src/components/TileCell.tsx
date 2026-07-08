@@ -18,10 +18,18 @@ interface TileCellProps {
   dimmed?: boolean;
   /** Item can't be plugin-drop-tracked (shop/gamble reward) — show a manual-submit marker. */
   manualOnly?: boolean;
+  /**
+   * Union / spectator view (no single team selected): instead of painting the tile as one team's
+   * completion, keep it neutral and show a team-colour dot per completing team. Prevents the
+   * "everyone's tiles look completed" read on the public board.
+   */
+  markersOnly?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly }: TileCellProps) {
-  const isCompleted = completedBy.length > 0;
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, markersOnly }: TileCellProps) {
+  const anyCompleted = completedBy.length > 0;
+  // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
+  const isCompleted = anyCompleted && !markersOnly;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   // Drop and kill tiles both show a count-based partial-progress indicator.
   const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'pvp';
@@ -53,7 +61,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             }
           : undefined
       }
-      title={isCompleted ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}` : label}
+      title={anyCompleted ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}` : label}
     >
       {/* Point value badge (points-scoring events) — top-left so it clears the checkmark */}
       {points !== undefined && (
@@ -77,6 +85,24 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
           title="Not auto-tracked by the plugin — submit manually"
         >
           ✋
+        </div>
+      )}
+
+      {/* Union/spectator view: a dot per completing team, kept clear of the point (top-left) and
+          manual (top-right) corners. Replaces the single-team fill so the board reads per-team. */}
+      {markersOnly && anyCompleted && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 flex -space-x-1">
+          {completedBy.slice(0, 5).map((team) => (
+            <span
+              key={team.teamId}
+              className="w-2.5 h-2.5 rounded-full border border-brown-dark"
+              style={{ backgroundColor: team.color }}
+              title={team.teamName}
+            />
+          ))}
+          {completedBy.length > 5 && (
+            <span className="text-[8px] text-text-muted pl-1.5 leading-none self-center">+{completedBy.length - 5}</span>
+          )}
         </div>
       )}
 
@@ -171,18 +197,6 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         </div>
       )}
 
-      {/* Multi-team color bar */}
-      {isCompleted && completedBy.length > 1 && (
-        <div className="absolute bottom-0 left-0 right-0 flex h-1 rounded-b-lg overflow-hidden">
-          {completedBy.map((team) => (
-            <div
-              key={team.teamId}
-              className="flex-1"
-              style={{ backgroundColor: team.color }}
-            />
-          ))}
-        </div>
-      )}
     </button>
   );
 }

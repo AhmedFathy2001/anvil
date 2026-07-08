@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { placeCaptainOnTeam } from '@/lib/teamCaptain';
 
 // PUT /api/admin/teams/[teamId]/captain { userId: number | null }
 // Admin (or moderator) assigns or clears the Discord-linked captain for a team.
@@ -44,6 +45,11 @@ export async function PUT(
   }
 
   await db.update(teams).set({ captainUserId: newCaptainUserId }).where(eq(teams.id, id));
+
+  // Seat the newly-assigned captain on their own team (if they're an unassigned contestant).
+  if (newCaptainUserId != null && newCaptainUserId !== team.captainUserId) {
+    await placeCaptainOnTeam(team.eventId, id, newCaptainUserId);
+  }
 
   return NextResponse.json({ success: true, teamId: id, captainUserId: newCaptainUserId });
 }

@@ -112,23 +112,32 @@ export async function POST(
       .set({ draftStatus: 'completed' })
       .where(eq(events.id, eId));
 
-    // Send Discord notification for draft completion
-    const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eId));
-    // Re-fetch players to include the just-picked player
-    const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+    // Post the roster to Discord — but exactly once. The manual "End draft" action can also
+    // complete a draft, and a double-clicked final pick could re-enter here; an atomic flip of
+    // draftNotified 0→1 lets only the request that wins send the embed.
+    const flipped = await db
+      .update(events)
+      .set({ draftNotified: 1 })
+      .where(and(eq(events.id, eId), eq(events.draftNotified, 0)))
+      .returning({ id: events.id });
+    if (flipped.length > 0) {
+      const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eId));
+      // Re-fetch players to include the just-picked player
+      const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
 
-    const teamsWithPlayers = eventTeams.map(team => ({
-      name: team.name,
-      color: team.color,
-      players: allPlayers
-        .filter(p => p.teamId === team.id)
-        .map(p => p.name),
-    }));
+      const teamsWithPlayers = eventTeams.map(team => ({
+        name: team.name,
+        color: team.color,
+        players: allPlayers
+          .filter(p => p.teamId === team.id)
+          .map(p => p.name),
+      }));
 
-    notifyDraftComplete({
-      eventName: event.name,
-      teams: teamsWithPlayers,
-    }).catch(() => {}); // Silently ignore errors
+      notifyDraftComplete({
+        eventName: event.name,
+        teams: teamsWithPlayers,
+      }).catch(() => {}); // Silently ignore errors
+    }
   }
 
   // Compute next pick info

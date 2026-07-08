@@ -102,6 +102,7 @@ export default function BingoBoard({
             points={pointsMode && !tile.optional ? (tile.points ?? 1) : undefined}
             dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
             manualOnly={isManualOnlyDropTile(tile)}
+            markersOnly={!activeTeamId}
           />
         );
       })}

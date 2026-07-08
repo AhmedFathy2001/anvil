@@ -5,6 +5,7 @@ import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
+import { placeCaptainOnTeam } from '@/lib/teamCaptain';
 
 export async function GET(
   _request: Request,
@@ -91,6 +92,10 @@ export async function POST(
     captainPassword: placeholderPassword,
     captainUserId: captainUserIdInt,
   }).returning();
+
+  // Seat the captain on their own team (if they're a contestant in this event) so they show
+  // in the roster and don't sit in the draft pool waiting to be picked onto themselves.
+  await placeCaptainOnTeam(id, team.id, captainUserIdInt);
 
   // If a draft order was already saved, fold the new team in (at the end) so the order
   // never silently drops teams created after it was first set.
@@ -257,6 +262,12 @@ export async function PATCH(
     .set(updateData)
     .where(eq(teams.id, teamId))
     .returning();
+
+  // If the captain seat changed, seat the new captain on this team (same rule as create —
+  // only when they're an unassigned contestant in the event).
+  if (updateData.captainUserId != null && updateData.captainUserId !== team.captainUserId) {
+    await placeCaptainOnTeam(eId, teamId, updateData.captainUserId);
+  }
 
   // Mirror the rebrand onto Discord (role name/color + channel names) — fire-and-forget,
   // the site edit must not fail on a Discord hiccup.

@@ -13,6 +13,7 @@ export interface Event {
   endDate: string | null;
   startNotified?: number | null;
   endNotified?: number | null;
+  draftNotified?: number | null;
   forceEndedAt: string | null;
   originalEndDate: string | null;
   signupFee: number | null;

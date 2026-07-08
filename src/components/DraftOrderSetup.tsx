@@ -6,6 +6,7 @@ interface Team {
   id: number;
   name: string;
   color: string;
+  captainName?: string | null;
 }
 
 interface Props {
@@ -87,7 +88,12 @@ export default function DraftOrderSetup({ teams, currentOrder, onSave, saving }:
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: team.color }}
               />
-              <span className="font-medium text-sm flex-1 min-w-0 truncate">{team.name}</span>
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-sm block truncate">{team.name}</span>
+                <span className="text-[11px] text-gold/80 block truncate" title="Team captain">
+                  ♛ {team.captainName ?? 'no captain'}
+                </span>
+              </div>
               <div className="flex gap-1">
                 <button
                   onClick={() => moveUp(index)}
