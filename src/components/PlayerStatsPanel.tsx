@@ -120,6 +120,7 @@ export default function PlayerStatsPanel({
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showAllBosses, setShowAllBosses] = useState(false);
 
   useEffect(() => {
     async function fetchStats() {
@@ -306,7 +307,7 @@ export default function PlayerStatsPanel({
                         <span className="text-text-muted text-xs text-right">
                           Rank
                         </span>
-                        {activeBosses.slice(0, 20).map(([key, boss]) => {
+                        {(showAllBosses ? activeBosses : activeBosses.slice(0, 10)).map(([key, boss]) => {
                           const gain = gains?.[key];
                           return (
                             <div key={key} className="contents">
@@ -332,6 +333,16 @@ export default function PlayerStatsPanel({
                           );
                         })}
                       </div>
+                      {activeBosses.length > 10 && (
+                        <button
+                          onClick={() => setShowAllBosses((v) => !v)}
+                          className="mt-2 w-full text-xs text-text-muted hover:text-gold border border-card-border rounded-lg py-1.5 transition-colors"
+                        >
+                          {showAllBosses
+                            ? "Show top 10"
+                            : `Show all ${activeBosses.length} bosses`}
+                        </button>
+                      )}
                     </div>
                   );
                 })()}
