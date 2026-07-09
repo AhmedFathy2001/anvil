@@ -8,6 +8,7 @@ import {
   provisionTeamDiscord,
   assignTeamRoles,
   assignBingoRoleToApprovedSignups,
+  unassignSharedRoles,
   teardownTeamDiscord,
 } from '@/lib/discord-teams';
 
@@ -42,6 +43,7 @@ export async function GET(
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
     bingoRoleConfigured: !!cfg?.bingoRoleId,
+    captainRoleConfigured: !!cfg?.captainRoleId,
     approvedSignups,
     teams: eventTeams.map((t) => ({
       id: t.id,
@@ -100,6 +102,12 @@ export async function POST(
     case 'assign-bingo-role': {
       const report = await assignBingoRoleToApprovedSignups(id);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report });
+    }
+
+    case 'unassign-shared-roles': {
+      const report = await unassignSharedRoles(id);
+      if (!report.ok) return NextResponse.json({ error: report.reason || 'Removal failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
 

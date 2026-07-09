@@ -203,6 +203,19 @@ async function addRole(cfg: TeamChannelConfig, discordUserId: string, roleId: st
   }
 }
 
+// Strip a role from a member. 404 (member left the guild, or never had the role) is a no-op,
+// not a failure — this is used for cleanup where "already gone" is the desired end state.
+async function removeRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<void> {
+  const res = await discordRest(
+    cfg.botToken,
+    `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok && res.status !== 404) {
+    log.warn('discord-teams.remove-role-fail', { status: res.status, discordUserId, roleId });
+  }
+}
+
 // DELETE a role or channel; 404 (already gone) is treated as success. Returns false only
 // on a real error so teardown can keep the DB column populated for a retry.
 async function deleteResource(cfg: TeamChannelConfig, path: string): Promise<boolean> {
@@ -480,6 +493,84 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
   }
 
   return { ok: true, assigned, skipped };
+}
+
+// =============================================================================
+// Un-assign the shared roles (cleanup)
+// =============================================================================
+
+export interface UnassignReport {
+  ok: boolean;
+  reason?: string;
+  bingoRemoved: number;
+  captainRemoved: number;
+}
+
+/**
+ * Take the shared bingo role off everyone tied to this event, and the captain role off its
+ * team captains. The roles themselves are NOT deleted (they're admin-owned and reused across
+ * events) — this only revokes them from members. Complements teardownTeamDiscord, which
+ * deletes the per-team roles/channels (and thereby strips the team roles) but deliberately
+ * leaves these shared roles alone.
+ *
+ * Caveat: the bingo/captain roles are shared, so if a member is ALSO in another still-active
+ * event this will strip their role there too. Fine for the normal sequential-event flow;
+ * callers should warn the admin.
+ */
+export async function unassignSharedRoles(eventId: number): Promise<UnassignReport> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', bingoRemoved: 0, captainRemoved: 0 };
+  if (!cfg.bingoRoleId && !cfg.captainRoleId) {
+    return { ok: false, reason: 'No bingo or captain role is configured to remove.', bingoRemoved: 0, captainRemoved: 0 };
+  }
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
+
+  // Everyone who could hold the bingo role for this event: team captains, drafted players, and
+  // sign-ups. Captains are also the only holders of the captain role. Members with no linked
+  // Discord resolve to null and are skipped. Sets dedupe people who appear in several lists.
+  const bingoIds = new Set<string>();
+  const captainIds = new Set<string>();
+
+  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  for (const t of eventTeams) {
+    if (t.captainUserId == null) continue;
+    const did = await discordIdForUserId(t.captainUserId);
+    if (did) {
+      bingoIds.add(did);
+      captainIds.add(did);
+    }
+  }
+
+  const signups = await db.select().from(eventSignups).where(eq(eventSignups.eventId, eventId));
+  for (const s of signups) {
+    const did = (await discordIdForUserId(s.userId)) ?? (await discordIdForPlayerClanMember(s.clanMemberId));
+    if (did) bingoIds.add(did);
+  }
+
+  const eventPlayers = await db.select().from(players).where(eq(players.eventId, eventId));
+  for (const p of eventPlayers) {
+    const did = await discordIdForPlayerClanMember(p.clanMemberId);
+    if (did) bingoIds.add(did);
+  }
+
+  let bingoRemoved = 0;
+  let captainRemoved = 0;
+  if (cfg.bingoRoleId) {
+    for (const did of bingoIds) {
+      await removeRole(cfg, did, cfg.bingoRoleId);
+      bingoRemoved++;
+    }
+  }
+  if (cfg.captainRoleId) {
+    for (const did of captainIds) {
+      await removeRole(cfg, did, cfg.captainRoleId);
+      captainRemoved++;
+    }
+  }
+
+  return { ok: true, bingoRemoved, captainRemoved };
 }
 
 // =============================================================================

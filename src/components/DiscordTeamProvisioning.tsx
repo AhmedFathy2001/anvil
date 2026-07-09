@@ -15,6 +15,7 @@ interface StatusData {
   categoryId: string | null;
   draftStatus: string;
   bingoRoleConfigured: boolean;
+  captainRoleConfigured: boolean;
   approvedSignups: number;
   teams: TeamState[];
   fullyProvisioned: boolean;
@@ -42,8 +43,14 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
     loadStatus();
   }, [loadStatus]);
 
-  async function runAction(action: 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'teardown') {
-    if (action === 'teardown' && !confirm('Delete this event’s team roles, channels, and category in Discord? Contestants will lose channel access. This cannot be undone.')) {
+  async function runAction(action: 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
+    if (action === 'teardown' && !confirm('Delete this event’s team roles, channels, and category in Discord? Contestants lose channel access, and their team roles vanish with the roles. The shared bingo & captain roles stay assigned — use “Remove bingo & captain roles” for those. This cannot be undone.')) {
+      return;
+    }
+    if (
+      action === 'unassign-shared-roles' &&
+      !confirm('Take the shared bingo role off everyone in this event, and the captain role off its captains? The roles themselves are kept (they’re reused across events). Heads up: these roles are shared, so anyone also in another active event loses them there too.')
+    ) {
       return;
     }
     setBusy(action);
@@ -64,6 +71,8 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
           text = `Assigned roles to ${r.assigned ?? 0} contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'assign-bingo-role') {
           text = `Gave the bingo role to ${r.assigned ?? 0} approved contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
+        } else if (action === 'unassign-shared-roles') {
+          text = `Removed the bingo role from ${r.bingoRemoved ?? 0} member(s) and the captain role from ${r.captainRemoved ?? 0}.`;
         } else if (action === 'teardown') {
           text = `Removed ${r.rolesDeleted ?? 0} role(s) and ${r.channelsDeleted ?? 0} channel(s).`;
         }
@@ -155,13 +164,24 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
           {busy === 'assign-rosters' ? 'Assigning…' : 'Assign Contestant Roles'}
         </button>
 
+        {(status.bingoRoleConfigured || status.captainRoleConfigured) && (
+          <button
+            onClick={() => runAction('unassign-shared-roles')}
+            disabled={!!busy}
+            title="Take the shared bingo & captain roles off this event’s members (the roles themselves are kept)"
+            className="text-sm font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20 px-4 py-2 rounded-lg hover:bg-amber-400/20 transition-colors disabled:opacity-50"
+          >
+            {busy === 'unassign-shared-roles' ? 'Removing…' : 'Remove bingo & captain roles'}
+          </button>
+        )}
+
         {anyProvisioned && (
           <button
             onClick={() => runAction('teardown')}
             disabled={!!busy}
             className="text-sm font-medium bg-red-400/10 text-red-400 border border-red-400/20 px-4 py-2 rounded-lg hover:bg-red-400/20 transition-colors disabled:opacity-50"
           >
-            {busy === 'teardown' ? 'Removing…' : 'Remove Discord Setup'}
+            {busy === 'teardown' ? 'Removing…' : 'Delete team roles & channels'}
           </button>
         )}
       </div>
