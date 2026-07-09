@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, teams } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { events, teams, eventSignups } from '@/db/schema';
+import { and, count, eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import {
   loadTeamChannelConfig,
   provisionTeamDiscord,
   assignTeamRoles,
+  assignBingoRoleToApprovedSignups,
   teardownTeamDiscord,
 } from '@/lib/discord-teams';
 
@@ -28,10 +29,20 @@ export async function GET(
   const cfg = await loadTeamChannelConfig();
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
 
+  // For the pre-draft "give bingo role" button: how many sign-ups are approved, and
+  // whether a bingo role is even configured to hand out.
+  const approvedSignups = await db
+    .select({ c: count() })
+    .from(eventSignups)
+    .where(and(eq(eventSignups.eventId, id), eq(eventSignups.status, 'approved')))
+    .then((r) => r[0]?.c ?? 0);
+
   return NextResponse.json({
     enabled: cfg !== null,
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
+    bingoRoleConfigured: !!cfg?.bingoRoleId,
+    approvedSignups,
     teams: eventTeams.map((t) => ({
       id: t.id,
       name: t.name,
@@ -82,6 +93,12 @@ export async function POST(
         return NextResponse.json({ error: 'The draft must be completed before assigning team roles.' }, { status: 409 });
       }
       const report = await assignTeamRoles(id);
+      if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report });
+    }
+
+    case 'assign-bingo-role': {
+      const report = await assignBingoRoleToApprovedSignups(id);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
