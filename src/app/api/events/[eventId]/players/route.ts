@@ -1,9 +1,88 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, events, teams } from '@/db/schema';
+import { clanMembers, players, events, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
+
+interface MemberInput {
+  clanMemberId: number;
+  name: string;
+  discord: string | null;
+  timezone: string | null;
+}
+
+// Create a player row for each member that doesn't have one yet. A member who ALREADY has a row
+// that's unassigned (sitting in the draft pool) is ASSIGNED to the team when a team is given,
+// instead of getting a duplicate row — this is what lets an admin put an already-enrolled/guest
+// pool player onto a team after the draft. Members already on a team are left as-is.
+async function upsertPlayers(
+  eventId: number,
+  members: MemberInput[],
+  assignTeamId: number | null,
+): Promise<(typeof players.$inferSelect)[]> {
+  const memberIds = members.map((m) => m.clanMemberId);
+  const existing = memberIds.length
+    ? await db.select().from(players).where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, memberIds)))
+    : [];
+  const byMember = new Map<number, typeof players.$inferSelect>();
+  for (const p of existing) if (p.clanMemberId != null) byMember.set(p.clanMemberId, p);
+
+  const pickedAt = assignTeamId != null ? new Date().toISOString() : null;
+  const results: (typeof players.$inferSelect)[] = [];
+  const toInsert: (typeof players.$inferInsert)[] = [];
+
+  for (const m of members) {
+    const row = byMember.get(m.clanMemberId);
+    if (row) {
+      if (assignTeamId != null && row.teamId == null) {
+        const [updated] = await db
+          .update(players)
+          .set({ teamId: assignTeamId, pickedAt })
+          .where(eq(players.id, row.id))
+          .returning();
+        results.push(updated);
+      } else {
+        results.push(row); // already in the pool, or already on a team — no duplicate
+      }
+    } else {
+      toInsert.push({
+        eventId,
+        clanMemberId: m.clanMemberId,
+        name: m.name,
+        discord: m.discord,
+        timezone: m.timezone,
+        playerToken: generatePlayerToken(),
+        teamId: assignTeamId,
+        pickedAt,
+      });
+    }
+  }
+  if (toInsert.length > 0) {
+    results.push(...(await db.insert(players).values(toInsert).returning()));
+  }
+  return results;
+}
+
+// Keep sign-ups and the pool consistent: adding someone as a player records an approved sign-up.
+// Only possible for Discord-linked members (event_signups.userId is NOT NULL) — an unlinked guest
+// gets a player row but no sign-up row. An existing sign-up (any status) is left untouched so an
+// admin's manual status decisions aren't silently overridden.
+async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
+  if (clanMemberIds.length === 0) return;
+  const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, clanMemberIds));
+  for (const m of members) {
+    if (m.userId == null) continue; // unlinked — no users row to attach a sign-up to
+    const existing = await db.query.eventSignups.findFirst({
+      where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.userId)),
+    });
+    if (existing) continue;
+    await db
+      .insert(eventSignups)
+      .values({ eventId, userId: m.userId, clanMemberId: m.id, status: 'approved', profileData: '{}' })
+      .catch(() => {}); // unique (event,user) race — ignore
+  }
+}
 
 export async function GET(
   _request: Request,
@@ -45,11 +124,12 @@ export async function POST(
     if (!team) return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
     assignTeamId = tid;
   }
-  const pickedAt = assignTeamId != null ? new Date().toISOString() : null;
 
-  // Bulk add. Two payload shapes:
-  //   - [{ clanMemberId }]  — preferred path, picker-driven, links directly to the synced roster
-  //   - [{ name, discord?, timezone? }] — legacy text-based import, still accepted for guests/manual rows
+  // Normalize both payload shapes into a uniform member list, then upsert (see upsertPlayers):
+  //   - [{ clanMemberId }]  — picker-driven, links directly to the synced roster
+  //   - [{ name, discord?, timezone? }] — legacy text import, still accepted for guests/manual rows
+  const members: MemberInput[] = [];
+
   if (Array.isArray(body)) {
     type Item = { clanMemberId?: number; name?: string; discord?: string; timezone?: string };
     const items = body as Item[];
@@ -61,82 +141,43 @@ export async function POST(
       (i) => typeof i.name === 'string' && i.name.trim().length > 0 && typeof i.clanMemberId !== 'number',
     ) as { name: string; discord?: string; timezone?: string }[];
 
-    if (fromIds.length === 0 && fromText.length === 0) {
-      return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
-    }
-
-    const toInsert: typeof players.$inferInsert[] = [];
-
     if (fromIds.length > 0) {
-      // Picker path: look up the clan_members rows in one query and project them into players.
-      const memberIds = fromIds.map((i) => i.clanMemberId);
       const memberRows = await db
         .select()
         .from(clanMembers)
-        .where(inArray(clanMembers.id, memberIds));
+        .where(inArray(clanMembers.id, fromIds.map((i) => i.clanMemberId)));
       for (const m of memberRows) {
-        toInsert.push({
-          eventId: id,
-          clanMemberId: m.id,
-          name: m.rsn,
-          discord: null,
-          timezone: null,
-          playerToken: generatePlayerToken(),
-          teamId: assignTeamId,
-          pickedAt,
-        });
+        members.push({ clanMemberId: m.id, name: m.rsn, discord: null, timezone: null });
       }
     }
-
     for (const p of fromText) {
       const name = p.name.trim();
       const discord = p.discord?.trim() || null;
       const clanMemberId = await findOrCreateClanMember(name, { discordId: discord });
-      toInsert.push({
-        eventId: id,
-        clanMemberId,
-        name,
-        discord,
-        timezone: p.timezone?.trim() || null,
-        playerToken: generatePlayerToken(),
-        teamId: assignTeamId,
-        pickedAt,
-      });
+      members.push({ clanMemberId, name, discord, timezone: p.timezone?.trim() || null });
     }
 
-    if (toInsert.length === 0) {
+    if (members.length === 0) {
       return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
     }
-    const inserted = await db.insert(players).values(toInsert).returning();
-    return NextResponse.json(inserted, { status: 201 });
+    const result = await upsertPlayers(id, members, assignTeamId);
+    await backfillApprovedSignups(id, members.map((m) => m.clanMemberId));
+    return NextResponse.json(result, { status: 201 });
   }
 
-  // Single player
+  // Single player (legacy text add).
   const { name, discord, timezone } = body;
-
   if (!name || typeof name !== 'string' || !name.trim()) {
     return NextResponse.json({ error: 'Player name is required' }, { status: 400 });
   }
-
   const trimmedName = name.trim();
   const trimmedDiscord = discord?.trim() || null;
   const clanMemberId = await findOrCreateClanMember(trimmedName, { discordId: trimmedDiscord });
+  members.push({ clanMemberId, name: trimmedName, discord: trimmedDiscord, timezone: timezone?.trim() || null });
 
-  const [player] = await db
-    .insert(players)
-    .values({
-      eventId: id,
-      clanMemberId,
-      name: trimmedName,
-      discord: trimmedDiscord,
-      timezone: timezone?.trim() || null,
-      playerToken: generatePlayerToken(),
-      teamId: assignTeamId,
-      pickedAt,
-    })
-    .returning();
-
-  return NextResponse.json(player, { status: 201 });
+  const result = await upsertPlayers(id, members, assignTeamId);
+  await backfillApprovedSignups(id, [clanMemberId]);
+  return NextResponse.json(result[0], { status: 201 });
 }
 
 export async function DELETE(

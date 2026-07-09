@@ -21,6 +21,8 @@ export interface PickableMember {
     discordAvatar: string | null;
   } | null;
   enrolledPlayerId: number | null;
+  // The team the enrolled player sits on (null = in the draft pool, not yet on a team).
+  enrolledTeamId: number | null;
 }
 
 interface CommonProps {
@@ -167,13 +169,18 @@ export default function ClanMemberPicker(props: Props) {
         ) : (
           filtered.map((m) => {
             const selected = isSelected(m.id);
-            const enrolled = props.mode === 'multi' && props.disableEnrolled && m.enrolledPlayerId != null;
+            // Already ON a team vs. sitting in the draft pool (a player row, but no team yet).
+            const onTeam = m.enrolledPlayerId != null && m.enrolledTeamId != null;
+            const inPool = m.enrolledPlayerId != null && m.enrolledTeamId == null;
+            // Only block members already on a team (avoids duplicate placement). Pool members stay
+            // selectable so an admin can assign them to a team — the API assigns their existing row.
+            const enrolled = props.mode === 'multi' && props.disableEnrolled && onTeam;
             const linked = Boolean(m.user?.discordId);
             const requiresLink = props.mode === 'single' && props.requireDiscordUser && !linked;
             const disabled = enrolled || requiresLink;
             const avatar = m.user?.discordId ? avatarUrl(m.user.discordId, m.user.discordAvatar) : null;
             const disabledReason = enrolled
-              ? 'Already added to this event'
+              ? 'Already on a team in this event'
               : requiresLink
                 ? (props.mode === 'single' && props.requireDiscordUserHint) ||
                   'No Discord login linked — captain access needs a Discord-linked user'
@@ -234,8 +241,13 @@ export default function ClanMemberPicker(props: Props) {
                       </div>
                     )}
                   </div>
-                  {enrolled && (
-                    <span className="text-[10px] text-text-muted shrink-0">enrolled</span>
+                  {onTeam && (
+                    <span className="text-[10px] text-text-muted shrink-0">on a team</span>
+                  )}
+                  {inPool && props.mode === 'multi' && props.disableEnrolled && (
+                    <span className="text-[10px] text-accent-green-light shrink-0" title="Already in the pool — select to put them on this team">
+                      in pool
+                    </span>
                   )}
                   {requiresLink && (
                     <span className="text-[10px] text-text-muted shrink-0">no Discord</span>

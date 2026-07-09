@@ -49,8 +49,20 @@ export default function MyTeamClient({
   const [lastFetch, setLastFetch] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tileSearch, setTileSearch] = useState('');
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
+
+  // Tile search — matched tiles stay, the rest are hidden (list board) / dimmed (grid). Null = no filter.
+  const matchedTileIds = useMemo(() => {
+    const q = tileSearch.trim().toLowerCase();
+    if (!q) return null;
+    return new Set(
+      tiles
+        .filter((t) => t.label.toLowerCase().includes(q) || (t.description?.toLowerCase().includes(q) ?? false))
+        .map((t) => t.id),
+    );
+  }, [tileSearch, tiles]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
   // Captains may rebrand (name + color) only between draft finalization and event start —
   // the API enforces the same window.
@@ -335,6 +347,24 @@ export default function MyTeamClient({
         </div>
       </div>
 
+      {/* Team roster — up top, collapsed by default so the board stays the focus. */}
+      {teamPlayers.length > 0 && (
+        <details className="mb-4 border border-card-border rounded-xl bg-card-bg group">
+          <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
+            <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
+            <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />
+            Team Roster ({teamPlayers.length})
+          </summary>
+          <div className="px-4 pb-3 flex flex-wrap gap-2">
+            {teamPlayers.map((player) => (
+              <span key={player.id} className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-brown-dark">
+                {player.name}
+              </span>
+            ))}
+          </div>
+        </details>
+      )}
+
       {(isCaptain || myPlayerId) && (
         <div className="mb-6 flex items-center gap-3 flex-wrap">
           <button
@@ -351,6 +381,18 @@ export default function MyTeamClient({
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); fetchSubmissions().then(() => fetchGains()).then(() => setLoading(false)).catch(() => { setFetchError('Failed to load data. Please refresh.'); setLoading(false); }); }} />}
       {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
 
+      {tiles.length > 9 && (
+        <div className="mb-4 max-w-md">
+          <input
+            type="text"
+            value={tileSearch}
+            onChange={(e) => setTileSearch(e.target.value)}
+            placeholder="Search tiles by name…"
+            className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+          />
+        </div>
+      )}
+
       <EventBoard
         format={event.format}
         tiles={tiles}
@@ -363,27 +405,12 @@ export default function MyTeamClient({
         dropProgress={dropProgress}
         statProgress={statProgress}
         pointsMode={pointsMode}
+        matchedTileIds={matchedTileIds}
       />
 
       {myPlayerId && (
         <div className="mt-8">
           <PlayerContributions submissions={mySubmissions} tiles={tiles} playerName={myPlayerName || 'You'} />
-        </div>
-      )}
-
-      {teamPlayers.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-            <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
-            Team Roster ({teamPlayers.length})
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {teamPlayers.map((player) => (
-              <span key={player.id} className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-card-bg">
-                {player.name}
-              </span>
-            ))}
-          </div>
         </div>
       )}
 
