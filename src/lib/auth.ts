@@ -623,8 +623,12 @@ export async function verifyPluginToken(
       pick = live.find((p) => p.clanMemberId === memberId) ?? null;
       if (!pick) return null; // not signed up under this RSN
     } else {
-      // No RSN hint — pick any live event row. Cross-account safety degrades.
-      pick = live[0];
+      // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT
+      // guess a live event. Guessing served a user's bingo config (and auto-submit scope) to
+      // their OTHER, unenrolled accounts on the same account token — an alt would show the main's
+      // tiles and could even auto-submit under the main's team. Return null; the plugin re-fetches
+      // with the RSN once it's stamped after login, and a genuinely enrolled account resolves above.
+      return null;
     }
 
     return {
