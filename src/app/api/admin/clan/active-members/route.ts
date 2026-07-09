@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       discordUsername: users.discordUsername,
       discordAvatar: users.discordAvatar,
       enrolledPlayerId: players.id,
+      enrolledTeamId: players.teamId,
     })
     .from(clanMembers)
     .leftJoin(users, eq(clanMembers.userId, users.id))
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
           }
         : null,
       enrolledPlayerId: r.enrolledPlayerId,
+      enrolledTeamId: r.enrolledTeamId,
     })),
   );
 }

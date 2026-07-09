@@ -82,6 +82,30 @@ export async function PATCH(
         .returning();
       logAction('signup_approved');
 
+      // Approving = eligible for the draft, so make sure they're in the player pool. Idempotent —
+      // skips if a player row already exists (self-serve signup / admin-on-behalf already added
+      // one). This is what keeps "approved sign-ups" and "the draft pool" consistent.
+      const existingPlayer = await db.query.players.findFirst({
+        where: and(eq(players.eventId, evtId), eq(players.clanMemberId, signup.clanMemberId)),
+      });
+      if (!existingPlayer) {
+        const account = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) });
+        let timezone: string | null = null;
+        try {
+          const p = JSON.parse(signup.profileData) as { timezone?: unknown };
+          if (typeof p?.timezone === 'string') timezone = p.timezone;
+        } catch {
+          /* profileData not JSON — leave timezone null */
+        }
+        await db.insert(players).values({
+          eventId: evtId,
+          clanMemberId: signup.clanMemberId,
+          name: account?.rsn ?? 'Unknown',
+          timezone,
+          playerToken: generatePlayerToken(),
+        }); // teamId defaults null → lands in the pool, draftable/assignable
+      }
+
       // Nudge the approved member to pay their fee (incentive to convert + stay active).
       // Only on a real transition into 'approved' — re-approving an already-approved sign-up
       // shouldn't re-ping. Fire-and-forget: gather the post's data, then post without blocking

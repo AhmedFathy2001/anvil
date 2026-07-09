@@ -46,6 +46,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [addingPlayer, setAddingPlayer] = useState(false);
   // Post-draft roster tweaks.
   const [removingPlayerId, setRemovingPlayerId] = useState<number | null>(null);
+  const [assigningPlayerId, setAssigningPlayerId] = useState<number | null>(null);
   const [addToTeamId, setAddToTeamId] = useState<number | null>(null);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -208,6 +209,23 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       router.refresh();
     }
     setAddingPlayer(false);
+  }
+
+  // Assign an already-in-pool player onto a team — post-draft, for someone who was signed up /
+  // added to the pool but never drafted (e.g. a late/guest add).
+  async function assignToTeam(playerId: number, teamId: number) {
+    setAssigningPlayerId(playerId);
+    try {
+      await fetch(`/api/events/${event.id}/players`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, teamId }),
+      });
+      await fetchDraft();
+      router.refresh();
+    } finally {
+      setAssigningPlayerId(null);
+    }
   }
 
   // Move a player back to the pool (remove from their team) — post-draft roster fix.
@@ -904,6 +922,49 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <p className="text-xs text-text-muted mb-3">
                 Add someone who was missed, or remove a player from a team (they go back to the pool).
               </p>
+
+              {/* Anyone signed up / added to the pool but never drafted shows here so they can't get
+                  stranded off a team. Assign each to a team directly. */}
+              {(() => {
+                const unassigned = draft.players.filter((p) => p.teamId === null);
+                if (unassigned.length === 0) return null;
+                return (
+                  <div className="mb-4 border border-amber-400/30 bg-amber-400/5 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-amber-300 mb-1">
+                      In the pool, not on a team yet ({unassigned.length})
+                    </p>
+                    <p className="text-xs text-text-muted mb-2.5">
+                      These players are enrolled but weren&apos;t drafted onto a team. Assign each one below.
+                    </p>
+                    <div className="space-y-1.5">
+                      {unassigned.map((p) => (
+                        <div key={p.id} className="flex items-center gap-2 border border-card-border rounded-lg p-2 bg-card-bg">
+                          <span className="text-sm font-medium truncate flex-1">{p.name}</span>
+                          <select
+                            defaultValue=""
+                            disabled={assigningPlayerId === p.id}
+                            onChange={(e) => {
+                              const tid = parseInt(e.target.value, 10);
+                              if (Number.isFinite(tid)) assignToTeam(p.id, tid);
+                            }}
+                            className="text-xs bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 focus:outline-none focus:border-gold/50 disabled:opacity-50"
+                          >
+                            <option value="" disabled>
+                              {assigningPlayerId === p.id ? 'Assigning…' : 'Assign to team…'}
+                            </option>
+                            {draftTeams.map((team) => (
+                              <option key={team.id} value={team.id}>
+                                {team.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid gap-3 sm:grid-cols-2">
                 {draftTeams.map((team) => {
                   const roster = draft.players.filter((p) => p.teamId === team.id);
