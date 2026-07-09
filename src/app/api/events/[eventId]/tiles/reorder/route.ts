@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
+import { logTileAudit } from '@/lib/tile-audit';
 
 // Rewrites the whole board order in one shot: `order` is a permutation of ALL the event's
 // tile ids, and the tile at order[i] gets position i. Pre-start only — positions define the
@@ -56,6 +57,13 @@ export async function POST(
     for (let i = 0; i < order.length; i++) {
       await tx.update(tiles).set({ position: i }).where(eq(tiles.id, (order as number[])[i]));
     }
+  });
+
+  logTileAudit({
+    eventId: eId,
+    action: 'reordered',
+    newValue: { total: order.length },
+    actorUserId: editor.userId,
   });
 
   return NextResponse.json({ ok: true, total: order.length });

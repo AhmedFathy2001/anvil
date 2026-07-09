@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
+import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
@@ -613,6 +614,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         tierBands={tierBands}
         onApplyPoints={applySuggestedPoints}
       />
+
+      <TileHistoryPanel eventId={event.id} />
 
       {/* Per-tile configuration */}
       <div>
