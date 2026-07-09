@@ -115,7 +115,10 @@ export async function PATCH(
         try {
           const [event, user, account, fee] = await Promise.all([
             db.query.events.findFirst({ where: eq(events.id, evtId) }),
-            db.query.users.findFirst({ where: eq(users.id, signup.userId) }),
+            // Guest sign-ups have no user — no one to ping, so this stays null.
+            signup.userId != null
+              ? db.query.users.findFirst({ where: eq(users.id, signup.userId) })
+              : Promise.resolve(undefined),
             db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) }),
             db.query.signupFees.findFirst({ where: eq(signupFees.signupId, sigId) }),
           ]);
@@ -148,10 +151,13 @@ export async function PATCH(
     }
 
     case 'withdraw': {
-      // Don't strand a team without its captain — make the admin demote first.
-      const captainTeam = await db.query.teams.findFirst({
-        where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
-      });
+      // Don't strand a team without its captain — make the admin demote first. (A guest with
+      // no user can't be a captain, so skip the check.)
+      const captainTeam = signup.userId == null
+        ? undefined
+        : await db.query.teams.findFirst({
+            where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
+          });
       if (captainTeam) {
         return NextResponse.json(
           { error: 'This sign-up captains a team — demote them first.' },
@@ -190,6 +196,15 @@ export async function PATCH(
     }
 
     case 'promote-captain': {
+      // A captain logs in to run their draft, so they must have a linked account. A guest
+      // sign-up (no user) can't be one until they link their Discord.
+      if (signup.userId == null) {
+        return NextResponse.json(
+          { error: 'This is a guest sign-up with no linked Discord account — they must log in before they can captain a team.' },
+          { status: 400 },
+        );
+      }
+      const captainUserId = signup.userId; // narrowed to number by the guard above
       if (!body.teamName || typeof body.teamName !== 'string' || !body.teamName.trim()) {
         return NextResponse.json({ error: 'teamName is required' }, { status: 400 });
       }
@@ -206,7 +221,7 @@ export async function PATCH(
       // Refuse if this user already captains a team in this event — they'd accidentally
       // get duplicated. The admin should demote first if they want to re-seat them.
       const existingCaptain = await db.query.teams.findFirst({
-        where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
+        where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, captainUserId)),
       });
       if (existingCaptain) {
         return NextResponse.json(
@@ -236,7 +251,7 @@ export async function PATCH(
           eventId: evtId,
           name: body.teamName.trim(),
           color: body.teamColor,
-          captainUserId: signup.userId,
+          captainUserId,
         })
         .returning();
 
@@ -287,9 +302,12 @@ export async function PATCH(
     }
 
     case 'demote-captain': {
-      const captainTeam = await db.query.teams.findFirst({
-        where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
-      });
+      // A guest (no user) can never be a captain, so there's nothing to demote.
+      const captainTeam = signup.userId == null
+        ? undefined
+        : await db.query.teams.findFirst({
+            where: and(eq(teams.eventId, evtId), eq(teams.captainUserId, signup.userId)),
+          });
       if (!captainTeam) {
         return NextResponse.json(
           { error: 'This sign-up is not currently a captain' },

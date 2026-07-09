@@ -63,7 +63,7 @@ export async function POST(
   );
 
   const toInsertSignups = eligible.filter((s) => {
-    if (captainUserIds.has(s.userId)) return false;
+    if (s.userId != null && captainUserIds.has(s.userId)) return false;
     if (allEnrolledClanIds.has(s.clanMemberId)) return false;
     return true;
   });

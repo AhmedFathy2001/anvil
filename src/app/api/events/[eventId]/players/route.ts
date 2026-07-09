@@ -65,21 +65,24 @@ async function upsertPlayers(
 }
 
 // Keep sign-ups and the pool consistent: adding someone as a player records an approved sign-up.
-// Only possible for Discord-linked members (event_signups.userId is NOT NULL) — an unlinked guest
-// gets a player row but no sign-up row. An existing sign-up (any status) is left untouched so an
-// admin's manual status decisions aren't silently overridden.
+// Linked members attach to their users row; an unlinked in-game member gets a GUEST sign-up
+// (userId null). An existing sign-up (any status) is left untouched so an admin's manual status
+// decisions aren't silently overridden.
 async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
   if (clanMemberIds.length === 0) return;
   const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, clanMemberIds));
   for (const m of members) {
-    if (m.userId == null) continue; // unlinked — no users row to attach a sign-up to
+    // Dedup: linked → by (event, user); guest → by (event, clan member).
     const existing = await db.query.eventSignups.findFirst({
-      where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.userId)),
+      where:
+        m.userId != null
+          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.userId))
+          : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
     });
     if (existing) continue;
     await db
       .insert(eventSignups)
-      .values({ eventId, userId: m.userId, clanMemberId: m.id, status: 'approved', profileData: '{}' })
+      .values({ eventId, userId: m.userId ?? null, clanMemberId: m.id, status: 'approved', profileData: '{}' })
       .catch(() => {}); // unique (event,user) race — ignore
   }
 }

@@ -231,8 +231,8 @@ export default function SignupAnswersModal({
                 Sign a member up on their behalf and fill in their answers — for the folks
                 who told you everything on Discord but won&apos;t touch the site. Skips the
                 sign-up window and goes straight to <span className="text-accent-green-light">approved</span>.
-                Members without a Discord login can&apos;t be added — sign-ups are tied to
-                their site account.
+                An in-game member with no Discord login is added as a <span className="text-text-muted">guest</span>{' '}
+                sign-up (they can link their account later).
               </p>
               <ClanMemberPicker
                 mode="single"
@@ -242,8 +242,6 @@ export default function SignupAnswersModal({
                   setMemberId(id);
                   setMember(m);
                 }}
-                requireDiscordUser
-                requireDiscordUserHint="No Discord login linked — sign-ups attach to the member's site account, so they need to log in once first"
                 preferLinked
               />
               {duplicateUser && (

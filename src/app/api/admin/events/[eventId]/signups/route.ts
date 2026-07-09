@@ -37,7 +37,8 @@ export async function GET(
       },
     })
     .from(eventSignups)
-    .innerJoin(users, eq(eventSignups.userId, users.id))
+    // LEFT join so guest sign-ups (no linked user) still list — they show by RSN from `account`.
+    .leftJoin(users, eq(eventSignups.userId, users.id))
     .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
     .where(eq(eventSignups.eventId, id));
@@ -61,9 +62,10 @@ export async function GET(
     signedUpAt: r.signup.signedUpAt,
     updatedAt: r.signup.updatedAt,
     profile: parseProfile(r.signup.profileData),
-    user: r.user,
+    // Guest sign-ups have no user row (left join → null fields); surface user as null.
+    user: r.user && r.user.id != null ? r.user : null,
     account: r.account,
-    captainTeam: captainTeamByUser.get(r.user.id) ?? null,
+    captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,
     fee: r.fee
       ? {
           id: r.fee.id,
@@ -124,18 +126,16 @@ export async function POST(
   if (!account) {
     return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
   }
-  // Sign-ups hang off a users row (one per Discord login) — a ghost roster entry has
-  // nothing to attach to, so the member must have logged in at least once.
-  if (account.userId === null) {
-    return NextResponse.json(
-      { error: `${account.rsn} has no linked site user — they need to log in with Discord once before an admin can sign them up.` },
-      { status: 400 },
-    );
-  }
-  const userId = account.userId;
+  // A linked member's sign-up hangs off their users row; an unlinked in-game member gets a
+  // GUEST sign-up (userId null) so they still show up + stay consistent with the draft pool.
+  const userId = account.userId; // may be null → guest sign-up
 
+  // Dedup: linked → one per (event, user); guest → one per (event, clan member).
   const existing = await db.query.eventSignups.findFirst({
-    where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, userId)),
+    where:
+      userId != null
+        ? and(eq(eventSignups.eventId, id), eq(eventSignups.userId, userId))
+        : and(eq(eventSignups.eventId, id), eq(eventSignups.clanMemberId, body.clanMemberId)),
   });
   if (existing && existing.status !== 'withdrawn') {
     return NextResponse.json(

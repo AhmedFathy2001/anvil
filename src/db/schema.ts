@@ -484,7 +484,11 @@ export const pluginLinks = sqliteTable('plugin_links', {
 export const eventSignups = sqliteTable('event_signups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Nullable: a "guest" sign-up for an in-game roster member who has no linked site user yet
+  // (e.g. added by an admin / by name). Linked members still carry their user id, and the
+  // (eventId, userId) unique index keeps one sign-up per linked user — SQLite treats the NULLs
+  // as distinct, so multiple guest rows per event are allowed; guest dedup is by clanMemberId in code.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'restrict' }),
   // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }
   profileData: text('profile_data').notNull().default('{}'),

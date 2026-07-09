@@ -31,12 +31,13 @@ interface SignupRow {
   signedUpAt: string;
   updatedAt: string;
   profile: SignupProfile;
+  // Null for a guest sign-up (an in-game member with no linked site account).
   user: {
     id: number;
     displayName: string;
     discordUsername: string | null;
     role: string;
-  };
+  } | null;
   account: { id: number; rsn: string };
   captainTeam: { id: number; name: string; color: string } | null;
   fee: {
@@ -185,7 +186,7 @@ export default function SignupAdminPanel({
 
   function openCaptainPrompt(sig: SignupRow) {
     setCaptainPromptId(sig.id);
-    setCaptainTeamName(`${sig.user.displayName}'s Team`);
+    setCaptainTeamName(`${sig.user?.displayName ?? sig.account.rsn}'s Team`);
     // Pick the next palette color that isn't already in use by another captain so
     // newly-promoted teams are visually distinct out of the gate.
     const usedColors = new Set(
@@ -269,9 +270,9 @@ export default function SignupAdminPanel({
     return signups.filter((s) => {
       if (q) {
         const haystack = [
-          s.user.displayName,
+          s.user?.displayName ?? '',
           s.account.rsn,
-          s.user.discordUsername ?? '',
+          s.user?.discordUsername ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -554,12 +555,18 @@ export default function SignupAdminPanel({
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="min-w-0">
                         <div className="font-medium truncate">
-                          {s.user.displayName}
-                          <span className="text-text-muted text-xs ml-2">
-                            playing {s.account.rsn}
-                          </span>
+                          {s.user?.displayName ?? s.account.rsn}
+                          {s.user ? (
+                            <span className="text-text-muted text-xs ml-2">
+                              playing {s.account.rsn}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] uppercase tracking-wide text-text-muted ml-2 px-1 py-0.5 rounded border border-card-border">
+                              guest · no Discord
+                            </span>
+                          )}
                         </div>
-                        {s.user.discordUsername && (
+                        {s.user?.discordUsername && (
                           <div className="text-xs text-text-muted truncate">
                             @{s.user.discordUsername}
                           </div>
@@ -696,7 +703,7 @@ export default function SignupAdminPanel({
                                 onClick={() => {
                                   if (
                                     confirm(
-                                      `Demote ${s.user.displayName} as captain? "${s.captainTeam!.name}" will be deleted (only allowed if no other players are on it).`,
+                                      `Demote ${s.user?.displayName ?? s.account.rsn} as captain? "${s.captainTeam!.name}" will be deleted (only allowed if no other players are on it).`,
                                     )
                                   ) {
                                     performAction(s.id, { action: 'demote-captain' });
@@ -731,7 +738,7 @@ export default function SignupAdminPanel({
                             {s.status !== 'rejected' && s.status !== 'withdrawn' && !s.captainTeam && (
                               <button
                                 onClick={() => {
-                                  if (confirm(`Reject ${s.user.displayName}'s sign-up?`)) {
+                                  if (confirm(`Reject ${s.user?.displayName ?? s.account.rsn}'s sign-up?`)) {
                                     performAction(s.id, { action: 'reject' });
                                   }
                                 }}
@@ -746,7 +753,7 @@ export default function SignupAdminPanel({
                                 onClick={() => {
                                   if (
                                     confirm(
-                                      `Withdraw ${s.user.displayName} from this event? They'll be marked withdrawn and pulled from the draft pool. A paid fee is kept for the refund trail; an unpaid one is cleared.`,
+                                      `Withdraw ${s.user?.displayName ?? s.account.rsn} from this event? They'll be marked withdrawn and pulled from the draft pool. A paid fee is kept for the refund trail; an unpaid one is cleared.`,
                                     )
                                   ) {
                                     performAction(s.id, { action: 'withdraw' });
@@ -781,15 +788,15 @@ export default function SignupAdminPanel({
             answersModal.signup
               ? {
                   id: answersModal.signup.id,
-                  displayName: answersModal.signup.user.displayName,
+                  displayName: answersModal.signup.user?.displayName ?? answersModal.signup.account.rsn,
                   rsn: answersModal.signup.account.rsn,
                   profile: answersModal.signup.profile,
                 }
               : null
           }
           signedUpUserIds={signups
-            .filter((s) => s.status !== 'withdrawn')
-            .map((s) => s.user.id)}
+            .filter((s) => s.status !== 'withdrawn' && s.user != null)
+            .map((s) => s.user!.id)}
           onClose={() => setAnswersModal(null)}
           onSaved={async () => {
             setAnswersModal(null);

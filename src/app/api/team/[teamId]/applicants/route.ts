@@ -59,7 +59,8 @@ export async function GET(
     .where(eq(eventSignups.eventId, team.eventId));
 
   const applicants = rows
-    .filter((r) => !captainUserIds.has(r.signup.userId))
+    // Inner-joined on users, so userId is always present here; guard keeps the types honest.
+    .filter((r) => r.signup.userId != null && !captainUserIds.has(r.signup.userId))
     .map((r) => ({
     id: r.signup.id,
     status: r.signup.status,
