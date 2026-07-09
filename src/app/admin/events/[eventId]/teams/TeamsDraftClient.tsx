@@ -48,6 +48,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [removingPlayerId, setRemovingPlayerId] = useState<number | null>(null);
   const [assigningPlayerId, setAssigningPlayerId] = useState<number | null>(null);
   const [addToTeamId, setAddToTeamId] = useState<number | null>(null);
+  const [nameToAdd, setNameToAdd] = useState('');
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [draftAction, setDraftAction] = useState('');
@@ -209,6 +210,33 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       router.refresh();
     }
     setAddingPlayer(false);
+  }
+
+  // Add a player by typing a name — for someone with no clan-member/RSN row yet (a Discord-only
+  // guest, or an off-roster ringer). Creates a guest clan member from the name. teamId null = pool.
+  async function addPlayerByName(teamId: number | null) {
+    const name = nameToAdd.trim();
+    if (!name) return;
+    setAddingPlayer(true);
+    try {
+      const url =
+        teamId != null
+          ? `/api/events/${event.id}/players?teamId=${teamId}`
+          : `/api/events/${event.id}/players`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ name }]),
+      });
+      if (res.ok) {
+        setNameToAdd('');
+        setAddToTeamId(null);
+        await fetchDraft();
+        router.refresh();
+      }
+    } finally {
+      setAddingPlayer(false);
+    }
   }
 
   // Assign an already-in-pool player onto a team — post-draft, for someone who was signed up /
@@ -656,6 +684,26 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       ? 'Select members above'
                       : `Add ${selectedClanMemberIds.length} to pool`}
                 </button>
+
+                {/* Escape hatch: add someone who has no roster/RSN row yet (a Discord-only guest). */}
+                <div className="flex gap-2 border-t border-card-border pt-3">
+                  <input
+                    type="text"
+                    value={nameToAdd}
+                    onChange={(e) => setNameToAdd(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addPlayerByName(null); }}
+                    placeholder="…or add by name (no linked account)"
+                    maxLength={60}
+                    className="flex-1 min-w-0 bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+                  />
+                  <button
+                    onClick={() => addPlayerByName(null)}
+                    disabled={addingPlayer || !nameToAdd.trim()}
+                    className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
 
               {draft.players.length > 0 ? (
@@ -1012,10 +1060,29 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                               {addingPlayer ? 'Adding…' : selectedClanMemberIds.length === 0 ? 'Select members' : `Add ${selectedClanMemberIds.length}`}
                             </button>
                             <button
-                              onClick={() => { setAddToTeamId(null); setSelectedClanMemberIds([]); }}
+                              onClick={() => { setAddToTeamId(null); setSelectedClanMemberIds([]); setNameToAdd(''); }}
                               className="text-xs text-text-muted hover:text-foreground border border-card-border px-3 py-1.5 rounded-lg transition-colors"
                             >
                               Cancel
+                            </button>
+                          </div>
+                          {/* Add someone with no roster/RSN row by name (a Discord-only guest). */}
+                          <div className="flex gap-2 border-t border-card-border pt-2">
+                            <input
+                              type="text"
+                              value={nameToAdd}
+                              onChange={(e) => setNameToAdd(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') addPlayerByName(team.id); }}
+                              placeholder="…or add by name"
+                              maxLength={60}
+                              className="flex-1 min-w-0 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-gold/50"
+                            />
+                            <button
+                              onClick={() => addPlayerByName(team.id)}
+                              disabled={addingPlayer || !nameToAdd.trim()}
+                              className="text-xs font-medium bg-gold/15 text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50 shrink-0"
+                            >
+                              Add
                             </button>
                           </div>
                         </div>
