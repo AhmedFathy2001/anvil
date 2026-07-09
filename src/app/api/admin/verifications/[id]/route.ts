@@ -4,6 +4,7 @@ import { clanAuditLog, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
+import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
 // POST /api/admin/verifications/[id] { action: 'approve' | 'reject' }
 // Approve clears the provisional flag — the clan member becomes fully verified.
@@ -57,10 +58,13 @@ export async function POST(
       })
       .where(eq(clanMembers.id, memberId));
 
-    // Apply any pre-assigned role now that the verification has cleared mod review.
+    // Apply any pre-assigned SITE role now that the verification has cleared mod review.
     if (member.userId && member.pendingRole) {
       await applyPendingRole(memberId, member.userId, 'manual_approval');
     }
+    // Give them their Discord roles + nickname now that they're a confirmed member. Fire-and-
+    // forget; no-op if role sync is off. (Manual approval previously synced nothing on its own.)
+    syncRolesForClanMemberFireAndForget(memberId);
 
     db.insert(clanAuditLog)
       .values({

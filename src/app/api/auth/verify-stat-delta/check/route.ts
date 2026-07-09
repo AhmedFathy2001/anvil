@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
 // POST /api/auth/verify-stat-delta/check { attemptId }
 // Re-fetches Hiscores, compares against the stored baseline. On success, marks the
@@ -201,6 +202,11 @@ export async function POST(request: Request) {
       notes: 'Pending mod confirmation',
     })
     .catch(() => {});
+
+  // Now that a Discord-authenticated user owns this clan member, give them their Discord roles
+  // + nickname. Fire-and-forget; no-op if role sync is off. This is why members who verified via
+  // XP used to never get their role until an admin ran a manual sweep.
+  syncRolesForClanMemberFireAndForget(clanMemberId);
 
   return NextResponse.json({
     status: 'succeeded',
