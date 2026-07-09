@@ -459,7 +459,13 @@ export async function resolveDiscordIdForMember(
     if (u?.discordId) return u.discordId;
   }
   if (member.discordId) return member.discordId;
-  return findDiscordIdByRsn(member.rsn);
+  const matched = await findDiscordIdByRsn(member.rsn);
+  if (matched) {
+    // Cache the name-match onto the clan member so every future sync/assignment uses the ID
+    // directly — robust against them later changing their Discord nickname away from their RSN.
+    await db.update(clanMembers).set({ discordId: matched }).where(eq(clanMembers.id, member.id)).catch(() => {});
+  }
+  return matched;
 }
 
 // =============================================================================

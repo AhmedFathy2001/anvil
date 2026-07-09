@@ -241,7 +241,7 @@ export default function ClanMemberPicker(props: Props) {
                       </div>
                     )}
                   </div>
-                  {onTeam && (
+                  {onTeam && props.mode === 'multi' && props.disableEnrolled && (
                     <span className="text-[10px] text-text-muted shrink-0">on a team</span>
                   )}
                   {inPool && props.mode === 'multi' && props.disableEnrolled && (

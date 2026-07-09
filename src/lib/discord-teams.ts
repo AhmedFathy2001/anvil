@@ -24,7 +24,7 @@ import { db } from '@/db';
 import { events, teams, players, clanMembers, users, settings, eventSignups } from '@/db/schema';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
-import { discordRest, getBotCredentials } from '@/lib/discord-roles';
+import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -236,18 +236,19 @@ async function discordIdForUserId(userId: number | null | undefined): Promise<st
 }
 
 /**
- * Resolve a Discord user ID for a player. Priority mirrors discord-roles.ts:
- *   1) players.clanMemberId → clan_members.userId → users.discordId (OAuth-linked)
- *   2) clan_members.discordId (legacy/cached match)
- * Returns null when neither produces one — caller skips that player.
+ * Resolve a Discord user ID for a player. Uses the shared resolver so team/bingo role assignment
+ * gets the SAME priority chain as rank sync:
+ *   1) clan_members.userId → users.discordId  (OAuth-linked — the reliable path)
+ *   2) clan_members.discordId  (cached from a prior match)
+ *   3) guild-member search by RSN, splitting "name1 / name2" nicknames  (best-effort, cached)
+ * Returns null only when none match — caller skips that player. Previously this stopped at (2),
+ * which silently skipped anyone whose Discord nickname didn't equal their RSN.
  */
 async function discordIdForPlayerClanMember(clanMemberId: number | null): Promise<string | null> {
   if (clanMemberId == null) return null;
   const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
   if (!cm) return null;
-  const viaOauth = await discordIdForUserId(cm.userId);
-  if (viaOauth) return viaOauth;
-  return cm.discordId ?? null;
+  return resolveDiscordIdForMember({ id: cm.id, rsn: cm.rsn, userId: cm.userId, discordId: cm.discordId });
 }
 
 // =============================================================================
