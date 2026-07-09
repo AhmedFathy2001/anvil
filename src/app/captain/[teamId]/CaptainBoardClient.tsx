@@ -33,9 +33,21 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   const [playerFetchStatus, setPlayerFetchStatus] = useState<Record<number, string | null>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tileSearch, setTileSearch] = useState('');
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
+
+  // Tile search — matched tiles stay, the rest are hidden (list board) / dimmed (grid). Null = no filter.
+  const matchedTileIds = useMemo(() => {
+    const q = tileSearch.trim().toLowerCase();
+    if (!q) return null;
+    return new Set(
+      tiles
+        .filter((t) => t.label.toLowerCase().includes(q) || (t.description?.toLowerCase().includes(q) ?? false))
+        .map((t) => t.id),
+    );
+  }, [tileSearch, tiles]);
 
   const eventCountdown = useCountdown(!eventStarted ? event.startDate : null);
   const { countdown, nextRefresh, setNextRefresh } = useRefreshCountdown();
@@ -345,6 +357,18 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); fetchSubmissions().then(() => fetchGains()).then(() => setLoading(false)).catch(() => { setFetchError('Failed to load data. Please refresh.'); setLoading(false); }); }} />}
       {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
 
+      {tiles.length > 9 && (
+        <div className="mb-4 max-w-md">
+          <input
+            type="text"
+            value={tileSearch}
+            onChange={(e) => setTileSearch(e.target.value)}
+            placeholder="Search tiles by name…"
+            className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+          />
+        </div>
+      )}
+
       <EventBoard
         format={event.format}
         tiles={tiles}
@@ -357,6 +381,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
         dropProgress={dropProgress}
         statProgress={statProgress}
         pointsMode={pointsMode}
+        matchedTileIds={matchedTileIds}
       />
 
       {/* Team Roster */}
