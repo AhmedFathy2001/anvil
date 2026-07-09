@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
+import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
 
 // Fresh single-tile read for the editor: opening a tile re-fetches it (instead of trusting
 // the page-load list) so a save starts from the latest state — and carries the updatedAt
@@ -76,6 +77,15 @@ export async function DELETE(
       .where(and(eq(tiles.eventId, eId), gt(tiles.position, tile.position)));
     // Keep boardSize == tile count for Leagues/race display helpers.
     await tx.update(events).set({ boardSize: allTiles.length - 1 }).where(eq(events.id, eId));
+  });
+
+  logTileAudit({
+    eventId: eId,
+    action: 'deleted',
+    tileId: tId,
+    tileLabel: tile.label,
+    oldValue: snapshotTile(tile),
+    actorUserId: editor.userId,
   });
 
   return NextResponse.json({ ok: true, boardSize: allTiles.length - 1 });

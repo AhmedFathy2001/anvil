@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
+import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
@@ -614,6 +615,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         onApplyPoints={applySuggestedPoints}
       />
 
+      <TileHistoryPanel eventId={event.id} />
+
       {/* Per-tile configuration */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -947,6 +950,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           pointsMode={pointsMode}
           tierBands={tierBands}
           lockHolder={lockHolder}
+          categorySuggestions={categories}
           canDelete={canEditTileSet}
           onClose={() => setEditingTileId(null)}
           onDelete={() => handleDeleteTile(editingTile.id, true)}
@@ -1132,9 +1136,11 @@ interface DrawerProps {
   onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
   /** Advisory lock holder (someone else editing right now), for the warning banner. */
   lockHolder?: string | null;
+  /** Categories used elsewhere on the board, for the category tag typeahead. */
+  categorySuggestions?: string[];
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1188,6 +1194,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
             eventStarted={eventStarted}
             pointsMode={pointsMode}
             tierBands={tierBands}
+            categorySuggestions={categorySuggestions}
           />
 
           {canDelete && onDelete && (

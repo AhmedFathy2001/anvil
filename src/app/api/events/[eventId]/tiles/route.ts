@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyTileEditor, verifyAdminOrModerator } from '@/lib/auth';
+import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
 
 export async function GET(
   _request: Request,
@@ -342,6 +343,16 @@ export async function PUT(
     .where(eq(tiles.id, tileId))
     .returning();
 
+  // History: record the exact field diff (no-op edits are dropped by logTileAudit).
+  logTileAudit({
+    eventId: eId,
+    action: 'updated',
+    tileId: updated.id,
+    tileLabel: updated.label,
+    changedFields: diffTiles(tile, updated),
+    actorUserId: editor.userId,
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -400,6 +411,15 @@ export async function POST(
     // Keep boardSize == tile count so the display helpers (eventTileCount / eventShapeBadge) stay accurate.
     await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
     return tile;
+  });
+
+  logTileAudit({
+    eventId: eId,
+    action: 'created',
+    tileId: created.id,
+    tileLabel: created.label,
+    newValue: snapshotTile(created),
+    actorUserId: editor.userId,
   });
 
   return NextResponse.json(created, { status: 201 });

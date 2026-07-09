@@ -138,6 +138,31 @@ export const tileLocks = sqliteTable('tile_locks', {
   expiresAt: text('expires_at').notNull(),
 });
 
+// Append-only history of tile config changes: who created / updated / deleted / imported /
+// reordered tiles on an event's board, and what changed. Scoped by `eventId` so the event's
+// Tiles tab can render a timeline. `tileId` is a plain int (NOT an FK) so a row survives the
+// tile being deleted; `tileLabel` snapshots the name so the history stays readable afterwards.
+// Mirrors the clan_audit_log conventions (free-text action, JSON old/new snapshots, actor).
+export const tileAuditLog = sqliteTable('tile_audit_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id'), // no FK — history outlives the tile it describes
+  tileLabel: text('tile_label'), // label snapshot at the time of the change
+  // What happened: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered'.
+  action: text('action').notNull(),
+  // For 'updated': JSON array of { field, label, from, to } for each changed column.
+  changedFields: text('changed_fields'),
+  // JSON field snapshots: newValue for created, oldValue for deleted, summary counts for import.
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  actorUserId: integer('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+  occurredAt: text('occurred_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('tile_audit_log_event_id_idx').on(table.eventId),
+  index('tile_audit_log_occurred_at_idx').on(table.occurredAt),
+  index('tile_audit_log_tile_id_idx').on(table.tileId),
+]);
+
 export const teams = sqliteTable('teams', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),

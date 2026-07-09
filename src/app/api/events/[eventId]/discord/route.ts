@@ -8,6 +8,7 @@ import {
   provisionTeamDiscord,
   assignTeamRoles,
   assignBingoRoleToApprovedSignups,
+  unassignSharedRoles,
   teardownTeamDiscord,
 } from '@/lib/discord-teams';
 
@@ -42,6 +43,7 @@ export async function GET(
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
     bingoRoleConfigured: !!cfg?.bingoRoleId,
+    captainRoleConfigured: !!cfg?.captainRoleId,
     approvedSignups,
     teams: eventTeams.map((t) => ({
       id: t.id,
@@ -97,9 +99,29 @@ export async function POST(
       return NextResponse.json({ success: true, report });
     }
 
+    // One-click "set up everything": create the roles/channels, then assign contestant roles.
+    // The same pair that runs automatically when the draft completes — exposed as a button so an
+    // admin can (re-)run it after the fact. Requires a completed draft (rosters must be final).
+    case 'sync-all': {
+      if (event.draftStatus !== 'completed') {
+        return NextResponse.json({ error: 'The draft must be completed first.' }, { status: 409 });
+      }
+      const provision = await provisionTeamDiscord(id);
+      if (!provision.ok) return NextResponse.json({ error: provision.reason || 'Provisioning failed' }, { status: 400 });
+      const assign = await assignTeamRoles(id);
+      if (!assign.ok) return NextResponse.json({ error: assign.reason || 'Role assignment failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report: { provision, assign } });
+    }
+
     case 'assign-bingo-role': {
       const report = await assignBingoRoleToApprovedSignups(id);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report });
+    }
+
+    case 'unassign-shared-roles': {
+      const report = await unassignSharedRoles(id);
+      if (!report.ok) return NextResponse.json({ error: report.reason || 'Removal failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
 

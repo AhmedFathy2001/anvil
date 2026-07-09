@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
+import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 
@@ -559,6 +560,17 @@ export async function POST(
       await tx.update(events).set({ boardSize: existingCount + creates }).where(eq(events.id, eId));
     }
   });
+
+  // History: a single summary entry per import (per-tile diffs would flood the timeline on a
+  // big sheet). Records who imported and how many tiles were changed / created.
+  if (applied > 0 || creates > 0) {
+    logTileAudit({
+      eventId: eId,
+      action: 'imported',
+      newValue: { applied, created: creates, unchanged, ignored, total: existingCount + creates },
+      actorUserId: editor.userId,
+    });
+  }
 
   return NextResponse.json({
     applied,
