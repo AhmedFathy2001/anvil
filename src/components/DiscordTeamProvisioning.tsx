@@ -14,6 +14,8 @@ interface StatusData {
   enabled: boolean;
   categoryId: string | null;
   draftStatus: string;
+  bingoRoleConfigured: boolean;
+  approvedSignups: number;
   teams: TeamState[];
   fullyProvisioned: boolean;
 }
@@ -40,7 +42,7 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
     loadStatus();
   }, [loadStatus]);
 
-  async function runAction(action: 'provision' | 'assign-rosters' | 'teardown') {
+  async function runAction(action: 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'teardown') {
     if (action === 'teardown' && !confirm('Delete this event’s team roles, channels, and category in Discord? Contestants will lose channel access. This cannot be undone.')) {
       return;
     }
@@ -60,6 +62,8 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
           text = `Provisioned ${r.teams?.length ?? 0} team(s)${r.captainsAssigned ? `, ${r.captainsAssigned} captain(s) assigned` : ''}.`;
         } else if (action === 'assign-rosters') {
           text = `Assigned roles to ${r.assigned ?? 0} contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
+        } else if (action === 'assign-bingo-role') {
+          text = `Gave the bingo role to ${r.assigned ?? 0} approved contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'teardown') {
           text = `Removed ${r.rolesDeleted ?? 0} role(s) and ${r.channelsDeleted ?? 0} channel(s).`;
         }
@@ -97,7 +101,8 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
       <p className="text-xs text-text-muted mb-4">
         Create a private voice + text channel per team and assign Discord roles. You can provision
         roles &amp; channels now; contestant roles are assigned automatically when the draft completes
-        (or with the button below).
+        (or with the button below). Give every approved sign-up the shared bingo role at any time — even
+        before the draft — so they can see the bingo channel and get pinged with the rules.
       </p>
 
       {status.teams.length > 0 && (
@@ -122,6 +127,23 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
           className="text-sm font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg hover:bg-indigo-500/25 transition-colors disabled:opacity-50"
         >
           {busy === 'provision' ? 'Provisioning…' : status.fullyProvisioned ? 'Re-sync Roles & Channels' : 'Create Roles & Channels'}
+        </button>
+
+        <button
+          onClick={() => runAction('assign-bingo-role')}
+          disabled={!!busy || !status.bingoRoleConfigured || status.approvedSignups === 0}
+          title={
+            !status.bingoRoleConfigured
+              ? 'Set a bingo role ID under Integrations → Discord team channels first'
+              : status.approvedSignups === 0
+                ? 'No approved sign-ups yet'
+                : `Give the bingo role to all ${status.approvedSignups} approved contestant(s)`
+          }
+          className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
+        >
+          {busy === 'assign-bingo-role'
+            ? 'Assigning…'
+            : `Give bingo role to approved${status.approvedSignups ? ` (${status.approvedSignups})` : ''}`}
         </button>
 
         <button

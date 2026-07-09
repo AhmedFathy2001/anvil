@@ -21,7 +21,7 @@
  * Reuses the bot REST helper + credential resolution from lib/discord-roles.ts.
  */
 import { db } from '@/db';
-import { events, teams, players, clanMembers, users, settings } from '@/db/schema';
+import { events, teams, players, clanMembers, users, settings, eventSignups } from '@/db/schema';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
@@ -427,6 +427,55 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
     }
     if (cfg.bingoRoleId) await addRole(cfg, discordId, cfg.bingoRoleId);
     await addRole(cfg, discordId, teamRoleId);
+    assigned++;
+  }
+
+  return { ok: true, assigned, skipped };
+}
+
+// =============================================================================
+// Assign the shared bingo role (pre-draft)
+// =============================================================================
+
+/**
+ * Give the shared bingo role to every *approved* sign-up for an event. Unlike
+ * assignTeamRoles this does NOT require the draft (or even teams) — it's meant to be run
+ * as soon as sign-ups are approved, so contestants can see the bingo channel / be pinged
+ * with the rules before the draft happens. Requires `discord_bingo_role_id` to be set.
+ * Sign-ups whose Discord account can't be resolved are skipped.
+ */
+export async function assignBingoRoleToApprovedSignups(eventId: number): Promise<AssignReport> {
+  const cfg = await loadTeamChannelConfig();
+  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
+  if (!cfg.bingoRoleId) {
+    return {
+      ok: false,
+      reason: 'No bingo role is set. Add the bingo role ID under Integrations → Discord team channels.',
+      assigned: 0,
+      skipped: 0,
+    };
+  }
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+
+  const approved = await db
+    .select()
+    .from(eventSignups)
+    .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.status, 'approved')));
+
+  let assigned = 0;
+  let skipped = 0;
+  for (const signup of approved) {
+    // Prefer the OAuth-linked user; fall back to the chosen clan member's cached Discord id.
+    const discordId =
+      (await discordIdForUserId(signup.userId)) ??
+      (await discordIdForPlayerClanMember(signup.clanMemberId));
+    if (!discordId) {
+      skipped++;
+      continue;
+    }
+    await addRole(cfg, discordId, cfg.bingoRoleId);
     assigned++;
   }
 

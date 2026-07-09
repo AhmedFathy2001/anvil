@@ -90,6 +90,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       label: 'System',
       items: [
         { href: '/admin/setup', label: 'Setup', icon: '🧭' },
+        { href: '/admin/announce', label: 'Announce', icon: '📣' },
         { href: '/admin/integrations', label: 'Advanced settings', icon: '🔌' },
       ],
     });
