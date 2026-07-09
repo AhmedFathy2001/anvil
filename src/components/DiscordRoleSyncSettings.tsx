@@ -9,10 +9,11 @@ import Input from '@/components/Input';
 export default function DiscordRoleSyncSettings() {
   const [roleSync, setRoleSync] = useState(false);
   const [nicknameSync, setNicknameSync] = useState(false);
+  const [nicknameOverwrite, setNicknameOverwrite] = useState(false);
   const [autoMatch, setAutoMatch] = useState(true);
   const [guildId, setGuildId] = useState('');
 
-  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, autoMatch: true, guildId: '' });
+  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true, guildId: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -26,11 +27,13 @@ export default function DiscordRoleSyncSettings() {
           const next = {
             roleSync: data.discord_role_sync_enabled === 'true',
             nicknameSync: data.discord_nickname_sync_enabled === 'true',
+            nicknameOverwrite: data.discord_nickname_overwrite === 'true',
             autoMatch: data.discord_auto_match_rank_by_name !== 'false',
             guildId: data.discord_guild_id || '',
           };
           setRoleSync(next.roleSync);
           setNicknameSync(next.nicknameSync);
+          setNicknameOverwrite(next.nicknameOverwrite);
           setAutoMatch(next.autoMatch);
           setGuildId(next.guildId);
           setOriginal(next);
@@ -53,13 +56,14 @@ export default function DiscordRoleSyncSettings() {
         body: JSON.stringify({
           discord_role_sync_enabled: roleSync ? 'true' : '',
           discord_nickname_sync_enabled: nicknameSync ? 'true' : '',
+          discord_nickname_overwrite: nicknameOverwrite ? 'true' : '',
           // On = clear the override (defaults to on); Off = explicit 'false'.
           discord_auto_match_rank_by_name: autoMatch ? '' : 'false',
           discord_guild_id: guildId.trim(),
         }),
       });
       if (res.ok) {
-        setOriginal({ roleSync, nicknameSync, autoMatch, guildId: guildId.trim() });
+        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, guildId: guildId.trim() });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -75,6 +79,7 @@ export default function DiscordRoleSyncSettings() {
   const hasChanges =
     roleSync !== original.roleSync ||
     nicknameSync !== original.nicknameSync ||
+    nicknameOverwrite !== original.nicknameOverwrite ||
     autoMatch !== original.autoMatch ||
     guildId.trim() !== original.guildId;
 
@@ -114,8 +119,28 @@ export default function DiscordRoleSyncSettings() {
             Set Discord nickname to linked RSN(s) on link
           </span>
           <span className="block text-xs text-text-muted">
-            Only when the member has <em>no</em> nickname yet — never overwrites one set manually. Bot
-            needs the &quot;Manage Nicknames&quot; permission and a role above the members it renames.
+            Sets it to their RSN(s), primary first (e.g. <code className="text-gold">Drenvox mdps / Denoverse</code>),
+            trimming trailing names to fit Discord&apos;s 32-char cap. Bot needs the &quot;Manage
+            Nicknames&quot; permission and a role above the members it renames.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 cursor-pointer select-none pl-7">
+        <input
+          type="checkbox"
+          checked={nicknameOverwrite}
+          onChange={(e) => setNicknameOverwrite(e.target.checked)}
+          className="h-4 w-4 mt-0.5 accent-gold"
+          disabled={!roleSync || !nicknameSync}
+        />
+        <span>
+          <span className={`text-sm font-medium ${!roleSync || !nicknameSync ? 'opacity-50' : ''}`}>
+            Overwrite existing nicknames too
+          </span>
+          <span className="block text-xs text-text-muted">
+            Also replaces a nickname someone already set, keeping everyone pinned to their RSN(s) — so
+            an in-game rename fixes their Discord name on the next sync. Off = only fill blank nicknames.
           </span>
         </span>
       </label>

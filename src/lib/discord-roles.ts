@@ -141,6 +141,10 @@ interface RoleSyncConfig {
   // tell us who set an existing one, so "blank" is the safe proxy for "not set by
   // an admin"). Gated by the `discord_nickname_sync_enabled` setting.
   setNicknameOnLink: boolean;
+  // When true, nickname sync OVERWRITES an existing nickname too (not just blank ones) — keeps
+  // everyone's nick pinned to their RSN(s) so name-matching + readability stay correct even after
+  // an in-game rename. Gated by `discord_nickname_overwrite`. Off by default (opt-in).
+  overwriteNickname: boolean;
 }
 
 async function readSetting(key: string): Promise<string | null> {
@@ -222,6 +226,7 @@ export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
     guestRoleNames: parseJsonArray(await readSetting('discord_guest_role_names')),
     autoMatchRankByName,
     setNicknameOnLink: (await readSetting('discord_nickname_sync_enabled')) === 'true',
+    overwriteNickname: (await readSetting('discord_nickname_overwrite')) === 'true',
   };
 }
 
@@ -345,9 +350,10 @@ async function getGuildMember(
   return (await res.json()) as DiscordGuildMember;
 }
 
-// Discord server nicknames cap at 32 characters. Join the user's RSNs with " / "
-// (the same alias convention splitDisplayAliases reads back), and if that overflows
-// the cap fall back to just the first (primary) RSN, hard-truncated.
+// Discord server nicknames cap at 32 characters. Join the user's RSNs with " / " (the same alias
+// convention splitDisplayAliases reads back), primary first. When the full list overflows the cap,
+// greedily keep the primary plus as many of the following names as fit — e.g.
+// "Drenvox mdps / Denoverse / GIM Drenvox" trims trailing names rather than dropping to primary-only.
 const DISCORD_NICK_MAX = 32;
 function buildLinkedNickname(rsns: string[]): string | null {
   const seen = new Set<string>();
@@ -361,9 +367,14 @@ function buildLinkedNickname(rsns: string[]): string | null {
     cleaned.push(trimmed);
   }
   if (cleaned.length === 0) return null;
-  const joined = cleaned.join(' / ');
-  if (joined.length <= DISCORD_NICK_MAX) return joined;
-  return cleaned[0].slice(0, DISCORD_NICK_MAX);
+  // Primary always in (hard-truncated if it alone exceeds the cap), then pack the rest while they fit.
+  let nick = cleaned[0].slice(0, DISCORD_NICK_MAX);
+  for (let i = 1; i < cleaned.length; i++) {
+    const next = `${nick} / ${cleaned[i]}`;
+    if (next.length > DISCORD_NICK_MAX) break;
+    nick = next;
+  }
+  return nick;
 }
 
 // PATCH the member's server nickname. Returns false (and logs) on failure — notably
@@ -695,12 +706,14 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
       .where(eq(clanMembers.id, member.id));
   }
 
-  // Nickname sync — only when enabled AND the member currently has no nickname, so we
-  // never overwrite one set deliberately (Discord doesn't tell us who set it, so a
-  // blank nick is our proxy for "not set by an admin"). Sets it to the user's verified
-  // RSN(s). Skips silently on any Discord error (e.g. guild owner / outranked bot).
+  // Nickname sync — set the member's nick to their verified RSN(s). By default only fills a BLANK
+  // nick (we can't tell who set an existing one, so blank is the safe "not admin-set" proxy). With
+  // `discord_nickname_overwrite` on, it also replaces a non-blank nick, keeping everyone pinned to
+  // their RSN(s) after renames. Only PATCHes when the value actually changes. Skips silently on any
+  // Discord error (e.g. guild owner / outranked bot).
   let nickSet: string | undefined;
-  if (cfg.setNicknameOnLink && !(currentMember.nick && currentMember.nick.trim())) {
+  const currentNick = currentMember.nick?.trim() || '';
+  if (cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
     const accounts = await db
       .select({ rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
       .from(clanMembers)
@@ -716,7 +729,7 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
     const rsns = accounts.map((a) => a.rsn);
     if (rsns.length === 0 && member.rsn) rsns.push(member.rsn);
     const desired = buildLinkedNickname(rsns);
-    if (desired && (await setGuildMemberNick(cfg, discordUserId, desired))) {
+    if (desired && desired !== currentNick && (await setGuildMemberNick(cfg, discordUserId, desired))) {
       nickSet = desired;
     }
   }
