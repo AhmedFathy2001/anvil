@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick } from '@/lib/draft';
 import { notifyDraftComplete } from '@/lib/discord';
+import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 
 export async function POST(
   request: Request,
@@ -137,6 +138,12 @@ export async function POST(
         eventName: event.name,
         teams: teamsWithPlayers,
       }).catch(() => {}); // Silently ignore errors
+
+      // Auto-provision the team Discord channels + assign contestant roles now that rosters are
+      // final. Same exactly-once guard as the roster post (draftNotified flip). No-op when the
+      // team-sync feature is off. This is why finishing a draft by picking the last player used to
+      // do nothing on Discord — only the manual "End draft" path called it.
+      syncTeamDiscordOnDraftCompleteFireAndForget(eId);
     }
   }
 

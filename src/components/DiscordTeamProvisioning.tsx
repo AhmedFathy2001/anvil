@@ -43,7 +43,7 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
     loadStatus();
   }, [loadStatus]);
 
-  async function runAction(action: 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
+  async function runAction(action: 'sync-all' | 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
     if (action === 'teardown' && !confirm('Delete this event’s team roles, channels, and category in Discord? Contestants lose channel access, and their team roles vanish with the roles. The shared bingo & captain roles stay assigned — use “Remove bingo & captain roles” for those. This cannot be undone.')) {
       return;
     }
@@ -65,7 +65,12 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
       if (res.ok) {
         const r = data.report || {};
         let text = 'Done.';
-        if (action === 'provision') {
+        if (action === 'sync-all') {
+          const teamsN = r.provision?.teams?.length ?? 0;
+          const assignedN = r.assign?.assigned ?? 0;
+          const skippedN = r.assign?.skipped ?? 0;
+          text = `Set up ${teamsN} team channel(s) and assigned roles to ${assignedN} contestant(s)${skippedN ? `, ${skippedN} skipped (no linked Discord)` : ''}.`;
+        } else if (action === 'provision') {
           text = `Provisioned ${r.teams?.length ?? 0} team(s)${r.captainsAssigned ? `, ${r.captainsAssigned} captain(s) assigned` : ''}.`;
         } else if (action === 'assign-rosters') {
           text = `Assigned roles to ${r.assigned ?? 0} contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
@@ -130,6 +135,24 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
       )}
 
       <div className="flex flex-wrap gap-2 items-center">
+        {/* One-click primary action once the draft is done: create channels/roles AND assign
+            everyone. This is what runs automatically on draft completion; the button lets an
+            admin (re-)run it. */}
+        {draftComplete && (
+          <button
+            onClick={() => runAction('sync-all')}
+            disabled={!!busy || status.teams.length === 0}
+            title="Create every team's channel + role and assign each contestant their roles — in one click"
+            className="text-sm font-semibold bg-accent-green/25 text-accent-green-light border border-accent-green/50 px-4 py-2 rounded-lg hover:bg-accent-green/35 transition-colors disabled:opacity-50"
+          >
+            {busy === 'sync-all'
+              ? 'Setting up…'
+              : status.fullyProvisioned
+                ? 'Re-sync channels & assign everyone'
+                : 'Set up team channels & assign everyone'}
+          </button>
+        )}
+
         <button
           onClick={() => runAction('provision')}
           disabled={!!busy || status.teams.length === 0}
