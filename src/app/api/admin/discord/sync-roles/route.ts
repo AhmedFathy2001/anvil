@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { loadRoleSyncConfig, syncRolesForClanMember } from '@/lib/discord-roles';
 
@@ -37,19 +37,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ mode: 'single', report });
   }
 
-  // Sweep mode. Skip guests by default — guest role assignment is manual per spec.
+  // Sweep everyone who's still in the clan and can hold a role: full members plus verified
+  // guests (an in-game member who linked but isn't confirmed on the roster yet). We do NOT
+  // gate on hiscores `status` — a role reflects membership, not whether their XP is trackable,
+  // so an 'unranked' member (RSN 404s on the hiscores) must still be synced.
   const eligible = await db
-    .select({ id: clanMembers.id })
+    .select({ id: clanMembers.id, rsn: clanMembers.rsn })
     .from(clanMembers)
     .where(
       and(
         isNull(clanMembers.leftAt),
-        eq(clanMembers.status, 'active'),
-        eq(clanMembers.isGuest, 0),
+        or(eq(clanMembers.isGuest, 0), isNotNull(clanMembers.verifiedAt)),
       ),
     );
 
-  const reports: Array<{ memberId: number; ok: boolean; reason?: string; added: number; removed: number }> = [];
+  const reports: Array<{ memberId: number; rsn: string; ok: boolean; reason?: string; added: number; removed: number; nickSet?: string }> = [];
   let synced = 0;
   let skipped = 0;
   for (const m of eligible) {
@@ -58,10 +60,12 @@ export async function POST(request: Request) {
     else skipped++;
     reports.push({
       memberId: m.id,
+      rsn: m.rsn,
       ok: r.ok,
       reason: r.reason,
       added: r.added.length,
       removed: r.removed.length,
+      nickSet: r.nickSet,
     });
   }
 

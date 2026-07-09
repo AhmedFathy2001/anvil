@@ -17,6 +17,34 @@ export default function DiscordRoleSyncSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    total: number;
+    synced: number;
+    skipped: number;
+    reports: Array<{ rsn: string; ok: boolean; reason?: string; nickSet?: string }>;
+  } | null>(null);
+
+  // Force a full re-sync of every member's Discord roles + nicknames now (empty body = sweep).
+  async function runSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/discord/sync-roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json();
+      if (res.ok) setSyncResult(data);
+      else setMessage({ type: 'error', text: data.error || 'Sync failed' });
+    } catch {
+      setMessage({ type: 'error', text: 'Sync failed' });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -199,6 +227,53 @@ export default function DiscordRoleSyncSettings() {
         </button>
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
         {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+      </div>
+
+      {/* Force a full re-sync now — applies roles + nicknames to everyone and reports who was
+          skipped and why (e.g. no Discord id linkable). Needs role sync enabled + saved. */}
+      <div className="border-t border-card-border pt-4">
+        <button
+          onClick={runSync}
+          disabled={syncing || !original.roleSync || hasChanges}
+          title={
+            !original.roleSync
+              ? 'Enable and save role sync first'
+              : hasChanges
+                ? 'Save your changes first'
+                : 'Re-apply roles + nicknames to every member now'
+          }
+          className="px-4 py-2 text-sm font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 rounded-lg hover:bg-indigo-500/25 transition-colors disabled:opacity-50"
+        >
+          {syncing ? 'Syncing everyone…' : 'Sync roles & nicknames now'}
+        </button>
+
+        {syncResult && (
+          <div className="mt-3 text-sm">
+            <p className="text-green-400">
+              Synced {syncResult.synced}/{syncResult.total}
+              {syncResult.skipped > 0 && (
+                <span className="text-yellow-400"> · {syncResult.skipped} skipped</span>
+              )}
+              .
+            </p>
+            {syncResult.skipped > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
+                  Show skipped members
+                </summary>
+                <ul className="mt-1.5 space-y-0.5 max-h-52 overflow-y-auto">
+                  {syncResult.reports
+                    .filter((r) => !r.ok)
+                    .map((r) => (
+                      <li key={r.rsn} className="text-xs text-text-muted">
+                        <span className="text-foreground/80">{r.rsn}</span> — {r.reason ?? 'unknown'}
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

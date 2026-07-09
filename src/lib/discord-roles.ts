@@ -520,36 +520,26 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
   // legacy clan_members.discord_id covers ghost/auto-discovered linkages.
   const ownedRows: { rank: string | null; isGuest: number }[] = [];
 
+  // NB: we gather by membership (not left), NOT by hiscores `status`. A clan role reflects
+  // membership, not whether their XP is trackable — an 'unranked' member (RSN 404s on the
+  // hiscores: mobile-only, freshly renamed, name-lag) is still a real member who should get
+  // their role. Gating on status='active' here is exactly what silently skipped members whose
+  // account isn't on the hiscores.
   const viaOauth = await db
     .select({ rank: clanMembers.rank, isGuest: clanMembers.isGuest })
     .from(clanMembers)
     .innerJoin(users, eq(clanMembers.userId, users.id))
-    .where(
-      and(
-        eq(users.discordId, discordUserId),
-        isNull(clanMembers.leftAt),
-        eq(clanMembers.status, 'active'),
-      ),
-    );
+    .where(and(eq(users.discordId, discordUserId), isNull(clanMembers.leftAt)));
   ownedRows.push(...viaOauth);
 
   const viaLegacy = await db
     .select({ rank: clanMembers.rank, isGuest: clanMembers.isGuest })
     .from(clanMembers)
-    .where(
-      and(
-        eq(clanMembers.discordId, discordUserId),
-        isNull(clanMembers.leftAt),
-        eq(clanMembers.status, 'active'),
-      ),
-    );
+    .where(and(eq(clanMembers.discordId, discordUserId), isNull(clanMembers.leftAt)));
   ownedRows.push(...viaLegacy);
 
-  // The current member always counts — important when this is a brand-new join
-  // with no Discord linkage yet (we'd resolved via name match above).
-  if (member.status === 'active') {
-    ownedRows.push({ rank: member.rank, isGuest: member.isGuest });
-  }
+  // The current member always counts (already guarded against leftAt above).
+  ownedRows.push({ rank: member.rank, isGuest: member.isGuest });
 
   if (ownedRows.length === 0) {
     return { ok: false, reason: 'no active clan_members for this Discord user', added: [], removed: [], discordUserId };
