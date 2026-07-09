@@ -20,6 +20,8 @@ interface Props {
   pointsMode?: boolean;
   /** Admin-configured difficulty bands — drives the tier picker on the points field. */
   tierBands?: TierBand[];
+  /** Categories already used elsewhere on this board, offered as typeahead in the tag input. */
+  categorySuggestions?: string[];
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -250,6 +252,7 @@ export default function TileTrackingConfig({
   eventStarted,
   pointsMode,
   tierBands,
+  categorySuggestions,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -993,6 +996,7 @@ export default function TileTrackingConfig({
           onChange={(tags) => setCategory(tags.join(', '))}
           placeholder="e.g. GWD"
           ariaLabel="Category tags"
+          suggestions={categorySuggestions}
         />
       </div>
 

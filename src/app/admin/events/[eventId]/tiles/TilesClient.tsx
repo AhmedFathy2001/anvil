@@ -950,6 +950,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           pointsMode={pointsMode}
           tierBands={tierBands}
           lockHolder={lockHolder}
+          categorySuggestions={categories}
           canDelete={canEditTileSet}
           onClose={() => setEditingTileId(null)}
           onDelete={() => handleDeleteTile(editingTile.id, true)}
@@ -1135,9 +1136,11 @@ interface DrawerProps {
   onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
   /** Advisory lock holder (someone else editing right now), for the warning banner. */
   lockHolder?: string | null;
+  /** Categories used elsewhere on the board, for the category tag typeahead. */
+  categorySuggestions?: string[];
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1191,6 +1194,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
             eventStarted={eventStarted}
             pointsMode={pointsMode}
             tierBands={tierBands}
+            categorySuggestions={categorySuggestions}
           />
 
           {canDelete && onDelete && (
