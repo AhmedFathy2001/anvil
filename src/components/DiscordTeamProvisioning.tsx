@@ -22,9 +22,16 @@ interface StatusData {
 }
 
 // Admin panel for an event's Teams tab: create per-team Discord roles + locked channels,
-// and assign contestant roles once the draft is done. Hidden entirely when the feature
-// is disabled, so it only shows up for clans that have wired up the bot.
-export default function DiscordTeamProvisioning({ eventId }: { eventId: number }) {
+// and assign contestant roles once the draft is done. Hidden entirely when the feature is
+// disabled — UNLESS `showWhenDisabled` is set, which instead surfaces a short "it's off, enable
+// it here" hint (used in the post-draft view so an admin isn't left staring at nothing).
+export default function DiscordTeamProvisioning({
+  eventId,
+  showWhenDisabled = false,
+}: {
+  eventId: number;
+  showWhenDisabled?: boolean;
+}) {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -93,9 +100,31 @@ export default function DiscordTeamProvisioning({ eventId }: { eventId: number }
     }
   }
 
-  // Loading, or the feature is off for this clan — render nothing.
   if (loading) return null;
-  if (!status || !status.enabled) return null;
+
+  // Feature off for this clan. Normally render nothing, but in contexts that pass
+  // showWhenDisabled (the post-draft view) surface a hint so the admin knows the option exists
+  // and where to turn it on — otherwise they just see nothing and assume it's broken.
+  if (!status || !status.enabled) {
+    if (!showWhenDisabled) return null;
+    return (
+      <div className="pt-8 border-t border-card-border">
+        <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
+          <span className="w-1 h-5 bg-indigo-400 rounded-full" />
+          Discord Channels &amp; Roles
+        </h2>
+        <p className="text-xs text-text-muted">
+          Auto-creating a private channel per team and handing out contestant roles is turned off.
+          Enable it under{' '}
+          <a href="/admin/integrations" className="text-gold hover:underline">
+            Advanced settings → Discord team channels
+          </a>{' '}
+          (needs the bot token + server ID). Once on, this is where you provision channels and assign
+          everyone — automatically when the draft ends, or with a button here.
+        </p>
+      </div>
+    );
+  }
 
   const draftComplete = status.draftStatus === 'completed';
   const anyProvisioned = status.teams.some((t) => t.hasRole || t.hasTextChannel || t.hasVoiceChannel);

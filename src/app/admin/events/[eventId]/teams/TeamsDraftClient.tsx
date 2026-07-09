@@ -889,6 +889,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               )}
             </div>
 
+            {/* Discord team channels & roles — the post-draft home for provisioning + the
+                "Set up team channels & assign everyone" button. showWhenDisabled surfaces a hint
+                (instead of nothing) when the feature is off, so it's discoverable here. */}
+            <DiscordTeamProvisioning eventId={event.id} showWhenDisabled />
+
             {/* Manage rosters — fix mistakes after the draft: add a missed player onto a team, or
                 move one back to the pool. */}
             <div>
