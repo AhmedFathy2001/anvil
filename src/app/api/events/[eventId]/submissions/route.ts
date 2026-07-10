@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { submissions, tiles, teams, players, events } from '@/db/schema';
+import { submissions, tiles, teams, players, events, users } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
+import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
@@ -378,8 +378,10 @@ export async function DELETE(
   const sId = parseInt(submissionId, 10);
 
   // Check auth — admin / legacy captain+player cookies / Discord web session. The web
-  // session is resolved against the submission's own team below.
-  const isAdmin = await verifyAdmin();
+  // session is resolved against the submission's own team below. Keep the acting user's identity
+  // (not just an isAdmin boolean) so the deletion audit names the real admin, not "Admin (admin)".
+  const actingUser = await verifyUser();
+  const isAdmin = actingUser?.role === 'admin';
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
 
@@ -424,10 +426,16 @@ export async function DELETE(
     creditPlayerName = creditPlayer?.name || null;
   }
 
-  // Determine who is deleting
+  // Determine who is deleting — name the real person so the audit isn't a generic "Admin (admin)".
   let deletedByName = 'Admin';
   let deletedByRole = 'admin';
-  if (!isAdmin) {
+  if (isAdmin) {
+    if (actingUser) {
+      const u = await db.query.users.findFirst({ where: eq(users.id, actingUser.userId) });
+      deletedByName = u?.displayName || u?.discordUsername || actingUser.username || 'Admin';
+      deletedByRole = actingUser.role || 'admin';
+    }
+  } else {
     if (captain) {
       deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
       deletedByRole = 'captain';
