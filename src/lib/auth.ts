@@ -423,12 +423,14 @@ export async function claimAccountForUser(
   }
 
   // SECURITY: the only caller (detected-accounts "Add") proves account control solely with the
-  // RSN the plugin reported via the client-controlled `X-RSN` header — which is forgeable. So we
-  // may auto-attach a PRE-EXISTING identity only when it was matched by the unforgeable account
-  // hash. A row matched by RSN alone is a real clan-roster / manually-added member whose identity
-  // would otherwise be seizable by anyone who simply names them; require genuine proof of control
-  // (XP stat-delta or the in-plugin link code) for those instead of trusting the asserted name.
-  if (existing && !byHash) {
+  // RSN the plugin reported via the client-controlled `X-RSN` header — which is forgeable. When a
+  // pre-existing row is matched by RSN alone (not the unforgeable account hash), scope the extra
+  // proof to ESTABLISHED identities: a roster member (isGuest=0, synced from the in-game clan or
+  // admin-added) or an already-verified row. Those carry rank / history and must not be seizable
+  // by simply naming them, so they require XP stat-delta or the in-plugin link code. A transient
+  // guest row (isGuest=1, unverified) is just a plugin-ping artifact — almost always the claimer's
+  // own account auto-registered on first-time play — so let it attach one-click.
+  if (existing && !byHash && (existing.isGuest === 0 || existing.verifiedAt != null)) {
     return { ok: false, reason: 'needs-verification' };
   }
 
