@@ -8,7 +8,7 @@ import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
-import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
+import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import Input from '@/components/Input';
 
@@ -381,7 +381,9 @@ export default function MyTeamClient({
       )}
 
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); fetchSubmissions().then(() => fetchGains()).then(() => setLoading(false)).catch(() => { setFetchError('Failed to load data. Please refresh.'); setLoading(false); }); }} />}
-      {loading && submissions.length === 0 && <BoardSkeleton size={event.boardSize} />}
+      {/* Tiles are server-provided, so the board renders immediately — no full-board skeleton (it used
+          to stack a shimmer grid ABOVE the real board during the submissions/gains fetch, reading as
+          "blank then tiles pop in"). Progress overlays just fill in once that fetch resolves. */}
 
       {tiles.length > 9 && (
         <div className="mb-4 max-w-md">

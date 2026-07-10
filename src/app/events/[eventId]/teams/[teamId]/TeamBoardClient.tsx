@@ -6,7 +6,7 @@ import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
-import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
+import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 
 interface Props {
@@ -123,7 +123,6 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         />
       )}
 
-      {loading && <BoardSkeleton size={event.boardSize} />}
 
       {/* Progress bar */}
       <div className="mb-6 max-w-md">
