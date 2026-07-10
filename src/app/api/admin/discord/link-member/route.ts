@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
 
@@ -27,13 +27,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That Discord user isn't in the server." }, { status: 400 });
   }
 
-  // Cache the id; also link the site user if one already owns that Discord account and the member
-  // isn't linked yet (so future resolution goes straight through the OAuth path).
   const linkedUser = await db.query.users.findFirst({ where: eq(users.discordId, discordUserId) });
+
+  // Associate the Discord account with the whole ACCOUNT, not just this row: every clan_member row
+  // for this RSN (the self-report + drafted duplicates that otherwise leave a drafted player
+  // unlinked) gets the id, plus the site user if one owns that Discord login. The picked row is
+  // always updated (admin override); other same-RSN rows only when they aren't already linked to a
+  // DIFFERENT user, so we never hijack someone else's account.
   await db
     .update(clanMembers)
     .set({ discordId: discordUserId, ...(linkedUser && member.userId == null ? { userId: linkedUser.id } : {}) })
     .where(eq(clanMembers.id, clanMemberId));
+
+  if (member.rsnNormalized) {
+    const siblings = await db
+      .select({ id: clanMembers.id, userId: clanMembers.userId })
+      .from(clanMembers)
+      .where(and(eq(clanMembers.rsnNormalized, member.rsnNormalized), isNull(clanMembers.leftAt)));
+    for (const row of siblings) {
+      if (row.id === clanMemberId) continue;
+      if (row.userId != null && (!linkedUser || row.userId !== linkedUser.id)) continue; // linked elsewhere — leave it
+      await db
+        .update(clanMembers)
+        .set({ discordId: discordUserId, ...(linkedUser && row.userId == null ? { userId: linkedUser.id } : {}) })
+        .where(eq(clanMembers.id, row.id));
+    }
+  }
 
   // Assign roles only — do NOT rename them. The site RSN can be stale (renames) or an alt, so
   // clobbering their current Discord nick on a manual link is wrong (skipNickname = true).
