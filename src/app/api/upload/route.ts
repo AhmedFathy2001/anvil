@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyAdmin, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
+import { verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { put } from '@/lib/storage';
 import crypto from 'crypto';
 import sharp from 'sharp';
@@ -41,12 +41,17 @@ const RECOMPRESS_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const RECOMPRESS_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
 export async function POST(request: Request) {
-  const isAdmin = await verifyAdmin();
+  // Any authenticated clan member can upload a submission image. The unified /team page authenticates
+  // members via the Discord web session (admin_session cookie, any role) — verifyUser covers that AND
+  // admins. Previously only verifyAdmin/captain/player cookies + plugin token were accepted, so a
+  // non-captain member hit 401 here even though the submission POST (which enforces team membership
+  // and consumes the URL) would have accepted them. Legacy captain/player cookies + plugin stay.
+  const webUser = await verifyUser();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
   const pluginAuth = await verifyPluginToken(request);
 
-  if (!isAdmin && !captain && !player && !pluginAuth) {
+  if (!webUser && !captain && !player && !pluginAuth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
