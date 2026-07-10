@@ -67,6 +67,9 @@ export async function POST(request: Request) {
     const r = await syncRolesForClanMember(m.id);
     if (r.ok) synced++;
     else skipped++;
+    // Gentle pacing between members so a large roster doesn't burst past Discord's global rate
+    // limit — the per-call retry then rarely has to kick in, and get-member stops false-negativing.
+    await new Promise((res) => setTimeout(res, 150));
     reports.push({
       memberId: m.id,
       rsn: m.rsn,

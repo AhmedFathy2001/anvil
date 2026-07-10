@@ -343,17 +343,20 @@ interface DiscordGuildMember {
   roles: string[];
 }
 
+// Returns the member, or a discriminated miss: `notFound` (a real 404 — they're not in the
+// server) vs a transient API failure (rate-limit exhausted, 5xx). The sweep must not label a
+// throttled lookup "not in guild" — that's the bug that made linked members look absent.
 async function getGuildMember(
   cfg: RoleSyncConfig,
   discordUserId: string,
-): Promise<DiscordGuildMember | null> {
+): Promise<{ member: DiscordGuildMember | null; notFound: boolean }> {
   const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members/${discordUserId}`);
-  if (res.status === 404) return null;
+  if (res.status === 404) return { member: null, notFound: true };
   if (!res.ok) {
     log.warn('discord-roles.get-member-fail', { status: res.status, discordUserId });
-    return null;
+    return { member: null, notFound: false };
   }
-  return (await res.json()) as DiscordGuildMember;
+  return { member: (await res.json()) as DiscordGuildMember, notFound: false };
 }
 
 // Discord server nicknames cap at 32 characters. Join the user's RSNs with " / " (the same alias
@@ -708,10 +711,19 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
     ...managedRankRoleIds,
   ]);
 
-  const currentMember = await getGuildMember(cfg, discordUserId);
-  if (!currentMember) {
-    return { ok: false, reason: 'user not in guild', added: [], removed: [], discordUserId };
+  const gm = await getGuildMember(cfg, discordUserId);
+  if (!gm.member) {
+    return {
+      ok: false,
+      reason: gm.notFound
+        ? 'user not in guild'
+        : 'Discord API error fetching member (rate-limited?) — re-run the sync',
+      added: [],
+      removed: [],
+      discordUserId,
+    };
   }
+  const currentMember = gm.member;
   const current = new Set(currentMember.roles);
 
   const added: string[] = [];
