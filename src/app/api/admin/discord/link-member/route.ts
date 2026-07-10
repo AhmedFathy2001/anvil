@@ -35,6 +35,8 @@ export async function POST(request: Request) {
     .set({ discordId: discordUserId, ...(linkedUser && member.userId == null ? { userId: linkedUser.id } : {}) })
     .where(eq(clanMembers.id, clanMemberId));
 
-  const report = await syncRolesForClanMember(clanMemberId);
+  // Assign roles only — do NOT rename them. The site RSN can be stale (renames) or an alt, so
+  // clobbering their current Discord nick on a manual link is wrong (skipNickname = true).
+  const report = await syncRolesForClanMember(clanMemberId, undefined, true);
   return NextResponse.json({ success: true, report });
 }

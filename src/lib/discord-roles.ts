@@ -662,7 +662,11 @@ interface SyncReport {
  * Fire-and-forget friendly: catches errors and logs them as warnings. Returns
  * a report so admin endpoints can surface what happened.
  */
-export async function syncRolesForClanMember(memberId: number, ctx?: SweepContext): Promise<SyncReport> {
+export async function syncRolesForClanMember(
+  memberId: number,
+  ctx?: SweepContext,
+  skipNickname = false,
+): Promise<SyncReport> {
   const cfg = await loadRoleSyncConfig();
   if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
 
@@ -924,7 +928,7 @@ export async function syncRolesForClanMember(memberId: number, ctx?: SweepContex
   // Discord error (e.g. guild owner / outranked bot).
   let nickSet: string | undefined;
   const currentNick = currentMember.nick?.trim() || '';
-  if (cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
+  if (!skipNickname && cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
     const accounts = await db
       .select({ rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
       .from(clanMembers)
