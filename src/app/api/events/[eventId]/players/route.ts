@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, players, events, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator, generatePlayerToken } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
 
 interface MemberInput {
@@ -91,6 +91,12 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // Staff-only: this returns the full roster, which carries each player's login token (a bearer
+  // credential for /api/player/login). It was previously world-readable — an unauthenticated
+  // caller could harvest every token and take over any player. Consumed only by admin screens.
+  const staff = await verifyAdminOrModerator();
+  if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
@@ -99,7 +105,13 @@ export async function GET(
     .from(players)
     .where(eq(players.eventId, id));
 
-  return NextResponse.json(eventPlayers);
+  // Defense in depth: never serialize the login token, even to staff.
+  const safe = eventPlayers.map((row) => {
+    const rest: Record<string, unknown> = { ...row };
+    delete rest.playerToken;
+    return rest;
+  });
+  return NextResponse.json(safe);
 }
 
 export async function POST(

@@ -110,8 +110,18 @@ export async function POST(request: Request) {
     }
   }
 
+  // Always hand storage an explicit, safe image content-type derived from the final extension.
+  // Otherwise it falls back to the CLIENT-declared MIME (File.type), which an attacker can set to
+  // text/html or image/svg+xml to get raw bytes served as executable content from the media host
+  // (stored XSS). finalExt is always one of the allow-listed raster types below.
+  const EXT_CONTENT_TYPE: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+  };
+  const safeContentType = contentType ?? EXT_CONTENT_TYPE[finalExt] ?? 'application/octet-stream';
+
   const filename = `submissions/${crypto.randomUUID()}.${finalExt}`;
-  const { url } = await put(filename, body, contentType);
+  const { url } = await put(filename, body, safeContentType);
 
   return NextResponse.json({ url });
 }

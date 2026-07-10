@@ -47,6 +47,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     detection.accountHash,
   );
   if (!result.ok) {
+    if (result.reason === 'needs-verification') {
+      return NextResponse.json(
+        {
+          error:
+            'For your security we can’t add an account that’s already on the clan roster from a name alone. ' +
+            'Link it with the quick in-game check under “Link a RuneScape account” (an XP gain or the plugin link code) to prove it’s yours.',
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: 'This RuneScape account is already linked to a different site user.' },
       { status: 409 },

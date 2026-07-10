@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanMembers, events, weeklyCompetitions } from '@/db/schema';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
 // live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route.
@@ -28,10 +29,15 @@ async function activeNow() {
 }
 
 // POST — plugin says "this RSN just logged in". If unknown, auto-register as guest.
-// No auth: anyone running the plugin can ping this. Worst case someone pollutes the
-// guest list, which is recoverable from the admin UI. No rate limit — upsert is
-// cheap, the cost is bounded by distinct RSNs, and admins can bulk-clean guests.
+// No auth: anyone running the plugin can ping this. Worst case someone pollutes the guest list,
+// which is recoverable from the admin UI — but it's unauthenticated and creates a row per distinct
+// RSN, so a per-IP rate limit stops a script from mass-inflating the roster.
 export async function POST(request: Request) {
+  const rl = await rateLimit(request, 'plugin-hello', { limit: 30, windowMs: 5 * 60 * 1000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+
   let body: { rsn?: string };
   try {
     body = await request.json();

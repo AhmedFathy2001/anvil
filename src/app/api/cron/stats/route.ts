@@ -8,6 +8,7 @@ import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
+import { timingSafeStrEqual } from '@/lib/auth';
 
 // Cron protection — requests must carry the shared secret (Vercel injected it automatically; the
 // self-hosted host cron sends `Authorization: Bearer $CRON_SECRET`).
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
     );
   }
   const authHeader = request.headers.get('authorization');
-  const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
+  const hasValidSecret = !!CRON_SECRET && timingSafeStrEqual(authHeader ?? '', `Bearer ${CRON_SECRET}`);
   // Dev only: allow the Vercel-cron header when no secret is configured, so local simulation works.
   const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
   if (!hasValidSecret && !devBypass) {
