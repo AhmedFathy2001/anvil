@@ -422,15 +422,19 @@ export async function claimAccountForUser(
     return { ok: false, reason: 'owned-by-other' };
   }
 
-  // SECURITY: the only caller (detected-accounts "Add") proves account control solely with the
-  // RSN the plugin reported via the client-controlled `X-RSN` header — which is forgeable. When a
-  // pre-existing row is matched by RSN alone (not the unforgeable account hash), scope the extra
-  // proof to ESTABLISHED identities: a roster member (isGuest=0, synced from the in-game clan or
-  // admin-added) or an already-verified row. Those carry rank / history and must not be seizable
-  // by simply naming them, so they require XP stat-delta or the in-plugin link code. A transient
-  // guest row (isGuest=1, unverified) is just a plugin-ping artifact — almost always the claimer's
-  // own account auto-registered on first-time play — so let it attach one-click.
-  if (existing && !byHash && (existing.isGuest === 0 || existing.verifiedAt != null)) {
+  // Trust the account hash as proof of control: it's a per-account secret you only get by being
+  // logged into the account in-game, so a hash captured during authenticated plugin play is enough
+  // to attach even an established identity (roster member / verified row) one-click. We only fall
+  // back to the XP-drop / link-code check when there's NO hash to trust at all AND the target is an
+  // established identity — e.g. linking from the website with no plugin session behind it. A guest
+  // row (isGuest=1, unverified) is a plugin-ping artifact — usually the claimer's own account — so
+  // it attaches even without a hash.
+  //
+  // Residual risk (accepted): a *modified* client can put any hash on the wire, so a member willing
+  // to mod their plugin — or someone with a leaked account hash — could claim a member who has
+  // never played (no hash anchored yet). It's audit-logged and admin-reversible, and once a member
+  // has played once their real hash is anchored, after which only that hash (or the owner) matches.
+  if (existing && !byHash && !accountHash && (existing.isGuest === 0 || existing.verifiedAt != null)) {
     return { ok: false, reason: 'needs-verification' };
   }
 
