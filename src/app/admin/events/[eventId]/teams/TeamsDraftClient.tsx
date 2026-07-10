@@ -1020,7 +1020,20 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
-                        <span className="font-semibold text-sm truncate">{team.name}</span>
+                        <Link
+                          href={`/admin/events/${event.id}/teams/${team.id}`}
+                          className="font-semibold text-sm truncate hover:text-gold transition-colors"
+                          title="Open the team page — assign/change captain, view the team's board"
+                        >
+                          {team.name}
+                        </Link>
+                        <Link
+                          href={`/admin/events/${event.id}/teams/${team.id}`}
+                          className="text-[10px] text-gold/90 hover:text-gold border border-gold/30 rounded px-1.5 py-0.5 shrink-0 transition-colors"
+                          title="Assign or change this team's captain"
+                        >
+                          Captain / page
+                        </Link>
                         <span className="text-xs text-text-muted ml-auto shrink-0">{roster.length} player{roster.length !== 1 ? 's' : ''}</span>
                       </div>
                       <div className="space-y-1 mb-2">
