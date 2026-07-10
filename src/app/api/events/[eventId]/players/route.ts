@@ -232,7 +232,7 @@ export async function PATCH(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { playerId, name, discord, timezone, teamId } = await request.json();
+  const { playerId, name, discord, timezone, teamId, clanMemberId } = await request.json();
 
   if (!playerId) {
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
@@ -255,6 +255,12 @@ export async function PATCH(
     teamId?: number | null;
     pickedAt?: string | null;
     pickNumber?: number | null;
+    clanMemberId?: number;
+    statsSnapshot?: string | null;
+    snapshotAt?: string | null;
+    cachedStats?: string | null;
+    lastStatsFetch?: string | null;
+    pluginStats?: string | null;
   } = {};
 
   if (name !== undefined) {
@@ -271,6 +277,31 @@ export async function PATCH(
 
   if (timezone !== undefined) {
     updateData.timezone = timezone?.trim() || null;
+  }
+
+  // Swap which linked RuneScape account this player tracks (e.g. the RSN got banned and they play on
+  // an alt). Re-points clanMemberId — the identity the RuneLite plugin matches — and follows the new
+  // account's RSN so the hourly hiscores cron polls it too. Ungated: allowed mid-event, admin only.
+  if (clanMemberId !== undefined && clanMemberId !== null) {
+    const cmId = parseInt(String(clanMemberId), 10);
+    if (!Number.isFinite(cmId)) {
+      return NextResponse.json({ error: 'Invalid clanMemberId' }, { status: 400 });
+    }
+    if (cmId !== player.clanMemberId) {
+      const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, cmId) });
+      if (!member) {
+        return NextResponse.json({ error: 'Linked account not found' }, { status: 404 });
+      }
+      updateData.clanMemberId = cmId;
+      updateData.name = member.rsn; // the tracked RSN follows the swapped account
+      // Wipe the stat baseline so the next hiscores tick re-baselines from the NEW account —
+      // otherwise gains = (new account's current XP/KC) − (old account's baseline) = garbage.
+      updateData.statsSnapshot = null;
+      updateData.snapshotAt = null;
+      updateData.cachedStats = null;
+      updateData.lastStatsFetch = null;
+      updateData.pluginStats = null;
+    }
   }
 
   // Roster edits — assign to a team, or remove (teamId: null → back to the pool). Allowed before

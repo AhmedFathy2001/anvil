@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 
 interface Props {
@@ -15,12 +15,55 @@ interface Props {
   onSaved: () => void;
 }
 
+interface LinkedAccount {
+  clanMemberId: number;
+  rsn: string;
+  status: string;
+  isCurrent: boolean;
+}
+
 export default function PlayerEditor({ eventId, player, onClose, onSaved }: Props) {
   const [name, setName] = useState(player.name);
   const [discord, setDiscord] = useState(player.discord || '');
   const [timezone, setTimezone] = useState(player.timezone || '');
+  const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
+  const [selectedClanMemberId, setSelectedClanMemberId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load the RuneScape accounts linked to this player's Discord owner — swap candidates for when an
+  // RSN gets banned/renamed and they play on an alt.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/events/${eventId}/players/${player.id}/linked-accounts`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) {
+            const list: LinkedAccount[] = data.accounts ?? [];
+            setAccounts(list);
+            const cur = list.find((a) => a.isCurrent);
+            setSelectedClanMemberId(cur ? cur.clanMemberId : null);
+          }
+        }
+      } catch {
+        /* ignore — the RSN text field still works without the account list */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, player.id]);
+
+  const currentClanMemberId = accounts.find((a) => a.isCurrent)?.clanMemberId ?? null;
+  const accountChanged = selectedClanMemberId != null && selectedClanMemberId !== currentClanMemberId;
+
+  function pickAccount(cmId: number) {
+    setSelectedClanMemberId(cmId);
+    const acc = accounts.find((a) => a.clanMemberId === cmId);
+    if (acc) setName(acc.rsn); // the tracked RSN follows the chosen account
+  }
 
   async function handleSave() {
     if (!name.trim()) {
@@ -40,6 +83,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
           name: name.trim(),
           discord: discord.trim() || null,
           timezone: timezone.trim() || null,
+          ...(selectedClanMemberId != null ? { clanMemberId: selectedClanMemberId } : {}),
         }),
       });
 
@@ -69,6 +113,33 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Tracked account — only when the player's Discord owner has more than one linked RSN.
+              Picking a different one swaps which account is tracked (plugin + hiscores). */}
+          {accounts.length > 1 && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Tracked account</label>
+              <select
+                value={selectedClanMemberId ?? ''}
+                onChange={(e) => pickAccount(parseInt(e.target.value, 10))}
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              >
+                {accounts.map((a) => (
+                  <option key={a.clanMemberId} value={a.clanMemberId}>
+                    {a.rsn}
+                    {a.status && a.status !== 'active' ? ` (${a.status})` : ''}
+                    {a.isCurrent ? ' — current' : ''}
+                  </option>
+                ))}
+              </select>
+              {accountChanged && (
+                <p className="text-[11px] text-yellow-400 mt-1 leading-relaxed">
+                  Swaps tracking to this RSN for both the RuneLite plugin and the hiscores stat cron,
+                  and re-baselines stats from it (gains count from the swap onward).
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs text-text-muted mb-1">RSN (In-Game Name)</label>
             <Input
