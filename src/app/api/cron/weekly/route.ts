@@ -13,6 +13,7 @@ import {
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
 import { log } from '@/lib/logger';
+import { timingSafeStrEqual } from '@/lib/auth';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -78,7 +79,7 @@ export async function GET(request: Request) {
     );
   }
   const authHeader = request.headers.get('authorization');
-  const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
+  const hasValidSecret = !!CRON_SECRET && timingSafeStrEqual(authHeader ?? '', `Bearer ${CRON_SECRET}`);
   const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
   if (!hasValidSecret && !devBypass) {
     log.warn('weekly-cron.unauthorized', {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { flushPendingNotifications } from '@/lib/notifications';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
+import { timingSafeStrEqual } from '@/lib/auth';
 
 // Per-minute backstop for the submission-notification debounce. Opportunistic flushes (run at the end
 // of each submission request) cover active events; this catches buckets that went quiet after the last
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     );
   }
   const authHeader = request.headers.get('authorization');
-  const hasValidSecret = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
+  const hasValidSecret = !!CRON_SECRET && timingSafeStrEqual(authHeader ?? '', `Bearer ${CRON_SECRET}`);
   const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
   if (!hasValidSecret && !devBypass) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
