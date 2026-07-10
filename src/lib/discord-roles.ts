@@ -557,6 +557,18 @@ interface MinimalClanMember {
 /** Cache a resolved Discord id onto the clan member so future syncs skip the lookup entirely. */
 async function cacheDiscordId(memberId: number, discordId: string): Promise<void> {
   await db.update(clanMembers).set({ discordId }).where(eq(clanMembers.id, memberId)).catch(() => {});
+  // Persist the Discord↔account link at the USER level: if a site user owns this Discord login and
+  // the member isn't linked to anyone yet, bind it. That's what makes "this Discord = these X
+  // accounts" durable — every alt then resolves via the OAuth path, gets roles in any event, and
+  // contributes to the primary-first nickname. Only fills a NULL userId, so it never hijacks.
+  const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId), columns: { id: true } });
+  if (user) {
+    await db
+      .update(clanMembers)
+      .set({ userId: user.id })
+      .where(and(eq(clanMembers.id, memberId), isNull(clanMembers.userId)))
+      .catch(() => {});
+  }
 }
 
 /** users.discordId for a user id, or null. */
