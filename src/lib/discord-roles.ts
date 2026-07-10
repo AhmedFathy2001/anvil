@@ -488,47 +488,46 @@ async function discordIdForUser(userId: number): Promise<string | null> {
 export async function resolveDiscordIdForMember(
   member: MinimalClanMember,
 ): Promise<string | null> {
-  // 1) OAuth-linked user on the clan member row.
-  if (member.userId != null) {
-    const d = await discordIdForUser(member.userId);
-    if (d) return d;
-  }
-  // 2) Previously cached.
-  if (member.discordId) return member.discordId;
+  const cheap = await gatherDiscordIdCandidates(member);
+  if (cheap.length > 0) return cheap[0];
+  const matched = await findDiscordIdByRsn(member.rsn);
+  if (matched) await cacheDiscordId(member.id, matched);
+  return matched;
+}
 
-  // 3) A sign-up links this exact account to a (real, non-guest) user.
+/**
+ * Every plausible Discord id for a member, from the DB only (no live API), strongest first and
+ * deduped:
+ *   1) the clan member's linked user (OAuth login)     — their current, real id
+ *   2) a user who signed up playing this account
+ *   3) a user whose plugin self-report matched this RSN
+ *   4) the cached clan_members.discordId               — can be a STALE legacy value, so it's LAST
+ * The role sweep tries each against the guild and uses the first that's actually a member, so a
+ * dead cached id can no longer shadow a live link, and no nickname/RSN needs to change.
+ */
+async function gatherDiscordIdCandidates(member: MinimalClanMember): Promise<string[]> {
+  const out: string[] = [];
+  const add = (id: string | null | undefined) => {
+    if (id && !out.includes(id)) out.push(id);
+  };
+
+  if (member.userId != null) add(await discordIdForUser(member.userId));
+
   const signup = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.clanMemberId, member.id), isNotNull(eventSignups.userId)),
   });
-  if (signup?.userId != null) {
-    const d = await discordIdForUser(signup.userId);
-    if (d) {
-      await cacheDiscordId(member.id, d);
-      return d;
-    }
-  }
+  if (signup?.userId != null) add(await discordIdForUser(signup.userId));
 
-  // 4) A plugin self-report / OAuth-detected account maps this RSN to a user.
   const norm = normalizeRsn(member.rsn);
   if (norm) {
     const detected = await db.query.detectedAccounts.findFirst({
       where: eq(detectedAccounts.rsnNormalized, norm),
     });
-    if (detected?.userId != null) {
-      const d = await discordIdForUser(detected.userId);
-      if (d) {
-        await cacheDiscordId(member.id, d);
-        return d;
-      }
-    }
+    if (detected?.userId != null) add(await discordIdForUser(detected.userId));
   }
 
-  // 5) Last resort: guild-member name search (rate-limited; cached on hit).
-  const matched = await findDiscordIdByRsn(member.rsn);
-  if (matched) {
-    await cacheDiscordId(member.id, matched);
-  }
-  return matched;
+  add(member.discordId); // cached last — may be a stale legacy id
+  return out;
 }
 
 // =============================================================================
@@ -562,10 +561,51 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
   if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
   if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
 
-  const discordUserId = await resolveDiscordIdForMember(member);
-  if (!discordUserId) {
-    return { ok: false, reason: 'no Discord id linkable to this RSN', added: [], removed: [] };
+  // Resolve the member to a Discord account that is ACTUALLY in the guild. Try every DB-known id
+  // first (linked user, sign-up, self-report, cache); only if none are in the guild do we pay for
+  // the rate-limited name search (which matches nick / username / global_name, so no rename is
+  // needed). The first candidate that's a live guild member wins and is cached — so a stale legacy
+  // id can't win, and "user not in guild" only fires when NONE of their ids are really present.
+  const candidates = await gatherDiscordIdCandidates(member);
+  let discordUserId: string | null = null;
+  let currentMember: DiscordGuildMember | null = null;
+  let sawTransient = false;
+  for (const cand of candidates) {
+    const gm = await getGuildMember(cfg, cand);
+    if (gm.member) {
+      discordUserId = cand;
+      currentMember = gm.member;
+      break;
+    }
+    if (!gm.notFound) sawTransient = true;
   }
+  if (!currentMember) {
+    const searched = await findDiscordIdByRsn(member.rsn);
+    if (searched && !candidates.includes(searched)) {
+      const gm = await getGuildMember(cfg, searched);
+      if (gm.member) {
+        discordUserId = searched;
+        currentMember = gm.member;
+      } else if (!gm.notFound) {
+        sawTransient = true;
+      }
+    }
+  }
+  if (!currentMember || !discordUserId) {
+    const anyId = discordUserId ?? candidates[0];
+    return {
+      ok: false,
+      reason: !anyId
+        ? 'no Discord id linkable to this RSN'
+        : sawTransient
+          ? 'Discord API error (rate-limited?) — re-run'
+          : 'user not in guild',
+      added: [],
+      removed: [],
+      ...(anyId ? { discordUserId: anyId } : {}),
+    };
+  }
+  if (discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
 
   // Collect every active clan_member that belongs to this Discord user. The OAuth
   // link (users.discord_id) is the strongest signal — we always pull those. The
@@ -711,19 +751,7 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
     ...managedRankRoleIds,
   ]);
 
-  const gm = await getGuildMember(cfg, discordUserId);
-  if (!gm.member) {
-    return {
-      ok: false,
-      reason: gm.notFound
-        ? 'user not in guild'
-        : 'Discord API error fetching member (rate-limited?) — re-run the sync',
-      added: [],
-      removed: [],
-      discordUserId,
-    };
-  }
-  const currentMember = gm.member;
+  // currentMember was already fetched (and verified in-guild) during resolution above.
   const current = new Set(currentMember.roles);
 
   const added: string[] = [];
