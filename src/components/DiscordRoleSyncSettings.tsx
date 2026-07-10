@@ -23,6 +23,7 @@ export default function DiscordRoleSyncSettings() {
     synced: number;
     skipped: number;
     noChange?: number;
+    bulk?: boolean;
     reports: Array<{ rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
   } | null>(null);
 
@@ -260,6 +261,12 @@ export default function DiscordRoleSyncSettings() {
               )}
               .
             </p>
+            {syncResult.bulk === false && (
+              <p className="text-[11px] text-text-muted">
+                Tip: enable the bot&apos;s <span className="text-foreground/80">Server Members Intent</span> (Discord
+                Developer Portal) so large rosters sync in one fetch instead of per-member calls.
+              </p>
+            )}
 
             {/* Changed — who actually got a role added / removed or a nickname set. */}
             {syncResult.reports.some((r) => r.ok && ((r.added ?? 0) > 0 || (r.removed ?? 0) > 0 || r.nickSet)) && (

@@ -359,6 +359,69 @@ async function getGuildMember(
   return { member: (await res.json()) as DiscordGuildMember, notFound: false };
 }
 
+// In-memory snapshot of the whole guild for a bulk sweep: id → member, and every
+// nick/username/global_name alias (normalized) → id, plus the role list. Lets a large roster
+// sync with ONE member fetch instead of one API call per member.
+export interface SweepContext {
+  byId: Map<string, DiscordGuildMember>;
+  byAlias: Map<string, string>;
+  guildRoles: DiscordRole[];
+}
+
+// Paginate the full guild member list. Requires the privileged "Server Members Intent" on the bot;
+// without it Discord returns 403 → we return null and the caller falls back to per-member lookups.
+async function fetchAllGuildMembers(cfg: RoleSyncConfig): Promise<DiscordGuildMember[] | null> {
+  const all: DiscordGuildMember[] = [];
+  let after = '0';
+  for (let page = 0; page < 30; page++) {
+    const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members?limit=1000&after=${after}`);
+    if (res.status === 403) {
+      log.warn('discord-roles.list-members-forbidden', { note: 'enable Server Members Intent for bulk sync' });
+      return null;
+    }
+    if (!res.ok) {
+      log.warn('discord-roles.list-members-fail', { status: res.status });
+      return all.length > 0 ? all : null;
+    }
+    const batch = (await res.json()) as DiscordGuildMember[];
+    all.push(...batch);
+    const last = batch[batch.length - 1]?.user?.id;
+    if (batch.length < 1000 || !last) break;
+    after = last;
+  }
+  return all;
+}
+
+/**
+ * Fetch the whole guild once and build the sweep index. Returns null when the bot lacks the
+ * Server Members Intent (the caller then syncs per-member, live). Fetching everyone up front means
+ * a 600+ roster does ~1 member fetch + in-memory matching instead of hundreds of rate-limited calls.
+ */
+export async function buildSweepContext(): Promise<SweepContext | null> {
+  const cfg = await loadRoleSyncConfig();
+  if (!cfg) return null;
+  const members = await fetchAllGuildMembers(cfg);
+  if (!members) return null;
+
+  const byId = new Map<string, DiscordGuildMember>();
+  const byAlias = new Map<string, string>();
+  for (const m of members) {
+    const id = m.user?.id;
+    if (!id) continue;
+    byId.set(id, m);
+    const aliases = [
+      ...splitDisplayAliases(m.nick),
+      ...splitDisplayAliases(m.user?.global_name),
+      ...splitDisplayAliases(m.user?.username),
+    ];
+    for (const a of aliases) {
+      const key = normalizeRsn(a);
+      if (key && !byAlias.has(key)) byAlias.set(key, id);
+    }
+  }
+  return { byId, byAlias, guildRoles: await fetchGuildRoles() };
+}
+
 // Discord server nicknames cap at 32 characters. Join the user's RSNs with " / " (the same alias
 // convention splitDisplayAliases reads back), primary first. When the full list overflows the cap,
 // greedily keep the primary plus as many of the following names as fit — e.g.
@@ -553,7 +616,7 @@ interface SyncReport {
  * Fire-and-forget friendly: catches errors and logs them as warnings. Returns
  * a report so admin endpoints can surface what happened.
  */
-export async function syncRolesForClanMember(memberId: number): Promise<SyncReport> {
+export async function syncRolesForClanMember(memberId: number, ctx?: SweepContext): Promise<SyncReport> {
   const cfg = await loadRoleSyncConfig();
   if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
 
@@ -570,24 +633,47 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
   let discordUserId: string | null = null;
   let currentMember: DiscordGuildMember | null = null;
   let sawTransient = false;
-  for (const cand of candidates) {
-    const gm = await getGuildMember(cfg, cand);
-    if (gm.member) {
-      discordUserId = cand;
-      currentMember = gm.member;
-      break;
+  if (ctx) {
+    // Bulk path — everything's in memory, zero API calls: check each candidate id, then match the
+    // RSN against the pre-built nick/username/global_name alias index.
+    for (const cand of candidates) {
+      const m = ctx.byId.get(cand);
+      if (m) {
+        discordUserId = cand;
+        currentMember = m;
+        break;
+      }
     }
-    if (!gm.notFound) sawTransient = true;
-  }
-  if (!currentMember) {
-    const searched = await findDiscordIdByRsn(member.rsn);
-    if (searched && !candidates.includes(searched)) {
-      const gm = await getGuildMember(cfg, searched);
+    if (!currentMember) {
+      const norm = normalizeRsn(member.rsn);
+      const id = norm ? ctx.byAlias.get(norm) : undefined;
+      const m = id ? ctx.byId.get(id) : undefined;
+      if (id && m) {
+        discordUserId = id;
+        currentMember = m;
+      }
+    }
+  } else {
+    // Live path (single-member sync): one API call per candidate until one's in the guild.
+    for (const cand of candidates) {
+      const gm = await getGuildMember(cfg, cand);
       if (gm.member) {
-        discordUserId = searched;
+        discordUserId = cand;
         currentMember = gm.member;
-      } else if (!gm.notFound) {
-        sawTransient = true;
+        break;
+      }
+      if (!gm.notFound) sawTransient = true;
+    }
+    if (!currentMember) {
+      const searched = await findDiscordIdByRsn(member.rsn);
+      if (searched && !candidates.includes(searched)) {
+        const gm = await getGuildMember(cfg, searched);
+        if (gm.member) {
+          discordUserId = searched;
+          currentMember = gm.member;
+        } else if (!gm.notFound) {
+          sawTransient = true;
+        }
       }
     }
   }
@@ -646,8 +732,8 @@ export async function syncRolesForClanMember(memberId: number): Promise<SyncRepo
     cfg.autoMatchRankByName ||
     cfg.defaultRoleNames.length > 0 ||
     cfg.guestRoleNames.length > 0;
-  let guildRoles: DiscordRole[] = [];
-  if (needGuildRoles) {
+  let guildRoles: DiscordRole[] = ctx?.guildRoles ?? [];
+  if (needGuildRoles && !ctx) {
     const rolesRes = await discordFetch(cfg, `/guilds/${cfg.guildId}/roles`);
     if (rolesRes.ok) {
       guildRoles = (await rolesRes.json()) as DiscordRole[];

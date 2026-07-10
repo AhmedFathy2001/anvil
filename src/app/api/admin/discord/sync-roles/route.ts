@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
 import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { loadRoleSyncConfig, syncRolesForClanMember } from '@/lib/discord-roles';
+import { loadRoleSyncConfig, syncRolesForClanMember, buildSweepContext } from '@/lib/discord-roles';
 
 // Bounded by realistic guild size + the per-call delay. Each member is ~3-5 Discord
 // REST calls (search + get-member + a small number of PUT/DELETE), at ~150 ms each,
@@ -61,15 +61,25 @@ export async function POST(request: Request) {
     removed: number;
     nickSet?: string;
   }> = [];
+  // Bulk mode: fetch the whole guild once (needs the Server Members Intent) and match in memory —
+  // no per-member API calls, so a 600+ roster syncs fast without rate-limiting. Null = intent not
+  // granted → fall back to the live per-member path (fine up to a couple hundred members).
+  const ctx = (await buildSweepContext()) ?? undefined;
+
   let synced = 0;
   let skipped = 0;
   for (const m of eligible) {
-    const r = await syncRolesForClanMember(m.id);
+    const r = await syncRolesForClanMember(m.id, ctx);
     if (r.ok) synced++;
     else skipped++;
-    // Gentle pacing between members so a large roster doesn't burst past Discord's global rate
-    // limit — the per-call retry then rarely has to kick in, and get-member stops false-negativing.
-    await new Promise((res) => setTimeout(res, 150));
+    // Only pace when we actually WROTE to Discord (role add/remove). In bulk mode reads are free,
+    // so members needing no change cost nothing and the whole sweep flies.
+    if (r.added.length > 0 || r.removed.length > 0) {
+      await new Promise((res) => setTimeout(res, 150));
+    } else if (!ctx) {
+      // Live mode still makes read calls per member — keep the gentle pacing there.
+      await new Promise((res) => setTimeout(res, 150));
+    }
     reports.push({
       memberId: m.id,
       rsn: m.rsn,
@@ -84,6 +94,8 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     mode: 'sweep',
+    // Bulk = one guild fetch + in-memory matching (Server Members Intent on). False = per-member.
+    bulk: !!ctx,
     total: eligible.length,
     synced,
     skipped,
