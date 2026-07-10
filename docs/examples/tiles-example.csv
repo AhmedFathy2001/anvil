@@ -10,7 +10,13 @@ Any CoX purple,Any Chambers of Xeric unique,drop,20,Raids,false,1,,,,,,,"Twisted
 Pet from GWD,Long-shot bonus tile,drop,40,Pets,true,,,,,,,,Pet zilyana#12651
 Kill 100 cows,,kill,3,Skilling,false,100,,,,Cow|Cow calf,,,
 Kill 250 chickens,,kill,3,Skilling,false,250,,,,Chicken,,,
+Kill 3 rival team members,Defeat any rival-team member in the Wilderness,pvp,15,Wilderness,false,3,,,,team:other,,,
+Bounty: slay the host,Defeat a specific rival by RSN in the Wilderness,pvp,25,Wilderness,false,1,,,,rsn:Ahmed,,,
+Catch 100 karambwan,Fish 100 raw karambwan during the event,gain,20,Skilling,false,100,,,,,,,Raw karambwan
 Sub-30 Inferno,Clear the Inferno in under 30 minutes,timed,50,Inferno,false,,,,,,Inferno,1800,
 Sub-25 CoX,Chambers of Xeric clear under 25 minutes,timed,30,Raids,false,,,,,,Chambers of Xeric,1500,
+Deathless ToB,Theatre of Blood with zero party deaths,deathless,60,Raids,false,1,,,,,Theatre of Blood,,
+Deathless 5-man ToB,Five-man Theatre of Blood with no deaths,deathless,80,Raids,false,1,,,,,Theatre of Blood,5,
+Complete any elite diary,Finish any Elite achievement diary during the event,diary,25,Diaries,false,1,,,,Any Elite,,,
 Any master combat task,Complete any Master-tier CA task (enable Repeat completion if already owned),ca,20,PvM,false,1,,,,Any Master,,,
 Whack-a-Mole,Ketla the Unworthy CA task,ca,30,PvM,false,1,,,,Whack-a-Mole,,,
