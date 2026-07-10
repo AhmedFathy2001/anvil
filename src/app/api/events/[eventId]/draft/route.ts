@@ -26,8 +26,15 @@ export async function GET(
     .select()
     .from(players)
     .where(eq(players.eventId, id));
+  // Strip the per-player login token before this leaves the server — this endpoint is public
+  // (spectator/scoreboard views read it), and the token is a bearer credential for /api/player/login.
+  const safeRaw = rawPlayers.map((row) => {
+    const rest = { ...row };
+    delete (rest as { playerToken?: unknown }).playerToken;
+    return rest;
+  });
   // Surface each player's frozen sign-up answers so captains read them while drafting.
-  const eventPlayers = attachProfiles(rawPlayers, await loadEventProfiles(id));
+  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id));
 
   const eventTeams = await db
     .select({
