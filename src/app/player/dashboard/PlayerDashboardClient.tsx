@@ -6,7 +6,7 @@ import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
-import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
+import { useCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
@@ -26,7 +26,6 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,27 +34,6 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
 
   const eventCountdown = useCountdown(!eventStarted ? event.startDate : null);
-  const { countdown, nextRefresh, setNextRefresh } = useRefreshCountdown();
-
-  async function refreshMyStats() {
-    setRefreshing(true);
-    try {
-      const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLastFetch(data.lastFetch);
-        await fetchGains();
-      } else if (res.status === 429 && data.nextRefresh) {
-        setNextRefresh(new Date(data.nextRefresh));
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   const fetchSubmissions = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
@@ -217,18 +195,12 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
         </div>
       </div>
 
-      {/* Refresh Stats */}
+      {/* Stats auto-update on the periodic cron — members no longer refresh manually (a captain or
+          admin can force a refresh if something looks stale). */}
       <div className="mb-6 flex items-center gap-3 flex-wrap">
-        <button
-          onClick={refreshMyStats}
-          disabled={refreshing || !!countdown || !eventStarted}
-          className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
-        >
-          {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh My Stats'}
-        </button>
         {lastFetch && (
           <span className="text-xs text-text-muted">
-            Last updated: <LocalTime date={lastFetch} />
+            Stats last updated: <LocalTime date={lastFetch} />
           </span>
         )}
       </div>

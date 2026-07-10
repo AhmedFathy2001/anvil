@@ -1116,12 +1116,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             <div>
               <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
                 <span className="w-1 h-4 bg-blue-400 rounded-full" />
-                Player Tokens
+                Player stats &amp; RSN
               </h3>
-              <p className="text-xs text-text-muted mb-3">Share these links with players so they can log in and submit evidence.</p>
+              <p className="text-xs text-text-muted mb-3">Edit a player&apos;s RSN / linked account, tweak stat baselines, or reset a baseline from live hiscores.</p>
               <div className="space-y-1.5 max-h-60 overflow-y-auto">
                 {draft.players
-                  .filter((p) => p.teamId !== null && p.playerToken)
+                  .filter((p) => p.teamId !== null)
                   .map((player) => (
                     <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
                       <div className="flex items-center gap-2 min-w-0">

@@ -74,8 +74,8 @@ export default function MyTeamClient({
   async function refreshStats() {
     setRefreshing(true);
     try {
-      // Captains refresh the whole team; a plain player refreshes only themselves.
-      const body = isCaptain ? { teamId: team.id } : { playerId: myPlayerId };
+      // Captains-only: refresh the whole team (the button is gated to captains).
+      const body = { teamId: team.id };
       const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -365,14 +365,16 @@ export default function MyTeamClient({
         </details>
       )}
 
-      {(isCaptain || myPlayerId) && (
+      {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
+          Regular members no longer refresh their own stats (rate-limit hygiene). */}
+      {isCaptain && (
         <div className="mb-6 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
             disabled={refreshing || !!countdown || !eventStarted}
             className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : isCaptain ? 'Refresh Team Stats' : 'Refresh My Stats'}
+            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh Team Stats'}
           </button>
           {lastFetch && <span className="text-xs text-text-muted">Last updated: <LocalTime date={lastFetch} /></span>}
         </div>
