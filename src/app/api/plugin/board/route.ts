@@ -60,16 +60,95 @@ function allItemIds(trackedItemIds: string | null, itemRequirements: string | nu
   return ids;
 }
 
-// Human-readable "what does this tile actually require" for stat tiles (skill XP / boss KC), where
-// the label alone (e.g. a custom name) doesn't convey the task. Null for drop/manual tiles, whose
-// item icon + required-amount already describe them.
-function tileRequirement(trackedStat: string | null, statType: string | null, statGoal: number | null): string | null {
-  if (!trackedStat) return null;
-  const stat = trackedStat.charAt(0).toUpperCase() + trackedStat.slice(1);
-  const goal = statGoal && statGoal > 0 ? statGoal.toLocaleString() : '';
-  const isBoss = statType === 'boss' || statType === 'kc';
-  if (isBoss) return goal ? `Reach ${goal} ${stat} KC` : `${stat} KC`;
-  return goal ? `Gain ${goal} ${stat} XP` : `${stat} XP`;
+// Human-readable "what actually counts toward this tile", shown on the plugin's tile-detail page
+// so members see the requirement the way the website spells it out — not just the icon. Kept
+// concise (one line; the plugin wraps it). Returns null only when the tile carries nothing to say.
+function fmtClock(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function tileRequirement(t: typeof tiles.$inferSelect): string | null {
+  const amt = t.requiredAmount && t.requiredAmount > 0 ? t.requiredAmount.toLocaleString() : '';
+  const names = (json: string | null): string[] => {
+    if (!json) return [];
+    try {
+      const a = JSON.parse(json);
+      return Array.isArray(a) ? a.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0) : [];
+    } catch {
+      return [];
+    }
+  };
+  const join = (arr: string[]) => arr.join(', ');
+  switch (t.tileType) {
+    case 'kill': {
+      const npcs = names(t.targetNpcs);
+      const who = npcs.length ? join(npcs) : 'the target NPC';
+      return amt ? `Kill ${amt}× ${who}` : `Kill ${who}`;
+    }
+    case 'pvp': {
+      const sel = names(t.targetNpcs);
+      const rsns = sel.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
+      const who = rsns.length ? join(rsns) : 'rival-team players';
+      return amt ? `Defeat ${amt}× ${who} in PvP` : `Defeat ${who} in PvP`;
+    }
+    case 'gain':
+      return amt ? `Gather ${amt}` : null;
+    case 'timed': {
+      if (!t.timedActivity) return null;
+      const cap = t.timeThresholdSeconds ? ` under ${fmtClock(t.timeThresholdSeconds)}` : '';
+      const party = t.partySize ? ` (${t.partySize}-player)` : '';
+      return `Clear ${t.timedActivity}${cap}${party}`;
+    }
+    case 'deathless': {
+      if (!t.timedActivity) return null;
+      return amt ? `${amt}× deathless ${t.timedActivity}` : `Deathless ${t.timedActivity}`;
+    }
+    case 'diary': {
+      const d = names(t.targetNpcs);
+      const which = d.length ? join(d) : 'achievement diaries';
+      return amt ? `Complete ${amt}× ${which}` : `Complete ${which}`;
+    }
+    case 'ca': {
+      const c = names(t.targetNpcs);
+      const which = c.length ? join(c) : 'combat tasks';
+      return amt ? `Complete ${amt}× ${which}` : `Complete ${which}`;
+    }
+    case 'lms': {
+      const cap = t.timeThresholdSeconds ?? 1;
+      const place = cap === 1 ? 'Win' : `Place top-${cap} in`;
+      return amt && amt !== '1' ? `${place} LMS ${amt}×` : `${place} LMS`;
+    }
+    case 'value':
+    case 'valuetotal': {
+      const gp = t.requiredAmount ? t.requiredAmount.toLocaleString() : '';
+      const src = names(t.sourceNpcs);
+      const from = src.length ? ` from ${join(src)}` : '';
+      return t.tileType === 'valuetotal'
+        ? `Collect ${gp} gp of loot${from}`
+        : `A single haul worth ${gp} gp${from}`;
+    }
+    case 'drop':
+    case 'collection': {
+      const src = names(t.sourceNpcs);
+      const from = src.length ? ` from ${join(src)}` : '';
+      if (t.tileType === 'collection') return `Collect the full set${from}`;
+      // A trivial single-drop tile is fully described by its icon + "need N"; skip the noise.
+      if (!amt || amt === '1') return from ? `Obtain a drop${from}` : null;
+      return `Obtain ${amt} drops${from}`;
+    }
+    default:
+      break;
+  }
+  // Stat tiles (skill XP / boss KC) — the label alone (often a custom name) doesn't convey the task.
+  if (t.trackedStat) {
+    const stat = t.trackedStat.charAt(0).toUpperCase() + t.trackedStat.slice(1);
+    const goal = t.statGoal && t.statGoal > 0 ? t.statGoal.toLocaleString() : '';
+    const isBoss = t.statType === 'boss' || t.statType === 'kc';
+    if (isBoss) return goal ? `Reach ${goal} ${stat} KC` : `${stat} KC`;
+    return goal ? `Gain ${goal} ${stat} XP` : `${stat} XP`;
+  }
+  return null;
 }
 
 type EventRow = typeof events.$inferSelect;
@@ -194,7 +273,7 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
             : ((t.statType === 'boss' || t.statType === 'kc') ? bossItemForStatKey(t.trackedStat) ?? -1 : -1)),
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
         requiredAmount: t.requiredAmount ?? 1,
-        requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
+        requirement: tileRequirement(t),
         optional: t.optional ? 1 : 0,
         // 1 = auto-tracking off; the plugin shows a "completed manually" note on the detail page.
         autoTrackDisabled: t.autoTrackDisabled ? 1 : 0,
