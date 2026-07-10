@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Input from '@/components/Input';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 
 interface PlainSettingProps {
   // Which settings key this field reads/writes (must be whitelisted in /api/admin/settings).
@@ -23,12 +24,9 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          setValue(data[settingKey] || '');
-          setOriginal(data[settingKey] || '');
-        }
+        const data = await loadSettings();
+        setValue(data[settingKey] || '');
+        setOriginal(data[settingKey] || '');
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -47,6 +45,7 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText 
         body: JSON.stringify({ [settingKey]: value }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal(value);
         setMessage({ type: 'success', text: 'Saved!' });
       } else {

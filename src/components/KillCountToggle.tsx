@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 
 const SETTING_KEY = 'show_kill_count';
 
@@ -15,13 +16,10 @@ export default function KillCountToggle() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          const on = data[SETTING_KEY] !== 'off';
-          setEnabled(on);
-          setOriginal(on);
-        }
+        const data = await loadSettings();
+        const on = data[SETTING_KEY] !== 'off';
+        setEnabled(on);
+        setOriginal(on);
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -40,6 +38,7 @@ export default function KillCountToggle() {
         body: JSON.stringify({ [SETTING_KEY]: enabled ? '' : 'off' }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal(enabled);
         setMessage({ type: 'success', text: 'Saved! Members pick this up on their next login.' });
       } else {

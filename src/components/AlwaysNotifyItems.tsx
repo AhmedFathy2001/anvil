@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
 
 const SETTING_KEY = 'always_notify_items';
@@ -35,12 +36,9 @@ export default function AlwaysNotifyItems() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          setValue(data[SETTING_KEY] || '');
-          setOriginal(data[SETTING_KEY] || '');
-        }
+        const data = await loadSettings();
+        setValue(data[SETTING_KEY] || '');
+        setOriginal(data[SETTING_KEY] || '');
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -59,6 +57,7 @@ export default function AlwaysNotifyItems() {
         body: JSON.stringify({ [SETTING_KEY]: value }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal(value);
         setMessage({ type: 'success', text: 'Saved! Members pick this up on their next login.' });
       } else {

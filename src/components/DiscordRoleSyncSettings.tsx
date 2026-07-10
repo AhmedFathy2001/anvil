@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import DiscordLinkMember from './DiscordLinkMember';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Input from '@/components/Input';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
@@ -52,23 +53,20 @@ export default function DiscordRoleSyncSettings() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          const next = {
-            roleSync: data.discord_role_sync_enabled === 'true',
-            nicknameSync: data.discord_nickname_sync_enabled === 'true',
-            nicknameOverwrite: data.discord_nickname_overwrite === 'true',
-            autoMatch: data.discord_auto_match_rank_by_name !== 'false',
-            guildId: data.discord_guild_id || '',
-          };
-          setRoleSync(next.roleSync);
-          setNicknameSync(next.nicknameSync);
-          setNicknameOverwrite(next.nicknameOverwrite);
-          setAutoMatch(next.autoMatch);
-          setGuildId(next.guildId);
-          setOriginal(next);
-        }
+        const data = await loadSettings();
+        const next = {
+          roleSync: data.discord_role_sync_enabled === 'true',
+          nicknameSync: data.discord_nickname_sync_enabled === 'true',
+          nicknameOverwrite: data.discord_nickname_overwrite === 'true',
+          autoMatch: data.discord_auto_match_rank_by_name !== 'false',
+          guildId: data.discord_guild_id || '',
+        };
+        setRoleSync(next.roleSync);
+        setNicknameSync(next.nicknameSync);
+        setNicknameOverwrite(next.nicknameOverwrite);
+        setAutoMatch(next.autoMatch);
+        setGuildId(next.guildId);
+        setOriginal(next);
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -94,6 +92,7 @@ export default function DiscordRoleSyncSettings() {
         }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, guildId: guildId.trim() });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {

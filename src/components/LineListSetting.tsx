@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
 
 interface LineListSettingProps {
@@ -28,12 +29,9 @@ export default function LineListSetting({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          setValue(data[settingKey] || '');
-          setOriginal(data[settingKey] || '');
-        }
+        const data = await loadSettings();
+        setValue(data[settingKey] || '');
+        setOriginal(data[settingKey] || '');
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -52,6 +50,7 @@ export default function LineListSetting({
         body: JSON.stringify({ [settingKey]: value }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal(value);
         setMessage({ type: 'success', text: 'Saved! Members pick this up on their next login.' });
       } else {

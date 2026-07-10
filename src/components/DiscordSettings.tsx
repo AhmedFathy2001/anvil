@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Input from '@/components/Input';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 
 interface DiscordSettingsProps {
   // Which settings key this field reads/writes. Defaults to the main event webhook.
@@ -23,18 +24,15 @@ export default function DiscordSettings({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    loadSettings();
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingKey]);
 
-  async function loadSettings() {
+  async function load() {
     try {
-      const res = await fetch('/api/admin/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setWebhookUrl(data[settingKey] || '');
-        setOriginalUrl(data[settingKey] || '');
-      }
+      const data = await loadSettings();
+      setWebhookUrl(data[settingKey] || '');
+      setOriginalUrl(data[settingKey] || '');
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
@@ -52,6 +50,7 @@ export default function DiscordSettings({
         body: JSON.stringify({ [settingKey]: webhookUrl }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginalUrl(webhookUrl);
         setMessage({ type: 'success', text: 'Settings saved!' });
       } else {

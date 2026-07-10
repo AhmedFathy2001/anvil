@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Input from '@/components/Input';
 
 // No baked-in defaults — these are clan-specific Discord role IDs each instance enters once.
@@ -22,25 +23,22 @@ export default function DiscordTeamChannelSettings() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/settings');
-        if (res.ok) {
-          const data = await res.json();
-          const next = {
-            teamSync: data.discord_team_sync_enabled === 'true',
-            bingoRoleId: data.discord_bingo_role_id || DEFAULT_BINGO_ROLE_ID,
-            captainRoleId: data.discord_captain_role_id || DEFAULT_CAPTAIN_ROLE_ID,
-          };
-          setTeamSync(next.teamSync);
-          setBingoRoleId(next.bingoRoleId);
-          setCaptainRoleId(next.captainRoleId);
-          // Compare against what's actually stored, so prefilled defaults show as
-          // "unsaved" and a Save persists them.
-          setOriginal({
-            teamSync: next.teamSync,
-            bingoRoleId: data.discord_bingo_role_id || '',
-            captainRoleId: data.discord_captain_role_id || '',
-          });
-        }
+        const data = await loadSettings();
+        const next = {
+          teamSync: data.discord_team_sync_enabled === 'true',
+          bingoRoleId: data.discord_bingo_role_id || DEFAULT_BINGO_ROLE_ID,
+          captainRoleId: data.discord_captain_role_id || DEFAULT_CAPTAIN_ROLE_ID,
+        };
+        setTeamSync(next.teamSync);
+        setBingoRoleId(next.bingoRoleId);
+        setCaptainRoleId(next.captainRoleId);
+        // Compare against what's actually stored, so prefilled defaults show as
+        // "unsaved" and a Save persists them.
+        setOriginal({
+          teamSync: next.teamSync,
+          bingoRoleId: data.discord_bingo_role_id || '',
+          captainRoleId: data.discord_captain_role_id || '',
+        });
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -63,6 +61,7 @@ export default function DiscordTeamChannelSettings() {
         }),
       });
       if (res.ok) {
+        invalidateSettings();
         setOriginal({ teamSync, bingoRoleId: bingoRoleId.trim(), captainRoleId: captainRoleId.trim() });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
