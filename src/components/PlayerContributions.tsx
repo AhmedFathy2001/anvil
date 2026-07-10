@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 
 interface Submission {
@@ -29,6 +30,16 @@ interface Props {
 }
 
 export default function PlayerContributions({ submissions, tiles, playerName }: Props) {
+  // Each tile's individual submission rows start collapsed — the header (label + Total) is enough
+  // at a glance; click a tile to expand its per-submission breakdown.
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggle = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const tileMap = new Map(tiles.map((t) => [t.id, t]));
 
   // Group by tile
@@ -57,19 +68,35 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
       {Array.from(grouped.entries()).map(([tileId, subs]) => {
         const tile = tileMap.get(tileId);
         const tileTotal = subs.reduce((sum, s) => sum + s.amount, 0);
+        const isOpen = expanded.has(tileId);
         return (
-          <div key={tileId} className="border border-card-border rounded-lg p-3 bg-card-bg">
-            <div className="flex items-center gap-2 mb-2">
+          <div key={tileId} className="border border-card-border rounded-lg bg-card-bg">
+            <button
+              type="button"
+              onClick={() => toggle(tileId)}
+              aria-expanded={isOpen}
+              className="w-full flex items-center gap-2 p-3 text-left"
+            >
+              <span
+                className={`text-text-muted text-[10px] flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                aria-hidden
+              >
+                &#9656;
+              </span>
               {tile?.icon && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={tile.icon} alt="" className="w-5 h-5 object-contain" />
               )}
               <span className="text-sm font-medium">{tile?.label || `Tile #${tileId}`}</span>
-              <span className="text-xs text-accent-green-light ml-auto">
+              <span className="text-xs text-text-muted flex-shrink-0">
+                ({subs.length})
+              </span>
+              <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
                 Total: x{tileTotal}
               </span>
-            </div>
-            <div className="space-y-1">
+            </button>
+            {isOpen && (
+            <div className="space-y-1 px-3 pb-3">
               {subs.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 text-xs text-text-muted">
                   <span className="text-gold font-medium">x{s.amount}</span>
@@ -93,6 +120,7 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
                 </div>
               ))}
             </div>
+            )}
           </div>
         );
       })}
