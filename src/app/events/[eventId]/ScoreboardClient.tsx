@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
-import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
+import TileDetailModal from '@/components/TileDetailModal';
 import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
-import { tileKindLabel, statLabel } from '@/lib/tileKinds';
-import TileTargets from '@/components/TileTargets';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import type { Tile as FullTile } from '@/lib/types';
 
 interface Tile {
   id: number;
@@ -487,159 +486,37 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         </div>
       </div>
 
-      {/* Tile Detail Modal */}
+      {/* Read-only tile detail — the same rich modal members and captains see, now shown to
+          public/logged-out viewers. Cross-team submission proof is withheld (submissions=[]);
+          per-team stat comparison is passed through so the scoreboard keeps its team race view. */}
       {selectedTile && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedTileId(null)}
-        >
-          <div
-            className="bg-brown-dark border border-card-border rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-gold">{selectedTile.label}</h3>
-                <span className="text-xs text-text-muted">Tile #{selectedTile.position + 1}</span>
-              </div>
-              <button
-                onClick={() => setSelectedTileId(null)}
-                className="text-text-muted hover:text-foreground transition-colors text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            {selectedTile.description && (
-              <p className="text-sm text-foreground mb-4">{selectedTile.description}</p>
-            )}
-
-            <div className="space-y-2 text-sm">
-              {pointsMode && !selectedTile.optional && (
-                <div className="flex items-center gap-2">
-                  <span className="text-text-muted">Points:</span>
-                  <span className="text-purple-300 font-medium">{selectedTile.points ?? 1}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <span className="text-text-muted">Type:</span>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  selectedTile.tileType !== 'standard' && !selectedTile.trackedStat
-                    ? 'bg-accent-green/20 text-accent-green-light'
-                    : 'bg-gold/15 text-gold'
-                }`}>
-                  {tileKindLabel(selectedTile)}
-                </span>
-              </div>
-
-              {['drop', 'kill', 'pvp', 'gain', 'diary', 'ca'].includes(selectedTile.tileType ?? '') && selectedTile.requiredAmount ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-text-muted">Required:</span>
-                  <span className="text-accent-green-light font-medium">{selectedTile.requiredAmount}</span>
-                </div>
-              ) : null}
-
-              {/* What the tile tracks — items/NPCs/raid the admins configured */}
-              <TileTargets tile={selectedTile} />
-
-              {selectedTile.trackedStat && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="text-text-muted">Tracked:</span>
-                    <span className="text-gold font-medium">{statLabel(selectedTile.trackedStat, selectedTile.statType)}</span>
-                  </div>
-                  {selectedTile.statGoal && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-text-muted">Goal:</span>
-                      <span className="text-foreground">{selectedTile.statGoal.toLocaleString()} {selectedTile.statType === 'skill' ? 'XP' : 'KC'}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span className="text-text-muted">Mode:</span>
-                    <span className="text-foreground capitalize">{selectedTile.trackingMode || 'team'}</span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Local Stat Progress by Team */}
-            {selectedTile.trackedStat && selectedTile.statGoal && teamGains.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-card-border">
-                <h4 className="text-sm font-semibold text-blue-400 mb-2 flex items-center gap-2">
-                  <span className="w-1 h-3 bg-blue-400 rounded-full" />
-                  Team Progress (Local)
-                </h4>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {[...teamGains]
-                    .map((tg) => ({ ...tg, tileGain: tg.tileGains[selectedTile.id] || 0 }))
-                    .sort((a, b) => b.tileGain - a.tileGain)
-                    .map((tg) => {
-                      const team = teams.find((t) => t.id === tg.teamId);
-                      const percentage = Math.min(100, (tg.tileGain / selectedTile.statGoal!) * 100);
-                      return (
-                        <div
-                          key={tg.teamId}
-                          className="bg-card-bg rounded-lg p-2"
-                        >
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <div className="flex items-center gap-2">
-                              {team?.color && (
-                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team.color }} />
-                              )}
-                              <span className="text-foreground text-xs">{team?.name || 'Unknown'}</span>
-                            </div>
-                            <span className="text-blue-400 font-medium text-xs">
-                              {formatNumber(tg.tileGain)} / {formatNumber(selectedTile.statGoal!)}
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-brown-dark rounded-full overflow-hidden">
-                            <div
-                              className="h-full transition-all duration-500"
-                              style={{
-                                width: `${percentage}%`,
-                                background: percentage >= 100
-                                  ? 'linear-gradient(90deg, #22c55e, #4ade80)'
-                                  : 'linear-gradient(90deg, #3b82f6cc, #3b82f6)',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-
-            {/* Completions */}
-            <div className="mt-4 pt-4 border-t border-card-border">
-              <h4 className="text-sm font-semibold text-foreground mb-2">
-                Completed by ({selectedTileCompletions.length})
-              </h4>
-              {selectedTileCompletions.length > 0 ? (
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                  {selectedTileCompletions.map((c) => {
-                    const team = teams.find((t) => t.id === c.teamId);
-                    return (
-                      <div key={c.id} className="flex items-center gap-2 text-sm">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: team?.color || '#888' }}
-                        />
-                        <span className="text-foreground">{team?.name || 'Unknown'}</span>
-                        <span className="text-text-muted text-xs ml-auto">
-                          <LocalTime date={c.completedAt} format="date" />
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-text-muted">No completions yet</p>
-              )}
-            </div>
-
-          </div>
-        </div>
+        <TileDetailModal
+          tile={selectedTile as unknown as FullTile}
+          submissions={[]}
+          completedBy={selectedTileCompletions.map((c) => {
+            const team = teams.find((t) => t.id === c.teamId);
+            return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
+          })}
+          canSubmit={false}
+          canManage={false}
+          canToggle={false}
+          onClose={() => setSelectedTileId(null)}
+          eventId={event.id}
+          teamStatProgress={
+            selectedTile.trackedStat && selectedTile.statGoal
+              ? teamGains.map((tg) => {
+                  const team = teams.find((t) => t.id === tg.teamId);
+                  return {
+                    teamId: tg.teamId,
+                    teamName: team?.name || 'Unknown',
+                    color: team?.color || '#888',
+                    gained: tg.tileGains[selectedTile.id] || 0,
+                  };
+                })
+              : undefined
+          }
+          pointsMode={pointsMode}
+        />
       )}
     </div>
   );

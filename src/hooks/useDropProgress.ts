@@ -14,12 +14,15 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
     const perItemProgressMap = new Map<number, ItemRequirementProgress[]>();
 
     for (const tile of tiles) {
-      // Count tiles all accumulate submission `amount` toward `requiredAmount` (drop = item drops,
-      // kill = NPC kills, gain = items gathered, diary/ca = completions). Only drops carry per-item
-      // requirements; the rest just sum a single amount.
+      // Count/aggregate tiles all sum submission `amount` toward `requiredAmount` (drop = item drops,
+      // kill = NPC kills, gain = items gathered, diary/ca = completions, deathless = runs, lms = games,
+      // value/valuetotal = gp — where the sum is a rough progress indicator; single-haul completion is
+      // server-side on max). Only drops carry per-item requirements; the rest sum a single amount.
       if (
         (tile.tileType === 'drop' || tile.tileType === 'kill' || tile.tileType === 'pvp'
-          || tile.tileType === 'gain' || tile.tileType === 'diary' || tile.tileType === 'ca')
+          || tile.tileType === 'gain' || tile.tileType === 'diary' || tile.tileType === 'ca'
+          || tile.tileType === 'deathless' || tile.tileType === 'lms'
+          || tile.tileType === 'value' || tile.tileType === 'valuetotal')
         && tile.requiredAmount
       ) {
         const tileSubs = submissions.filter((s) => s.tileId === tile.id);

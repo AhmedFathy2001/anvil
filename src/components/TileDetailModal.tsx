@@ -31,6 +31,16 @@ function secondsToClock(total: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Parse a loot-value entry: "5m", "500k", "2.5m", or plain gp (commas ok). Null if unparseable.
+function parseGp(raw: string): number | null {
+  const v = raw.trim().toLowerCase().replace(/,/g, '');
+  const m = v.match(/^(\d+(?:\.\d+)?)\s*([kmb])?$/);
+  if (!m) return null;
+  const mult = m[2] === 'b' ? 1_000_000_000 : m[2] === 'm' ? 1_000_000 : m[2] === 'k' ? 1_000 : 1;
+  const n = Math.round(parseFloat(m[1]) * mult);
+  return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
+}
+
 interface CompletedByTeam {
   teamId: number;
   teamName: string;
@@ -46,6 +56,16 @@ interface PlayerStatProgress {
   playerId: number;
   playerName: string;
   current: number;
+  gained: number;
+}
+
+// Per-team stat gains toward a tile's goal — used on the public scoreboard, which has no single-team
+// context and instead compares every team on one stat tile (the per-player `statProgress` above is
+// for a single team's board). Additive/optional: surfaces that don't pass it render exactly as before.
+interface TeamStatProgress {
+  teamId: number;
+  teamName: string;
+  color: string;
   gained: number;
 }
 
@@ -67,6 +87,8 @@ interface Props {
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
   statProgress?: PlayerStatProgress[];
+  // Public scoreboard only: per-team gains toward this stat tile's goal (all teams compared).
+  teamStatProgress?: TeamStatProgress[];
   pointsMode?: boolean;
 }
 
@@ -88,6 +110,7 @@ export default function TileDetailModal({
   teamPlayers,
   currentPlayerId,
   statProgress,
+  teamStatProgress,
   pointsMode,
 }: Props) {
   const [amount, setAmount] = useState('1');
@@ -95,6 +118,8 @@ export default function TileDetailModal({
   const [note, setNote] = useState('');
   // Timed-tile clear time entered as mm:ss.
   const [clearTime, setClearTime] = useState('');
+  // Loot-value tile: haul value entered as gp (accepts 5m / 500k / raw).
+  const [valueGp, setValueGp] = useState('');
   const [creditPlayerId, setCreditPlayerId] = useState<string>(currentPlayerId ? String(currentPlayerId) : '');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -139,16 +164,20 @@ export default function TileDetailModal({
   const isDiary = tile.tileType === 'diary';
   const isCa = tile.tileType === 'ca';
   const isGain = tile.tileType === 'gain';
+  const isDeathless = tile.tileType === 'deathless';
+  const isLms = tile.tileType === 'lms';
+  const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
   const manualOnly = isManualOnlyDropTile(tile);
-  // Drop, kill, PvP, gain, diary and CA share the count-based progress/gallery/submission UI.
-  const isCount = isDrop || isKill || isPvp || isGain || isDiary || isCa;
+  // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
+  // (below); timed uses its own clear-time form; stat/standard have no manual submit.
+  const isCount = isDrop || isKill || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   const perUnitProof = isDrop;
   const isStatTile = !!tile.trackedStat;
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : isGain ? 'item' : 'drop';
+  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -276,6 +305,44 @@ export default function TileDetailModal({
     // Otherwise, players can only delete their own submissions (where they uploaded it)
     if (currentPlayerId && submission.playerId === currentPlayerId) return true;
     return false;
+  }
+
+  // Loot-value tile submit: one gp-valued haul + a proof screenshot. The server decides completion
+  // (single-haul: a submission ≥ threshold; total: the sum reaches it), so we just submit the amount.
+  async function handleValueSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!onSubmit || !teamId) return;
+    const gp = parseGp(valueGp);
+    if (gp == null) {
+      setError('Enter a haul value like 5m, 500k, or 5000000.');
+      return;
+    }
+    const img = imageUrls.find((url) => url && url.trim());
+    if (!img) {
+      setError('Please upload a screenshot of the loot as evidence.');
+      return;
+    }
+    if (!creditPlayerId) {
+      setError('Please select who got this loot.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        tileId: tile.id,
+        teamId,
+        amount: gp,
+        imageUrl: img,
+        note,
+        creditPlayerId: parseInt(creditPlayerId, 10),
+      });
+      setValueGp('');
+      setImageUrls(['']);
+      setNote('');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleToggle() {
@@ -541,7 +608,51 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {isStatTile && (!statProgress || statProgress.length === 0) && (
+          {/* Per-team stat comparison (public scoreboard) — every team's gain toward the goal. */}
+          {isStatTile && teamStatProgress && teamStatProgress.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                Team Progress ({statLabel(tile.trackedStat, tile.statType)})
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {[...teamStatProgress].sort((a, b) => b.gained - a.gained).map((t) => {
+                  const goal = tile.statGoal || 0;
+                  const percentage = goal > 0 ? Math.min(100, (t.gained / goal) * 100) : 0;
+                  const isGoalMet = goal > 0 && t.gained >= goal;
+                  return (
+                    <div key={t.teamId} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                          {t.teamName}
+                        </span>
+                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`}>
+                          {formatNumber(t.gained)}{goal > 0 ? ` / ${formatNumber(goal)}` : ''} {tile.statType === 'boss' ? 'KC' : 'XP'}
+                        </span>
+                      </div>
+                      {goal > 0 && (
+                        <div className="w-full bg-brown-dark rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${percentage}%`,
+                              background: isGoalMet
+                                ? 'linear-gradient(90deg, #22c55e, #4ade80)'
+                                : 'linear-gradient(90deg, #3b82f6cc, #3b82f6)',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isStatTile
+            && (!statProgress || statProgress.length === 0)
+            && (!teamStatProgress || teamStatProgress.length === 0) && (
             <div className="text-center py-4 text-text-muted text-sm">
               No stat progress data available yet.
             </div>
@@ -816,6 +927,80 @@ export default function TileDetailModal({
                 className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
               >
                 {submitting ? 'Submitting...' : 'Submit Clear'}
+              </button>
+            </form>
+          )}
+
+          {/* Submit form for loot-value tiles — a gp-valued haul + one proof screenshot. */}
+          {isValue && canSubmit && onSubmit && teamId && !isCompleted && (
+            <form onSubmit={handleValueSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Submit Loot Value</h3>
+              <p className="text-xs text-text-muted">
+                Normally the plugin prices &amp; submits hauls automatically. Use this only as a manual fallback.
+              </p>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">
+                  Haul value (gp) *
+                  {tile.requiredAmount ? (
+                    <span className="text-yellow-400 ml-1">
+                      ({tile.tileType === 'valuetotal' ? 'target ' : 'need '}{tile.requiredAmount.toLocaleString()} gp)
+                    </span>
+                  ) : null}
+                </label>
+                <Input
+                  type="text"
+                  value={valueGp}
+                  onChange={(e) => setValueGp(e.target.value)}
+                  placeholder="e.g. 5m, 500k, 5000000"
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  {tile.tileType === 'valuetotal'
+                    ? 'Every submitted haul adds toward the target.'
+                    : 'A single haul must meet the target to complete the tile.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Who got this loot? *</label>
+                <Select
+                  value={creditPlayerId}
+                  onChange={setCreditPlayerId}
+                  required
+                  placeholder="Select team member..."
+                  ariaLabel="Who got this loot"
+                  options={(teamPlayers ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Evidence Screenshot *</label>
+                <ImageUpload
+                  onImageSelected={(url) => setImageUrls([url])}
+                  currentUrl={imageUrls[0] || undefined}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
+                <Input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional note..."
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+              </div>
+
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+              >
+                {submitting ? 'Submitting...' : 'Submit Loot Value'}
               </button>
             </form>
           )}
