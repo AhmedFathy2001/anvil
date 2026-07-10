@@ -25,10 +25,35 @@ function verify(token: string, secret: string): string | null {
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload);
   const expectedSignature = hmac.digest('hex');
-  if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
-    return null;
-  }
+  // Length-check the decoded buffers BEFORE timingSafeEqual — it throws a RangeError on
+  // mismatched lengths, and `signature` is attacker-controlled (a crafted cookie can be any
+  // length). A bad signature must read as an invalid token (null), never an uncaught 500.
+  const sigBuf = Buffer.from(signature, 'hex');
+  const expBuf = Buffer.from(expectedSignature, 'hex');
+  if (sigBuf.length !== expBuf.length) return null;
+  if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
   return payload;
+}
+
+// Session lifetime. Tokens carry `iat` (issued-at, ms). Anything older is rejected even with a
+// valid signature, so a leaked/replayed token can't live forever (the cookie's maxAge is only a
+// client-side hint the server never saw). Matches the 30-day cookie so normal sessions are
+// unaffected. A small negative allowance absorbs clock skew between issuing and verifying hosts.
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function isFreshIat(iat: unknown): boolean {
+  if (typeof iat !== 'number' || !Number.isFinite(iat)) return false;
+  const age = Date.now() - iat;
+  return age <= SESSION_MAX_AGE_MS && age >= -5 * 60 * 1000;
+}
+
+// Constant-time compare for shared secrets (cron bearer tokens, etc). Length-guarded so it never
+// throws on attacker-sized input.
+export function timingSafeStrEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
 }
 
 export function signUserToken(userId: number, username: string, role: string): string {
@@ -53,10 +78,16 @@ export async function verifyUser(): Promise<UserPayload | null> {
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
-    if (data.userId && data.username && data.role) {
-      return { userId: data.userId, username: data.username, role: data.role };
-    }
-    return null;
+    if (!data.userId || !isFreshIat(data.iat)) return null;
+    // Re-read the CURRENT role (and existence) from the DB rather than trusting the role baked
+    // into the token. A demotion or account deletion then takes effect immediately, instead of
+    // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, data.userId),
+      columns: { id: true, role: true },
+    });
+    if (!dbUser) return null;
+    return { userId: dbUser.id, username: typeof data.username === 'string' ? data.username : 'user', role: dbUser.role };
   } catch {
     return null;
   }
@@ -145,23 +176,13 @@ export async function verifyCaptain(): Promise<{ teamId: number } | null> {
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
-    if (data.role === 'captain' && typeof data.teamId === 'number') {
+    if (data.role === 'captain' && typeof data.teamId === 'number' && isFreshIat(data.iat)) {
       return { teamId: data.teamId };
     }
     return null;
   } catch {
     return null;
   }
-}
-
-// Legacy SHA-256 password functions (for captain passwords etc.)
-export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
-
-export function verifyPassword(password: string, hash: string): boolean {
-  const inputHash = crypto.createHash('sha256').update(password).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(inputHash, 'hex'), Buffer.from(hash, 'hex'));
 }
 
 export function generatePlayerToken(): string {
@@ -383,21 +404,32 @@ export async function claimAccountForUser(
   rsn: string,
   normalizedRsn: string,
   accountHash: string | null,
-): Promise<{ ok: true; clanMemberId: number } | { ok: false; reason: 'owned-by-other' }> {
+): Promise<{ ok: true; clanMemberId: number } | { ok: false; reason: 'owned-by-other' | 'needs-verification' }> {
   const nowIso = new Date().toISOString();
 
-  let existing = accountHash
+  // Match by account hash first — the strong, rename-proof, UNFORGEABLE signal (an attacker can't
+  // produce another player's Jagex account hash). The RSN lookup only tells us whether a row
+  // already exists; on its own it proves nothing about who controls the account.
+  const byHash = accountHash
     ? (await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })) ?? null
     : null;
-  if (!existing) {
-    existing = (await db.query.clanMembers.findFirst({
-      where: eq(clanMembers.rsnNormalized, normalizedRsn),
-    })) ?? null;
-  }
+  const byRsn =
+    (await db.query.clanMembers.findFirst({ where: eq(clanMembers.rsnNormalized, normalizedRsn) })) ?? null;
+  const existing = byHash ?? byRsn;
 
   if (existing?.userId != null) {
     if (existing.userId === userId) return { ok: true, clanMemberId: existing.id };
     return { ok: false, reason: 'owned-by-other' };
+  }
+
+  // SECURITY: the only caller (detected-accounts "Add") proves account control solely with the
+  // RSN the plugin reported via the client-controlled `X-RSN` header — which is forgeable. So we
+  // may auto-attach a PRE-EXISTING identity only when it was matched by the unforgeable account
+  // hash. A row matched by RSN alone is a real clan-roster / manually-added member whose identity
+  // would otherwise be seizable by anyone who simply names them; require genuine proof of control
+  // (XP stat-delta or the in-plugin link code) for those instead of trusting the asserted name.
+  if (existing && !byHash) {
+    return { ok: false, reason: 'needs-verification' };
   }
 
   let clanMemberId: number;
@@ -671,6 +703,14 @@ export async function verifyAdminPluginToken(
   });
   if (!link) return null;
 
+  // Re-check the linked user's CURRENT role — a legacy admin token must stop granting admin power
+  // the moment the user is demoted, matching the account-token path above.
+  const linkUser = await db.query.users.findFirst({
+    where: eq(users.id, link.userId),
+    columns: { id: true, role: true },
+  });
+  if (linkUser?.role !== 'admin') return null;
+
   // Fire-and-forget lastUsedAt bump — ok if it races
   db.update(pluginLinks)
     .set({ lastUsedAt: new Date().toISOString() })
@@ -726,7 +766,7 @@ export async function verifyPlayer(): Promise<{ playerId: number; teamId: number
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
-    if (data.role === 'player' && typeof data.playerId === 'number' && typeof data.teamId === 'number') {
+    if (data.role === 'player' && typeof data.playerId === 'number' && typeof data.teamId === 'number' && isFreshIat(data.iat)) {
       return { playerId: data.playerId, teamId: data.teamId };
     }
     return null;

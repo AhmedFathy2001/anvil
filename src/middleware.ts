@@ -70,6 +70,14 @@ export async function middleware(request: NextRequest) {
       const data = JSON.parse(payload);
       const role = data.role;
 
+      // Reject stale sessions (older than the 30-day cookie life) even with a valid signature, so a
+      // replayed old token can't reach admin pages. The API layer additionally re-checks the live
+      // role from the DB; this is the coarse page-routing gate.
+      const iat = typeof data.iat === 'number' ? data.iat : 0;
+      if (Date.now() - iat > 30 * 24 * 60 * 60 * 1000) {
+        return NextResponse.redirect(loginUrl);
+      }
+
       // Must be admin/treasurer/moderator/editor. Members get sent home.
       if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator' && role !== 'editor') {
         return NextResponse.redirect(new URL('/', request.url));
