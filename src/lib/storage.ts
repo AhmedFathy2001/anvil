@@ -65,11 +65,24 @@ function prefixedKey(cfg: S3Config, key: string): string {
   return cfg.keyPrefix ? `${cfg.keyPrefix}/${clean}` : clean;
 }
 
+// Derive a safe stored content-type from the object key's extension. We deliberately never fall
+// back to a File's client-declared `.type`: that MIME is attacker-controlled at upload time and a
+// value like text/html or image/svg+xml would make the stored bytes execute when opened from the
+// media host (stored XSS). Unknown extensions store as a non-executable octet-stream download.
+const KEY_CONTENT_TYPE: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+  webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+};
+function contentTypeFromKey(key: string): string {
+  const ext = key.split('.').pop()?.toLowerCase() ?? '';
+  return KEY_CONTENT_TYPE[ext] ?? 'application/octet-stream';
+}
+
 async function s3Put(key: string, body: StorageBody, contentType?: string): Promise<PutResult> {
   const cfg = s3Config();
   const objectKey = prefixedKey(cfg, key);
   const target = `${cfg.endpoint}/${cfg.bucket}/${objectKey}`;
-  const ct = contentType ?? (body instanceof File ? body.type : undefined);
+  const ct = contentType ?? contentTypeFromKey(key);
   const bytes = body instanceof File ? Buffer.from(await body.arrayBuffer()) : Buffer.from(body);
 
   // Sign with aws4fetch, then send the PUT over node:https — NOT global fetch. Next.js's patched
@@ -135,8 +148,9 @@ async function s3Del(urls: string[]): Promise<void> {
  * `submissions/<uuid>.webp`); the active driver decides where the bytes land.
  */
 export async function put(key: string, body: StorageBody, contentType?: string): Promise<PutResult> {
-  if (resolveDriver() === 's3') return s3Put(key, body, contentType);
-  const { url } = await blobPut(key, body, { access: 'public', contentType });
+  const safeContentType = contentType ?? contentTypeFromKey(key);
+  if (resolveDriver() === 's3') return s3Put(key, body, safeContentType);
+  const { url } = await blobPut(key, body, { access: 'public', contentType: safeContentType });
   return { url };
 }
 
