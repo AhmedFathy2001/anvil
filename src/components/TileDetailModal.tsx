@@ -107,9 +107,11 @@ export default function TileDetailModal({
 
   const parsedAmount = parseInt(amount, 10) || 1;
 
-  // Update image URL array when amount changes
+  // Screenshot slots follow the amount ONLY for real item drops (each drop is a distinct loot event
+  // you can capture). Kills / gains / completions can't be screenshotted one-by-one, so they keep a
+  // single proof screenshot for the whole entered amount.
   useEffect(() => {
-    const targetLength = Math.max(1, parsedAmount);
+    const targetLength = tile.tileType === 'drop' ? Math.max(1, parsedAmount) : 1;
     setImageUrls((prev) => {
       if (prev.length === targetLength) return prev;
       if (prev.length < targetLength) {
@@ -117,7 +119,7 @@ export default function TileDetailModal({
       }
       return prev.slice(0, targetLength);
     });
-  }, [parsedAmount]);
+  }, [parsedAmount, tile.tileType]);
 
   // Reset form when tile changes or modal opens
   useEffect(() => {
@@ -136,13 +138,17 @@ export default function TileDetailModal({
   const isTimed = tile.tileType === 'timed';
   const isDiary = tile.tileType === 'diary';
   const isCa = tile.tileType === 'ca';
+  const isGain = tile.tileType === 'gain';
   const manualOnly = isManualOnlyDropTile(tile);
-  // Drop, kill, PvP, diary and CA share the count-based progress/gallery/submission UI.
-  const isCount = isDrop || isKill || isPvp || isDiary || isCa;
+  // Drop, kill, PvP, gain, diary and CA share the count-based progress/gallery/submission UI.
+  const isCount = isDrop || isKill || isPvp || isGain || isDiary || isCa;
+  // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
+  // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
+  const perUnitProof = isDrop;
   const isStatTile = !!tile.trackedStat;
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isDiary ? 'Diary' : isCa ? 'Combat task' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
-  // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion").
-  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : 'drop';
+  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
+  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : isGain ? 'item' : 'drop';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -189,15 +195,15 @@ export default function TileDetailModal({
       return;
     }
 
-    // If amount > 1, require all images
-    if (parsedAmount > 1 && validImages.length < parsedAmount) {
+    // Real drops want one screenshot per unit; other count tiles take a single proof for the amount.
+    if (perUnitProof && parsedAmount > 1 && validImages.length < parsedAmount) {
       setError(`Please upload ${parsedAmount} images (one for each drop)`);
       return;
     }
 
     // Validate credit player selection
     if (!creditPlayerId) {
-      setError('Please select who got this drop');
+      setError(`Please select who got this ${countNoun}`);
       return;
     }
 
@@ -686,12 +692,15 @@ export default function TileDetailModal({
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">
-                  Evidence Screenshot{parsedAmount > 1 ? 's' : ''} *
-                  {parsedAmount > 1 && (
+                  Evidence Screenshot{perUnitProof && parsedAmount > 1 ? 's' : ''} *
+                  {perUnitProof && parsedAmount > 1 && (
                     <span className="text-yellow-400 ml-1">({imageUrls.filter(u => u).length}/{parsedAmount} uploaded)</span>
                   )}
+                  {!perUnitProof && parsedAmount > 1 && (
+                    <span className="text-text-muted ml-1">(one screenshot is enough)</span>
+                  )}
                 </label>
-                {parsedAmount === 1 ? (
+                {!(perUnitProof && parsedAmount > 1) ? (
                   <ImageUpload
                     onImageSelected={(url) => setImageUrls([url])}
                     currentUrl={imageUrls[0] || undefined}
@@ -700,7 +709,7 @@ export default function TileDetailModal({
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {imageUrls.map((url, index) => (
                       <div key={index} className="border border-card-border/50 rounded-lg p-2 bg-brown-dark/30">
-                        <p className="text-xs text-text-muted mb-1">{isKill || isPvp ? 'Kill' : isDiary || isCa ? 'Completion' : 'Drop'} #{index + 1}</p>
+                        <p className="text-xs text-text-muted mb-1">Drop #{index + 1}</p>
                         <ImageUpload
                           onImageSelected={(newUrl) => {
                             setImageUrls((prev) => {
