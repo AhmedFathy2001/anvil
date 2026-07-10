@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import DiscordSettings from '@/components/DiscordSettings';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
+import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
@@ -157,10 +158,14 @@ export default function AdminIntegrationsPage() {
           summary="Bot-driven: give linked members their rank + default roles, optionally set nicknames to RSN."
         >
           <p className="text-sm text-text-muted -mt-1">
-            Needs a bot token in the environment plus the server ID. Rank→role-ID maps and default/guest role lists
-            are still settings-driven (no picker UI yet).
+            Needs a bot token in the environment plus the server ID. Turn on sync + nicknames below,
+            then pick which roles the sync hands out.
           </p>
           <DiscordRoleSyncSettings />
+          <div className="border-t border-card-border pt-5 mt-5">
+            <p className="text-sm font-medium mb-1">Roles the sync assigns</p>
+            <DiscordAssignedRoles />
+          </div>
         </CollapsibleSection>
 
         <CollapsibleSection

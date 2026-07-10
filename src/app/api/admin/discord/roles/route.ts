@@ -1,20 +1,68 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/db';
+import { settings } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { fetchGuildRoles } from '@/lib/discord-roles';
 
-// GET — list the guild's Discord roles. Used by the admin UI to populate the
-// rank→role-id mapping pickers. Returns an empty array (not an error) when the
-// feature is disabled or the bot token isn't set yet — the UI can show a hint
-// instead of a broken state.
+async function readSetting(key: string): Promise<string | null> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+  return row?.value ?? null;
+}
+
+async function upsertSetting(key: string, value: string): Promise<void> {
+  const existing = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+  if (existing) await db.update(settings).set({ value }).where(eq(settings.key, key));
+  else await db.insert(settings).values({ key, value });
+}
+
+function parseIds(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+// Only real Discord snowflake ids (all digits) — guards against junk being saved into the config
+// the role sync reads (a bad id there would just no-op, but keep it clean).
+function cleanIds(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string' && /^\d+$/.test(x));
+}
+
+// GET — the guild's roles (for the picker) + which are currently assigned as default / guest roles.
 export async function GET() {
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const roles = await fetchGuildRoles();
-  // Sort top-of-server-first (matches the Discord UI). @everyone is position 0.
+  // Top-of-server first (matches Discord); drop @everyone and bot-managed roles (can't be assigned).
   const sorted = roles
-    .filter((r) => r.name !== '@everyone')
+    .filter((r) => r.name !== '@everyone' && !r.managed)
     .sort((a, b) => b.position - a.position);
 
-  return NextResponse.json({ roles: sorted });
+  return NextResponse.json({
+    roles: sorted,
+    defaultRoleIds: parseIds(await readSetting('discord_default_role_ids')),
+    guestRoleIds: parseIds(await readSetting('discord_guest_role_ids')),
+  });
+}
+
+// POST — save which roles the sync gives every member (default) and every guest.
+export async function POST(request: Request) {
+  const isAdmin = await verifyAdmin();
+  if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = (await request.json().catch(() => null)) as
+    | { defaultRoleIds?: unknown; guestRoleIds?: unknown }
+    | null;
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+
+  await upsertSetting('discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
+  await upsertSetting('discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
+
+  return NextResponse.json({ success: true });
 }
