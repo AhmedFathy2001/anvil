@@ -290,7 +290,7 @@ export async function PATCH(
     if (cmId !== player.clanMemberId) {
       const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, cmId) });
       if (!member) {
-        return NextResponse.json({ error: 'Linked account not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
       }
       updateData.clanMemberId = cmId;
       updateData.name = member.rsn; // the tracked RSN follows the swapped account
@@ -301,6 +301,19 @@ export async function PATCH(
       updateData.cachedStats = null;
       updateData.lastStatsFetch = null;
       updateData.pluginStats = null;
+
+      // The RuneLite plugin resolves a player row via the Discord user's OWN linked accounts
+      // (clanMembers.userId), so the swapped-in account must belong to the same owner or the overlay
+      // won't find it. If it's an unlinked ghost, link it to the player's current Discord owner so the
+      // plugin resolves. If it already belongs to a DIFFERENT Discord user, leave it alone (don't
+      // steal someone else's account) — the UI warns the admin about that case.
+      const currentMember = player.clanMemberId != null
+        ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+        : null;
+      const ownerUserId = currentMember?.userId ?? null;
+      if (ownerUserId != null && member.userId == null) {
+        await db.update(clanMembers).set({ userId: ownerUserId }).where(eq(clanMembers.id, cmId));
+      }
     }
   }
 

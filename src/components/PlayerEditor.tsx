@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
+import ClanMemberPicker from '@/components/ClanMemberPicker';
 
 interface Props {
   eventId: number;
@@ -28,6 +29,10 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
   const [timezone, setTimezone] = useState(player.timezone || '');
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [selectedClanMemberId, setSelectedClanMemberId] = useState<number | null>(null);
+  const [ownerUserId, setOwnerUserId] = useState<number | null>(null);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+  // Discord owner of the account picked from the full roster (for the cross-owner warning).
+  const [pickedOwnerUserId, setPickedOwnerUserId] = useState<number | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +48,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
           if (!cancelled) {
             const list: LinkedAccount[] = data.accounts ?? [];
             setAccounts(list);
+            setOwnerUserId(data.ownerUserId ?? null);
             const cur = list.find((a) => a.isCurrent);
             setSelectedClanMemberId(cur ? cur.clanMemberId : null);
           }
@@ -58,6 +64,13 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
 
   const currentClanMemberId = accounts.find((a) => a.isCurrent)?.clanMemberId ?? null;
   const accountChanged = selectedClanMemberId != null && selectedClanMemberId !== currentClanMemberId;
+  // Picked (from the full roster) an account linked to a DIFFERENT Discord user than this player's —
+  // the plugin overlay won't resolve it for them (it keys off the owner's linked accounts).
+  const crossOwner =
+    pickedOwnerUserId !== undefined &&
+    pickedOwnerUserId !== null &&
+    ownerUserId !== null &&
+    pickedOwnerUserId !== ownerUserId;
 
   function pickAccount(cmId: number) {
     setSelectedClanMemberId(cmId);
@@ -113,14 +126,20 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Tracked account — only when the player's Discord owner has more than one linked RSN.
-              Picking a different one swaps which account is tracked (plugin + hiscores). */}
-          {accounts.length > 1 && (
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Tracked account</label>
+          {/* Tracked account. The dropdown offers the accounts already linked to this player's Discord
+              owner (the common case). "Assign a different account" opens the full clan roster for edge
+              cases — an account not linked yet, a ghost, a mislink. Either way it swaps which RSN is
+              tracked for the plugin + hiscores, and (for an unlinked account) links it to this player's
+              Discord owner so the plugin overlay resolves. */}
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Tracked account</label>
+            {accounts.length > 1 && (
               <select
                 value={selectedClanMemberId ?? ''}
-                onChange={(e) => pickAccount(parseInt(e.target.value, 10))}
+                onChange={(e) => {
+                  setPickedOwnerUserId(undefined);
+                  pickAccount(parseInt(e.target.value, 10));
+                }}
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               >
                 {accounts.map((a) => (
@@ -131,14 +150,49 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
                   </option>
                 ))}
               </select>
-              {accountChanged && (
-                <p className="text-[11px] text-yellow-400 mt-1 leading-relaxed">
-                  Swaps tracking to this RSN for both the RuneLite plugin and the hiscores stat cron,
-                  and re-baselines stats from it (gains count from the swap onward).
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAllAccounts((v) => !v)}
+              className="text-[11px] text-gold/90 hover:text-gold mt-1"
+            >
+              {showAllAccounts ? 'Hide account search' : 'Assign a different account (search the roster)'}
+            </button>
+            {showAllAccounts && (
+              <div className="mt-2 border border-card-border rounded-lg p-2 bg-brown-dark/30">
+                <p className="text-[11px] text-text-muted mb-1.5">
+                  Pick any clan account to track for this player — use this when the account isn&apos;t
+                  in the list above (unlinked, ghost, or mislinked).
                 </p>
-              )}
-            </div>
-          )}
+                <ClanMemberPicker
+                  mode="single"
+                  eventId={eventId}
+                  preferLinked
+                  value={selectedClanMemberId}
+                  onChange={(id, member) => {
+                    if (id != null && member) {
+                      setSelectedClanMemberId(id);
+                      setName(member.rsn);
+                      setPickedOwnerUserId(member.user?.id ?? null);
+                    }
+                  }}
+                />
+              </div>
+            )}
+            {accountChanged && (
+              <p className="text-[11px] text-yellow-400 mt-1 leading-relaxed">
+                Swaps tracking to this RSN for both the RuneLite plugin and the hiscores stat cron,
+                and re-baselines stats from it (gains count from the swap onward).
+              </p>
+            )}
+            {crossOwner && (
+              <p className="text-[11px] text-orange-400 mt-1 leading-relaxed">
+                This account is linked to a <span className="font-semibold">different Discord user</span>.
+                Website + hiscores tracking will follow it, but the in-game plugin overlay only works for
+                that account&apos;s own Discord owner.
+              </p>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs text-text-muted mb-1">RSN (In-Game Name)</label>
