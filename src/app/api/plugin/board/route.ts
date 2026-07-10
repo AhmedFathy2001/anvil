@@ -196,6 +196,8 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t.trackedStat, t.statType, t.statGoal),
         optional: t.optional ? 1 : 0,
+        // 1 = auto-tracking off; the plugin shows a "completed manually" note on the detail page.
+        autoTrackDisabled: t.autoTrackDisabled ? 1 : 0,
         category: t.category ?? null,
         // tileType + statType + statName let the plugin's preview classify the tile's kind and
         // show the skill icon, the same way the enrolled config view does.
