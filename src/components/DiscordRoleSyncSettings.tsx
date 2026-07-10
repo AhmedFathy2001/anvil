@@ -22,7 +22,8 @@ export default function DiscordRoleSyncSettings() {
     total: number;
     synced: number;
     skipped: number;
-    reports: Array<{ rsn: string; ok: boolean; reason?: string; nickSet?: string }>;
+    noChange?: number;
+    reports: Array<{ rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
   } | null>(null);
 
   // Force a full re-sync of every member's Discord roles + nicknames now (empty body = sweep).
@@ -248,18 +249,66 @@ export default function DiscordRoleSyncSettings() {
         </button>
 
         {syncResult && (
-          <div className="mt-3 text-sm">
-            <p className="text-green-400">
-              Synced {syncResult.synced}/{syncResult.total}
+          <div className="mt-3 text-sm space-y-2">
+            <p>
+              <span className="text-green-400">Synced {syncResult.synced}/{syncResult.total}</span>
               {syncResult.skipped > 0 && (
                 <span className="text-yellow-400"> · {syncResult.skipped} skipped</span>
               )}
+              {!!syncResult.noChange && (
+                <span className="text-text-muted"> · {syncResult.noChange} no change</span>
+              )}
               .
             </p>
-            {syncResult.skipped > 0 && (
-              <details className="mt-2">
+
+            {/* Changed — who actually got a role added / removed or a nickname set. */}
+            {syncResult.reports.some((r) => r.ok && ((r.added ?? 0) > 0 || (r.removed ?? 0) > 0 || r.nickSet)) && (
+              <details className="mt-1">
                 <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-                  Show skipped members
+                  Show changes applied
+                </summary>
+                <ul className="mt-1.5 space-y-0.5 max-h-52 overflow-y-auto">
+                  {syncResult.reports
+                    .filter((r) => r.ok && ((r.added ?? 0) > 0 || (r.removed ?? 0) > 0 || r.nickSet))
+                    .map((r) => (
+                      <li key={r.rsn} className="text-xs text-text-muted">
+                        <span className="text-foreground/80">{r.rsn}</span>
+                        {(r.added ?? 0) > 0 && <span className="text-green-400"> +{r.added} role(s)</span>}
+                        {(r.removed ?? 0) > 0 && <span className="text-red-400"> −{r.removed} role(s)</span>}
+                        {r.nickSet && <span className="text-gold"> · nick → {r.nickSet}</span>}
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            )}
+
+            {/* Resolved but nothing to give — the tell for a role-config gap (no rank map / default /
+                guest role IDs set) rather than a linking problem. */}
+            {!!syncResult.noChange && (
+              <details>
+                <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
+                  Show resolved-but-no-role ({syncResult.noChange})
+                </summary>
+                <p className="text-[11px] text-text-muted mt-1">
+                  These linked fine but got no role — either they already have every role, or no
+                  rank/default/guest role IDs are configured for them.
+                </p>
+                <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-y-auto">
+                  {syncResult.reports
+                    .filter((r) => r.ok && (r.added ?? 0) === 0 && (r.removed ?? 0) === 0 && !r.nickSet)
+                    .map((r) => (
+                      <li key={r.rsn} className="text-xs text-text-muted">
+                        <span className="text-foreground/80">{r.rsn}</span>
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            )}
+
+            {syncResult.skipped > 0 && (
+              <details>
+                <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
+                  Show skipped ({syncResult.skipped})
                 </summary>
                 <ul className="mt-1.5 space-y-0.5 max-h-52 overflow-y-auto">
                   {syncResult.reports

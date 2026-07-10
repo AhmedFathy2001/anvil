@@ -51,7 +51,16 @@ export async function POST(request: Request) {
       ),
     );
 
-  const reports: Array<{ memberId: number; rsn: string; ok: boolean; reason?: string; added: number; removed: number; nickSet?: string }> = [];
+  const reports: Array<{
+    memberId: number;
+    rsn: string;
+    ok: boolean;
+    reason?: string;
+    resolved: boolean; // did we find a Discord id at all?
+    added: number;
+    removed: number;
+    nickSet?: string;
+  }> = [];
   let synced = 0;
   let skipped = 0;
   for (const m of eligible) {
@@ -63,6 +72,7 @@ export async function POST(request: Request) {
       rsn: m.rsn,
       ok: r.ok,
       reason: r.reason,
+      resolved: !!r.discordUserId,
       added: r.added.length,
       removed: r.removed.length,
       nickSet: r.nickSet,
@@ -74,6 +84,9 @@ export async function POST(request: Request) {
     total: eligible.length,
     synced,
     skipped,
+    // Resolved but nothing to give = a role-config gap (rank map / default / guest role ids)
+    // or already in sync — surfaced so "it ran but nobody got a role" is diagnosable.
+    noChange: reports.filter((r) => r.ok && r.added === 0 && r.removed === 0 && !r.nickSet).length,
     reports,
   });
 }
