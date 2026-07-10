@@ -31,6 +31,7 @@ function tileToTrackingInitial(tile: Tile) {
     statGoal: tile.statGoal ?? null,
     trackingMode: tile.trackingMode || 'team',
     optional: !!tile.optional,
+    autoTrackDisabled: !!tile.autoTrackDisabled,
     trackedItemIds: tile.trackedItemIds ? (JSON.parse(tile.trackedItemIds) as number[]) : null,
     itemRequirements: tile.itemRequirements
       ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[])

@@ -85,6 +85,8 @@ export async function POST(request: Request) {
       t.trackedStat &&
       (t.statType === 'boss' || t.statType === 'kc') &&
       t.statGoal &&
+      // Admin flipped this tile to manual — don't auto-credit from plugin-pushed stats.
+      !t.autoTrackDisabled &&
       statKeys(t.trackedStat).some((k) => updatedKeys.has(k)),
   );
   if (statTiles.length === 0) {

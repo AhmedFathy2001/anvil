@@ -74,6 +74,13 @@ export const tiles = sqliteTable('tiles', {
   statGoal: integer('stat_goal'),
   trackingMode: text('tracking_mode').default('team').notNull(),
   optional: integer('optional').default(0),
+  // Admin kill-switch for a single tile's automatic crediting. When set (1), the site stops
+  // auto-completing this tile: the hiscores stats cron, the plugin-pushed stat route, and the
+  // submission threshold check all skip it — a captain/admin completes it manually instead.
+  // For when a tile's auto-tracking is broken/unreliable. Unlike the tile KIND, this stays
+  // editable mid-event so a live board can be fixed without a plugin release. Submissions and
+  // hiscores polling still happen (evidence keeps flowing); only the auto-credit is suppressed.
+  autoTrackDisabled: integer('auto_track_disabled').default(0).notNull(),
   trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
   itemRequirements: text('item_requirements'), // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}]
   // JSON array of accepted loot sources for this tile. NULL = accept any source

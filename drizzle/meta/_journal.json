@@ -85,6 +85,13 @@
       "when": 1783639922135,
       "tag": "0011_signup_userid_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1783648629286,
+      "tag": "0012_freezing_quicksilver",
+      "breakpoints": true
     }
   ]
 }

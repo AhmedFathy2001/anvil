@@ -266,6 +266,8 @@ export default function TileTrackingConfig({
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
   const [trackingMode, setTrackingMode] = useState<string>(initial.trackingMode || "team");
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
+  // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
+  const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
   // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
@@ -757,6 +759,7 @@ export default function TileTrackingConfig({
         label: label || undefined,
         description: description || null,
         optional,
+        autoTrackDisabled,
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
         // defaults — overridden per kind below
@@ -868,6 +871,7 @@ export default function TileTrackingConfig({
           statGoal: updated.statGoal,
           trackingMode: updated.trackingMode,
           optional: !!updated.optional,
+          autoTrackDisabled: !!updated.autoTrackDisabled,
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
           points: updated.points ?? 1,
@@ -2124,6 +2128,31 @@ export default function TileTrackingConfig({
         </button>
         <span className="text-xs text-text-muted">Optional tile (doesn&apos;t count towards total)</span>
       </div>
+
+      {/* Auto-tracking kill-switch — only meaningful for kinds the site would otherwise
+          auto-credit. 'standard' tiles are already manual, so hiding it there avoids noise. */}
+      {kind !== 'standard' && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoTrackDisabled(!autoTrackDisabled)}
+              aria-pressed={autoTrackDisabled}
+              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${autoTrackDisabled ? 'bg-amber-500' : 'bg-card-border'}`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${autoTrackDisabled ? 'translate-x-5' : ''}`}
+              />
+            </button>
+            <span className="text-xs text-foreground">Disable auto-tracking (complete manually)</span>
+          </div>
+          <p className="text-[10px] text-text-muted mt-1.5 leading-relaxed">
+            {autoTrackDisabled
+              ? 'Off the auto-credit path: hiscores polling and plugin submissions are ignored for completing this tile — a captain or admin marks it done manually. Submissions still arrive as evidence. Use when a tile’s tracking is broken.'
+              : 'Normally auto-credited. Turn this on if the tile’s tracking is broken so it can be completed manually instead. Editable any time, even after the event starts.'}
+          </p>
+        </div>
+      )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 

@@ -1,0 +1,1 @@
+ALTER TABLE `tiles` ADD `auto_track_disabled` integer DEFAULT 0 NOT NULL;

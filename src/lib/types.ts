@@ -42,6 +42,9 @@ export interface Tile {
   statGoal?: number | null;
   trackingMode?: string | null;
   optional?: number | null;
+  // 1 = auto-crediting suppressed for this tile (stats cron / plugin-stats / submission
+  // thresholds all skip it); completed manually instead. See tiles.autoTrackDisabled.
+  autoTrackDisabled?: number | null;
   trackedItemIds?: string | null;
   itemRequirements?: string | null;
   points?: number | null;
@@ -134,6 +137,8 @@ export interface TileConfig {
   statGoal: number | null;
   trackingMode: string;
   optional: boolean;
+  // Admin flag: when true, the site won't auto-credit this tile — it's completed manually.
+  autoTrackDisabled: boolean;
   trackedItemIds: number[] | null;
   itemRequirements: ItemRequirement[] | null;
   points: number;

@@ -127,7 +127,9 @@ export async function GET(request: Request) {
   for (const event of activeEvents) {
     const eventPlayers = await db.query.players.findMany({ where: eq(players.eventId, event.id) });
     const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) });
-    const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal);
+    // Skip tiles an admin has flipped to manual (autoTrackDisabled) — the site must not
+    // auto-credit them even though they carry stat config.
+    const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal && !t.autoTrackDisabled);
     const hasStatTiles = statTiles.length > 0;
     const eventTeams = await db.query.teams.findMany({ where: eq(teams.eventId, event.id) });
     const teamMap = new Map(eventTeams.map((t) => [t.id, t]));

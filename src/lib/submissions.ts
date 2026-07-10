@@ -20,6 +20,12 @@ export async function syncDropTileCompletion(
 
   if (!tile) return null;
 
+  // Admin kill-switch: this tile is flagged manual, so the site must not auto-credit it. The
+  // submission row itself was already stored by the caller (evidence is preserved) — we just
+  // don't insert/revert a completion here. A captain/admin completes it via the completions
+  // route instead. Bail before the delete branch so an existing manual completion is left intact.
+  if (tile.autoTrackDisabled) return null;
+
   let totalAmount: number;
   let isComplete: boolean;
 

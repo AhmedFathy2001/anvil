@@ -39,7 +39,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -196,6 +196,9 @@ export async function PUT(
     trackingMode: trackingMode !== undefined ? trackingMode : tile.trackingMode,
     // optional is always editable
     optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,
+    // auto-tracking kill-switch — always editable, deliberately even after event start, so a
+    // broken tile can be flipped to manual on a live board without waiting on a plugin release.
+    autoTrackDisabled: autoTrackDisabled !== undefined ? (autoTrackDisabled ? 1 : 0) : tile.autoTrackDisabled,
     // point weight is always editable (admin can tune standings even mid-event)
     points: points !== undefined && points !== null ? points : tile.points,
     // category (free-text grouping for plugin filters) is always editable
