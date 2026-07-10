@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { exchangeCodeForToken, fetchDiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
+import { safeReturnPath } from '@/lib/safe-redirect';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
@@ -14,11 +15,23 @@ const RETURN_COOKIE = 'discord_oauth_return';
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
+// Escape text before it goes into the raw HTML error page below. `message` can carry
+// attacker-controlled content (the `?error=` query param is reflected here before any auth),
+// so interpolating it unescaped is a reflected-XSS sink.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function fail(message: string, status = 400) {
   // Render a minimal HTML page so users get a readable error rather than raw JSON,
   // since this endpoint is hit via top-level browser navigation.
   return new NextResponse(
-    `<!doctype html><html><body style="font-family:system-ui;background:#1a1410;color:#f5f0e8;padding:40px;"><h1 style="color:#f0c674">Login failed</h1><p>${message}</p><p><a href="/login" style="color:#f0c674">Try again</a></p></body></html>`,
+    `<!doctype html><html><body style="font-family:system-ui;background:#1a1410;color:#f5f0e8;padding:40px;"><h1 style="color:#f0c674">Login failed</h1><p>${escapeHtml(message)}</p><p><a href="/login" style="color:#f0c674">Try again</a></p></body></html>`,
     { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
   );
 }
@@ -44,7 +57,9 @@ export async function GET(request: Request) {
       .map(([k, v]) => [k, decodeURIComponent(v)]),
   );
   const expectedState = cookieMap.get(STATE_COOKIE);
-  const returnTo = cookieMap.get(RETURN_COOKIE) || '/';
+  // Defense in depth: re-sanitize even though /start already validated it, so a tampered cookie
+  // can't produce an external redirect.
+  const returnTo = safeReturnPath(cookieMap.get(RETURN_COOKIE));
 
   if (!expectedState || expectedState !== state) {
     return fail('OAuth state mismatch — please retry from the login page.');

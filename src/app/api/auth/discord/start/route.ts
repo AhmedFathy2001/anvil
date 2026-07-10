@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { buildAuthorizeUrl, isDiscordOAuthConfigured } from '@/lib/discord-oauth';
+import { safeReturnPath } from '@/lib/safe-redirect';
 
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
@@ -17,7 +18,8 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const returnTo = url.searchParams.get('return') || '/';
+  // Sanitize to a same-origin path so it can't be weaponized into an open redirect after login.
+  const returnTo = safeReturnPath(url.searchParams.get('return'));
 
   const state = crypto.randomBytes(24).toString('hex');
   const authorizeUrl = buildAuthorizeUrl(state);
@@ -31,9 +33,10 @@ export async function GET(request: Request) {
     path: '/',
     maxAge: STATE_TTL_SECONDS,
   });
-  // Only allow same-origin paths in the return cookie. Reject anything containing
-  // a scheme or "//" so this can't be turned into an open redirect.
-  if (returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+  // returnTo is already normalized to a safe same-origin path by safeReturnPath above, so it can't
+  // be turned into an open redirect after login. Skip the cookie for the default "/" (nothing to
+  // remember).
+  if (returnTo !== '/') {
     res.cookies.set(RETURN_COOKIE, returnTo, {
       httpOnly: true,
       sameSite: 'lax',
