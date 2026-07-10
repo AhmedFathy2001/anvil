@@ -16,7 +16,7 @@ import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
 import EventTimer from '@/components/EventTimer';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
-import { eventTileCount, eventShapeBadge } from '@/lib/utils';
+import { eventTileCount, eventShapeBadge, tileWeight, isPointsMode } from '@/lib/utils';
 import { signupWindowState } from '@/lib/signup';
 
 export const dynamic = 'force-dynamic';
@@ -119,7 +119,7 @@ export default async function HomePage() {
   }
 
   // Fetch board completion data for active events (to show team progress)
-  const activeEventStats = new Map<number, { topTeam: { name: string; color: string; tiles: number } | null; totalCompletions: number }>();
+  const activeEventStats = new Map<number, { topTeam: { name: string; color: string; score: number; total: number; unit: string } | null; totalCompletions: number }>();
   if (activeEvents.length > 0) {
     const activeIds = activeEvents.map((e) => e.id);
     const activeTeams = await db.select().from(teams).where(inArray(teams.eventId, activeIds));
@@ -132,12 +132,20 @@ export default async function HomePage() {
 
     for (const event of activeEvents) {
       const evTeams = activeTeams.filter((t) => t.eventId === event.id);
+      // The leader is the highest SCORE, which is summed points in a points event and a plain
+      // tile count in classic/tile-race (tileWeight is 1 there). Optional tiles don't score.
+      const scoredTiles = activeTiles.filter((t) => t.eventId === event.id && !t.optional);
+      const weightById = new Map(scoredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
+      const total = scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
+      const unit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
       const evCompletions = activeCompletions.filter((c) => tileEventMap.get(c.tileId) === event.id);
-      let top: { name: string; color: string; tiles: number } | null = null;
+      let top: { name: string; color: string; score: number; total: number; unit: string } | null = null;
       for (const team of evTeams) {
-        const tilesDone = evCompletions.filter((c) => c.teamId === team.id).length;
-        if (!top || tilesDone > top.tiles) {
-          top = { name: team.name, color: team.color, tiles: tilesDone };
+        const score = evCompletions
+          .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
+          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+        if (!top || score > top.score) {
+          top = { name: team.name, color: team.color, score, total, unit };
         }
       }
       activeEventStats.set(event.id, { topTeam: top, totalCompletions: evCompletions.length });
@@ -146,7 +154,7 @@ export default async function HomePage() {
 
   // Past event analytics (preserved from previous version)
   const pastEventIds = pastEvents.map((e) => e.id);
-  const pastEventWinners = new Map<number, { teamName: string; teamColor: string; tilesCompleted: number }>();
+  const pastEventWinners = new Map<number, { teamName: string; teamColor: string; score: number; unit: string }>();
   const pastEventContributors = new Map<number, { name: string; submissions: number }[]>();
 
   if (pastEventIds.length > 0) {
@@ -164,17 +172,22 @@ export default async function HomePage() {
     const tileEventMap = new Map(allPastTiles.map((t) => [t.id, t.eventId]));
     for (const event of pastEvents) {
       const evTeams = allPastTeams.filter((t) => t.eventId === event.id);
-      const evTileIds = allPastTiles.filter((t) => t.eventId === event.id).map((t) => t.id);
-      if (evTileIds.length === 0 || evTeams.length === 0) continue;
+      const scoredTiles = allPastTiles.filter((t) => t.eventId === event.id && !t.optional);
+      if (scoredTiles.length === 0 || evTeams.length === 0) continue;
+      // Winner = highest score: summed points in a points event, tile count in classic/tile-race.
+      const weightById = new Map(scoredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
+      const unit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
       const evCompletions = allPastCompletions.filter((c) => tileEventMap.get(c.tileId) === event.id);
-      let bestTeam: { teamName: string; teamColor: string; tilesCompleted: number } | null = null;
+      let bestTeam: { teamName: string; teamColor: string; score: number; unit: string } | null = null;
       for (const team of evTeams) {
-        const tilesDone = evCompletions.filter((c) => c.teamId === team.id).length;
-        if (!bestTeam || tilesDone > bestTeam.tilesCompleted) {
-          bestTeam = { teamName: team.name, teamColor: team.color, tilesCompleted: tilesDone };
+        const score = evCompletions
+          .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
+          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+        if (!bestTeam || score > bestTeam.score) {
+          bestTeam = { teamName: team.name, teamColor: team.color, score, unit };
         }
       }
-      if (bestTeam && bestTeam.tilesCompleted > 0) pastEventWinners.set(event.id, bestTeam);
+      if (bestTeam && bestTeam.score > 0) pastEventWinners.set(event.id, bestTeam);
 
       const evSubmissions = allPastSubmissions.filter((s) => tileEventMap.get(s.tileId) === event.id);
       // Rank contributors by number of submissions (one screenshot = one contribution), not
@@ -360,13 +373,13 @@ export default async function HomePage() {
                       <span>{eventTileCount(event.format, event.scoringMode, event.boardSize)} tiles</span>
                       <EventTimer startDate={event.startDate} endDate={event.endDate} className="text-gold/80" />
                     </div>
-                    {stats?.topTeam && stats.topTeam.tiles > 0 ? (
+                    {stats?.topTeam && stats.topTeam.score > 0 ? (
                       <div className="flex items-center gap-2 text-sm pt-3 border-t border-card-border/50">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stats.topTeam.color }} />
                         <span className="text-text-muted">
                           Leading: <span className="text-foreground font-medium">{stats.topTeam.name}</span>
                           <span className="ml-1.5 text-text-muted">
-                            ({stats.topTeam.tiles}/{eventTileCount(event.format, event.scoringMode, event.boardSize)} tiles)
+                            ({stats.topTeam.score}/{stats.topTeam.total} {stats.topTeam.unit})
                           </span>
                         </span>
                       </div>
@@ -457,7 +470,7 @@ export default async function HomePage() {
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: winner.teamColor }} />
                       <span className="text-text-muted truncate">
                         <span className="text-foreground/80">{winner.teamName}</span>
-                        <span className="ml-1 opacity-60">won {winner.tilesCompleted}</span>
+                        <span className="ml-1 opacity-60">won {winner.score} {winner.unit}</span>
                       </span>
                     </div>
                   )}
