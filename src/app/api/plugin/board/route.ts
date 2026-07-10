@@ -68,6 +68,16 @@ function fmtClock(total: number): string {
   const s = total % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+// Parse a JSON string-array column (sourceNpcs / targetNpcs) into a clean string list.
+function jsonNames(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    const a = JSON.parse(json);
+    return Array.isArray(a) ? a.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0) : [];
+  } catch {
+    return [];
+  }
+}
 function tileRequirement(t: typeof tiles.$inferSelect): string | null {
   const amt = t.requiredAmount && t.requiredAmount > 0 ? t.requiredAmount.toLocaleString() : '';
   const names = (json: string | null): string[] => {
@@ -274,6 +284,9 @@ async function buildBoard(event: EventRow, callerTeamId: number | null) {
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t),
+        // Source restriction ("Only from …") shown structured on the plugin detail page, matching
+        // the website's "Only from" chips. Empty for tiles with no source filter.
+        sources: jsonNames(t.sourceNpcs),
         optional: t.optional ? 1 : 0,
         // 1 = auto-tracking off; the plugin shows a "completed manually" note on the detail page.
         autoTrackDisabled: t.autoTrackDisabled ? 1 : 0,
