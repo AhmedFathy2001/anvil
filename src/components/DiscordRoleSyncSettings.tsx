@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import DiscordLinkMember from './DiscordLinkMember';
 import Input from '@/components/Input';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
@@ -24,7 +25,7 @@ export default function DiscordRoleSyncSettings() {
     skipped: number;
     noChange?: number;
     bulk?: boolean;
-    reports: Array<{ rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
+    reports: Array<{ memberId: number; rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
   } | null>(null);
 
   // Force a full re-sync of every member's Discord roles + nicknames now (empty body = sweep).
@@ -323,6 +324,7 @@ export default function DiscordRoleSyncSettings() {
                     .map((r) => (
                       <li key={r.rsn} className="text-xs text-text-muted">
                         <span className="text-foreground/80">{r.rsn}</span> — {r.reason ?? 'unknown'}
+                        <DiscordLinkMember memberId={r.memberId} />
                       </li>
                     ))}
                 </ul>

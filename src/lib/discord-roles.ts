@@ -422,6 +422,36 @@ export async function buildSweepContext(): Promise<SweepContext | null> {
   return { byId, byAlias, guildRoles: await fetchGuildRoles() };
 }
 
+// Search the guild's members by name (nick / username), for the admin "link this member to a
+// Discord user" picker. Returns up to 10 candidates with a display label.
+export async function searchGuildMembersByName(
+  query: string,
+): Promise<{ id: string; label: string }[]> {
+  const cfg = await loadRoleSyncConfig();
+  if (!cfg || !query.trim()) return [];
+  const res = await discordFetch(
+    cfg,
+    `/guilds/${cfg.guildId}/members/search?query=${encodeURIComponent(query.trim())}&limit=10`,
+  );
+  if (!res.ok) return [];
+  const members = (await res.json()) as DiscordGuildMember[];
+  return members
+    .filter((m) => m.user)
+    .map((m) => {
+      const nick = m.nick?.trim();
+      const uname = m.user!.global_name || m.user!.username;
+      return { id: m.user!.id, label: nick && nick !== uname ? `${nick} (@${uname})` : `@${uname}` };
+    });
+}
+
+// True when a Discord user id is actually a member of the guild. Used to validate a manual link.
+export async function isGuildMember(discordUserId: string): Promise<boolean> {
+  const cfg = await loadRoleSyncConfig();
+  if (!cfg) return false;
+  const gm = await getGuildMember(cfg, discordUserId);
+  return !!gm.member;
+}
+
 // Discord server nicknames cap at 32 characters. Join the user's RSNs with " / " (the same alias
 // convention splitDisplayAliases reads back), primary first. When the full list overflows the cap,
 // greedily keep the primary plus as many of the following names as fit — e.g.
@@ -551,11 +581,27 @@ async function discordIdForUser(userId: number): Promise<string | null> {
 export async function resolveDiscordIdForMember(
   member: MinimalClanMember,
 ): Promise<string | null> {
-  const cheap = await gatherDiscordIdCandidates(member);
-  if (cheap.length > 0) return cheap[0];
-  const matched = await findDiscordIdByRsn(member.rsn);
-  if (matched) await cacheDiscordId(member.id, matched);
-  return matched;
+  const cfg = await loadRoleSyncConfig();
+  if (!cfg) return null;
+  // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
+  // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
+  const candidates = await gatherDiscordIdCandidates(member);
+  for (const c of candidates) {
+    const gm = await getGuildMember(cfg, c);
+    if (gm.member) {
+      if (c !== member.discordId) await cacheDiscordId(member.id, c);
+      return c;
+    }
+  }
+  const searched = await findDiscordIdByRsn(member.rsn);
+  if (searched) {
+    const gm = await getGuildMember(cfg, searched);
+    if (gm.member) {
+      await cacheDiscordId(member.id, searched);
+      return searched;
+    }
+  }
+  return null;
 }
 
 /**
