@@ -777,6 +777,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     eventStarted={eventStarted}
                     pointsMode={pointsMode}
                     tierBands={tierBands}
+                    categorySuggestions={categories}
                   />
                 </div>
               ) : editingLoading ? (
