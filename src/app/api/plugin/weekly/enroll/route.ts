@@ -5,12 +5,20 @@ import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { fetchParticipantStat } from '@/lib/weekly';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // POST — plugin auto-enrolls the signed-in player in the currently active weekly comp.
 // No auth: any plugin user may enroll themselves (creates a guest clan member if new).
 // Enrollment is idempotent (onConflictDoNothing + an explicit existence check), so
 // repeated calls are harmless and don't warrant a rate limit at clan scale.
 export async function POST(request: Request) {
+  // Unauthenticated + creates a guest member and fires an outbound hiscores fetch per new RSN, so
+  // a per-IP rate limit caps leaderboard pollution and outbound amplification.
+  const rl = await rateLimit(request, 'plugin-weekly-enroll', { limit: 20, windowMs: 5 * 60 * 1000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+
   let body: { rsn?: string };
   try {
     body = await request.json();
