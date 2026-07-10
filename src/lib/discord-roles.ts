@@ -11,7 +11,7 @@
  * no-ops, so this module is safe to deploy before the token is provisioned.
  */
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, settings, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, settings, users, eventSignups, detectedAccounts } from '@/db/schema';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -267,11 +267,17 @@ function findRoleIdForRankByName(rankKey: string, guildRoles: DiscordRole[]): st
 // =============================================================================
 
 const MAX_RETRY_MS = 5000;
+// How many times we'll wait-out a 429 before giving up. The bulk role sweep fires a
+// members/search per unresolved member and Discord rate-limits that endpoint hard, so a
+// single retry isn't enough — a call that keeps getting 429'd would silently fail to resolve
+// the member. We retry a few times, honouring retry-after each round.
+const MAX_429_RETRIES = 5;
 
 /**
- * Authenticated Discord REST call with single-shot 429 retry. Shared by every
- * bot-driven feature (role sync here, team channels in lib/discord-teams.ts) so the
- * rate-limit handling lives in one place. `path` is appended to the v10 API base.
+ * Authenticated Discord REST call that waits out 429s (up to MAX_429_RETRIES rounds, honouring
+ * retry-after each time). Shared by every bot-driven feature (role sync here, team channels in
+ * lib/discord-teams.ts) so the rate-limit handling lives in one place. `path` is appended to
+ * the v10 API base.
  */
 export async function discordRest(
   botToken: string,
@@ -286,7 +292,7 @@ export async function discordRest(
   };
 
   let res = await fetch(url, { ...init, headers });
-  if (res.status === 429) {
+  for (let attempt = 1; res.status === 429 && attempt <= MAX_429_RETRIES; attempt++) {
     const headerVal = res.headers.get('retry-after');
     let retryMs = headerVal ? Number(headerVal) * 1000 : 0;
     if (!retryMs) {
@@ -298,7 +304,7 @@ export async function discordRest(
       }
     }
     retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
-    log.warn('discord-roles.rate-limited', { path, retryMs });
+    log.warn('discord-roles.rate-limited', { path, retryMs, attempt });
     await new Promise((r) => setTimeout(r, retryMs));
     res = await fetch(url, { ...init, headers });
   }
@@ -452,29 +458,72 @@ interface MinimalClanMember {
   discordId: string | null;
 }
 
+/** Cache a resolved Discord id onto the clan member so future syncs skip the lookup entirely. */
+async function cacheDiscordId(memberId: number, discordId: string): Promise<void> {
+  await db.update(clanMembers).set({ discordId }).where(eq(clanMembers.id, memberId)).catch(() => {});
+}
+
+/** users.discordId for a user id, or null. */
+async function discordIdForUser(userId: number): Promise<string | null> {
+  const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return u?.discordId ?? null;
+}
+
 /**
- * Resolve a Discord user ID for a clan member. Priority:
- *   1) clan_members.userId → users.discordId  (canonical OAuth-linked)
- *   2) clan_members.discordId  (legacy column, or previously-cached name match)
- *   3) Guild member search by RSN prefix + alias split  (best-effort)
+ * Resolve a Discord user ID for a clan member. Priority (strongest → weakest):
+ *   1) clan_members.userId → users.discordId          (canonical OAuth-linked)
+ *   2) clan_members.discordId                          (cached from a prior resolve)
+ *   3) an event sign-up ties this account to a user    (they signed up playing it)
+ *   4) a plugin self-report / detected account maps    (they played it through the plugin)
+ *      this RSN to a user
+ *   5) guild member search by RSN prefix + alias split (best-effort name match)
  *
- * Returns null when none of those produce a match. Callers should treat null
- * as "skip — this member can't be synced until they link or rename themselves
- * on Discord".
+ * Sources 3–5 write the result back onto clan_members.discordId so it's resolved once, not
+ * every sweep — this also slashes the rate-limited guild searches. Returns null only when a
+ * member genuinely has no Discord link anywhere (the correct "skip until they link" case).
  */
 export async function resolveDiscordIdForMember(
   member: MinimalClanMember,
 ): Promise<string | null> {
+  // 1) OAuth-linked user on the clan member row.
   if (member.userId != null) {
-    const u = await db.query.users.findFirst({ where: eq(users.id, member.userId) });
-    if (u?.discordId) return u.discordId;
+    const d = await discordIdForUser(member.userId);
+    if (d) return d;
   }
+  // 2) Previously cached.
   if (member.discordId) return member.discordId;
+
+  // 3) A sign-up links this exact account to a (real, non-guest) user.
+  const signup = await db.query.eventSignups.findFirst({
+    where: and(eq(eventSignups.clanMemberId, member.id), isNotNull(eventSignups.userId)),
+  });
+  if (signup?.userId != null) {
+    const d = await discordIdForUser(signup.userId);
+    if (d) {
+      await cacheDiscordId(member.id, d);
+      return d;
+    }
+  }
+
+  // 4) A plugin self-report / OAuth-detected account maps this RSN to a user.
+  const norm = normalizeRsn(member.rsn);
+  if (norm) {
+    const detected = await db.query.detectedAccounts.findFirst({
+      where: eq(detectedAccounts.rsnNormalized, norm),
+    });
+    if (detected?.userId != null) {
+      const d = await discordIdForUser(detected.userId);
+      if (d) {
+        await cacheDiscordId(member.id, d);
+        return d;
+      }
+    }
+  }
+
+  // 5) Last resort: guild-member name search (rate-limited; cached on hit).
   const matched = await findDiscordIdByRsn(member.rsn);
   if (matched) {
-    // Cache the name-match onto the clan member so every future sync/assignment uses the ID
-    // directly — robust against them later changing their Discord nickname away from their RSN.
-    await db.update(clanMembers).set({ discordId: matched }).where(eq(clanMembers.id, member.id)).catch(() => {});
+    await cacheDiscordId(member.id, matched);
   }
   return matched;
 }
