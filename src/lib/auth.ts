@@ -389,42 +389,37 @@ async function ensureAccountDetectedOnPlay(
   }
 }
 
-// Auto-attach an already-established account the caller is provably logged into. When the played
-// account (matched by its unforgeable hash, or by RSN) is a VERIFIED account or a real in-game
-// roster member (isGuest=0) that no site user owns yet, and the plugin handed us the account hash
-// proving control, claim it onto this user during play — instead of leaving it as a mere opt-in
-// suggestion. This is the fix for "linked manually but the Account Token isn't recognised": a
-// manually-verified member whose row was never owned (admin-added, or a roster/plugin split) now
-// links the moment they play. Unverified ghost accounts stay opt-in (they may be alts the user
-// doesn't want attached), and an account owned by someone else is never touched. Mirrors the
-// hash-trust rule claimAccountForUser already uses for the explicit Add — audit-logged and
-// admin-reversible. Best-effort: never blocks plugin auth.
+// Re-attach an established account the caller is CRYPTOGRAPHICALLY proven to control. We match ONLY
+// by the account hash already anchored on the row — never by RSN. A display name is public and the
+// X-Account-Hash header is attacker-controllable from a modified client, so an RSN match is not proof
+// of control; auto-claiming on it would let anyone with a plugin token forge `currentRsn = <victim>`
+// and steal any unowned verified/roster account (incl. one carrying a pendingRole). Matching on an
+// already-anchored hash is safe: an attacker can't produce a hash that's already stored against a
+// specific row unless they actually control that account.
+//
+// This covers the legitimate re-link case (e.g. an account whose verification was revoked kept its
+// hash, or a split left an unowned row that still carries the real hash). Accounts with NO anchored
+// hash — a manually-verified member who never played — are intentionally left to the opt-in
+// detected-accounts "Add" flow, whose suggestion is generated from the user's OWN real play and is
+// therefore trustworthy. Audit-logged and admin-reversible. Best-effort: never blocks plugin auth.
 async function maybeAutoClaimEstablishedOnPlay(
   userId: number,
-  normalizedRsn: string,
   accountHash: string,
   nowIso: string,
 ): Promise<void> {
   try {
-    // Hash match first (rename-proof, unforgeable), then the current RSN.
-    const byHash = await db.query.clanMembers.findFirst({
+    const existing = await db.query.clanMembers.findFirst({
       where: eq(clanMembers.accountHash, accountHash),
     });
-    const byRsn = await db.query.clanMembers.findFirst({
-      where: and(eq(clanMembers.rsnNormalized, normalizedRsn), isNull(clanMembers.leftAt)),
-    });
-    const existing = byHash ?? byRsn;
-    if (!existing) return; // no row — the opt-in detected-accounts flow covers brand-new play
-    if (existing.userId != null) return; // already owned (theirs or someone else's) — never steal here
+    if (!existing) return; // no row anchored to this hash — opt-in flow handles the rest
+    if (existing.userId != null) return; // already owned (theirs or someone else's) — never steal
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
-    // Unverified ghosts remain opt-in suggestions.
     if (existing.verifiedAt == null && existing.isGuest !== 0) return;
 
     const result = await db
       .update(clanMembers)
       .set({
         userId,
-        accountHash: existing.accountHash ?? accountHash,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -619,12 +614,13 @@ export async function verifyPluginToken(
   if (user) {
     const nowIso = new Date().toISOString();
 
-    // Established accounts first: if the caller is provably logged into a verified / roster account
-    // that no site user owns yet, attach it to them now (see helper). This runs before the
-    // suggestion + owned-rows lookup below so the freshly-claimed row flows through the normal path
-    // — the fix for a manually-verified member whose Account Token was going unrecognised on play.
-    if (currentRsn && normalizedRsn && accountHash) {
-      await maybeAutoClaimEstablishedOnPlay(user.id, normalizedRsn, accountHash, nowIso);
+    // Re-link an established account this caller cryptographically controls: if the (unforgeable)
+    // account hash is already anchored to an unowned verified/roster row, attach it to them now, so
+    // the freshly-claimed row flows through the normal owned-rows path below. Deliberately hash-only
+    // — an RSN is public and not proof of control (see helper); RSN-only accounts stay on the opt-in
+    // "Add" flow.
+    if (accountHash) {
+      await maybeAutoClaimEstablishedOnPlay(user.id, accountHash, nowIso);
     }
 
     // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
