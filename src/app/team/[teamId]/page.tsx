@@ -30,6 +30,8 @@ export default async function MyTeamPage({
   if (!membership) redirect('/team');
 
   const { captainPassword: _p, ...safeTeam } = team;
+  // Applicants/answers are a pre-draft concern — hide those captain links once the event is live.
+  const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
 
   // While the draft is live: captains get the live pick board; everyone else waits.
   if (event.draftStatus === 'active' || event.draftStatus === 'paused') {
@@ -81,7 +83,7 @@ export default async function MyTeamPage({
         <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; My teams
         </Link>
-        {membership.isCaptain && (
+        {membership.isCaptain && !eventStarted && (
           <Link
             href={`/team/${tId}/applicants`}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
@@ -90,7 +92,7 @@ export default async function MyTeamPage({
           </Link>
         )}
       </div>
-      {membership.isCaptain && event.draftStatus === 'none' && (
+      {membership.isCaptain && !eventStarted && event.draftStatus === 'none' && (
         <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>

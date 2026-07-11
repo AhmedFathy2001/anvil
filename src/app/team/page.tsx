@@ -113,8 +113,16 @@ export default async function MyTeamsHubPage() {
     .innerJoin(events, eq(eventSignups.eventId, events.id))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
     .where(eq(eventSignups.userId, user.userId));
-  // Only surface sign-ups for events that haven't ended (the actionable ones).
-  const activeSignups = signupRows.filter((s) => !s.forceEndedAt && !(s.endDate && s.endDate < now));
+  // Only surface sign-ups still worth acting on. Drop ended events, and — once an event has
+  // started — drop fully-resolved sign-ups (approved, with the fee collected/confirmed or no fee),
+  // since the "Sign-ups & fees" card is just clutter at that point.
+  const activeSignups = signupRows.filter((s) => {
+    if (s.forceEndedAt || (s.endDate && s.endDate < now)) return false;
+    const started = s.startDate != null && s.startDate <= now;
+    const feeResolved = !s.feeStatus || s.feeStatus === 'collected' || s.feeStatus === 'confirmed';
+    if (started && s.status === 'approved' && feeResolved) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-3xl mx-auto">
