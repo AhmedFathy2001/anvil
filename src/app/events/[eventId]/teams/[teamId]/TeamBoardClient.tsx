@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
+import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import MemberBreakdown from '@/components/MemberBreakdown';
 
 interface Props {
   event: Event;
@@ -23,6 +25,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
@@ -84,6 +87,19 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
+  const memberBreakdown = useMemo(
+    () =>
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: teamPlayers,
+        tiles,
+        completions,
+        submissions,
+      }),
+    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions],
+  );
+
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
   const selectedTileCompletedBy = selectedTileId
@@ -124,101 +140,88 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
       )}
 
 
-      {/* Progress bar */}
-      <div className="mb-6 max-w-md">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
-          <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
+      {/* Desktop: team summary beside the board (mirrors the event page); stacks on mobile so the
+          board leads. items-start keeps the shorter summary column pinned to the top. */}
+      <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
+        {/* Summary column */}
+        <div className="space-y-5 lg:sticky lg:top-20">
+          {/* Progress */}
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
+              <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
+            </div>
+            <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${percentage}%`,
+                  background: `linear-gradient(90deg, ${team.color}cc, ${team.color})`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-text-muted mt-1">{tilesLeft} {pointsMode ? 'pts ' : ''}remaining</p>
+          </div>
+
+          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed */}
+          {teamPlayers.length > 0 && (
+            <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setBreakdownOpen((v) => !v)}
+                aria-expanded={breakdownOpen}
+                className="w-full flex items-center gap-2 px-4 py-3 text-left"
+              >
+                <span className={`text-text-muted text-xs transition-transform ${breakdownOpen ? 'rotate-90' : ''}`} aria-hidden>
+                  &#9656;
+                </span>
+                <span className="text-sm font-semibold">Member breakdown</span>
+                <span className="text-xs text-text-muted ml-auto">{pointsMode ? 'points · tasks' : 'tasks'}</span>
+              </button>
+              {breakdownOpen && (
+                <div className="px-4 pb-3 border-t border-card-border">
+                  <MemberBreakdown members={memberBreakdown} pointsMode={pointsMode} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Team Roster */}
+          {teamPlayers.length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
+                Team Roster
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {teamPlayers.map((player) => (
+                  <span
+                    key={player.id}
+                    className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-card-bg"
+                  >
+                    {player.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{
-              width: `${percentage}%`,
-              background: `linear-gradient(90deg, ${team.color}cc, ${team.color})`,
-            }}
+
+        {/* Board column */}
+        <div className="min-w-0">
+          <EventBoard
+            format={event.format}
+            tiles={tiles}
+            boardSize={event.boardSize}
+            completions={completions}
+            teams={[team]}
+            activeTeamId={team.id}
+            onTileClick={(tileId) => setSelectedTileId(tileId)}
+            dropProgress={dropProgress}
+            pointsMode={pointsMode}
           />
         </div>
-        <p className="text-xs text-text-muted mt-1">{tilesLeft} {pointsMode ? 'pts ' : ''}remaining</p>
       </div>
-
-      <EventBoard
-        format={event.format}
-        tiles={tiles}
-        boardSize={event.boardSize}
-        completions={completions}
-        teams={[team]}
-        activeTeamId={team.id}
-        onTileClick={(tileId) => setSelectedTileId(tileId)}
-        dropProgress={dropProgress}
-        pointsMode={pointsMode}
-      />
-
-      {/* Team Roster */}
-      {teamPlayers.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-            <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
-            Team Roster
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {teamPlayers.map((player) => (
-              <span
-                key={player.id}
-                className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-card-bg"
-              >
-                {player.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Player Activity */}
-      {submissions.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-            <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
-            Player Activity
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(() => {
-              // Group submissions by crediting player. Count discrete submissions (one
-              // screenshot = one contribution) — NOT summed `amount`, which for kill-count and
-              // value tiles is a kill count / gp value and inflated the figure (e.g. one "35
-              // Hill Giants" screenshot read as 35).
-              const activityByPlayer = new Map<number, { name: string; submissions: number }>();
-              for (const s of submissions) {
-                if (s.creditPlayerId) {
-                  const existing = activityByPlayer.get(s.creditPlayerId);
-                  if (existing) {
-                    existing.submissions++;
-                  } else {
-                    activityByPlayer.set(s.creditPlayerId, {
-                      name: s.creditPlayerName || 'Unknown',
-                      submissions: 1,
-                    });
-                  }
-                }
-              }
-
-              // Sort by submission count descending
-              const sorted = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].submissions - a[1].submissions);
-
-              return sorted.map(([playerId, data]) => (
-                <div key={playerId} className="border border-card-border rounded-lg p-3 bg-card-bg">
-                  <div className="font-medium text-foreground mb-1">{data.name}</div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-accent-green-light font-medium">
-                      {data.submissions} drop{data.submissions !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* View-only Tile Detail Modal */}
       {selectedTile && (
