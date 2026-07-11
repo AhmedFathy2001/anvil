@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, players, completions } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
+import { eventTimeState } from '@/lib/eventTime';
 import { requireSecret } from '@/lib/env';
 import {
   buildSchedule,
@@ -43,6 +44,38 @@ function generateCodeword(playerId: number, eventId: number): string {
   return hmac.digest('hex').slice(0, 6).toUpperCase();
 }
 
+/**
+ * When a token holder resolves to no active event, check whether the RSN they're logged into is
+ * actually a drafted player in an event that's LIVE right now — i.e. they're in a bingo but their
+ * account isn't linked to it (unverified RSN, or the player row belongs to another user). Returns
+ * that event's name so the plugin can warn them; null when the RSN isn't in any live event.
+ */
+async function activeEventForUnlinkedRsn(request: Request): Promise<string | null> {
+  const rsnHeader = request.headers.get('X-RSN')?.trim();
+  if (!rsnHeader) return null;
+  const norm = normalizeRsn(rsnHeader);
+  if (!norm) return null;
+  const rows = await db
+    .select({
+      name: players.name,
+      eventName: events.name,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
+    .from(players)
+    .innerJoin(events, eq(players.eventId, events.id))
+    .where(sql`lower(${players.name}) = ${norm}`);
+  const now = Date.now();
+  for (const r of rows) {
+    if (normalizeRsn(r.name) !== norm) continue; // exact (nbsp-normalised) match
+    if (eventTimeState({ startDate: r.startDate, endDate: r.endDate, forceEndedAt: r.forceEndedAt, now }).phase === 'active') {
+      return r.eventName;
+    }
+  }
+  return null;
+}
+
 export async function GET(request: Request) {
   const auth = await verifyPluginToken(request);
   if (!auth) {
@@ -54,7 +87,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount] =
+      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, unlinkedActiveEvent] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
@@ -64,11 +97,15 @@ export async function GET(request: Request) {
           getSpoonTaunts(),
           getAlwaysNotifyItems(),
           getShowKillCount(),
+          activeEventForUnlinkedRsn(request),
         ]);
       return NextResponse.json({
         event: null,
         team: null,
         player: null,
+        // Non-null when the logged-in RSN IS a player in a live bingo but this token/account isn't
+        // linked to it — the plugin surfaces a "verify your RSN" warning so tracking isn't silently off.
+        unlinkedActiveEvent,
         codeword: null,
         trackedStats: [],
         trackedKcNames: [],
