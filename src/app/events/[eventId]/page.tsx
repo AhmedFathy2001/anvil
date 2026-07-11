@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, eventSignups, clanMembers } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions } from '@/db/schema';
+import { and, eq, isNull, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
@@ -9,6 +9,7 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
+import { computeEventMvp } from '@/lib/memberBreakdown';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,29 @@ export default async function EventScoreboardPage({
   }
 
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
+
+  // Event MVP — the single highest-scoring member across every team. Pull only the columns the
+  // split needs (not full submission rows) so a kill-count-heavy event doesn't drag this public page.
+  const eventSubmissions = tileIds.length > 0
+    ? await db
+        .select({
+          tileId: submissions.tileId,
+          teamId: submissions.teamId,
+          creditPlayerId: submissions.creditPlayerId,
+          amount: submissions.amount,
+        })
+        .from(submissions)
+        .where(inArray(submissions.tileId, tileIds))
+    : [];
+  const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+  const mvp = computeEventMvp({
+    scoringMode: event.scoringMode,
+    teams: eventTeams,
+    players: eventPlayers,
+    tiles: eventTiles,
+    completions: eventCompletions,
+    submissions: eventSubmissions,
+  });
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client
   // round-trip. We need the viewer's session, their existing signup (if any), and whether
@@ -134,6 +158,7 @@ export default async function EventScoreboardPage({
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}
+          mvp={mvp}
         />
       )}
     </>

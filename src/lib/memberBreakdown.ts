@@ -29,6 +29,18 @@ export interface MemberContribution {
   contributions: MemberTileContribution[];
 }
 
+// Event-wide MVP: the single highest-scoring contributor across every team (not the best player on
+// the top team). Carries their team so the UI can colour/label it.
+export interface EventMvp {
+  playerId: number;
+  name: string;
+  points: number;
+  tasks: number;
+  teamId: number;
+  teamName: string;
+  teamColor: string;
+}
+
 interface BreakdownPlayer {
   id: number;
   name: string;
@@ -161,4 +173,46 @@ export function computeMemberBreakdown(params: {
         b.inProgress - a.inProgress ||
         b.submissions - a.submissions,
     );
+}
+
+// The event MVP — highest points (then tasks) across ALL teams' members. Returns null until someone
+// has actually scored or completed a task.
+export function computeEventMvp(params: {
+  scoringMode: string | null | undefined;
+  teams: { id: number; name: string; color: string }[];
+  players: BreakdownPlayer[];
+  tiles: BreakdownTile[];
+  completions: BreakdownCompletion[];
+  submissions: BreakdownSubmission[];
+}): EventMvp | null {
+  const { scoringMode, teams, players, tiles, completions, submissions } = params;
+  let best: EventMvp | null = null;
+  for (const team of teams) {
+    const members = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode,
+      players,
+      tiles,
+      completions,
+      submissions,
+    });
+    for (const m of members) {
+      if (
+        !best ||
+        m.points > best.points ||
+        (m.points === best.points && m.tasks > best.tasks)
+      ) {
+        best = {
+          playerId: m.playerId,
+          name: m.name,
+          points: m.points,
+          tasks: m.tasks,
+          teamId: team.id,
+          teamName: team.name,
+          teamColor: team.color,
+        };
+      }
+    }
+  }
+  return best && (best.points > 0 || best.tasks > 0) ? best : null;
 }
