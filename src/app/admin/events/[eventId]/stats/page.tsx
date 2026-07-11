@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, settings } from '@/db/schema';
+import { events, teams, settings, tiles, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import StatsClient from './StatsClient';
@@ -20,6 +20,10 @@ export default async function EventStatsPage({
 
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
+  const [eventTiles, eventPlayers] = await Promise.all([
+    db.select().from(tiles).where(eq(tiles.eventId, id)),
+    db.select().from(players).where(eq(players.eventId, id)),
+  ]);
 
   const [statStandings, teamStandings, pullRow] = await Promise.all([
     getStatStandings(id),
@@ -31,6 +35,8 @@ export default async function EventStatsPage({
     <StatsClient
       event={event}
       teams={safeTeams}
+      tiles={eventTiles}
+      players={eventPlayers}
       statStandings={statStandings}
       teamStandings={teamStandings}
       statsPulledAt={pullRow?.value ?? null}

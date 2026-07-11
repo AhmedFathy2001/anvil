@@ -1,10 +1,13 @@
 'use client';
 
-import type { Event, Team } from '@/lib/types';
+import type { Event, Team, Tile, Player } from '@/lib/types';
 import type { StatTileStanding, TeamStanding } from '@/lib/statStandings';
 import Link from 'next/link';
 import { useState, useCallback, useEffect } from 'react';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
+import { isPointsMode } from '@/lib/utils';
+import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import MemberBreakdown from '@/components/MemberBreakdown';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -21,6 +24,8 @@ function fmtCooldown(secs: number): string {
 interface Props {
   event: Event;
   teams: Team[];
+  tiles: Tile[];
+  players: Player[];
   statStandings: StatTileStanding[];
   teamStandings: TeamStanding[];
   // ISO time of the last manual stat pull (persisted), or null. Seeds the cooldown across refreshes.
@@ -31,12 +36,13 @@ interface Props {
 // stream's exact Submission shape.
 interface ActivitySubmission {
   teamId: number;
+  tileId: number;
   creditPlayerId: number | null;
   creditPlayerName?: string | null;
   amount: number;
 }
 
-export default function StatsClient({ event, teams, statStandings, teamStandings, statsPulledAt }: Props) {
+export default function StatsClient({ event, teams, tiles, players, statStandings, teamStandings, statsPulledAt }: Props) {
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -49,6 +55,8 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
     error?: string;
   } | null>(null);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
+  const [completions, setCompletions] = useState<{ teamId: number; tileId: number }[]>([]);
+  const [breakdownTeams, setBreakdownTeams] = useState<Set<number>>(new Set());
   const [standingsQuery, setStandingsQuery] = useState('');
 
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
@@ -73,11 +81,13 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
       setSubmissions(
         data.submissions.map((s) => ({
           teamId: s.teamId,
+          tileId: s.tileId,
           creditPlayerId: s.creditPlayerId,
           creditPlayerName: s.creditPlayerName,
           amount: s.amount,
         })),
       );
+      setCompletions(data.completions.map((c) => ({ teamId: c.teamId, tileId: c.tileId })));
     }, []),
   });
 
@@ -128,26 +138,20 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
     }
   }
 
-  // Aggregate live submissions into per-player activity counts. Count discrete submissions
-  // (one screenshot = one contribution), NOT summed `amount` — for kill-count/value tiles
-  // `amount` is a kill count or gp value and summing it inflated the figure (e.g. one "35 Hill
-  // Giants" screenshot read as 35).
-  const activityByPlayer = new Map<number, { name: string; teamId: number; submissions: number }>();
-  for (const s of submissions) {
-    if (s.creditPlayerId) {
-      const existing = activityByPlayer.get(s.creditPlayerId);
-      if (existing) {
-        existing.submissions++;
-      } else {
-        activityByPlayer.set(s.creditPlayerId, {
-          name: s.creditPlayerName || 'Unknown',
-          teamId: s.teamId,
-          submissions: 1,
-        });
-      }
-    }
-  }
-  const sortedActivity = Array.from(activityByPlayer.entries()).sort((a, b) => b[1].submissions - a[1].submissions);
+  // Per-team member breakdown: each completed tile's point weight split among the members who
+  // submitted toward it (see computeMemberBreakdown). Live off the submission/completion stream.
+  const pointsMode = isPointsMode(event.scoringMode);
+  const teamBreakdowns = teams.map((team) => ({
+    team,
+    members: computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players,
+      tiles,
+      completions,
+      submissions,
+    }),
+  }));
 
   return (
     <div className="space-y-10">
@@ -402,33 +406,55 @@ export default function StatsClient({ event, teams, statStandings, teamStandings
         </div>
       )}
 
-      {/* Player Activity */}
+      {/* Member breakdown — per team, who earned the points / did the tasks */}
       <div>
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
-          Player Activity
+          Member breakdown
         </h2>
-        {sortedActivity.length === 0 ? (
+        <p className="text-sm text-text-muted mb-4">
+          {pointsMode
+            ? 'Each completed tile’s points split across the members who contributed to it, plus their task and submission counts.'
+            : 'Tiles and submissions each member contributed to, per team.'}
+        </p>
+        {teams.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
-            No submissions yet.
+            No teams yet.
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedActivity.map(([playerId, data]) => {
-              const team = teams.find((t) => t.id === data.teamId);
+          <div className="space-y-2">
+            {teamBreakdowns.map(({ team, members }) => {
+              const open = breakdownTeams.has(team.id);
+              const totalTasks = members.reduce((sum, m) => sum + m.tasks, 0);
               return (
-                <div key={playerId} className="border border-card-border rounded-lg p-3 bg-card-bg">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-foreground">{data.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: team?.color + '20', color: team?.color }}>
-                      {team?.name}
+                <div key={team.id} className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBreakdownTeams((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(team.id)) next.delete(team.id);
+                        else next.add(team.id);
+                        return next;
+                      })
+                    }
+                    aria-expanded={open}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-left"
+                  >
+                    <span className={`text-text-muted text-xs transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden>
+                      &#9656;
                     </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-accent-green-light font-medium">
-                      {data.submissions} drop{data.submissions !== 1 ? 's' : ''}
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: team.color }} aria-hidden />
+                    <span className="text-sm font-semibold truncate min-w-0">{team.name}</span>
+                    <span className="text-xs text-text-muted ml-auto shrink-0">
+                      {totalTasks} task{totalTasks !== 1 ? 's' : ''}
                     </span>
-                  </div>
+                  </button>
+                  {open && (
+                    <div className="px-4 pb-3 border-t border-card-border">
+                      <MemberBreakdown members={members} pointsMode={pointsMode} />
+                    </div>
+                  )}
                 </div>
               );
             })}
