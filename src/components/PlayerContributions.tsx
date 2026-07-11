@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
+import { formatTileAmount } from '@/lib/tileKinds';
 
 interface Submission {
   id: number;
@@ -21,6 +22,7 @@ interface Tile {
   id: number;
   label: string;
   icon?: string | null;
+  tileType?: string | null;
 }
 
 interface Props {
@@ -58,12 +60,10 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
     );
   }
 
-  const totalAmount = submissions.reduce((sum, s) => sum + s.amount, 0);
-
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-bold text-foreground">
-        {playerName}&apos;s Contributions ({submissions.length} submissions, {totalAmount} total)
+        {playerName}&apos;s Contributions ({submissions.length} submission{submissions.length !== 1 ? 's' : ''} across {grouped.size} tile{grouped.size !== 1 ? 's' : ''})
       </h3>
       {Array.from(grouped.entries()).map(([tileId, subs]) => {
         const tile = tileMap.get(tileId);
@@ -92,14 +92,14 @@ export default function PlayerContributions({ submissions, tiles, playerName }: 
                 ({subs.length})
               </span>
               <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
-                Total: x{tileTotal}
+                {tile ? formatTileAmount(tile, tileTotal) : `x${tileTotal}`}
               </span>
             </button>
             {isOpen && (
             <div className="space-y-1 px-3 pb-3">
               {subs.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 text-xs text-text-muted">
-                  <span className="text-gold font-medium">x{s.amount}</span>
+                  <span className="text-gold font-medium">{tile ? formatTileAmount(tile, s.amount) : `x${s.amount}`}</span>
                   {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
                     <span className="text-text-muted truncate min-w-0">(uploaded by {s.uploaderName})</span>
                   )}

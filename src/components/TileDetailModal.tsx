@@ -707,7 +707,7 @@ export default function TileDetailModal({
                               ? (s.durationSeconds != null ? secondsToClock(s.durationSeconds) : '—')
                               : isValue
                                 ? `${s.amount.toLocaleString()} gp`
-                                : `x${s.amount}`}
+                                : `${s.amount} ${countNoun}${s.amount !== 1 ? 's' : ''}`}
                           </span>
                           {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
                             <span className="text-text-muted">

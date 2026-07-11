@@ -40,6 +40,38 @@ export function tileKindLabel(tile: TileKindLike): string {
   }
 }
 
+// The countable unit for a tile — so a submission/aggregate reads with the right noun: a 500-kill
+// tile is "500 kills", not "500 drops". Value tiles are handled by formatTileAmount (gp, not a count).
+export function tileCountNoun(tile: TileKindLike): string {
+  switch (tile.tileType) {
+    case 'kill':
+    case 'pvp':
+      return 'kill';
+    case 'diary':
+    case 'ca':
+      return 'completion';
+    case 'gain':
+      return 'item';
+    case 'deathless':
+      return 'run';
+    case 'lms':
+      return 'game';
+    default:
+      return 'drop';
+  }
+}
+
+// Human-readable amount for a tile: value tiles are gp; everything else a pluralised count noun.
+// "500 kills", "3 drops", "50,000,000 gp". Use everywhere a raw submission amount would otherwise
+// render as a bare "x500" (which reads as drops regardless of the tile's real kind).
+export function formatTileAmount(tile: TileKindLike, amount: number): string {
+  if (tile.tileType === 'value' || tile.tileType === 'valuetotal') {
+    return `${amount.toLocaleString()} gp`;
+  }
+  const noun = tileCountNoun(tile);
+  return `${amount.toLocaleString()} ${noun}${amount === 1 ? '' : 's'}`;
+}
+
 // A stat tile's trackedStat can hold SEVERAL hiscores keys, comma-separated ("chambersOfXeric,
 // chambersOfXericChallengeMode" — CoX + CM count together). Single-key tiles are the common
 // case and pass through unchanged. Gains for a composite tile are the SUM across its keys.
