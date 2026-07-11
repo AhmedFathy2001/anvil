@@ -786,55 +786,84 @@ export default function TileDetailModal({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs text-text-muted mb-1">
-                  Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
-                </label>
-                <Input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10) || 1;
-                    setAmount(String(Math.min(val, maxAmount)));
-                  }}
-                  min="1"
-                  max={maxAmount}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-                />
-              </div>
+              {/* Amount is only entered by hand for non-per-unit count tiles. For real drops the
+                  count follows the number of screenshots you attach (one submission per shot), so
+                  there's no separate amount field to keep in sync. */}
+              {!perUnitProof && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
+                  </label>
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10) || 1;
+                      setAmount(String(Math.min(val, maxAmount)));
+                    }}
+                    min="1"
+                    max={maxAmount}
+                    className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">
-                  Evidence Screenshot{perUnitProof && parsedAmount > 1 ? 's' : ''} *
-                  {perUnitProof && parsedAmount > 1 && (
-                    <span className="text-yellow-400 ml-1">({imageUrls.filter(u => u).length}/{parsedAmount} uploaded)</span>
+                  Evidence Screenshot{perUnitProof ? 's' : ''} *
+                  {perUnitProof && (
+                    <span className="text-yellow-400 ml-1">
+                      ({imageUrls.filter((u) => u).length}/{maxAmount})
+                    </span>
                   )}
                   {!perUnitProof && parsedAmount > 1 && (
                     <span className="text-text-muted ml-1">(one screenshot is enough)</span>
                   )}
                 </label>
-                {!(perUnitProof && parsedAmount > 1) ? (
+                {!perUnitProof ? (
                   <ImageUpload
                     onImageSelected={(url) => setImageUrls([url])}
                     currentUrl={imageUrls[0] || undefined}
                   />
                 ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {imageUrls.map((url, index) => (
-                      <div key={index} className="border border-card-border/50 rounded-lg p-2 bg-brown-dark/30">
-                        <p className="text-xs text-text-muted mb-1">Drop #{index + 1}</p>
-                        <ImageUpload
-                          onImageSelected={(newUrl) => {
-                            setImageUrls((prev) => {
-                              const updated = [...prev];
-                              updated[index] = newUrl;
-                              return updated;
-                            });
-                          }}
-                          currentUrl={url || undefined}
-                        />
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {/* Bulk: pick every drop screenshot in one go — the count follows the images. */}
+                    <ImageUpload
+                      multiple
+                      onImageSelected={() => {}}
+                      onImagesSelected={(urls) => {
+                        const merged = [...imageUrls.filter(Boolean), ...urls].slice(0, maxAmount);
+                        setImageUrls(merged.length ? merged : ['']);
+                        setAmount(String(Math.max(1, merged.length)));
+                      }}
+                    />
+                    {imageUrls.filter(Boolean).length > 0 && (
+                      <>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {imageUrls.filter(Boolean).map((url, i) => (
+                            <div key={i} className="relative">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt={`Drop ${i + 1}`} className="w-full aspect-square object-cover rounded border border-card-border" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = imageUrls.filter(Boolean).filter((_, idx) => idx !== i);
+                                  setImageUrls(next.length ? next : ['']);
+                                  setAmount(String(Math.max(1, next.length)));
+                                }}
+                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-400"
+                                aria-label={`Remove drop ${i + 1}`}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-text-muted">
+                          {imageUrls.filter(Boolean).length} screenshot{imageUrls.filter(Boolean).length !== 1 ? 's' : ''} — one {countNoun} each.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

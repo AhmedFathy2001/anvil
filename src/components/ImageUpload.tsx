@@ -6,6 +6,10 @@ import Input from '@/components/Input';
 interface Props {
   onImageSelected: (url: string) => void;
   currentUrl?: string;
+  // Bulk mode: accept several files at once and report all uploaded URLs together (used for drop
+  // evidence, so you can attach every screenshot in one go instead of one slot at a time).
+  multiple?: boolean;
+  onImagesSelected?: (urls: string[]) => void;
 }
 
 // Detect iOS/iPadOS
@@ -15,7 +19,7 @@ function isIOS(): boolean {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
-export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
+export default function ImageUpload({ onImageSelected, currentUrl, multiple, onImagesSelected }: Props) {
   const [mode, setMode] = useState<'upload' | 'url'>('upload');
   const [uploading, setUploading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -51,11 +55,39 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
     }
   }
 
+  // Bulk upload: send each file through the single-file endpoint in turn, then report every URL
+  // that came back so the caller can fill all its slots at once.
+  async function handleFiles(files: File[]) {
+    setUploading(true);
+    setError(null);
+    const urls: string[] = [];
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (res.ok) {
+          const { url } = await res.json();
+          urls.push(url);
+        }
+      }
+      if (urls.length === 0) setError('Upload failed. Try different image files.');
+      else onImagesSelected?.(urls);
+    } catch {
+      setError('Upload failed. Check your connection and try again.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    if (multiple) handleFiles(Array.from(files));
+    else handleFile(files[0]);
   }
 
   function handleUrlSubmit() {
@@ -109,11 +141,14 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
             ref={fileRef}
             type="file"
             accept="image/*"
-            capture={isIOS() ? 'environment' : undefined}
+            multiple={multiple}
+            capture={multiple ? undefined : isIOS() ? 'environment' : undefined}
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
+              const files = e.target.files;
+              if (!files || files.length === 0) return;
+              if (multiple) handleFiles(Array.from(files));
+              else handleFile(files[0]);
             }}
           />
           {uploading ? (
@@ -121,7 +156,11 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
           ) : (
             <div>
               <p className="text-sm text-text-muted">
-                {isIOS() ? 'Tap to take photo or choose from library' : 'Drop image here or click to browse'}
+                {multiple
+                  ? 'Select several screenshots at once'
+                  : isIOS()
+                    ? 'Tap to take photo or choose from library'
+                    : 'Drop image here or click to browse'}
               </p>
               <p className="text-xs text-text-muted mt-1 opacity-70">
                 Supports JPG, PNG, GIF, WebP
@@ -151,7 +190,7 @@ export default function ImageUpload({ onImageSelected, currentUrl }: Props) {
         </div>
       )}
 
-      {preview && (
+      {!multiple && preview && (
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
