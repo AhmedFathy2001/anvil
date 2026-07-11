@@ -264,13 +264,13 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
             <button
               onClick={saveTeamName}
               disabled={savingName}
-              className="text-xs text-accent-green-light hover:text-accent-green transition-colors"
+              className="text-sm text-accent-green-light hover:text-accent-green transition-colors px-3 py-2 rounded-md hover:bg-accent-green/10"
             >
               {savingName ? '...' : 'Save'}
             </button>
             <button
               onClick={() => { setEditingName(false); setNewName(team.name); }}
-              className="text-xs text-text-muted hover:text-foreground transition-colors"
+              className="text-sm text-text-muted hover:text-foreground transition-colors px-3 py-2 rounded-md hover:bg-brown-light"
             >
               Cancel
             </button>

@@ -63,13 +63,20 @@ export default function BingoBoard({
 
   return (
     <div
-      className={`grid gap-1.5 sm:gap-2 w-full mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border ${
+      className={`w-full mx-auto overflow-x-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border ${
         expanded ? 'max-w-6xl' : 'max-w-4xl'
       }`}
-      style={{
-        gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
-      }}
     >
+      <div
+        className="grid gap-1.5 sm:gap-2"
+        style={{
+          gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+          // Floor each cell at ~44px (incl. gap) so a large board stays tappable and legible on a
+          // phone — it scrolls horizontally instead of shrinking cells into unreadable specks. On
+          // wider screens the grid fills the container and cells expand evenly (1fr).
+          minWidth: `${boardSize * 3.25}rem`,
+        }}
+      >
       {sortedTiles.map((tile) => {
         const tileCompletions = completions
           .filter((c) => c.tileId === tile.id)
@@ -106,6 +113,7 @@ export default function BingoBoard({
           />
         );
       })}
+      </div>
     </div>
   );
 }

@@ -94,7 +94,7 @@ export default async function EventSignupPage({
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-2 mb-2">
         <span className="w-1 h-7 bg-gold rounded-full" />
-        <h1 className="text-3xl font-bold text-gold">Sign up: {event.name}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gold break-words min-w-0">Sign up: {event.name}</h1>
       </div>
       <p className="text-sm text-text-muted mb-6">
         One sign-up per Discord account. Pick the RSN you&apos;ll play with — that&apos;s the

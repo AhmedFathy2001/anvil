@@ -304,10 +304,10 @@ export default function MyTeamClient({
                 if (e.key === 'Escape') { setEditingName(false); setNewName(team.name); setNewColor(team.color); setNameError(null); }
               }}
             />
-            <button onClick={saveTeamName} disabled={savingName} className="text-xs text-accent-green-light hover:text-accent-green transition-colors">
+            <button onClick={saveTeamName} disabled={savingName} className="text-sm text-accent-green-light hover:text-accent-green transition-colors px-3 py-2 rounded-md hover:bg-accent-green/10">
               {savingName ? '...' : 'Save'}
             </button>
-            <button onClick={() => { setEditingName(false); setNewName(team.name); setNewColor(team.color); setNameError(null); }} className="text-xs text-text-muted hover:text-foreground transition-colors">
+            <button onClick={() => { setEditingName(false); setNewName(team.name); setNewColor(team.color); setNameError(null); }} className="text-sm text-text-muted hover:text-foreground transition-colors px-3 py-2 rounded-md hover:bg-brown-light">
               Cancel
             </button>
             {nameError && <span className="text-xs text-red-400">{nameError}</span>}

@@ -162,7 +162,7 @@ export default function LeaguesBoard({
                 <button
                   type="button"
                   onClick={() => toggle(tile.id)}
-                  className="text-text-muted hover:text-foreground text-xs shrink-0 w-5"
+                  className="text-text-muted hover:text-foreground text-sm shrink-0 w-9 h-9 -my-2 flex items-center justify-center"
                   aria-label={isOpen ? 'Collapse' : 'Expand'}
                 >
                   {isOpen ? '▾' : '▸'}

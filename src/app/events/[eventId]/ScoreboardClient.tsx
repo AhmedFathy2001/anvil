@@ -273,7 +273,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gold mb-1">{event.name}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1 break-words">{event.name}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text-muted">
           <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
             {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
@@ -406,7 +406,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-foreground text-lg leading-none"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-text-muted hover:text-foreground text-lg leading-none w-9 h-9 flex items-center justify-center"
                 aria-label="Clear search"
               >
                 ×
