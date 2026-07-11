@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 
@@ -65,6 +65,18 @@ export default function LeaguesBoard({
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
+  // A points/task board can carry 150+ tiles — render them in pages so the list isn't a wall.
+  // Only long lists page (short ones render whole); reset to the first page whenever the filtered
+  // set changes size so a newly-applied filter starts from the top.
+  const PAGE_SIZE = 30;
+  const paginated = sorted.length > 50;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [sorted.length]);
+  const visible = paginated ? sorted.slice(0, visibleCount) : sorted;
+  const remaining = sorted.length - visible.length;
+
   function toggle(id: number) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -75,8 +87,9 @@ export default function LeaguesBoard({
   }
 
   return (
-    <div className={`w-full ${wide ? 'max-w-5xl' : 'max-w-3xl'} mx-auto bg-brown-dark/50 rounded-xl border border-card-border divide-y divide-card-border overflow-hidden`}>
-      {sorted.map((tile) => {
+    <div className={`w-full ${wide ? 'max-w-5xl' : 'max-w-3xl'} mx-auto`}>
+      <div className="bg-brown-dark/50 rounded-xl border border-card-border divide-y divide-card-border overflow-hidden">
+      {visible.map((tile) => {
         const tileCompletions = completions
           .filter((c) => c.tileId === tile.id)
           .filter((c) => (activeTeamId ? c.teamId === activeTeamId : true))
@@ -179,6 +192,16 @@ export default function LeaguesBoard({
         <div className="px-3 py-6 text-center text-sm text-text-muted">
           {matchedTileIds ? 'No tiles match this filter.' : 'No tiles yet.'}
         </div>
+      )}
+      </div>
+      {paginated && remaining > 0 && (
+        <button
+          type="button"
+          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+          className="mt-3 w-full py-2.5 text-sm font-medium text-gold border border-gold/30 rounded-lg bg-gold/5 hover:bg-gold/10 transition-colors"
+        >
+          Show {Math.min(PAGE_SIZE, remaining)} more · {remaining} remaining
+        </button>
       )}
     </div>
   );
