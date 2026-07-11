@@ -9,7 +9,8 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp } from '@/lib/memberBreakdown';
+import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
+import { getStatStandings } from '@/lib/statStandings';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,12 @@ export default async function EventScoreboardPage({
         .where(inArray(submissions.tileId, tileIds))
     : [];
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+  // Per skill/boss tile, each player's XP/KC gain — so stat tiles count toward the MVP too.
+  const statStandings = await getStatStandings(id);
+  const statGains: StatGainMap = {};
+  for (const s of statStandings) {
+    statGains[s.tileId] = s.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
+  }
   const mvp = computeEventMvp({
     scoringMode: event.scoringMode,
     teams: eventTeams,
@@ -60,6 +67,7 @@ export default async function EventScoreboardPage({
     tiles: eventTiles,
     completions: eventCompletions,
     submissions: eventSubmissions,
+    statGains,
   });
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client

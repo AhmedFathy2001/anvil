@@ -274,8 +274,9 @@ export default function MyTeamClient({
         tiles,
         completions,
         submissions,
+        statGains: gains,
       }),
-    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions],
+    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
   return (

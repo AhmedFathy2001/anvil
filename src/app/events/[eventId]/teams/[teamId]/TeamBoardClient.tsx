@@ -103,8 +103,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         tiles,
         completions,
         submissions,
+        statGains: gains,
       }),
-    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions],
+    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);

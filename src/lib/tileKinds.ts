@@ -72,6 +72,17 @@ export function formatTileAmount(tile: TileKindLike, amount: number): string {
   return `${amount.toLocaleString()} ${noun}${amount === 1 ? '' : 's'}`;
 }
 
+// A member's amount on a tile, stat-aware: XP / KC for hiscores tiles, else the usual count/gp.
+export function formatContributionAmount(c: {
+  tileType?: string | null;
+  statType?: string | null;
+  amount: number;
+}): string {
+  if (c.statType === 'skill') return `${c.amount.toLocaleString()} XP`;
+  if (c.statType === 'boss') return `${c.amount.toLocaleString()} KC`;
+  return formatTileAmount({ tileType: c.tileType }, c.amount);
+}
+
 // A stat tile's trackedStat can hold SEVERAL hiscores keys, comma-separated ("chambersOfXeric,
 // chambersOfXericChallengeMode" — CoX + CM count together). Single-key tiles are the common
 // case and pass through unchanged. Gains for a composite tile are the SUM across its keys.

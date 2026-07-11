@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useState, useCallback, useEffect } from 'react';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode } from '@/lib/utils';
-import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
@@ -141,6 +141,11 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
   // Per-team member breakdown: each completed tile's point weight split among the members who
   // submitted toward it (see computeMemberBreakdown). Live off the submission/completion stream.
   const pointsMode = isPointsMode(event.scoringMode);
+  // Per skill/boss tile, each player's XP/KC gain — so the breakdown can attribute stat tiles too.
+  const statGains: StatGainMap = {};
+  for (const s of statStandings) {
+    statGains[s.tileId] = s.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
+  }
   const teamBreakdowns = teams.map((team) => ({
     team,
     members: computeMemberBreakdown({
@@ -150,6 +155,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
       tiles,
       completions,
       submissions,
+      statGains,
     }),
   }));
 

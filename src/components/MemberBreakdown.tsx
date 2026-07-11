@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { MemberContribution } from '@/lib/memberBreakdown';
-import { formatTileAmount } from '@/lib/tileKinds';
+import { formatContributionAmount } from '@/lib/tileKinds';
 
 // Per-member points/tasks for a team. Points only carry meaning in points-mode events, so that
 // column is hidden otherwise. The raw submission count is deliberately not shown — it's dominated
@@ -91,7 +91,7 @@ export default function MemberBreakdown({
                     />
                     <span className="truncate min-w-0 flex-1 text-text-muted">{c.label}</span>
                     <span className="shrink-0 text-accent-green-light tabular-nums">
-                      {formatTileAmount({ tileType: c.tileType }, c.amount)}
+                      {formatContributionAmount(c)}
                     </span>
                   </li>
                 ))}
