@@ -253,6 +253,43 @@ function clockToSeconds(value: string): number | null {
   return nums[0] * 3600 + nums[1] * 60 + nums[2];
 }
 
+// Parse a number token like "35", "1,000", "500k", "1.5m" into an integer (null if not a number).
+function parseAmountToken(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const m = String(raw).trim().match(/^([\d,]*\.?\d+)\s*([kmb])?$/i);
+  if (!m) return null;
+  let n = parseFloat(m[1].replace(/,/g, ''));
+  if (!isFinite(n)) return null;
+  const suf = m[2]?.toLowerCase();
+  if (suf === 'k') n *= 1e3;
+  else if (suf === 'm') n *= 1e6;
+  else if (suf === 'b') n *= 1e9;
+  return Math.round(n);
+}
+
+// Count-like numbers in a title/description — skips obvious non-counts (times, part numbers, levels)
+// so the "amount doesn't match" hint doesn't fire on "part: 2" or "clear below 25 minutes".
+function extractCountLikeNumbers(text: string): number[] {
+  if (!text) return [];
+  const out: number[] = [];
+  const re = /([\d,]*\.?\d+)\s*([kmb])?\b\s*([a-z]+)?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const val = parseAmountToken(m[1] + (m[2] ?? ''));
+    if (val == null) continue;
+    const before = text.slice(Math.max(0, m.index - 8), m.index).toLowerCase();
+    const after = (m[3] ?? '').toLowerCase();
+    if (/part|lvl|level/.test(before)) continue;
+    if (
+      /^(min|mins|minute|minutes|hour|hours|hr|hrs|sec|secs|second|seconds|part|parts|tier|lvl|level|day|days|week|weeks|am|pm|st|nd|rd|th)$/.test(after)
+    ) {
+      continue;
+    }
+    out.push(val);
+  }
+  return out;
+}
+
 export default function TileTrackingConfig({
   tileId,
   eventId,
@@ -905,6 +942,23 @@ export default function TileTrackingConfig({
     }
   }
 
+  // Light heads-up: a count in the title that doesn't line up with the tile's target amount. Scoped
+  // to the field each kind actually uses (statGoal for skill/boss, gp for value, requiredAmount for
+  // the count kinds), and only when the target isn't mentioned in the title OR description.
+  const amountWarning = useMemo(() => {
+    let target: number | null = null;
+    if (kind === 'skill' || kind === 'boss') target = parseAmountToken(statGoal);
+    else if (kind === 'value') target = parseAmountToken(valueGpText);
+    else if (['drop', 'kill', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
+    if (target == null || target <= 0) return null;
+    const labelNums = extractCountLikeNumbers(label);
+    if (labelNums.length === 0) return null;
+    const allNums = [...labelNums, ...extractCountLikeNumbers(description)];
+    if (allNums.includes(target)) return null;
+    const titleNum = labelNums.find((n) => n !== target) ?? labelNums[0];
+    return { titleNum, target };
+  }, [kind, label, description, requiredAmount, statGoal, valueGpText]);
+
   return (
     <div className="space-y-3">
       {/* Tile kind — the single source of truth for what this tile is */}
@@ -957,6 +1011,17 @@ export default function TileTrackingConfig({
           placeholder="Tile description..."
         />
       </div>
+
+      {/* Light mismatch hint — a number in the title that doesn't match the target amount. */}
+      {amountWarning && (
+        <div className="flex items-start gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-200/90">
+          <span aria-hidden>⚠️</span>
+          <span>
+            The title mentions <strong>{amountWarning.titleNum.toLocaleString()}</strong>, but this tile&apos;s amount is set
+            to <strong>{amountWarning.target.toLocaleString()}</strong>. Double-check they should match.
+          </span>
+        </div>
+      )}
 
       {/* Point value (points events only) — picked by difficulty tier, with the raw number
           alongside for fine-tuning. Choosing a tier sets the band's floor; typing a number
