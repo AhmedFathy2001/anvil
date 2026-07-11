@@ -347,7 +347,9 @@ export default function SignupForm({
             You&apos;re signed up for this event ({existingSignup.status}).
           </p>
           <p className="text-text-muted text-xs mt-1">
-            You can edit your answers until the deadline.
+            {windowOpen
+              ? 'You can edit your answers until the deadline.'
+              : 'Sign-ups are closed — your answers are locked in.'}
           </p>
         </div>
       )}

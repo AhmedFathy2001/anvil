@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
-import { signupWindowState } from '@/lib/signup';
+import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -49,12 +49,24 @@ export default async function EventScoreboardPage({
   });
 
   let mySignup: { status: string } | null = null;
+  let editOpen = false;
   let hasVerifiedAccount = false;
   if (session) {
     const sig = await db.query.eventSignups.findFirst({
       where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
     });
     mySignup = sig ? { status: sig.status } : null;
+    // Whether an already-signed-up viewer can still edit — honors the payment-deadline grace,
+    // and stays closed once that (or the sign-up deadline) passes. Without this the banner would
+    // keep inviting edits days after sign-ups closed.
+    if (mySignup && mySignup.status !== 'withdrawn') {
+      editOpen = signupEditState({
+        signupOpensAt: event.signupOpensAt,
+        signupDeadline: event.signupDeadline,
+        startDate: event.startDate,
+        paymentDeadline: event.paymentDeadline,
+      }).open;
+    }
 
     const verifiedCount = await db
       .select({ id: clanMembers.id })
@@ -95,6 +107,7 @@ export default async function EventScoreboardPage({
         eventId={event.id}
         loggedIn={!!session}
         mySignup={mySignup}
+        editOpen={editOpen}
         hasVerifiedAccount={hasVerifiedAccount}
         windowOpen={window.open}
         windowReason={window.reason}
@@ -131,6 +144,7 @@ function SignupBanner({
   eventId,
   loggedIn,
   mySignup,
+  editOpen,
   hasVerifiedAccount,
   windowOpen,
   windowReason,
@@ -139,6 +153,7 @@ function SignupBanner({
   eventId: number;
   loggedIn: boolean;
   mySignup: { status: string } | null;
+  editOpen: boolean;
   hasVerifiedAccount: boolean;
   windowOpen: boolean;
   windowReason: string | null;
@@ -149,6 +164,11 @@ function SignupBanner({
   if (windowReason === 'event_started' && !mySignup) return null;
 
   const isActiveSignup = mySignup && mySignup.status !== 'withdrawn';
+
+  // The "you're signed up" banner is only meaningful while the sign-up is genuinely active. Once an
+  // existing sign-up can no longer be edited (past the pay/sign-up deadline), hide it entirely —
+  // a stale "edit your details" note over a live, locked event is just noise.
+  if (isActiveSignup && !editOpen) return null;
 
   let title: string;
   let body: string;
