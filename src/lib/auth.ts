@@ -389,6 +389,66 @@ async function ensureAccountDetectedOnPlay(
   }
 }
 
+// Auto-attach an already-established account the caller is provably logged into. When the played
+// account (matched by its unforgeable hash, or by RSN) is a VERIFIED account or a real in-game
+// roster member (isGuest=0) that no site user owns yet, and the plugin handed us the account hash
+// proving control, claim it onto this user during play — instead of leaving it as a mere opt-in
+// suggestion. This is the fix for "linked manually but the Account Token isn't recognised": a
+// manually-verified member whose row was never owned (admin-added, or a roster/plugin split) now
+// links the moment they play. Unverified ghost accounts stay opt-in (they may be alts the user
+// doesn't want attached), and an account owned by someone else is never touched. Mirrors the
+// hash-trust rule claimAccountForUser already uses for the explicit Add — audit-logged and
+// admin-reversible. Best-effort: never blocks plugin auth.
+async function maybeAutoClaimEstablishedOnPlay(
+  userId: number,
+  normalizedRsn: string,
+  accountHash: string,
+  nowIso: string,
+): Promise<void> {
+  try {
+    // Hash match first (rename-proof, unforgeable), then the current RSN.
+    const byHash = await db.query.clanMembers.findFirst({
+      where: eq(clanMembers.accountHash, accountHash),
+    });
+    const byRsn = await db.query.clanMembers.findFirst({
+      where: and(eq(clanMembers.rsnNormalized, normalizedRsn), isNull(clanMembers.leftAt)),
+    });
+    const existing = byHash ?? byRsn;
+    if (!existing) return; // no row — the opt-in detected-accounts flow covers brand-new play
+    if (existing.userId != null) return; // already owned (theirs or someone else's) — never steal here
+    // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
+    // Unverified ghosts remain opt-in suggestions.
+    if (existing.verifiedAt == null && existing.isGuest !== 0) return;
+
+    const result = await db
+      .update(clanMembers)
+      .set({
+        userId,
+        accountHash: existing.accountHash ?? accountHash,
+        verifiedAt: existing.verifiedAt ?? nowIso,
+        verificationMethod: 'plugin',
+        provisional: 0,
+        claimedAt: existing.claimedAt ?? nowIso,
+        lastSeenInClan: nowIso,
+      })
+      // Re-assert unowned in the WHERE so a concurrent claim wins cleanly instead of being clobbered.
+      .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)));
+
+    if ((result as { rowsAffected?: number }).rowsAffected === 0) return;
+
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId: existing.id,
+        eventType: 'claimed',
+        newValue: JSON.stringify({ userId, via: 'plugin-play', method: 'plugin', accountHash }),
+        actorUserId: userId,
+      })
+      .catch(() => {});
+  } catch {
+    // Best-effort — a failure must not break plugin auth.
+  }
+}
+
 // Attribute a RuneScape account to a user — the explicit opt-in "Add" action behind a
 // detected-accounts suggestion (or any server-side claim). Mirrors /api/plugin/link:
 // match an existing clan_member by accountHash (strongest, survives renames) then by
@@ -558,6 +618,14 @@ export async function verifyPluginToken(
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (user) {
     const nowIso = new Date().toISOString();
+
+    // Established accounts first: if the caller is provably logged into a verified / roster account
+    // that no site user owns yet, attach it to them now (see helper). This runs before the
+    // suggestion + owned-rows lookup below so the freshly-claimed row flows through the normal path
+    // — the fix for a manually-verified member whose Account Token was going unrecognised on play.
+    if (currentRsn && normalizedRsn && accountHash) {
+      await maybeAutoClaimEstablishedOnPlay(user.id, normalizedRsn, accountHash, nowIso);
+    }
 
     // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
     // suggestion the user can Add/Ignore from /profile rather than auto-claiming it (a member
