@@ -10,6 +10,7 @@ import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { computeMemberBreakdown } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
+import PlayerContributions from '@/components/PlayerContributions';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -30,6 +31,8 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  // Which member's contributions the full-width detail panel shows (none until you pick one).
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
@@ -184,7 +187,12 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
               </button>
               {breakdownOpen && (
                 <div className="px-4 pb-3 border-t border-card-border">
-                  <MemberBreakdown members={memberBreakdown} pointsMode={pointsMode} />
+                  <MemberBreakdown
+                    members={memberBreakdown}
+                    pointsMode={pointsMode}
+                    selectedPlayerId={selectedMemberId}
+                    onSelect={setSelectedMemberId}
+                  />
                 </div>
               )}
             </div>
@@ -228,6 +236,17 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           />
         </div>
       </div>
+
+      {/* Full-width detail for the member picked in the breakdown — exactly what they did. */}
+      {selectedMemberId != null && (() => {
+        const member = teamPlayers.find((p) => p.id === selectedMemberId);
+        const memberSubs = submissions.filter((s) => s.creditPlayerId === selectedMemberId);
+        return (
+          <div className="mt-8">
+            <PlayerContributions submissions={memberSubs} tiles={tiles} playerName={member?.name ?? 'Member'} />
+          </div>
+        );
+      })()}
 
       {/* View-only Tile Detail Modal */}
       {selectedTile && (

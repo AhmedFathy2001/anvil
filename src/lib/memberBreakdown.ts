@@ -20,6 +20,8 @@ export interface MemberContribution {
   points: number;
   // Distinct completed, non-optional tiles the member contributed at least one submission to.
   tasks: number;
+  // Distinct not-yet-completed tiles they've put work into — effort that hasn't scored yet.
+  inProgress: number;
   // Total credited submissions (kept for sort tiebreaks; the raw count is noisy for kill-count
   // tiles — one submission per kill — so it's not surfaced as a headline number).
   submissions: number;
@@ -140,16 +142,23 @@ export function computeMemberBreakdown(params: {
       contributions.sort(
         (a, b) => Number(b.completed) - Number(a.completed) || b.amount - a.amount,
       );
+      const inProgress = contributions.filter((c) => !c.completed).length;
       return {
         playerId: p.id,
         name: p.name,
         points: Math.round(pointsByPlayer.get(p.id) ?? 0),
         tasks,
+        inProgress,
         submissions: subCount,
         contributions,
       };
     })
+    // Points first, then completed tasks, then anyone with in-progress effort, then raw submissions.
     .sort(
-      (a, b) => b.points - a.points || b.tasks - a.tasks || b.submissions - a.submissions,
+      (a, b) =>
+        b.points - a.points ||
+        b.tasks - a.tasks ||
+        b.inProgress - a.inProgress ||
+        b.submissions - a.submissions,
     );
 }

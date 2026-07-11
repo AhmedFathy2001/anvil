@@ -58,6 +58,8 @@ export default function MyTeamClient({
   // Board filters (search + category + tier) report their matched set here; null = no filter.
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  // Which member's contributions the full-width detail panel shows. Defaults to you.
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(myPlayerId);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
@@ -258,7 +260,10 @@ export default function MyTeamClient({
   const selectedTileCompletedBy = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId).map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
     : [];
-  const mySubmissions = myPlayerId ? submissions.filter((s) => s.creditPlayerId === myPlayerId) : [];
+  const selectedMember = teamPlayers.find((p) => p.id === selectedMemberId) ?? null;
+  const selectedMemberSubmissions = selectedMemberId
+    ? submissions.filter((s) => s.creditPlayerId === selectedMemberId)
+    : [];
 
   const memberBreakdown = useMemo(
     () =>
@@ -395,7 +400,12 @@ export default function MyTeamClient({
               </button>
               {breakdownOpen && (
                 <div className="px-4 pb-3 border-t border-card-border">
-                  <MemberBreakdown members={memberBreakdown} pointsMode={pointsMode} />
+                  <MemberBreakdown
+                    members={memberBreakdown}
+                    pointsMode={pointsMode}
+                    selectedPlayerId={selectedMemberId}
+                    onSelect={setSelectedMemberId}
+                  />
                 </div>
               )}
             </div>
@@ -440,9 +450,15 @@ export default function MyTeamClient({
         </div>
       </div>
 
-      {myPlayerId && (
+      {/* Full-width detail for whoever's selected in the member breakdown (defaults to you) — the
+          same list, just given room. Pick a different member above to see theirs. */}
+      {selectedMember && (
         <div className="mt-8">
-          <PlayerContributions submissions={mySubmissions} tiles={tiles} playerName={myPlayerName || 'You'} />
+          <PlayerContributions
+            submissions={selectedMemberSubmissions}
+            tiles={tiles}
+            playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
+          />
         </div>
       )}
 
