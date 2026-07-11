@@ -11,6 +11,10 @@ import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import Input from '@/components/Input';
+import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import MemberBreakdown from '@/components/MemberBreakdown';
+import BoardFilters from '@/components/BoardFilters';
+import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
@@ -23,6 +27,7 @@ interface Props {
   isCaptain: boolean;
   myPlayerId: number | null;
   myPlayerName: string | null;
+  tierBands?: TierBand[];
 }
 
 export default function MyTeamClient({
@@ -34,6 +39,7 @@ export default function MyTeamClient({
   isCaptain,
   myPlayerId,
   myPlayerName,
+  tierBands = DEFAULT_TIER_BANDS,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -49,20 +55,11 @@ export default function MyTeamClient({
   const [lastFetch, setLastFetch] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tileSearch, setTileSearch] = useState('');
+  // Board filters (search + category + tier) report their matched set here; null = no filter.
+  const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
-
-  // Tile search — matched tiles stay, the rest are hidden (list board) / dimmed (grid). Null = no filter.
-  const matchedTileIds = useMemo(() => {
-    const q = tileSearch.trim().toLowerCase();
-    if (!q) return null;
-    return new Set(
-      tiles
-        .filter((t) => t.label.toLowerCase().includes(q) || (t.description?.toLowerCase().includes(q) ?? false))
-        .map((t) => t.id),
-    );
-  }, [tileSearch, tiles]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
   // Captains may rebrand (name + color) only between draft finalization and event start —
   // the API enforces the same window.
@@ -263,6 +260,19 @@ export default function MyTeamClient({
     : [];
   const mySubmissions = myPlayerId ? submissions.filter((s) => s.creditPlayerId === myPlayerId) : [];
 
+  const memberBreakdown = useMemo(
+    () =>
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: teamPlayers,
+        tiles,
+        completions,
+        submissions,
+      }),
+    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions],
+  );
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -337,38 +347,10 @@ export default function MyTeamClient({
         </div>
       )}
 
-      <div className="mb-4 max-w-md">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
-          <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
-        </div>
-        <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, background: `linear-gradient(90deg, ${team.color}cc, ${team.color})` }} />
-        </div>
-      </div>
-
-      {/* Team roster — up top, collapsed by default so the board stays the focus. */}
-      {teamPlayers.length > 0 && (
-        <details className="mb-4 border border-card-border rounded-xl bg-card-bg group">
-          <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
-            <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
-            <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />
-            Team Roster ({teamPlayers.length})
-          </summary>
-          <div className="px-4 pb-3 flex flex-wrap gap-2">
-            {teamPlayers.map((player) => (
-              <span key={player.id} className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-brown-dark">
-                {player.name}
-              </span>
-            ))}
-          </div>
-        </details>
-      )}
-
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
       {isCaptain && (
-        <div className="mb-6 flex items-center gap-3 flex-wrap">
+        <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
             disabled={refreshing || !!countdown || !eventStarted}
@@ -381,36 +363,82 @@ export default function MyTeamClient({
       )}
 
       {fetchError && <ErrorBanner message={fetchError} onRetry={() => { setFetchError(null); setLoading(true); fetchSubmissions().then(() => fetchGains()).then(() => setLoading(false)).catch(() => { setFetchError('Failed to load data. Please refresh.'); setLoading(false); }); }} />}
-      {/* Tiles are server-provided, so the board renders immediately — no full-board skeleton (it used
-          to stack a shimmer grid ABOVE the real board during the submissions/gains fetch, reading as
-          "blank then tiles pop in"). Progress overlays just fill in once that fetch resolves. */}
 
-      {tiles.length > 9 && (
-        <div className="mb-4 max-w-md">
-          <input
-            type="text"
-            value={tileSearch}
-            onChange={(e) => setTileSearch(e.target.value)}
-            placeholder="Search tiles by name…"
-            className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+      {/* Desktop: team summary beside the board (mirrors the event + team-progress pages); stacks on
+          mobile. Same shape as the view-only team board so the two never feel like different apps. */}
+      <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
+        {/* Summary column */}
+        <div className="space-y-5 lg:sticky lg:top-20">
+          {/* Progress */}
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
+              <span className="font-medium" style={{ color: team.color }}>{percentage}%</span>
+            </div>
+            <div className="w-full bg-brown-dark rounded-full h-2.5 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, background: `linear-gradient(90deg, ${team.color}cc, ${team.color})` }} />
+            </div>
+          </div>
+
+          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed */}
+          {teamPlayers.length > 0 && (
+            <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setBreakdownOpen((v) => !v)}
+                aria-expanded={breakdownOpen}
+                className="w-full flex items-center gap-2 px-4 py-3 text-left"
+              >
+                <span className={`text-text-muted text-xs transition-transform ${breakdownOpen ? 'rotate-90' : ''}`} aria-hidden>&#9656;</span>
+                <span className="text-sm font-semibold">Member breakdown</span>
+                <span className="text-xs text-text-muted ml-auto">{pointsMode ? 'points · tasks' : 'tasks'}</span>
+              </button>
+              {breakdownOpen && (
+                <div className="px-4 pb-3 border-t border-card-border">
+                  <MemberBreakdown members={memberBreakdown} pointsMode={pointsMode} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Team roster — collapsed by default so the board stays the focus. */}
+          {teamPlayers.length > 0 && (
+            <details className="border border-card-border rounded-xl bg-card-bg group">
+              <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
+                <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
+                <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />
+                Team Roster ({teamPlayers.length})
+              </summary>
+              <div className="px-4 pb-3 flex flex-wrap gap-2">
+                {teamPlayers.map((player) => (
+                  <span key={player.id} className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-brown-dark">
+                    {player.name}
+                  </span>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+
+        {/* Board column */}
+        <div className="min-w-0">
+          <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+          <EventBoard
+            format={event.format}
+            tiles={tiles}
+            boardSize={event.boardSize}
+            completions={completions}
+            teams={[team]}
+            activeTeamId={team.id}
+            interactive={isCaptain}
+            onTileClick={handleTileClick}
+            dropProgress={dropProgress}
+            statProgress={statProgress}
+            pointsMode={pointsMode}
+            matchedTileIds={matchedTileIds}
           />
         </div>
-      )}
-
-      <EventBoard
-        format={event.format}
-        tiles={tiles}
-        boardSize={event.boardSize}
-        completions={completions}
-        teams={[team]}
-        activeTeamId={team.id}
-        interactive={isCaptain}
-        onTileClick={handleTileClick}
-        dropProgress={dropProgress}
-        statProgress={statProgress}
-        pointsMode={pointsMode}
-        matchedTileIds={matchedTileIds}
-      />
+      </div>
 
       {myPlayerId && (
         <div className="mt-8">

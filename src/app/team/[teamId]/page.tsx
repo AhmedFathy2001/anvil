@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import MyTeamClient from './MyTeamClient';
 import DraftBoardClient from '@/app/captain/[teamId]/DraftBoardClient';
+import { getTierBands } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,9 +66,10 @@ export default async function MyTeamPage({
     );
   }
 
-  const [eventTiles, eventPlayers] = await Promise.all([
+  const [eventTiles, eventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(players).where(eq(players.eventId, event.id)),
+    getTierBands(),
   ]);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
@@ -117,6 +119,7 @@ export default async function MyTeamPage({
         isCaptain={membership.isCaptain}
         myPlayerId={membership.playerId}
         myPlayerName={myPlayer?.name ?? null}
+        tierBands={tierBands}
       />
     </div>
   );
