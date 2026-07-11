@@ -1,9 +1,9 @@
 import { db } from '@/db';
 import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import TeamBoardClient from './TeamBoardClient';
-import { verifyUser } from '@/lib/auth';
+import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { getTierBands } from '@/lib/pluginConfig';
 
@@ -27,6 +27,14 @@ export default async function TeamBoardPage({
     where: eq(teams.id, tId),
   });
   if (!team || team.eventId !== eId) notFound();
+
+  // If you're actually on this team, the general-board "View board" link should land you on your
+  // full My Team experience (submit / toggle / manage), not this read-only board — so the two
+  // routes to your own team feel identical. Other teams (and staff/guests) stay on the view board.
+  const myMembership = await resolveTeamMembership(eId, tId);
+  if (myMembership && (myMembership.isCaptain || myMembership.playerId != null)) {
+    redirect(`/team/${tId}`);
+  }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
