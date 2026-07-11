@@ -10,6 +10,8 @@ import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { computeMemberBreakdown } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
+import BoardFilters from '@/components/BoardFilters';
+import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
@@ -17,10 +19,12 @@ interface Props {
   tiles: Tile[];
   completions: Completion[];
   players: Player[];
+  tierBands?: TierBand[];
 }
 
-export default function TeamBoardClient({ event, team, tiles, completions, players }: Props) {
+export default function TeamBoardClient({ event, team, tiles, completions, players, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -209,6 +213,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
         {/* Board column */}
         <div className="min-w-0">
+          <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
           <EventBoard
             format={event.format}
             tiles={tiles}
@@ -219,6 +224,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
             onTileClick={(tileId) => setSelectedTileId(tileId)}
             dropProgress={dropProgress}
             pointsMode={pointsMode}
+            matchedTileIds={matchedTileIds}
           />
         </div>
       </div>

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import TeamBoardClient from './TeamBoardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
+import { getTierBands } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ export default async function TeamBoardPage({
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
   let teamCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
@@ -75,6 +77,7 @@ export default async function TeamBoardPage({
       tiles={eventTiles}
       completions={teamCompletions}
       players={eventPlayers}
+      tierBands={tierBands}
     />
   );
 }
