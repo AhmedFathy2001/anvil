@@ -46,6 +46,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* Safety net: clip (not hidden) so a single stray wide child can never produce a full-page
+     horizontal scroll on mobile. `clip` — unlike `overflow-x: hidden` — does not create a scroll
+     container, so `position: sticky` on the top nav keeps working. Elements that genuinely need to
+     scroll sideways (tables, tab bars) still opt in with their own `overflow-x-auto` wrapper. */
+  overflow-x: clip;
 }
 
 /* Scrollbar styling */

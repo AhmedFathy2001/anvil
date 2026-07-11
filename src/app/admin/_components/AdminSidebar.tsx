@@ -32,10 +32,12 @@ export default function AdminSidebar({ groups, user }: Props) {
 
   return (
     <>
-      {/* Mobile toggle */}
+      {/* Mobile toggle — kept in normal document flow (it used to be `position: fixed` and floated
+          over the page, covering each page's back-link / heading). As the first in-flow child it now
+          sits cleanly above the content on small screens. */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-20 left-3 z-30 px-3 py-1.5 text-sm border border-card-border bg-card-bg rounded-lg shadow-lg"
+        className="lg:hidden mb-4 inline-flex items-center gap-2 px-3 py-2 text-sm border border-card-border bg-card-bg rounded-lg"
         aria-label="Open admin menu"
       >
         ☰ Menu

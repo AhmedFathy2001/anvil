@@ -22,7 +22,8 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
   ];
 
   return (
-    <nav className="flex items-center gap-1 border-b border-card-border mb-8 -mx-1 overflow-x-auto overflow-y-hidden">
+    <div className="relative -mx-1 mb-8">
+      <nav className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
       {tabs
         .filter((t) => t.show)
         .map((tab) => {
@@ -45,6 +46,9 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
             </Link>
           );
         })}
-    </nav>
+      </nav>
+      {/* Fade the right edge on small screens to signal the tab strip scrolls horizontally. */}
+      <div className="pointer-events-none absolute right-0 top-0 bottom-px w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
+    </div>
   );
 }
