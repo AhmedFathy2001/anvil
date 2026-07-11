@@ -73,11 +73,15 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'TzTok-Jad': null,       // covered by 'Fight Caves'
   'Sol Heredit': null,     // covered by 'Fortis Colosseum'
   'Thermy': 'Thermonuclear Smoke Devil',
-  // Raid mode strings must match the game's count line EXACTLY (the plugin substring-matches
-  // it): CoX CM carries NO colon, ToB/ToA sub-modes DO. See RAID_MODE_VARIANTS in constants.
-  'CoX: CM': 'Chambers of Xeric Challenge Mode',
-  'ToB: HM': 'Theatre of Blood: Hard Mode',
-  'ToA: Expert': 'Tombs of Amascut: Expert Mode',
+  // Raids (base + every mode) are appended from RAID_MODE_VARIANTS below — the single source of truth
+  // for the exact game strings (CoX CM has NO colon; ToB/ToA modes DO). Drop them here so they aren't
+  // listed twice, once here and once from that constant.
+  'Chambers of Xeric': null,
+  'CoX: CM': null,
+  'Theatre of Blood': null,
+  'ToB: HM': null,
+  'Tombs of Amascut': null,
+  'ToA: Expert': null,
   'The Leviathan': 'Leviathan',       // "Your Leviathan kill count is: N" — no article
   'The Whisperer': 'Whisperer',
   'The Hueycoatl': 'Hueycoatl',
@@ -87,22 +91,27 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'Zalcano': null,         // no in-game kill timer
 };
 const TIMED_ACTIVITY_SUGGESTIONS = [
-  // Named activities first — the usual phrasing on timed tiles.
-  'Inferno',
-  'Fight Caves',
-  'Fortis Colosseum',
-  'TzHaar-Ket-Rak',
-  // Non-boss timed content the plugin parses: Sailing's Barracuda Trials ("Time: 6:04.20"
-  // flanked by lines naming the course; 'Barracuda Trials' matches any course via the
-  // plugin's alias table) and Hallowed Sepulchre ("Overall time:" on the exit).
-  'Barracuda Trials',
-  'Tempor Tantrum',
-  'Jubbly Jive',
-  'Gwenith Glide',
-  'Hallowed Sepulchre',
-  ...BOSSES
-    .map((b) => (b.label in TIMED_LABEL_FIXES ? TIMED_LABEL_FIXES[b.label] : b.label))
-    .filter((s): s is string => !!s),
+  ...new Set([
+    // Named activities first — the usual phrasing on timed tiles.
+    'Inferno',
+    'Fight Caves',
+    'Fortis Colosseum',
+    'TzHaar-Ket-Rak',
+    // Non-boss timed content the plugin parses: Sailing's Barracuda Trials ("Time: 6:04.20"
+    // flanked by lines naming the course; 'Barracuda Trials' matches any course via the
+    // plugin's alias table) and Hallowed Sepulchre ("Overall time:" on the exit).
+    'Barracuda Trials',
+    'Tempor Tantrum',
+    'Jubbly Jive',
+    'Gwenith Glide',
+    'Hallowed Sepulchre',
+    // Raids — base + every mode, from RAID_MODE_VARIANTS (the same strings the deathless/kill pickers
+    // use), so the exact game spelling for each raid mode lives in exactly one place.
+    ...RAID_MODE_VARIANTS.flatMap((r) => [r.base, ...r.modes]),
+    ...BOSSES
+      .map((b) => (b.label in TIMED_LABEL_FIXES ? TIMED_LABEL_FIXES[b.label] : b.label))
+      .filter((s): s is string => !!s),
+  ]),
 ];
 
 // Autocomplete hints for the source filter. The plugin matches entries EXACTLY
