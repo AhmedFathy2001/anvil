@@ -431,7 +431,7 @@ export default function TileDetailModal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="text-text-muted hover:text-foreground text-xl leading-none flex-shrink-0 ml-2"
+            className="text-text-muted hover:text-foreground text-xl leading-none flex-shrink-0 ml-2 -mr-1 -mt-1 p-2"
           >
             &times;
           </button>
@@ -683,7 +683,7 @@ export default function TileDetailModal({
           )}
 
           {/* Submission gallery */}
-          {(isCount || isTimed) && submissions.length > 0 && (
+          {(isCount || isTimed || isValue) && submissions.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Submissions ({submissions.length})
@@ -705,7 +705,9 @@ export default function TileDetailModal({
                           <span className="text-gold font-medium">
                             {isTimed
                               ? (s.durationSeconds != null ? secondsToClock(s.durationSeconds) : '—')
-                              : `x${s.amount}`}
+                              : isValue
+                                ? `${s.amount.toLocaleString()} gp`
+                                : `x${s.amount}`}
                           </span>
                           {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
                             <span className="text-text-muted">
@@ -724,7 +726,7 @@ export default function TileDetailModal({
                         <button
                           onClick={() => openDeleteModal(s.id)}
                           disabled={deletingId === s.id}
-                          className="text-xs text-red-400 hover:text-red-300 transition-colors flex-shrink-0"
+                          className="text-xs text-red-400 hover:text-red-300 transition-colors flex-shrink-0 px-2 py-1.5 -my-1"
                         >
                           {deletingId === s.id ? '...' : 'Delete'}
                         </button>
