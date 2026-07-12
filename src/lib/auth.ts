@@ -369,11 +369,11 @@ async function autoLinkOrSuggestOnPlay(
     // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
     if (existing?.userId != null) return;
 
-    const established = !!existing && (existing.verifiedAt != null || existing.isGuest === 0);
-
-    // Takeover guard: an established identity matched ONLY by the forgeable RSN is never auto-claimed.
-    // Surface it as an opt-in suggestion instead (unless the user already Ignored it).
-    if (established && !byHash) {
+    // Minimal guard: ONLY a row carrying a pre-assigned role stays opt-in when matched by name alone,
+    // so nobody can auto-grant themselves admin/mod by typing a member's public RSN. Every other
+    // account auto-links — a wrong link is low-stakes and admin-reversible (and admins can fix links
+    // directly from the roster). Surface the guarded case as an opt-in suggestion instead.
+    if (existing?.pendingRole && !byHash) {
       const suggestion = await db.query.detectedAccounts.findFirst({
         where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
       });
@@ -541,6 +541,14 @@ export async function claimAccountForUser(
   if (existing?.userId != null) {
     if (existing.userId === userId) return { ok: true, clanMemberId: existing.id };
     return { ok: false, reason: 'owned-by-other' };
+  }
+
+  // A row carrying a PRE-ASSIGNED ROLE must be claimed with real proof — a hash match, or the
+  // explicit XP/link-code check — never by a forgeable name alone. Otherwise typing a member's
+  // public RSN could hand their pending admin/mod role to a stranger. This is the one guard we keep
+  // strict; everything else auto-links freely.
+  if (existing && existing.pendingRole && !byHash) {
+    return { ok: false, reason: 'needs-verification' };
   }
 
   // Trust the account hash as proof of control: it's a per-account secret you only get by being
