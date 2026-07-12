@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { users, clanMembers } from '@/db/schema';
-import { inArray } from 'drizzle-orm';
+import { and, inArray, isNull } from 'drizzle-orm';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
 export interface Character {
@@ -96,4 +96,14 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
     banned: !!u.banned,
     characters: byUser.get(u.id) ?? [],
   }));
+}
+
+// Unowned game accounts (roster members + guests not yet attached to a person, still in the clan).
+// The pool an admin picks from when assigning a character — so common cases don't need retyping.
+export async function getUnlinkedCharacters(): Promise<{ id: number; rsn: string; isGuest: boolean }[]> {
+  const rows = await db
+    .select({ id: clanMembers.id, rsn: clanMembers.rsn, isGuest: clanMembers.isGuest })
+    .from(clanMembers)
+    .where(and(isNull(clanMembers.userId), isNull(clanMembers.leftAt)));
+  return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.isGuest === 1 }));
 }

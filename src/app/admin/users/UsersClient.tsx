@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import Combobox from '@/components/Combobox';
 
 interface Character {
   id: number;
@@ -57,6 +58,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [savingRoleId, setSavingRoleId] = useState<number | null>(null);
   const [addingTo, setAddingTo] = useState<number | null>(null); // user whose add-character input is open
   const [addRsn, setAddRsn] = useState('');
+  const [unlinked, setUnlinked] = useState<{ id: number; rsn: string; isGuest: boolean }[]>([]);
   const [charBusy, setCharBusy] = useState(false);
   const [charError, setCharError] = useState('');
 
@@ -67,7 +69,11 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
 
   async function fetchUsers() {
     const res = await fetch('/api/admin/users');
-    if (res.ok) setUsers(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(data.people ?? []);
+      setUnlinked(data.unlinked ?? []);
+    }
     setLoading(false);
   }
 
@@ -354,16 +360,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
                           ))}
                           {addingTo === user.id ? (
                             <span className="inline-flex items-center gap-1">
-                              <input
+                              <Combobox
                                 value={addRsn}
-                                onChange={(e) => setAddRsn(e.target.value)}
-                                placeholder="RSN"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') addCharacter(user);
-                                  if (e.key === 'Escape') { setAddingTo(null); setAddRsn(''); setCharError(''); }
-                                }}
-                                className="w-24 text-[11px] px-1.5 py-0.5 bg-brown-dark border border-card-border rounded focus:outline-none focus:border-gold/50"
+                                onChange={setAddRsn}
+                                suggestions={unlinked.map((u) => u.rsn)}
+                                placeholder="Pick a roster/guest account or type an RSN"
+                                ariaLabel="Character RSN"
+                                className="w-64"
                               />
                               <button onClick={() => addCharacter(user)} disabled={charBusy} className="text-[11px] text-gold disabled:opacity-50">
                                 {charBusy ? '…' : 'Add'}
