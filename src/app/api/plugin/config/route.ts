@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, players, completions } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
 import { requireSecret } from '@/lib/env';
@@ -318,12 +318,31 @@ export async function GET(request: Request) {
     : [];
   const tileById = new Map(allEventTiles.map((t) => [t.id, t]));
   const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
+
+  // "Completed by <who>" for the plugin's completion chat line: the crediting player of the LATEST
+  // submission for each completed tile (usually the one that finished it). Stat/manual completions
+  // have no submission, so they stay unattributed (null).
+  const completedTileIds = teamCompletions.map((c) => c.tileId);
+  const completedByMap = new Map<number, string>();
+  if (completedTileIds.length > 0) {
+    const creditRows = await db
+      .select({ tileId: submissions.tileId, name: players.name })
+      .from(submissions)
+      .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+      .where(and(eq(submissions.teamId, auth.teamId), inArray(submissions.tileId, completedTileIds)))
+      .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
+    for (const r of creditRows) {
+      if (r.name) completedByMap.set(r.tileId, r.name);
+    }
+  }
+
   const completedTiles = teamCompletions.map((c) => {
     const tile = tileById.get(c.tileId);
     return {
       tileId: c.tileId,
       label: tile?.label ?? `Tile #${c.tileId}`,
       points: tile?.points ?? 0,
+      completedBy: completedByMap.get(c.tileId) ?? null,
     };
   });
 
