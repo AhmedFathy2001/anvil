@@ -90,6 +90,8 @@ interface Props {
   // Public scoreboard only: per-team gains toward this stat tile's goal (all teams compared).
   teamStatProgress?: TeamStatProgress[];
   pointsMode?: boolean;
+  // Admin all-teams view: label each submission with its team (submissions can span teams here).
+  teamNameById?: Record<number, string>;
 }
 
 export default function TileDetailModal({
@@ -112,6 +114,7 @@ export default function TileDetailModal({
   statProgress,
   teamStatProgress,
   pointsMode,
+  teamNameById,
 }: Props) {
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
@@ -697,6 +700,11 @@ export default function TileDetailModal({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                          {teamNameById && s.teamId != null && teamNameById[s.teamId] && (
+                            <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
+                              {teamNameById[s.teamId]}
+                            </span>
+                          )}
                           {s.creditPlayerName && (
                             <span className="font-medium text-accent-green-light">
                               {s.creditPlayerName}

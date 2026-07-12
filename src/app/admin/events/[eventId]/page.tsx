@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import OverviewClient from './OverviewClient';
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
+import { getTierBands } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +20,10 @@ export default async function EventOverviewPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, eventTeams] = await Promise.all([
+  const [eventTiles, eventTeams, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     db.select().from(teams).where(eq(teams.eventId, id)),
+    getTierBands(),
   ]);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));

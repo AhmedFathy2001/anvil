@@ -120,8 +120,7 @@ export default function FeedbackAdminClient() {
                     )}
                   </div>
                   <div className="text-xs text-text-muted mt-0.5">
-                    {i.reporter ?? 'Unknown'}
-                    {i.contact ? ` · ${i.contact}` : ''} · <LocalTime date={i.createdAt} format="date" />
+                    {i.reporter ?? 'Unknown'} · <LocalTime date={i.createdAt} format="date" />
                     {i.pageUrl ? ` · from ${i.pageUrl}` : ''}
                   </div>
                   <p className="text-sm text-text-muted whitespace-pre-wrap mt-2">{i.body}</p>
