@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { clanMembers, users } from '@/db/schema';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
 // GET — list all clan members (active + departed) for the admin roster view.
@@ -17,7 +17,24 @@ export async function GET() {
     .from(clanMembers)
     .orderBy(desc(clanMembers.joinedAt));
 
-  return NextResponse.json(rows);
+  // Tag each row with whether its linked site user is banned, so the roster can show/toggle it.
+  const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is number => v != null))];
+  const bannedIds = userIds.length
+    ? new Set(
+        (
+          await db
+            .select({ id: users.id, banned: users.banned })
+            .from(users)
+            .where(inArray(users.id, userIds))
+        )
+          .filter((u) => u.banned)
+          .map((u) => u.id),
+      )
+    : new Set<number>();
+
+  return NextResponse.json(
+    rows.map((r) => ({ ...r, userBanned: r.userId != null && bannedIds.has(r.userId) })),
+  );
 }
 
 // POST — manual add (admin entering a guest / member the plugin can't reach).

@@ -287,6 +287,13 @@ export const users = sqliteTable('users', {
   // transfer ownership. Granted once at genesis to the ADMIN_DISCORD_ID user on a fresh
   // instance; never auto-reassigned afterwards. See transfer-ownership route.
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
+  // Site ban. A banned user gets no authenticated session (verifyUser → null) and is refused on
+  // Discord login, so they can't act as a member/staff. The owner can never be banned. (Public,
+  // logged-out pages stay public — blocking those is an IP/Caddy concern, not this flag.)
+  banned: integer('banned', { mode: 'boolean' }).notNull().default(false),
+  bannedAt: text('banned_at'),
+  bannedReason: text('banned_reason'),
+  bannedByUserId: integer('banned_by_user_id'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   createdBy: integer('created_by'),
   // Discord OAuth identity (the primary login path for non-staff users)

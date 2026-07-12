@@ -84,9 +84,11 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, role: true },
+      columns: { id: true, role: true, banned: true },
     });
-    if (!dbUser) return null;
+    // A deleted OR banned user has no valid session — the ban takes effect on their very next
+    // request, not just next login, so kicking someone is immediate.
+    if (!dbUser || dbUser.banned) return null;
     return { userId: dbUser.id, username: typeof data.username === 'string' ? data.username : 'user', role: dbUser.role };
   } catch {
     return null;

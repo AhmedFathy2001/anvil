@@ -241,6 +241,11 @@ export async function GET(request: Request) {
     log.warn('oauth.claim-fail', { userId: user.id, discordId: user.discordId }, err);
   }
 
+  // Banned users complete the OAuth dance but get no session cookie — refused at the door.
+  if (user.banned) {
+    return NextResponse.redirect(new URL('/login?error=banned', publicOrigin(request)));
+  }
+
   const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role);
   const isProd = process.env.NODE_ENV === 'production';
 
