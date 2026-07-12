@@ -392,6 +392,13 @@ export const clanMembers = sqliteTable('clan_members', {
   // every tick forever and steals a slot from healthy rows.
   status: text('status').notNull().default('active'), // 'active' | 'unranked' | 'banned' | 'archived'
   statusLastChecked: text('status_last_checked'),
+  // Member-scoped real-time overlay: the plugin's absolute boss-KC / skill-XP pushes as a flat
+  // JSON map ({"zulrah":1250,"mining":4210000}), max-merged per key. The single source the unified
+  // stat sweep reads as max(hiscores, live) and prunes as hiscores catches up — shared by bingo
+  // tiles AND weekly SOTW/BOTW. Keyed on the member (not a per-event player row) so it survives
+  // renames and works with no active bingo event. Replaces the per-event players.plugin_stats.
+  liveStats: text('live_stats'),
+  liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
