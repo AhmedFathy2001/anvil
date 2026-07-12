@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { put } from '@/lib/storage';
 import crypto from 'crypto';
 import sharp from 'sharp';
@@ -41,6 +42,10 @@ const RECOMPRESS_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const RECOMPRESS_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
 export async function POST(request: Request) {
+  // Image uploads are the most expensive public write (decode + resize). Cap per IP.
+  const rl = await rateLimit(request, 'upload', { limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many uploads — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
+
   // Any authenticated clan member can upload a submission image. The unified /team page authenticates
   // members via the Discord web session (admin_session cookie, any role) — verifyUser covers that AND
   // admins. Previously only verifyAdmin/captain/player cookies + plugin token were accepted, so a

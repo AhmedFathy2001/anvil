@@ -18,6 +18,7 @@ interface ClanMember {
   lastSeenInClan: string | null;
   notes: string | null;
   userId: number | null;
+  userBanned?: boolean;
   provisional: number;
   pendingRole: 'admin' | 'moderator' | null;
 }
@@ -181,6 +182,28 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     if (!confirm(`Mark ${member.rsn} as left the clan?`)) return;
     const res = await fetch(`/api/admin/clan/${member.id}`, { method: 'DELETE' });
     if (res.ok) fetchAll();
+  }
+
+  // Ban/unban the member's linked SITE account — they lose all authenticated access immediately
+  // (and are refused on next Discord login). Only meaningful for members with a linked userId.
+  async function banUser(member: ClanMember) {
+    if (!member.userId) return;
+    const banning = !member.userBanned;
+    let reason: string | undefined;
+    if (banning) {
+      const input = prompt(`Ban ${member.rsn}'s site account? They lose all access immediately.\nOptional reason:`);
+      if (input === null) return; // cancelled
+      reason = input.trim() || undefined;
+    } else if (!confirm(`Unban ${member.rsn}'s site account?`)) {
+      return;
+    }
+    const res = await fetch(`/api/admin/users/${member.userId}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banned: banning, reason }),
+    });
+    if (res.ok) fetchAll();
+    else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
   }
 
   function openRename(member: ClanMember) {
@@ -556,6 +579,19 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                           >
                             Remove
                           </button>
+                          {isAdmin && m.userId && (
+                            <button
+                              onClick={() => banUser(m)}
+                              className={`px-2 py-1 text-xs border rounded transition-colors ${
+                                m.userBanned
+                                  ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
+                                  : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
+                              }`}
+                              title={m.userBanned ? 'This site account is banned' : 'Ban this member’s site account'}
+                            >
+                              {m.userBanned ? 'Unban' : 'Ban'}
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, players } from '@/db/schema';
+import { clanAuditLog, clanMembers, detectedAccounts, events, players } from '@/db/schema';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -51,6 +51,28 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   // Detach ownership. Keep the row (and its verification/accountHash) so a future re-add
   // cleanly re-claims it.
   await db.update(clanMembers).set({ userId: null, isPrimary: 0 }).where(eq(clanMembers.id, id));
+
+  // Drop a sticky "Ignored" marker so the auto-link-on-play doesn't immediately re-add the account
+  // the user just removed. It shows in the collapsed Ignored list on their profile, re-addable there.
+  const marker = await db.query.detectedAccounts.findFirst({
+    where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.rsnNormalized, member.rsnNormalized)),
+  });
+  if (marker) {
+    await db
+      .update(detectedAccounts)
+      .set({ status: 'dismissed', rsn: member.rsn, accountHash: member.accountHash ?? marker.accountHash, lastSeenAt: nowIso })
+      .where(eq(detectedAccounts.id, marker.id));
+  } else {
+    await db.insert(detectedAccounts).values({
+      userId: session.userId,
+      rsn: member.rsn,
+      rsnNormalized: member.rsnNormalized,
+      accountHash: member.accountHash ?? null,
+      status: 'dismissed',
+      detectedAt: nowIso,
+      lastSeenAt: nowIso,
+    });
+  }
 
   // If we just removed the primary, promote another owned account so the user still has one.
   if (member.isPrimary === 1) {

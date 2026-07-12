@@ -17,7 +17,7 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
   const tabs: { href: string; label: string; badge?: number; exact?: boolean; show: boolean }[] = [
     { href: '/admin/clan', label: 'Members', exact: true, show: true },
     { href: '/admin/clan/needs-review', label: 'Needs review', badge: provisionalCount, show: true },
-    { href: '/admin/clan/staff', label: 'Staff', show: isAdmin },
+    { href: '/admin/clan/staff', label: 'People', show: isAdmin },
     { href: '/admin/clan/audit', label: 'History', show: true },
   ];
 

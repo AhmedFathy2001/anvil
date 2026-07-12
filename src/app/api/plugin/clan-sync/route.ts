@@ -4,6 +4,7 @@ import { clanAuditLog, clanMembers, settings } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { rosterCapStatus } from '@/lib/member-cap';
@@ -49,6 +50,9 @@ async function getConfiguredClanName(): Promise<string | null> {
 // produced 300-500 sequential round-trips and reliably exceeded plugin read timeouts.
 // This pass keeps it bounded to a small constant of round-trips regardless of clan size.
 export async function POST(request: Request) {
+  const rl = await rateLimit(request, 'plugin-clan-sync', { limit: 12, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

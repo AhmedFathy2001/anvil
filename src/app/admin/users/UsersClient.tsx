@@ -5,16 +5,26 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 
+interface Character {
+  id: number;
+  rsn: string;
+  isGuest: boolean;
+  verified: boolean;
+  left: boolean;
+}
+
 interface User {
   id: number;
   displayName: string;
   role: Role;
   isOwner: boolean;
+  banned: boolean;
   createdAt: string;
   discordId: string | null;
   discordUsername: string | null;
   discordAvatar: string | null;
   lastLoginAt: string | null;
+  characters: Character[];
 }
 
 type Role = 'admin' | 'treasurer' | 'editor' | 'moderator' | 'member';
@@ -42,9 +52,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [filter, setFilter] = useState<MainFilter>('staff');
+  const [filter, setFilter] = useState<MainFilter>('all');
   const [search, setSearch] = useState('');
   const [savingRoleId, setSavingRoleId] = useState<number | null>(null);
+  const [addingTo, setAddingTo] = useState<number | null>(null); // user whose add-character input is open
+  const [addRsn, setAddRsn] = useState('');
+  const [charBusy, setCharBusy] = useState(false);
+  const [charError, setCharError] = useState('');
 
   // Rename form (display name only — role is edited inline on the row now).
   const [editDisplayName, setEditDisplayName] = useState('');
@@ -55,6 +69,52 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     const res = await fetch('/api/admin/users');
     if (res.ok) setUsers(await res.json());
     setLoading(false);
+  }
+
+  async function banUser(user: User) {
+    const banning = !user.banned;
+    let reason: string | undefined;
+    if (banning) {
+      const input = prompt(`Ban ${user.displayName}? They lose all site access immediately.\nOptional reason:`);
+      if (input === null) return;
+      reason = input.trim() || undefined;
+    } else if (!confirm(`Unban ${user.displayName}?`)) {
+      return;
+    }
+    const res = await fetch(`/api/admin/users/${user.id}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banned: banning, reason }),
+    });
+    if (res.ok) fetchUsers();
+    else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
+  }
+
+  async function addCharacter(user: User) {
+    const rsn = addRsn.trim();
+    if (!rsn) return;
+    setCharBusy(true);
+    setCharError('');
+    const res = await fetch(`/api/admin/users/${user.id}/characters`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rsn }),
+    });
+    setCharBusy(false);
+    if (res.ok) {
+      setAddingTo(null);
+      setAddRsn('');
+      fetchUsers();
+    } else {
+      setCharError((await res.json().catch(() => ({}))).error || 'Could not add character');
+    }
+  }
+
+  async function removeCharacter(user: User, char: Character) {
+    if (!confirm(`Remove ${char.rsn} from ${user.displayName}?`)) return;
+    const res = await fetch(`/api/admin/users/${user.id}/characters/${char.id}`, { method: 'DELETE' });
+    if (res.ok) fetchUsers();
+    else alert((await res.json().catch(() => ({}))).error || 'Could not remove character');
   }
 
   useEffect(() => {
@@ -168,12 +228,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
       <div className="mb-5">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
-          Staff &amp; roles
+          People
         </h2>
         <p className="text-text-muted text-sm mt-1">
-          Everyone who has signed in with Discord gets a site account (a plain{' '}
-          <span className="text-foreground/80">Member</span> by default). Give trusted people a staff
-          role to grant admin access — pick the role from the dropdown on their row.
+          One row per <span className="text-foreground/80">person</span> (their Discord site account) with
+          the RuneScape <span className="text-foreground/80">characters</span> they own. Set a staff role,
+          add or remove characters, and ban anyone who shouldn&rsquo;t have access. Everyone who signs in
+          with Discord starts as a plain Member.
         </p>
       </div>
 
@@ -257,9 +318,67 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
                         </span>
                       )}
                       <div className="min-w-0">
-                        <div className="font-medium truncate">{user.displayName}</div>
+                        <div className="font-medium truncate flex items-center gap-2">
+                          {user.displayName}
+                          {user.banned && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 shrink-0">Banned</span>
+                          )}
+                        </div>
                         <div className="text-xs text-text-muted truncate">
                           {user.discordUsername ? `@${user.discordUsername}` : '—'}
+                        </div>
+                        {/* Characters — the game accounts this person owns. */}
+                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                          {user.characters.map((c) => (
+                            <span
+                              key={c.id}
+                              className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${
+                                c.left
+                                  ? 'border-card-border text-text-muted/60'
+                                  : c.verified
+                                    ? 'border-accent-green/30 text-accent-green-light'
+                                    : 'border-card-border text-text-muted'
+                              }`}
+                              title={`${c.isGuest ? 'Guest' : 'Member'}${c.verified ? ' · verified' : ''}${c.left ? ' · left clan' : ''}`}
+                            >
+                              {c.rsn}
+                              <button
+                                onClick={() => removeCharacter(user, c)}
+                                className="text-red-400/70 hover:text-red-300 leading-none"
+                                title="Remove character"
+                                aria-label={`Remove ${c.rsn}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          {addingTo === user.id ? (
+                            <span className="inline-flex items-center gap-1">
+                              <input
+                                value={addRsn}
+                                onChange={(e) => setAddRsn(e.target.value)}
+                                placeholder="RSN"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') addCharacter(user);
+                                  if (e.key === 'Escape') { setAddingTo(null); setAddRsn(''); setCharError(''); }
+                                }}
+                                className="w-24 text-[11px] px-1.5 py-0.5 bg-brown-dark border border-card-border rounded focus:outline-none focus:border-gold/50"
+                              />
+                              <button onClick={() => addCharacter(user)} disabled={charBusy} className="text-[11px] text-gold disabled:opacity-50">
+                                {charBusy ? '…' : 'Add'}
+                              </button>
+                              <button onClick={() => { setAddingTo(null); setAddRsn(''); setCharError(''); }} className="text-[11px] text-text-muted">✕</button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => { setAddingTo(user.id); setAddRsn(''); setCharError(''); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-card-border text-text-muted hover:border-gold/40 hover:text-gold transition-colors"
+                            >
+                              + character
+                            </button>
+                          )}
+                          {addingTo === user.id && charError && <span className="text-[11px] text-red-400 w-full">{charError}</span>}
                         </div>
                       </div>
                     </div>
@@ -315,6 +434,16 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
                           className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
                         >
                           Rename
+                        </button>
+                        <button
+                          onClick={() => banUser(user)}
+                          className={`px-2 py-1 text-xs border rounded transition-colors ${
+                            user.banned
+                              ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
+                              : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
+                          }`}
+                        >
+                          {user.banned ? 'Unban' : 'Ban'}
                         </button>
                         <button
                           onClick={() => handleDelete(user)}

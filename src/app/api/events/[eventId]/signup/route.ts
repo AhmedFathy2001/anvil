@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanMembers, eventSignups, events, players, signupFees } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 
 export async function GET(
@@ -105,6 +106,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const rl = await rateLimit(request, 'signup', { limit: 20, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+
   const session = await verifyUser();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
