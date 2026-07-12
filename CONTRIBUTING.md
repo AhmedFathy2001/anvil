@@ -94,13 +94,30 @@ behind:
 - Match the surrounding code's conventions (the gold accent theme, section header
   bars, fire-and-forget Discord notifications, etc.).
 
+## Branching & releases
+
+Anvil ships canary-first through two long-lived branches:
+
+- **`beta`** — the integration branch. **All contributions land here first.** On the
+  hosted service, `beta` auto-deploys to opt-in *beta clans* that volunteer to run
+  pre-release builds, so changes get real-world canary testing before the whole fleet
+  gets them.
+- **`main`** — the stable release everyone runs. Changes are promoted here from `beta`
+  by maintainers once they've held up on the canary clans (promotion ships the exact
+  tested build — see the control-plane docs).
+
+So the normal path for a change is **PR → `beta` → (bakes on beta clans) → promoted to
+`main`**. Self-hosters tracking `main` therefore only ever pull builds that have already
+been canary-tested. The staged-rollout machinery itself (release channels, image pinning,
+promote, deploy notifications) lives in the control plane, not this repo.
+
 ## Submitting a pull request
 
-1. Fork the repo and create a branch off `main`.
+1. Fork the repo and create a branch off **`beta`**.
 2. Make your change, including any docs and migrations.
 3. Run `npm run lint` and `npm run build` to confirm it compiles.
-4. Open a PR describing **what** changed and **why**. Screenshots help for UI
-   changes.
+4. Open a PR **into `beta`** describing **what** changed and **why**. Screenshots help
+   for UI changes.
 
 ## Reporting bugs / requesting features
 
