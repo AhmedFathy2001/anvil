@@ -8,6 +8,7 @@ import { requireSecret } from '@/lib/env';
 import {
   buildSchedule,
   getActiveWeekly,
+  getActiveWeeklyMetrics,
   getNotificationWebhooks,
   getFunDeathMessages,
   getDeathTaunts,
@@ -19,7 +20,8 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
-import { parsePluginStats, kcNamesForKey } from '@/lib/pluginStats';
+import { kcNamesForKey } from '@/lib/pluginStats';
+import { liveStatsForMembers } from '@/lib/liveStats';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -76,6 +78,18 @@ async function activeEventForUnlinkedRsn(request: Request): Promise<string | nul
   return null;
 }
 
+// The active weekly comps' metrics as plugin-pushable names: boss metrics expand to their KC-line
+// names, skill metrics are the lowercase skill name. Merged into trackedKcNames/trackedSkillNames so
+// the plugin pushes SOTW/BOTW live (debounced 15 s, same machinery as bingo tiles) even for a member
+// with no active bingo event.
+async function weeklyTrackedNames(): Promise<{ kc: string[]; skills: string[] }> {
+  const metrics = await getActiveWeeklyMetrics();
+  return {
+    kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => kcNamesForKey(m.metric)),
+    skills: metrics.filter((m) => m.type === 'skill').map((m) => m.metric),
+  };
+}
+
 export async function GET(request: Request) {
   const auth = await verifyPluginToken(request);
   if (!auth) {
@@ -87,10 +101,11 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, unlinkedActiveEvent] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, unlinkedActiveEvent] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
+          weeklyTrackedNames(),
           getNotificationWebhooks(),
           getFunDeathMessages(),
           getDeathTaunts(),
@@ -108,8 +123,9 @@ export async function GET(request: Request) {
         unlinkedActiveEvent,
         codeword: null,
         trackedStats: [],
-        trackedKcNames: [],
-        trackedSkillNames: [],
+        // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
+        trackedKcNames: weeklyNames.kc,
+        trackedSkillNames: weeklyNames.skills,
         trackedDrops: [],
         trackedKills: [],
         trackedPvp: [],
@@ -209,12 +225,14 @@ export async function GET(request: Request) {
   const teamPlayers = await db
     .select({
       id: players.id,
+      clanMemberId: players.clanMemberId,
       statsSnapshot: players.statsSnapshot,
       cachedStats: players.cachedStats,
-      pluginStats: players.pluginStats,
     })
     .from(players)
     .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
+  // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
+  const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
 
   function readStatValue(blob: string | null, statType: string | null, statName: string): number | null {
     if (!blob) return null;
@@ -246,8 +264,8 @@ export async function GET(request: Request) {
 
     for (const p of sources) {
       // Real-time plugin push (boss KC AND skill XP) folds into current as a per-key max, so the
-      // in-game progress reflects a fresh kill / training burst before the hourly hiscores cron.
-      const plug = parsePluginStats(p.pluginStats);
+      // in-game progress reflects a fresh kill / training burst before the hiscores sweep catches up.
+      const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
       for (const part of statKeys(statName)) {
@@ -283,25 +301,31 @@ export async function GET(request: Request) {
     };
   });
 
-  // In-game KC-line boss names for the event's boss-KC tiles. The plugin watches for
-  // "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
+  // Active weekly SOTW/BOTW metrics are pushed live too — merged in below so a member in a bingo AND a
+  // weekly comp pushes both metrics through the same debounced path.
+  const weeklyNames = await weeklyTrackedNames();
+
+  // In-game KC-line boss names for the event's boss-KC tiles (+ any active BOTW boss). The plugin
+  // watches for "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
   // /api/plugin/stats so the tile updates in real time (see lib/pluginStats + the endpoint).
   const trackedKcNames = Array.from(
-    new Set(
-      statTilesRaw
+    new Set([
+      ...statTilesRaw
         .filter((t) => t.statType === 'boss' || t.statType === 'kc')
         .flatMap((t) => statKeys(t.trackedStat).flatMap((k) => kcNamesForKey(k))),
-    ),
+      ...weeklyNames.kc,
+    ]),
   );
 
-  // Skill names for the event's skill-XP tiles. The plugin pushes real-time absolute XP for these off
-  // StatChanged so the tile moves without waiting on the hourly hiscores cron (same idea as trackedKcNames).
+  // Skill names for the event's skill-XP tiles (+ any active SOTW skill). The plugin pushes real-time
+  // absolute XP for these off StatChanged so the tile / weekly moves without waiting on the sweep.
   const trackedSkillNames = Array.from(
-    new Set(
-      statTilesRaw
+    new Set([
+      ...statTilesRaw
         .filter((t) => t.statType === 'skill')
         .flatMap((t) => statKeys(t.trackedStat)),
-    ),
+      ...weeklyNames.skills,
+    ]),
   );
 
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:

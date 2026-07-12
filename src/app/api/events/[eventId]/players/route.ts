@@ -308,11 +308,12 @@ export async function PATCH(
       updateData.name = member.rsn; // the tracked RSN follows the swapped account
       // Wipe the stat baseline so the next hiscores tick re-baselines from the NEW account —
       // otherwise gains = (new account's current XP/KC) − (old account's baseline) = garbage.
+      // The real-time overlay is now member-scoped (clan_members.live_stats), so it's NOT touched
+      // here — the swapped-in member carries its own correct live stats.
       updateData.statsSnapshot = null;
       updateData.snapshotAt = null;
       updateData.cachedStats = null;
       updateData.lastStatsFetch = null;
-      updateData.pluginStats = null;
 
       // The RuneLite plugin resolves a player row via the Discord user's OWN linked accounts
       // (clanMembers.userId), so the swapped-in account must belong to the same owner or the overlay

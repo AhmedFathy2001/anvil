@@ -127,6 +127,23 @@ export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
   };
 }
 
+export interface ActiveWeeklyMetric {
+  id: number;
+  type: 'skill' | 'boss';
+  metric: string;
+}
+
+// EVERY live weekly competition's tracked metric — a SOTW and a BOTW can run at once, so this returns
+// all `status='active'` comps (unlike getActiveWeekly's single). Used to (a) tell the plugin which
+// skill/boss to push live via trackedKcNames/trackedSkillNames, and (b) credit live weekly gains in
+// the plugin-stats ingest.
+export async function getActiveWeeklyMetrics(): Promise<ActiveWeeklyMetric[]> {
+  const rows = await db.query.weeklyCompetitions.findMany({
+    where: eq(weeklyCompetitions.status, 'active'),
+  });
+  return rows.map((c) => ({ id: c.id, type: c.type as 'skill' | 'boss', metric: c.metric }));
+}
+
 export interface PluginWebhooks {
   // Discord webhook URLs the plugin posts to directly. Null when unset on the site.
   rareDrops: string | null;

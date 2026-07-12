@@ -2,7 +2,8 @@ import { db } from '@/db';
 import { tiles, players, teams, completions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { statKeys, statLabel } from '@/lib/tileKinds';
-import { parsePluginStats } from '@/lib/pluginStats';
+import { jsonStatValue, effectiveValue } from '@/lib/statTracking';
+import { liveStatsForMembers } from '@/lib/liveStats';
 
 export interface StatStandingPlayer {
   playerId: number;
@@ -25,23 +26,10 @@ export interface StatTileStanding {
   players: StatStandingPlayer[];
 }
 
-// Sum a (possibly composite) stat's value out of a stored hiscores JSON blob. Mirrors the reads
-// in the per-player snapshot route: skills carry `xp`, bosses carry `score` (with -1 meaning
-// "unranked", which we floor to 0). A composite trackedStat sums across its keys.
-function readStat(json: string | null | undefined, statType: string, keys: string[]): number {
-  if (!json) return 0;
-  let parsed: { skills?: Record<string, { xp?: number }>; bosses?: Record<string, { score?: number }> };
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return 0;
-  }
-  return keys.reduce((sum, k) => {
-    if (statType === 'skill') return sum + (parsed.skills?.[k]?.xp ?? 0);
-    const score = parsed.bosses?.[k]?.score ?? 0;
-    return sum + (score < 0 ? 0 : score);
-  }, 0);
-}
+// Sum a (possibly composite) stat's value out of a stored hiscores JSON blob via the shared
+// per-key reader (skills carry `xp`, bosses `score` with -1 unranked floored to 0).
+const readStat = (json: string | null | undefined, statType: string, keys: string[]): number =>
+  keys.reduce((sum, k) => sum + jsonStatValue(json, statType, k), 0);
 
 // Per stat-tracked tile, every drafted player's baseline (event-start snapshot) vs their current
 // stat, so admins can confirm the starting line actually loaded and watch gains accrue. Read-only;
@@ -58,6 +46,8 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
 
   // Only drafted players (on a team) are tracked for stat gains.
   const drafted = eventPlayers.filter((p) => p.teamId !== null);
+  // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
+  const memberLive = await liveStatsForMembers(drafted.map((p) => p.clanMemberId));
 
   return statTiles.map((tile) => {
     const keys = statKeys(tile.trackedStat);
@@ -65,10 +55,10 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
         // Effective current folds in the plugin's real-time push (max per key), so standings reflect a
-        // fresh kill / training burst before the hourly hiscores cron catches up — for boss KC AND skill XP.
-        const plug = parsePluginStats(p.pluginStats);
+        // fresh kill / training burst before the hiscores sweep catches up — for boss KC AND skill XP.
+        const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
         const current = keys.reduce(
-          (sum, k) => sum + Math.max(readStat(p.cachedStats, tile.statType!, [k]), plug[k] ?? 0),
+          (sum, k) => sum + effectiveValue(jsonStatValue(p.cachedStats, tile.statType!, k), plug, k),
           0,
         );
         return {

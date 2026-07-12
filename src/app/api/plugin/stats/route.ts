@@ -1,56 +1,34 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, tiles, teams, events, completions } from '@/db/schema';
+import { players, tiles, teams, events, completions, clanMembers, weeklyParticipants } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { verifyPluginToken } from '@/lib/auth';
+import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
+import { computeGainFromJson } from '@/lib/statTracking';
+import { liveStatsForMembers } from '@/lib/liveStats';
+import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
+import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
 
-// Real-time boss-KC ingest. The plugin posts {stats:[{name,kc}]} with ABSOLUTE counts (no image)
-// for bosses the event tracks; the event/team/player are resolved from the account-token auth, so a
-// caller can only report its own KC. We store the max per key in players.plugin_stats (kept apart
-// from the hiscores snapshot so the cron never clobbers it), then re-check the affected boss-KC
-// tiles so they complete immediately instead of waiting on the ~1h hiscores lag. The cron folds the
-// same max into its gains and prunes a plugin entry once hiscores catches up. See lib/pluginStats.
+// Real-time boss-KC / skill-XP ingest. The plugin posts {stats:[{name,kc}], skills:[{name,xp}]} with
+// ABSOLUTE counts (no image), debounced to one push per key per 15 s. We resolve the caller's clan
+// member from the account token (NO active bingo event required), store the max per key on
+// clan_members.live_stats — the ONE member-scoped overlay read by both bingo tiles AND weekly
+// SOTW/BOTW as max(hiscores, live) — then credit both immediately so a live kill/training burst
+// lands before the 15-min hiscores sweep. The sweep is source of truth: it prunes a live entry once
+// hiscores catches up. See lib/liveStats + lib/statTracking + the cron/stats sweep.
 
 // Absolute sanity ceilings — reject obviously bogus pushes. No legit boss KC / skill XP approaches these.
 const MAX_KC = 1_000_000;
 const MAX_XP = 200_000_000;
 
-// Read a boss score for one hiscores key out of a stored hiscores JSON blob (-1 unranked -> 0).
-function bossScore(json: string | null, key: string): number {
-  if (!json) return 0;
-  try {
-    const parsed = JSON.parse(json) as { bosses?: Record<string, { score?: number }> };
-    const s = parsed.bosses?.[key]?.score ?? 0;
-    return s < 0 ? 0 : s;
-  } catch {
-    return 0;
-  }
-}
-
-// Read a skill's XP for one skill key out of a stored hiscores JSON blob (negative -> 0).
-function skillXp(json: string | null, key: string): number {
-  if (!json) return 0;
-  try {
-    const parsed = JSON.parse(json) as { skills?: Record<string, { xp?: number }> };
-    const x = parsed.skills?.[key]?.xp ?? 0;
-    return x < 0 ? 0 : x;
-  } catch {
-    return 0;
-  }
-}
-
-// Effective current value for one key = max(hiscores, plugin-pushed). Skills read xp; bosses read score.
-function readStatValue(json: string | null, statType: string, key: string): number {
-  return statType === 'skill' ? skillXp(json, key) : bossScore(json, key);
-}
-
 export async function POST(request: Request) {
-  const auth = await verifyPluginToken(request);
-  if (!auth) {
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
+  // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
+  // who's only in a weekly comp can still push live stats.
+  const member = await resolvePluginMember(request);
+  if (!member) {
+    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
   }
 
   let body: { stats?: Array<{ name?: string; kc?: number }>; skills?: Array<{ name?: string; xp?: number }> };
@@ -65,13 +43,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
-  const player = await db.query.players.findFirst({ where: eq(players.id, auth.playerId) });
-  if (!player || player.teamId !== auth.teamId) {
-    return NextResponse.json({ error: 'Player is not on the authed team' }, { status: 403 });
-  }
-
-  // Map each pushed in-game name -> hiscores/skill key, keeping the max absolute value per key. Boss KC
-  // and skill XP share the flat plugin_stats map (boss keys and skill names never collide).
+  // Map each pushed in-game name -> hiscores/skill key, keeping the max absolute value per key. Boss
+  // KC and skill XP share the flat live_stats map (boss keys and skill names never collide).
   const pushed: Record<string, number> = {};
   for (const s of incoming) {
     if (!s || typeof s.name !== 'string' || typeof s.kc !== 'number') continue;
@@ -91,85 +64,144 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
-  // Merge into stored plugin_stats — absolute counts only ever rise, so keep the max per key.
-  const stored = parsePluginStats(player.pluginStats);
+  const nowIso = new Date().toISOString();
+
+  // Merge into the member's live overlay — absolute counts only ever rise, so keep the max per key.
+  const memberRow = await db.query.clanMembers.findFirst({
+    where: eq(clanMembers.id, member.clanMemberId),
+    columns: { liveStats: true, status: true },
+  });
+  const live = parsePluginStats(memberRow?.liveStats);
   let changed = false;
-  for (const [key, kc] of Object.entries(pushed)) {
-    if (kc > (stored[key] ?? 0)) {
-      stored[key] = kc;
+  for (const [key, val] of Object.entries(pushed)) {
+    if (val > (live[key] ?? 0)) {
+      live[key] = val;
       changed = true;
     }
   }
   if (changed) {
-    await db.update(players).set({ pluginStats: JSON.stringify(stored) }).where(eq(players.id, player.id));
+    await db
+      .update(clanMembers)
+      .set({ liveStats: JSON.stringify(live), liveStatsAt: nowIso })
+      .where(eq(clanMembers.id, member.clanMemberId));
   }
 
-  // Re-evaluate boss-KC tiles tracking any updated key so a real-time clear completes now.
   const updatedKeys = new Set(Object.keys(pushed));
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, auth.eventId));
-  const statTiles = eventTiles.filter(
-    (t) =>
-      t.trackedStat &&
-      (t.statType === 'boss' || t.statType === 'kc' || t.statType === 'skill') &&
-      t.statGoal &&
-      // Admin flipped this tile to manual — don't auto-credit from plugin-pushed stats.
-      !t.autoTrackDisabled &&
-      statKeys(t.trackedStat).some((k) => updatedKeys.has(k)),
+  const completed: string[] = [];
+
+  // ── Bingo credit: re-evaluate the member's active-event stat tiles so a real-time clear completes now.
+  const playerRows = await db
+    .select({
+      id: players.id,
+      teamId: players.teamId,
+      eventId: players.eventId,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
+    .from(players)
+    .innerJoin(events, eq(players.eventId, events.id))
+    .where(eq(players.clanMemberId, member.clanMemberId));
+  const activePlayer = playerRows.find(
+    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
   );
-  if (statTiles.length === 0) {
-    return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed: [] });
+
+  if (activePlayer) {
+    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, activePlayer.eventId));
+    const statTiles = eventTiles.filter(
+      (t) =>
+        t.trackedStat &&
+        (t.statType === 'boss' || t.statType === 'kc' || t.statType === 'skill') &&
+        t.statGoal &&
+        // Admin flipped this tile to manual — don't auto-credit from plugin-pushed stats.
+        !t.autoTrackDisabled &&
+        statKeys(t.trackedStat).some((k) => updatedKeys.has(k)),
+    );
+
+    if (statTiles.length > 0) {
+      const teamPlayers = await db
+        .select({
+          clanMemberId: players.clanMemberId,
+          statsSnapshot: players.statsSnapshot,
+          cachedStats: players.cachedStats,
+        })
+        .from(players)
+        .where(and(eq(players.eventId, activePlayer.eventId), eq(players.teamId, activePlayer.teamId!)));
+      // Every team player's live overlay (each is their own member; the pushing member's row reflects
+      // the merge we just wrote). Gain = sum over keys of max(0, max(hiscores, live) − baseline).
+      const teamLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
+      const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
+        const plug = (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {};
+        return computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, statType);
+      };
+
+      const tileIds = eventTiles.map((t) => t.id);
+      const existing = tileIds.length
+        ? await db.select().from(completions).where(inArray(completions.tileId, tileIds))
+        : [];
+      const done = new Set(existing.map((c) => `${c.teamId}-${c.tileId}`));
+      const event = await db.query.events.findFirst({ where: eq(events.id, activePlayer.eventId) });
+      const team = await db.query.teams.findFirst({ where: eq(teams.id, activePlayer.teamId!) });
+
+      for (const tile of statTiles) {
+        const compKey = `${activePlayer.teamId}-${tile.id}`;
+        if (done.has(compKey)) continue;
+        const keys = statKeys(tile.trackedStat);
+        const meets =
+          tile.trackingMode === 'individual'
+            ? teamPlayers.some((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+            : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
+        if (!meets) continue;
+
+        // Notify only on a genuine insert — the sweep + this push can both cross a threshold and
+        // would otherwise double-ping Discord.
+        const inserted = await db
+          .insert(completions)
+          .values({ teamId: activePlayer.teamId!, tileId: tile.id })
+          .onConflictDoNothing()
+          .returning({ id: completions.id });
+        if (inserted.length === 0) continue;
+        done.add(compKey);
+        completed.push(tile.label);
+        if (event && team) {
+          notifyTileCompletion({
+            eventName: event.name,
+            tileLabel: tile.label,
+            teamName: team.name,
+            teamColor: team.color,
+            tileType: tile.tileType,
+            trackedStat: tile.trackedStat,
+            statType: tile.statType,
+          }).catch(() => {});
+        }
+      }
+    }
   }
 
-  const teamPlayers = await db
-    .select()
-    .from(players)
-    .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
-  const tileIds = eventTiles.map((t) => t.id);
-  const existing = tileIds.length
-    ? await db.select().from(completions).where(inArray(completions.tileId, tileIds))
-    : [];
-  const done = new Set(existing.map((c) => `${c.teamId}-${c.tileId}`));
-
-  const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
-  const team = await db.query.teams.findFirst({ where: eq(teams.id, auth.teamId) });
-
-  // A player's gain for a (possibly composite) stat = sum over keys of max(0, effective - baseline),
-  // where effective current = max(hiscores, plugin-pushed). Mirrors the cron / gains route.
-  const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
-    const plug = parsePluginStats(p.pluginStats);
-    let g = 0;
-    for (const k of keys) {
-      const baseline = readStatValue(p.statsSnapshot, statType, k);
-      const current = Math.max(readStatValue(p.cachedStats, statType, k), plug[k] ?? 0);
-      g += Math.max(0, current - baseline);
-    }
-    return g;
-  };
-
-  const completed: string[] = [];
-  for (const tile of statTiles) {
-    const compKey = `${auth.teamId}-${tile.id}`;
-    if (done.has(compKey)) continue;
-    const keys = statKeys(tile.trackedStat);
-    const meets =
-      tile.trackingMode === 'individual'
-        ? teamPlayers.some((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
-        : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
-    if (!meets) continue;
-
-    await db.insert(completions).values({ teamId: auth.teamId, tileId: tile.id }).onConflictDoNothing();
-    done.add(compKey);
-    completed.push(tile.label);
-    if (event && team) {
-      notifyTileCompletion({
-        eventName: event.name,
-        tileLabel: tile.label,
-        teamName: team.name,
-        teamColor: team.color,
-        tileType: tile.tileType,
-        trackedStat: tile.trackedStat,
-        statType: tile.statType,
-      }).catch(() => {});
+  // ── Weekly credit: move SOTW/BOTW live for any active comp whose metric was just pushed. Only when
+  // the member is 'active' (unranked/banned rows are the sweep's job) and already baselined (a first
+  // capture from a live push would zero the session — the sweep sets the baseline from max(hiscores,
+  // live)). currentValue climbs monotonically; a stale-baseline flush is spike-flagged here too.
+  if (memberRow?.status === 'active') {
+    const activeComps = (await getActiveWeeklyMetrics()).filter((c) => updatedKeys.has(c.metric));
+    for (const comp of activeComps) {
+      const participant = await db.query.weeklyParticipants.findFirst({
+        where: and(
+          eq(weeklyParticipants.competitionId, comp.id),
+          eq(weeklyParticipants.clanMemberId, member.clanMemberId),
+        ),
+      });
+      if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
+      await applyWeeklyValue({
+        participantId: participant.id,
+        type: comp.type,
+        metric: comp.metric,
+        value: live[comp.metric] ?? 0,
+        baselineValue: participant.baselineValue,
+        currentValue: participant.currentValue,
+        lastUpdated: participant.lastUpdated,
+        allowFirstCapture: false,
+        now: nowIso,
+      });
     }
   }
 
