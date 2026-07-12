@@ -200,15 +200,18 @@ export async function GET(request: Request) {
       try {
         const current = await getHiscoresStats(task.player.name) as Snapshot;
         const currentJson = JSON.stringify(current);
-        // Reconcile the plugin's real-time boss KC against this fresh hiscores read: drop any entry
-        // hiscores has caught up to (its value now IS the truth), keep only entries still ahead.
-        // This is what "readjusts an hour later" — a stale/over-reported push self-heals, and the
-        // stored plugin blob shrinks back to nothing once hiscores confirms every kill.
+        // Reconcile the plugin's real-time pushes (boss KC + skill XP) against this fresh hiscores
+        // read: drop any entry hiscores has caught up to (its value now IS the truth), keep only
+        // entries still ahead. This is what "readjusts an hour later" — a stale/over-reported push
+        // self-heals, and the stored plugin blob shrinks back to nothing once hiscores confirms it.
+        // Boss keys and skill names never collide, so a key resolves to at most one of the two.
         const rawPlugin = parsePluginStats(task.player.pluginStats);
         const pluginMap: Record<string, number> = {};
         for (const [k, v] of Object.entries(rawPlugin)) {
-          const h = current.bosses?.[k]?.score ?? 0;
-          if ((h < 0 ? 0 : h) < v) pluginMap[k] = v;
+          const xp = current.skills?.[k]?.xp ?? 0;
+          const kc = current.bosses?.[k]?.score ?? 0;
+          const h = Math.max(xp < 0 ? 0 : xp, kc < 0 ? 0 : kc);
+          if (h < v) pluginMap[k] = v;
         }
         // Persist the pruned blob only when it actually changed, to avoid needless writes.
         const prunedJson = Object.keys(pluginMap).length > 0 ? JSON.stringify(pluginMap) : null;
@@ -260,7 +263,9 @@ export async function GET(request: Request) {
       for (const part of statKeys(tile.trackedStat)) {
         if (tile.statType === 'skill') {
           const snapshotXp = f.snapshot.skills?.[part]?.xp ?? 0;
-          const currentXp = f.current.skills?.[part]?.xp ?? 0;
+          // Effective current = max(hiscores, plugin-pushed) so a real-time training burst counts
+          // before the hiscores read catches up.
+          const currentXp = Math.max(f.current.skills?.[part]?.xp ?? 0, f.pluginMap[part] ?? 0);
           gained += Math.max(0, currentXp - snapshotXp);
         } else if (tile.statType === 'boss') {
           const snapshotKc = f.snapshot.bosses?.[part]?.score ?? 0;

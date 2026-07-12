@@ -4,7 +4,7 @@ import { players, tiles, teams, events, completions } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
-import { bossKeyForName, parsePluginStats } from '@/lib/pluginStats';
+import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
 import { notifyTileCompletion } from '@/lib/discord';
 
 // Real-time boss-KC ingest. The plugin posts {stats:[{name,kc}]} with ABSOLUTE counts (no image)
@@ -14,8 +14,9 @@ import { notifyTileCompletion } from '@/lib/discord';
 // tiles so they complete immediately instead of waiting on the ~1h hiscores lag. The cron folds the
 // same max into its gains and prunes a plugin entry once hiscores catches up. See lib/pluginStats.
 
-// Absolute-KC sanity ceiling — reject obviously bogus pushes. No legit boss KC approaches this.
+// Absolute sanity ceilings — reject obviously bogus pushes. No legit boss KC / skill XP approaches these.
 const MAX_KC = 1_000_000;
+const MAX_XP = 200_000_000;
 
 // Read a boss score for one hiscores key out of a stored hiscores JSON blob (-1 unranked -> 0).
 function bossScore(json: string | null, key: string): number {
@@ -29,20 +30,38 @@ function bossScore(json: string | null, key: string): number {
   }
 }
 
+// Read a skill's XP for one skill key out of a stored hiscores JSON blob (negative -> 0).
+function skillXp(json: string | null, key: string): number {
+  if (!json) return 0;
+  try {
+    const parsed = JSON.parse(json) as { skills?: Record<string, { xp?: number }> };
+    const x = parsed.skills?.[key]?.xp ?? 0;
+    return x < 0 ? 0 : x;
+  } catch {
+    return 0;
+  }
+}
+
+// Effective current value for one key = max(hiscores, plugin-pushed). Skills read xp; bosses read score.
+function readStatValue(json: string | null, statType: string, key: string): number {
+  return statType === 'skill' ? skillXp(json, key) : bossScore(json, key);
+}
+
 export async function POST(request: Request) {
   const auth = await verifyPluginToken(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
 
-  let body: { stats?: Array<{ name?: string; kc?: number }> };
+  let body: { stats?: Array<{ name?: string; kc?: number }>; skills?: Array<{ name?: string; xp?: number }> };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   const incoming = Array.isArray(body?.stats) ? body.stats : [];
-  if (incoming.length === 0) {
+  const incomingSkills = Array.isArray(body?.skills) ? body.skills : [];
+  if (incoming.length === 0 && incomingSkills.length === 0) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
@@ -51,7 +70,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Player is not on the authed team' }, { status: 403 });
   }
 
-  // Map each pushed in-game name -> hiscores key, keeping the max absolute count per key.
+  // Map each pushed in-game name -> hiscores/skill key, keeping the max absolute value per key. Boss KC
+  // and skill XP share the flat plugin_stats map (boss keys and skill names never collide).
   const pushed: Record<string, number> = {};
   for (const s of incoming) {
     if (!s || typeof s.name !== 'string' || typeof s.kc !== 'number') continue;
@@ -59,6 +79,13 @@ export async function POST(request: Request) {
     const key = bossKeyForName(s.name);
     if (!key) continue;
     pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(s.kc));
+  }
+  for (const s of incomingSkills) {
+    if (!s || typeof s.name !== 'string' || typeof s.xp !== 'number') continue;
+    if (!Number.isFinite(s.xp) || s.xp < 0 || s.xp > MAX_XP) continue;
+    const key = skillKeyForName(s.name);
+    if (!key) continue;
+    pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(s.xp));
   }
   if (Object.keys(pushed).length === 0) {
     return NextResponse.json({ ok: true, updated: 0 });
@@ -83,7 +110,7 @@ export async function POST(request: Request) {
   const statTiles = eventTiles.filter(
     (t) =>
       t.trackedStat &&
-      (t.statType === 'boss' || t.statType === 'kc') &&
+      (t.statType === 'boss' || t.statType === 'kc' || t.statType === 'skill') &&
       t.statGoal &&
       // Admin flipped this tile to manual — don't auto-credit from plugin-pushed stats.
       !t.autoTrackDisabled &&
@@ -108,12 +135,12 @@ export async function POST(request: Request) {
 
   // A player's gain for a (possibly composite) stat = sum over keys of max(0, effective - baseline),
   // where effective current = max(hiscores, plugin-pushed). Mirrors the cron / gains route.
-  const gainFor = (p: (typeof teamPlayers)[number], keys: string[]): number => {
+  const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
     const plug = parsePluginStats(p.pluginStats);
     let g = 0;
     for (const k of keys) {
-      const baseline = bossScore(p.statsSnapshot, k);
-      const current = Math.max(bossScore(p.cachedStats, k), plug[k] ?? 0);
+      const baseline = readStatValue(p.statsSnapshot, statType, k);
+      const current = Math.max(readStatValue(p.cachedStats, statType, k), plug[k] ?? 0);
       g += Math.max(0, current - baseline);
     }
     return g;
@@ -126,8 +153,8 @@ export async function POST(request: Request) {
     const keys = statKeys(tile.trackedStat);
     const meets =
       tile.trackingMode === 'individual'
-        ? teamPlayers.some((p) => gainFor(p, keys) >= tile.statGoal!)
-        : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys), 0) >= tile.statGoal!;
+        ? teamPlayers.some((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+        : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
     if (!meets) continue;
 
     await db.insert(completions).values({ teamId: auth.teamId, tileId: tile.id }).onConflictDoNothing();

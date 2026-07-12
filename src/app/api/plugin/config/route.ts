@@ -109,6 +109,7 @@ export async function GET(request: Request) {
         codeword: null,
         trackedStats: [],
         trackedKcNames: [],
+        trackedSkillNames: [],
         trackedDrops: [],
         trackedKills: [],
         trackedPvp: [],
@@ -243,17 +244,19 @@ export async function GET(request: Request) {
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
 
-    const isBoss = statType === 'boss' || statType === 'kc';
     for (const p of sources) {
-      // Real-time boss KC (plugin push) folds into current as a per-key max, so the in-game
-      // progress reflects a fresh kill before the hourly hiscores cron catches up.
-      const plug = isBoss ? parsePluginStats(p.pluginStats) : {};
+      // Real-time plugin push (boss KC AND skill XP) folds into current as a per-key max, so the
+      // in-game progress reflects a fresh kill / training burst before the hourly hiscores cron.
+      const plug = parsePluginStats(p.pluginStats);
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
       for (const part of statKeys(statName)) {
         const baseline = readStatValue(p.statsSnapshot, statType, part);
-        let current = readStatValue(p.cachedStats, statType, part);
-        if (isBoss) current = Math.max(current ?? 0, plug[part] ?? 0);
+        const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
+        const pushed = plug[part];
+        const current = hiscoresCurrent != null || pushed != null
+          ? Math.max(hiscoresCurrent ?? 0, pushed ?? 0)
+          : null;
         if (baseline == null || current == null) continue;
         const gained = current - baseline;
         if (gained > 0) gainedTotal += gained;
@@ -288,6 +291,16 @@ export async function GET(request: Request) {
       statTilesRaw
         .filter((t) => t.statType === 'boss' || t.statType === 'kc')
         .flatMap((t) => statKeys(t.trackedStat).flatMap((k) => kcNamesForKey(k))),
+    ),
+  );
+
+  // Skill names for the event's skill-XP tiles. The plugin pushes real-time absolute XP for these off
+  // StatChanged so the tile moves without waiting on the hourly hiscores cron (same idea as trackedKcNames).
+  const trackedSkillNames = Array.from(
+    new Set(
+      statTilesRaw
+        .filter((t) => t.statType === 'skill')
+        .flatMap((t) => statKeys(t.trackedStat)),
     ),
   );
 
@@ -393,6 +406,7 @@ export async function GET(request: Request) {
     completedTiles,
     trackedStats,
     trackedKcNames,
+    trackedSkillNames,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {

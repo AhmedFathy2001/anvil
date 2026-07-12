@@ -1,4 +1,15 @@
-import { BOSSES } from '@/lib/constants';
+import { BOSSES, SKILLS } from '@/lib/constants';
+
+// Skill-XP pushes key on the plain lowercase skill name ("mining"), which is exactly how skill XP is
+// stored in the hiscores snapshot (cachedStats.skills["mining"].xp) and how a skill tile's trackedStat
+// reads — so no separate mapping is needed beyond validating it's a real skill.
+const SKILL_KEYS: ReadonlySet<string> = new Set(SKILLS as readonly string[]);
+
+/** A pushed skill name → its hiscores/pluginStats key (lowercase), or null if it isn't a real skill. */
+export function skillKeyForName(name: string): string | null {
+  const k = name.trim().toLowerCase();
+  return SKILL_KEYS.has(k) && k !== 'overall' ? k : null;
+}
 
 // Real-time boss KC pushed by the plugin lives in `players.plugin_stats` as a flat JSON map of
 // hiscores boss key -> absolute count ({"zulrah":1250}). It's kept separate from `cachedStats`

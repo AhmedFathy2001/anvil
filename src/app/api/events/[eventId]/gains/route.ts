@@ -14,8 +14,9 @@ function computeGains(
   snapshot: Snapshot,
   current: Snapshot,
   trackedStats: { key: string; type: string }[],
-  // Real-time boss KC pushed by the plugin (hiscores key -> absolute count); the effective current
-  // KC is max(hiscores, plugin) so a tile reflects a fresh kill before the hourly hiscores catches up.
+  // Real-time stats pushed by the plugin (key -> absolute count/xp); the effective current value is
+  // max(hiscores, plugin) so a tile reflects a fresh kill / training burst before the hourly hiscores
+  // catches up — for boss KC AND skill XP.
   pluginMap: Record<string, number> = {}
 ): Record<string, number> {
   const gains: Record<string, number> = {};
@@ -27,7 +28,7 @@ function computeGains(
     for (const part of statKeys(key)) {
       if (type === 'skill') {
         const snapshotXp = snapshot.skills?.[part]?.xp ?? 0;
-        const currentXp = current.skills?.[part]?.xp ?? 0;
+        const currentXp = Math.max(current.skills?.[part]?.xp ?? 0, pluginMap[part] ?? 0);
         total += Math.max(0, currentXp - snapshotXp);
       } else if (type === 'boss') {
         const snapshotKc = snapshot.bosses?.[part]?.score ?? 0;
@@ -131,7 +132,7 @@ export async function GET(
           let total = 0;
           for (const part of statKeys(key)) {
             if (type === 'skill') {
-              total += currentStats.skills?.[part]?.xp ?? 0;
+              total += Math.max(currentStats.skills?.[part]?.xp ?? 0, pluginMap[part] ?? 0);
             } else if (type === 'boss') {
               const kc = currentStats.bosses?.[part]?.score ?? 0;
               total += Math.max(kc < 0 ? 0 : kc, pluginMap[part] ?? 0);
