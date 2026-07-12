@@ -4,6 +4,7 @@ import { submissions, tiles, teams, players, events, users } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
@@ -62,6 +63,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const rl = await rateLimit(request, 'submissions', { limit: 60, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds } = await request.json();

@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { detectedAccounts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { claimAccountForUser, verifyUser } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // POST /api/profile/detected-accounts/[id]
 // Body: { action: 'link' | 'dismiss' }
@@ -11,6 +12,8 @@ import { claimAccountForUser, verifyUser } from '@/lib/auth';
 //   • link    → attribute + verify the account to this user, then drop the suggestion.
 //   • dismiss → opt out; the row stays 'dismissed' so it isn't re-suggested on the next play.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await rateLimit(request, 'detected-action', { limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

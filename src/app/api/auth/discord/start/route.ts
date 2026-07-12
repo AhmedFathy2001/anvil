@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { buildAuthorizeUrl, isDiscordOAuthConfigured } from '@/lib/discord-oauth';
 import { safeReturnPath } from '@/lib/safe-redirect';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
@@ -10,6 +11,8 @@ const STATE_TTL_SECONDS = 600; // 10 minutes
 // GET /api/auth/discord/start?return=/profile
 // Generates a CSRF state, stores it as an HTTP-only cookie, and redirects to Discord.
 export async function GET(request: Request) {
+  const rl = await rateLimit(request, 'oauth-start', { limit: 30, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many login attempts — try again shortly.' }, { status: 429, headers: rateLimitHeaders(rl) });
   if (!isDiscordOAuthConfigured()) {
     return NextResponse.json(
       { error: 'Discord OAuth is not configured on the server.' },
