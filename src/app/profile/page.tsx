@@ -20,6 +20,7 @@ import { signupWindowState } from '@/lib/signup';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
+import IgnoredAccountsClient from './IgnoredAccountsClient';
 import LinkedAccountsClient from './LinkedAccountsClient';
 import GettingStarted, { type GettingStartedProps } from './GettingStarted';
 
@@ -54,6 +55,15 @@ export default async function ProfilePage({
     orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
   });
   const detectedForClient = detectedPending
+    .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
+    .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
+
+  // Ignored accounts — ones the user removed / opted out of. Shown in a collapsed section, re-addable.
+  const dismissed = await db.query.detectedAccounts.findMany({
+    where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'dismissed')),
+    orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
+  });
+  const ignoredForClient = dismissed
     .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
 
@@ -359,11 +369,15 @@ export default async function ProfilePage({
         )}
       </section>
 
-      {/* Opt-in inbox for accounts the plugin detected but that aren't linked yet */}
+      {/* Opt-in inbox — only the cases the auto-link can't safely claim on its own (an established
+          account matched by name alone) land here for a manual, hash-checked Add. */}
       <DetectedAccountsClient initial={detectedForClient} />
 
+      {/* Collapsed list of accounts the user removed — re-addable, and won't auto-re-add on play. */}
+      <IgnoredAccountsClient initial={ignoredForClient} />
+
       {/* PRIMARY path: RuneLite plugin token */}
-      <section className="border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
+      <section id="plugin-token" className="scroll-mt-24 border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-1 h-5 bg-gold rounded-full" />
           <h2 className="text-lg font-semibold">RuneLite plugin</h2>

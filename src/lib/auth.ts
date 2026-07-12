@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, detectedAccounts, events, players, pluginLinks, teams, users } from '@/db/schema';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 
@@ -338,16 +338,20 @@ async function applyRenameOnPlay(
   }
 }
 
-// Record a plugin-detected account as an opt-in suggestion on play. We do NOT auto-claim:
-// a member may run several accounts (alts, irons, mules) through one RuneLite install and
-// only wants some attached to their public profile. So when the token's user plays an
-// account that isn't already owned by anyone, we drop a row in `detected_accounts` for them
-// to Add or Ignore from /profile. Already-owned accounts (theirs or someone else's) are
-// skipped — the caller's `ensurePluginVerifiedOnPlay` handles verifying their own.
+// On authenticated plugin play, AUTO-ADD the account the token's user is on — no manual "Add" step,
+// so a member installs the plugin, plays, and their accounts just appear. It's opt-OUT: they Remove
+// anything they don't want (an alt/mule), which drops it into a sticky "Ignored" list they can re-add
+// from — and once ignored it won't auto-re-add.
 //
-// A previously Ignored account stays 'dismissed' (we never bump it back to 'pending'), so
-// opting out sticks. Best-effort — never blocks plugin auth.
-async function ensureAccountDetectedOnPlay(
+// SECURITY: we never auto-claim an ESTABLISHED identity (a verified account or a real in-game roster
+// member) that was matched only by its public, forgeable RSN — that would let anyone with a plugin
+// token claim a verified member by typing their name (potential role/attribution takeover). Such a
+// match falls back to an opt-in suggestion so the real owner links it with hash proof (or an admin
+// does). Hash-matched established rows are already handled by maybeAutoClaimEstablishedOnPlay before
+// this runs. Everything else — a brand-new account, or the user's own unverified ghost row — is safe
+// to auto-link (it's their own authenticated play; the worst case is squatting a fresh name, which is
+// reversible and already possible via the old play+Add path). Best-effort — never blocks plugin auth.
+async function autoLinkOrSuggestOnPlay(
   userId: number,
   rsn: string,
   normalizedRsn: string,
@@ -355,37 +359,99 @@ async function ensureAccountDetectedOnPlay(
   nowIso: string,
 ): Promise<void> {
   try {
-    // Match any existing clan_member by accountHash (rename-proof) or RSN. If it's owned by
-    // anyone, there's nothing to suggest — owned-by-them is already linked, owned-by-someone-
-    // -else is not theirs to claim.
-    const matchCond = accountHash
-      ? or(eq(clanMembers.accountHash, accountHash), eq(clanMembers.rsnNormalized, normalizedRsn))
-      : eq(clanMembers.rsnNormalized, normalizedRsn);
-    const member = await db.query.clanMembers.findFirst({ where: matchCond });
-    if (member && member.userId != null) return;
+    const byHash = accountHash
+      ? (await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })) ?? null
+      : null;
+    const byRsn =
+      (await db.query.clanMembers.findFirst({ where: eq(clanMembers.rsnNormalized, normalizedRsn) })) ?? null;
+    const existing = byHash ?? byRsn;
 
-    const existing = await db.query.detectedAccounts.findFirst({
-      where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
-    });
-    if (existing) {
-      // Keep an Ignore sticky; just refresh recency + the latest casing/hash otherwise.
-      await db
-        .update(detectedAccounts)
-        .set({ lastSeenAt: nowIso, rsn, accountHash: accountHash ?? existing.accountHash })
-        .where(eq(detectedAccounts.id, existing.id));
-    } else {
-      await db.insert(detectedAccounts).values({
-        userId,
-        rsn,
-        rsnNormalized: normalizedRsn,
-        accountHash: accountHash ?? null,
-        status: 'pending',
-        detectedAt: nowIso,
-        lastSeenAt: nowIso,
+    // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
+    if (existing?.userId != null) return;
+
+    const established = !!existing && (existing.verifiedAt != null || existing.isGuest === 0);
+
+    // Takeover guard: an established identity matched ONLY by the forgeable RSN is never auto-claimed.
+    // Surface it as an opt-in suggestion instead (unless the user already Ignored it).
+    if (established && !byHash) {
+      const suggestion = await db.query.detectedAccounts.findFirst({
+        where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
       });
+      if (suggestion) {
+        await db
+          .update(detectedAccounts)
+          .set({ lastSeenAt: nowIso, rsn, accountHash: accountHash ?? suggestion.accountHash })
+          .where(eq(detectedAccounts.id, suggestion.id));
+      } else {
+        await db.insert(detectedAccounts).values({
+          userId, rsn, rsnNormalized: normalizedRsn, accountHash: accountHash ?? null,
+          status: 'pending', detectedAt: nowIso, lastSeenAt: nowIso,
+        });
+      }
+      return;
     }
+
+    // Honour a prior Remove/Ignore: don't auto-re-add an account the user chose to hide.
+    const ignored = await db.query.detectedAccounts.findFirst({
+      where: and(
+        eq(detectedAccounts.userId, userId),
+        eq(detectedAccounts.rsnNormalized, normalizedRsn),
+        eq(detectedAccounts.status, 'dismissed'),
+      ),
+    });
+    if (ignored) {
+      await db.update(detectedAccounts).set({ lastSeenAt: nowIso, rsn }).where(eq(detectedAccounts.id, ignored.id));
+      return;
+    }
+
+    // Safe to auto-link: a brand-new account, the user's own unverified ghost, or a hash match.
+    let clanMemberId: number;
+    if (existing) {
+      await db
+        .update(clanMembers)
+        .set({
+          userId,
+          accountHash: existing.accountHash ?? accountHash,
+          verifiedAt: existing.verifiedAt ?? nowIso,
+          verificationMethod: 'plugin',
+          provisional: 0,
+          source: existing.source === 'manual' ? 'manual' : 'plugin-self',
+          claimedAt: existing.claimedAt ?? nowIso,
+          leftAt: existing.source === 'manual' ? existing.leftAt : null,
+          lastSeenInClan: nowIso,
+        })
+        // Re-assert unowned so a concurrent claim wins cleanly.
+        .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)));
+      clanMemberId = existing.id;
+    } else {
+      const inserted = await db
+        .insert(clanMembers)
+        .values({
+          rsn,
+          rsnNormalized: normalizedRsn,
+          accountHash: accountHash ?? null,
+          source: 'plugin-self',
+          userId,
+          isGuest: 1, // verification proves ownership, not clan membership; clan-sync promotes to member
+          verifiedAt: nowIso,
+          verificationMethod: 'plugin',
+          provisional: 0,
+          claimedAt: nowIso,
+          lastSeenInClan: nowIso,
+        })
+        .returning({ id: clanMembers.id });
+      clanMemberId = inserted[0].id;
+    }
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId,
+        eventType: 'claimed',
+        newValue: JSON.stringify({ userId, via: 'plugin-play-autolink', method: 'plugin' }),
+        actorUserId: userId,
+      })
+      .catch(() => {});
   } catch {
-    // Detection is best-effort — never block plugin auth on it.
+    // Best-effort — a failure must not break plugin auth.
   }
 }
 
@@ -618,13 +684,10 @@ export async function resolvePluginMember(
     await maybeAutoClaimEstablishedOnPlay(user.id, accountHash, nowIso);
   }
 
-  // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
-  // suggestion the user can Add/Ignore from /profile rather than auto-claiming it (a member
-  // may run alts/irons/mules through one install and only want some attached). Already-owned
-  // accounts are skipped here and verified below by ensurePluginVerifiedOnPlay. Needs the RSN
-  // to know which account they're on.
+  // Auto-add the account they're on (opt-out): safe cases link immediately, the forge-risky
+  // established-by-RSN case falls back to an opt-in suggestion. Needs the RSN to know which account.
   if (currentRsn && normalizedRsn) {
-    await ensureAccountDetectedOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
+    await autoLinkOrSuggestOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
   }
 
   const memberRows = await db

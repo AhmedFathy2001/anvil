@@ -95,11 +95,19 @@ export default function GettingStarted(props: GettingStartedProps) {
                 verification below. Event sign-ups need a verified account.
               </p>
             ) : (
-              <p className="text-sm text-text-muted">
-                Easiest way: paste the plugin token below into the Anvil RuneLite plugin and just
-                play. On mobile or the official client, use the manual options at the bottom of
-                this page.
-              </p>
+              <div className="text-sm text-text-muted space-y-2">
+                <p>
+                  Easiest way: grab your plugin token, paste it into the Anvil RuneLite plugin, and
+                  just play — the accounts you play link to your profile automatically. On mobile or
+                  the official client, use the manual options at the bottom of this page.
+                </p>
+                <a
+                  href="#plugin-token"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/25 transition-colors"
+                >
+                  Get your plugin token ↓
+                </a>
+              </div>
             )}
           </div>
         </li>
