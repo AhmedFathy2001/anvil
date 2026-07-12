@@ -566,32 +566,28 @@ export async function claimAccountForUser(
   return { ok: true, clanMemberId };
 }
 
-// Plugin auth: resolve the active player row from an Authorization: Bearer header.
+// Plugin identity: resolve which of a caller's owned clan_members they're logged into, from an
+// Authorization: Bearer header — WITHOUT requiring a live bingo event. This is the shared identity
+// core: `verifyPluginToken` layers event resolution on top, and the live-stats ingest credits weekly
+// SOTW/BOTW by clan member even when the caller isn't in any bingo.
 //
-// Only the **per-user account token** (`users.plugin_token`) is accepted. It is
-// long-lived and configured once; the active event/team/player row is resolved
-// server-side from the caller's `clan_members` and the in-game RSN they pass on
-// each call. (Legacy per-event `players.player_token`s are no longer a plugin
-// credential — see the trailing comment.)
+// Only the **per-user account token** (`users.plugin_token`) is accepted; legacy per-event
+// `players.player_token`s are not a plugin credential. `currentRsn` (header `X-RSN`, fallback
+// `?rsn=`) is the in-game name reported by the client; it scopes resolution to the matching
+// clan_member — the check that blocks "a drop on the wrong account credits the right account" (the
+// multi-RSN-on-one-Jagex problem). The optional `X-Account-Hash` is the rename-proof anchor.
 //
-// `currentRsn` (header `X-RSN`, fallback `?rsn=`) is the in-game name reported by
-// the client. When provided it scopes the resolution to the matching clan_member,
-// which is what blocks "a drop on the wrong account credits the right account"
-// (the multi-RSN-on-one-Jagex problem). When omitted, the resolver picks any
-// active-event player row owned by the user — convenient but loses that check.
+// Side effects (same as before, all best-effort): hash-only auto-claim of an established owned row,
+// opt-in detection of an unowned reported account, rename-on-play, and plugin auto-verify (a
+// confirmed RSN match proves account control, so an unverified/provisional row is upgraded — no
+// separate link-code dance).
 //
-// Auto-verify on play: when the RSN matches one of the user's own clan_members,
-// that's proof the caller controls the account, so an unverified/provisional row
-// is upgraded to verified (`verificationMethod: 'plugin'`). The optional
-// `X-Account-Hash` header is captured as the rename-proof identity anchor. This
-// makes normal plugin play a verification path — no separate link-code dance.
-//
-// Returns null when the token is invalid OR when the token is valid but the
-// caller has no active event enrollment. Callers that need to distinguish these
-// cases should layer `verifyPluginTokenUser` on top.
-export async function verifyPluginToken(
+// Returns null when: the token is invalid, the user owns no members, NO RSN hint was sent (we can't
+// tell which of the user's accounts is logged in, so we must not guess), or the reported account
+// isn't on this user's roster.
+export async function resolvePluginMember(
   request: Request
-): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
+): Promise<{ userId: number; clanMemberId: number; rsn: string } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
 
@@ -609,143 +605,133 @@ export async function verifyPluginToken(
   // a later in-game rename stays anchored to the same clan_member.
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
 
-  // Path 1 — per-user plugin token.
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
-  if (user) {
-    const nowIso = new Date().toISOString();
+  if (!user) return null;
+  const nowIso = new Date().toISOString();
 
-    // Re-link an established account this caller cryptographically controls: if the (unforgeable)
-    // account hash is already anchored to an unowned verified/roster row, attach it to them now, so
-    // the freshly-claimed row flows through the normal owned-rows path below. Deliberately hash-only
-    // — an RSN is public and not proof of control (see helper); RSN-only accounts stay on the opt-in
-    // "Add" flow.
-    if (accountHash) {
-      await maybeAutoClaimEstablishedOnPlay(user.id, accountHash, nowIso);
-    }
-
-    // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
-    // suggestion the user can Add/Ignore from /profile rather than auto-claiming it (a member
-    // may run alts/irons/mules through one install and only want some attached). Already-owned
-    // accounts are skipped here and verified below by ensurePluginVerifiedOnPlay. Needs the RSN
-    // to know which account they're on.
-    if (currentRsn && normalizedRsn) {
-      await ensureAccountDetectedOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
-    }
-
-    const memberRows = await db
-      .select({
-        id: clanMembers.id,
-        rsn: clanMembers.rsn,
-        rsnNormalized: clanMembers.rsnNormalized,
-        previousRsns: clanMembers.previousRsns,
-        verifiedAt: clanMembers.verifiedAt,
-        provisional: clanMembers.provisional,
-        accountHash: clanMembers.accountHash,
-      })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)));
-    if (memberRows.length === 0) return null;
-
-    // Build a per-member set of every RSN that's ever been theirs — covers in-game
-    // renames where the plugin reports the new name before the next /hello sync has
-    // had a chance to update clan_members.
-    const memberRsnSets = new Map<number, Set<string>>(
-      memberRows.map((m) => {
-        const aliases = new Set<string>([m.rsnNormalized]);
-        if (m.previousRsns) {
-          try {
-            const arr = JSON.parse(m.previousRsns);
-            if (Array.isArray(arr)) {
-              for (const prev of arr) {
-                if (typeof prev === 'string') aliases.add(normalizeRsn(prev));
-              }
-            }
-          } catch { /* ignore malformed */ }
-        }
-        return [m.id, aliases];
-      }),
-    );
-
-    // Resolve which of the user's members the caller is logged into (when they told us)
-    // and capture it BEFORE event resolution: verification and the accountHash anchor
-    // must not depend on a live-event enrollment, or the first authenticated hit outside
-    // an event captures nothing and the "plugin play verifies the account" promise breaks.
-    let matchedMember: typeof memberRows[number] | null = null;
-    if (normalizedRsn) {
-      // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
-      matchedMember =
-        memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
-      // Rename fallback: no name matched, but the stable account hash points at one of this
-      // user's members whose stored name differs — they renamed to a name we haven't recorded
-      // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
-      // would 404-park forever until a roster sync or rename request happened to fix the name.
-      // Record the rename now (best-effort) so it self-heals the moment they simply play.
-      let renamedFrom: string | null = null;
-      if (!matchedMember && accountHash) {
-        const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
-        if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
-          matchedMember = hashMatch;
-          renamedFrom = hashMatch.rsn;
-        }
-      }
-      if (!matchedMember) return null; // current account isn't on this user's roster
-      if (renamedFrom && currentRsn) {
-        await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
-      }
-      // A confirmed RSN match means the caller is logged into an account they own —
-      // proof enough to verify it, enrolled anywhere or not. Skip when there's no RSN
-      // hint (we can't tell which account they're actually on). Best-effort: never
-      // blocks the request, and no-ops once verified with the hash anchored.
-      await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
-    }
-
-    const memberIds = memberRows.map((m) => m.id);
-    const playerRows = await db
-      .select({
-        id: players.id,
-        name: players.name,
-        teamId: players.teamId,
-        eventId: players.eventId,
-        endDate: events.endDate,
-        forceEndedAt: events.forceEndedAt,
-        clanMemberId: players.clanMemberId,
-      })
-      .from(players)
-      .innerJoin(events, eq(players.eventId, events.id))
-      .where(inArray(players.clanMemberId, memberIds));
-
-    const live = playerRows.filter(
-      (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
-    );
-    if (live.length === 0) return null;
-
-    let pick = null as typeof live[number] | null;
-    if (matchedMember) {
-      const memberId = matchedMember.id;
-      pick = live.find((p) => p.clanMemberId === memberId) ?? null;
-      if (!pick) return null; // not signed up under this RSN
-    } else {
-      // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT
-      // guess a live event. Guessing served a user's bingo config (and auto-submit scope) to
-      // their OTHER, unenrolled accounts on the same account token — an alt would show the main's
-      // tiles and could even auto-submit under the main's team. Return null; the plugin re-fetches
-      // with the RSN once it's stamped after login, and a genuinely enrolled account resolves above.
-      return null;
-    }
-
-    return {
-      playerId: pick.id,
-      teamId: pick.teamId!,
-      eventId: pick.eventId,
-      userId: user.id,
-      rsn: pick.name,
-    };
+  // Re-link an established account this caller cryptographically controls: if the (unforgeable)
+  // account hash is already anchored to an unowned verified/roster row, attach it to them now, so
+  // the freshly-claimed row flows through the normal owned-rows path below. Deliberately hash-only
+  // — an RSN is public and not proof of control (see helper); RSN-only accounts stay on the opt-in
+  // "Add" flow.
+  if (accountHash) {
+    await maybeAutoClaimEstablishedOnPlay(user.id, accountHash, nowIso);
   }
 
-  // The token didn't match a per-user plugin token. We no longer accept legacy
-  // per-event `players.player_token`s here — the plugin authenticates with the single
-  // per-user account token only, so a stale per-event token reads as invalid.
-  return null;
+  // Opt-in attribution: when the reported in-game account isn't owned by anyone, record a
+  // suggestion the user can Add/Ignore from /profile rather than auto-claiming it (a member
+  // may run alts/irons/mules through one install and only want some attached). Already-owned
+  // accounts are skipped here and verified below by ensurePluginVerifiedOnPlay. Needs the RSN
+  // to know which account they're on.
+  if (currentRsn && normalizedRsn) {
+    await ensureAccountDetectedOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
+  }
+
+  const memberRows = await db
+    .select({
+      id: clanMembers.id,
+      rsn: clanMembers.rsn,
+      rsnNormalized: clanMembers.rsnNormalized,
+      previousRsns: clanMembers.previousRsns,
+      verifiedAt: clanMembers.verifiedAt,
+      provisional: clanMembers.provisional,
+      accountHash: clanMembers.accountHash,
+    })
+    .from(clanMembers)
+    .where(and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)));
+  if (memberRows.length === 0) return null;
+
+  // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT guess.
+  // Guessing would serve one account's bingo config / auto-submit scope (and now weekly credit) to
+  // the user's OTHER accounts on the same token. The plugin re-calls with the RSN once it's stamped
+  // after login.
+  if (!currentRsn || !normalizedRsn) return null;
+
+  // Build a per-member set of every RSN that's ever been theirs — covers in-game
+  // renames where the plugin reports the new name before the next /hello sync has
+  // had a chance to update clan_members.
+  const memberRsnSets = new Map<number, Set<string>>(
+    memberRows.map((m) => {
+      const aliases = new Set<string>([m.rsnNormalized]);
+      if (m.previousRsns) {
+        try {
+          const arr = JSON.parse(m.previousRsns);
+          if (Array.isArray(arr)) {
+            for (const prev of arr) {
+              if (typeof prev === 'string') aliases.add(normalizeRsn(prev));
+            }
+          }
+        } catch { /* ignore malformed */ }
+      }
+      return [m.id, aliases];
+    }),
+  );
+
+  // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
+  let matchedMember = memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
+  // Rename fallback: no name matched, but the stable account hash points at one of this
+  // user's members whose stored name differs — they renamed to a name we haven't recorded
+  // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
+  // would 404-park forever until a roster sync or rename request happened to fix the name.
+  // Record the rename now (best-effort) so it self-heals the moment they simply play.
+  let renamedFrom: string | null = null;
+  if (!matchedMember && accountHash) {
+    const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
+    if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
+      matchedMember = hashMatch;
+      renamedFrom = hashMatch.rsn;
+    }
+  }
+  if (!matchedMember) return null; // current account isn't on this user's roster
+  if (renamedFrom) {
+    await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
+  }
+  // A confirmed RSN match means the caller is logged into an account they own — proof enough to
+  // verify it, enrolled anywhere or not. Best-effort: never blocks, no-ops once verified + anchored.
+  await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
+
+  return { userId: user.id, clanMemberId: matchedMember.id, rsn: currentRsn.trim() };
+}
+
+// Plugin auth for event-scoped actions: resolve the active player row from the account token.
+// Delegates identity to `resolvePluginMember`, then layers on live-event resolution. Returns null
+// when the token is invalid, no RSN was sent, the account isn't on the roster, OR the caller has no
+// active event enrollment. Callers that need to distinguish "no event" from "bad token" layer
+// `verifyPluginTokenUser` on top.
+export async function verifyPluginToken(
+  request: Request
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
+  const member = await resolvePluginMember(request);
+  if (!member) return null;
+
+  const nowIso = new Date().toISOString();
+  const playerRows = await db
+    .select({
+      id: players.id,
+      name: players.name,
+      teamId: players.teamId,
+      eventId: players.eventId,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
+    .from(players)
+    .innerJoin(events, eq(players.eventId, events.id))
+    .where(eq(players.clanMemberId, member.clanMemberId));
+
+  // The first live event this member is drafted into (a member in two concurrent events resolves to
+  // one — the plugin scopes to its own active event). Not signed up under this RSN → null.
+  const pick = playerRows.find(
+    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+  );
+  if (!pick) return null;
+
+  return {
+    playerId: pick.id,
+    teamId: pick.teamId!,
+    eventId: pick.eventId,
+    userId: member.userId,
+    rsn: pick.name,
+  };
 }
 
 // Authenticates admin-only plugin actions like clan-sync. There is no separate
