@@ -1,14 +1,13 @@
 import { db } from '@/db';
 import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
-import { getHiscoresStats } from '@/lib/hiscores';
+import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
 
-export interface HiscoresSnapshot {
-  skills: Record<string, { rank: number; level: number; xp: number }>;
-  bosses: Record<string, { rank: number; score: number }>;
-}
+// Re-exported for callers that still reference the type via '@/lib/weekly'.
+export type { HiscoresSnapshot };
 
 // Setting key for the "include guests in weekly auto-enrollment" toggle.
 // Default off — guests are typically not part of the clan-wide weekly comp.
@@ -68,54 +67,19 @@ export async function enrollAllPlayers(competitionId: number) {
   return enrolled;
 }
 
-const HISCORES_TIMEOUT_MS = 8000;
-const HISCORES_RETRY_DELAY_MS = 1500;
-
-function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${tag} timed out after ${ms}ms`)), ms);
-    p.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
-    );
-  });
-}
-
-async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
-  // Strip any non-ASCII whitespace before handing to the lib — its validateRSN regex
-  // rejects U+00A0 outright. Defense in depth; we also clean on write, but legacy
-  // rows still in the table need this until they're backfilled.
-  const cleanRsn = sanitizeRsn(rsn);
-  return (await withTimeout(
-    getHiscoresStats(cleanRsn) as Promise<HiscoresSnapshot>,
-    HISCORES_TIMEOUT_MS,
-    `hiscores(${cleanRsn})`,
-  ));
-}
-
 /**
  * Light-weight reachability probe — used by the cron's re-probe pass to lift
  * `unranked` members back to `active` when they reappear on hiscores. Reuses the
- * full snapshot fetch (osrs-json-hiscores doesn't expose a HEAD-like check) but
+ * shared snapshot fetch (osrs-json-hiscores doesn't expose a HEAD-like check) but
  * doesn't read any metric, so callers can ignore the parsed payload.
  */
 export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unranked' | 'transient'> {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      await fetchHiscoresOnce(rsn);
-      return 'reachable';
-    } catch (err) {
-      const classification = classifyError(err);
-      if (classification === 'unranked') return 'unranked';
-      if (attempt === 2) return 'transient';
-      await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
-    }
-  }
-  return 'transient';
+  const result = await fetchSnapshotWithRetry(rsn);
+  return result.kind === 'value' ? 'reachable' : result.kind;
 }
 
 /**
- * Tagged result for a hiscores fetch. WOM-style separation so the caller can react
+ * Tagged result for a weekly metric read. WOM-style separation so the caller can react
  * differently to "the account isn't on hiscores" (terminal — flip status to unranked,
  * stop wasting future cron slots) vs "the call broke transiently" (retry next tick).
  *
@@ -127,54 +91,22 @@ export type FetchResult =
   | { kind: 'unranked' }            // 404 from hiscores OR validator rejected the RSN string outright
   | { kind: 'transient' };          // network / timeout / parse error — try again later
 
-function classifyError(err: unknown): 'unranked' | 'transient' {
-  const msg = err instanceof Error ? err.message : String(err);
-  // osrs-json-hiscores throws "Player not found" on 404 and "RSN contains invalid character"
-  // / "RSN must be between..." for client-side validator rejections. All of those mean
-  // "do not keep polling this RSN" — flip to unranked and have a human / re-probe fix it.
-  if (/not found|invalid character|must be between|must be a string/i.test(msg)) return 'unranked';
-  return 'transient';
-}
-
 /**
- * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout and one
- * retry — distinguishes terminal (`unranked`) from transient failures so the cron can
- * stop chasing dead RSNs.
+ * Extract a single competition metric out of an already-fetched hiscores snapshot. Split from the
+ * fetch so the unified stat sweep — which fetches each member's snapshot ONCE for both bingo tiles
+ * and every weekly metric — can reuse it without a second network call.
  */
-export async function fetchParticipantStat(
-  rsn: string,
+export function readMetricFromSnapshot(
+  snapshot: HiscoresSnapshot,
   type: 'skill' | 'boss',
   metric: string,
-): Promise<FetchResult> {
-  let stats: HiscoresSnapshot | null = null;
-  let lastClassification: 'unranked' | 'transient' = 'transient';
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      stats = await fetchHiscoresOnce(rsn);
-      break;
-    } catch (err) {
-      lastClassification = classifyError(err);
-      // Don't retry an unranked / invalid RSN — the second attempt will fail identically
-      // because nothing about the input or hiscores presence changes inside 1.5 s.
-      if (lastClassification === 'unranked') {
-        log.warn('hiscores.unranked', { rsn });
-        return { kind: 'unranked' };
-      }
-      if (attempt === 2) {
-        log.warn('hiscores.fail', { rsn, attempt }, err);
-        return { kind: 'transient' };
-      }
-      await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
-    }
-  }
-  if (!stats) return { kind: 'transient' };
-
+): FetchResult {
   if (type === 'skill') {
-    const xp = stats.skills?.[metric]?.xp;
+    const xp = snapshot.skills?.[metric]?.xp;
     if (typeof xp !== 'number') return { kind: 'transient' };
-    return { kind: 'value', value: xp, snapshot: stats };
+    return { kind: 'value', value: xp, snapshot };
   }
-  const boss = stats.bosses?.[metric];
+  const boss = snapshot.bosses?.[metric];
   // A missing key means our parser doesn't know this boss AT ALL (hiscores lists every
   // activity for a ranked player, unranked ones with score -1) — writing 0 here is what
   // froze whole competitions at baseline 0 when Maggot King predated the parser's boss
@@ -185,8 +117,104 @@ export async function fetchParticipantStat(
   }
   // boss.score < 0 means the player is on hiscores but unranked for this boss — that's
   // a real "0 KC" value, not a fetch failure.
-  if (boss.score < 0) return { kind: 'value', value: 0, snapshot: stats };
-  return { kind: 'value', value: boss.score, snapshot: stats };
+  if (boss.score < 0) return { kind: 'value', value: 0, snapshot };
+  return { kind: 'value', value: boss.score, snapshot };
+}
+
+/**
+ * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout and one
+ * retry — distinguishes terminal (`unranked`) from transient failures so the cron can
+ * stop chasing dead RSNs. Thin wrapper: one shared fetch, then extract the metric.
+ */
+export async function fetchParticipantStat(
+  rsn: string,
+  type: 'skill' | 'boss',
+  metric: string,
+): Promise<FetchResult> {
+  const result = await fetchSnapshotWithRetry(rsn);
+  if (result.kind !== 'value') return result;
+  return readMetricFromSnapshot(result.snapshot, type, metric);
+}
+
+export interface WeeklyValueUpdate {
+  participantId: number;
+  type: 'skill' | 'boss';
+  metric: string;
+  /** Freshly observed ABSOLUTE value: effective max(hiscores, live) from the sweep, or the pushed live value. */
+  value: number;
+  baselineValue: number | null;
+  currentValue: number | null;
+  lastUpdated: string | null;
+  /**
+   * true (sweep) captures a first baseline when none exists — set to `value`, which the sweep passes as
+   * max(hiscores, live) so a mid-session logout flush is absorbed into the baseline (gain starts at 0).
+   * false (live push) skips a baseline-less row entirely: the first big push before any hiscores read
+   * must NOT become the baseline (it would zero out the whole session), so the sweep sets it instead.
+   */
+  allowFirstCapture: boolean;
+  now?: string;
+}
+
+export type WeeklyValueOutcome =
+  | 'first-captured'
+  | 'updated'
+  | 'negative-ignored'
+  | 'skipped-no-baseline';
+
+/**
+ * Apply one freshly-observed absolute stat value to a weekly participant. The single definition of
+ * "credit a weekly gain", shared by the unified hiscores sweep AND the real-time plugin live-push, so
+ * both move SOTW/BOTW identically: negative-gain guard (never overwrite a higher value with a lower —
+ * post-rename takeover), stale-baseline spike flag (flag, never clamp), and a monotonic currentValue
+ * written with an atomic MAX so a concurrent sweep/push can't lose an update. Does NOT write
+ * player_snapshots — the sweep does that separately when it holds the full snapshot.
+ */
+export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome: WeeklyValueOutcome; flagged: boolean }> {
+  const nowIso = u.now ?? new Date().toISOString();
+
+  if (u.baselineValue === null) {
+    // No baseline yet. The sweep captures baseline = current = value (max(hiscores, live)); the live
+    // push refuses (would zero the session) and defers to the sweep.
+    if (!u.allowFirstCapture) return { outcome: 'skipped-no-baseline', flagged: false };
+    await db
+      .update(weeklyParticipants)
+      .set({ baselineValue: u.value, currentValue: u.value, lastUpdated: nowIso })
+      .where(eq(weeklyParticipants.id, u.participantId));
+    return { outcome: 'first-captured', flagged: false };
+  }
+
+  // Negative-gains guard: a lower fetched value than stored almost always means a different account
+  // now holds this RSN (post-rename takeover) — bump lastUpdated to advance the queue, keep prior progress.
+  if (u.currentValue !== null && u.value < u.currentValue) {
+    await db.update(weeklyParticipants).set({ lastUpdated: nowIso }).where(eq(weeklyParticipants.id, u.participantId));
+    return { outcome: 'negative-ignored', flagged: false };
+  }
+
+  const updates: Record<string, unknown> = {
+    // Atomic monotonic max — race-safe when a sweep and a live push write between each other's read/write.
+    currentValue: sql`max(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
+    lastUpdated: nowIso,
+  };
+
+  // Flag an implausible single-interval jump (a logout flush of a pre-event grind sweeping into the
+  // gain). Flag — never clamp — so an admin corrects the baseline by hand. Only set, never clear here.
+  let flagged = false;
+  if (u.currentValue !== null) {
+    const spike = checkRateSpike({
+      type: u.type,
+      metric: u.metric,
+      delta: u.value - u.currentValue,
+      fromIso: u.lastUpdated,
+      toIso: nowIso,
+    });
+    if (spike.flagged) {
+      updates.flagged = 1;
+      updates.flagReason = describeRateSpike(u.type, spike);
+      flagged = true;
+    }
+  }
+  await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, u.participantId));
+  return { outcome: 'updated', flagged };
 }
 
 /**

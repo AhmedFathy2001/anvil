@@ -1,4 +1,5 @@
 import { getOfficialStats, parseJsonStats } from 'osrs-json-hiscores';
+import { sanitizeRsn } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
 export interface HiscoresSnapshot {
@@ -35,6 +36,7 @@ export async function getHiscoresStats(rsn: string): Promise<HiscoresSnapshot> {
 }
 
 const HISCORES_TIMEOUT_MS = 8000;
+const HISCORES_RETRY_DELAY_MS = 1500;
 
 function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -44,6 +46,58 @@ function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
       (e) => { clearTimeout(timer); reject(e); },
     );
   });
+}
+
+/**
+ * One timeout-bounded hiscores fetch. Strips non-ASCII whitespace first — osrs-json-hiscores'
+ * validateRSN regex rejects U+00A0 outright, and legacy rows in the DB still carry it. Throws on
+ * failure; callers that want the WOM-style tagged result use `fetchSnapshotWithRetry`.
+ */
+export async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
+  const cleanRsn = sanitizeRsn(rsn);
+  return await withTimeout(getHiscoresStats(cleanRsn), HISCORES_TIMEOUT_MS, `hiscores(${cleanRsn})`);
+}
+
+/**
+ * Classify a hiscores fetch failure so callers can react differently to a terminal miss vs a blip.
+ * osrs-json-hiscores throws "Player not found" on a 404 and "RSN contains invalid character" /
+ * "RSN must be between…" for client-side validator rejections — all of which mean "stop polling this
+ * RSN" (flip to unranked, let a re-probe/human fix it). Everything else is transient (retry later).
+ */
+export function classifyHiscoresError(err: unknown): 'unranked' | 'transient' {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/not found|invalid character|must be between|must be a string/i.test(msg)) return 'unranked';
+  return 'transient';
+}
+
+/**
+ * WOM-style tagged snapshot fetch: one retry with a short backoff, terminal `unranked` short-circuits
+ * (a second attempt fails identically inside 1.5 s). The shared fetch primitive for the unified stat
+ * sweep and weekly's per-metric wrapper — one hiscores read serves bingo tiles AND weekly.
+ */
+export type SnapshotFetch =
+  | { kind: 'value'; snapshot: HiscoresSnapshot }
+  | { kind: 'unranked' }   // 404 from hiscores OR validator rejected the RSN string outright
+  | { kind: 'transient' }; // network / timeout / parse error — try again later
+
+export async function fetchSnapshotWithRetry(rsn: string): Promise<SnapshotFetch> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return { kind: 'value', snapshot: await fetchHiscoresOnce(rsn) };
+    } catch (err) {
+      const classification = classifyHiscoresError(err);
+      if (classification === 'unranked') {
+        log.warn('hiscores.unranked', { rsn });
+        return { kind: 'unranked' };
+      }
+      if (attempt === 2) {
+        log.warn('hiscores.fail', { rsn, attempt }, err);
+        return { kind: 'transient' };
+      }
+      await new Promise((r) => setTimeout(r, HISCORES_RETRY_DELAY_MS));
+    }
+  }
+  return { kind: 'transient' };
 }
 
 // Fetches a player's full Hiscores snapshot. Returns null on failure (404, timeout,
