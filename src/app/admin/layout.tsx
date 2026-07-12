@@ -45,7 +45,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Overview is everyone's landing tile.
   groups.push({
     label: 'Overview',
-    items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
+    items: [
+      { href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' },
+      { href: '/admin/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
+    ],
   });
 
   // Bingo events + schedule. Schedule is open to every staff role; the event list is admin/editor

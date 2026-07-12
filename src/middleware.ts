@@ -94,6 +94,7 @@ export async function middleware(request: NextRequest) {
           '/admin/schedule',
           '/admin/verifications',
           '/admin/fees',
+          '/admin/feedback',
         ];
         if (!allowed.some((p) => pathname.startsWith(p))) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url));
@@ -111,6 +112,7 @@ export async function middleware(request: NextRequest) {
           '/admin/clan',
           '/admin/schedule',
           '/admin/verifications',
+          '/admin/feedback',
         ];
         const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
         if (!canEvents && !allowed.some((p) => pathname.startsWith(p))) {

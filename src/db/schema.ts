@@ -674,3 +674,26 @@ export const eventPresets = sqliteTable('event_presets', {
 }, (table) => [
   index('event_presets_created_at_idx').on(table.createdAt),
 ]);
+
+// User-submitted bug reports & feedback. Lives in EACH clan instance; the clan's admins triage it
+// here. An admin can ELEVATE a report to the central Anvil.Admin so the operator sees it across
+// clans — available on managed hosting only (elevation is disabled on self-hosted instances, which
+// have no ANVIL_ADMIN_FEEDBACK_URL configured).
+export const feedback = sqliteTable('feedback', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind').notNull().default('bug'), // 'bug' | 'feedback'
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  status: text('status').notNull().default('open'), // 'open' | 'in_progress' | 'resolved' | 'closed'
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  contact: text('contact'), // optional handle/RSN the reporter left
+  pageUrl: text('page_url'), // where they were when reporting (context)
+  adminNotes: text('admin_notes'),
+  elevated: integer('elevated', { mode: 'boolean' }).notNull().default(false),
+  elevatedAt: text('elevated_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('feedback_status_idx').on(table.status),
+  index('feedback_created_at_idx').on(table.createdAt),
+]);

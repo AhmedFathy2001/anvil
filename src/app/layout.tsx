@@ -105,6 +105,9 @@ export default async function RootLayout({
                 Anvil is open source
               </a>
             </p>
+            <Link href="/feedback" className="hover:text-foreground transition-colors">
+              Feedback &amp; bug reports
+            </Link>
           </div>
         </footer>
         <Analytics />
