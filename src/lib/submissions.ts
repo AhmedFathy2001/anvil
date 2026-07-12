@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { submissions, tiles, completions, teams, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
@@ -30,16 +31,19 @@ export async function syncDropTileCompletion(
   let isComplete: boolean;
 
   if (tile.tileType === 'timed') {
-    // Timed clear: pass/fail. Complete when any submission's reported duration is at or
-    // under the cap. No threshold configured → never auto-completes.
-    if (tile.timeThresholdSeconds == null) return null;
+    // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
+    // match, so the rank is the gate — complete on any submission, no time cap (each rank is its own
+    // challenge, so a cap is meaningless). Normal timed tiles: pass/fail on duration ≤ cap; no
+    // threshold configured (and not a rank tile) → never auto-completes.
+    const rankTile = parseTrialRankTile(tile.timedActivity) != null;
+    if (tile.timeThresholdSeconds == null && !rankTile) return null;
     const fastest = await db
       .select({ best: sql<number | null>`MIN(${submissions.durationSeconds})` })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
-    isComplete = best != null && best <= tile.timeThresholdSeconds;
+    isComplete = best != null && (rankTile || best <= tile.timeThresholdSeconds!);
   } else if (tile.tileType === 'value') {
     // Loot-value tiles: pass/fail on a single haul. A submission's `amount` carries the haul's
     // gp value; the tile completes when any one haul meets the threshold in requiredAmount.

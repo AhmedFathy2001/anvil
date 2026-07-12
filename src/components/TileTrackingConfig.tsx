@@ -9,6 +9,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -97,13 +98,11 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
     'Fight Caves',
     'Fortis Colosseum',
     'TzHaar-Ket-Rak',
-    // Non-boss timed content the plugin parses: Sailing's Barracuda Trials ("Time: 6:04.20"
-    // flanked by lines naming the course; 'Barracuda Trials' matches any course via the
-    // plugin's alias table) and Hallowed Sepulchre ("Overall time:" on the exit).
-    'Barracuda Trials',
-    'Tempor Tantrum',
-    'Jubbly Jive',
-    'Gwenith Glide',
+    // Sailing's Barracuda Trials: each course awards one of three ranks by time, and the ranks are
+    // SEPARATE challenges — so tiles target an exact course + rank ("Gwenith Glide — Marlin"), gated
+    // on the rank the game reports (not a time cap). The nine combos come from lib/barracudaTrials.
+    ...TRIAL_RANK_ACTIVITIES,
+    // Hallowed Sepulchre ("Overall time:" on the exit).
     'Hallowed Sepulchre',
     // Raids — base + every mode, from RAID_MODE_VARIANTS (the same strings the deathless/kill pickers
     // use), so the exact game spelling for each raid mode lives in exactly one place.
