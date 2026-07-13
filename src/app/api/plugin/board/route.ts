@@ -4,6 +4,7 @@ import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
+import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -323,7 +324,9 @@ export async function GET(request: Request) {
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
-    return NextResponse.json(await buildBoard(event, null));
+    // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
+    // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
+    return jsonWithEtag(request, await buildBoard(event, null));
   }
 
   // Interactive path — the caller's own active event, scoped to their team.
@@ -335,5 +338,5 @@ export async function GET(request: Request) {
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  return NextResponse.json(await buildBoard(event, auth.teamId));
+  return jsonWithEtag(request, await buildBoard(event, auth.teamId));
 }

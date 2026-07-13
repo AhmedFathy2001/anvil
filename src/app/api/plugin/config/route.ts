@@ -22,6 +22,7 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { jsonWithEtag } from '@/lib/httpEtag';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -45,6 +46,7 @@ function generateCodeword(playerId: number, eventId: number): string {
   hmac.update(`${playerId}:${eventId}:${date}`);
   return hmac.digest('hex').slice(0, 6).toUpperCase();
 }
+
 
 /**
  * When a token holder resolves to no active event, check whether the RSN they're logged into is
@@ -114,7 +116,7 @@ export async function GET(request: Request) {
           getShowKillCount(),
           activeEventForUnlinkedRsn(request),
         ]);
-      return NextResponse.json({
+      return jsonWithEtag(request, {
         event: null,
         team: null,
         player: null,
@@ -396,7 +398,7 @@ export async function GET(request: Request) {
       ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
     : [];
 
-  return NextResponse.json({
+  return jsonWithEtag(request, {
     event: {
       id: event.id,
       name: event.name,
