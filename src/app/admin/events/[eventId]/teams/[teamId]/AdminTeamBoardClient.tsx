@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
+import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWeight, isPointsMode } from '@/lib/utils';
+import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
@@ -15,13 +17,15 @@ interface Props {
   tiles: Tile[];
   completions: Completion[];
   players: Player[];
+  tierBands?: TierBand[];
 }
 
-export default function AdminTeamBoardClient({ event, team, tiles, completions: initialCompletions, players }: Props) {
+export default function AdminTeamBoardClient({ event, team, tiles, completions: initialCompletions, players, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const router = useRouter();
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
 
   const teamPlayers = players.filter((p) => p.teamId === team.id);
 
@@ -111,6 +115,8 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         Click tiles to view details and manage · {completed}/{total} {pointsMode ? 'pts' : 'completed'}
       </p>
 
+      <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+
       <EventBoard
         format={event.format}
         tiles={tiles}
@@ -121,6 +127,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         onTileClick={handleTileClick}
         dropProgress={dropProgress}
         pointsMode={pointsMode}
+        matchedTileIds={matchedTileIds}
       />
 
       {/* Tile Detail Modal */}
