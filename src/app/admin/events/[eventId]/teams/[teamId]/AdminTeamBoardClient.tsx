@@ -82,13 +82,17 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   const pointsMode = isPointsMode(event.scoringMode);
+  // Optional tiles are bonus — they don't count toward the score or the total (matches the
+  // scoreboard, stats and the rest of the app).
+  const scoredTiles = tiles.filter((t) => !t.optional);
+  const scoredTileIds = new Set(scoredTiles.map((t) => t.id));
   const weightById = new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
-    : completions.length;
+    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
+    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : scoredTiles.length;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);

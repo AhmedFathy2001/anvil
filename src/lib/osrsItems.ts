@@ -11,6 +11,8 @@
 // The Wiki list is layered first (canonical for tradeables); RuneLite supplies anything the
 // Wiki lacks, lowest-id-wins to prefer the real item over bank-placeholder duplicates.
 
+import clogData from '@/data/clog.json';
+
 export interface MappingItem {
   id: number;
   name: string;
@@ -19,6 +21,22 @@ export interface MappingItem {
 let cachedItems: MappingItem[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
+// Collection-log item ids — the authoritative "this is the real obtainable drop" set. RuneLite's
+// name cache sometimes lists two ids under one name (e.g. "Vorkath's head" = 2425, an unobtainable
+// placeholder, AND 21907, the actual drop). When that happens we keep the id the clog tracks, so the
+// picker surfaces the item players can actually get. Built once, lazily.
+let clogIdSet: Set<number> | null = null;
+function getClogItemIds(): Set<number> {
+  if (clogIdSet) return clogIdSet;
+  const ids = new Set<number>();
+  const activities = (clogData as { activities?: Record<string, { id: number }[]> }).activities ?? {};
+  for (const items of Object.values(activities)) {
+    for (const it of items) if (typeof it.id === 'number') ids.add(it.id);
+  }
+  clogIdSet = ids;
+  return ids;
+}
 
 const WIKI_MAPPING_URL = 'https://prices.runescape.wiki/api/v1/osrs/mapping';
 const RUNELITE_NAMES_URL = 'https://static.runelite.net/cache/item/names.json';
@@ -65,8 +83,28 @@ export async function getItemMapping(): Promise<MappingItem[]> {
   // Wiki first (canonical tradeable names), then RuneLite for any name the Wiki lacks.
   const merged = [...wiki];
   const seen = new Set(wiki.map((i) => i.name.toLowerCase()));
-  rl.sort((a, b) => a.id - b.id); // lowest id wins over placeholder duplicates
+
+  // Collapse RuneLite's duplicate names to one best id: an id the collection log tracks wins (the
+  // real obtainable item), otherwise the lowest id (real item over bank-placeholder duplicates).
+  // This is why "Vorkath's head" resolves to 21907 (the drop) and not 2425 (an unobtainable dupe).
+  const clogIds = getClogItemIds();
+  const bestByName = new Map<string, MappingItem>();
   for (const it of rl) {
+    const key = it.name.toLowerCase();
+    const cur = bestByName.get(key);
+    if (!cur) {
+      bestByName.set(key, it);
+      continue;
+    }
+    const curClog = clogIds.has(cur.id);
+    const itClog = clogIds.has(it.id);
+    if (itClog !== curClog) {
+      if (itClog) bestByName.set(key, it); // a clog id beats a non-clog one
+    } else if (it.id < cur.id) {
+      bestByName.set(key, it); // same clog status → lowest id wins
+    }
+  }
+  for (const it of bestByName.values()) {
     const key = it.name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

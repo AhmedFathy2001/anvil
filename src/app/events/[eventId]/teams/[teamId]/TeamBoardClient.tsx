@@ -80,16 +80,19 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   }, [fetchSubmissions, fetchGains]);
 
   const pointsMode = isPointsMode(event.scoringMode);
+  // Optional tiles are bonus — excluded from the score and the total (matches the scoreboard).
+  const scoredTiles = useMemo(() => tiles.filter((t) => !t.optional), [tiles]);
+  const scoredTileIds = useMemo(() => new Set(scoredTiles.map((t) => t.id)), [scoredTiles]);
   const weightById = useMemo(
     () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
     [tiles, event.scoringMode],
   );
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
-    : completions.length;
+    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
+    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : scoredTiles.length;
   const tilesLeft = total - completed;
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
