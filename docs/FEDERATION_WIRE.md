@@ -98,10 +98,17 @@ Clients degrade: no `identity-federation` ⇒ L0/L1 only. Unknown future capabil
 | HTTP | when |
 |---|---|
 | 401 | missing/invalid/expired/revoked federation token |
-| 403 | assertion `iss` not trusted, `aud` mismatch, member banned, or `exchangePolicy: reject` non-member |
-| 409 | replayed `jti` |
-| 422 | assertion malformed / wrong `alg` |
+| 403 | **policy/trust reject — stop:** assertion `iss` not trusted, `aud` mismatch, member banned, or `exchangePolicy: reject` non-member |
+| 409 | replayed `jti` — **do not retry the same assertion** |
+| 422 | **assertion not acceptable — re-fetch a fresh one:** malformed, wrong `alg`, bad signature, or expired |
 | 429 | rate-limited (`/exchange`, `/token`, `/register`, `/assert`, auto-guest creation) |
+
+Client (plugin) semantics: `422` → request a new assertion from the broker and retry; `409` → the
+assertion was already spent, get a fresh one (never resend the same JWT); `403` → stop, it's a
+trust/policy decision the instance won't reverse. Also: `/exchange` success returns
+`{token, tokenId, scopes, instanceId, guest, memberId}` (guests get `board:read` only; members
+get `board:read`+`events:write`), and a non-token `200 {status:"request-to-join"}` when policy is
+`request-to-join`.
 
 ---
 
