@@ -126,8 +126,9 @@ export default function EventBoard({
     <TileRaceBoard tiles={iconedTiles} {...boardRest} />
   ) : pointsMode ? (
     // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
-    // so it isn't bound to a perfect-square tile count.
-    <LeaguesBoard tiles={iconedTiles} {...boardRest} />
+    // so it isn't bound to a perfect-square tile count. The status map lets it sort
+    // incomplete-first by default, like the plugin's collection-log list.
+    <LeaguesBoard tiles={iconedTiles} {...boardRest} statusById={statusById} />
   ) : (
     <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...boardRest} />
   );
