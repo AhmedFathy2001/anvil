@@ -21,6 +21,7 @@
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.1",
     "exceljs": "^4.4.0",
+    "jose": "^6.2.3",
     "next": "16.1.6",
     "osrs-json-hiscores": "^2.25.0",
     "react": "19.2.3",

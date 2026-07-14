@@ -19,6 +19,10 @@ interface ClanMember {
   notes: string | null;
   userId: number | null;
   userBanned?: boolean;
+  // Federation (WIRE §4): the authoritative Discord id + whether it's on the sticky federation
+  // denylist. federationBanned members are blocked from re-joining via a broker /exchange (L2).
+  effectiveDiscordId?: string | null;
+  federationBanned?: boolean;
   provisional: number;
   pendingRole: 'admin' | 'moderator' | null;
 }
@@ -204,6 +208,35 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     });
     if (res.ok) fetchAll();
     else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
+  }
+
+  // Federation ban (decision 4, WIRE §4): a sticky denylist keyed on the member's Discord id that
+  // blocks a future cross-clan broker /exchange from re-creating them as a guest. Distinct from the
+  // site-account "Ban" above (which revokes THIS site's login) — this one travels with the identity.
+  async function federationBan(member: ClanMember) {
+    if (!member.effectiveDiscordId) return;
+    const banning = !member.federationBanned;
+    let reason: string | undefined;
+    if (banning) {
+      const input = prompt(
+        `Federation-ban ${member.rsn}? Blocks this Discord identity from re-joining via a broker exchange (cross-clan). Does not touch their current site access.\nOptional reason:`,
+      );
+      if (input === null) return; // cancelled
+      reason = input.trim() || undefined;
+    } else if (!confirm(`Lift the federation ban on ${member.rsn}?`)) {
+      return;
+    }
+    const res = banning
+      ? await fetch('/api/admin/federation/bans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discordId: member.effectiveDiscordId, reason }),
+        })
+      : await fetch(`/api/admin/federation/bans?discordId=${encodeURIComponent(member.effectiveDiscordId)}`, {
+          method: 'DELETE',
+        });
+    if (res.ok) fetchAll();
+    else alert((await res.json().catch(() => ({}))).error || 'Could not update federation ban');
   }
 
   function openRename(member: ClanMember) {
@@ -590,6 +623,23 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                               title={m.userBanned ? 'This site account is banned' : 'Ban this member’s site account'}
                             >
                               {m.userBanned ? 'Unban' : 'Ban'}
+                            </button>
+                          )}
+                          {isAdmin && m.effectiveDiscordId && (
+                            <button
+                              onClick={() => federationBan(m)}
+                              className={`px-2 py-1 text-xs border rounded transition-colors ${
+                                m.federationBanned
+                                  ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
+                                  : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
+                              }`}
+                              title={
+                                m.federationBanned
+                                  ? 'On the federation denylist — blocked from re-joining via a broker exchange'
+                                  : 'Federation-ban: block this Discord identity from re-joining via a broker exchange (cross-clan)'
+                              }
+                            >
+                              {m.federationBanned ? 'Fed unban' : 'Fed ban'}
                             </button>
                           )}
                         </>

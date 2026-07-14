@@ -697,3 +697,53 @@ export const feedback = sqliteTable('feedback', {
   index('feedback_status_idx').on(table.status),
   index('feedback_created_at_idx').on(table.createdAt),
 ]);
+
+// ===========================================================================
+// Federation (Layer 0/1). See docs/FEDERATION.md + docs/FEDERATION_WIRE.md.
+// ===========================================================================
+
+// Opaque, hashed, long-lived + revocable plugin credential minted by THIS instance
+// (own /token issuance now; broker /exchange mints the same shape at L2). Per WIRE §4 the raw
+// 256-bit bearer token is shown to the client exactly once at mint time — only its SHA-256 hash
+// is persisted here, so a DB leak can't be replayed as a bearer credential.
+export const federationTokens = sqliteTable('federation_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // Public identifier used by /token/revoke and the "Connected plugins" UI. NOT the secret.
+  tokenId: text('token_id').notNull(),
+  // SHA-256 (hex) of the opaque bearer token. The raw token is never stored.
+  tokenHash: text('token_hash').notNull(),
+  // Subject identity (WIRE §4: memberId/discordId). `userId` is the owning site user and drives the
+  // profile "Connected plugins" list; `discordId` snapshots the Discord identity a broker assertion
+  // maps onto at L2; `memberId` optionally pins a specific clan_member.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  discordId: text('discord_id'),
+  memberId: integer('member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  // JSON string array — a subset of ['board:read','events:write'] (WIRE §4).
+  scopes: text('scopes').notNull().default('["board:read"]'),
+  // Human label shown in the UI (e.g. "RuneLite on desktop"). Optional.
+  label: text('label'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  lastUsedAt: text('last_used_at'),
+  // Long-lived + revocable (decision 3): revoke = set revokedAt. A revoked token 401s at /board.
+  revokedAt: text('revoked_at'),
+}, (table) => [
+  uniqueIndex('federation_tokens_token_id_unique').on(table.tokenId),
+  uniqueIndex('federation_tokens_token_hash_unique').on(table.tokenHash),
+  index('federation_tokens_user_id_idx').on(table.userId),
+  index('federation_tokens_discord_id_idx').on(table.discordId),
+]);
+
+// Sticky federation denylist (decision 4). Keyed on discord_id: once an admin bans an identity, the
+// broker /exchange path (L2) must refuse to re-create an auto-guest for it — Remove alone is
+// whack-a-mole; this stops the re-spawn. Built now with admin actions; the /exchange enforcement
+// call site is wired by the L2 track. TODO(federation-L2): consult this table in /exchange before
+// applying exchangePolicy=auto-guest.
+export const federationBans = sqliteTable('federation_bans', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  discordId: text('discord_id').notNull(),
+  reason: text('reason'),
+  at: text('at').default(sql`(datetime('now'))`).notNull(),
+  byUserId: integer('by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('federation_bans_discord_id_unique').on(table.discordId),
+]);
