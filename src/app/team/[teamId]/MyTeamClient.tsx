@@ -461,8 +461,8 @@ export default function MyTeamClient({
             />
           </div>
           {selectedMember && (
-            <aside className="min-w-0 xl:sticky xl:top-20">
-              <div className="flex items-center justify-between gap-2 mb-2">
+            <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
+              <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
                 <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
                 <button
                   type="button"
@@ -473,12 +473,16 @@ export default function MyTeamClient({
                   ×
                 </button>
               </div>
-              <PlayerContributions
-                submissions={selectedMemberSubmissions}
-                tiles={tiles}
-                playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
-                statContributions={selectedMemberStatContributions}
-              />
+              {/* Own scroll region so paging through the panel never scrolls the page (which would
+                  trip the board's infinite scroll). */}
+              <div className="xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                <PlayerContributions
+                  submissions={selectedMemberSubmissions}
+                  tiles={tiles}
+                  playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
+                  statContributions={selectedMemberStatContributions}
+                />
+              </div>
             </aside>
           )}
         </div>

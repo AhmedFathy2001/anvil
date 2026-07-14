@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 import { formatTileAmount, formatContributionAmount } from '@/lib/tileKinds';
+import { submissionHasProof } from '@/lib/submissionProof';
 
 interface Submission {
   id: number;
@@ -125,8 +126,8 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
         // 500 identical log rows. Only submissions with real proof (an image or a note) are worth
         // listing individually; the rest collapse into one aggregated line. A tile with no proof at
         // all needs no drill-down — its header total already says everything (e.g. "500 kills").
-        const proofSubs = subs.filter((s) => s.imageUrl || s.note);
-        const bareSubs = subs.filter((s) => !s.imageUrl && !s.note);
+        const proofSubs = subs.filter(submissionHasProof);
+        const bareSubs = subs.filter((s) => !submissionHasProof(s));
         const bareTotal = bareSubs.reduce((sum, s) => sum + s.amount, 0);
         const canExpand = proofSubs.length > 0;
         const isOpen = canExpand && expanded.has(tileId);
