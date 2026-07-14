@@ -108,6 +108,10 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
     [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
+  const selectedMember = selectedMemberId != null ? teamPlayers.find((p) => p.id === selectedMemberId) ?? null : null;
+  const selectedMemberSubmissions =
+    selectedMemberId != null ? submissions.filter((s) => s.creditPlayerId === selectedMemberId) : [];
+
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
   const selectedTileCompletedBy = selectedTileId
@@ -220,34 +224,42 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           )}
         </div>
 
-        {/* Board column */}
-        <div className="min-w-0">
-          <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
-          <EventBoard
-            format={event.format}
-            tiles={tiles}
-            boardSize={event.boardSize}
-            completions={completions}
-            teams={[team]}
-            activeTeamId={team.id}
-            onTileClick={(tileId) => setSelectedTileId(tileId)}
-            dropProgress={dropProgress}
-            pointsMode={pointsMode}
-            matchedTileIds={matchedTileIds}
-          />
+        {/* Board column — the picked member's detail slides in beside the board on wide (xl)
+            screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
+        <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
+          <div className="min-w-0">
+            <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+            <EventBoard
+              format={event.format}
+              tiles={tiles}
+              boardSize={event.boardSize}
+              completions={completions}
+              teams={[team]}
+              activeTeamId={team.id}
+              onTileClick={(tileId) => setSelectedTileId(tileId)}
+              dropProgress={dropProgress}
+              pointsMode={pointsMode}
+              matchedTileIds={matchedTileIds}
+            />
+          </div>
+          {selectedMember && (
+            <aside className="min-w-0 xl:sticky xl:top-20">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemberId(null)}
+                  className="text-text-muted hover:text-foreground text-xl leading-none w-7 h-7 flex items-center justify-center -mr-1"
+                  aria-label="Close member detail"
+                >
+                  ×
+                </button>
+              </div>
+              <PlayerContributions submissions={selectedMemberSubmissions} tiles={tiles} playerName={selectedMember.name} />
+            </aside>
+          )}
         </div>
       </div>
-
-      {/* Full-width detail for the member picked in the breakdown — exactly what they did. */}
-      {selectedMemberId != null && (() => {
-        const member = teamPlayers.find((p) => p.id === selectedMemberId);
-        const memberSubs = submissions.filter((s) => s.creditPlayerId === selectedMemberId);
-        return (
-          <div className="mt-8">
-            <PlayerContributions submissions={memberSubs} tiles={tiles} playerName={member?.name ?? 'Member'} />
-          </div>
-        );
-      })()}
 
       {/* View-only Tile Detail Modal */}
       {selectedTile && (

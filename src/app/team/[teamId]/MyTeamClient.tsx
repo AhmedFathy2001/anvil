@@ -431,37 +431,48 @@ export default function MyTeamClient({
           )}
         </div>
 
-        {/* Board column */}
-        <div className="min-w-0">
-          <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
-          <EventBoard
-            format={event.format}
-            tiles={tiles}
-            boardSize={event.boardSize}
-            completions={completions}
-            teams={[team]}
-            activeTeamId={team.id}
-            interactive={isCaptain}
-            onTileClick={handleTileClick}
-            dropProgress={dropProgress}
-            statProgress={statProgress}
-            pointsMode={pointsMode}
-            matchedTileIds={matchedTileIds}
-          />
+        {/* Board column — the picked member's detail slides in beside the board on wide (xl)
+            screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
+        <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
+          <div className="min-w-0">
+            <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+            <EventBoard
+              format={event.format}
+              tiles={tiles}
+              boardSize={event.boardSize}
+              completions={completions}
+              teams={[team]}
+              activeTeamId={team.id}
+              interactive={isCaptain}
+              onTileClick={handleTileClick}
+              dropProgress={dropProgress}
+              statProgress={statProgress}
+              pointsMode={pointsMode}
+              matchedTileIds={matchedTileIds}
+            />
+          </div>
+          {selectedMember && (
+            <aside className="min-w-0 xl:sticky xl:top-20">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemberId(null)}
+                  className="text-text-muted hover:text-foreground text-xl leading-none w-7 h-7 flex items-center justify-center -mr-1"
+                  aria-label="Close member detail"
+                >
+                  ×
+                </button>
+              </div>
+              <PlayerContributions
+                submissions={selectedMemberSubmissions}
+                tiles={tiles}
+                playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
+              />
+            </aside>
+          )}
         </div>
       </div>
-
-      {/* Full-width detail for whoever's selected in the member breakdown (defaults to you) — the
-          same list, just given room. Pick a different member above to see theirs. */}
-      {selectedMember && (
-        <div className="mt-8">
-          <PlayerContributions
-            submissions={selectedMemberSubmissions}
-            tiles={tiles}
-            playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
-          />
-        </div>
-      )}
 
       {selectedTile && (
         <TileDetailModal
