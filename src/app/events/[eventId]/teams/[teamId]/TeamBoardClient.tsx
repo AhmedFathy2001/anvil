@@ -8,8 +8,9 @@ import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
-import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import { computeMemberBreakdown, topMember } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
+import MvpHighlight from '@/components/MvpHighlight';
 import PlayerContributions from '@/components/PlayerContributions';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -108,6 +109,31 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
     [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
+  // Team MVP (overall) + MVP of the day (top contributor over tiles completed in the last 24h).
+  const teamMvp = topMember(memberBreakdown);
+  const teamMvpTodayRaw = useMemo(() => {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    return topMember(
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: teamPlayers,
+        tiles,
+        completions: completions.filter((c) => c.completedAt >= dayAgo),
+        submissions,
+        statGains: gains,
+      }),
+    );
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains]);
+  const teamMvpToday =
+    teamMvpTodayRaw &&
+    teamMvp &&
+    teamMvpTodayRaw.playerId === teamMvp.playerId &&
+    teamMvpTodayRaw.points === teamMvp.points &&
+    teamMvpTodayRaw.tasks === teamMvp.tasks
+      ? null
+      : teamMvpTodayRaw;
+
   const selectedMember = selectedMemberId != null ? teamPlayers.find((p) => p.id === selectedMemberId) ?? null : null;
   const selectedMemberSubmissions =
     selectedMemberId != null ? submissions.filter((s) => s.creditPlayerId === selectedMemberId) : [];
@@ -161,6 +187,17 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
       {/* Desktop: team summary beside the board (mirrors the event page); stacks on mobile so the
           board leads. items-start keeps the shorter summary column pinned to the top. */}
+      {(teamMvpToday || teamMvp) && (
+        <div className={`mb-6 grid gap-3 ${teamMvpToday && teamMvp ? 'sm:grid-cols-2' : ''}`}>
+          {teamMvpToday && (
+            <MvpHighlight label="Team MVP of the day" emoji="🔥" name={teamMvpToday.name} points={teamMvpToday.points} tasks={teamMvpToday.tasks} pointsMode={pointsMode} />
+          )}
+          {teamMvp && (
+            <MvpHighlight label="Team MVP" emoji="🏆" name={teamMvp.name} points={teamMvp.points} tasks={teamMvp.tasks} pointsMode={pointsMode} />
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
         {/* Summary column */}
         <div className="space-y-5 lg:sticky lg:top-20">

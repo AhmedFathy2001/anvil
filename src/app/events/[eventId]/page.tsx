@@ -9,7 +9,7 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { getStatStandings } from '@/lib/statStandings';
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +93,22 @@ export default async function EventScoreboardPage({
     mvpTodayRaw.tasks === mvp.tasks
       ? null
       : mvpTodayRaw;
+
+  // Per-team MVP (overall) for the standings cards — the top contributor on each team.
+  const teamMvps: Record<number, TeamMvp | null> = {};
+  for (const team of eventTeams) {
+    teamMvps[team.id] = topMember(
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: eventPlayers,
+        tiles: eventTiles,
+        completions: eventCompletions,
+        submissions: eventSubmissions,
+        statGains,
+      }),
+    );
+  }
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client
   // round-trip. We need the viewer's session, their existing signup (if any), and whether
@@ -192,6 +208,7 @@ export default async function EventScoreboardPage({
           tierBands={tierBands}
           mvp={mvp}
           mvpToday={mvpToday}
+          teamMvps={teamMvps}
         />
       )}
     </>

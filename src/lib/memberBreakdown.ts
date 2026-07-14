@@ -45,6 +45,22 @@ export interface EventMvp {
   teamColor: string;
 }
 
+// The top contributor on a single team — the team-card MVP and the in-team MVP cards.
+export interface TeamMvp {
+  playerId: number;
+  name: string;
+  points: number;
+  tasks: number;
+}
+
+// Pull the leader out of a computeMemberBreakdown() result (already sorted best-first). Returns null
+// until someone has actually scored or completed a task, so an untouched team shows no MVP.
+export function topMember(members: MemberContribution[]): TeamMvp | null {
+  const top = members[0];
+  if (!top || (top.points <= 0 && top.tasks <= 0)) return null;
+  return { playerId: top.playerId, name: top.name, points: top.points, tasks: top.tasks };
+}
+
 interface BreakdownPlayer {
   id: number;
   name: string;

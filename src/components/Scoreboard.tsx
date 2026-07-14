@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { TeamMvp } from '@/lib/memberBreakdown';
 
 interface Team {
   id: number;
@@ -17,11 +18,13 @@ interface ScoreboardProps {
   // When true the scores in `completionCounts`/`totalTiles` are point weights, not
   // raw tile counts — relabel the UI accordingly ("X / Y pts", "X pts remaining").
   pointsMode?: boolean;
+  // Per-team top contributor, shown as a small line on each card.
+  teamMvps?: Record<number, TeamMvp | null>;
 }
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function Scoreboard({ teams, totalTiles, completionCounts, eventId, dropProgressByTeam, pointsMode }: ScoreboardProps) {
+export default function Scoreboard({ teams, totalTiles, completionCounts, eventId, dropProgressByTeam, pointsMode, teamMvps }: ScoreboardProps) {
   const sortedTeams = [...teams].sort((a, b) => {
     const aCount = completionCounts.get(a.id) || 0;
     const bCount = completionCounts.get(b.id) || 0;
@@ -36,6 +39,7 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
         const tilesLeft = totalTiles - completed;
         const isLeading = index === 0 && completed > 0;
         const dropInfo = dropProgressByTeam?.get(team.id);
+        const mvp = teamMvps?.[team.id] ?? null;
 
         return (
           <Link
@@ -90,6 +94,15 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
               <span className="text-[11px] text-text-muted">{Math.round(percentage)}% complete</span>
               <span className="text-[11px] text-text-muted">View board &rarr;</span>
             </div>
+            {mvp && (
+              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-card-border/60 text-[11px] text-text-muted">
+                <span aria-hidden>🏆</span>
+                <span className="text-gold/90 font-medium truncate">{mvp.name}</span>
+                <span className="shrink-0 ml-auto">
+                  {pointsMode ? `${mvp.points.toLocaleString()} pts` : `${mvp.tasks} task${mvp.tasks !== 1 ? 's' : ''}`}
+                </span>
+              </div>
+            )}
           </Link>
         );
       })}
