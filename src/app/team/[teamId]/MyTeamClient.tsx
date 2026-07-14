@@ -279,6 +279,15 @@ export default function MyTeamClient({
     [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
+  // The selected member's skill/boss (hiscores-tracked) contributions, pulled from the breakdown so
+  // the side panel shows their XP / KC gains alongside their submission-based work.
+  const selectedMemberStatContributions =
+    selectedMemberId != null
+      ? (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? []).filter(
+          (c) => c.statType != null,
+        )
+      : [];
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -468,6 +477,7 @@ export default function MyTeamClient({
                 submissions={selectedMemberSubmissions}
                 tiles={tiles}
                 playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
+                statContributions={selectedMemberStatContributions}
               />
             </aside>
           )}

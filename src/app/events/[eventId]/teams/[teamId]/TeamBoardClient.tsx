@@ -111,6 +111,13 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const selectedMember = selectedMemberId != null ? teamPlayers.find((p) => p.id === selectedMemberId) ?? null : null;
   const selectedMemberSubmissions =
     selectedMemberId != null ? submissions.filter((s) => s.creditPlayerId === selectedMemberId) : [];
+  // Skill/boss (hiscores-tracked) contributions for the panel — pulled from the breakdown.
+  const selectedMemberStatContributions =
+    selectedMemberId != null
+      ? (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? []).filter(
+          (c) => c.statType != null,
+        )
+      : [];
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -255,7 +262,12 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                   ×
                 </button>
               </div>
-              <PlayerContributions submissions={selectedMemberSubmissions} tiles={tiles} playerName={selectedMember.name} />
+              <PlayerContributions
+                submissions={selectedMemberSubmissions}
+                tiles={tiles}
+                playerName={selectedMember.name}
+                statContributions={selectedMemberStatContributions}
+              />
             </aside>
           )}
         </div>
