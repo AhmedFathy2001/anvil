@@ -735,9 +735,7 @@ export const federationTokens = sqliteTable('federation_tokens', {
 
 // Sticky federation denylist (decision 4). Keyed on discord_id: once an admin bans an identity, the
 // broker /exchange path (L2) must refuse to re-create an auto-guest for it — Remove alone is
-// whack-a-mole; this stops the re-spawn. Built now with admin actions; the /exchange enforcement
-// call site is wired by the L2 track. TODO(federation-L2): consult this table in /exchange before
-// applying exchangePolicy=auto-guest.
+// whack-a-mole; this stops the re-spawn.
 export const federationBans = sqliteTable('federation_bans', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   discordId: text('discord_id').notNull(),
@@ -746,4 +744,16 @@ export const federationBans = sqliteTable('federation_bans', {
   byUserId: integer('by_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
   uniqueIndex('federation_bans_discord_id_unique').on(table.discordId),
+]);
+
+// Single-use assertion replay guard (WIRE §2 step 7). Every broker assertion carries a UUIDv4 `jti`;
+// /exchange records it here on first sight and 409s any re-presentation. `expiresAt` mirrors the
+// assertion's `exp` (≤90s out) so the row is short-lived — the table self-cleans via an opportunistic
+// DELETE on write, exactly like `rate_limits`, so it never grows unbounded. The PK collision on a
+// replayed jti is what makes single-use detection atomic (INSERT … ON CONFLICT DO NOTHING → 0 rows).
+export const federationJti = sqliteTable('federation_jti', {
+  jti: text('jti').primaryKey(),
+  expiresAt: text('expires_at').notNull(),
+}, (table) => [
+  index('federation_jti_expires_at_idx').on(table.expiresAt),
 ]);

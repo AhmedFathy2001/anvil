@@ -261,15 +261,16 @@ export interface BrokerTrust {
   jwksUrl: string; // where to fetch the broker's signing keys
 }
 
-// Cross-clan crediting opt-out (decision 1, WIRE §5). Default 'accept'.
-// TODO(federation-L2): POST /events reads this to reject fanout.count > 1 when 'exclusive'.
+// Cross-clan crediting opt-out (decision 1, WIRE §5). Default 'accept'. Read by POST /events, which
+// rejects fanout.count > 1 with `200 {credited:false, reason:"exclusive"}` when set to 'exclusive'.
 export async function getSharedCredit(): Promise<SharedCredit> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_SHARED_CREDIT_KEY) });
   return row?.value === 'exclusive' ? 'exclusive' : 'accept';
 }
 
-// Guest-on-exchange policy (decision 4). Default 'auto-guest'.
-// TODO(federation-L2): POST /exchange branches on this when the asserted discord_id isn't a member.
+// Guest-on-exchange policy (decision 4). Default 'auto-guest'. POST /exchange branches on this when
+// the asserted discord_id isn't a member: auto-guest (inert guest + board:read token) / request-to-join
+// (pending, no token) / reject (403).
 export async function getExchangePolicy(): Promise<ExchangePolicy> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_EXCHANGE_POLICY_KEY) });
   const v = row?.value;
@@ -277,16 +278,16 @@ export async function getExchangePolicy(): Promise<ExchangePolicy> {
 }
 
 // Whether this instance tells the broker "discord_id X is a member here" (decision 2). Default OFF
-// (self-host sovereignty); hosted instances are flipped on at provision.
-// TODO(federation-L2/broker track): the outbound /assoc push is gated on this flag.
+// (self-host sovereignty); hosted instances are flipped on at provision. The outbound /assoc push
+// (federation.ts pushAssociation, fired from /exchange and /token) is gated on this flag.
 export async function getAssociationPush(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ASSOCIATION_PUSH_KEY) });
   return row?.value === 'on';
 }
 
 // Brokers this instance trusts (WIRE §7). Stored as a JSON array of { iss, jwksUrl }. Empty = trust
-// no broker (L2 disabled). Malformed entries are dropped rather than throwing.
-// TODO(federation-L2): POST /exchange requires the assertion `iss` to be present here.
+// no broker (L2 disabled). Malformed entries are dropped rather than throwing. POST /exchange requires
+// the assertion `iss` to be present here (and reads the matching jwksUrl to validate the signature).
 export async function getBrokerTrust(): Promise<BrokerTrust[]> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_TRUST_KEY) });
   if (!row?.value) return [];

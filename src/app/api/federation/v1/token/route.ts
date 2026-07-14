@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, federationTokens, pluginLinkCodes, users } from '@/db/schema';
+import { clanMembers, pluginLinkCodes, users } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { getBrokerTrust } from '@/lib/pluginConfig';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import {
-  generateFederationToken,
-  generateFederationTokenId,
   getInstanceId,
-  hashFederationToken,
+  mintFederationToken,
+  pushAssociation,
   sanitizeScopes,
 } from '@/lib/federation';
 
@@ -94,19 +94,24 @@ export async function POST(request: Request) {
   const label =
     typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 80) : null;
 
-  const rawToken = generateFederationToken();
-  const tokenId = generateFederationTokenId();
-  await db.insert(federationTokens).values({
-    tokenId,
-    tokenHash: hashFederationToken(rawToken),
+  // Mint via the SHARED insert path — the identical shape /exchange produces from a broker assertion.
+  const { token: rawToken, tokenId } = await mintFederationToken({
     userId: user.id,
     discordId: user.discordId ?? null,
     memberId: primary?.id ?? null,
-    scopes: JSON.stringify(scopes),
+    scopes,
     label,
   });
 
   const instanceId = await getInstanceId();
+
+  // Association push (decision 2): a fresh link is a "member here" signal — tell every trusted broker
+  // (gated on the associationPush setting inside the helper). Fire-and-forget; must not delay the mint.
+  if (user.discordId) {
+    for (const broker of await getBrokerTrust()) {
+      void pushAssociation(user.discordId, broker.iss);
+    }
+  }
 
   // `token` is returned exactly once and never persisted (only its SHA-256 hash is stored).
   return NextResponse.json(

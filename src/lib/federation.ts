@@ -12,8 +12,9 @@
 import crypto from 'crypto';
 import { exportJWK, generateKeyPair, calculateJwkThumbprint, type JWK } from 'jose';
 import { db } from '@/db';
-import { settings, federationTokens } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { settings, federationTokens, federationJti } from '@/db/schema';
+import { eq, lt } from 'drizzle-orm';
+import { getAssociationPush } from '@/lib/pluginConfig';
 
 // --- Settings keys (kept out of the public /api/admin/settings whitelist; the signing key in
 // particular must never be readable through an API). ---
@@ -24,12 +25,11 @@ export const FEDERATION_SIGNING_KEY_KEY = 'federation_signing_key';
 export const FEDERATION_VERIFICATION_TOKEN_KEY = 'federation_verification_token';
 
 // Capabilities advertised at /meta (WIRE §7, a subset of ['directory','identity-federation']).
-// This slice implements L0/L1 only: the instance is directory-registerable (it serves /meta and
-// /.well-known). L2 identity-federation (POST /exchange) is a later track — DO NOT advertise it
-// until that endpoint exists, or clients will attempt a broker exchange against a missing route
-// (WIRE §7 degrade rule: "no identity-federation ⇒ L0/L1 only").
-// TODO(federation-L2): add 'identity-federation' here once POST /exchange ships.
-export const FEDERATION_CAPABILITIES = ['directory'] as const;
+// `identity-federation` is advertised now that POST /exchange is live (L2): a client seeing it may
+// obtain a broker assertion and exchange it here for a federation token. Instances that predate the
+// endpoint (or that trust no broker) still degrade cleanly — the WIRE §7 rule is a capability gate,
+// not a promise that any broker is configured.
+export const FEDERATION_CAPABILITIES = ['directory', 'identity-federation'] as const;
 
 // Token scopes (WIRE §4). events:write is minted now but only enforced once POST /events lands.
 export const FEDERATION_SCOPES = ['board:read', 'events:write'] as const;
@@ -194,4 +194,86 @@ export async function resolveFederationToken(request: Request): Promise<Federati
     memberId: row.memberId,
     scopes: parseScopesColumn(row.scopes),
   };
+}
+
+// --- Shared token-mint (WIRE §4). The ONE place that inserts a federation_tokens row, so /token
+// (own issuance) and /exchange (broker assertion) mint the identical opaque, hashed, revocable
+// shape. Returns the raw token exactly once — the caller must surface it and never persist it. ---
+export async function mintFederationToken(opts: {
+  userId?: number | null;
+  discordId?: string | null;
+  memberId?: number | null;
+  scopes: FederationScope[];
+  label?: string | null;
+}): Promise<{ token: string; tokenId: string; scopes: FederationScope[]; label: string | null }> {
+  const token = generateFederationToken();
+  const tokenId = generateFederationTokenId();
+  const label = opts.label ?? null;
+  await db.insert(federationTokens).values({
+    tokenId,
+    tokenHash: hashFederationToken(token),
+    userId: opts.userId ?? null,
+    discordId: opts.discordId ?? null,
+    memberId: opts.memberId ?? null,
+    scopes: JSON.stringify(opts.scopes),
+    label,
+  });
+  return { token, tokenId, scopes: opts.scopes, label };
+}
+
+// --- Single-use assertion replay guard (WIRE §2 step 7). ---
+// Records a `jti` on FIRST sight and returns true; a second call with the same jti returns false
+// (→ 409 replay). Atomic: the PRIMARY-KEY collision on a replayed jti makes the INSERT a no-op
+// (0 rows returned) with no read-then-write race. `expiresAt` mirrors the assertion `exp`; the row
+// is disposable after that, so we opportunistically GC expired rows (1-in-20 writes, like rate-limit).
+export async function recordFederationJti(jti: string, expiresAt: Date): Promise<boolean> {
+  if (Math.random() < 0.05) {
+    db.delete(federationJti)
+      .where(lt(federationJti.expiresAt, new Date().toISOString()))
+      .catch(() => {});
+  }
+  const rows = await db
+    .insert(federationJti)
+    .values({ jti, expiresAt: expiresAt.toISOString() })
+    .onConflictDoNothing()
+    .returning({ jti: federationJti.jti });
+  return rows.length > 0;
+}
+
+// --- Outbound association push (decision 2, WIRE §5 / FEDERATION.md "Association push"). ---
+// After a successful /exchange or /token link, tell the broker "this discord_id is a member here"
+// so the plugin's "your clans" can auto-populate. Carries ONLY (discordId, instanceId) — never board
+// or game data. Gated on the per-instance `associationPush` setting (default off for self-host, on
+// for hosted). Authenticated with the derived clan secret the Admin control-plane injects into hosted
+// containers as FEDERATION_ASSOC_SECRET.
+//
+// Best-effort / fire-and-forget: a broker being down must never fail the exchange that the player is
+// waiting on. TODO(federation/self-host): self-hosted instances have no FEDERATION_ASSOC_SECRET, so
+// this no-ops for them — a self-host association-push story (broker-issued push credential at
+// /register) is a later track.
+export async function pushAssociation(
+  discordId: string | null | undefined,
+  brokerIss: string,
+): Promise<void> {
+  if (!discordId) return;
+  if (!(await getAssociationPush())) return;
+  const secret = process.env.FEDERATION_ASSOC_SECRET;
+  if (!secret) return; // self-host / unprovisioned: no credential to present — silently skip.
+  let instanceId: string;
+  try {
+    instanceId = await getInstanceId();
+  } catch {
+    return;
+  }
+  const base = brokerIss.replace(/\/+$/, '');
+  try {
+    await fetch(`${base}/api/federation/v1/assoc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ discordId, instanceId }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    // fire-and-forget — swallow network/timeout errors.
+  }
 }
