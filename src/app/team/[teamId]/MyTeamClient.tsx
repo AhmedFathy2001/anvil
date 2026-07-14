@@ -58,9 +58,10 @@ export default function MyTeamClient({
   const [loading, setLoading] = useState(true);
   // Board filters (search + category + tier) report their matched set here; null = no filter.
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
-  // Which member's contributions the full-width detail panel shows. Defaults to you.
-  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(myPlayerId);
+  const [breakdownOpen, setBreakdownOpen] = useState(true);
+  // Which member's contributions the side panel shows. Auto-selected to the top contributor once
+  // the breakdown loads (see effect below); null until then / after you close the panel.
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
@@ -283,6 +284,16 @@ export default function MyTeamClient({
     [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
 
+  // Auto-open the first person on the breakdown (top contributor) so their details show by default.
+  // Runs once when the breakdown first has members; after that, closing the panel stays closed.
+  const didAutoSelectMember = useRef(false);
+  useEffect(() => {
+    if (!didAutoSelectMember.current && memberBreakdown.length > 0) {
+      didAutoSelectMember.current = true;
+      setSelectedMemberId((cur) => cur ?? memberBreakdown[0].playerId);
+    }
+  }, [memberBreakdown]);
+
   // Team MVP (overall) + MVP of the day (top contributor over tiles completed in the last 24h).
   const teamMvp = topMember(memberBreakdown);
   const teamMvpTodayRaw = useMemo(() => {
@@ -463,9 +474,9 @@ export default function MyTeamClient({
             </div>
           )}
 
-          {/* Team roster — collapsed by default so the board stays the focus. */}
+          {/* Team roster — expanded by default. */}
           {teamPlayers.length > 0 && (
-            <details className="border border-card-border rounded-xl bg-card-bg group">
+            <details open className="border border-card-border rounded-xl bg-card-bg group">
               <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
                 <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
                 <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />
