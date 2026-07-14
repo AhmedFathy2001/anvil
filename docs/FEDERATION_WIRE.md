@@ -112,6 +112,55 @@ get `board:read`+`events:write`), and a non-token `200 {status:"request-to-join"
 
 ---
 
+## 9. Plugin ↔ broker (Layer-2 "Connect clans" flow)
+
+The web broker login is a cookie flow (`anvil_federation_member`); a RuneLite plugin can't use
+cookies, so it authenticates via an OAuth 2.0 **Device Authorization Grant** (RFC 8628 style) — system
+browser + polling, **no embedded browser, no local loopback server** (hub-friendly). Broker endpoints
+are on the Admin host under `/api/federation/v1/` unless noted.
+
+### 9.1 Device-code login  *(NEW — broker builds)*
+1. `POST /device/start` → `{ device_code, user_code, verification_url, interval, expires_in }`.
+   `verification_url` is a broker page (`<broker>/federation/device`) where the user enters `user_code`
+   and completes the existing broker Discord OAuth (scope `identify`). `device_code` is the plugin's
+   secret poll handle; `user_code` is the short human code.
+2. Plugin opens `verification_url` in the **system browser**.
+3. `POST /device/poll { device_code }` →
+   - `{ status: "pending" }` — keep polling every `interval` s
+   - `{ status: "slow_down" }` — increase interval
+   - `{ status: "denied" | "expired" }` — stop
+   - `{ status: "complete", brokerToken, expiresIn }` — success. `brokerToken` is the broker member
+     session (the same `signBrokerSession` token the web cookie carries), handed to the plugin to hold.
+
+### 9.2 Broker member auth accepts Bearer  *(NEW — broker extends)*
+`/assert` and `/me/instances` today read the broker session from the `anvil_federation_member` cookie;
+they MUST **also** accept `Authorization: Bearer <brokerToken>` (same token, same verify path). Cookie
+OR bearer satisfies auth — so the plugin uses the bearer it got from `/device/poll`.
+
+### 9.3 Directory  *(built)*
+`GET /directory` (public, weak ETag+304) → `{ version:1, count, instances:[{ instanceId, name, baseUrl,
+type:"hosted"|"self-hosted", verified, selfHosted, capabilities[] }] }`.
+
+### 9.4 Me / instances  *(built; conform shape)*
+`GET /me/instances` (Bearer or cookie) → `{ version:1, instances:[…same entry shape as /directory…] }`,
+filtered to the member's connectable instances (verified + `associationPush`).
+
+### 9.5 Assert  *(built)*
+`POST /assert` (Bearer or cookie) body `{ instanceIds: string[] }` (or `{ instanceId }`, ≤25) →
+`{ assertions:[{ instanceId, assertion, exp }], errors:[{ instanceId, error }] }`. One EdDSA JWT per
+target per §2. `errors[].error` ∈ { `invalid_instance_id`, `unknown_instance`, `instance_unverified` }.
+
+### 9.6 Plugin "Connect clans" sequence
+1. Device-code login (§9.1/9.2) → hold `brokerToken`.
+2. `GET /me/instances` (Bearer) → connectable instances.
+3. `POST /assert { instanceIds }` (Bearer) → assertions.
+4. Per assertion → `POST <baseUrl>/api/federation/v1/exchange { assertion }` → `{ token, … }` (§8
+   errors: 422 re-fetch, 409 don't-resend, 403 stop). Store `(baseUrl, token)` as a connection.
+5. Populate `ConnectionManager`; sidebar lights up. **No token is ever hand-pasted** — the raw
+   "Extra clan connections" CSV stays only as an advanced/self-host fallback.
+
+---
+
 ## Frozen decisions (from design, do not relitigate mid-build)
 
 1. Credit **all** connected clans; per-clan `sharedCredit: exclusive` opt-out (§5).
