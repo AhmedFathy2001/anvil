@@ -113,6 +113,40 @@ self-host upstream.
 
 ---
 
+## 7. The client is untrusted (member-supplied inputs)
+
+The plugin is software the user runs; a modified client can send anything. Its submissions are
+**self-reported** — the oldest OSRS-cheat surface (mitigated by proof/screenshots + hiscores checks the
+receiving clan enforces regardless of *who* submitted).
+- **`fanout.count` and `fanout.targets` must be server-authoritative.** The relaying home site computes
+  `count` from the connections it *actually* relays to and validates each target against the member's
+  real connections — it never trusts the plugin's declared count/targets. (Else a tampered plugin
+  reports `count:1` to slip past an `exclusive` clan while multi-crediting.)
+- **The account hash / RSN a client reports is spoofable** — authorize off the verified account-link,
+  never the client's claim.
+
+## 8. Social-engineering surfaces
+
+- **`verificationUrl` phishing:** in the self-host tier the plugin opens whatever URL its home site
+  returns — a rogue home could return a fake Discord login. The plugin MUST validate the URL is HTTPS
+  and on the **known/pinned broker host** before `LinkBrowser.browse` (the one broker fact the plugin
+  keeps, for validation only) and refuse anything else.
+- **Device-code phishing:** an attacker starts a device flow and tricks a victim into approving *their*
+  code. The verification page must clearly state *what* is being authorized, and codes stay short-lived
+  + single-use + one-in-flight-per-user.
+- **Directory impersonation:** a self-host may register a `name` like "Official Anvil". Show the
+  **verified domain** prominently, mark self-host with a caution, and moderate/namespace names.
+
+## 9. Payload-level & config
+
+- **Parser DoS:** enforce JSON **depth + total-size** limits on every federated payload (not just
+  per-string caps) — a JSON bomb can exhaust the parser.
+- **No auto-loaded federated media:** never let the plugin/web auto-fetch an image/proof URL that came
+  from federated data (IP-leak + tracking-pixel + SSRF). Proxy or drop it.
+- **Error/status strings** from peers are untrusted input too — escape them (a sneaky XSS carrier).
+- **`brokerTrust` is security-critical config:** whoever is trusted there can assert identity to you.
+  Pin the Anvil broker as the default; treat any change as sensitive + audited.
+
 ## Per-boundary checklist (what the hardening pass verifies)
 
 | Boundary | AuthN | Guards |
@@ -130,3 +164,4 @@ self-host upstream.
 2. **`guardedFetch` on every home→clan outbound** (SSRF).
 3. **Validate/cap/escape all federated data** before store/relay/render (XSS + DoS).
 4. Encrypt cached tokens at rest; tag + rate-limit + opt-out for relayed writes.
+5. Server-authoritative `fanout.count`/targets; pin/validate the plugin's `verificationUrl` against the known broker host; JSON depth/size limits; no auto-loaded federated media.
