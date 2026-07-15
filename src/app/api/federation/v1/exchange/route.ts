@@ -158,6 +158,15 @@ export async function POST(request: Request) {
 
   const instanceId = await getInstanceId();
 
+  // ── finding #14 follow-up: a COARSE per-IP throttle BEFORE verification, so a flood of forged
+  // assertions can't spin unbounded EdDSA verifications (the per-member limit below only meters tokens
+  // that already verified). Generous — legit callers are relaying home sites (server-to-server). ─────
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const iprl = await rateLimitByKey('federation-exchange-ip', `ip:${ip}`, { limit: 300, windowMs: 60 * 1000 });
+  if (!iprl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(iprl) });
+  }
+
   // ── WIRE §2 steps 2,3,5,6: resolve kid against the broker JWKS (fetched through the §1 SSRF guard —
   // the jwksUrl is admin-editable, finding #6), verify the signature (alg pinned to EdDSA), then jose
   // validates claims — iss (4, re-checked), aud (5), and exp/iat (6): `requiredClaims` rejects a token
@@ -198,10 +207,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
-  // ── WIRE §2 step 7: single-use jti. Record until exp; a replay is a 409. exp is validated above, so
-  // fall back to a short TTL only if it were somehow absent. ──────────────────────────────────────
-  const expMs = typeof payload.exp === 'number' ? payload.exp * 1000 : Date.now() + 90_000;
-  const fresh = await recordFederationJti(jti, new Date(expMs));
+  // ── WIRE §2 step 7: single-use jti. A replay is a 409. finding #7 follow-up: the jti only needs to
+  // outlive the token's replay window — maxTokenAge already caps usefulness to ≤90s from iat (+30s
+  // skew), so cap the row at now+120s regardless of a (compromised-broker) far-future exp, preventing
+  // long-lived federation_jti bloat. ─────────────────────────────────────────────────────────────
+  const rawExpMs = typeof payload.exp === 'number' ? payload.exp * 1000 : Date.now() + 90_000;
+  const fresh = await recordFederationJti(jti, new Date(Math.min(rawExpMs, Date.now() + 120_000)));
   if (!fresh) {
     return NextResponse.json({ error: 'Assertion has already been used' }, { status: 409 });
   }
