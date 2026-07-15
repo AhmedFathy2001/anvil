@@ -93,6 +93,9 @@ export interface ConnectResult {
   // (findings #7 + #15). The plugin should retry /connect shortly.
   status: 'connected' | 'login' | 'retry' | 'disabled' | 'unconfigured';
   verificationUrl?: string;
+  // The broker's short device code the member types into the verification page. Returned only when a
+  // fresh login is started (that's when the broker hands it to us); the plugin displays it.
+  userCode?: string;
   count?: number;
 }
 
@@ -141,7 +144,7 @@ export async function connectMember(userId: number): Promise<ConnectResult> {
     expiresAt: new Date(Date.now() + (start.expires_in > 0 ? start.expires_in : 600) * 1000).toISOString(),
   });
   log.info('federation.connect.self-host.started', { userId });
-  return { status: 'login', verificationUrl };
+  return { status: 'login', verificationUrl, userCode: start.user_code || undefined };
 }
 
 export interface StateResult {

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: 'connected', clans: result.count ?? 0 }, { headers: rateLimitHeaders(rl) });
     case 'login':
       return NextResponse.json(
-        { status: 'login', verificationUrl: result.verificationUrl },
+        { status: 'login', verificationUrl: result.verificationUrl, userCode: result.userCode },
         { headers: rateLimitHeaders(rl) },
       );
     case 'retry':
