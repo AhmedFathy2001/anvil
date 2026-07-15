@@ -161,6 +161,50 @@ target per §2. `errors[].error` ∈ { `invalid_instance_id`, `unknown_instance`
 
 ---
 
+## 10. Site-relayed federation  (the default path — supersedes plugin-direct §9)
+
+**The plugin never connects to the broker or to other clan sites.** It only ever calls its own
+configured home site — one host, unchanged posture (⇒ no RuneLite external-connection/IP warning, no
+URL injection, trivial hub sign-off). All broker + inter-site traffic is **server-to-server**; the
+member's IP only ever reaches their home site. The §9 endpoints (`/device/*`, `/me/instances`,
+`/assert`, `/exchange`) still exist but are now called **site→broker / site→site**, not by the plugin.
+
+### 10.1 Enable — a site-admin setting
+Setting `federationEnabled`. On enable, the site registers itself with the broker (`/register`,
+domain-verified — existing) and starts relaying. **The broker URL is site-side config** (pinned to the
+Anvil broker by default, overridable by a self-hoster), never sent to the plugin. One toggle federates
+every member of that clan — hosted and self-host use the exact same path.
+
+### 10.2 Plugin ↔ home site  (the ONLY federation endpoints the plugin calls)
+- `GET  /api/plugin/federation/state` → `{ enabled, connected, needsLogin, verificationUrl?, clans:[{ id, name, board, activity, … }] }` — the plugin polls this and renders `clans[]`.
+- `POST /api/plugin/federation/connect` → `{ status:"connected" }` (trusted home, zero-click) **or** `{ status:"login", verificationUrl }` (self-host → plugin opens verificationUrl in the browser for the member's Discord login).
+The plugin holds **no** clan tokens and opens **no** clan connections.
+
+### 10.3 Trust tiers — how the site authenticates the member to the broker
+- **Trusted home (Anvil-hosted):** broker trusts Anvil sites (shared derived secret); the home site
+  vouches for its authenticated member server-to-server → assertions minted → **zero-click**.
+- **Self-host home:** broker will NOT accept a self-host's identity claim (forge risk). Member proves
+  identity via device-code (§9.1) — home site relays `/device/start`+`/poll`; the Discord login happens
+  in the member's browser on the **broker's own domain**. One-time.
+
+### 10.4 Fan-out is server-side too
+The plugin submits each game event to its home site **once** (exactly as today). The home site relays
+the credit to the member's other federated clans (server-to-server, using the instance tokens it holds
+from `/exchange`), honoring `sharedCredit`/`exclusive`. The broker stays identity/directory only — NOT
+in the data hot path.
+
+### 10.5 Manual direct-connect — vestigial escape hatch
+The advanced CSV path (user-typed clan URLs → plugin connects directly) remains ONLY for a site not
+registered with the broker. Hub-accepted because URLs are manually entered; it is the sole mode that
+carries direct multi-connect (and thus its own IP disclosure), and it is opt-in/advanced.
+
+### 10.6 Clog tab vs sidebar
+The in-game clog tab always shows the **home** board (the single site the plugin is configured with,
+connection #0). Federation is additive to the **sidebar** only and never moves the clog. It is decided
+by "the site you configured," not member-vs-guest.
+
+---
+
 ## Frozen decisions (from design, do not relitigate mid-build)
 
 1. Credit **all** connected clans; per-clan `sharedCredit: exclusive` opt-out (§5).
