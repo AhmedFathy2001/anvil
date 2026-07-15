@@ -253,6 +253,15 @@ export const FEDERATION_SHARED_CREDIT_KEY = 'federation_shared_credit';
 export const FEDERATION_EXCHANGE_POLICY_KEY = 'federation_exchange_policy';
 export const FEDERATION_ASSOCIATION_PUSH_KEY = 'federation_association_push';
 export const FEDERATION_BROKER_TRUST_KEY = 'federation_broker_trust';
+// Master site-relayed-federation switch (WIRE §10.1). 'on' | '' (off). One toggle federates every
+// member of the clan; on enable the site registers with the broker and starts relaying. Read by the
+// plugin-facing /api/plugin/federation/* endpoints; NEVER exposes the broker URL to the plugin.
+export const FEDERATION_ENABLED_KEY = 'federation_enabled';
+// Optional broker-URL override (WIRE §10.1). The broker URL is SERVER-SIDE config: env
+// FEDERATION_BROKER_URL is the default (the pinned Anvil broker); this setting overrides it for a
+// self-hoster pointing at a different broker. Deliberately server-side only — it is NEVER returned to
+// the plugin (the plugin only ever calls its own home site).
+export const FEDERATION_BROKER_URL_KEY = 'federation_broker_url';
 
 export type SharedCredit = 'accept' | 'exclusive';
 export type ExchangePolicy = 'auto-guest' | 'request-to-join' | 'reject';
@@ -303,4 +312,20 @@ export async function getBrokerTrust(): Promise<BrokerTrust[]> {
   } catch {
     return [];
   }
+}
+
+// Master site-relayed-federation switch (WIRE §10.1). Default OFF. When on, the plugin-facing
+// /api/plugin/federation/* endpoints relay to the broker + other clan sites server-to-server.
+export async function getFederationEnabled(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
+  return row?.value === 'on';
+}
+
+// Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting
+// override wins (self-hoster pointing elsewhere), else the FEDERATION_BROKER_URL env default (the
+// pinned Anvil broker). Trailing slashes trimmed. Null when neither is set (federation can't connect).
+export async function getBrokerBaseUrl(): Promise<string | null> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_URL_KEY) });
+  const raw = (row?.value?.trim() || process.env.FEDERATION_BROKER_URL?.trim() || '').replace(/\/+$/, '');
+  return raw || null;
 }

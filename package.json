@@ -12,7 +12,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "data:clog": "node scripts/build-clog-dataset.mjs",
     "data:ca": "node scripts/build-ca-dataset.mjs",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:federation": "node --experimental-strip-types --test tests/federation-relay.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",

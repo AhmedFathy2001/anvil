@@ -14,7 +14,14 @@ import { exportJWK, generateKeyPair, calculateJwkThumbprint, type JWK } from 'jo
 import { db } from '@/db';
 import { settings, federationTokens, federationJti } from '@/db/schema';
 import { eq, lt } from 'drizzle-orm';
-import { getAssociationPush } from '@/lib/pluginConfig';
+import {
+  getAssociationPush,
+  getBrokerBaseUrl,
+  getBrokerTrust,
+  FEDERATION_BROKER_TRUST_KEY,
+} from '@/lib/pluginConfig';
+import { brokerRegister } from '@/lib/federationRelay';
+import { log } from '@/lib/logger';
 
 // --- Settings keys (kept out of the public /api/admin/settings whitelist; the signing key in
 // particular must never be readable through an API). ---
@@ -115,6 +122,79 @@ export async function getInstanceName(): Promise<string> {
 // env. Deliberately an env signal (not a DB setting) so a self-host can't self-declare "hosted".
 export function getInstanceType(): 'hosted' | 'self-hosted' {
   return process.env.ANVIL_FEDERATION_INSTANCE_TYPE === 'hosted' ? 'hosted' : 'self-hosted';
+}
+
+// --- Site-relayed federation trust tier (WIRE §10.3) -------------------------------------------
+// This site is *trusted/hosted* iff the provisioner injected its derived instance credential
+// (FEDERATION_ASSOC_SECRET) — the shared secret the broker trusts an Anvil site by. With it, the
+// home site can VOUCH for its authenticated member server-to-server (zero-click). Without it we are a
+// *self-host*: the broker won't accept our identity claim, so the member proves identity once via the
+// broker's device-code flow. This is the same env the existing association-push already keys on, so
+// "has a credential" == "hosted" stays a single source of truth.
+export function getInstanceCredential(): string | null {
+  return process.env.FEDERATION_ASSOC_SECRET?.trim() || null;
+}
+
+export function getFederationTier(): 'hosted' | 'self-host' {
+  return getInstanceCredential() ? 'hosted' : 'self-host';
+}
+
+// Upsert a plain settings scalar (federation bookkeeping only — the public settings API has its own
+// whitelisted upsert). settings.key is the PK, so insert-or-update covers the race.
+async function setSetting(key: string, value: string): Promise<void> {
+  const existing = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+  if (existing) {
+    await db.update(settings).set({ value }).where(eq(settings.key, key));
+  } else {
+    try {
+      await db.insert(settings).values({ key, value });
+    } catch {
+      await db.update(settings).set({ value }).where(eq(settings.key, key));
+    }
+  }
+}
+
+// Add the configured broker to brokerTrust[] if absent (WIRE §7), so THIS instance accepts the
+// assertions other home sites relay to our /exchange. `jwksUrl` follows the broker's federation base
+// path. Idempotent.
+async function ensureBrokerTrusted(brokerBaseUrl: string): Promise<void> {
+  const iss = brokerBaseUrl.replace(/\/+$/, '');
+  const jwksUrl = `${iss}/api/federation/v1/jwks.json`;
+  const current = await getBrokerTrust();
+  if (current.some((b) => b.iss === iss)) return;
+  const next = [...current, { iss, jwksUrl }];
+  await setSetting(FEDERATION_BROKER_TRUST_KEY, JSON.stringify(next));
+}
+
+// Register this instance with the broker on federation-enable (WIRE §6/§10.1). Hosted presents its
+// derived credential and the broker reconciles (we own the domain → implicitly verified); self-host
+// registers self-service and gets a verificationToken we persist for /.well-known/anvil-federation to
+// echo (the broker then fetches it to verify domain control). Also trusts the broker for inbound
+// relayed exchanges. Best-effort: a broker being down must never fail the admin's settings save — the
+// plugin's /connect retries the whole path anyway.
+export async function ensureRegisteredWithBroker(baseUrl: string): Promise<void> {
+  const brokerBaseUrl = await getBrokerBaseUrl();
+  if (!brokerBaseUrl) {
+    log.warn('federation.register.no-broker-url', {});
+    return;
+  }
+  await ensureBrokerTrusted(brokerBaseUrl).catch(() => {});
+
+  const [instanceId, name] = await Promise.all([getInstanceId(), getInstanceName()]);
+  const tier = getFederationTier();
+  try {
+    const res = await brokerRegister(
+      brokerBaseUrl,
+      { instanceId, baseUrl, name, type: tier },
+      getInstanceCredential(),
+    );
+    if (res?.verificationToken) {
+      await setSetting(FEDERATION_VERIFICATION_TOKEN_KEY, res.verificationToken);
+    }
+    log.info('federation.register.ok', { instanceId, tier, state: res?.state ?? null });
+  } catch (err) {
+    log.warn('federation.register.fail', { instanceId, tier }, err);
+  }
 }
 
 // --- Federation token primitives (WIRE §4). ---

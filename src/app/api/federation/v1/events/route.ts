@@ -9,6 +9,9 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { getConnectionsForUser } from '@/lib/federationConnections';
+import { fanOutCredit, type FanoutTarget } from '@/lib/federationRelay';
+import { log } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
     note?: unknown;
     itemId?: unknown;
     durationSeconds?: unknown;
-    fanout?: { count?: unknown; instanceIds?: unknown };
+    fanout?: { count?: unknown; instanceIds?: unknown; targets?: unknown };
   };
   try {
     body = await request.json();
@@ -73,13 +76,32 @@ export async function POST(request: Request) {
 
   // ── Fanout descriptor (WIRE §5): plugin-declared { count, instanceIds[] }. ──────────────────────
   const fanoutCount = Number(body.fanout?.count);
-  const instanceIds = Array.isArray(body.fanout?.instanceIds) ? body.fanout!.instanceIds : null;
+  const instanceIds = Array.isArray(body.fanout?.instanceIds)
+    ? (body.fanout!.instanceIds as unknown[]).filter((x): x is string => typeof x === 'string')
+    : null;
   if (!Number.isInteger(fanoutCount) || fanoutCount < 1 || !instanceIds) {
     return NextResponse.json(
       { error: 'fanout: { count:int>=1, instanceIds:string[] } is required' },
       { status: 400 },
     );
   }
+
+  // ── Server-side fan-out targets (WIRE §10.4): the plugin submits its game event to its home site
+  // ONCE, declaring which tile on which OTHER clan it matched (resolved client-side from each clan's
+  // aggregated board). `targets` is present ONLY on the plugin's original submission — this is the
+  // loop guard: a RELAYED event (minted by fanOutCredit below) carries only { count, instanceIds }
+  // and no `targets`, so it never re-fans-out. Home does NO server-side tile matching; it just routes
+  // each declared target to its clan with that clan's cached token. Absent → this is a leaf ingest.
+  const relayTargets: FanoutTarget[] = Array.isArray(body.fanout?.targets)
+    ? (body.fanout!.targets as unknown[]).flatMap((t) => {
+        if (!t || typeof t !== 'object') return [];
+        const o = t as { instanceId?: unknown; eventId?: unknown; tileId?: unknown };
+        const eid = Number(o.eventId);
+        const tid = Number(o.tileId);
+        if (typeof o.instanceId !== 'string' || !Number.isInteger(eid) || !Number.isInteger(tid)) return [];
+        return [{ instanceId: o.instanceId, eventId: eid, tileId: tid }];
+      })
+    : [];
 
   // ── sharedCredit enforcement (decision 1, WIRE §5). `exclusive` refuses any event the player is
   // simultaneously crediting elsewhere (fanout.count > 1) — a clean 200, not an error. ────────────
@@ -281,8 +303,44 @@ export async function POST(request: Request) {
   }
 
   const instanceId = await getInstanceId();
+
+  // ── Server-side fan-out relay (WIRE §10.4). This clan is the member's HOME and just credited the
+  // event; relay the SAME credit to the member's OTHER cached clans (each with that clan's own token +
+  // a fanout descriptor so a receiving `exclusive` clan can refuse). Best-effort + isolated per clan
+  // (fanOutCredit swallows per-clan failures); a down/refusing clan never affects the home credit or
+  // the others. Only runs when the plugin declared `targets` (the loop guard above), and only for a
+  // member we hold outbound connections for. ──────────────────────────────────────────────────────
+  let relayed: { instanceId: string; credited: boolean; reason?: string }[] | undefined;
+  if (relayTargets.length > 0 && ctx.userId != null) {
+    try {
+      const allConns = await getConnectionsForUser(ctx.userId);
+      // Defensive: never relay to our own instance even if a stale row pointed at it.
+      const connections = allConns.filter((c) => c.instanceId !== instanceId);
+      if (connections.length > 0) {
+        const results = await fanOutCredit({
+          connections,
+          targets: relayTargets.filter((t) => t.instanceId !== instanceId),
+          payload: { amount, imageUrl, note, itemId, durationSeconds },
+          fanoutCount,
+          instanceIds,
+        });
+        relayed = results.map((r) => ({ instanceId: r.instanceId, credited: r.credited, reason: r.reason }));
+        log.info('federation.events.fanout', { instanceId, userId: ctx.userId, relayed: relayed.length });
+      }
+    } catch (err) {
+      // Fan-out is best-effort — the home credit already succeeded; never fail the response on relay.
+      log.warn('federation.events.fanout-fail', { instanceId, userId: ctx.userId }, err);
+    }
+  }
+
   return NextResponse.json(
-    { credited: true, instanceId, submissionId: submission.id, completed: syncResult?.isComplete ?? false },
+    {
+      credited: true,
+      instanceId,
+      submissionId: submission.id,
+      completed: syncResult?.isComplete ?? false,
+      ...(relayed ? { relayed } : {}),
+    },
     { status: 201, headers: rateLimitHeaders(rl) },
   );
 }

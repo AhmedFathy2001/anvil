@@ -757,3 +757,51 @@ export const federationJti = sqliteTable('federation_jti', {
 }, (table) => [
   index('federation_jti_expires_at_idx').on(table.expiresAt),
 ]);
+
+// ---------------------------------------------------------------------------
+// Site-relayed federation (WIRE §10). THIS site is the single thing the plugin
+// talks to; it relays to the broker + to other clan sites server-to-server.
+// ---------------------------------------------------------------------------
+
+// The member's cached OUTBOUND connections to OTHER clans (WIRE §10.3/§10.4). Unlike
+// federation_tokens (tokens OTHERS present to us, stored hashed), these are tokens WE hold as a
+// client to present to a remote clan's /board + /events — so the raw token is stored (it's an API
+// credential we must replay). Keyed by (user_id, instance_id): one live connection per remote clan
+// per home member. Populated by /api/plugin/federation/connect after a broker vouch/assert →
+// remote-clan /exchange; read by /state (aggregate board+activity) and the /events fan-out relay.
+export const federationConnections = sqliteTable('federation_connections', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // The HOME site user this connection belongs to (the federating member).
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The REMOTE clan's stable instanceId (WIRE §1) — never our own.
+  instanceId: text('instance_id').notNull(),
+  // The remote clan's public base URL (server-to-server target; never sent to the plugin).
+  baseUrl: text('base_url').notNull(),
+  // Remote clan display name (for the plugin sidebar). From the broker directory / vouch.
+  name: text('name'),
+  // The federation token the REMOTE clan minted at its /exchange (a secret we hold to act as this
+  // member there). Raw, not hashed — we must replay it as a Bearer. See note above.
+  token: text('token').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  lastUsedAt: text('last_used_at'),
+}, (table) => [
+  uniqueIndex('federation_connections_user_instance_unique').on(table.userId, table.instanceId),
+  index('federation_connections_user_id_idx').on(table.userId),
+]);
+
+// In-flight self-host device-code login (WIRE §9.1/§10.3). A self-host home can't have the broker
+// vouch for its members (forge risk), so the member does a one-time device-code Discord login on the
+// broker's domain. The plugin polls /connect repeatedly; each poll is a fresh server request, so the
+// broker's `device_code` handle must persist between them. One in-flight login per member (keyed on
+// user_id); cleared on completion/expiry.
+export const federationDeviceSessions = sqliteTable('federation_device_sessions', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  // The broker's secret poll handle from POST /device/start (WIRE §9.1).
+  deviceCode: text('device_code').notNull(),
+  // The broker page the member opens in a browser to enter the user code + Discord-login.
+  verificationUrl: text('verification_url').notNull(),
+  // Poll cadence (s) and absolute expiry the broker declared; used to pace/expire polling.
+  interval: integer('interval').default(5).notNull(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+});
