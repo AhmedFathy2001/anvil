@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, players, completions } from '@/db/schema';
+import { events, tiles, teams, submissions, players, completions, clanMembers } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
@@ -227,11 +227,16 @@ export async function GET(request: Request) {
   const teamPlayers = await db
     .select({
       id: players.id,
+      name: players.name,
       clanMemberId: players.clanMemberId,
       statsSnapshot: players.statsSnapshot,
       cachedStats: players.cachedStats,
+      // When this member last pushed live stats — the "is this teammate actively grinding right now"
+      // signal for stat-tile attribution in the sidebar's "Active now". Per-member (not per-stat).
+      liveStatsAt: clanMembers.liveStatsAt,
     })
     .from(players)
+    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
     .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
@@ -253,6 +258,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // "Active now" attribution for stat tiles: a teammate who's contributed to a stat tile AND pushed
+  // live stats within this window is shown as actively grinding it (the plugin marks the caller "You"
+  // via its own local signal, so the caller is excluded here). Capped to bound the payload.
+  const ACTIVE_STAT_WINDOW_MS = 5 * 60_000;
+  const ACTIVE_WORKERS_CAP = 5;
+  const nowMs = Date.now();
+
   const trackedStats = statTilesRaw.map((t) => {
     const statName = t.trackedStat ?? '';
     const statType = t.statType ?? 'skill';
@@ -260,6 +272,7 @@ export async function GET(request: Request) {
     const trackingMode = t.trackingMode ?? 'team';
 
     let gainedTotal = 0;
+    const activeWorkers: string[] = [];
     const sources = trackingMode === 'individual'
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
@@ -270,6 +283,7 @@ export async function GET(request: Request) {
       const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
+      let playerGained = 0;
       for (const part of statKeys(statName)) {
         const baseline = readStatValue(p.statsSnapshot, statType, part);
         const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
@@ -279,7 +293,14 @@ export async function GET(request: Request) {
           : null;
         if (baseline == null || current == null) continue;
         const gained = current - baseline;
-        if (gained > 0) gainedTotal += gained;
+        if (gained > 0) { gainedTotal += gained; playerGained += gained; }
+      }
+      if (playerGained > 0 && p.id !== auth.playerId && p.liveStatsAt
+          && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+        const at = Date.parse(p.liveStatsAt);
+        if (Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS) {
+          activeWorkers.push(p.name);
+        }
       }
     }
 
@@ -296,6 +317,9 @@ export async function GET(request: Request) {
       trackingMode,
       currentAmount: gainedTotal,
       goalAmount: goal,
+      // Teammates actively grinding this stat tile right now (RSNs), for the sidebar's "Active now".
+      // Empty on older plugins/servers; the caller is never in here (the plugin marks itself "You").
+      activeWorkers,
       // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
       // keep -1 (the plugin shows the skill sprite instead). Composite keys use the first
       // boss's icon (a CoX + CM tile shows the CoX item).
