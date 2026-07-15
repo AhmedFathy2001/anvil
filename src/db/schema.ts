@@ -248,6 +248,18 @@ export const submissions = sqliteTable('submissions', {
   // (and baked onto the screenshot) by the plugin. NULL for drop/kill submissions. The
   // tile completes when any submission's durationSeconds ≤ tile.timeThresholdSeconds.
   durationSeconds: integer('duration_seconds'),
+  // FEDERATION_SECURITY.md §3 — the instanceId of the REMOTE home that relayed this credit in via
+  // POST /api/federation/v1/events. NULL for every native (non-federated) submission. Its presence
+  // makes a relayed write auditable + reversible by this clan (the receiver never trusts the relay
+  // itself, only the token + content, so a mis-relay can be traced to its source and undone).
+  federatedSource: text('federated_source'),
+  // FEDERATION_SECURITY.md §9 / decision #3 — for a FEDERATED relayed (cross-clan) submission the proof
+  // image lives on the ORIGIN clan's media host, which fails THIS clan's own-media check and must NOT be
+  // auto-fetched (no auto-loaded federated media — IP-leak / tracking-pixel / SSRF). We keep the origin
+  // URL here as an AUDIT-ONLY, reversible reference (never rendered or fetched by us); the trusted-home-
+  // bounded credit proceeds off the token + content. NULL for native submissions and the origin's own
+  // (managed-media) proof, which continues to use `imageUrl`.
+  federatedProofUrl: text('federated_proof_url'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
@@ -697,3 +709,117 @@ export const feedback = sqliteTable('feedback', {
   index('feedback_status_idx').on(table.status),
   index('feedback_created_at_idx').on(table.createdAt),
 ]);
+
+// ===========================================================================
+// Federation (Layer 0/1). See docs/FEDERATION.md + docs/FEDERATION_WIRE.md.
+// ===========================================================================
+
+// Opaque, hashed, long-lived + revocable plugin credential minted by THIS instance
+// (own /token issuance now; broker /exchange mints the same shape at L2). Per WIRE §4 the raw
+// 256-bit bearer token is shown to the client exactly once at mint time — only its SHA-256 hash
+// is persisted here, so a DB leak can't be replayed as a bearer credential.
+export const federationTokens = sqliteTable('federation_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // Public identifier used by /token/revoke and the "Connected plugins" UI. NOT the secret.
+  tokenId: text('token_id').notNull(),
+  // SHA-256 (hex) of the opaque bearer token. The raw token is never stored.
+  tokenHash: text('token_hash').notNull(),
+  // Subject identity (WIRE §4: memberId/discordId). `userId` is the owning site user and drives the
+  // profile "Connected plugins" list; `discordId` snapshots the Discord identity a broker assertion
+  // maps onto at L2; `memberId` optionally pins a specific clan_member.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  discordId: text('discord_id'),
+  memberId: integer('member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  // JSON string array — a subset of ['board:read','events:write'] (WIRE §4).
+  scopes: text('scopes').notNull().default('["board:read"]'),
+  // Human label shown in the UI (e.g. "RuneLite on desktop"). Optional.
+  label: text('label'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  lastUsedAt: text('last_used_at'),
+  // Long-lived + revocable (decision 3): revoke = set revokedAt. A revoked token 401s at /board.
+  revokedAt: text('revoked_at'),
+}, (table) => [
+  uniqueIndex('federation_tokens_token_id_unique').on(table.tokenId),
+  uniqueIndex('federation_tokens_token_hash_unique').on(table.tokenHash),
+  index('federation_tokens_user_id_idx').on(table.userId),
+  index('federation_tokens_discord_id_idx').on(table.discordId),
+]);
+
+// Sticky federation denylist (decision 4). Keyed on discord_id: once an admin bans an identity, the
+// broker /exchange path (L2) must refuse to re-create an auto-guest for it — Remove alone is
+// whack-a-mole; this stops the re-spawn.
+export const federationBans = sqliteTable('federation_bans', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  discordId: text('discord_id').notNull(),
+  reason: text('reason'),
+  at: text('at').default(sql`(datetime('now'))`).notNull(),
+  byUserId: integer('by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('federation_bans_discord_id_unique').on(table.discordId),
+]);
+
+// Single-use assertion replay guard (WIRE §2 step 7). Every broker assertion carries a UUIDv4 `jti`;
+// /exchange records it here on first sight and 409s any re-presentation. `expiresAt` mirrors the
+// assertion's `exp` (≤90s out) so the row is short-lived — the table self-cleans via an opportunistic
+// DELETE on write, exactly like `rate_limits`, so it never grows unbounded. The PK collision on a
+// replayed jti is what makes single-use detection atomic (INSERT … ON CONFLICT DO NOTHING → 0 rows).
+export const federationJti = sqliteTable('federation_jti', {
+  jti: text('jti').primaryKey(),
+  expiresAt: text('expires_at').notNull(),
+}, (table) => [
+  index('federation_jti_expires_at_idx').on(table.expiresAt),
+]);
+
+// ---------------------------------------------------------------------------
+// Site-relayed federation (WIRE §10). THIS site is the single thing the plugin
+// talks to; it relays to the broker + to other clan sites server-to-server.
+// ---------------------------------------------------------------------------
+
+// The member's cached OUTBOUND connections to OTHER clans (WIRE §10.3/§10.4). Unlike
+// federation_tokens (tokens OTHERS present to us, stored hashed), these are tokens WE hold as a
+// client to present to a remote clan's /board + /events — so the raw token is stored (it's an API
+// credential we must replay). Keyed by (user_id, instance_id): one live connection per remote clan
+// per home member. Populated by /api/plugin/federation/connect after a broker vouch/assert →
+// remote-clan /exchange; read by /state (aggregate board+activity) and the /events fan-out relay.
+export const federationConnections = sqliteTable('federation_connections', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // The HOME site user this connection belongs to (the federating member).
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The REMOTE clan's stable instanceId (WIRE §1) — never our own.
+  instanceId: text('instance_id').notNull(),
+  // The remote clan's public base URL (server-to-server target; never sent to the plugin).
+  baseUrl: text('base_url').notNull(),
+  // Remote clan display name (for the plugin sidebar). From the broker directory / vouch.
+  name: text('name'),
+  // The federation token the REMOTE clan minted at its /exchange (a secret we hold to act as this
+  // member there). Raw, not hashed — we must replay it as a Bearer. See note above.
+  token: text('token').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  lastUsedAt: text('last_used_at'),
+}, (table) => [
+  uniqueIndex('federation_connections_user_instance_unique').on(table.userId, table.instanceId),
+  index('federation_connections_user_id_idx').on(table.userId),
+]);
+
+// In-flight self-host device-code login (WIRE §9.1/§10.3). A self-host home can't have the broker
+// vouch for its members (forge risk), so the member does a one-time device-code Discord login on the
+// broker's domain. The plugin polls /connect repeatedly; each poll is a fresh server request, so the
+// broker's `device_code` handle must persist between them. One in-flight login per member (keyed on
+// user_id); cleared on completion/expiry.
+export const federationDeviceSessions = sqliteTable('federation_device_sessions', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  // The broker's secret poll handle from POST /device/start (WIRE §9.1).
+  deviceCode: text('device_code').notNull(),
+  // The broker page the member opens in a browser to enter the user code + Discord-login.
+  verificationUrl: text('verification_url').notNull(),
+  // Poll cadence (s) and absolute expiry the broker declared; used to pace/expire polling.
+  interval: integer('interval').default(5).notNull(),
+  expiresAt: text('expires_at').notNull(),
+  // finding #15: the broker member-session token, captured once the device poll returns `complete`.
+  // The device_code is SINGLE-USE (spent by that `complete` poll), so if the subsequent /assert+/exchange
+  // relay then fails, we CANNOT re-poll to recover — we'd strand the login. Persisting the brokerToken
+  // (encrypted at rest, §4) lets the next /connect|/state RETRY the exchange directly, no re-login. Null
+  // until the poll completes.
+  brokerToken: text('broker_token'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+});

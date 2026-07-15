@@ -10,6 +10,7 @@ import TierBandsSetting from '@/components/TierBandsSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import CollapsibleSection from '@/components/CollapsibleSection';
+import FederationSettings from '@/components/FederationSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -237,6 +238,19 @@ export default function AdminIntegrationsPage() {
           summary="Kill times, XP rates and skill floors behind the Tiles tab's effort model — tune them to your clan."
         >
           <BalanceRatesSetting />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Federation"
+          summary="Multi-clan crediting, guest-on-exchange policy, association push and trusted brokers. Layer 0/1 is live; identity federation (L2) is opt-in and lands later."
+        >
+          <p className="text-sm text-text-muted -mt-1">
+            Federation lets members carry one plugin token across several connected clans. These
+            scalars control how this instance behaves; the instance id and signing key are generated
+            automatically and exposed (public half only) at{' '}
+            <code className="text-foreground/80">/api/federation/v1/meta</code>.
+          </p>
+          <FederationSettings />
         </CollapsibleSection>
       </div>
     </div>

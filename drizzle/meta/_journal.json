@@ -113,6 +113,48 @@
       "when": 1783897012515,
       "tag": "0015_solid_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1784051849823,
+      "tag": "0016_confused_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784053464405,
+      "tag": "0017_special_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1784079375606,
+      "tag": "0018_parched_kinsey_walden",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1784084603499,
+      "tag": "0019_eminent_rictor",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784089431915,
+      "tag": "0020_flippant_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784095508016,
+      "tag": "0021_moaning_leader",
+      "breakpoints": true
     }
   ]
 }

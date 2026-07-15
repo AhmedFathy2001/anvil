@@ -12,7 +12,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "data:clog": "node scripts/build-clog-dataset.mjs",
     "data:ca": "node scripts/build-ca-dataset.mjs",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:federation": "node --experimental-strip-types --test tests/federation-relay.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
@@ -21,6 +22,7 @@
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.1",
     "exceljs": "^4.4.0",
+    "jose": "^6.2.3",
     "next": "16.1.6",
     "osrs-json-hiscores": "^2.25.0",
     "react": "19.2.3",
