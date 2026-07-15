@@ -293,6 +293,19 @@ export function _clearRelayReadCache(): void {
   readCache.clear();
 }
 
+// Test-only: seed a cache entry aged `ageMs` in the past so a case can exercise the stale-serve path
+// (an entry past the TTL but within the absolute lifetime). Never used in production.
+export function _primeRelayReadCache(
+  baseUrl: string,
+  path: string,
+  token: string,
+  body: unknown,
+  ageMs = 60_000,
+): void {
+  const url = `${trimUrl(baseUrl)}${path}`;
+  readCache.set(`${url}|${token}`, { etag: null, body, ts: Date.now() - ageMs });
+}
+
 // Touch = move to the end (Map preserves insertion order → the FIRST key is the LRU one). Used on both
 // read hits and writes so eviction drops the genuinely least-recently-used entry.
 function cacheTouch(key: string, entry: ReadCacheEntry): void {
@@ -328,7 +341,17 @@ async function cachedGet(
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (hit?.etag) headers['If-None-Match'] = hit.etag;
-  const res = await f(url, { headers, signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS) });
+  let res: Response;
+  try {
+    res = await f(url, { headers, signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS) });
+  } catch (err) {
+    // finding #8: a THROWN fetch (timeout / SSRF-reject / transport blip / guardedFetch rejection)
+    // must serve the cached/stale value over an empty sidebar — exactly like a non-ok Response below.
+    // Only a COLD miss (no cached value to fall back to) surfaces the error (aggregateClans isolates
+    // per clan and shows that one empty).
+    if (hit) return hit.body;
+    throw err;
+  }
 
   if (res.status === 304 && hit) {
     hit.ts = now; // still current — extend the TTL, reuse the body.

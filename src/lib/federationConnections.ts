@@ -123,6 +123,9 @@ export interface DeviceSession {
   verificationUrl: string;
   interval: number;
   expiresAt: string;
+  // finding #15: set once the device poll returns `complete`. Its presence means "login done, retrying
+  // the /assert+/exchange relay" — the flow must NOT re-poll the (spent) device code. Encrypted at rest.
+  brokerToken?: string | null;
 }
 
 export async function getDeviceSession(userId: number): Promise<DeviceSession | null> {
@@ -135,11 +138,22 @@ export async function getDeviceSession(userId: number): Promise<DeviceSession | 
     await clearDeviceSession(userId).catch(() => {});
     return null;
   }
+  // §4 decrypt the persisted broker session token; an undecryptable value (key rotated) is treated as
+  // absent so the flow falls back cleanly rather than throwing.
+  let brokerToken: string | null = null;
+  if (row.brokerToken) {
+    try {
+      brokerToken = decryptSecret(row.brokerToken, tokenEncKey());
+    } catch (err) {
+      log.warn('federation.device.brokertoken-decrypt-fail', { userId }, err);
+    }
+  }
   return {
     deviceCode: row.deviceCode,
     verificationUrl: row.verificationUrl,
     interval: row.interval,
     expiresAt: row.expiresAt,
+    brokerToken,
   };
 }
 
@@ -152,6 +166,8 @@ export async function saveDeviceSession(userId: number, s: DeviceSession): Promi
     verificationUrl: s.verificationUrl,
     interval: s.interval,
     expiresAt: s.expiresAt,
+    // §4 encrypt the broker session token at rest (null when not yet captured).
+    brokerToken: s.brokerToken ? encryptSecret(s.brokerToken, tokenEncKey()) : null,
   };
   if (existing) {
     await db.update(federationDeviceSessions).set(values).where(eq(federationDeviceSessions.userId, userId));

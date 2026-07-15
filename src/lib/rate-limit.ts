@@ -14,6 +14,7 @@ import { db } from '@/db';
 import { rateLimits } from '@/db/schema';
 import { lt, sql } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { getClientIp } from '@/lib/federationSecurity';
 
 interface Options {
   limit: number;
@@ -27,13 +28,8 @@ interface Result {
   reset: number; // unix ms when the window resets
 }
 
-function getClientIp(request: Request): string {
-  const fwd = request.headers.get('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0]!.trim();
-  const real = request.headers.get('x-real-ip');
-  if (real) return real.trim();
-  return 'unknown';
-}
+// getClientIp lives in lib/federationSecurity (the `@/`-free, testable module) and trusts ONLY the
+// proxy-appended IP (x-real-ip / rightmost XFF) — never the spoofable leftmost XFF entry.
 
 export async function rateLimit(
   request: Request,

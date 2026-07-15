@@ -815,5 +815,11 @@ export const federationDeviceSessions = sqliteTable('federation_device_sessions'
   // Poll cadence (s) and absolute expiry the broker declared; used to pace/expire polling.
   interval: integer('interval').default(5).notNull(),
   expiresAt: text('expires_at').notNull(),
+  // finding #15: the broker member-session token, captured once the device poll returns `complete`.
+  // The device_code is SINGLE-USE (spent by that `complete` poll), so if the subsequent /assert+/exchange
+  // relay then fails, we CANNOT re-poll to recover — we'd strand the login. Persisting the brokerToken
+  // (encrypted at rest, §4) lets the next /connect|/state RETRY the exchange directly, no re-login. Null
+  // until the poll completes.
+  brokerToken: text('broker_token'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 });

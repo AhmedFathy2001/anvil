@@ -30,6 +30,7 @@ import {
   dedupeConnectionsByInstanceId,
   fetchClanBoard,
   _clearRelayReadCache,
+  _primeRelayReadCache,
   type FederationConnection,
 } from '../src/lib/federationRelay.ts';
 import {
@@ -43,12 +44,18 @@ import {
   sanitizeFederatedBoard,
   sanitizeFederatedActivity,
   safeVerificationUrl,
+  getClientIp,
   CAP_LABEL,
   CAP_TILES,
 } from '../src/lib/federationSecurity.ts';
 import {
   decideCredit,
   tileAtCapacity,
+  clampCreditAmount,
+  homeCreditGate,
+  federatedProofSatisfied,
+  guestConflictExhausted,
+  gateReplayThenBudget,
   planGuestConflict,
   exchangeRateLimitKey,
   guestRateLimitKey,
@@ -744,4 +751,135 @@ test('#14: rate-limit keys are per-member (sub) — different members never shar
   assert.notEqual(guestRateLimitKey('discordA'), guestRateLimitKey('discordB'));
   assert.notEqual(exchangeRateLimitKey('discordA'), guestRateLimitKey('discordA')); // separate budgets
   assert.ok(exchangeRateLimitKey('discordA').includes('discordA')); // derived from the member id only
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECOND HARDENING PASS (docs/FEDERATION_SECURITY.md — federation-review findings)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── #1: a proof-required LEAF write with NO proof reference is rejected (not silently credited) ──
+test('#1: federatedProofSatisfied enforces proof on the LEAF path, not just the origin', () => {
+  // Count-only tiles never require proof — either side, image or not.
+  assert.equal(federatedProofSatisfied({ isCountOnly: true, isOrigin: false, hasOwnImage: false, hasFederatedProof: false }), true);
+  // Proof-required LEAF: the origin's federated proof ref is REQUIRED. Missing → REJECT (the bug).
+  assert.equal(federatedProofSatisfied({ isCountOnly: false, isOrigin: false, hasOwnImage: false, hasFederatedProof: false }), false);
+  // Proof-required LEAF WITH the origin's proof ref → allowed.
+  assert.equal(federatedProofSatisfied({ isCountOnly: false, isOrigin: false, hasOwnImage: false, hasFederatedProof: true }), true);
+  // A leaf must NOT be satisfied by an origin-only image field — only the federated proof ref counts.
+  assert.equal(federatedProofSatisfied({ isCountOnly: false, isOrigin: false, hasOwnImage: true, hasFederatedProof: false }), false);
+  // Proof-required ORIGIN: needs its own uploaded (managed) image.
+  assert.equal(federatedProofSatisfied({ isCountOnly: false, isOrigin: true, hasOwnImage: true, hasFederatedProof: false }), true);
+  assert.equal(federatedProofSatisfied({ isCountOnly: false, isOrigin: true, hasOwnImage: false, hasFederatedProof: false }), false);
+});
+
+// ── #2: getClientIp trusts the PROXY-APPENDED value (x-real-ip / last XFF), never the leftmost ──
+test('#2: getClientIp uses the appended IP, never the spoofable leftmost XFF entry', () => {
+  const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
+  // A spoofed leftmost + the real appended rightmost → we take the RIGHTMOST (what our proxy added).
+  assert.equal(getClientIp(req({ 'x-forwarded-for': '1.2.3.4, 9.9.9.9' })), '9.9.9.9');
+  // x-real-ip (Caddy) wins over XFF entirely.
+  assert.equal(getClientIp(req({ 'x-real-ip': '9.9.9.9', 'x-forwarded-for': '1.2.3.4, 8.8.8.8' })), '9.9.9.9');
+  // Single-entry XFF → that entry (the proxy added it).
+  assert.equal(getClientIp(req({ 'x-forwarded-for': '5.5.5.5' })), '5.5.5.5');
+  // Whitespace + trailing commas tolerated; still rightmost.
+  assert.equal(getClientIp(req({ 'x-forwarded-for': 'aa , bb , cc ' })), 'cc');
+  // No proxy header → a single shared 'unknown' bucket (a direct/local call), never a spoofed value.
+  assert.equal(getClientIp(req({})), 'unknown');
+});
+
+// ── #3: a home-side "can't credit here" condition SKIPS the home credit on the ORIGIN but still relays;
+//        a LEAF aborts (nothing to relay) ──
+test('#3: homeCreditGate — origin skips-and-relays, leaf aborts, no block credits', () => {
+  // No block → credit normally.
+  assert.equal(homeCreditGate({ isOrigin: true, blockedReason: null }), 'credit');
+  assert.equal(homeCreditGate({ isOrigin: false, blockedReason: null }), 'credit');
+  // A force-ended / not-enrolled / tile-not-found HOME on the ORIGIN skips its own credit but keeps
+  // fanning out — it must NOT abort the whole request (the bug: a live clan would lose the credit).
+  for (const reason of ['not-enrolled', 'event-ended', 'tile-not-found', 'itemId-not-tracked']) {
+    assert.equal(homeCreditGate({ isOrigin: true, blockedReason: reason }), 'skip-relay');
+    assert.equal(homeCreditGate({ isOrigin: false, blockedReason: reason }), 'abort'); // leaf: nothing to relay
+  }
+});
+
+// ── #5: a replay is rejected BEFORE the per-member budget is consumed (victim bucket untouched) ──
+test('#5: gateReplayThenBudget — a replay never consumes the member budget', async () => {
+  let budgetCalls = 0;
+  // Replay (recordJti → false): consumeBudget must NEVER run → the victim's bucket is untouched.
+  const replay = await gateReplayThenBudget({
+    recordJti: async () => false,
+    consumeBudget: async () => {
+      budgetCalls += 1;
+      return { ok: true };
+    },
+    budgetOk: (b) => b.ok,
+  });
+  assert.equal(replay.outcome, 'replay');
+  assert.equal(budgetCalls, 0); // ← the whole point of #5
+
+  // Fresh assertion: budget consumed exactly once, outcome 'ok'.
+  const ok = await gateReplayThenBudget({
+    recordJti: async () => true,
+    consumeBudget: async () => {
+      budgetCalls += 1;
+      return { ok: true };
+    },
+    budgetOk: (b) => b.ok,
+  });
+  assert.equal(ok.outcome, 'ok');
+  assert.equal(budgetCalls, 1);
+
+  // Fresh but over budget → 'rate-limited' (still surfaces the budget for its headers).
+  const limited = await gateReplayThenBudget({
+    recordJti: async () => true,
+    consumeBudget: async () => ({ ok: false, remaining: 0 }),
+    budgetOk: (b) => b.ok,
+  });
+  assert.equal(limited.outcome, 'rate-limited');
+  assert.equal((limited as { budget: { remaining: number } }).budget.remaining, 0);
+});
+
+// ── #8: cachedGet serves the STALE cached value on a THROWN fetch (not only a non-ok Response) ──
+test('#8: a thrown fetch (SSRF-reject / timeout) serves the stale board, not an empty one', async () => {
+  _clearRelayReadCache();
+  // Seed a cache entry aged past the TTL (15s) but within the absolute lifetime (10m) so the next fetch
+  // revalidates — and that revalidation THROWS (guardedFetch-style rejection / network blip).
+  _primeRelayReadCache('https://clanB.example', `${FED}/board`, 'B-token-x', { eventId: 7, name: 'Stale B', boardSize: 5, tiles: [] }, 60_000);
+  const throwing = (() => {
+    throw new Error('SSRF blocked / timeout');
+  }) as unknown as typeof fetch;
+  const conn: FederationConnection = { instanceId: CLANB_ID, name: 'Clan B', baseUrl: 'https://clanB.example', token: 'B-token-x' };
+  const board = await fetchClanBoard(conn, throwing);
+  assert.equal((board as any).eventId, 7); // stale value served on throw, not null/empty
+  assert.equal((board as any).name, 'Stale B');
+
+  // A COLD miss (no cached value) + a throw has nothing to serve → the error surfaces (aggregateClans
+  // isolates it per clan) rather than silently returning stale-from-nowhere.
+  _clearRelayReadCache();
+  await assert.rejects(() => fetchClanBoard(conn, throwing), /SSRF blocked/);
+});
+
+// ── #9: over-submission REMAINDER clamp — credit only up to the remaining need (home AND leaf) ──
+test('#9: clampCreditAmount clamps to the remaining need (mirrors the native submissions cap)', () => {
+  // Simple count tile 0/3, amount 5 → credits 3 (the bug wrote 5/3).
+  assert.equal(clampCreditAmount({ requestedAmount: 5, tileType: 'kill', requiredAmount: 3, simpleTotal: 0 }), 3);
+  // 1/3 already, amount 5 → 2 remaining.
+  assert.equal(clampCreditAmount({ requestedAmount: 5, tileType: 'kill', requiredAmount: 3, simpleTotal: 1 }), 2);
+  // Under and within → unchanged.
+  assert.equal(clampCreditAmount({ requestedAmount: 2, tileType: 'kill', requiredAmount: 5, simpleTotal: 1 }), 2);
+  // Already complete → 0 (the caller's tileAtCapacity also refuses, but clamp is 0 defensively).
+  assert.equal(clampCreditAmount({ requestedAmount: 5, tileType: 'kill', requiredAmount: 3, simpleTotal: 3 }), 0);
+  // Per-item: clamps to the item's own remaining.
+  assert.equal(clampCreditAmount({ requestedAmount: 9, tileType: 'drop', requiredAmount: null, itemRequired: 4, itemTotal: 1 }), 3);
+  // value + valuetotal: hauls are independent / may overshoot the aggregate → NEVER clamped.
+  assert.equal(clampCreditAmount({ requestedAmount: 90_000_000, tileType: 'value', requiredAmount: 100_000_000, simpleTotal: 0 }), 90_000_000);
+  assert.equal(clampCreditAmount({ requestedAmount: 10_000_000, tileType: 'valuetotal', requiredAmount: 20_000_000, simpleTotal: 15_000_000 }), 10_000_000);
+  // No threshold → never clamped.
+  assert.equal(clampCreditAmount({ requestedAmount: 42, tileType: 'kill', requiredAmount: null, simpleTotal: 999 }), 42);
+});
+
+// ── #12: the auto-guest find-or-create retry is BOUNDED (no unbounded recursion) ──
+test('#12: guestConflictExhausted bounds the guest find-or-create retry', () => {
+  assert.equal(guestConflictExhausted(0), false); // first attempt may retry once
+  assert.equal(guestConflictExhausted(1), true); // after one retry → exhausted (loop terminates)
+  assert.equal(guestConflictExhausted(2), true);
 });

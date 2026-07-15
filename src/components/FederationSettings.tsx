@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Select from '@/components/Select';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 
@@ -25,42 +25,51 @@ export default function FederationSettings() {
   const [exchangePolicy, setExchangePolicy] = useState('auto-guest');
   const [associationPush, setAssociationPush] = useState(false);
   const [brokerTrust, setBrokerTrust] = useState('');
-  const [loading, setLoading] = useState(true);
+  // finding #4: three-state load status. Editable fields default to `enabled=false` etc., so a TRANSIENT
+  // load failure must NOT let a Save go through — it would PUT `federation_enabled=false` clan-wide and
+  // force-write `accept_writes:'on'` from values that were never actually loaded. We render an error
+  // state (not the form) on failure and disable Save until a successful load populates every field.
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await loadSettings();
-        setEnabled(s[KEY_ENABLED] === 'on');
-        // Default ON: only an explicit 'off' opts out (mirrors getAcceptFederatedWrites).
-        setAcceptWrites(s[KEY_ACCEPT_WRITES] !== 'off');
-        setSharedCredit(s[KEY_SHARED_CREDIT] === 'exclusive' ? 'exclusive' : 'accept');
-        setExchangePolicy(
-          s[KEY_EXCHANGE_POLICY] === 'request-to-join' || s[KEY_EXCHANGE_POLICY] === 'reject'
-            ? s[KEY_EXCHANGE_POLICY]
-            : 'auto-guest',
-        );
-        setAssociationPush(s[KEY_ASSOCIATION_PUSH] === 'on');
-        // Pretty-print stored JSON if present, else leave blank.
-        const raw = s[KEY_BROKER_TRUST];
-        if (raw) {
-          try {
-            setBrokerTrust(JSON.stringify(JSON.parse(raw), null, 2));
-          } catch {
-            setBrokerTrust(raw);
-          }
+  const load = useCallback(async () => {
+    setStatus('loading');
+    try {
+      const s = await loadSettings();
+      setEnabled(s[KEY_ENABLED] === 'on');
+      // Default ON: only an explicit 'off' opts out (mirrors getAcceptFederatedWrites).
+      setAcceptWrites(s[KEY_ACCEPT_WRITES] !== 'off');
+      setSharedCredit(s[KEY_SHARED_CREDIT] === 'exclusive' ? 'exclusive' : 'accept');
+      setExchangePolicy(
+        s[KEY_EXCHANGE_POLICY] === 'request-to-join' || s[KEY_EXCHANGE_POLICY] === 'reject'
+          ? s[KEY_EXCHANGE_POLICY]
+          : 'auto-guest',
+      );
+      setAssociationPush(s[KEY_ASSOCIATION_PUSH] === 'on');
+      // Pretty-print stored JSON if present, else leave blank.
+      const raw = s[KEY_BROKER_TRUST];
+      if (raw) {
+        try {
+          setBrokerTrust(JSON.stringify(JSON.parse(raw), null, 2));
+        } catch {
+          setBrokerTrust(raw);
         }
-      } catch {
-        /* ignore — fields keep their defaults */
-      } finally {
-        setLoading(false);
       }
-    })();
+      setStatus('ready');
+    } catch {
+      // Never fall through to editable defaults — that's the silent-disable bug (finding #4).
+      setStatus('error');
+    }
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   async function handleSave() {
+    // Guard: never Save from a not-yet-loaded / failed fetch — the fields don't reflect real settings.
+    if (status !== 'ready') return;
     setSaving(true);
     setMessage(null);
 
@@ -113,7 +122,26 @@ export default function FederationSettings() {
     }
   }
 
-  if (loading) return <div className="text-text-muted text-sm">Loading settings…</div>;
+  if (status === 'loading') return <div className="text-text-muted text-sm">Loading settings…</div>;
+
+  // finding #4: on a load failure, show an error + Retry — NEVER the editable form (whose defaults would
+  // let a Save silently disable federation clan-wide).
+  if (status === 'error') {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-red-400">
+          Couldn&apos;t load federation settings. Editing is disabled until they load, so a save
+          can&apos;t overwrite them with defaults.
+        </p>
+        <button
+          onClick={load}
+          className="px-4 py-2 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-yellow-500 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -237,7 +265,7 @@ export default function FederationSettings() {
       <div>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || status !== 'ready'}
           className="px-4 py-2 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-yellow-500 transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}

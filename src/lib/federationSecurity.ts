@@ -24,6 +24,37 @@ export class FederationSecurityError extends Error {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Client-IP resolution — trust ONLY the proxy-appended value (never the leftmost XFF).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The real client IP for coarse per-IP throttling, trusting ONLY what our own proxy appended.
+ *
+ * Behind Caddy (every Anvil deploy) the client's connection IP is in `x-real-ip` (Caddy sets it) or the
+ * LAST `x-forwarded-for` entry — each proxy in the chain APPENDS the address it received the connection
+ * from, so the rightmost hop is the one our trusted edge saw. The **leftmost** XFF entry is whatever the
+ * client prepended and is fully SPOOFABLE: keying a rate limit on it lets one attacker forge unlimited
+ * distinct buckets and evade the throttle entirely. Never use the leftmost. Returns 'unknown' when no
+ * proxy header is present (a direct/local call), which simply shares one bucket.
+ *
+ * Kept here (the `@/`-free, node-test-importable module) rather than in rate-limit.ts so it is unit
+ * testable; rate-limit.ts and the federation routes import it from here.
+ */
+export function getClientIp(request: { headers: { get(name: string): string | null } }): string {
+  const real = request.headers.get('x-real-ip');
+  if (real && real.trim()) return real.trim();
+  const fwd = request.headers.get('x-forwarded-for');
+  if (fwd) {
+    const parts = fwd
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1]!; // proxy-APPENDED (rightmost) — trusted
+  }
+  return 'unknown';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // §1 SSRF — address classification (mirrors Anvil.Admin's guardedGet).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -210,8 +241,11 @@ export async function guardedFetch(
         res.on('end', () =>
           done(() => {
             // An empty 2xx (e.g. 204 from a fire-and-forget assoc push) is fine. A NON-empty body must
-            // be application/json — never let HTML/other content-confusion through.
-            if (total > 0 && !contentType.includes('application/json')) {
+            // be JSON — never let HTML/other content-confusion through. finding #11: accept the
+            // spec-compliant JWKS media type `application/jwk-set+json` (and any structured `+json`
+            // suffix) in addition to `application/json`, so a compliant broker JWKS isn't rejected.
+            const isJsonCt = contentType.includes('application/json') || contentType.includes('+json');
+            if (total > 0 && !isJsonCt) {
               return reject(new FederationSecurityError('federation: non-JSON response'));
             }
             // finding #12: forward the upstream ETag on a 200 too (not only 304) so cachedGet can store

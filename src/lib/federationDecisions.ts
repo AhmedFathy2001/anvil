@@ -72,6 +72,80 @@ export function tileAtCapacity(deps: {
   return (deps.simpleTotal ?? 0) >= required;
 }
 
+/**
+ * #9 over-submission REMAINDER clamp — mirror the native submissions route (…/submissions/route.ts):
+ * `tileAtCapacity` only refuses a tile ALREADY at/over its threshold, but an under-threshold tile must
+ * still not be credited PAST it (amount 5 on a 0/3 tile must write 3, not 5). Returns the amount to
+ * actually credit, clamped to the remaining need. Runs for BOTH the home credit and a relayed leaf
+ * ingest — each clan clamps against its OWN tile.
+ *
+ * Modes that DON'T clamp (mirroring native): `value` (each submission is an independent haul that may
+ * overshoot) and `valuetotal` (the final haul may overshoot the aggregate target). Per-item and simple
+ * cumulative-count tiles clamp to the item's / tile's remaining. No threshold → never clamped.
+ */
+export function clampCreditAmount(deps: {
+  requestedAmount: number;
+  tileType: string;
+  requiredAmount: number | null;
+  simpleTotal?: number; // SUM(amount) over tile+team (simple count tiles)
+  itemRequired?: number | null; // per-item requiredAmount when the tile is per-item tracked
+  itemTotal?: number; // SUM(amount) over tile+team+itemId
+}): number {
+  const requested = deps.requestedAmount;
+  // Per-item tracked tile: clamp to the specific item's own remaining need.
+  if (deps.itemRequired != null) {
+    const remaining = deps.itemRequired - (deps.itemTotal ?? 0);
+    return remaining > 0 ? Math.min(requested, remaining) : 0;
+  }
+  const required = deps.requiredAmount ?? 0;
+  if (required <= 0) return requested; // no threshold → never clamped
+  // value + valuetotal: independent / overshoot-allowed hauls — never remainder-clamped (native parity).
+  if (deps.tileType === 'value' || deps.tileType === 'valuetotal') return requested;
+  // simple + all cumulative count tiles: clamp to the tile's remaining need.
+  const remaining = required - (deps.simpleTotal ?? 0);
+  return remaining > 0 ? Math.min(requested, remaining) : 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #3 home-credit gate — a home-side "can't credit here" condition on the ORIGIN must SKIP the home
+// credit but STILL relay to the member's other clans (a force-ended / non-enrolled HOME must not
+// silently drop the credit at still-live clans). On a LEAF there is nothing to relay → it aborts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type HomeGate = 'credit' | 'skip-relay' | 'abort';
+
+/**
+ * Decide what a home-side gating condition does. `blockedReason == null` → the home credit proceeds.
+ * Otherwise: the ORIGIN skips its own credit but keeps fanning out (`skip-relay`); a LEAF (inbound
+ * relayed write) has nothing to relay, so the same condition aborts (`abort`). Only genuine
+ * auth/malformed-request failures abort unconditionally — those never reach this gate.
+ */
+export function homeCreditGate(deps: { isOrigin: boolean; blockedReason: string | null }): HomeGate {
+  if (!deps.blockedReason) return 'credit';
+  return deps.isOrigin ? 'skip-relay' : 'abort';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #1 proof enforcement — runs on the LEAF too (not just the origin). A proof-required tile must carry
+// a proof reference; a relayed leaf write MUST carry the origin's proof (federatedProofUrl).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * True when a submission satisfies its tile's proof requirement. Count-only tiles never require proof.
+ * Otherwise the ORIGIN needs its own uploaded (managed) image; a FEDERATED leaf write needs the origin's
+ * proof reference (`federatedProofUrl`, stored audit-only). finding #1: enforce on the LEAF path too —
+ * a proof-required tile with NEITHER an image NOR a federated proof ref must be REJECTED, not credited.
+ */
+export function federatedProofSatisfied(deps: {
+  isCountOnly: boolean;
+  isOrigin: boolean;
+  hasOwnImage: boolean; // origin: an uploaded managed-media proof is present
+  hasFederatedProof: boolean; // leaf: the origin's audit-only proof reference is present
+}): boolean {
+  if (deps.isCountOnly) return true; // count-only tiles never require a screenshot
+  return deps.isOrigin ? deps.hasOwnImage : deps.hasFederatedProof;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // #11 auto-guest conflict resolution — never mint a token for a departed (leftAt) guest.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +164,17 @@ export function planGuestConflict(row: { leftAt: string | null } | null | undefi
   return row.leftAt == null ? 'reuse' : 'reactivate';
 }
 
+// #12 the `missing` conflict plan (the conflicting row vanished between the failed insert and the
+// re-read — astronomically unlikely) retries the find-or-create, but that retry must be BOUNDED: the
+// prior implementation recursed with no depth counter, so a pathological churn could recurse forever /
+// blow the stack. One retry is enough; after that the caller surfaces an error.
+export const MAX_GUEST_CONFLICT_RETRIES = 1;
+
+/** True once the guest find-or-create has used up its bounded retry budget (finding #12). */
+export function guestConflictExhausted(attempt: number): boolean {
+  return attempt >= MAX_GUEST_CONFLICT_RETRIES;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // #14 rate-limit keying — the EXCHANGE caller is the relaying home site (one IP for the whole clan),
 // so IP-based limits collapse every member into one bucket. Key on the MEMBER identity (`sub` /
@@ -98,6 +183,35 @@ export function planGuestConflict(row: { leftAt: string | null } | null | undefi
 
 export function exchangeRateLimitKey(sub: string): string {
   return `sub:${sub}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #5 replay-before-budget ordering — a replayed assertion must be rejected WITHOUT consuming the
+// victim member's per-member exchange budget. Replaying one captured assertion 30× would otherwise
+// drain `sub`'s bucket before the single-use check ever runs. This orchestrator makes the ordering
+// explicit + unit-testable: the single-use (jti) check runs first, and the budget is consumed ONLY on
+// a fresh (non-replay) assertion.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ReplayBudgetGate<B> =
+  | { outcome: 'replay' }
+  | { outcome: 'rate-limited'; budget: B }
+  | { outcome: 'ok'; budget: B };
+
+/**
+ * finding #5: run the single-use `recordJti` check BEFORE consuming the per-member budget. On a replay
+ * (`recordJti` → false) return `replay` and NEVER call `consumeBudget` — the victim's bucket is
+ * untouched. Only a fresh assertion consumes the budget (exactly once).
+ */
+export async function gateReplayThenBudget<B>(deps: {
+  recordJti: () => Promise<boolean>; // true = fresh (first use); false = replay
+  consumeBudget: () => Promise<B>; // called ONLY when fresh
+  budgetOk: (budget: B) => boolean;
+}): Promise<ReplayBudgetGate<B>> {
+  const fresh = await deps.recordJti();
+  if (!fresh) return { outcome: 'replay' };
+  const budget = await deps.consumeBudget();
+  return deps.budgetOk(budget) ? { outcome: 'ok', budget } : { outcome: 'rate-limited', budget };
 }
 
 export function guestRateLimitKey(sub: string): string {

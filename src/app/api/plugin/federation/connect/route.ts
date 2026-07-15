@@ -40,6 +40,13 @@ export async function POST(request: Request) {
         { status: 'login', verificationUrl: result.verificationUrl },
         { headers: rateLimitHeaders(rl) },
       );
+    case 'retry':
+      // findings #7/#15: a transient broker/exchange failure — NOT a false success, NOT a re-login.
+      // 503 tells the plugin to retry shortly; the sidebar still serves any cached clans via /state.
+      return NextResponse.json(
+        { status: 'retry', error: 'Broker temporarily unreachable — retry shortly' },
+        { status: 503, headers: rateLimitHeaders(rl) },
+      );
     case 'disabled':
       return NextResponse.json({ error: 'Federation is not enabled on this clan' }, { status: 409, headers: rateLimitHeaders(rl) });
     case 'unconfigured':

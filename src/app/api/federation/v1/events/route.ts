@@ -11,7 +11,13 @@ import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/no
 import { isManagedMediaUrl } from '@/lib/storage';
 import { getConnectionsForUser } from '@/lib/federationConnections';
 import { fanOutCredit, computeServerFanout, type FanoutTarget } from '@/lib/federationRelay';
-import { decideCredit, tileAtCapacity } from '@/lib/federationDecisions';
+import {
+  decideCredit,
+  tileAtCapacity,
+  clampCreditAmount,
+  homeCreditGate,
+  federatedProofSatisfied,
+} from '@/lib/federationDecisions';
 import { federationFetch } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
@@ -129,9 +135,12 @@ export async function POST(request: Request) {
       windowMs: 60_000,
     });
     if (!inbound.ok) {
+      // finding #10: return the TRIPPED limiter's headers (`inbound`), not the coarse events limiter's
+      // (`rl`, which still shows Remaining>0) — else a compliant caller reads a positive budget and
+      // retries in a tight loop instead of backing off.
       return NextResponse.json(
         { credited: false, reason: 'rate-limited' },
-        { status: 429, headers: rateLimitHeaders(rl) },
+        { status: 429, headers: rateLimitHeaders(inbound) },
       );
     }
   }
@@ -169,84 +178,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Resolve the crediting team from the TOKEN's identity (never client-declared). ───────────────
-  // A federation token owns clan_members via userId (own-issued or member-exchange) and/or a pinned
-  // memberId. An inert guest never reaches here (no events:write scope), so this only resolves real
-  // members. We then require an ACTIVE enrollment on the target event — you can't credit a team
-  // you're not on.
-  const memberIdSet = new Set<number>();
-  if (ctx.userId != null) {
-    const owned = await db
-      .select({ id: clanMembers.id })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.userId, ctx.userId), isNull(clanMembers.leftAt)));
-    for (const m of owned) memberIdSet.add(m.id);
-  }
-  if (ctx.memberId != null) memberIdSet.add(ctx.memberId);
-  const memberIds = [...memberIdSet];
-  if (memberIds.length === 0) {
-    return NextResponse.json({ error: 'Token has no linked clan member' }, { status: 403 });
-  }
-
   const nowIso = new Date().toISOString();
-  const playerRows = await db
-    .select({
-      playerId: players.id,
-      playerName: players.name,
-      teamId: players.teamId,
-      eventName: events.name,
-      endDate: events.endDate,
-      forceEndedAt: events.forceEndedAt,
-      startDate: events.startDate,
-    })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, memberIds)));
 
-  const enrollment = playerRows.find((p) => p.teamId != null);
-  if (!enrollment) {
-    return NextResponse.json({ error: 'Token is not enrolled on a team in this event' }, { status: 403 });
-  }
-  const teamId = enrollment.teamId!;
-
-  // Live-event gate: no crediting an event that hasn't started or has ended/force-ended.
-  if (enrollment.forceEndedAt || (enrollment.endDate && enrollment.endDate <= nowIso)) {
-    return NextResponse.json({ error: 'Event is not active' }, { status: 400 });
-  }
-  if (enrollment.startDate && nowIso < enrollment.startDate) {
-    return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
-  }
-
-  // ── Tile: trust the plugin's tileId (no server-side matching) but verify it's in this event and is
-  // a submission-backed kind. ─────────────────────────────────────────────────────────────────────
-  const tile = await db.query.tiles.findFirst({
-    where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)),
-  });
-  if (!tile) {
-    return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
-  }
-  if (!SUBMISSION_TILE_TYPES.has(tile.tileType)) {
-    return NextResponse.json({ error: 'Tile does not accept submissions' }, { status: 400 });
-  }
-
-  const team = await db.query.teams.findFirst({
-    where: and(eq(teams.id, teamId), eq(teams.eventId, eventId)),
-  });
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
-  }
-
-  // ── Amount validation (mirrors the web submissions route). ──────────────────────────────────────
+  // ── GENERIC payload validation. A malformed value ABORTS on EVERY path (origin AND leaf) — the
+  // fan-out payload is built from these too. Tile-SPECIFIC rules (value amount cap, proof-required,
+  // timed duration, per-item itemId) are re-checked against the resolved tile in the home-credit block
+  // below, where the ORIGIN can soft-skip (finding #3) but a LEAF must still enforce (finding #1). ───
   const amount = body.amount == null ? 1 : Number(body.amount);
   if (!Number.isInteger(amount) || amount < 1 || amount > 2_147_483_647) {
     return NextResponse.json({ error: 'amount must be a positive integer' }, { status: 400 });
   }
-  const isValueTile = tile.tileType === 'value' || tile.tileType === 'valuetotal';
-  if (!isValueTile && amount > 10000) {
-    return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
-  }
 
-  // ── note ────────────────────────────────────────────────────────────────────────────────────────
   let note: string | null = null;
   if (body.note != null) {
     if (typeof body.note !== 'string' || body.note.trim().length > 500) {
@@ -255,16 +197,12 @@ export async function POST(request: Request) {
     note = body.note.trim() || null;
   }
 
-  // ── Image/proof. Count-only tiles may arrive imageless; drops & timed clears carry proof.
-  //   • ORIGIN (our own plugin): the proof was uploaded to OUR managed store first — require own media,
-  //     exactly like the web submissions route.
-  //   • FEDERATED relayed (leaf) — decision #3, trusted-home-bounded posture: the imageUrl is the
-  //     ORIGIN clan's cross-host media, which fails isManagedMediaUrl and must NOT be auto-fetched
-  //     (FEDERATION_SECURITY.md §9 — no auto-loaded federated media). We do NOT validate it as our own
-  //     media; we store it as an AUDIT-ONLY, reversible reference (federatedProofUrl) and let the credit
-  //     proceed off the trusted home + content. HTTPS sanity only; we never require it (the home already
-  //     enforced its own proof requirement). ─────────────────────────────────────────────────────────
-  const isCountOnly = COUNT_ONLY_TILE_TYPES.has(tile.tileType);
+  // Image/proof RESOLUTION (tile-independent). The tile-specific "proof required" ENFORCEMENT runs in
+  // the home block (finding #1 — on the LEAF too).
+  //   • ORIGIN (our own plugin): the proof was uploaded to OUR managed store first — require own media.
+  //   • FEDERATED relayed (leaf): the imageUrl is the ORIGIN clan's cross-host media, which fails
+  //     isManagedMediaUrl and must NOT be auto-fetched (FEDERATION_SECURITY.md §9). We store it as an
+  //     AUDIT-ONLY, reversible reference (federatedProofUrl); HTTPS sanity only. ──────────────────────
   let imageUrl: string | null = null;
   let federatedProofUrl: string | null = null;
   const rawImage = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
@@ -289,143 +227,290 @@ export async function POST(request: Request) {
       }
       federatedProofUrl = rawImage; // audit-only reference; never rendered or fetched by us
     }
-  } else if (!isCountOnly && isOrigin) {
-    return NextResponse.json({ error: 'Image is required for this tile' }, { status: 400 });
   }
 
-  // ── Timed clears carry a duration instead of a count. ───────────────────────────────────────────
+  // Raw per-item id + timed duration — malformed values abort (both paths); the tile-specific "required"
+  // checks live in the home block. Passed through to the fan-out payload so each target re-validates
+  // against its OWN tile.
+  let itemId: number | null = null;
+  if (body.itemId != null) {
+    const n = Number(body.itemId);
+    if (!Number.isInteger(n)) {
+      return NextResponse.json({ error: 'itemId must be an integer' }, { status: 400 });
+    }
+    itemId = n;
+  }
   let durationSeconds: number | null = null;
-  if (tile.tileType === 'timed') {
+  if (body.durationSeconds != null) {
     const d = Number(body.durationSeconds);
     if (!Number.isInteger(d) || d < 1 || d > 86400) {
       return NextResponse.json(
-        { error: 'durationSeconds is required for timed tiles (1..86400)' },
+        { error: 'durationSeconds must be an integer between 1 and 86400' },
         { status: 400 },
       );
     }
     durationSeconds = d;
   }
 
-  // ── Per-item tracking: require + validate itemId when the tile is per-item. ─────────────────────
-  let itemId: number | null = null;
-  const tileItemRequirements = tile.itemRequirements
-    ? (JSON.parse(tile.itemRequirements) as { itemId: number; requiredAmount?: number }[])
-    : null;
-  if (tileItemRequirements) {
-    itemId = Number(body.itemId);
-    if (!Number.isInteger(itemId) || !tileItemRequirements.some((r) => r.itemId === itemId)) {
-      return NextResponse.json({ error: 'itemId is required and must be tracked by this tile' }, { status: 400 });
-    }
-  }
-
-  // ── #1 over-submission cap — mirror the native submissions route: never credit a tile ALREADY at/over
-  // its required threshold, for BOTH our own (home) credit AND a relayed cross-clan ingest. Each clan
-  // checks its OWN tile, so an origin whose home tile is complete still relays to clans that aren't (we
-  // simply skip the home write below and keep the fan-out). Fetch the mode-appropriate aggregate, then
-  // let the pure tileAtCapacity() decide. ───────────────────────────────────────────────────────────
+  // ── Home-credit resolution + gating. Runs ONLY when the sharedCredit decision permits a home credit
+  // (skipped for an exclusive-deferred origin — finding #13: no wasted enrollment/tile/aggregate work).
+  // On the ORIGIN a home-side "can't credit here" condition (not-enrolled / event-not-active /
+  // tile-not-found / itemId-not-tracked) SKIPS the home credit but the fan-out below STILL runs
+  // (finding #3 — a force-ended or non-enrolled HOME must not silently drop credit at still-live clans).
+  // On a LEAF the same condition aborts (nothing to relay) and proof/amount/kind are re-validated here
+  // exactly as the native pipeline would (finding #1). Genuine malformed/auth failures already aborted. ─
+  let homeBlocked: string | null = null;
   let atCapacity = false;
-  const perItemReq =
-    tileItemRequirements && itemId != null
-      ? tileItemRequirements.find((r) => r.itemId === itemId)?.requiredAmount ?? null
-      : null;
-  if (perItemReq != null) {
-    const agg = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), eq(submissions.itemId, itemId!)));
-    atCapacity = tileAtCapacity({
-      tileType: tile.tileType,
-      requiredAmount: tile.requiredAmount,
-      itemRequired: perItemReq,
-      itemTotal: Number(agg[0]?.total ?? 0),
-    });
-  } else if (tile.tileType === 'value' && tile.requiredAmount) {
-    const agg = await db
-      .select({ best: sql<number>`COALESCE(MAX(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, bestHaul: Number(agg[0]?.best ?? 0) });
-  } else if (tile.requiredAmount) {
-    const agg = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, simpleTotal: Number(agg[0]?.total ?? 0) });
-  }
-
-  // Credit our OWN tile only when the decision allows it (not exclusive-deferred) AND it isn't already
-  // complete. Either way, an ORIGIN still runs the fan-out relay below (each other clan checks itself).
-  const doHomeCredit = decision.creditHome && !atCapacity;
-
-  // ── Feed the EXISTING pipeline: store the submission, then recompute completion. A RELAYED (leaf)
-  // write is TAGGED with its source home instanceId (§3) so this clan can audit + reverse it later; a
-  // native origin submission carries null. ────────────────────────────────────────────────────────
+  let doHomeCredit = false;
   let submissionId: number | undefined;
   let completed = false;
-  if (doHomeCredit) {
-    const federatedSource = isOrigin
-      ? null
-      : instanceIds.find((id) => id !== ownInstanceId) ?? 'federation';
-    const [submission] = await db
-      .insert(submissions)
-      .values({
-        tileId,
-        teamId,
-        playerId: enrollment.playerId,
-        creditPlayerId: enrollment.playerId, // credit the federating player themselves
-        amount,
-        imageUrl,
-        note,
-        itemId,
-        durationSeconds,
-        federatedSource,
-        federatedProofUrl, // audit-only origin proof reference for a relayed leaf; null otherwise
+
+  if (decision.creditHome) {
+    // credited:false response a LEAF returns when it can't credit (nothing to relay).
+    const leafRefusal = (reason: string) =>
+      NextResponse.json({ credited: false, reason, instanceId: ownInstanceId }, { headers: rateLimitHeaders(rl) });
+    // A soft home condition: ORIGIN records it + keeps fanning out; LEAF aborts (finding #3).
+    const gate = (reason: string): NextResponse | null => {
+      if (homeCreditGate({ isOrigin, blockedReason: reason }) === 'abort') return leafRefusal(reason);
+      homeBlocked = reason;
+      return null;
+    };
+
+    // Resolve the crediting team from the TOKEN's identity (never client-declared). A federation token
+    // owns clan_members via userId and/or a pinned memberId; an inert guest never reaches here (no
+    // events:write scope). No linked member is an AUTH failure → abort both paths.
+    const memberIdSet = new Set<number>();
+    if (ctx.userId != null) {
+      const owned = await db
+        .select({ id: clanMembers.id })
+        .from(clanMembers)
+        .where(and(eq(clanMembers.userId, ctx.userId), isNull(clanMembers.leftAt)));
+      for (const m of owned) memberIdSet.add(m.id);
+    }
+    if (ctx.memberId != null) memberIdSet.add(ctx.memberId);
+    const memberIds = [...memberIdSet];
+    if (memberIds.length === 0) {
+      return NextResponse.json({ error: 'Token has no linked clan member' }, { status: 403 });
+    }
+
+    const playerRows = await db
+      .select({
+        playerId: players.id,
+        playerName: players.name,
+        teamId: players.teamId,
+        eventName: events.name,
+        endDate: events.endDate,
+        forceEndedAt: events.forceEndedAt,
+        startDate: events.startDate,
       })
-      .returning();
-    submissionId = submission.id;
+      .from(players)
+      .innerJoin(events, eq(players.eventId, events.id))
+      .where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, memberIds)));
 
-    const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
-    completed = syncResult?.isComplete ?? false;
+    const enrollment = playerRows.find((p) => p.teamId != null);
+    if (!enrollment) {
+      const r = gate('not-enrolled');
+      if (r) return r;
+    }
 
-    const totalResult = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    const currentTotal = totalResult[0]?.total ?? 0;
+    // Live-event gate: no crediting an event that hasn't started or has ended/force-ended.
+    if (!homeBlocked && enrollment) {
+      if (enrollment.forceEndedAt || (enrollment.endDate && enrollment.endDate <= nowIso)) {
+        const r = gate('event-ended');
+        if (r) return r;
+      } else if (enrollment.startDate && nowIso < enrollment.startDate) {
+        const r = gate('event-not-started');
+        if (r) return r;
+      }
+    }
 
-    // Notifications: identical shape to the web submissions route (timed posts immediately; everything
-    // else debounces). Fire-and-forget so the response isn't held on Discord. We pass only `imageUrl`
-    // (null for a relayed leaf) — never the federatedProofUrl — so a cross-host proof is not auto-loaded.
-    if (tile.tileType === 'timed') {
-      notifySubmission({
-        eventName: enrollment.eventName,
-        tileLabel: tile.label,
-        teamName: team.name,
-        teamColor: team.color,
-        creditPlayerName: enrollment.playerName,
-        amount,
-        currentTotal,
-        requiredAmount: tile.requiredAmount,
-        note,
-        imageUrl,
-        tileType: tile.tileType,
-        durationSeconds,
-        completed,
-      }).catch(() => {});
-    } else {
-      await queueSubmissionNotification({
-        eventId,
-        tileId,
-        teamId,
-        amount,
-        currentTotal,
-        requiredAmount: tile.requiredAmount,
-        imageUrl,
-        note,
-        creditPlayerName: enrollment.playerName,
-        completed,
+    // Tile: trust the plugin's tileId (no server-side matching) but verify it's in this event + a
+    // submission-backed kind.
+    let tile: Awaited<ReturnType<typeof db.query.tiles.findFirst>>;
+    if (!homeBlocked) {
+      tile = await db.query.tiles.findFirst({
+        where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)),
       });
-      flushPendingNotifications().catch(() => {});
+      if (!tile) {
+        const r = gate('tile-not-found');
+        if (r) return r;
+      } else if (!SUBMISSION_TILE_TYPES.has(tile.tileType)) {
+        const r = gate('tile-unsupported');
+        if (r) return r;
+      }
+    }
+
+    let team: Awaited<ReturnType<typeof db.query.teams.findFirst>>;
+    if (!homeBlocked && enrollment) {
+      team = await db.query.teams.findFirst({
+        where: and(eq(teams.id, enrollment.teamId!), eq(teams.eventId, eventId)),
+      });
+      if (!team) {
+        const r = gate('team-not-found');
+        if (r) return r;
+      }
+    }
+
+    // All tile-dependent validation + capacity + the credit itself. TS narrows the three to defined.
+    if (!homeBlocked && enrollment && tile && team) {
+      const teamId = enrollment.teamId!;
+
+      // Value amount cap (tile-specific). A malformed count amount is a malformed request → abort both.
+      const isValueTile = tile.tileType === 'value' || tile.tileType === 'valuetotal';
+      if (!isValueTile && amount > 10000) {
+        return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
+      }
+
+      // finding #1: proof enforcement on the LEAF too. A proof-required tile with NEITHER an own image
+      // (origin) NOR the origin's federated proof ref (leaf) is rejected — never credited proofless.
+      const isCountOnly = COUNT_ONLY_TILE_TYPES.has(tile.tileType);
+      if (
+        !federatedProofSatisfied({
+          isCountOnly,
+          isOrigin,
+          hasOwnImage: imageUrl != null,
+          hasFederatedProof: federatedProofUrl != null,
+        })
+      ) {
+        if (isOrigin) {
+          // Our own plugin submitted a proof-required tile with no uploaded proof → malformed submission
+          // (a proofless credit is worth relaying nowhere — a leaf would reject it anyway).
+          return NextResponse.json({ error: 'Image is required for this tile' }, { status: 400 });
+        }
+        return leafRefusal('proof-required');
+      }
+
+      // Timed clears carry a duration instead of a count.
+      if (tile.tileType === 'timed' && durationSeconds == null) {
+        if (isOrigin) {
+          return NextResponse.json(
+            { error: 'durationSeconds is required for timed tiles (1..86400)' },
+            { status: 400 },
+          );
+        }
+        return leafRefusal('duration-required');
+      }
+      const homeDuration = tile.tileType === 'timed' ? durationSeconds : null;
+
+      // Per-item tracking: itemId must be present + tracked by THIS tile. finding #3: on the ORIGIN a
+      // not-tracked item soft-skips (the member matched a DIFFERENT clan's tile) but still fans out.
+      const tileItemRequirements = tile.itemRequirements
+        ? (JSON.parse(tile.itemRequirements) as { itemId: number; requiredAmount?: number }[])
+        : null;
+      let homeItemId: number | null = null;
+      if (tileItemRequirements) {
+        if (itemId == null || !tileItemRequirements.some((r) => r.itemId === itemId)) {
+          const r = gate('itemId-not-tracked');
+          if (r) return r;
+        } else {
+          homeItemId = itemId;
+        }
+      }
+
+      if (!homeBlocked) {
+        // #9 over-submission: never credit past the threshold (tileAtCapacity) AND never OVERSHOOT it —
+        // clamp the credited amount to the remaining need (clampCreditAmount), mirroring the native
+        // submissions remainder cap. value/valuetotal hauls are independent/overshoot-allowed → no clamp.
+        let creditAmount = amount;
+        const perItemReq =
+          tileItemRequirements && homeItemId != null
+            ? tileItemRequirements.find((r) => r.itemId === homeItemId)?.requiredAmount ?? null
+            : null;
+        if (perItemReq != null) {
+          const agg = await db
+            .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+            .from(submissions)
+            .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), eq(submissions.itemId, homeItemId!)));
+          const itemTotal = Number(agg[0]?.total ?? 0);
+          atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, itemRequired: perItemReq, itemTotal });
+          creditAmount = clampCreditAmount({ requestedAmount: amount, tileType: tile.tileType, requiredAmount: tile.requiredAmount, itemRequired: perItemReq, itemTotal });
+        } else if (tile.tileType === 'value' && tile.requiredAmount) {
+          const agg = await db
+            .select({ best: sql<number>`COALESCE(MAX(${submissions.amount}), 0)` })
+            .from(submissions)
+            .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+          atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, bestHaul: Number(agg[0]?.best ?? 0) });
+        } else if (tile.requiredAmount) {
+          const agg = await db
+            .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+            .from(submissions)
+            .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+          const simpleTotal = Number(agg[0]?.total ?? 0);
+          atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, simpleTotal });
+          creditAmount = clampCreditAmount({ requestedAmount: amount, tileType: tile.tileType, requiredAmount: tile.requiredAmount, simpleTotal });
+        }
+
+        // Credit our OWN tile unless it's already complete. An ORIGIN still fans out below either way.
+        doHomeCredit = !atCapacity;
+        if (doHomeCredit) {
+          // A RELAYED (leaf) write is TAGGED with its source home instanceId (§3) so this clan can audit
+          // + reverse it later; a native origin submission carries null.
+          const federatedSource = isOrigin
+            ? null
+            : instanceIds.find((id) => id !== ownInstanceId) ?? 'federation';
+          const [submission] = await db
+            .insert(submissions)
+            .values({
+              tileId,
+              teamId,
+              playerId: enrollment.playerId,
+              creditPlayerId: enrollment.playerId, // credit the federating player themselves
+              amount: creditAmount, // #9 clamped to the remaining need
+              imageUrl,
+              note,
+              itemId: homeItemId,
+              durationSeconds: homeDuration,
+              federatedSource,
+              federatedProofUrl, // audit-only origin proof reference for a relayed leaf; null otherwise
+            })
+            .returning();
+          submissionId = submission.id;
+
+          const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
+          completed = syncResult?.isComplete ?? false;
+
+          const totalResult = await db
+            .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+            .from(submissions)
+            .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+          const currentTotal = totalResult[0]?.total ?? 0;
+
+          // Notifications: identical shape to the web submissions route (timed posts immediately;
+          // everything else debounces). Fire-and-forget. We pass only `imageUrl` (null for a relayed
+          // leaf) — never the federatedProofUrl — so a cross-host proof is not auto-loaded.
+          if (tile.tileType === 'timed') {
+            notifySubmission({
+              eventName: enrollment.eventName,
+              tileLabel: tile.label,
+              teamName: team.name,
+              teamColor: team.color,
+              creditPlayerName: enrollment.playerName,
+              amount: creditAmount,
+              currentTotal,
+              requiredAmount: tile.requiredAmount,
+              note,
+              imageUrl,
+              tileType: tile.tileType,
+              durationSeconds: homeDuration,
+              completed,
+            }).catch(() => {});
+          } else {
+            await queueSubmissionNotification({
+              eventId,
+              tileId,
+              teamId,
+              amount: creditAmount,
+              currentTotal,
+              requiredAmount: tile.requiredAmount,
+              imageUrl,
+              note,
+              creditPlayerName: enrollment.playerName,
+              completed,
+            });
+            flushPendingNotifications().catch(() => {});
+          }
+        }
+      }
     }
   }
 
@@ -467,10 +552,12 @@ export async function POST(request: Request) {
     }
   }
 
-  // We did NOT credit our own tile (exclusive-deferred, or the tile was already complete) — but if we
-  // are the origin we STILL fanned out above, so report that. Clean { credited:false }, never an error.
+  // We did NOT credit our own tile (exclusive-deferred, a home-side block, or the tile was already
+  // complete) — but if we are the origin we STILL fanned out above, so report that. Clean
+  // { credited:false }, never an error. finding #13: an exclusive refusal is labelled `exclusive`, not
+  // `tile-complete` (decision.refusal wins); a home block (finding #3) surfaces its own reason.
   if (!doHomeCredit) {
-    const reason = atCapacity ? 'tile-complete' : decision.refusal ?? 'not-credited';
+    const reason = decision.refusal ?? homeBlocked ?? (atCapacity ? 'tile-complete' : 'not-credited');
     return NextResponse.json(
       { credited: false, reason, instanceId: ownInstanceId, ...(relayed ? { relayed } : {}) },
       { headers: rateLimitHeaders(rl) },

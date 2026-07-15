@@ -32,6 +32,31 @@ import {
 } from '@/lib/federationRelay';
 import { federationFetch, safeVerificationUrl } from '@/lib/federationSecurity';
 
+// Run the /me/instances → /assert → /exchange relay with a broker session token and persist the
+// resulting connections. On a broker/exchange blip it returns 'pending' WITHOUT clearing the saved
+// brokerToken (finding #15) — the device code is already spent, so recovery is a direct retry of THIS
+// step (no re-poll, no re-login), which the next advanceSelfHost performs.
+async function finishBrokerToken(
+  userId: number,
+  brokerBaseUrl: string,
+  brokerToken: string,
+  ownInstanceId: string,
+): Promise<'connected' | 'pending'> {
+  let connections;
+  try {
+    connections = await connectViaBrokerToken({ brokerBaseUrl, brokerToken, ownInstanceId, fetchImpl: federationFetch });
+  } catch (err) {
+    // A broker/assert blip must NOT strand the flow: the brokerToken stays persisted so the next
+    // advance retries the exchange directly. Never a 500, never a re-login (finding #15).
+    log.warn('federation.connect.self-host.exchange-fail', { userId }, err);
+    return 'pending';
+  }
+  await replaceConnectionsForUser(userId, connections);
+  await clearDeviceSession(userId);
+  log.info('federation.connect.self-host.complete', { userId, clans: connections.length });
+  return 'connected';
+}
+
 // Poll an EXISTING self-host device session and finish the connect if the member completed the
 // browser Discord login on the broker's domain. Never STARTS a session (that's the explicit /connect
 // action) — so /state can safely call it to auto-advance a pending login. Returns the resulting state.
@@ -43,27 +68,20 @@ async function advanceSelfHost(
   const session = await getDeviceSession(userId);
   if (!session) return 'none';
 
+  // finding #15: the login already completed on a prior poll (the single-use device code is spent) and
+  // we captured the brokerToken, but the exchange relay then failed. Retry the exchange DIRECTLY — never
+  // re-poll the consumed device code (that would strand the flow in perpetual 'pending').
+  if (session.brokerToken) {
+    return finishBrokerToken(userId, brokerBaseUrl, session.brokerToken, ownInstanceId);
+  }
+
   // brokerDevicePoll self-degrades a thrown fetch error to { status:'pending' } (finding #5).
   const poll = await brokerDevicePoll(brokerBaseUrl, session.deviceCode, federationFetch);
   if (poll.status === 'complete') {
-    let connections;
-    try {
-      connections = await connectViaBrokerToken({
-        brokerBaseUrl,
-        brokerToken: poll.brokerToken,
-        ownInstanceId,
-        fetchImpl: federationFetch,
-      });
-    } catch (err) {
-      // finding #5: an exchange/assert blip (timeout / SSRF-reject / a clan down) must NOT 500 the
-      // connect — keep the device session and let the member poll again ("keep polling").
-      log.warn('federation.connect.self-host.exchange-fail', { userId }, err);
-      return 'pending';
-    }
-    await replaceConnectionsForUser(userId, connections);
-    await clearDeviceSession(userId);
-    log.info('federation.connect.self-host.complete', { userId, clans: connections.length });
-    return 'connected';
+    // Persist the brokerToken BEFORE attempting the exchange, so a subsequent exchange failure is
+    // recoverable without re-polling the (now-spent) device code (finding #15).
+    await saveDeviceSession(userId, { ...session, brokerToken: poll.brokerToken });
+    return finishBrokerToken(userId, brokerBaseUrl, poll.brokerToken, ownInstanceId);
   }
   if (poll.status === 'denied' || poll.status === 'expired') {
     await clearDeviceSession(userId);
@@ -73,7 +91,9 @@ async function advanceSelfHost(
 }
 
 export interface ConnectResult {
-  status: 'connected' | 'login' | 'disabled' | 'unconfigured';
+  // `retry` = a transient broker/exchange failure that is NOT a false success and NOT a re-login
+  // (findings #7 + #15). The plugin should retry /connect shortly.
+  status: 'connected' | 'login' | 'retry' | 'disabled' | 'unconfigured';
   verificationUrl?: string;
   count?: number;
 }
@@ -100,11 +120,11 @@ export async function connectMember(userId: number, discordId: string): Promise<
         fetchImpl: federationFetch,
       });
     } catch (err) {
-      // finding #5: a broker/vouch blip must not 500 the connect. Keep whatever connections the member
-      // already had cached (a re-connect re-mints them next time) and report those.
+      // finding #7: a broker/vouch blip must NOT report false success ('connected', count:0) — that
+      // masks the failure so the plugin never retries. Return a retryable status; the member's cached
+      // connections (if any) still serve the sidebar via /state independently.
       log.warn('federation.connect.hosted-fail', { userId }, err);
-      const conns = await getConnectionsForUser(userId);
-      return { status: 'connected', count: conns.length };
+      return { status: 'retry' };
     }
     await replaceConnectionsForUser(userId, connections);
     log.info('federation.connect.hosted', { userId, clans: connections.length });
@@ -118,7 +138,10 @@ export async function connectMember(userId: number, discordId: string): Promise<
     return { status: 'connected', count: conns.length };
   }
   if (advanced === 'pending') {
+    // Distinguish "still waiting for the browser Discord login" (needs the verificationUrl) from "login
+    // done, retrying the exchange" — the latter must NOT re-show the spent login URL (findings #15/#7).
     const session = await getDeviceSession(userId);
+    if (session?.brokerToken) return { status: 'retry' };
     return { status: 'login', verificationUrl: safeVerificationUrl(session?.verificationUrl, brokerBaseUrl) ?? undefined };
   }
   // none in flight → start a fresh device login. A broker blip here degrades to "keep polling" login
@@ -179,7 +202,9 @@ export async function buildState(userId: number): Promise<StateResult> {
   let verificationUrl: string | undefined;
   if (!connected && tier === 'self-host' && brokerBaseUrl) {
     const session = await getDeviceSession(userId);
-    if (session) {
+    // A session mid-exchange-retry (brokerToken captured) is NOT "needs login" — the member already
+    // completed the browser Discord login; we're just retrying the server-side exchange (finding #15).
+    if (session && !session.brokerToken) {
       needsLogin = true;
       verificationUrl = safeVerificationUrl(session.verificationUrl, brokerBaseUrl) ?? undefined;
     }

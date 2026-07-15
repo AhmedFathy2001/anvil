@@ -10,9 +10,16 @@ import { users, clanMembers, federationBans, clanAuditLog } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/federationSecurity';
 import { getBrokerTrust, getExchangePolicy } from '@/lib/pluginConfig';
 import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
-import { exchangeRateLimitKey, guestRateLimitKey, planGuestConflict } from '@/lib/federationDecisions';
+import {
+  exchangeRateLimitKey,
+  guestRateLimitKey,
+  planGuestConflict,
+  guestConflictExhausted,
+  gateReplayThenBudget,
+} from '@/lib/federationDecisions';
 import {
   getInstanceId,
   mintFederationToken,
@@ -55,66 +62,85 @@ async function ensureFederationGuest(
   const rsn = guestRsnFor(discordId);
   const rsnNormalized = normalizeRsn(rsn);
 
-  const existing = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.rsnNormalized, rsnNormalized), isNull(clanMembers.leftAt)),
-    columns: { id: true },
-  });
-  if (existing) return { id: existing.id, created: false };
+  // finding #12: BOUNDED retry loop (was an unbounded recursion). A `missing` conflict — the row
+  // vanished between our failed insert and the re-read — retries the find-or-create, but at most
+  // MAX_GUEST_CONFLICT_RETRIES times, so a pathological churn can never recurse forever / blow the stack.
+  for (let attempt = 0; ; attempt++) {
+    const existing = await db.query.clanMembers.findFirst({
+      where: and(eq(clanMembers.rsnNormalized, rsnNormalized), isNull(clanMembers.leftAt)),
+      columns: { id: true },
+    });
+    if (existing) return { id: existing.id, created: false };
 
-  // onConflictDoNothing guards the concurrent-first-exchange race on the unique rsn_normalized index;
-  // if another request won, re-read the winner's row so we return a stable id.
-  const inserted = await db
-    .insert(clanMembers)
-    .values({
-      rsn,
-      rsnNormalized,
-      discordId,
-      userId: ownerUserId,
-      isGuest: 1,
-      source: 'federation',
-      notes: 'Auto-created via federation /exchange (inert guest — not on any team).',
-      lastSeenInClan: new Date().toISOString(),
-    })
-    .onConflictDoNothing()
-    .returning({ id: clanMembers.id });
-
-  if (inserted[0]) return { id: inserted[0].id, created: true };
-
-  // The insert lost the unique-index race. The conflicting row is on `rsn_normalized`, which is unique
-  // REGARDLESS of `leftAt` — so it may be a SOFT-REMOVED (departed) guest. finding #11: don't return a
-  // `leftAt` row and mint a token for a departed member. Re-read WITHOUT the leftAt filter to find that
-  // row, then decide (planGuestConflict): reuse an active guest, or REACTIVATE a departed one (clear
-  // leftAt → it becomes an inert guest again). A `missing` result can only mean the row vanished between
-  // the failed insert and this read — extremely unlikely; recurse to re-attempt the create.
-  const conflict = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
-    columns: { id: true, leftAt: true },
-  });
-  const plan = planGuestConflict(conflict);
-  if (plan === 'reuse') return { id: conflict!.id, created: false };
-  if (plan === 'reactivate') {
-    await db
-      .update(clanMembers)
-      .set({
-        leftAt: null,
-        isGuest: 1,
+    // onConflictDoNothing guards the concurrent-first-exchange race on the unique rsn_normalized index;
+    // if another request won, re-read the winner's row so we return a stable id.
+    const inserted = await db
+      .insert(clanMembers)
+      .values({
+        rsn,
+        rsnNormalized,
+        discordId,
         userId: ownerUserId,
+        isGuest: 1,
         source: 'federation',
-        notes: 'Re-activated via federation /exchange (inert guest — not on any team).',
+        notes: 'Auto-created via federation /exchange (inert guest — not on any team).',
         lastSeenInClan: new Date().toISOString(),
       })
-      .where(eq(clanMembers.id, conflict!.id));
-    return { id: conflict!.id, created: false };
+      .onConflictDoNothing()
+      .returning({ id: clanMembers.id });
+
+    if (inserted[0]) return { id: inserted[0].id, created: true };
+
+    // The insert lost the unique-index race. The conflicting row is on `rsn_normalized`, which is unique
+    // REGARDLESS of `leftAt` — so it may be a SOFT-REMOVED (departed) guest. finding #11: don't return a
+    // `leftAt` row and mint a token for a departed member. Re-read WITHOUT the leftAt filter to find that
+    // row, then decide (planGuestConflict): reuse an active guest, or REACTIVATE a departed one (clear
+    // leftAt → it becomes an inert guest again).
+    const conflict = await db.query.clanMembers.findFirst({
+      where: eq(clanMembers.rsnNormalized, rsnNormalized),
+      columns: { id: true, leftAt: true },
+    });
+    const plan = planGuestConflict(conflict);
+    if (plan === 'reuse') return { id: conflict!.id, created: false };
+    if (plan === 'reactivate') {
+      await db
+        .update(clanMembers)
+        .set({
+          leftAt: null,
+          isGuest: 1,
+          userId: ownerUserId,
+          source: 'federation',
+          notes: 'Re-activated via federation /exchange (inert guest — not on any team).',
+          lastSeenInClan: new Date().toISOString(),
+        })
+        .where(eq(clanMembers.id, conflict!.id));
+      return { id: conflict!.id, created: false };
+    }
+    // plan === 'missing' (row gone) → retry the whole find-or-create, but only within the bounded budget.
+    if (guestConflictExhausted(attempt)) {
+      throw new Error('federation: guest find-or-create did not converge');
+    }
   }
-  // missing (row gone) → retry the whole find-or-create once.
-  return ensureFederationGuest(discordId, ownerUserId);
 }
 
 export async function POST(request: Request) {
-  // finding #14: the exchange door is rate-limited PER MEMBER (`sub` from the VERIFIED assertion),
-  // NOT per caller IP — the caller is the relaying HOME site, so all its members share one IP and an
-  // IP budget would let one member starve the whole clan's exchanges. The member-keyed limit (and the
-  // tighter guest-CREATION budget) are applied below, once `sub` is cryptographically established.
+  // findings #6 + #2: a COARSE per-IP throttle FIRST — before JSON.parse, the JWT decodes, and the
+  // (uncached) getBrokerTrust() DB read — so an unauthenticated flood of forged assertions is capped
+  // before any of that work runs. Keyed on the PROXY-APPENDED client IP (getClientIp: x-real-ip / last
+  // XFF), NEVER the spoofable leftmost XFF entry. Generous: legit callers are relaying home sites
+  // (server-to-server, one IP per clan), so the per-member limit below is the real fairness control.
+  const iprl = await rateLimitByKey('federation-exchange-ip', `ip:${getClientIp(request)}`, {
+    limit: 300,
+    windowMs: 60 * 1000,
+  });
+  if (!iprl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(iprl) });
+  }
+
+  // The exchange door is also rate-limited PER MEMBER (`sub` from the VERIFIED assertion) below — the
+  // caller is the relaying HOME site, so all its members share one IP and an IP-only budget would let
+  // one member starve the whole clan's exchanges. The member-keyed limit (and the tighter guest-CREATION
+  // budget) are applied once `sub` is cryptographically established.
   let body: { assertion?: unknown };
   try {
     body = await request.json();
@@ -158,15 +184,6 @@ export async function POST(request: Request) {
 
   const instanceId = await getInstanceId();
 
-  // ── finding #14 follow-up: a COARSE per-IP throttle BEFORE verification, so a flood of forged
-  // assertions can't spin unbounded EdDSA verifications (the per-member limit below only meters tokens
-  // that already verified). Generous — legit callers are relaying home sites (server-to-server). ─────
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const iprl = await rateLimitByKey('federation-exchange-ip', `ip:${ip}`, { limit: 300, windowMs: 60 * 1000 });
-  if (!iprl.ok) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(iprl) });
-  }
-
   // ── WIRE §2 steps 2,3,5,6: resolve kid against the broker JWKS (fetched through the §1 SSRF guard —
   // the jwksUrl is admin-editable, finding #6), verify the signature (alg pinned to EdDSA), then jose
   // validates claims — iss (4, re-checked), aud (5), and exp/iat (6): `requiredClaims` rejects a token
@@ -197,25 +214,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Assertion missing sub or jti' }, { status: 422 });
   }
 
-  // ── finding #14: NOW that `sub` is cryptographically established, rate-limit the door PER MEMBER
-  // (not per home-clan IP). A separate, tighter budget gates guest CREATION further down. ───────────
-  const rl = await rateLimitByKey('federation-exchange', exchangeRateLimitKey(sub), {
-    limit: 30,
-    windowMs: 5 * 60 * 1000,
-  });
-  if (!rl.ok) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
-  }
-
-  // ── WIRE §2 step 7: single-use jti. A replay is a 409. finding #7 follow-up: the jti only needs to
-  // outlive the token's replay window — maxTokenAge already caps usefulness to ≤90s from iat (+30s
-  // skew), so cap the row at now+120s regardless of a (compromised-broker) far-future exp, preventing
-  // long-lived federation_jti bloat. ─────────────────────────────────────────────────────────────
+  // ── WIRE §2 step 7 + finding #5: the single-use jti check runs BEFORE the per-member budget, so a
+  // replay is a 409 that does NOT drain the victim member's rate-limit bucket (replaying one captured
+  // assertion 30× would otherwise exhaust `sub`'s exchange budget before ever reaching the replay
+  // check). gateReplayThenBudget consumes the member budget ONLY on a fresh assertion. finding #7
+  // follow-up: the jti only needs to outlive the token's replay window — maxTokenAge already caps
+  // usefulness to ≤90s from iat (+30s skew), so cap the row at now+120s regardless of a
+  // (compromised-broker) far-future exp, preventing long-lived federation_jti bloat. ────────────────
   const rawExpMs = typeof payload.exp === 'number' ? payload.exp * 1000 : Date.now() + 90_000;
-  const fresh = await recordFederationJti(jti, new Date(Math.min(rawExpMs, Date.now() + 120_000)));
-  if (!fresh) {
+  const gate = await gateReplayThenBudget({
+    recordJti: () => recordFederationJti(jti, new Date(Math.min(rawExpMs, Date.now() + 120_000))),
+    consumeBudget: () =>
+      rateLimitByKey('federation-exchange', exchangeRateLimitKey(sub), { limit: 30, windowMs: 5 * 60 * 1000 }),
+    budgetOk: (r) => r.ok,
+  });
+  if (gate.outcome === 'replay') {
     return NextResponse.json({ error: 'Assertion has already been used' }, { status: 409 });
   }
+  if (gate.outcome === 'rate-limited') {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(gate.budget) });
+  }
+  const rl = gate.budget; // the successful per-member budget result — its headers ride on the response.
 
   // ── WIRE §2 step 8 begins: sticky federation ban (decision 4), keyed on discord_id. Blocks
   // re-exchange even after an admin Removed the guest row. ────────────────────────────────────────
