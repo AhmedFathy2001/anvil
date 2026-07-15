@@ -18,11 +18,15 @@ import { log } from '@/lib/logger';
 // server-side only — the encrypted token never leaves the DB except decrypted for a server-to-server
 // replay.
 function tokenEncKey(): string {
-  return (
-    process.env.FEDERATION_TOKEN_ENC_KEY?.trim() ||
-    process.env.ADMIN_SESSION_SECRET?.trim() ||
-    'dev-federation-token-key'
-  );
+  const key = process.env.FEDERATION_TOKEN_ENC_KEY?.trim() || process.env.ADMIN_SESSION_SECRET?.trim();
+  if (key) return key;
+  // Gap-A hardening: never fall back to a predictable literal in prod — a shared/guessable key means an
+  // exfiltrated federation_connections token could be decrypted offline. Fail loud HERE rather than
+  // relying on a transitive auth.ts import to have already thrown (an import-order-dependent invariant).
+  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build') {
+    throw new Error('FEDERATION_TOKEN_ENC_KEY or ADMIN_SESSION_SECRET must be set in production');
+  }
+  return 'dev-federation-token-key';
 }
 
 // Resolve the plugin caller's federation identity from its existing account token (WIRE §10.2). The
