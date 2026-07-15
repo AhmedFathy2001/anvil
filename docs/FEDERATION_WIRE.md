@@ -26,7 +26,7 @@ Header: `{ "alg": "EdDSA", "kid": "<broker-key-id>", "typ": "JWT" }`
 Claims:
 | claim | meaning |
 |---|---|
-| `iss` | broker id (its base URL, e.g. `https://admin.anvil.gg`) — must be in the instance's `brokerTrust[]` |
+| `iss` | broker id (its base URL, e.g. `https://anvilosrs.com`) — must be in the instance's `brokerTrust[]` |
 | `sub` | the authenticated **`discord_id`** (string) |
 | `aud` | **exactly one** `instanceId` (the target). One JWT per target instance. |
 | `iat` | issued-at (unix seconds) |
@@ -171,8 +171,9 @@ member's IP only ever reaches their home site. The §9 endpoints (`/device/*`, `
 
 ### 10.1 Enable — a site-admin setting
 Setting `federationEnabled`. On enable, the site registers itself with the broker (`/register`,
-domain-verified — existing) and starts relaying. **The broker URL is site-side config** (pinned to the
-Anvil broker by default, overridable by a self-hoster), never sent to the plugin. One toggle federates
+domain-verified — existing) and starts relaying. **The broker URL is site-side config** — the single
+Anvil broker (`anvilosrs.com`); the plugin also hard-pins this host to validate the `verificationUrl`
+it opens. Never sent to the plugin. One toggle federates
 every member of that clan — hosted and self-host use the exact same path.
 
 ### 10.2 Plugin ↔ home site  (the ONLY federation endpoints the plugin calls)
