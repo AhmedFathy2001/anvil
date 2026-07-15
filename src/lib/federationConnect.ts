@@ -6,11 +6,10 @@
 //   • POST /api/plugin/federation/connect → connectMember()
 //   • GET  /api/plugin/federation/state   → buildState()
 //
-// The two trust tiers (WIRE §10.3) both funnel through here:
-//   • hosted   → broker /vouch (zero-click, the derived credential proves we're an Anvil site),
-//   • self-host→ broker device-code login in the member's browser, then /assert.
-// Either way the member ends up with a cached set of remote-clan federation tokens; the plugin holds
-// none and opens no clan connections.
+// Identity (WIRE §10.3): NO clan vouches — EVERY member does the broker device-code login in their own
+// browser, then the site relays /me/instances → /assert → /exchange. The clan's server is only a relay;
+// the member ends up with a cached set of remote-clan federation tokens. The plugin holds none and opens
+// no clan connections.
 
 import { getBrokerBaseUrl, getFederationEnabled } from '@/lib/pluginConfig';
 import { getInstanceId } from '@/lib/federation';

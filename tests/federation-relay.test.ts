@@ -1,6 +1,6 @@
 // Site-relayed federation relay tests (WIRE §10) — MOCK broker + a MOCK 2nd clan site, both as
 // in-process node:http servers. Exercises the PURE relay core (lib/federationRelay) end-to-end over
-// real HTTP: the hosted vouch path, the self-host device-code path, server-side fan-out (incl.
+// real HTTP: the self-host device-code path, server-side fan-out (incl.
 // `exclusive`), the aggregated /state `clans[]` shape, and the read-cache/ETag behaviour.
 //
 // Run: node --experimental-strip-types --test tests/federation-relay.test.ts
@@ -16,15 +16,12 @@ import type { AddressInfo } from 'node:net';
 
 import { generateKeyPair, exportJWK, SignJWT, createLocalJWKSet } from 'jose';
 import {
-  brokerVouch,
   brokerDeviceStart,
   brokerDevicePoll,
   brokerAssert,
   brokerMeInstances,
   brokerRegister,
-  connectViaVouch,
   connectViaBrokerToken,
-  aggregateClans,
   fanOutCredit,
   computeServerFanout,
   dedupeConnectionsByInstanceId,
@@ -67,7 +64,6 @@ import {
 } from '../src/lib/federationJwks.ts';
 
 const FED = '/api/federation/v1';
-const CREDENTIAL = 'derived-instance-credential';
 const BROKER_TOKEN = 'broker-session-token';
 const HOME_ID = 'home-instance';
 const CLANB_ID = 'clanB-instance';
@@ -110,22 +106,6 @@ before(async () => {
   // ---- Mock BROKER ----------------------------------------------------------
   brokerServer = http.createServer(async (req, res) => {
     const url = (req.url || '').split('?')[0];
-    if (req.method === 'POST' && url === `${FED}/vouch`) {
-      if (bearer(req) !== CREDENTIAL) return send(res, 401, { error: 'bad credential' });
-      const body = await readBody(req);
-      assert.equal(typeof body.discordId, 'string');
-      return send(res, 200, {
-        // Include this site's OWN instance + clan B — the relay must SKIP its own home.
-        instances: [
-          { instanceId: HOME_ID, name: 'Home', baseUrl: 'https://home.example' },
-          { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase },
-        ],
-        assertions: [
-          { instanceId: HOME_ID, assertion: 'assert-HOME', exp: 0 },
-          { instanceId: CLANB_ID, assertion: 'assert-B-vouch', exp: 0 },
-        ],
-      });
-    }
     if (req.method === 'POST' && url === `${FED}/device/start`) {
       devicePolls = 0;
       return send(res, 200, {
@@ -240,41 +220,6 @@ after(async () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('hosted vouch path → connections populated (own home skipped) + board/activity aggregated', async () => {
-  _clearRelayReadCache();
-  const connections = await connectViaVouch({
-    brokerBaseUrl: brokerBase,
-    credential: CREDENTIAL,
-    discordId: 'discord-abc',
-    ownInstanceId: HOME_ID,
-  });
-
-  // Own home was in the vouch response but must be skipped; only clan B remains.
-  assert.equal(connections.length, 1);
-  const conn = connections[0];
-  assert.equal(conn.instanceId, CLANB_ID);
-  assert.equal(conn.name, 'Clan B');
-  assert.equal(conn.baseUrl, clanBBase);
-  assert.equal(conn.token, 'B-token-assert-B-vouch');
-
-  // /state's clans[] aggregation shape (WIRE §10.2).
-  const clans = await aggregateClans(connections);
-  assert.equal(clans.length, 1);
-  const c = clans[0];
-  assert.deepEqual(Object.keys(c).sort(), ['activity', 'board', 'id', 'name']);
-  assert.equal(c.id, CLANB_ID);
-  assert.equal(c.name, 'Clan B');
-  assert.equal((c.board as any).eventId, 99);
-  assert.equal((c.board as any).name, 'Clan B Bingo');
-  assert.equal((c.activity as any).items[0].label, 'Zulrah');
-});
-
-test('hosted vouch rejects a bad instance credential', async () => {
-  await assert.rejects(
-    () => brokerVouch(brokerBase, 'wrong-secret', 'discord-abc'),
-    /vouch failed \(401\)/,
-  );
-});
 
 test('self-host device path → login (pending) → poll complete → connected', async () => {
   _clearRelayReadCache();
@@ -523,7 +468,7 @@ test('§1: guardedFetch (as fetchImpl) BLOCKS the loopback/http broker — every
   // Wiring guardedFetch as the relay fetchImpl (exactly as production does) turns the loopback http
   // mock broker into a hard rejection — proving no federation outbound can reach an http/private URL.
   await assert.rejects(
-    () => connectViaVouch({ brokerBaseUrl: brokerBase, credential: CREDENTIAL, discordId: 'd', ownInstanceId: HOME_ID, fetchImpl: federationFetch }),
+    () => connectViaBrokerToken({ brokerBaseUrl: brokerBase, brokerToken: 't', ownInstanceId: HOME_ID, fetchImpl: federationFetch }),
     /HTTPS required|private/,
   );
   // And guardedFetch itself rejects a plain private-IP dial.

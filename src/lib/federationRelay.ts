@@ -134,30 +134,6 @@ async function postJson(
 // Broker client (server-to-server). All under `<broker>/api/federation/v1/`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Trusted/hosted path (WIRE §10.3): the broker trusts Anvil sites (shared derived instance
-// credential), so the home site vouches for its already-authenticated member and gets assertions back
-// with zero member interaction. `credential` is this site's FEDERATION_ASSOC_SECRET.
-export async function brokerVouch(
-  brokerBaseUrl: string,
-  credential: string,
-  discordId: string,
-  fetchImpl?: FetchLike,
-): Promise<{ instances: BrokerInstance[]; assertions: BrokerAssertion[] }> {
-  const { status, json } = await postJson(
-    `${trimUrl(brokerBaseUrl)}${FED}/vouch`,
-    { discordId },
-    { bearer: credential, fetchImpl },
-  );
-  if (status !== 200 || !json || typeof json !== 'object') {
-    throw new Error(`broker /vouch failed (${status})`);
-  }
-  const j = json as { instances?: unknown; assertions?: unknown };
-  return {
-    instances: Array.isArray(j.instances) ? (j.instances as BrokerInstance[]) : [],
-    assertions: Array.isArray(j.assertions) ? (j.assertions as BrokerAssertion[]) : [],
-  };
-}
-
 // Self-host device-code login (WIRE §9.1/§10.3), step 1.
 export async function brokerDeviceStart(brokerBaseUrl: string, fetchImpl?: FetchLike): Promise<DeviceStart> {
   const { status, json } = await postJson(`${trimUrl(brokerBaseUrl)}${FED}/device/start`, {}, { fetchImpl });
@@ -407,26 +383,8 @@ async function exchangeAll(
   return out;
 }
 
-// DEAD (kept only so the existing test harness compiles): the old hosted-vouch connect. Nothing in the
-// live connect path calls this — connectMember is device-code-only (WIRE §10.3, vouch removed). Delete
-// alongside the broker /vouch endpoint + its tests.
-export async function connectViaVouch(deps: {
-  brokerBaseUrl: string;
-  credential: string;
-  discordId: string;
-  ownInstanceId: string;
-  fetchImpl?: FetchLike;
-}): Promise<FederationConnection[]> {
-  const { instances, assertions } = await brokerVouch(
-    deps.brokerBaseUrl,
-    deps.credential,
-    deps.discordId,
-    deps.fetchImpl,
-  );
-  return exchangeAll(instances, assertions, deps.ownInstanceId, deps.fetchImpl);
-}
-
-// Self-host connect after the device login completes (WIRE §10.3) — me/instances → assert → exchange.
+// Connect after the device login completes (WIRE §10.3, device-code for every member) —
+// me/instances → assert → exchange.
 export async function connectViaBrokerToken(deps: {
   brokerBaseUrl: string;
   brokerToken: string;
