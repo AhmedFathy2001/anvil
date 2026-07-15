@@ -407,7 +407,9 @@ async function exchangeAll(
   return out;
 }
 
-// Trusted/hosted connect (WIRE §10.3) — zero-click. Vouch → assertions → exchange each clan.
+// DEAD (kept only so the existing test harness compiles): the old hosted-vouch connect. Nothing in the
+// live connect path calls this — connectMember is device-code-only (WIRE §10.3, vouch removed). Delete
+// alongside the broker /vouch endpoint + its tests.
 export async function connectViaVouch(deps: {
   brokerBaseUrl: string;
   credential: string;
@@ -486,7 +488,6 @@ export interface ServerFanout {
 }
 export function computeServerFanout(deps: {
   ownInstanceId: string;
-  tier: 'hosted' | 'self-host';
   isOrigin: boolean;
   relayTargets: FanoutTarget[];
   connections: FederationConnection[]; // the member's ALL cached connections
@@ -494,7 +495,7 @@ export function computeServerFanout(deps: {
   declaredInstanceIds: string[];
 }): ServerFanout {
   const relayConnections = deps.connections.filter((c) => c.instanceId !== deps.ownInstanceId);
-  if (deps.isOrigin && deps.tier === 'hosted') {
+  if (deps.isOrigin) {
     const connIds = new Set(relayConnections.map((c) => c.instanceId));
     const validTargets = deps.relayTargets.filter(
       (t) => t.instanceId !== deps.ownInstanceId && connIds.has(t.instanceId),
@@ -506,10 +507,6 @@ export function computeServerFanout(deps: {
       validTargets,
       relayConnections,
     };
-  }
-  if (deps.isOrigin) {
-    // self-host origin: credits only itself
-    return { count: 1, instanceIds: [deps.ownInstanceId], validTargets: [], relayConnections };
   }
   // leaf / relayed write — the relaying hosted home already computed this authoritatively.
   return {
@@ -526,7 +523,6 @@ export function computeServerFanout(deps: {
 // clan's own token + a fanout descriptor so a receiving `exclusive` clan can refuse. Best-effort and
 // isolated per clan — a failing/absent clan never blocks the others or the home credit.
 export async function fanOutCredit(deps: {
-  tier: 'hosted' | 'self-host'; // FEDERATION_SECURITY.md priority #1 — only a TRUSTED (hosted) home writes cross-clan
   connections: FederationConnection[]; // the member's cached OTHER clans (home already excluded)
   targets: FanoutTarget[]; // server-validated per-clan tile matches (each has a real cached connection)
   payload: CreditPayload;
@@ -534,11 +530,10 @@ export async function fanOutCredit(deps: {
   instanceIds: string[]; // all instanceIds in the fan-out (incl. home)
   fetchImpl?: FetchLike;
 }): Promise<FanoutRelayResult[]> {
-  // §trust-tiers: a self-host home is READ-ONLY in the mesh — it aggregates boards but NEVER relays a
-  // write to another clan. Cross-clan credit writes are restricted to trusted (hosted) homes we run.
-  // (NOTE: a *modified* self-host client is still bounded by the RECEIVING clan's proof/hiscores
-  // anti-cheat + the receiver's rate-limit/tag/opt-out controls — this gate is the outbound half.)
-  if (deps.tier !== 'hosted') return [];
+  // ALL homes may relay writes (WIRE §10.3 — no trusted tier). The RECEIVING clan is the real gate: it
+  // re-validates proof + membership, tags the write reversible (federatedSource), rate-limits it, and can
+  // opt out (acceptFederatedWrites). A malicious relay is bounded to its own member's normal actions —
+  // the same trust class as a tampered client, which the anti-cheat already handles.
   const connById = new Map(deps.connections.map((c) => [c.instanceId, c]));
   const results: FanoutRelayResult[] = [];
   for (const target of deps.targets) {

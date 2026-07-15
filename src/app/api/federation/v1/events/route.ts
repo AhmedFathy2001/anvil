@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events, clanMembers } from '@/db/schema';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
-import { resolveFederationToken, getInstanceId, getFederationTier } from '@/lib/federation';
+import { resolveFederationToken, getInstanceId } from '@/lib/federation';
 import { getSharedCredit, getAcceptFederatedWrites } from '@/lib/pluginConfig';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { rateLimit, rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
@@ -112,7 +112,6 @@ export async function POST(request: Request) {
     : [];
 
   const ownInstanceId = await getInstanceId();
-  const tier = getFederationTier();
   const isOrigin = relayTargets.length > 0; // this clan is the member's HOME, fanning out to others
 
   // ── §3 per-clan opt-out for INBOUND relayed writes. A leaf ingest (no `targets`) is a credit RELAYED
@@ -146,14 +145,12 @@ export async function POST(request: Request) {
   }
 
   // ── §7 SERVER-AUTHORITATIVE fan-out. NEVER trust the plugin's declared count/targets. On the origin
-  // (home) path — and ONLY when this site is a TRUSTED (hosted) home (priority #1) — the count is
-  // recomputed from the connections we ACTUALLY hold and each declared target is validated against them
-  // (computeServerFanout). A self-host home is read-only in the mesh (never relays → count 1); a leaf
-  // trusts the relaying hosted home's already-server-computed descriptor. ───────────────────────────
-  const allConns = isOrigin && tier === 'hosted' && ctx.userId != null ? await getConnectionsForUser(ctx.userId) : [];
+  // (home) path the count is recomputed from the connections we ACTUALLY hold and each declared target
+  // is validated against them (computeServerFanout); a leaf trusts the relaying home's already-server-
+  // computed descriptor. Any home may relay (WIRE §10.3); the RECEIVING clan gates the write. ────────
+  const allConns = isOrigin && ctx.userId != null ? await getConnectionsForUser(ctx.userId) : [];
   const fanout = computeServerFanout({
     ownInstanceId,
-    tier,
     isOrigin,
     relayTargets,
     connections: allConns,
@@ -514,14 +511,14 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── Server-side fan-out relay (WIRE §10.4, hardened per FEDERATION_SECURITY.md priority #1 + §3/§7).
-  // Runs ONLY when this site is a TRUSTED (hosted) home — a self-host home is read-only in the mesh and
-  // NEVER write-relays (fanOutCredit also self-guards on `tier`). Targets are the SERVER-VALIDATED set
+  // ── Server-side fan-out relay (WIRE §10.4, hardened per FEDERATION_SECURITY.md §3/§7). Any home may
+  // relay (WIRE §10.3 — no trusted tier); the RECEIVING clan gates the write (re-validates proof +
+  // membership, tags it reversible, rate-limits, can opt out). Targets are the SERVER-VALIDATED set
   // (each has a real cached connection), the count/instanceIds are SERVER-computed, and each relayed
   // write is rate-limited per (member, target clan). Best-effort + isolated per clan; a down/refusing
   // clan never affects the home credit or the others. ─────────────────────────────────────────────
   let relayed: { instanceId: string; credited: boolean; reason?: string }[] | undefined;
-  if (isOrigin && tier === 'hosted' && fanout.validTargets.length > 0 && ctx.userId != null) {
+  if (isOrigin && fanout.validTargets.length > 0 && ctx.userId != null) {
     try {
       // §3 per-(member, target clan) rate limit — drop any target over budget before relaying.
       const allowedTargets: FanoutTarget[] = [];
@@ -534,7 +531,6 @@ export async function POST(request: Request) {
       }
       if (allowedTargets.length > 0) {
         const results = await fanOutCredit({
-          tier,
           connections: fanout.relayConnections,
           targets: allowedTargets,
           payload: { amount, imageUrl, note, itemId, durationSeconds },

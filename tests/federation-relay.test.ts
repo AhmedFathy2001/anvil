@@ -316,7 +316,6 @@ test('fan-out relay → 2nd clan credited with the declared target', async () =>
     { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' },
   ];
   const results = await fanOutCredit({
-    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 3, note: 'zul kc' },
@@ -346,7 +345,6 @@ test('fan-out relay → 2nd clan `exclusive` refuses count>1 but credits count==
 
   // count>1 → exclusive clan refuses; nothing recorded.
   const refused = await fanOutCredit({
-    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 1 },
@@ -359,7 +357,6 @@ test('fan-out relay → 2nd clan `exclusive` refuses count>1 but credits count==
 
   // count==1 → exclusive does not apply; credited.
   const credited = await fanOutCredit({
-    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 1 },
@@ -374,7 +371,6 @@ test('fan-out skips targets with no cached connection (isolated, no throw)', asy
   clanBEvents.length = 0;
   clanBExclusive = false;
   const results = await fanOutCredit({
-    tier: 'hosted',
     connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
     targets: [
       { instanceId: CLANB_ID, eventId: 99, tileId: 1 },
@@ -414,21 +410,22 @@ test('brokerRegister returns the verification token (register-on-enable)', async
 // SECURITY HARDENING (docs/FEDERATION_SECURITY.md)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── priority #1: cross-clan WRITES are restricted to trusted (hosted) homes ──────
-test('§trust-tiers: a SELF-HOST home does NOT write-relay (read-only in the mesh)', async () => {
+// ── WIRE §10.3: any home may write-relay (no trusted tier); the RECEIVING clan is the gate ──
+test('any home write-relays regardless of instance type (receiving clan gates)', async () => {
   clanBEvents.length = 0;
   clanBExclusive = false;
   clanBAcceptWrites = true;
   const results = await fanOutCredit({
-    tier: 'self-host', // ← the whole point: a self-host never relays a cross-clan write
     connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
-    payload: { amount: 5 },
+    payload: { amount: 3 },
     fanoutCount: 2,
     instanceIds: [HOME_ID, CLANB_ID],
   });
-  assert.deepEqual(results, []); // nothing relayed
-  assert.equal(clanBEvents.length, 0); // clan B was never written to
+  assert.equal(results.length, 1);
+  assert.equal(results[0].instanceId, CLANB_ID);
+  assert.equal(results[0].credited, true);
+  assert.equal(clanBEvents.length, 1); // relayed — the write gate is the receiving clan, not the tier
 });
 
 // ── §3: a receiving clan may OPT OUT of relayed writes (acceptFederatedWrites=false) ──
@@ -436,7 +433,6 @@ test('§3: relaying to a clan that opted out surfaces credited:false / disabled'
   clanBEvents.length = 0;
   clanBAcceptWrites = false; // clan B refuses inbound relayed writes
   const results = await fanOutCredit({
-    tier: 'hosted',
     connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 1 },
@@ -459,7 +455,6 @@ test('§7: computeServerFanout ignores a lying plugin count and validates target
   // The tampered plugin declares count:1 (to slip past an exclusive clan) but two real targets.
   const fan = computeServerFanout({
     ownInstanceId: HOME_ID,
-    tier: 'hosted',
     isOrigin: true,
     relayTargets: [
       { instanceId: CLANB_ID, eventId: 99, tileId: 1 },
@@ -477,18 +472,17 @@ test('§7: computeServerFanout ignores a lying plugin count and validates target
   assert.equal(fan.relayConnections.some((c) => c.instanceId === HOME_ID), false); // own home excluded
 });
 
-test('§7: a self-host origin computes count 1 (never relays) regardless of declared targets', () => {
+test('§7: any origin computes the full fanout (home + distinct valid targets)', () => {
   const fan = computeServerFanout({
     ownInstanceId: HOME_ID,
-    tier: 'self-host',
     isOrigin: true,
     relayTargets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     connections: [{ instanceId: CLANB_ID, name: 'B', baseUrl: clanBBase, token: 'b' }],
     declaredCount: 5,
     declaredInstanceIds: [HOME_ID, CLANB_ID],
   });
-  assert.equal(fan.count, 1);
-  assert.deepEqual(fan.validTargets, []);
+  assert.equal(fan.count, 2); // home + 1 valid target — no trusted-tier gate
+  assert.deepEqual(fan.validTargets.map((t) => t.instanceId), [CLANB_ID]);
 });
 
 // ── §1 SSRF: guardedFetch / assertSafeFederationUrl reject unsafe federation URLs ──

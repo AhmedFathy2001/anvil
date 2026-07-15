@@ -13,7 +13,7 @@
 // none and opens no clan connections.
 
 import { getBrokerBaseUrl, getFederationEnabled } from '@/lib/pluginConfig';
-import { getInstanceId, getFederationTier, getInstanceCredential } from '@/lib/federation';
+import { getInstanceId } from '@/lib/federation';
 import { log } from '@/lib/logger';
 import {
   getConnectionsForUser,
@@ -25,7 +25,6 @@ import {
 import {
   brokerDeviceStart,
   brokerDevicePoll,
-  connectViaVouch,
   connectViaBrokerToken,
   aggregateClans,
   type AggregatedClan,
@@ -98,40 +97,15 @@ export interface ConnectResult {
   count?: number;
 }
 
-// The POST /connect action (WIRE §10.2). Hosted = zero-click vouch. Self-host = device-code: advance
-// an in-flight login, else start one and hand the member a verificationUrl to open in the browser.
-export async function connectMember(userId: number, discordId: string): Promise<ConnectResult> {
+// The POST /connect action (WIRE §10.2/§10.3). Device-code for EVERY member — no clan vouches for
+// identity; the member proves their own Discord in the browser on the broker's domain. Advance an
+// in-flight login, else start one and hand the member a verificationUrl to open.
+export async function connectMember(userId: number): Promise<ConnectResult> {
   if (!(await getFederationEnabled())) return { status: 'disabled' };
   const brokerBaseUrl = await getBrokerBaseUrl();
   if (!brokerBaseUrl) return { status: 'unconfigured' };
   const ownInstanceId = await getInstanceId();
-  const tier = getFederationTier();
 
-  if (tier === 'hosted') {
-    const credential = getInstanceCredential();
-    if (!credential) return { status: 'unconfigured' };
-    let connections;
-    try {
-      connections = await connectViaVouch({
-        brokerBaseUrl,
-        credential,
-        discordId,
-        ownInstanceId,
-        fetchImpl: federationFetch,
-      });
-    } catch (err) {
-      // finding #7: a broker/vouch blip must NOT report false success ('connected', count:0) — that
-      // masks the failure so the plugin never retries. Return a retryable status; the member's cached
-      // connections (if any) still serve the sidebar via /state independently.
-      log.warn('federation.connect.hosted-fail', { userId }, err);
-      return { status: 'retry' };
-    }
-    await replaceConnectionsForUser(userId, connections);
-    log.info('federation.connect.hosted', { userId, clans: connections.length });
-    return { status: 'connected', count: connections.length };
-  }
-
-  // self-host
   const advanced = await advanceSelfHost(userId, brokerBaseUrl, ownInstanceId);
   if (advanced === 'connected') {
     const conns = await getConnectionsForUser(userId);
@@ -188,10 +162,8 @@ export async function buildState(userId: number): Promise<StateResult> {
   }
   const brokerBaseUrl = await getBrokerBaseUrl();
   const ownInstanceId = await getInstanceId();
-  const tier = getFederationTier();
-
-  // Self-host: opportunistically advance any in-flight device login (best-effort — never fails /state).
-  if (tier === 'self-host' && brokerBaseUrl) {
+  // Opportunistically advance any in-flight device login (best-effort — never fails /state).
+  if (brokerBaseUrl) {
     await advanceSelfHost(userId, brokerBaseUrl, ownInstanceId).catch(() => {});
   }
 
@@ -200,7 +172,7 @@ export async function buildState(userId: number): Promise<StateResult> {
 
   let needsLogin = false;
   let verificationUrl: string | undefined;
-  if (!connected && tier === 'self-host' && brokerBaseUrl) {
+  if (!connected && brokerBaseUrl) {
     const session = await getDeviceSession(userId);
     // A session mid-exchange-retry (brokerToken captured) is NOT "needs login" — the member already
     // completed the browser Discord login; we're just retrying the server-side exchange (finding #15).

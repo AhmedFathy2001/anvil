@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
-  const result = await connectMember(member.userId, member.discordId);
+  const result = await connectMember(member.userId);
 
   switch (result.status) {
     case 'connected':
