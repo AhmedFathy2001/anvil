@@ -54,9 +54,10 @@ const EXPOSED_KEYS = [
   'federation_exchange_policy', // 'auto-guest' | 'request-to-join' | 'reject'
   'federation_association_push', // 'on' | '' (off)
   'federation_broker_trust', // JSON array of { iss, jwksUrl }
-  // Site-relayed federation (WIRE §10). The master switch; and an optional broker-URL override
-  // (server-side config, admin-only — NEVER surfaced in any plugin-facing response).
-  'federation_enabled', // 'on' | '' (off)
+  // Site-relayed federation (WIRE §10). The master switch; the inbound-relayed-write kill-switch; and
+  // an optional broker-URL override (server-side config, admin-only — NEVER surfaced to any plugin).
+  'federation_enabled', // 'on' | '' (off) — master switch
+  'federation_accept_writes', // 'on' | 'off' — accept INBOUND cross-clan relayed credit writes (default on)
   'federation_broker_url', // optional override of the FEDERATION_BROKER_URL env default
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];

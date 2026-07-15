@@ -39,6 +39,16 @@ export interface FederationConnection {
   token: string; // the remote clan minted this at its /exchange; a secret we hold and replay.
 }
 
+// finding #4: collapse a connection list to at most one entry per instanceId (KEEP LAST — a re-connect
+// re-mints the token, so the newest wins). replaceConnectionsForUser deletes-all then bulk-inserts;
+// two rows with the same instanceId would hit the unique (userId, instanceId) index AFTER the delete
+// committed → 0 rows + 500. De-duping up front makes the bulk insert collision-free. Pure + testable.
+export function dedupeConnectionsByInstanceId(connections: FederationConnection[]): FederationConnection[] {
+  const byId = new Map<string, FederationConnection>();
+  for (const c of connections) byId.set(c.instanceId, c); // last write wins
+  return [...byId.values()];
+}
+
 // A directory/vouch entry — a clan the member could connect to.
 export interface BrokerInstance {
   instanceId: string;
@@ -163,13 +173,21 @@ export async function brokerDevicePoll(
   deviceCode: string,
   fetchImpl?: FetchLike,
 ): Promise<DevicePoll> {
-  const { status, json } = await postJson(
-    `${trimUrl(brokerBaseUrl)}${FED}/device/poll`,
-    { device_code: deviceCode },
-    { fetchImpl },
-  );
+  let status: number;
+  let json: unknown;
+  try {
+    ({ status, json } = await postJson(
+      `${trimUrl(brokerBaseUrl)}${FED}/device/poll`,
+      { device_code: deviceCode },
+      { fetchImpl },
+    ));
+  } catch {
+    // finding #5: a THROWN fetch error (timeout / SSRF-reject / transport blip) must degrade to "keep
+    // polling", NOT propagate up to a 500 on /connect. The member simply polls again.
+    return { status: 'pending' };
+  }
   if (status !== 200 || !json || typeof json !== 'object') {
-    // Treat a transport/broker error as "keep polling" rather than hard-failing the connect.
+    // A non-200 / non-object broker response is likewise "keep polling" rather than hard-failing.
     return { status: 'pending' };
   }
   return json as DevicePoll;
@@ -261,12 +279,30 @@ interface ReadCacheEntry {
   body: unknown;
   ts: number;
 }
+// finding #15: BOUNDED cache. The key is `(url|token)`, and tokens ROTATE on every re-connect, so an
+// unbounded Map would accumulate one orphan entry per rotated token forever. We bound it two ways:
+// a hard TTL (an entry older than READ_CACHE_MAX_AGE_MS is never served and is pruned), and a hard
+// size cap with LRU eviction (oldest-touched key dropped once over READ_CACHE_MAX_ENTRIES).
 const readCache = new Map<string, ReadCacheEntry>();
-const READ_TTL_MS = 15_000;
+const READ_TTL_MS = 15_000; // conditional-GET revalidation interval (a fresh entry is served as-is)
+const READ_CACHE_MAX_AGE_MS = 10 * 60_000; // absolute lifetime — an entry past this is an orphan, dropped
+const READ_CACHE_MAX_ENTRIES = 500; // hard cap → LRU-evict the oldest-touched entry once exceeded
 
 // Exposed for tests to isolate cases; a no-op in production between deploys.
 export function _clearRelayReadCache(): void {
   readCache.clear();
+}
+
+// Touch = move to the end (Map preserves insertion order → the FIRST key is the LRU one). Used on both
+// read hits and writes so eviction drops the genuinely least-recently-used entry.
+function cacheTouch(key: string, entry: ReadCacheEntry): void {
+  readCache.delete(key);
+  readCache.set(key, entry);
+  while (readCache.size > READ_CACHE_MAX_ENTRIES) {
+    const oldest = readCache.keys().next().value;
+    if (oldest === undefined) break;
+    readCache.delete(oldest);
+  }
 }
 
 async function cachedGet(
@@ -279,8 +315,16 @@ async function cachedGet(
   const url = `${trimUrl(baseUrl)}${path}`;
   const key = `${url}|${token}`;
   const now = Date.now();
-  const hit = readCache.get(key);
-  if (hit && now - hit.ts < READ_TTL_MS) return hit.body;
+  let hit = readCache.get(key);
+  // Orphan past its absolute lifetime → drop it and treat as a miss (a rotated token never re-reads).
+  if (hit && now - hit.ts >= READ_CACHE_MAX_AGE_MS) {
+    readCache.delete(key);
+    hit = undefined;
+  }
+  if (hit && now - hit.ts < READ_TTL_MS) {
+    cacheTouch(key, hit); // fresh: serve as-is but mark recently-used
+    return hit.body;
+  }
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (hit?.etag) headers['If-None-Match'] = hit.etag;
@@ -288,6 +332,7 @@ async function cachedGet(
 
   if (res.status === 304 && hit) {
     hit.ts = now; // still current — extend the TTL, reuse the body.
+    cacheTouch(key, hit);
     return hit.body;
   }
   if (!res.ok) {
@@ -295,7 +340,7 @@ async function cachedGet(
     return null;
   }
   const body = await res.json().catch(() => null);
-  readCache.set(key, { etag: res.headers.get('etag'), body, ts: now });
+  cacheTouch(key, { etag: res.headers.get('etag'), body, ts: now });
   return body;
 }
 

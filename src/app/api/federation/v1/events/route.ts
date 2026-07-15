@@ -11,6 +11,7 @@ import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/no
 import { isManagedMediaUrl } from '@/lib/storage';
 import { getConnectionsForUser } from '@/lib/federationConnections';
 import { fanOutCredit, computeServerFanout, type FanoutTarget } from '@/lib/federationRelay';
+import { decideCredit, tileAtCapacity } from '@/lib/federationDecisions';
 import { federationFetch } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
@@ -151,11 +152,19 @@ export async function POST(request: Request) {
     declaredInstanceIds: instanceIds,
   });
 
-  // ── sharedCredit enforcement (decision 1, WIRE §5). `exclusive` refuses any event the player is
-  // simultaneously crediting elsewhere — using the SERVER count, not the plugin's. Clean 200. ────────
-  if ((await getSharedCredit()) === 'exclusive' && fanout.count > 1) {
+  // ── sharedCredit / fan-out decision (decision 1, WIRE §5, finding #2). `exclusive` refuses to credit
+  // when the player is simultaneously crediting elsewhere (SERVER count, not the plugin's). CRUCIALLY,
+  // an `exclusive` ORIGIN skips only ITS OWN credit and STILL fans out to the member's other clans (each
+  // applies its OWN sharedCredit) — we never drop the whole-mesh credit. A LEAF that refuses has nothing
+  // to relay, so it responds immediately. ───────────────────────────────────────────────────────────
+  const decision = decideCredit({
+    sharedCredit: await getSharedCredit(),
+    fanoutCount: fanout.count,
+    isOrigin,
+  });
+  if (!decision.creditHome && !decision.fanOut) {
     return NextResponse.json(
-      { credited: false, reason: 'exclusive' },
+      { credited: false, reason: decision.refusal ?? 'not-credited' },
       { headers: rateLimitHeaders(rl) },
     );
   }
@@ -246,24 +255,41 @@ export async function POST(request: Request) {
     note = body.note.trim() || null;
   }
 
-  // ── Image/proof: count-only tiles may arrive imageless; drops & timed clears require managed media.
+  // ── Image/proof. Count-only tiles may arrive imageless; drops & timed clears carry proof.
+  //   • ORIGIN (our own plugin): the proof was uploaded to OUR managed store first — require own media,
+  //     exactly like the web submissions route.
+  //   • FEDERATED relayed (leaf) — decision #3, trusted-home-bounded posture: the imageUrl is the
+  //     ORIGIN clan's cross-host media, which fails isManagedMediaUrl and must NOT be auto-fetched
+  //     (FEDERATION_SECURITY.md §9 — no auto-loaded federated media). We do NOT validate it as our own
+  //     media; we store it as an AUDIT-ONLY, reversible reference (federatedProofUrl) and let the credit
+  //     proceed off the trusted home + content. HTTPS sanity only; we never require it (the home already
+  //     enforced its own proof requirement). ─────────────────────────────────────────────────────────
   const isCountOnly = COUNT_ONLY_TILE_TYPES.has(tile.tileType);
   let imageUrl: string | null = null;
-  if (body.imageUrl != null && typeof body.imageUrl === 'string' && body.imageUrl.trim()) {
+  let federatedProofUrl: string | null = null;
+  const rawImage = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
+  if (rawImage) {
     let parsed: URL;
     try {
-      parsed = new URL(body.imageUrl.trim());
+      parsed = new URL(rawImage);
     } catch {
       return NextResponse.json({ error: 'imageUrl must be a valid URL' }, { status: 400 });
     }
-    if (!isManagedMediaUrl(parsed.toString())) {
-      return NextResponse.json(
-        { error: 'imageUrl must be an uploaded proof URL — upload via /api/upload first' },
-        { status: 400 },
-      );
+    if (isOrigin) {
+      if (!isManagedMediaUrl(parsed.toString())) {
+        return NextResponse.json(
+          { error: 'imageUrl must be an uploaded proof URL — upload via /api/upload first' },
+          { status: 400 },
+        );
+      }
+      imageUrl = rawImage;
+    } else {
+      if (parsed.protocol !== 'https:') {
+        return NextResponse.json({ error: 'federated imageUrl must be https' }, { status: 400 });
+      }
+      federatedProofUrl = rawImage; // audit-only reference; never rendered or fetched by us
     }
-    imageUrl = body.imageUrl.trim();
-  } else if (!isCountOnly) {
+  } else if (!isCountOnly && isOrigin) {
     return NextResponse.json({ error: 'Image is required for this tile' }, { status: 400 });
   }
 
@@ -283,7 +309,7 @@ export async function POST(request: Request) {
   // ── Per-item tracking: require + validate itemId when the tile is per-item. ─────────────────────
   let itemId: number | null = null;
   const tileItemRequirements = tile.itemRequirements
-    ? (JSON.parse(tile.itemRequirements) as { itemId: number }[])
+    ? (JSON.parse(tile.itemRequirements) as { itemId: number; requiredAmount?: number }[])
     : null;
   if (tileItemRequirements) {
     itemId = Number(body.itemId);
@@ -292,68 +318,115 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── #1 over-submission cap — mirror the native submissions route: never credit a tile ALREADY at/over
+  // its required threshold, for BOTH our own (home) credit AND a relayed cross-clan ingest. Each clan
+  // checks its OWN tile, so an origin whose home tile is complete still relays to clans that aren't (we
+  // simply skip the home write below and keep the fan-out). Fetch the mode-appropriate aggregate, then
+  // let the pure tileAtCapacity() decide. ───────────────────────────────────────────────────────────
+  let atCapacity = false;
+  const perItemReq =
+    tileItemRequirements && itemId != null
+      ? tileItemRequirements.find((r) => r.itemId === itemId)?.requiredAmount ?? null
+      : null;
+  if (perItemReq != null) {
+    const agg = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), eq(submissions.itemId, itemId!)));
+    atCapacity = tileAtCapacity({
+      tileType: tile.tileType,
+      requiredAmount: tile.requiredAmount,
+      itemRequired: perItemReq,
+      itemTotal: Number(agg[0]?.total ?? 0),
+    });
+  } else if (tile.tileType === 'value' && tile.requiredAmount) {
+    const agg = await db
+      .select({ best: sql<number>`COALESCE(MAX(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, bestHaul: Number(agg[0]?.best ?? 0) });
+  } else if (tile.requiredAmount) {
+    const agg = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    atCapacity = tileAtCapacity({ tileType: tile.tileType, requiredAmount: tile.requiredAmount, simpleTotal: Number(agg[0]?.total ?? 0) });
+  }
+
+  // Credit our OWN tile only when the decision allows it (not exclusive-deferred) AND it isn't already
+  // complete. Either way, an ORIGIN still runs the fan-out relay below (each other clan checks itself).
+  const doHomeCredit = decision.creditHome && !atCapacity;
+
   // ── Feed the EXISTING pipeline: store the submission, then recompute completion. A RELAYED (leaf)
   // write is TAGGED with its source home instanceId (§3) so this clan can audit + reverse it later; a
   // native origin submission carries null. ────────────────────────────────────────────────────────
-  const federatedSource = isOrigin
-    ? null
-    : instanceIds.find((id) => id !== ownInstanceId) ?? 'federation';
-  const [submission] = await db
-    .insert(submissions)
-    .values({
-      tileId,
-      teamId,
-      playerId: enrollment.playerId,
-      creditPlayerId: enrollment.playerId, // credit the federating player themselves
-      amount,
-      imageUrl,
-      note,
-      itemId,
-      durationSeconds,
-      federatedSource,
-    })
-    .returning();
+  let submissionId: number | undefined;
+  let completed = false;
+  if (doHomeCredit) {
+    const federatedSource = isOrigin
+      ? null
+      : instanceIds.find((id) => id !== ownInstanceId) ?? 'federation';
+    const [submission] = await db
+      .insert(submissions)
+      .values({
+        tileId,
+        teamId,
+        playerId: enrollment.playerId,
+        creditPlayerId: enrollment.playerId, // credit the federating player themselves
+        amount,
+        imageUrl,
+        note,
+        itemId,
+        durationSeconds,
+        federatedSource,
+        federatedProofUrl, // audit-only origin proof reference for a relayed leaf; null otherwise
+      })
+      .returning();
+    submissionId = submission.id;
 
-  const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
+    const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
+    completed = syncResult?.isComplete ?? false;
 
-  const totalResult = await db
-    .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-    .from(submissions)
-    .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-  const currentTotal = totalResult[0]?.total ?? 0;
+    const totalResult = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    const currentTotal = totalResult[0]?.total ?? 0;
 
-  // Notifications: identical shape to the web submissions route (timed posts immediately; everything
-  // else debounces). Fire-and-forget so the response isn't held on Discord.
-  if (tile.tileType === 'timed') {
-    notifySubmission({
-      eventName: enrollment.eventName,
-      tileLabel: tile.label,
-      teamName: team.name,
-      teamColor: team.color,
-      creditPlayerName: enrollment.playerName,
-      amount,
-      currentTotal,
-      requiredAmount: tile.requiredAmount,
-      note,
-      imageUrl,
-      tileType: tile.tileType,
-      durationSeconds,
-      completed: syncResult?.isComplete ?? false,
-    }).catch(() => {});
-  } else {
-    await queueSubmissionNotification({
-      eventId,
-      tileId,
-      teamId,
-      amount,
-      currentTotal,
-      requiredAmount: tile.requiredAmount,
-      imageUrl,
-      note,
-      creditPlayerName: enrollment.playerName,
-      completed: syncResult?.isComplete ?? false,
-    });
-    flushPendingNotifications().catch(() => {});
+    // Notifications: identical shape to the web submissions route (timed posts immediately; everything
+    // else debounces). Fire-and-forget so the response isn't held on Discord. We pass only `imageUrl`
+    // (null for a relayed leaf) — never the federatedProofUrl — so a cross-host proof is not auto-loaded.
+    if (tile.tileType === 'timed') {
+      notifySubmission({
+        eventName: enrollment.eventName,
+        tileLabel: tile.label,
+        teamName: team.name,
+        teamColor: team.color,
+        creditPlayerName: enrollment.playerName,
+        amount,
+        currentTotal,
+        requiredAmount: tile.requiredAmount,
+        note,
+        imageUrl,
+        tileType: tile.tileType,
+        durationSeconds,
+        completed,
+      }).catch(() => {});
+    } else {
+      await queueSubmissionNotification({
+        eventId,
+        tileId,
+        teamId,
+        amount,
+        currentTotal,
+        requiredAmount: tile.requiredAmount,
+        imageUrl,
+        note,
+        creditPlayerName: enrollment.playerName,
+        completed,
+      });
+      flushPendingNotifications().catch(() => {});
+    }
   }
 
   // ── Server-side fan-out relay (WIRE §10.4, hardened per FEDERATION_SECURITY.md priority #1 + §3/§7).
@@ -388,17 +461,28 @@ export async function POST(request: Request) {
         log.info('federation.events.fanout', { instanceId: ownInstanceId, userId: ctx.userId, relayed: relayed.length });
       }
     } catch (err) {
-      // Fan-out is best-effort — the home credit already succeeded; never fail the response on relay.
+      // Fan-out is best-effort — never fail the response on a relay error (the home write, if any,
+      // already committed; the mesh is eventually-consistent).
       log.warn('federation.events.fanout-fail', { instanceId: ownInstanceId, userId: ctx.userId }, err);
     }
+  }
+
+  // We did NOT credit our own tile (exclusive-deferred, or the tile was already complete) — but if we
+  // are the origin we STILL fanned out above, so report that. Clean { credited:false }, never an error.
+  if (!doHomeCredit) {
+    const reason = atCapacity ? 'tile-complete' : decision.refusal ?? 'not-credited';
+    return NextResponse.json(
+      { credited: false, reason, instanceId: ownInstanceId, ...(relayed ? { relayed } : {}) },
+      { headers: rateLimitHeaders(rl) },
+    );
   }
 
   return NextResponse.json(
     {
       credited: true,
       instanceId: ownInstanceId,
-      submissionId: submission.id,
-      completed: syncResult?.isComplete ?? false,
+      submissionId,
+      completed,
       ...(relayed ? { relayed } : {}),
     },
     { status: 201, headers: rateLimitHeaders(rl) },

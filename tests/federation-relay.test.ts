@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
+import { generateKeyPair, exportJWK, SignJWT, createLocalJWKSet } from 'jose';
 import {
   brokerVouch,
   brokerDeviceStart,
@@ -26,6 +27,7 @@ import {
   aggregateClans,
   fanOutCredit,
   computeServerFanout,
+  dedupeConnectionsByInstanceId,
   fetchClanBoard,
   _clearRelayReadCache,
   type FederationConnection,
@@ -44,6 +46,18 @@ import {
   CAP_LABEL,
   CAP_TILES,
 } from '../src/lib/federationSecurity.ts';
+import {
+  decideCredit,
+  tileAtCapacity,
+  planGuestConflict,
+  exchangeRateLimitKey,
+  guestRateLimitKey,
+} from '../src/lib/federationDecisions.ts';
+import {
+  createGuardedRemoteJWKSet,
+  verifyBrokerAssertion,
+  _clearJwksCache,
+} from '../src/lib/federationJwks.ts';
 
 const FED = '/api/federation/v1';
 const CREDENTIAL = 'derived-instance-credential';
@@ -570,4 +584,164 @@ test('§8: safeVerificationUrl allows only https on the broker host', () => {
   assert.equal(safeVerificationUrl('http://broker.anvilosrs.com/federation/device', broker), null); // not https
   assert.equal(safeVerificationUrl('https://evil.example/federation/device', broker), null); // wrong host (phish)
   assert.equal(safeVerificationUrl(undefined, broker), null);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CODE-REVIEW HARDENING PASS (P0–P3 findings)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── #2: an exclusive ORIGIN skips only its own credit and STILL fans out (never drops the mesh) ──
+test('#2: decideCredit — exclusive origin skips home credit but STILL fans out; a leaf just refuses', () => {
+  // exclusive + multi-clan + ORIGIN: don't credit ourselves, but DO relay onward to the other clans.
+  assert.deepEqual(decideCredit({ sharedCredit: 'exclusive', fanoutCount: 2, isOrigin: true }), {
+    creditHome: false,
+    fanOut: true,
+    refusal: 'exclusive',
+  });
+  // exclusive + multi-clan + LEAF: refuse; a leaf never fans out (only the origin home does).
+  assert.deepEqual(decideCredit({ sharedCredit: 'exclusive', fanoutCount: 2, isOrigin: false }), {
+    creditHome: false,
+    fanOut: false,
+    refusal: 'exclusive',
+  });
+  // accept → credit; an origin still fans out to the others.
+  assert.deepEqual(decideCredit({ sharedCredit: 'accept', fanoutCount: 2, isOrigin: true }), {
+    creditHome: true,
+    fanOut: true,
+  });
+  // exclusive but single-clan (count 1) → not blocked at all.
+  assert.deepEqual(decideCredit({ sharedCredit: 'exclusive', fanoutCount: 1, isOrigin: true }), {
+    creditHome: true,
+    fanOut: true,
+  });
+  // A leaf that IS credited (accept) does not fan out.
+  assert.deepEqual(decideCredit({ sharedCredit: 'accept', fanoutCount: 2, isOrigin: false }), {
+    creditHome: true,
+    fanOut: false,
+  });
+});
+
+// ── #1: over-submission cap — a tile already at/over its threshold is not credited again ──
+test('#1: tileAtCapacity mirrors the native cap across every submission-backed mode', () => {
+  // simple count tile: cumulative sum vs required.
+  assert.equal(tileAtCapacity({ tileType: 'kill', requiredAmount: 5, simpleTotal: 5 }), true); // exactly at
+  assert.equal(tileAtCapacity({ tileType: 'kill', requiredAmount: 5, simpleTotal: 6 }), true); // over
+  assert.equal(tileAtCapacity({ tileType: 'kill', requiredAmount: 5, simpleTotal: 4 }), false); // under → allowed
+  // valuetotal: cumulative sum toward the target.
+  assert.equal(tileAtCapacity({ tileType: 'valuetotal', requiredAmount: 100, simpleTotal: 120 }), true);
+  assert.equal(tileAtCapacity({ tileType: 'valuetotal', requiredAmount: 100, simpleTotal: 50 }), false);
+  // value: BEST single haul, not the running sum (a 90m haul on a 100m tile is under even if summed).
+  assert.equal(tileAtCapacity({ tileType: 'value', requiredAmount: 100, bestHaul: 100 }), true);
+  assert.equal(tileAtCapacity({ tileType: 'value', requiredAmount: 100, bestHaul: 90, simpleTotal: 9999 }), false);
+  // per-item: caps on that item's own required amount.
+  assert.equal(tileAtCapacity({ tileType: 'drop', requiredAmount: null, itemRequired: 3, itemTotal: 3 }), true);
+  assert.equal(tileAtCapacity({ tileType: 'drop', requiredAmount: null, itemRequired: 3, itemTotal: 2 }), false);
+  // no threshold → never "complete" by amount alone (e.g. a count-up tile with no requiredAmount).
+  assert.equal(tileAtCapacity({ tileType: 'kill', requiredAmount: null, simpleTotal: 9999 }), false);
+});
+
+// ── #6: the broker JWKS fetch is routed through the SSRF guard (admin-editable jwksUrl) ──
+test('#6: createGuardedRemoteJWKSet routes the JWKS fetch through guardedFetch (private URL blocked)', async () => {
+  _clearJwksCache();
+  const jwks = createGuardedRemoteJWKSet('https://127.0.0.1/jwks.json'); // loopback — must be refused
+  // Using the key set triggers the JWKS fetch → guardedFetch rejects the private/loopback address, so
+  // no assertion signed by a key at a private URL can ever be validated (SSRF-safe, §1).
+  await assert.rejects(
+    () => (jwks as any)({ alg: 'EdDSA', kid: 'whatever' }, {} as any),
+    /private|blocked|resolves/,
+  );
+});
+
+// ── #7: assertion verify bounds token age (maxTokenAge) + requires exp/iat/jti/aud/iss/sub ──
+test('#7: verifyBrokerAssertion accepts a fresh assertion but rejects a held / far-future-exp / no-exp one', async () => {
+  const { publicKey, privateKey } = await generateKeyPair('Ed25519', { extractable: true });
+  const pub = { ...(await exportJWK(publicKey)), alg: 'EdDSA', kid: 'k1', use: 'sig' };
+  const jwks = createLocalJWKSet({ keys: [pub] });
+  const iss = 'https://broker.example';
+  const aud = 'home-instance';
+  const now = Math.floor(Date.now() / 1000);
+  const mk = (claims: Record<string, unknown>) =>
+    new SignJWT(claims).setProtectedHeader({ alg: 'EdDSA', kid: 'k1' });
+
+  // A FRESH assertion (iat now, exp iat+60) verifies and yields its sub.
+  const fresh = await mk({ sub: 'discord-1', jti: 'j1' })
+    .setIssuer(iss).setAudience(aud).setIssuedAt(now).setExpirationTime(now + 60).sign(privateKey);
+  const { payload } = await verifyBrokerAssertion(fresh, jwks, { issuer: iss, audience: aud });
+  assert.equal(payload.sub, 'discord-1');
+
+  // A HELD / far-future-exp assertion (iat 200s ago, exp a year out): signature + exp are individually
+  // fine, but maxTokenAge:'90s' rejects it — a stale assertion can't be replayed long after issuance.
+  const held = await mk({ sub: 'discord-1', jti: 'j2' })
+    .setIssuer(iss).setAudience(aud).setIssuedAt(now - 200).setExpirationTime(now + 31_536_000).sign(privateKey);
+  await assert.rejects(() => verifyBrokerAssertion(held, jwks, { issuer: iss, audience: aud }));
+
+  // A token with NO exp claim is rejected by requiredClaims (can't smuggle a never-expiring assertion).
+  const noExp = await mk({ sub: 'discord-1', jti: 'j3' })
+    .setIssuer(iss).setAudience(aud).setIssuedAt(now).sign(privateKey);
+  await assert.rejects(() => verifyBrokerAssertion(noExp, jwks, { issuer: iss, audience: aud }));
+});
+
+// ── #10: sanitizer ids — null/false/''/[] are DROPPED, not coerced to 0 ──
+test('#10: clampInt (via sanitizeFederatedBoard) drops null/false/empty ids instead of surfacing id 0', () => {
+  const board = sanitizeFederatedBoard({
+    eventId: null, // → null, NOT 0
+    boardSize: '', // → null, NOT 0
+    name: 'B',
+    tiles: [
+      { tileId: null, label: 'null id' }, // dropped
+      { tileId: false, label: 'bool id' }, // dropped
+      { tileId: '', label: 'empty id' }, // dropped
+      { tileId: [], label: 'array id' }, // dropped
+      { tileId: 1.5, label: 'float id' }, // dropped (non-integer)
+      { tileId: 7, label: 'real id' }, // kept
+      { tileId: '8', label: 'numeric string id' }, // kept
+    ],
+  });
+  assert.equal(board.eventId, null); // finding #10: a null id must NOT become 0
+  assert.equal(board.boardSize, null);
+  assert.deepEqual(board.tiles.map((t) => t.tileId).sort((a, b) => a - b), [7, 8]);
+});
+
+// ── #4: replaceConnectionsForUser dedup — duplicate instanceId collapsed → no unique-index 500 ──
+test('#4: dedupeConnectionsByInstanceId collapses duplicate instanceIds (keep last)', () => {
+  const dupes: FederationConnection[] = [
+    { instanceId: CLANB_ID, name: 'B old', baseUrl: 'https://b.example', token: 'old' },
+    { instanceId: 'clanC', name: 'C', baseUrl: 'https://c.example', token: 'c' },
+    { instanceId: CLANB_ID, name: 'B new', baseUrl: 'https://b.example', token: 'new' }, // dup wins
+  ];
+  const out = dedupeConnectionsByInstanceId(dupes);
+  assert.equal(out.length, 2); // one row per instanceId — the bulk insert can't hit the unique index
+  const b = out.find((c) => c.instanceId === CLANB_ID)!;
+  assert.equal(b.token, 'new'); // keep LAST — a re-connect re-mints, newest token wins
+  assert.equal(b.name, 'B new');
+  // Empty + already-unique inputs are pass-throughs.
+  assert.deepEqual(dedupeConnectionsByInstanceId([]), []);
+});
+
+// ── #5: a thrown fetch error on device-poll degrades to "keep polling", never a 500 ──
+test('#5: brokerDevicePoll degrades a THROWN / rejected fetch to { status:pending }', async () => {
+  const throwingFetch = (() => {
+    throw new Error('SSRF blocked');
+  }) as unknown as typeof fetch;
+  assert.deepEqual(await brokerDevicePoll('https://broker.example', 'dev-code', throwingFetch), { status: 'pending' });
+
+  const rejectingFetch = (() => Promise.reject(new Error('timeout'))) as unknown as typeof fetch;
+  assert.deepEqual(await brokerDevicePoll('https://broker.example', 'dev-code', rejectingFetch), { status: 'pending' });
+});
+
+// ── #11: a departed (leftAt) guest is never reused as-is (reactivate, don't mint for a leftAt member) ──
+test('#11: planGuestConflict — active guest reused, departed guest reactivated (not returned as-is)', () => {
+  assert.equal(planGuestConflict({ leftAt: null }), 'reuse'); // active → reuse
+  assert.equal(planGuestConflict({ leftAt: '2026-01-01T00:00:00Z' }), 'reactivate'); // departed → NOT reused as-is
+  assert.equal(planGuestConflict(null), 'missing');
+  assert.equal(planGuestConflict(undefined), 'missing');
+});
+
+// ── #14: exchange + guest-creation rate limits are keyed per MEMBER (sub), not per home-clan IP ──
+test('#14: rate-limit keys are per-member (sub) — different members never share a bucket', () => {
+  assert.equal(exchangeRateLimitKey('discordA'), exchangeRateLimitKey('discordA')); // stable per member
+  assert.notEqual(exchangeRateLimitKey('discordA'), exchangeRateLimitKey('discordB')); // fair share across members
+  assert.notEqual(guestRateLimitKey('discordA'), guestRateLimitKey('discordB'));
+  assert.notEqual(exchangeRateLimitKey('discordA'), guestRateLimitKey('discordA')); // separate budgets
+  assert.ok(exchangeRateLimitKey('discordA').includes('discordA')); // derived from the member id only
 });

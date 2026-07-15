@@ -1,0 +1,105 @@
+// Federation credit/ingest decisions — the PURE, dependency-free logic behind POST /exchange and
+// POST /events. Like lib/federationRelay + lib/federationSecurity this module imports NOTHING from
+// `@/` (no DB, Next, or config) so it is unit-testable under Node's native TS type-stripping
+// (`node --test`) with no bundler. The route handlers resolve config/DB themselves and pass the
+// already-fetched scalars/aggregates in.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5 / decision 1 — sharedCredit + WIRE §10.4 fan-out crediting decision.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CreditDecision {
+  /** Insert the completion on THIS clan's own tile? */
+  creditHome: boolean;
+  /** Run the server-side fan-out relay to the member's OTHER clans? (origin only) */
+  fanOut: boolean;
+  /** When we do NOT credit our own tile, why. */
+  refusal?: 'exclusive';
+}
+
+/**
+ * Decide whether to credit our own tile and whether to fan out (WIRE §5 / §10.4, decision 1).
+ *
+ * The critical correctness point (finding #2): an `exclusive` home that is *simultaneously* crediting
+ * elsewhere (`fanoutCount > 1`) skips ONLY its own home credit — it STILL proceeds to relay the credit
+ * to the member's other clans, each of which applies its OWN `sharedCredit` independently. We never
+ * return early and drop the whole-mesh credit. A LEAF (inbound relayed) ingest that is `exclusive`
+ * simply refuses — it never fans out (only the origin home does).
+ */
+export function decideCredit(deps: {
+  sharedCredit: 'accept' | 'exclusive';
+  fanoutCount: number;
+  isOrigin: boolean;
+}): CreditDecision {
+  const exclusiveBlocked = deps.sharedCredit === 'exclusive' && deps.fanoutCount > 1;
+  if (!exclusiveBlocked) {
+    return { creditHome: true, fanOut: deps.isOrigin };
+  }
+  // exclusive + multi-clan: skip our own credit. The origin still relays onward; a leaf just refuses.
+  return { creditHome: false, fanOut: deps.isOrigin, refusal: 'exclusive' };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #1 over-submission cap — mirrors the native submissions route (…/submissions/route.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * True when the tile is ALREADY at/over its required threshold — never credit past completion, for
+ * BOTH a home credit and a relayed cross-clan ingest (finding #1). Each clan checks its OWN tile, so
+ * an origin whose home tile is complete can still relay to clans that are not (the caller gates
+ * fan-out separately). The caller fetches the relevant aggregate (SUM / MAX / per-item SUM) and passes
+ * it in; this only holds the mode→threshold comparison so it stays pure + testable.
+ */
+export function tileAtCapacity(deps: {
+  tileType: string;
+  requiredAmount: number | null;
+  simpleTotal?: number; // SUM(amount) over tile+team (simple count tiles + valuetotal)
+  bestHaul?: number; // MAX(amount) over tile+team (value tiles — independent hauls)
+  itemRequired?: number | null; // per-item requiredAmount when the tile is per-item tracked
+  itemTotal?: number; // SUM(amount) over tile+team+itemId
+}): boolean {
+  // Per-item tracked tile: the cap is the specific item's own required amount.
+  if (deps.itemRequired != null) {
+    return (deps.itemTotal ?? 0) >= deps.itemRequired;
+  }
+  const required = deps.requiredAmount ?? 0;
+  if (required <= 0) return false; // no threshold → never "complete" by amount alone
+  if (deps.tileType === 'value') {
+    // value: each submission is an independent haul — complete once a single haul met the target.
+    return (deps.bestHaul ?? 0) >= required;
+  }
+  // valuetotal + simple + all count tiles: cumulative sum toward the target.
+  return (deps.simpleTotal ?? 0) >= required;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #11 auto-guest conflict resolution — never mint a token for a departed (leftAt) guest.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GuestConflictPlan = 'reuse' | 'reactivate' | 'missing';
+
+/**
+ * After an `onConflictDoNothing` guest insert lost the race with an EXISTING row of the same
+ * rsn_normalized, decide what to do with that row (finding #11). The unique index is on rsn_normalized
+ * regardless of `leftAt`, so the conflicting row may be a SOFT-REMOVED (departed) guest — we must NOT
+ * return it as-is and mint a token for a `leftAt` member. An active row is reused; a departed row is
+ * reactivated (cleared `leftAt`) so the caller can safely reuse it as an inert guest again.
+ */
+export function planGuestConflict(row: { leftAt: string | null } | null | undefined): GuestConflictPlan {
+  if (!row) return 'missing';
+  return row.leftAt == null ? 'reuse' : 'reactivate';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #14 rate-limit keying — the EXCHANGE caller is the relaying home site (one IP for the whole clan),
+// so IP-based limits collapse every member into one bucket. Key on the MEMBER identity (`sub` /
+// discord_id from the VERIFIED assertion) so limits are per-member, not per-home-clan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function exchangeRateLimitKey(sub: string): string {
+  return `sub:${sub}`;
+}
+
+export function guestRateLimitKey(sub: string): string {
+  return `guest:${sub}`;
+}

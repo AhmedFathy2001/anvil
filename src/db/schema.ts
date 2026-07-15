@@ -253,6 +253,13 @@ export const submissions = sqliteTable('submissions', {
   // makes a relayed write auditable + reversible by this clan (the receiver never trusts the relay
   // itself, only the token + content, so a mis-relay can be traced to its source and undone).
   federatedSource: text('federated_source'),
+  // FEDERATION_SECURITY.md §9 / decision #3 — for a FEDERATED relayed (cross-clan) submission the proof
+  // image lives on the ORIGIN clan's media host, which fails THIS clan's own-media check and must NOT be
+  // auto-fetched (no auto-loaded federated media — IP-leak / tracking-pixel / SSRF). We keep the origin
+  // URL here as an AUDIT-ONLY, reversible reference (never rendered or fetched by us); the trusted-home-
+  // bounded credit proceeds off the token + content. NULL for native submissions and the origin's own
+  // (managed-media) proof, which continues to use `imageUrl`.
+  federatedProofUrl: text('federated_proof_url'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

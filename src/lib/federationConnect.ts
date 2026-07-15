@@ -43,14 +43,23 @@ async function advanceSelfHost(
   const session = await getDeviceSession(userId);
   if (!session) return 'none';
 
+  // brokerDevicePoll self-degrades a thrown fetch error to { status:'pending' } (finding #5).
   const poll = await brokerDevicePoll(brokerBaseUrl, session.deviceCode, federationFetch);
   if (poll.status === 'complete') {
-    const connections = await connectViaBrokerToken({
-      brokerBaseUrl,
-      brokerToken: poll.brokerToken,
-      ownInstanceId,
-      fetchImpl: federationFetch,
-    });
+    let connections;
+    try {
+      connections = await connectViaBrokerToken({
+        brokerBaseUrl,
+        brokerToken: poll.brokerToken,
+        ownInstanceId,
+        fetchImpl: federationFetch,
+      });
+    } catch (err) {
+      // finding #5: an exchange/assert blip (timeout / SSRF-reject / a clan down) must NOT 500 the
+      // connect — keep the device session and let the member poll again ("keep polling").
+      log.warn('federation.connect.self-host.exchange-fail', { userId }, err);
+      return 'pending';
+    }
     await replaceConnectionsForUser(userId, connections);
     await clearDeviceSession(userId);
     log.info('federation.connect.self-host.complete', { userId, clans: connections.length });
@@ -81,13 +90,22 @@ export async function connectMember(userId: number, discordId: string): Promise<
   if (tier === 'hosted') {
     const credential = getInstanceCredential();
     if (!credential) return { status: 'unconfigured' };
-    const connections = await connectViaVouch({
-      brokerBaseUrl,
-      credential,
-      discordId,
-      ownInstanceId,
-      fetchImpl: federationFetch,
-    });
+    let connections;
+    try {
+      connections = await connectViaVouch({
+        brokerBaseUrl,
+        credential,
+        discordId,
+        ownInstanceId,
+        fetchImpl: federationFetch,
+      });
+    } catch (err) {
+      // finding #5: a broker/vouch blip must not 500 the connect. Keep whatever connections the member
+      // already had cached (a re-connect re-mints them next time) and report those.
+      log.warn('federation.connect.hosted-fail', { userId }, err);
+      const conns = await getConnectionsForUser(userId);
+      return { status: 'connected', count: conns.length };
+    }
     await replaceConnectionsForUser(userId, connections);
     log.info('federation.connect.hosted', { userId, clans: connections.length });
     return { status: 'connected', count: connections.length };
@@ -103,8 +121,15 @@ export async function connectMember(userId: number, discordId: string): Promise<
     const session = await getDeviceSession(userId);
     return { status: 'login', verificationUrl: safeVerificationUrl(session?.verificationUrl, brokerBaseUrl) ?? undefined };
   }
-  // none in flight → start a fresh device login.
-  const start = await brokerDeviceStart(brokerBaseUrl, federationFetch);
+  // none in flight → start a fresh device login. A broker blip here degrades to "keep polling" login
+  // (finding #5) rather than a 500 — the plugin retries /connect|/state.
+  let start;
+  try {
+    start = await brokerDeviceStart(brokerBaseUrl, federationFetch);
+  } catch (err) {
+    log.warn('federation.connect.self-host.start-fail', { userId }, err);
+    return { status: 'login' };
+  }
   // §8: pin the broker-returned verificationUrl to HTTPS + the broker's own host before it is ever
   // persisted or handed to the plugin to open — a rogue/compromised broker response can't redirect the
   // member's browser at a phishing Discord login.

@@ -214,10 +214,17 @@ export async function guardedFetch(
             if (total > 0 && !contentType.includes('application/json')) {
               return reject(new FederationSecurityError('federation: non-JSON response'));
             }
+            // finding #12: forward the upstream ETag on a 200 too (not only 304) so cachedGet can store
+            // it and send `If-None-Match` on the next poll → the clan can answer 304 (no body). Without
+            // this the conditional-GET revalidation never engages through the guard.
+            const outHeaders: Record<string, string> = {};
+            if (total > 0) outHeaders['Content-Type'] = 'application/json';
+            const etag = res.headers['etag'];
+            if (etag) outHeaders['ETag'] = String(etag);
             resolve(
               new Response(total > 0 ? Buffer.concat(chunks).toString('utf8') : null, {
                 status,
-                headers: total > 0 ? { 'Content-Type': 'application/json' } : {},
+                headers: outHeaders,
               }),
             );
           }),
@@ -331,9 +338,19 @@ export function clampString(v: unknown, max: number): string {
   return v.length > max ? v.slice(0, max) : v;
 }
 
+// finding #10: `Number(null) === 0` (and `Number(false)`/`Number('')`/`Number([])` === 0) would defeat
+// the `tileId == null` drop in the sanitizers — a `{ tileId: null }` tile would surface as id 0 and be
+// KEPT instead of dropped. Reject any non-integer/non-numeric-string input BEFORE coercion so those
+// values become null (dropped), never 0.
 function clampInt(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isInteger(n) ? n : null;
+  if (typeof v === 'number') return Number.isInteger(v) ? v : null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (t === '' || !/^[+-]?\d+$/.test(t)) return null;
+    const n = Number(t);
+    return Number.isInteger(n) ? n : null;
+  }
+  return null; // null / boolean / array / object → dropped, not coerced to 0
 }
 
 /** §9 depth guard: reject a payload nested deeper than CAP_JSON_DEPTH (parser-DoS / JSON-bomb shape). */

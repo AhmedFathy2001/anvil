@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
 import {
-  jwtVerify,
-  createRemoteJWKSet,
   decodeJwt,
   decodeProtectedHeader,
   errors as joseErrors,
-  type JWTVerifyGetKey,
+  type JWTPayload,
 } from 'jose';
 import { db } from '@/db';
 import { users, clanMembers, federationBans, clanAuditLog } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { getBrokerTrust, getExchangePolicy } from '@/lib/pluginConfig';
+import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
+import { exchangeRateLimitKey, guestRateLimitKey, planGuestConflict } from '@/lib/federationDecisions';
 import {
   getInstanceId,
   mintFederationToken,
@@ -34,19 +34,6 @@ export const dynamic = 'force-dynamic';
 // non-member more than the exchangePolicy allows.
 //
 // Body: { assertion: "<jwt>" }.
-
-// Per-jwksUrl memo of the remote key set. createRemoteJWKSet keeps its own fetch cache + cooldown and
-// refetches on an unknown `kid` (WIRE §3); reusing one instance per broker preserves that cache
-// across requests instead of hammering the broker's /jwks.json on every exchange.
-const jwksCache = new Map<string, JWTVerifyGetKey>();
-function brokerJwks(jwksUrl: string): JWTVerifyGetKey {
-  let jwks = jwksCache.get(jwksUrl);
-  if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(jwksUrl));
-    jwksCache.set(jwksUrl, jwks);
-  }
-  return jwks;
-}
 
 // Synthetic, clearly-non-game display name for an exchange-created guest. rsn is NOT NULL and
 // rsn_normalized is UNIQUE, and an assertion carries only the discord_id (no RSN), so we key the
@@ -93,20 +80,41 @@ async function ensureFederationGuest(
 
   if (inserted[0]) return { id: inserted[0].id, created: true };
 
-  const winner = await db.query.clanMembers.findFirst({
+  // The insert lost the unique-index race. The conflicting row is on `rsn_normalized`, which is unique
+  // REGARDLESS of `leftAt` — so it may be a SOFT-REMOVED (departed) guest. finding #11: don't return a
+  // `leftAt` row and mint a token for a departed member. Re-read WITHOUT the leftAt filter to find that
+  // row, then decide (planGuestConflict): reuse an active guest, or REACTIVATE a departed one (clear
+  // leftAt → it becomes an inert guest again). A `missing` result can only mean the row vanished between
+  // the failed insert and this read — extremely unlikely; recurse to re-attempt the create.
+  const conflict = await db.query.clanMembers.findFirst({
     where: eq(clanMembers.rsnNormalized, rsnNormalized),
-    columns: { id: true },
+    columns: { id: true, leftAt: true },
   });
-  return { id: winner!.id, created: false };
+  const plan = planGuestConflict(conflict);
+  if (plan === 'reuse') return { id: conflict!.id, created: false };
+  if (plan === 'reactivate') {
+    await db
+      .update(clanMembers)
+      .set({
+        leftAt: null,
+        isGuest: 1,
+        userId: ownerUserId,
+        source: 'federation',
+        notes: 'Re-activated via federation /exchange (inert guest — not on any team).',
+        lastSeenInClan: new Date().toISOString(),
+      })
+      .where(eq(clanMembers.id, conflict!.id));
+    return { id: conflict!.id, created: false };
+  }
+  // missing (row gone) → retry the whole find-or-create once.
+  return ensureFederationGuest(discordId, ownerUserId);
 }
 
 export async function POST(request: Request) {
-  // Rate-limit the door itself (WIRE §8). A separate, tighter budget gates guest CREATION below.
-  const rl = await rateLimit(request, 'federation-exchange', { limit: 30, windowMs: 5 * 60 * 1000 });
-  if (!rl.ok) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
-  }
-
+  // finding #14: the exchange door is rate-limited PER MEMBER (`sub` from the VERIFIED assertion),
+  // NOT per caller IP — the caller is the relaying HOME site, so all its members share one IP and an
+  // IP budget would let one member starve the whole clan's exchanges. The member-keyed limit (and the
+  // tighter guest-CREATION budget) are applied below, once `sub` is cryptographically established.
   let body: { assertion?: unknown };
   try {
     body = await request.json();
@@ -150,16 +158,17 @@ export async function POST(request: Request) {
 
   const instanceId = await getInstanceId();
 
-  // ── WIRE §2 steps 2,3,5,6: resolve kid against the broker JWKS, verify the signature (alg pinned
-  // to EdDSA), then jose validates claims in spec order — iss (4, re-checked), aud (5), exp (6, ≤30s
-  // skew). A tampered/forged/expired token, an unknown kid, or a wrong audience all fail here. ─────
-  let payload: Awaited<ReturnType<typeof jwtVerify>>['payload'];
+  // ── WIRE §2 steps 2,3,5,6: resolve kid against the broker JWKS (fetched through the §1 SSRF guard —
+  // the jwksUrl is admin-editable, finding #6), verify the signature (alg pinned to EdDSA), then jose
+  // validates claims — iss (4, re-checked), aud (5), and exp/iat (6): `requiredClaims` rejects a token
+  // missing any mandatory claim and `maxTokenAge:'90s'` bounds a held / far-future-`exp` assertion to
+  // ≤90s from issuance, with ≤30s skew (finding #7). A tampered/forged/expired/too-old token, an
+  // unknown kid, a missing claim, or a wrong audience all fail here. ────────────────────────────────
+  let payload: JWTPayload;
   try {
-    ({ payload } = await jwtVerify(assertion, brokerJwks(broker.jwksUrl), {
-      algorithms: ['EdDSA'],
+    ({ payload } = await verifyBrokerAssertion(assertion, createGuardedRemoteJWKSet(broker.jwksUrl), {
       issuer: iss,
       audience: instanceId,
-      clockTolerance: 30, // ≤30s clock skew (WIRE §2 step 6)
     }));
   } catch (err) {
     // aud mismatch → 403 (WIRE §8); everything else (bad signature, unknown kid, expired, wrong alg,
@@ -177,6 +186,16 @@ export async function POST(request: Request) {
   const jti = typeof payload.jti === 'string' ? payload.jti.trim() : '';
   if (!sub || !jti) {
     return NextResponse.json({ error: 'Assertion missing sub or jti' }, { status: 422 });
+  }
+
+  // ── finding #14: NOW that `sub` is cryptographically established, rate-limit the door PER MEMBER
+  // (not per home-clan IP). A separate, tighter budget gates guest CREATION further down. ───────────
+  const rl = await rateLimitByKey('federation-exchange', exchangeRateLimitKey(sub), {
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
   // ── WIRE §2 step 7: single-use jti. Record until exp; a replay is a 409. exp is validated above, so
@@ -268,9 +287,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // policy === 'auto-guest'. Separately rate-limit guest CREATION (WIRE §8): a spammed clan can flip
-  // exchangePolicy off on its own site, but this caps the blast radius in the meantime.
-  const grl = await rateLimit(request, 'federation-guest', { limit: 10, windowMs: 60 * 60 * 1000 });
+  // policy === 'auto-guest'. Separately rate-limit guest CREATION (WIRE §8) — also PER MEMBER (finding
+  // #14), so one member spamming a home relay can't exhaust guest creation for the whole clan. A
+  // spammed clan can still flip exchangePolicy off on its own site; this caps the blast radius meanwhile.
+  const grl = await rateLimitByKey('federation-guest', guestRateLimitKey(sub), { limit: 10, windowMs: 60 * 60 * 1000 });
   if (!grl.ok) {
     return NextResponse.json({ error: 'Too many guest creations' }, { status: 429, headers: rateLimitHeaders(grl) });
   }

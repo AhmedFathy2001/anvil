@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { federationConnections, federationDeviceSessions, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPluginTokenUser } from '@/lib/auth';
-import type { FederationConnection } from '@/lib/federationRelay';
+import { dedupeConnectionsByInstanceId, type FederationConnection } from '@/lib/federationRelay';
 import { encryptSecret, decryptSecret } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
@@ -82,20 +82,27 @@ export async function replaceConnectionsForUser(
   userId: number,
   connections: FederationConnection[],
 ): Promise<void> {
-  await db.delete(federationConnections).where(eq(federationConnections.userId, userId));
-  if (connections.length === 0) return;
+  // finding #4: DEDUPE by instanceId (keep last) before the bulk insert — a duplicate instanceId would
+  // otherwise hit the unique (userId, instanceId) index and blow up the whole insert (0 rows + 500)
+  // AFTER the delete already committed, leaving the member with NO connections. And wrap delete+insert
+  // in a TRANSACTION so an insert failure rolls the delete back (never a half-applied wipe).
+  const deduped = dedupeConnectionsByInstanceId(connections);
   const nowIso = new Date().toISOString();
   const key = tokenEncKey();
-  await db.insert(federationConnections).values(
-    connections.map((c) => ({
-      userId,
-      instanceId: c.instanceId,
-      baseUrl: c.baseUrl,
-      name: c.name,
-      token: encryptSecret(c.token, key), // §4 encrypt the cached remote-clan token at rest
-      lastUsedAt: nowIso,
-    })),
-  );
+  await db.transaction(async (tx) => {
+    await tx.delete(federationConnections).where(eq(federationConnections.userId, userId));
+    if (deduped.length === 0) return;
+    await tx.insert(federationConnections).values(
+      deduped.map((c) => ({
+        userId,
+        instanceId: c.instanceId,
+        baseUrl: c.baseUrl,
+        name: c.name,
+        token: encryptSecret(c.token, key), // §4 encrypt the cached remote-clan token at rest
+        lastUsedAt: nowIso,
+      })),
+    );
+  });
 }
 
 // §4 Revoke on disconnect: deleting the rows discards the (encrypted) cached remote-clan tokens, so the
