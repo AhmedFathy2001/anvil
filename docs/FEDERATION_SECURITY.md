@@ -19,13 +19,17 @@ This applies to **trusted (hosted) homes too**: holding a member's connection to
 | Tier | Trusted for | NOT trusted for |
 |---|---|---|
 | **Broker** (Anvil control plane) | Identity authority (signs assertions), directory | Being in the data hot path |
-| **Hosted home** (Anvil-run site) | Its own clan's data; vouching for **its own** members | Acting beyond a member's own scope on *other* clans |
+| **Any home** (hosted OR self-hosted) | Relaying its member's traffic; its own clan's data | **Vouching for identity — NO clan may** (`/vouch` removed); cross-clan writes beyond its member's own scope |
 | **Self-hosted site** | Its own clan's data; its own members' actions **on its own clan** | Vouching for identity; **writing** to other clans; being connected to without guards |
 | **Plugin / member** | Submitting its own player's events to its home | Reaching arbitrary hosts (default path = home site only) |
 
-Concretely: **self-host = read-only in the mesh** (display + be-a-member), never an identity voucher
-(`/vouch` is hosted-only → 403) and never a cross-clan **writer**. Cross-clan credit **writes** relay
-only between **trusted (hosted)** homes.
+Concretely: **no clan vouches for identity** — the `/vouch` endpoint is **removed**; every member proves
+their own Discord via device-code, and each receiving clan independently re-checks membership at
+`/exchange`. Cross-clan credit **writes** are relayed only with the member's own `/exchange` tokens and
+are re-validated (proof, membership), **tagged (reversible), and rate-limited** by each receiving clan
+(§3) — a malicious relay is bounded to its own member's normal actions, the same trust class as a
+tampered client. *(The prior "only hosted homes may write-relay" gate is now a standalone policy choice
+— revisit whether to keep it as defense-in-depth now that the identity tiers have collapsed.)*
 
 ---
 

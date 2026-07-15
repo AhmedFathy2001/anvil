@@ -178,15 +178,19 @@ every member of that clan — hosted and self-host use the exact same path.
 
 ### 10.2 Plugin ↔ home site  (the ONLY federation endpoints the plugin calls)
 - `GET  /api/plugin/federation/state` → `{ enabled, connected, needsLogin, verificationUrl?, clans:[{ id, name, board, activity, … }] }` — the plugin polls this and renders `clans[]`.
-- `POST /api/plugin/federation/connect` → `{ status:"connected" }` (trusted home, zero-click) **or** `{ status:"login", verificationUrl }` (self-host → plugin opens verificationUrl in the browser for the member's Discord login).
+- `POST /api/plugin/federation/connect` → `{ status:"connected" }` (an existing broker session) **or** `{ status:"login", verificationUrl }` (device-code — plugin opens verificationUrl for the member's one-time Discord login on the broker's domain).
 The plugin holds **no** clan tokens and opens **no** clan connections.
 
-### 10.3 Trust tiers — how the site authenticates the member to the broker
-- **Trusted home (Anvil-hosted):** broker trusts Anvil sites (shared derived secret); the home site
-  vouches for its authenticated member server-to-server → assertions minted → **zero-click**.
-- **Self-host home:** broker will NOT accept a self-host's identity claim (forge risk). Member proves
-  identity via device-code (§9.1) — home site relays `/device/start`+`/poll`; the Discord login happens
-  in the member's browser on the **broker's own domain**. One-time.
+### 10.3 Identity — the member always proves their own Discord (no clan vouching)
+**Every clan is untrusted; a clan's server is only a relay.** No clan — hosted OR self-hosted — may
+assert identity for a member: the `/vouch` endpoint is **REMOVED** and there is no "trusted home" tier.
+*Every* member authenticates via device-code (§9.1) — the home site relays `/device/start`+`/poll`, and
+the Discord login happens in the member's browser on the **broker's own domain**. One-time (a 30-day
+broker session; later connects reuse it). The broker mints assertions **only for the `discord_id` that
+logged in itself**, so a compromised/malicious clan can relay traffic but can never forge a member.
+Each target clan then independently re-checks membership at `/exchange` (the member must exist in that
+clan's DB / be created per its `exchangePolicy`) — the relay grants nothing. `/assoc` is now only a
+directory hint (which clans to *offer* a member); a spurious entry just fails at `/exchange`.
 
 ### 10.4 Fan-out is server-side too
 The plugin submits each game event to its home site **once** (exactly as today). The home site relays
