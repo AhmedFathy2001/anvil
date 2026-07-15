@@ -30,6 +30,7 @@ import {
   aggregateClans,
   type AggregatedClan,
 } from '@/lib/federationRelay';
+import { federationFetch, safeVerificationUrl } from '@/lib/federationSecurity';
 
 // Poll an EXISTING self-host device session and finish the connect if the member completed the
 // browser Discord login on the broker's domain. Never STARTS a session (that's the explicit /connect
@@ -42,12 +43,13 @@ async function advanceSelfHost(
   const session = await getDeviceSession(userId);
   if (!session) return 'none';
 
-  const poll = await brokerDevicePoll(brokerBaseUrl, session.deviceCode);
+  const poll = await brokerDevicePoll(brokerBaseUrl, session.deviceCode, federationFetch);
   if (poll.status === 'complete') {
     const connections = await connectViaBrokerToken({
       brokerBaseUrl,
       brokerToken: poll.brokerToken,
       ownInstanceId,
+      fetchImpl: federationFetch,
     });
     await replaceConnectionsForUser(userId, connections);
     await clearDeviceSession(userId);
@@ -79,7 +81,13 @@ export async function connectMember(userId: number, discordId: string): Promise<
   if (tier === 'hosted') {
     const credential = getInstanceCredential();
     if (!credential) return { status: 'unconfigured' };
-    const connections = await connectViaVouch({ brokerBaseUrl, credential, discordId, ownInstanceId });
+    const connections = await connectViaVouch({
+      brokerBaseUrl,
+      credential,
+      discordId,
+      ownInstanceId,
+      fetchImpl: federationFetch,
+    });
     await replaceConnectionsForUser(userId, connections);
     log.info('federation.connect.hosted', { userId, clans: connections.length });
     return { status: 'connected', count: connections.length };
@@ -93,18 +101,26 @@ export async function connectMember(userId: number, discordId: string): Promise<
   }
   if (advanced === 'pending') {
     const session = await getDeviceSession(userId);
-    return { status: 'login', verificationUrl: session?.verificationUrl };
+    return { status: 'login', verificationUrl: safeVerificationUrl(session?.verificationUrl, brokerBaseUrl) ?? undefined };
   }
   // none in flight → start a fresh device login.
-  const start = await brokerDeviceStart(brokerBaseUrl);
+  const start = await brokerDeviceStart(brokerBaseUrl, federationFetch);
+  // §8: pin the broker-returned verificationUrl to HTTPS + the broker's own host before it is ever
+  // persisted or handed to the plugin to open — a rogue/compromised broker response can't redirect the
+  // member's browser at a phishing Discord login.
+  const verificationUrl = safeVerificationUrl(start.verification_url, brokerBaseUrl);
+  if (!verificationUrl) {
+    log.warn('federation.connect.self-host.bad-verification-url', { userId });
+    return { status: 'unconfigured' };
+  }
   await saveDeviceSession(userId, {
     deviceCode: start.device_code,
-    verificationUrl: start.verification_url,
+    verificationUrl,
     interval: start.interval > 0 ? start.interval : 5,
     expiresAt: new Date(Date.now() + (start.expires_in > 0 ? start.expires_in : 600) * 1000).toISOString(),
   });
   log.info('federation.connect.self-host.started', { userId });
-  return { status: 'login', verificationUrl: start.verification_url };
+  return { status: 'login', verificationUrl };
 }
 
 export interface StateResult {
@@ -136,14 +152,14 @@ export async function buildState(userId: number): Promise<StateResult> {
 
   let needsLogin = false;
   let verificationUrl: string | undefined;
-  if (!connected && tier === 'self-host') {
+  if (!connected && tier === 'self-host' && brokerBaseUrl) {
     const session = await getDeviceSession(userId);
     if (session) {
       needsLogin = true;
-      verificationUrl = session.verificationUrl;
+      verificationUrl = safeVerificationUrl(session.verificationUrl, brokerBaseUrl) ?? undefined;
     }
   }
 
-  const clans = connected ? await aggregateClans(connections) : [];
+  const clans = connected ? await aggregateClans(connections, federationFetch) : [];
   return { enabled: true, connected, needsLogin, verificationUrl, clans };
 }

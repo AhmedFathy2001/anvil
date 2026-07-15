@@ -25,10 +25,25 @@ import {
   connectViaBrokerToken,
   aggregateClans,
   fanOutCredit,
+  computeServerFanout,
   fetchClanBoard,
   _clearRelayReadCache,
   type FederationConnection,
 } from '../src/lib/federationRelay.ts';
+import {
+  guardedFetch,
+  federationFetch,
+  assertSafeFederationUrl,
+  isDisallowedRedirect,
+  isPrivateIp,
+  encryptSecret,
+  decryptSecret,
+  sanitizeFederatedBoard,
+  sanitizeFederatedActivity,
+  safeVerificationUrl,
+  CAP_LABEL,
+  CAP_TILES,
+} from '../src/lib/federationSecurity.ts';
 
 const FED = '/api/federation/v1';
 const CREDENTIAL = 'derived-instance-credential';
@@ -63,6 +78,7 @@ let brokerBase = '';
 let clanBBase = '';
 let devicePolls = 0; // device/poll returns pending once, then complete
 let clanBExclusive = false; // toggles clan B's sharedCredit policy
+let clanBAcceptWrites = true; // toggles clan B's acceptFederatedWrites opt-out (§3)
 const clanBEvents: any[] = []; // credited events recorded at clan B
 let boardHits = 0; // how many times clan B actually served a fresh board body
 
@@ -175,6 +191,11 @@ before(async () => {
     if (req.method === 'POST' && url === `${FED}/events`) {
       if (!bearer(req)?.startsWith('B-token-')) return send(res, 401, { error: 'bad token' });
       const body = await readBody(req);
+      // Faithful mock of the receiver contract (FEDERATION_SECURITY.md §3): a clan may opt OUT of
+      // inbound relayed writes → clean { credited:false }.
+      if (!clanBAcceptWrites) {
+        return send(res, 200, { credited: false, reason: 'federation-writes-disabled' });
+      }
       // Faithful mock of the /events sharedCredit contract (WIRE §5): exclusive refuses count>1.
       if (clanBExclusive && Number(body?.fanout?.count) > 1) {
         return send(res, 200, { credited: false, reason: 'exclusive' });
@@ -274,6 +295,7 @@ test('fan-out relay → 2nd clan credited with the declared target', async () =>
     { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' },
   ];
   const results = await fanOutCredit({
+    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 3, note: 'zul kc' },
@@ -303,6 +325,7 @@ test('fan-out relay → 2nd clan `exclusive` refuses count>1 but credits count==
 
   // count>1 → exclusive clan refuses; nothing recorded.
   const refused = await fanOutCredit({
+    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 1 },
@@ -315,6 +338,7 @@ test('fan-out relay → 2nd clan `exclusive` refuses count>1 but credits count==
 
   // count==1 → exclusive does not apply; credited.
   const credited = await fanOutCredit({
+    tier: 'hosted',
     connections,
     targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
     payload: { amount: 1 },
@@ -329,6 +353,7 @@ test('fan-out skips targets with no cached connection (isolated, no throw)', asy
   clanBEvents.length = 0;
   clanBExclusive = false;
   const results = await fanOutCredit({
+    tier: 'hosted',
     connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
     targets: [
       { instanceId: CLANB_ID, eventId: 99, tileId: 1 },
@@ -362,4 +387,187 @@ test('brokerRegister returns the verification token (register-on-enable)', async
   );
   assert.equal(res?.verificationToken, 'verif-tok');
   assert.equal(res?.state, 'verified');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECURITY HARDENING (docs/FEDERATION_SECURITY.md)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── priority #1: cross-clan WRITES are restricted to trusted (hosted) homes ──────
+test('§trust-tiers: a SELF-HOST home does NOT write-relay (read-only in the mesh)', async () => {
+  clanBEvents.length = 0;
+  clanBExclusive = false;
+  clanBAcceptWrites = true;
+  const results = await fanOutCredit({
+    tier: 'self-host', // ← the whole point: a self-host never relays a cross-clan write
+    connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
+    targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
+    payload: { amount: 5 },
+    fanoutCount: 2,
+    instanceIds: [HOME_ID, CLANB_ID],
+  });
+  assert.deepEqual(results, []); // nothing relayed
+  assert.equal(clanBEvents.length, 0); // clan B was never written to
+});
+
+// ── §3: a receiving clan may OPT OUT of relayed writes (acceptFederatedWrites=false) ──
+test('§3: relaying to a clan that opted out surfaces credited:false / disabled', async () => {
+  clanBEvents.length = 0;
+  clanBAcceptWrites = false; // clan B refuses inbound relayed writes
+  const results = await fanOutCredit({
+    tier: 'hosted',
+    connections: [{ instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' }],
+    targets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
+    payload: { amount: 1 },
+    fanoutCount: 2,
+    instanceIds: [HOME_ID, CLANB_ID],
+  });
+  assert.equal(results[0].credited, false);
+  assert.equal(results[0].reason, 'federation-writes-disabled');
+  assert.equal(clanBEvents.length, 0); // no credit recorded
+  clanBAcceptWrites = true; // reset for later tests
+});
+
+// ── §7: server-authoritative fanout — a LYING plugin count/targets is overridden ──
+test('§7: computeServerFanout ignores a lying plugin count and validates targets', async () => {
+  const conns: FederationConnection[] = [
+    { instanceId: HOME_ID, name: 'Home', baseUrl: 'https://home.example', token: 'h' },
+    { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'b' },
+    { instanceId: 'clanC', name: 'Clan C', baseUrl: 'https://c.example', token: 'c' },
+  ];
+  // The tampered plugin declares count:1 (to slip past an exclusive clan) but two real targets.
+  const fan = computeServerFanout({
+    ownInstanceId: HOME_ID,
+    tier: 'hosted',
+    isOrigin: true,
+    relayTargets: [
+      { instanceId: CLANB_ID, eventId: 99, tileId: 1 },
+      { instanceId: 'clanC', eventId: 7, tileId: 2 },
+      { instanceId: HOME_ID, eventId: 1, tileId: 1 }, // own home — never a target
+      { instanceId: 'ghost', eventId: 3, tileId: 3 }, // no cached connection — dropped
+    ],
+    connections: conns,
+    declaredCount: 1, // ← the lie
+    declaredInstanceIds: [CLANB_ID], // ← also a lie
+  });
+  assert.equal(fan.count, 3); // 1 home + 2 REAL distinct targets — NOT the declared 1
+  assert.deepEqual(fan.instanceIds.sort(), [HOME_ID, CLANB_ID, 'clanC'].sort());
+  assert.deepEqual(fan.validTargets.map((t) => t.instanceId).sort(), [CLANB_ID, 'clanC'].sort());
+  assert.equal(fan.relayConnections.some((c) => c.instanceId === HOME_ID), false); // own home excluded
+});
+
+test('§7: a self-host origin computes count 1 (never relays) regardless of declared targets', () => {
+  const fan = computeServerFanout({
+    ownInstanceId: HOME_ID,
+    tier: 'self-host',
+    isOrigin: true,
+    relayTargets: [{ instanceId: CLANB_ID, eventId: 99, tileId: 1 }],
+    connections: [{ instanceId: CLANB_ID, name: 'B', baseUrl: clanBBase, token: 'b' }],
+    declaredCount: 5,
+    declaredInstanceIds: [HOME_ID, CLANB_ID],
+  });
+  assert.equal(fan.count, 1);
+  assert.deepEqual(fan.validTargets, []);
+});
+
+// ── §1 SSRF: guardedFetch / assertSafeFederationUrl reject unsafe federation URLs ──
+test('§1: assertSafeFederationUrl rejects http, credentials, and non-standard ports', async () => {
+  await assert.rejects(() => assertSafeFederationUrl('http://clan.example/board'), /HTTPS required/);
+  await assert.rejects(() => assertSafeFederationUrl('https://u:p@clan.example/'), /credentials/);
+  await assert.rejects(() => assertSafeFederationUrl('https://clan.example:8443/'), /non-standard port/);
+});
+
+test('§1: assertSafeFederationUrl rejects private / loopback / CGNAT / metadata / mapped-v6 addresses', async () => {
+  await assert.rejects(() => assertSafeFederationUrl('https://127.0.0.1/board'), /private/);
+  await assert.rejects(() => assertSafeFederationUrl('https://10.0.0.5/board'), /private/);
+  await assert.rejects(() => assertSafeFederationUrl('https://192.168.1.1/board'), /private/);
+  await assert.rejects(() => assertSafeFederationUrl('https://100.64.0.1/board'), /private/); // CGNAT
+  await assert.rejects(() => assertSafeFederationUrl('https://169.254.169.254/latest/meta-data'), /private/); // cloud metadata
+  await assert.rejects(() => assertSafeFederationUrl('https://[::1]/board'), /private/); // ipv6 loopback
+  await assert.rejects(() => assertSafeFederationUrl('https://[::ffff:10.0.0.1]/board'), /private/); // ipv4-mapped-v6
+  // A public literal passes the guard (no connection is made by the validator).
+  const ok = await assertSafeFederationUrl('https://8.8.8.8/board');
+  assert.equal(ok.host, '8.8.8.8');
+});
+
+test('§1: isPrivateIp covers the blocked families and lets public through', () => {
+  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1', '100.64.1.2', '169.254.169.254', '0.0.0.0', '::1', 'fd00::1', 'fe80::1']) {
+    assert.equal(isPrivateIp(ip), true, `${ip} should be private`);
+  }
+  for (const ip of ['8.8.8.8', '1.1.1.1', '93.184.216.34', '2606:4700:4700::1111']) {
+    assert.equal(isPrivateIp(ip), false, `${ip} should be public`);
+  }
+});
+
+test('§1: isDisallowedRedirect flags real redirects but allows 200/201/304', () => {
+  for (const s of [301, 302, 303, 307, 308]) assert.equal(isDisallowedRedirect(s), true, `${s}`);
+  for (const s of [200, 201, 304, 404, 500]) assert.equal(isDisallowedRedirect(s), false, `${s}`);
+});
+
+test('§1: guardedFetch (as fetchImpl) BLOCKS the loopback/http broker — every outbound is guarded', async () => {
+  // Wiring guardedFetch as the relay fetchImpl (exactly as production does) turns the loopback http
+  // mock broker into a hard rejection — proving no federation outbound can reach an http/private URL.
+  await assert.rejects(
+    () => connectViaVouch({ brokerBaseUrl: brokerBase, credential: CREDENTIAL, discordId: 'd', ownInstanceId: HOME_ID, fetchImpl: federationFetch }),
+    /HTTPS required|private/,
+  );
+  // And guardedFetch itself rejects a plain private-IP dial.
+  await assert.rejects(() => guardedFetch('https://127.0.0.1/x'), /private/);
+});
+
+// ── §2/§9: federated data is validated + clamped + depth-guarded before store/relay ──
+test('§2/§9: sanitizeFederatedBoard clamps oversized strings + arrays and drops junk', () => {
+  const hostile = {
+    eventId: 99,
+    name: 'X'.repeat(500), // > CAP_NAME
+    boardSize: 5,
+    evil: '<script>alert(1)</script>', // unknown field → dropped
+    tiles: [
+      ...Array.from({ length: CAP_TILES + 250 }, (_, i) => ({ tileId: i, label: 'L'.repeat(400), secret: 'drop-me' })),
+      { label: 'no id — dropped' }, // missing tileId → dropped
+      'not-an-object',
+    ],
+  };
+  const safe = sanitizeFederatedBoard(hostile);
+  assert.equal(safe.eventId, 99);
+  assert.equal(safe.name.length, 64); // clamped to CAP_NAME
+  assert.ok(safe.tiles.length <= CAP_TILES); // array bounded
+  assert.ok(safe.tiles.every((t) => t.label.length <= CAP_LABEL)); // labels clamped
+  assert.equal((safe as any).evil, undefined); // unknown field dropped
+  assert.equal((safe.tiles[0] as any).secret, undefined); // unknown tile field dropped
+});
+
+test('§2/§9: sanitizers reject a malformed / non-object / over-deep payload → empty safe object', () => {
+  assert.deepEqual(sanitizeFederatedBoard(null), { eventId: null, name: '', boardSize: null, tiles: [] });
+  assert.deepEqual(sanitizeFederatedBoard('nope'), { eventId: null, name: '', boardSize: null, tiles: [] });
+  assert.deepEqual(sanitizeFederatedActivity(42), { eventId: null, teamId: null, teamName: '', items: [] });
+  // Build a pathologically deep object (JSON-bomb shape) → depth guard collapses it to empty.
+  let deep: any = 'leaf';
+  for (let i = 0; i < 30; i++) deep = { nested: deep };
+  assert.deepEqual(sanitizeFederatedBoard(deep), { eventId: null, name: '', boardSize: null, tiles: [] });
+  assert.equal(sanitizeFederatedBoard({ eventId: 1, tiles: [deep] }).tiles.length, 0); // deep tile → whole payload rejected
+});
+
+// ── §4: cached tokens round-trip through encryption; a tamper is rejected ──
+test('§4: encryptSecret/decryptSecret round-trip; ciphertext is opaque; tamper throws', () => {
+  const key = 'server-side-encryption-key';
+  const token = 'B-token-super-secret-value';
+  const enc = encryptSecret(token, key);
+  assert.notEqual(enc, token); // not stored in the clear
+  assert.ok(enc.startsWith('fde1:'));
+  assert.equal(decryptSecret(enc, key), token); // round-trips
+  // Wrong key / tampered ciphertext → GCM auth failure throws (never returns garbage).
+  assert.throws(() => decryptSecret(enc, 'different-key'));
+  assert.throws(() => decryptSecret(enc.slice(0, -4) + 'AAAA', key));
+  // Legacy plaintext (no prefix) passes through untouched (additive rollout).
+  assert.equal(decryptSecret('legacy-plain-token', key), 'legacy-plain-token');
+});
+
+// ── §8: verificationUrl is pinned to https + the broker host ──
+test('§8: safeVerificationUrl allows only https on the broker host', () => {
+  const broker = 'https://broker.anvilosrs.com';
+  assert.equal(safeVerificationUrl('https://broker.anvilosrs.com/federation/device', broker), 'https://broker.anvilosrs.com/federation/device');
+  assert.equal(safeVerificationUrl('http://broker.anvilosrs.com/federation/device', broker), null); // not https
+  assert.equal(safeVerificationUrl('https://evil.example/federation/device', broker), null); // wrong host (phish)
+  assert.equal(safeVerificationUrl(undefined, broker), null);
 });

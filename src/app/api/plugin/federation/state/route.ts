@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { resolveFederationMember } from '@/lib/federationConnections';
 import { buildState } from '@/lib/federationConnect';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,13 @@ export async function GET(request: Request) {
       { error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' },
       { status: 401 },
     );
+  }
+
+  // §5 DoS: /state drives fan-out board/activity aggregation across every connected clan. The plugin
+  // polls it, so the budget is generous, but a runaway/malicious poller can't hammer the outbound fetches.
+  const rl = await rateLimit(request, 'federation-state', { limit: 120, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
   const state = await buildState(member.userId);

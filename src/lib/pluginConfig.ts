@@ -262,6 +262,11 @@ export const FEDERATION_ENABLED_KEY = 'federation_enabled';
 // self-hoster pointing at a different broker. Deliberately server-side only — it is NEVER returned to
 // the plugin (the plugin only ever calls its own home site).
 export const FEDERATION_BROKER_URL_KEY = 'federation_broker_url';
+// Per-clan opt-out for INBOUND relayed (cross-clan) credit writes (FEDERATION_SECURITY.md §3/priority
+// #1). Default ON. When '' (off), POST /events refuses any relayed write from another home with a
+// clean { credited:false, reason:'federation-writes-disabled' } — the clan still reads boards but takes
+// no federated credit. A clan that trusts nobody's relay flips this off.
+export const FEDERATION_ACCEPT_WRITES_KEY = 'federation_accept_writes';
 
 export type SharedCredit = 'accept' | 'exclusive';
 export type ExchangePolicy = 'auto-guest' | 'request-to-join' | 'reject';
@@ -319,6 +324,14 @@ export async function getBrokerTrust(): Promise<BrokerTrust[]> {
 export async function getFederationEnabled(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
   return row?.value === 'on';
+}
+
+// Whether this clan accepts INBOUND relayed cross-clan credit writes (FEDERATION_SECURITY.md §3).
+// Default ON — absent setting ⇒ accept. Only an explicit '' (off) opts the clan out.
+export async function getAcceptFederatedWrites(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ACCEPT_WRITES_KEY) });
+  const v = row?.value; // default (no row) = accept; explicit '' / 'off' = opt out
+  return v !== '' && v !== 'off';
 }
 
 // Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting

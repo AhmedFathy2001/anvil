@@ -10,6 +10,20 @@ import { federationConnections, federationDeviceSessions, users } from '@/db/sch
 import { eq } from 'drizzle-orm';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import type { FederationConnection } from '@/lib/federationRelay';
+import { encryptSecret, decryptSecret } from '@/lib/federationSecurity';
+import { log } from '@/lib/logger';
+
+// §4 The key material for encrypting cached remote-clan tokens at rest. A dedicated env var if set,
+// else the already-required ADMIN_SESSION_SECRET (every deploy has one), else a dev fallback. Kept
+// server-side only — the encrypted token never leaves the DB except decrypted for a server-to-server
+// replay.
+function tokenEncKey(): string {
+  return (
+    process.env.FEDERATION_TOKEN_ENC_KEY?.trim() ||
+    process.env.ADMIN_SESSION_SECRET?.trim() ||
+    'dev-federation-token-key'
+  );
+}
 
 // Resolve the plugin caller's federation identity from its existing account token (WIRE §10.2). The
 // broker vouches for a Discord identity, so we need (userId, discordId): the account token → users
@@ -40,12 +54,26 @@ export async function getConnectionsForUser(userId: number): Promise<FederationC
     })
     .from(federationConnections)
     .where(eq(federationConnections.userId, userId));
-  return rows.map((r) => ({
-    instanceId: r.instanceId,
-    name: r.name ?? r.instanceId,
-    baseUrl: r.baseUrl,
-    token: r.token,
-  }));
+  const key = tokenEncKey();
+  const out: FederationConnection[] = [];
+  for (const r of rows) {
+    let token: string;
+    try {
+      token = decryptSecret(r.token, key); // legacy plaintext passes through; forged ciphertext throws
+    } catch (err) {
+      // A token we can't decrypt (key rotated / corrupt) is unusable — drop that connection rather than
+      // replay garbage. The member simply re-connects to re-mint it.
+      log.warn('federation.connections.decrypt-fail', { userId, instanceId: r.instanceId }, err);
+      continue;
+    }
+    out.push({
+      instanceId: r.instanceId,
+      name: r.name ?? r.instanceId,
+      baseUrl: r.baseUrl,
+      token,
+    });
+  }
+  return out;
 }
 
 // Replace the member's whole connection set (a re-connect re-mints every token). Wholesale replace
@@ -57,18 +85,22 @@ export async function replaceConnectionsForUser(
   await db.delete(federationConnections).where(eq(federationConnections.userId, userId));
   if (connections.length === 0) return;
   const nowIso = new Date().toISOString();
+  const key = tokenEncKey();
   await db.insert(federationConnections).values(
     connections.map((c) => ({
       userId,
       instanceId: c.instanceId,
       baseUrl: c.baseUrl,
       name: c.name,
-      token: c.token,
+      token: encryptSecret(c.token, key), // §4 encrypt the cached remote-clan token at rest
       lastUsedAt: nowIso,
     })),
   );
 }
 
+// §4 Revoke on disconnect: deleting the rows discards the (encrypted) cached remote-clan tokens, so the
+// home site can no longer replay them anywhere. A re-connect re-mints fresh tokens. (replaceConnections-
+// ForUser with an empty set has the same effect on a full re-sync.)
 export async function clearConnectionsForUser(userId: number): Promise<void> {
   await db.delete(federationConnections).where(eq(federationConnections.userId, userId));
 }

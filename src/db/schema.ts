@@ -248,6 +248,11 @@ export const submissions = sqliteTable('submissions', {
   // (and baked onto the screenshot) by the plugin. NULL for drop/kill submissions. The
   // tile completes when any submission's durationSeconds ≤ tile.timeThresholdSeconds.
   durationSeconds: integer('duration_seconds'),
+  // FEDERATION_SECURITY.md §3 — the instanceId of the REMOTE home that relayed this credit in via
+  // POST /api/federation/v1/events. NULL for every native (non-federated) submission. Its presence
+  // makes a relayed write auditable + reversible by this clan (the receiver never trusts the relay
+  // itself, only the token + content, so a mis-relay can be traced to its source and undone).
+  federatedSource: text('federated_source'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

@@ -40,7 +40,17 @@ export async function rateLimit(
   scope: string,
   opts: Options,
 ): Promise<Result> {
-  const ident = getClientIp(request);
+  return rateLimitByKey(scope, getClientIp(request), opts);
+}
+
+// Fixed-window limiter keyed on an EXPLICIT identifier (not the request IP). Used by federation to
+// throttle relayed writes per (member, target instance) and inbound relayed writes per (member,
+// this instance) — see FEDERATION_SECURITY.md §3/§5. Same self-cleaning bucket store as rateLimit().
+export async function rateLimitByKey(
+  scope: string,
+  ident: string,
+  opts: Options,
+): Promise<Result> {
   const now = Date.now();
   const windowStart = Math.floor(now / opts.windowMs) * opts.windowMs;
   const reset = windowStart + opts.windowMs;

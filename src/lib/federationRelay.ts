@@ -14,6 +14,18 @@
 //
 // SECURITY: the broker URL and every remote-clan URL/token live ONLY on the server. Nothing here is
 // ever returned to the plugin; the plugin only ever sees the aggregated { clans } shape from /state.
+//
+// SSRF (FEDERATION_SECURITY.md §1): every outbound call goes through the injected `fetchImpl`.
+// PRODUCTION MUST inject `guardedFetch` (lib/federationSecurity) at every call site — the route
+// handlers do. The bare-`fetch` default exists ONLY for the in-process mock-server unit tests (which
+// dial loopback and would be blocked by the guard). A federated URL must never be reached with raw fetch.
+
+import {
+  sanitizeFederatedBoard,
+  sanitizeFederatedActivity,
+  type SafeBoard,
+  type SafeActivity,
+} from './federationSecurity.ts';
 
 type FetchLike = typeof fetch;
 
@@ -361,12 +373,15 @@ export async function connectViaBrokerToken(deps: {
 export interface AggregatedClan {
   id: string;
   name: string;
-  board: unknown;
-  activity: unknown;
+  board: SafeBoard;
+  activity: SafeActivity;
 }
 
 // Build the plugin-facing `clans[]` for /state: fetch each connected clan's board + activity
-// server-to-server (short-TTL/ETag cached), isolated per clan (a down clan yields nulls, not a throw).
+// server-to-server (short-TTL/ETag cached), isolated per clan (a down clan yields empties, not a throw).
+// Every remote payload is schema-validated + clamped + depth-guarded (§2/§9) here before it can reach
+// the plugin — untrusted clan strings (names/labels) never pass through raw. The clan `name` is from the
+// broker directory but clamped defensively too.
 export async function aggregateClans(
   connections: FederationConnection[],
   fetchImpl?: FetchLike,
@@ -377,9 +392,64 @@ export async function aggregateClans(
         fetchClanBoard(conn, fetchImpl).catch(() => null),
         fetchClanActivity(conn, fetchImpl).catch(() => null),
       ]);
-      return { id: conn.instanceId, name: conn.name, board, activity };
+      return {
+        id: conn.instanceId,
+        name: conn.name,
+        board: sanitizeFederatedBoard(board),
+        activity: sanitizeFederatedActivity(activity),
+      };
     }),
   );
+}
+
+// §7 SERVER-AUTHORITATIVE fan-out computation. The plugin's declared `count`/`targets` are UNTRUSTED
+// (a tampered client could report count:1 to slip past an `exclusive` clan while multi-crediting). Given
+// the member's REAL cached connections, this derives the authoritative fan-out:
+//   • self-host home → read-only in the mesh: NEVER relays → count 1, no targets.
+//   • leaf ingest (not origin) → trust the relaying hosted home's already-server-computed descriptor.
+//   • hosted origin → count = 1 (home) + #distinct declared targets that map to a REAL connection;
+//     targets validated against those connections; own instance never a target.
+// Pure + deps-injected so it is unit-testable with no DB.
+export interface ServerFanout {
+  count: number;
+  instanceIds: string[];
+  validTargets: FanoutTarget[];
+  relayConnections: FederationConnection[]; // the member's OTHER clans (own home excluded)
+}
+export function computeServerFanout(deps: {
+  ownInstanceId: string;
+  tier: 'hosted' | 'self-host';
+  isOrigin: boolean;
+  relayTargets: FanoutTarget[];
+  connections: FederationConnection[]; // the member's ALL cached connections
+  declaredCount: number;
+  declaredInstanceIds: string[];
+}): ServerFanout {
+  const relayConnections = deps.connections.filter((c) => c.instanceId !== deps.ownInstanceId);
+  if (deps.isOrigin && deps.tier === 'hosted') {
+    const connIds = new Set(relayConnections.map((c) => c.instanceId));
+    const validTargets = deps.relayTargets.filter(
+      (t) => t.instanceId !== deps.ownInstanceId && connIds.has(t.instanceId),
+    );
+    const distinct = [...new Set(validTargets.map((t) => t.instanceId))];
+    return {
+      count: 1 + distinct.length,
+      instanceIds: [deps.ownInstanceId, ...distinct],
+      validTargets,
+      relayConnections,
+    };
+  }
+  if (deps.isOrigin) {
+    // self-host origin: credits only itself
+    return { count: 1, instanceIds: [deps.ownInstanceId], validTargets: [], relayConnections };
+  }
+  // leaf / relayed write — the relaying hosted home already computed this authoritatively.
+  return {
+    count: deps.declaredCount,
+    instanceIds: deps.declaredInstanceIds,
+    validTargets: [],
+    relayConnections,
+  };
 }
 
 // Server-side fan-out (WIRE §10.4). The plugin submitted ONE game event to its home site, declaring
@@ -388,13 +458,19 @@ export async function aggregateClans(
 // clan's own token + a fanout descriptor so a receiving `exclusive` clan can refuse. Best-effort and
 // isolated per clan — a failing/absent clan never blocks the others or the home credit.
 export async function fanOutCredit(deps: {
+  tier: 'hosted' | 'self-host'; // FEDERATION_SECURITY.md priority #1 — only a TRUSTED (hosted) home writes cross-clan
   connections: FederationConnection[]; // the member's cached OTHER clans (home already excluded)
-  targets: FanoutTarget[]; // plugin-declared per-clan tile matches
+  targets: FanoutTarget[]; // server-validated per-clan tile matches (each has a real cached connection)
   payload: CreditPayload;
-  fanoutCount: number; // total clans this event credits (home + others) — drives `exclusive`
+  fanoutCount: number; // SERVER-authoritative clan count (home + others) — drives `exclusive`
   instanceIds: string[]; // all instanceIds in the fan-out (incl. home)
   fetchImpl?: FetchLike;
 }): Promise<FanoutRelayResult[]> {
+  // §trust-tiers: a self-host home is READ-ONLY in the mesh — it aggregates boards but NEVER relays a
+  // write to another clan. Cross-clan credit writes are restricted to trusted (hosted) homes we run.
+  // (NOTE: a *modified* self-host client is still bounded by the RECEIVING clan's proof/hiscores
+  // anti-cheat + the receiver's rate-limit/tag/opt-out controls — this gate is the outbound half.)
+  if (deps.tier !== 'hosted') return [];
   const connById = new Map(deps.connections.map((c) => [c.instanceId, c]));
   const results: FanoutRelayResult[] = [];
   for (const target of deps.targets) {

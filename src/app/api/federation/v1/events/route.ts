@@ -2,15 +2,16 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events, clanMembers } from '@/db/schema';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
-import { resolveFederationToken, getInstanceId } from '@/lib/federation';
-import { getSharedCredit } from '@/lib/pluginConfig';
+import { resolveFederationToken, getInstanceId, getFederationTier } from '@/lib/federation';
+import { getSharedCredit, getAcceptFederatedWrites } from '@/lib/pluginConfig';
 import { syncDropTileCompletion } from '@/lib/submissions';
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { rateLimit, rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { getConnectionsForUser } from '@/lib/federationConnections';
-import { fanOutCredit, type FanoutTarget } from '@/lib/federationRelay';
+import { fanOutCredit, computeServerFanout, type FanoutTarget } from '@/lib/federationRelay';
+import { federationFetch } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -103,9 +104,56 @@ export async function POST(request: Request) {
       })
     : [];
 
+  const ownInstanceId = await getInstanceId();
+  const tier = getFederationTier();
+  const isOrigin = relayTargets.length > 0; // this clan is the member's HOME, fanning out to others
+
+  // ── §3 per-clan opt-out for INBOUND relayed writes. A leaf ingest (no `targets`) is a credit RELAYED
+  // to us by another home; a clan may refuse those wholesale (still reads boards, takes no relayed
+  // credit). Clean { credited:false } — never an error. ────────────────────────────────────────────
+  if (!isOrigin && !(await getAcceptFederatedWrites())) {
+    return NextResponse.json(
+      { credited: false, reason: 'federation-writes-disabled' },
+      { headers: rateLimitHeaders(rl) },
+    );
+  }
+
+  // ── §3 rate-limit INBOUND relayed writes per (member, this clan) — a rogue relaying home can at worst
+  // spam its own member's normal actions, bounded here. Identity is off the TOKEN, never client claim. ─
+  const memberKey =
+    ctx.userId != null ? `u:${ctx.userId}` : ctx.discordId ? `d:${ctx.discordId}` : `t:${ctx.tokenId}`;
+  if (!isOrigin) {
+    const inbound = await rateLimitByKey('federation-write-in', `${memberKey}:${ownInstanceId}`, {
+      limit: 30,
+      windowMs: 60_000,
+    });
+    if (!inbound.ok) {
+      return NextResponse.json(
+        { credited: false, reason: 'rate-limited' },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
+    }
+  }
+
+  // ── §7 SERVER-AUTHORITATIVE fan-out. NEVER trust the plugin's declared count/targets. On the origin
+  // (home) path — and ONLY when this site is a TRUSTED (hosted) home (priority #1) — the count is
+  // recomputed from the connections we ACTUALLY hold and each declared target is validated against them
+  // (computeServerFanout). A self-host home is read-only in the mesh (never relays → count 1); a leaf
+  // trusts the relaying hosted home's already-server-computed descriptor. ───────────────────────────
+  const allConns = isOrigin && tier === 'hosted' && ctx.userId != null ? await getConnectionsForUser(ctx.userId) : [];
+  const fanout = computeServerFanout({
+    ownInstanceId,
+    tier,
+    isOrigin,
+    relayTargets,
+    connections: allConns,
+    declaredCount: fanoutCount,
+    declaredInstanceIds: instanceIds,
+  });
+
   // ── sharedCredit enforcement (decision 1, WIRE §5). `exclusive` refuses any event the player is
-  // simultaneously crediting elsewhere (fanout.count > 1) — a clean 200, not an error. ────────────
-  if ((await getSharedCredit()) === 'exclusive' && fanoutCount > 1) {
+  // simultaneously crediting elsewhere — using the SERVER count, not the plugin's. Clean 200. ────────
+  if ((await getSharedCredit()) === 'exclusive' && fanout.count > 1) {
     return NextResponse.json(
       { credited: false, reason: 'exclusive' },
       { headers: rateLimitHeaders(rl) },
@@ -244,7 +292,12 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── Feed the EXISTING pipeline: store the submission, then recompute completion. ────────────────
+  // ── Feed the EXISTING pipeline: store the submission, then recompute completion. A RELAYED (leaf)
+  // write is TAGGED with its source home instanceId (§3) so this clan can audit + reverse it later; a
+  // native origin submission carries null. ────────────────────────────────────────────────────────
+  const federatedSource = isOrigin
+    ? null
+    : instanceIds.find((id) => id !== ownInstanceId) ?? 'federation';
   const [submission] = await db
     .insert(submissions)
     .values({
@@ -257,6 +310,7 @@ export async function POST(request: Request) {
       note,
       itemId,
       durationSeconds,
+      federatedSource,
     })
     .returning();
 
@@ -302,41 +356,47 @@ export async function POST(request: Request) {
     flushPendingNotifications().catch(() => {});
   }
 
-  const instanceId = await getInstanceId();
-
-  // ── Server-side fan-out relay (WIRE §10.4). This clan is the member's HOME and just credited the
-  // event; relay the SAME credit to the member's OTHER cached clans (each with that clan's own token +
-  // a fanout descriptor so a receiving `exclusive` clan can refuse). Best-effort + isolated per clan
-  // (fanOutCredit swallows per-clan failures); a down/refusing clan never affects the home credit or
-  // the others. Only runs when the plugin declared `targets` (the loop guard above), and only for a
-  // member we hold outbound connections for. ──────────────────────────────────────────────────────
+  // ── Server-side fan-out relay (WIRE §10.4, hardened per FEDERATION_SECURITY.md priority #1 + §3/§7).
+  // Runs ONLY when this site is a TRUSTED (hosted) home — a self-host home is read-only in the mesh and
+  // NEVER write-relays (fanOutCredit also self-guards on `tier`). Targets are the SERVER-VALIDATED set
+  // (each has a real cached connection), the count/instanceIds are SERVER-computed, and each relayed
+  // write is rate-limited per (member, target clan). Best-effort + isolated per clan; a down/refusing
+  // clan never affects the home credit or the others. ─────────────────────────────────────────────
   let relayed: { instanceId: string; credited: boolean; reason?: string }[] | undefined;
-  if (relayTargets.length > 0 && ctx.userId != null) {
+  if (isOrigin && tier === 'hosted' && fanout.validTargets.length > 0 && ctx.userId != null) {
     try {
-      const allConns = await getConnectionsForUser(ctx.userId);
-      // Defensive: never relay to our own instance even if a stale row pointed at it.
-      const connections = allConns.filter((c) => c.instanceId !== instanceId);
-      if (connections.length > 0) {
+      // §3 per-(member, target clan) rate limit — drop any target over budget before relaying.
+      const allowedTargets: FanoutTarget[] = [];
+      for (const t of fanout.validTargets) {
+        const perTarget = await rateLimitByKey('federation-relay-out', `${ctx.userId}:${t.instanceId}`, {
+          limit: 30,
+          windowMs: 60_000,
+        });
+        if (perTarget.ok) allowedTargets.push(t);
+      }
+      if (allowedTargets.length > 0) {
         const results = await fanOutCredit({
-          connections,
-          targets: relayTargets.filter((t) => t.instanceId !== instanceId),
+          tier,
+          connections: fanout.relayConnections,
+          targets: allowedTargets,
           payload: { amount, imageUrl, note, itemId, durationSeconds },
-          fanoutCount,
-          instanceIds,
+          fanoutCount: fanout.count,
+          instanceIds: fanout.instanceIds,
+          fetchImpl: federationFetch, // §1 SSRF guard on every relayed /events POST
         });
         relayed = results.map((r) => ({ instanceId: r.instanceId, credited: r.credited, reason: r.reason }));
-        log.info('federation.events.fanout', { instanceId, userId: ctx.userId, relayed: relayed.length });
+        log.info('federation.events.fanout', { instanceId: ownInstanceId, userId: ctx.userId, relayed: relayed.length });
       }
     } catch (err) {
       // Fan-out is best-effort — the home credit already succeeded; never fail the response on relay.
-      log.warn('federation.events.fanout-fail', { instanceId, userId: ctx.userId }, err);
+      log.warn('federation.events.fanout-fail', { instanceId: ownInstanceId, userId: ctx.userId }, err);
     }
   }
 
   return NextResponse.json(
     {
       credited: true,
-      instanceId,
+      instanceId: ownInstanceId,
       submissionId: submission.id,
       completed: syncResult?.isComplete ?? false,
       ...(relayed ? { relayed } : {}),

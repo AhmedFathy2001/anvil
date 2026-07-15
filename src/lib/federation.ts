@@ -21,6 +21,7 @@ import {
   FEDERATION_BROKER_TRUST_KEY,
 } from '@/lib/pluginConfig';
 import { brokerRegister } from '@/lib/federationRelay';
+import { federationFetch } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
 // --- Settings keys (kept out of the public /api/admin/settings whitelist; the signing key in
@@ -187,6 +188,7 @@ export async function ensureRegisteredWithBroker(baseUrl: string): Promise<void>
       brokerBaseUrl,
       { instanceId, baseUrl, name, type: tier },
       getInstanceCredential(),
+      federationFetch, // §1 SSRF guard on the broker outbound
     );
     if (res?.verificationToken) {
       await setSetting(FEDERATION_VERIFICATION_TOKEN_KEY, res.verificationToken);
@@ -347,13 +349,14 @@ export async function pushAssociation(
   }
   const base = brokerIss.replace(/\/+$/, '');
   try {
-    await fetch(`${base}/api/federation/v1/assoc`, {
+    // §1 SSRF guard on the broker outbound (HTTPS-only, IP-pinned, no redirect). Fire-and-forget.
+    await federationFetch(`${base}/api/federation/v1/assoc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
       body: JSON.stringify({ discordId, instanceId }),
       signal: AbortSignal.timeout(5000),
     });
   } catch {
-    // fire-and-forget — swallow network/timeout errors.
+    // fire-and-forget — swallow network/timeout/guard errors.
   }
 }
