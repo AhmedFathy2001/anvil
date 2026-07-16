@@ -10,9 +10,10 @@ import { parseTrialRankTile } from '@/lib/barracudaTrials';
 export async function syncDropTileCompletion(
   tileId: number,
   teamId: number,
-  // When notifyCompletion is false the caller is folding the "tile completed" announcement into its
-  // own submission message (one webhook request instead of two). The team-win post still fires.
-  { notifyCompletion = true }: { notifyCompletion?: boolean } = {},
+  // notifyCompletion=false: the caller folds the "tile completed" post into its own submission message
+  // (one webhook, not two); the team-win post still fires. silent=true: suppress BOTH posts — for a bulk
+  // maintenance recompute that heals already-full tiles, which shouldn't re-announce old completions.
+  { notifyCompletion = true, silent = false }: { notifyCompletion?: boolean; silent?: boolean } = {},
 ) {
   // Get the tile to check its completion criteria
   const tile = await db.query.tiles.findFirst({
@@ -144,7 +145,7 @@ export async function syncDropTileCompletion(
       }) : null;
 
       if (team && event) {
-        if (notifyCompletion) {
+        if (notifyCompletion && !silent) {
           notifyTileCompletion({
             eventName: event.name,
             tileLabel: tile.label,
@@ -166,7 +167,7 @@ export async function syncDropTileCompletion(
         const eventTileIds = new Set(eventTiles.map(t => t.id));
         const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
 
-        if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+        if (!silent && completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
           notifyTeamWin({
             eventName: event.name,
             teamName: team.name,

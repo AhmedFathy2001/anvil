@@ -33,6 +33,8 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const [deleting, setDeleting] = useState(false);
   const [savingReveal, setSavingReveal] = useState(false);
   const [startingBingo, setStartingBingo] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState('');
 
   const [editType, setEditType] = useState(false);
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
@@ -137,6 +139,25 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
       }
     } finally {
       setForceEnding(false);
+    }
+  }
+
+  async function recomputeCompletions() {
+    setRecomputing(true);
+    setRecomputeMsg('');
+    try {
+      const res = await fetch(`/api/events/${event.id}/recompute-completions`, { method: 'POST' });
+      if (res.ok) {
+        const { healed } = await res.json();
+        setRecomputeMsg(healed > 0 ? `Healed ${healed} tile${healed === 1 ? '' : 's'}.` : 'All up to date.');
+        router.refresh();
+      } else {
+        setRecomputeMsg('Failed — try again.');
+      }
+    } catch {
+      setRecomputeMsg('Failed — try again.');
+    } finally {
+      setRecomputing(false);
     }
   }
 
@@ -467,6 +488,15 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
                 ? 'Hide Tiles from Members'
                 : 'Reveal Tiles to Members'}
           </button>
+          <button
+            onClick={recomputeCompletions}
+            disabled={recomputing}
+            title="Re-check every tile's completion — heals tiles that were already at their target before a completion-rule change (e.g. a full item set collected earlier). Only adds; never removes a completion."
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {recomputing ? 'Recomputing...' : 'Recompute Completions'}
+          </button>
+          {recomputeMsg && <span className="text-xs text-text-muted self-center">{recomputeMsg}</span>}
           {canChangeType && !editMode && (
             editType ? (
               <>
