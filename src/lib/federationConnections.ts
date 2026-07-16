@@ -116,6 +116,29 @@ export async function clearConnectionsForUser(userId: number): Promise<void> {
   await db.delete(federationConnections).where(eq(federationConnections.userId, userId));
 }
 
+// --- Durable "signed in to federation" marker (WIRE §10.3) ------------------------------------
+// Set when a broker device-code login COMPLETES — even if it resolved to zero remote clans — so
+// /state reports a persistent signedIn and the plugin shows a "Disconnect" affordance instead of
+// re-offering "Connect clans" on every reload. Cleared as part of a full disconnect.
+
+export async function markFederationLinked(userId: number): Promise<void> {
+  await db.update(users).set({ federationLinkedAt: new Date().toISOString() }).where(eq(users.id, userId));
+}
+
+export async function clearFederationLinked(userId: number): Promise<void> {
+  await db.update(users).set({ federationLinkedAt: null }).where(eq(users.id, userId));
+}
+
+// True when the member has an established federation identity (completed a device login), regardless
+// of how many remote clans it currently resolves to.
+export async function isFederationLinked(userId: number): Promise<boolean> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { federationLinkedAt: true },
+  });
+  return !!row?.federationLinkedAt;
+}
+
 // --- Self-host device-code login session (one in-flight per member) ---------------------------
 
 export interface DeviceSession {

@@ -17,9 +17,13 @@ import { log } from '@/lib/logger';
 import {
   getConnectionsForUser,
   replaceConnectionsForUser,
+  clearConnectionsForUser,
   getDeviceSession,
   saveDeviceSession,
   clearDeviceSession,
+  markFederationLinked,
+  clearFederationLinked,
+  isFederationLinked,
 } from '@/lib/federationConnections';
 import {
   brokerDeviceStart,
@@ -50,6 +54,10 @@ async function finishBrokerToken(
     return 'pending';
   }
   await replaceConnectionsForUser(userId, connections);
+  // Durable "signed in" marker — set even when connections is empty (the member federated their
+  // Discord but is in no OTHER clan yet), so /state reports a persistent signedIn and the plugin
+  // shows Disconnect rather than re-offering Connect on reload.
+  await markFederationLinked(userId);
   await clearDeviceSession(userId);
   log.info('federation.connect.self-host.complete', { userId, clans: connections.length });
   return 'connected';
@@ -150,9 +158,22 @@ export async function connectMember(userId: number): Promise<ConnectResult> {
 export interface StateResult {
   enabled: boolean;
   connected: boolean;
+  // The member has an established federation identity (completed a device login), even if it resolved
+  // to zero remote clans. Durable across reloads — drives the plugin's "Disconnect" affordance.
+  signedIn: boolean;
   needsLogin: boolean;
   verificationUrl?: string;
   clans: AggregatedClan[];
+}
+
+// The POST /disconnect action — a full federation logout. Discards the member's cached remote-clan
+// tokens (so the site can no longer replay them), clears the durable signed-in marker, and drops any
+// in-flight device session. Idempotent: safe to call when not connected.
+export async function disconnectMember(userId: number): Promise<void> {
+  await clearConnectionsForUser(userId);
+  await clearFederationLinked(userId);
+  await clearDeviceSession(userId).catch(() => {});
+  log.info('federation.disconnect', { userId });
 }
 
 // The GET /state shape (WIRE §10.2). Aggregates every connected clan's board + activity
@@ -160,7 +181,7 @@ export interface StateResult {
 // it auto-advances the poll so the sidebar flips to connected without a second explicit /connect.
 export async function buildState(userId: number): Promise<StateResult> {
   if (!(await getFederationEnabled())) {
-    return { enabled: false, connected: false, needsLogin: false, clans: [] };
+    return { enabled: false, connected: false, signedIn: false, needsLogin: false, clans: [] };
   }
   const brokerBaseUrl = await getBrokerBaseUrl();
   const ownInstanceId = await getInstanceId();
@@ -171,6 +192,9 @@ export async function buildState(userId: number): Promise<StateResult> {
 
   const connections = await getConnectionsForUser(userId);
   const connected = connections.length > 0;
+  // Signed in = a completed device login (durable marker) OR having live connections. The marker
+  // covers the "federated but in no other clan" case where connected is false yet the member IS in.
+  const signedIn = connected || (await isFederationLinked(userId));
 
   let needsLogin = false;
   let verificationUrl: string | undefined;
@@ -185,5 +209,5 @@ export async function buildState(userId: number): Promise<StateResult> {
   }
 
   const clans = connected ? await aggregateClans(connections, federationFetch) : [];
-  return { enabled: true, connected, needsLogin, verificationUrl, clans };
+  return { enabled: true, connected, signedIn, needsLogin, verificationUrl, clans };
 }

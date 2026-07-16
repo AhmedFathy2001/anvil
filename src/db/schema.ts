@@ -320,6 +320,11 @@ export const users = sqliteTable('users', {
   // Rotated by the user from /profile if leaked. Nullable for legacy users; lazily
   // generated the first time the user opens the plugin section.
   pluginToken: text('plugin_token'),
+  // When the member last established a federation identity via the broker device-code login
+  // (WIRE §10.3). Set on a completed login even if it yielded zero remote clans, so the plugin
+  // can show a durable "signed in / Disconnect" state instead of re-offering "Connect clans" on
+  // every reload; cleared on POST /federation/disconnect. NULL = never federated.
+  federationLinkedAt: text('federation_linked_at'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
 ]);

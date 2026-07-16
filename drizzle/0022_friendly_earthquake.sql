@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `federation_linked_at` text;
