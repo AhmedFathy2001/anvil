@@ -30,7 +30,40 @@ export async function syncDropTileCompletion(
   let totalAmount: number;
   let isComplete: boolean;
 
-  if (tile.tileType === 'timed') {
+  // Collection tiles (a SET of items via itemRequirements) complete when a full set is satisfied. Keyed on
+  // the PRESENCE of itemRequirements — independent of tile.tileType and tile.requiredAmount — because older
+  // / bulk-imported collections can carry a non-'drop' tileType or a stale requiredAmount, which made the
+  // `tile.tileType === 'drop' && tile.requiredAmount` guard below skip them so a full set never completed
+  // server-side (the clog masked it with a client-side full-set check).
+  const itemRequirements = tile.itemRequirements
+    ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[])
+    : null;
+
+  if (itemRequirements && itemRequirements.length > 0) {
+    const perItemTotals = await db
+      .select({ itemId: submissions.itemId, total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
+      .groupBy(submissions.itemId);
+    const itemTotalMap = new Map(perItemTotals.map((r) => [r.itemId, Number(r.total)]));
+    totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
+    // Grouped ("any full set") mode: requirements carrying a `group` name form OR-ed sets — one full set
+    // completes the tile (no mixing across sets). Ungrouped requirements stay AND-ed on top; no groups at
+    // all keeps the classic all-of collection semantics.
+    const met = (req: { itemId: number; requiredAmount: number }) =>
+      (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
+    const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
+    const groups = new Map<string, typeof itemRequirements>();
+    for (const r of itemRequirements) {
+      const g = r.group?.trim();
+      if (!g) continue;
+      const key = g.toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
+    isComplete = ungrouped.every(met) && anySetDone;
+  } else if (tile.tileType === 'timed') {
     // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
     // match, so the rank is the gate — complete on any submission, no time cap (each rank is its own
     // challenge, so a cap is meaningless). Normal timed tiles: pass/fail on duration ≤ cap; no
@@ -69,50 +102,14 @@ export async function syncDropTileCompletion(
     totalAmount = result[0]?.total ?? 0;
     isComplete = totalAmount >= tile.requiredAmount;
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
-    const itemRequirements = tile.itemRequirements
-      ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
-      : null;
+    // Simple drop pool (no per-item requirements — collections are handled by the branch above).
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
 
-    if (itemRequirements) {
-      // Per-item mode: check each item individually
-      const perItemTotals = await db
-        .select({
-          itemId: submissions.itemId,
-          total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-        })
-        .from(submissions)
-        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
-        .groupBy(submissions.itemId);
-
-      const itemTotalMap = new Map(perItemTotals.map(r => [r.itemId, Number(r.total)]));
-      totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
-      // Grouped ("any full set") mode: requirements carrying a `group` name form sets that are
-      // OR-ed — the tile completes when ONE set is fully collected (no mixing across sets).
-      // Ungrouped requirements stay AND-ed on top, and a tile with no groups at all keeps the
-      // classic all-of collection semantics.
-      const met = (req: { itemId: number; requiredAmount: number }) =>
-        (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
-      const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
-      const groups = new Map<string, typeof itemRequirements>();
-      for (const r of itemRequirements) {
-        const g = r.group?.trim();
-        if (!g) continue;
-        const key = g.toLowerCase();
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(r);
-      }
-      const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
-      isComplete = ungrouped.every(met) && anySetDone;
-    } else {
-      // Simple mode: existing behavior
-      const result = await db
-        .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-        .from(submissions)
-        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-
-      totalAmount = result[0]?.total ?? 0;
-      isComplete = totalAmount >= tile.requiredAmount;
-    }
+    totalAmount = result[0]?.total ?? 0;
+    isComplete = totalAmount >= tile.requiredAmount;
   } else {
     return null;
   }
