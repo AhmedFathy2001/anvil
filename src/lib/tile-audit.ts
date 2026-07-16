@@ -92,6 +92,10 @@ export interface TileAuditEntry {
   oldValue?: unknown;
   newValue?: unknown;
   actorUserId?: number | null;
+  // Set when an 'updated' entry was made through the admin live-event override (editing a normally
+  // frozen field on a running board). Stored in the otherwise-unused `newValue` for updated rows so
+  // the history timeline can badge it — no schema change needed.
+  liveOverride?: boolean;
 }
 
 /**
@@ -111,7 +115,13 @@ export function logTileAudit(entry: TileAuditEntry): void {
       changedFields:
         entry.changedFields && entry.changedFields.length ? JSON.stringify(entry.changedFields) : null,
       oldValue: entry.oldValue != null ? JSON.stringify(entry.oldValue) : null,
-      newValue: entry.newValue != null ? JSON.stringify(entry.newValue) : null,
+      // An 'updated' row never carries its own newValue snapshot, so we reuse it to flag a live
+      // override (see TileAuditEntry.liveOverride). Any other action keeps its normal newValue.
+      newValue: entry.liveOverride
+        ? JSON.stringify({ liveOverride: true })
+        : entry.newValue != null
+          ? JSON.stringify(entry.newValue)
+          : null,
       actorUserId: entry.actorUserId ?? null,
     })
     .catch(() => {});

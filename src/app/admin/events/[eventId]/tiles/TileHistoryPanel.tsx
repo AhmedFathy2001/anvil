@@ -185,6 +185,15 @@ export default function TileHistoryPanel({ eventId }: { eventId: number }) {
                   <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${meta.cls}`}>
                     {meta.label}
                   </span>
+                  {entry.action === 'updated' &&
+                    safeParse<{ liveOverride?: boolean }>(entry.newValue)?.liveOverride && (
+                      <span
+                        title="A normally-frozen field was edited on a live event by an admin."
+                        className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border bg-amber-500/15 text-amber-300 border-amber-500/30"
+                      >
+                        🔓 Live override
+                      </span>
+                    )}
                   {entry.tileLabel ? (
                     <span className="font-medium">{entry.tileLabel}</span>
                   ) : (

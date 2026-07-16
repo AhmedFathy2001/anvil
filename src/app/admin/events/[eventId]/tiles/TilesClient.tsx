@@ -53,9 +53,11 @@ interface Props {
   event: Event;
   tiles: Tile[];
   tierBands?: TierBand[];
+  /** Current user is an admin — gates the admin-only live-event tile override. */
+  isAdmin?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
@@ -776,6 +778,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       router.refresh();
                     }}
                     eventStarted={eventStarted}
+                    isAdmin={isAdmin}
                     pointsMode={pointsMode}
                     tierBands={tierBands}
                     categorySuggestions={categories}
@@ -949,6 +952,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           tile={editingTile}
           eventId={event.id}
           eventStarted={eventStarted}
+          isAdmin={isAdmin}
           pointsMode={pointsMode}
           tierBands={tierBands}
           lockHolder={lockHolder}
@@ -1131,6 +1135,7 @@ interface DrawerProps {
   tile: Tile;
   eventId: number;
   eventStarted: boolean;
+  isAdmin?: boolean;
   pointsMode: boolean;
   canDelete?: boolean;
   onClose: () => void;
@@ -1142,7 +1147,7 @@ interface DrawerProps {
   categorySuggestions?: string[];
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1194,6 +1199,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, pointsMode, canDelete, 
             initial={tileToTrackingInitial(tile)}
             onSaved={onSaved}
             eventStarted={eventStarted}
+            isAdmin={isAdmin}
             pointsMode={pointsMode}
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}
