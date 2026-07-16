@@ -11,6 +11,7 @@ import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
 import { statLabel } from '@/lib/tileKinds';
+import { submissionHasProof } from '@/lib/submissionProof';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
@@ -90,6 +91,8 @@ interface Props {
   // Public scoreboard only: per-team gains toward this stat tile's goal (all teams compared).
   teamStatProgress?: TeamStatProgress[];
   pointsMode?: boolean;
+  // Admin all-teams view: label each submission with its team (submissions can span teams here).
+  teamNameById?: Record<number, string>;
 }
 
 export default function TileDetailModal({
@@ -112,6 +115,7 @@ export default function TileDetailModal({
   statProgress,
   teamStatProgress,
   pointsMode,
+  teamNameById,
 }: Props) {
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
@@ -178,6 +182,26 @@ export default function TileDetailModal({
   const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
   const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
+
+  // Kill/count tiles land one auto submission per kill (no screenshot), so a 500-kill tile is 500
+  // identical rows. List only submissions with real proof (a screenshot or a human note) and roll
+  // the bare auto logs up per player into one line. Timed tiles stay individual — each run is a
+  // distinct clear time and there are never many.
+  const proofSubs = submissions.filter(submissionHasProof);
+  const individualSubs = isTimed ? submissions : proofSubs;
+  const bareGroups = (() => {
+    if (isTimed) return [];
+    const m = new Map<string, { key: string; teamId: number | null; playerName: string | null; count: number; amount: number }>();
+    for (const s of submissions) {
+      if (submissionHasProof(s)) continue;
+      const key = `${s.teamId ?? ''}|${s.creditPlayerId ?? s.creditPlayerName ?? ''}`;
+      const g = m.get(key) ?? { key, teamId: s.teamId ?? null, playerName: s.creditPlayerName ?? null, count: 0, amount: 0 };
+      g.count += 1;
+      g.amount += s.amount;
+      m.set(key, g);
+    }
+    return [...m.values()].sort((a, b) => b.amount - a.amount);
+  })();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -689,7 +713,7 @@ export default function TileDetailModal({
                 Submissions ({submissions.length})
               </h3>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {submissions.map((s) => (
+                {individualSubs.map((s) => (
                   <div
                     key={s.id}
                     className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50"
@@ -697,6 +721,11 @@ export default function TileDetailModal({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                          {teamNameById && s.teamId != null && teamNameById[s.teamId] && (
+                            <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
+                              {teamNameById[s.teamId]}
+                            </span>
+                          )}
                           {s.creditPlayerName && (
                             <span className="font-medium text-accent-green-light">
                               {s.creditPlayerName}
@@ -743,6 +772,26 @@ export default function TileDetailModal({
                         />
                       </div>
                     )}
+                  </div>
+                ))}
+
+                {/* Auto count logs (one per kill, no screenshot) rolled up per player. */}
+                {bareGroups.map((g) => (
+                  <div key={`bare-${g.key}`} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                      {teamNameById && g.teamId != null && teamNameById[g.teamId] && (
+                        <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
+                          {teamNameById[g.teamId]}
+                        </span>
+                      )}
+                      {g.playerName && <span className="font-medium text-accent-green-light">{g.playerName}</span>}
+                      <span className="text-gold font-medium">
+                        {isValue
+                          ? `${g.amount.toLocaleString()} gp`
+                          : `${g.amount} ${countNoun}${g.amount !== 1 ? 's' : ''}`}
+                      </span>
+                      <span className="text-text-muted">· {g.count} auto log{g.count !== 1 ? 's' : ''}</span>
+                    </div>
                   </div>
                 ))}
               </div>

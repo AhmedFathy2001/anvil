@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers, users } from '@/db/schema';
+import { clanMembers, federationBans, users } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -17,23 +17,46 @@ export async function GET() {
     .from(clanMembers)
     .orderBy(desc(clanMembers.joinedAt));
 
-  // Tag each row with whether its linked site user is banned, so the roster can show/toggle it.
+  // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
+  // clan_members.discordId column) so the roster can show/toggle both the site ban and the
+  // federation ban.
   const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is number => v != null))];
-  const bannedIds = userIds.length
+  const userRows = userIds.length
+    ? await db
+        .select({ id: users.id, banned: users.banned, discordId: users.discordId })
+        .from(users)
+        .where(inArray(users.id, userIds))
+    : [];
+  const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.id));
+  const userDiscordId = new Map(userRows.map((u) => [u.id, u.discordId]));
+
+  // Effective Discord id per member (federation bans are keyed on discord_id, WIRE §4).
+  const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
+    (r.userId != null ? userDiscordId.get(r.userId) : null) ?? r.discordId ?? null;
+
+  // Which of those discord ids are federation-banned.
+  const discordIds = [...new Set(rows.map(effectiveDiscordId).filter((v): v is string => !!v))];
+  const fedBanned = discordIds.length
     ? new Set(
         (
           await db
-            .select({ id: users.id, banned: users.banned })
-            .from(users)
-            .where(inArray(users.id, userIds))
-        )
-          .filter((u) => u.banned)
-          .map((u) => u.id),
+            .select({ discordId: federationBans.discordId })
+            .from(federationBans)
+            .where(inArray(federationBans.discordId, discordIds))
+        ).map((b) => b.discordId),
       )
-    : new Set<number>();
+    : new Set<string>();
 
   return NextResponse.json(
-    rows.map((r) => ({ ...r, userBanned: r.userId != null && bannedIds.has(r.userId) })),
+    rows.map((r) => {
+      const did = effectiveDiscordId(r);
+      return {
+        ...r,
+        userBanned: r.userId != null && bannedIds.has(r.userId),
+        effectiveDiscordId: did,
+        federationBanned: did != null && fedBanned.has(did),
+      };
+    }),
   );
 }
 

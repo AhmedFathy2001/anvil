@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
+import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWeight, isPointsMode } from '@/lib/utils';
+import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 interface Props {
   event: Event;
@@ -15,13 +17,15 @@ interface Props {
   tiles: Tile[];
   completions: Completion[];
   players: Player[];
+  tierBands?: TierBand[];
 }
 
-export default function AdminTeamBoardClient({ event, team, tiles, completions: initialCompletions, players }: Props) {
+export default function AdminTeamBoardClient({ event, team, tiles, completions: initialCompletions, players, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const router = useRouter();
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
 
   const teamPlayers = players.filter((p) => p.teamId === team.id);
 
@@ -78,13 +82,17 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   const pointsMode = isPointsMode(event.scoringMode);
+  // Optional tiles are bonus — they don't count toward the score or the total (matches the
+  // scoreboard, stats and the rest of the app).
+  const scoredTiles = tiles.filter((t) => !t.optional);
+  const scoredTileIds = new Set(scoredTiles.map((t) => t.id));
   const weightById = new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
-    : completions.length;
+    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
+    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : scoredTiles.length;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -111,6 +119,8 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         Click tiles to view details and manage · {completed}/{total} {pointsMode ? 'pts' : 'completed'}
       </p>
 
+      <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+
       <EventBoard
         format={event.format}
         tiles={tiles}
@@ -121,6 +131,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         onTileClick={handleTileClick}
         dropProgress={dropProgress}
         pointsMode={pointsMode}
+        matchedTileIds={matchedTileIds}
       />
 
       {/* Tile Detail Modal */}

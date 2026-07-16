@@ -6,7 +6,6 @@ export default function FeedbackForm() {
   const [kind, setKind] = useState<'bug' | 'feedback'>('bug');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [contact, setContact] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -26,7 +25,6 @@ export default function FeedbackForm() {
         kind,
         subject,
         body,
-        contact: contact || undefined,
         pageUrl: typeof document !== 'undefined' ? document.referrer || undefined : undefined,
       }),
     });
@@ -45,7 +43,6 @@ export default function FeedbackForm() {
             setDone(false);
             setSubject('');
             setBody('');
-            setContact('');
           }}
           className="text-sm text-gold hover:underline underline-offset-2 mt-1"
         >
@@ -90,16 +87,6 @@ export default function FeedbackForm() {
           maxLength={5000}
           placeholder={kind === 'bug' ? 'What happened, what you expected, and steps to reproduce.' : 'Tell us what you’d like.'}
           className="w-full text-sm px-3 py-2 bg-brown-dark border border-card-border rounded-lg resize-y focus:outline-none focus:border-gold/50"
-        />
-      </div>
-      <div>
-        <label className="block text-xs text-text-muted mb-1">Contact (optional)</label>
-        <input
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          maxLength={120}
-          placeholder="RSN or Discord, if you want a reply"
-          className="w-full text-sm px-3 py-2 bg-brown-dark border border-card-border rounded-lg focus:outline-none focus:border-gold/50"
         />
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}

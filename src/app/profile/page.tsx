@@ -19,6 +19,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import { signupWindowState } from '@/lib/signup';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
+import ConnectedPluginsClient from './ConnectedPluginsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
 import LinkedAccountsClient from './LinkedAccountsClient';
@@ -392,6 +393,9 @@ export default async function ProfilePage({
         </p>
         <PluginPlayerTokenClient />
       </section>
+
+      {/* Federation: connected plugins (tokens that let a plugin reach this clan, incl. cross-clan). */}
+      <ConnectedPluginsClient />
 
       {/* Secondary path: no plugin */}
       <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">

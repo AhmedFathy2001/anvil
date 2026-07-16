@@ -1,15 +1,16 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
-import { computeMemberBreakdown } from '@/lib/memberBreakdown';
+import { computeMemberBreakdown, topMember } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
+import MvpHighlight from '@/components/MvpHighlight';
 import PlayerContributions from '@/components/PlayerContributions';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -30,8 +31,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
-  // Which member's contributions the full-width detail panel shows (none until you pick one).
+  const [breakdownOpen, setBreakdownOpen] = useState(true);
+  // Which member's contributions the side panel shows. Auto-selected to the top contributor once the
+  // breakdown loads (see effect below); null until then / after you close the panel.
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
@@ -79,16 +81,19 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   }, [fetchSubmissions, fetchGains]);
 
   const pointsMode = isPointsMode(event.scoringMode);
+  // Optional tiles are bonus — excluded from the score and the total (matches the scoreboard).
+  const scoredTiles = useMemo(() => tiles.filter((t) => !t.optional), [tiles]);
+  const scoredTileIds = useMemo(() => new Set(scoredTiles.map((t) => t.id)), [scoredTiles]);
   const weightById = useMemo(
     () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
     [tiles, event.scoringMode],
   );
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
-    : completions.length;
+    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
+    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
+    : scoredTiles.length;
   const tilesLeft = total - completed;
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -107,6 +112,52 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
       }),
     [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
   );
+
+  // Auto-open the first person on the breakdown (top contributor) so their details show by default.
+  // Runs once when the breakdown first has members; after that, closing the panel stays closed.
+  const didAutoSelectMember = useRef(false);
+  useEffect(() => {
+    if (!didAutoSelectMember.current && memberBreakdown.length > 0) {
+      didAutoSelectMember.current = true;
+      setSelectedMemberId((cur) => cur ?? memberBreakdown[0].playerId);
+    }
+  }, [memberBreakdown]);
+
+  // Team MVP (overall) + MVP of the day (top contributor over tiles completed in the last 24h).
+  const teamMvp = topMember(memberBreakdown);
+  const teamMvpTodayRaw = useMemo(() => {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    return topMember(
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: teamPlayers,
+        tiles,
+        completions: completions.filter((c) => c.completedAt >= dayAgo),
+        submissions,
+        statGains: gains,
+      }),
+    );
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains]);
+  const teamMvpToday =
+    teamMvpTodayRaw &&
+    teamMvp &&
+    teamMvpTodayRaw.playerId === teamMvp.playerId &&
+    teamMvpTodayRaw.points === teamMvp.points &&
+    teamMvpTodayRaw.tasks === teamMvp.tasks
+      ? null
+      : teamMvpTodayRaw;
+
+  const selectedMember = selectedMemberId != null ? teamPlayers.find((p) => p.id === selectedMemberId) ?? null : null;
+  const selectedMemberSubmissions =
+    selectedMemberId != null ? submissions.filter((s) => s.creditPlayerId === selectedMemberId) : [];
+  // Skill/boss (hiscores-tracked) contributions for the panel — pulled from the breakdown.
+  const selectedMemberStatContributions =
+    selectedMemberId != null
+      ? (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? []).filter(
+          (c) => c.statType != null,
+        )
+      : [];
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -150,6 +201,17 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
       {/* Desktop: team summary beside the board (mirrors the event page); stacks on mobile so the
           board leads. items-start keeps the shorter summary column pinned to the top. */}
+      {(teamMvpToday || teamMvp) && (
+        <div className={`mb-6 grid gap-3 ${teamMvpToday && teamMvp ? 'sm:grid-cols-2' : ''}`}>
+          {teamMvpToday && (
+            <MvpHighlight label="Team MVP of the day" emoji="🔥" name={teamMvpToday.name} points={teamMvpToday.points} tasks={teamMvpToday.tasks} pointsMode={pointsMode} />
+          )}
+          {teamMvp && (
+            <MvpHighlight label="Team MVP" emoji="🏆" name={teamMvp.name} points={teamMvp.points} tasks={teamMvp.tasks} pointsMode={pointsMode} />
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
         {/* Summary column */}
         <div className="space-y-5 lg:sticky lg:top-20">
@@ -220,34 +282,51 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           )}
         </div>
 
-        {/* Board column */}
-        <div className="min-w-0">
-          <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
-          <EventBoard
-            format={event.format}
-            tiles={tiles}
-            boardSize={event.boardSize}
-            completions={completions}
-            teams={[team]}
-            activeTeamId={team.id}
-            onTileClick={(tileId) => setSelectedTileId(tileId)}
-            dropProgress={dropProgress}
-            pointsMode={pointsMode}
-            matchedTileIds={matchedTileIds}
-          />
+        {/* Board column — the picked member's detail slides in beside the board on wide (xl)
+            screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
+        <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
+          <div className="min-w-0">
+            <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
+            <EventBoard
+              format={event.format}
+              tiles={tiles}
+              boardSize={event.boardSize}
+              completions={completions}
+              teams={[team]}
+              activeTeamId={team.id}
+              onTileClick={(tileId) => setSelectedTileId(tileId)}
+              dropProgress={dropProgress}
+              pointsMode={pointsMode}
+              matchedTileIds={matchedTileIds}
+            />
+          </div>
+          {selectedMember && (
+            <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
+              <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemberId(null)}
+                  className="text-text-muted hover:text-foreground text-xl leading-none w-7 h-7 flex items-center justify-center -mr-1"
+                  aria-label="Close member detail"
+                >
+                  ×
+                </button>
+              </div>
+              {/* Own scroll region so paging through the panel never scrolls the page (which would
+                  trip the board's infinite scroll). */}
+              <div className="xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                <PlayerContributions
+                  submissions={selectedMemberSubmissions}
+                  tiles={tiles}
+                  playerName={selectedMember.name}
+                  statContributions={selectedMemberStatContributions}
+                />
+              </div>
+            </aside>
+          )}
         </div>
       </div>
-
-      {/* Full-width detail for the member picked in the breakdown — exactly what they did. */}
-      {selectedMemberId != null && (() => {
-        const member = teamPlayers.find((p) => p.id === selectedMemberId);
-        const memberSubs = submissions.filter((s) => s.creditPlayerId === selectedMemberId);
-        return (
-          <div className="mt-8">
-            <PlayerContributions submissions={memberSubs} tiles={tiles} playerName={member?.name ?? 'Member'} />
-          </div>
-        );
-      })()}
 
       {/* View-only Tile Detail Modal */}
       {selectedTile && (

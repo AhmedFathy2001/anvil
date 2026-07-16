@@ -3,6 +3,7 @@ import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import { FUN_DEATH_MESSAGES } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
+import { getItemMapping } from '@/lib/osrsItems';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -217,6 +218,53 @@ export async function getAlwaysNotifyItems(): Promise<string[]> {
   return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
 }
 
+// Prestige/notable items that ALWAYS post to the rare-drop channel — resolved to item ids so the plugin
+// matches by ID (reliable for untradeables like a ToA Cursed phalanx that have no GE value to gate on and
+// only ever matched by a fragile name compare). MIRRORS the plugin's baked-in ALWAYS_NOTIFY_FALLBACK
+// (AnvilPlugin.java) — keep the two in sync; admins extend it via the always_notify_items setting.
+const NOTABLE_ITEM_PATTERNS = [
+  'infernal cape', "dizana's quiver", 'purifying sigil',
+  'ancient blood ornament kit', 'sanguine ornament kit', 'holy ornament kit', 'sanguine dust',
+  'metamorphic dust', 'twisted ancestral colour kit',
+  'menaphite ornament kit', 'cursed phalanx', 'masori crafting kit',
+  'vestige', 'quartz', "executioner's axe head", 'eye of the duke', "leviathan's lure", "siren's staff",
+  'jar of', 'champion scroll', "champion's cape", 'enhanced crystal', 'blood shard', 'fire cape',
+];
+
+let notableIdCache: { ids: number[]; at: number; key: string } | null = null;
+const NOTABLE_ID_TTL_MS = 5 * 60_000;
+
+// Substring-resolve the notable name patterns (baked-in + admin) to the set of matching item ids — the same
+// `.contains()` semantics the plugin used on names. Cached briefly (the list is essentially static); on an
+// item-data outage it degrades to the last good set (or empty), and the plugin's name allowlist still covers.
+export async function getAlwaysNotifyItemIds(): Promise<number[]> {
+  const admin = await getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+  const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
+  const key = patterns.join('');
+  if (notableIdCache && notableIdCache.key === key && Date.now() - notableIdCache.at < NOTABLE_ID_TTL_MS) {
+    return notableIdCache.ids;
+  }
+  let items;
+  try {
+    items = await getItemMapping();
+  } catch {
+    return notableIdCache?.ids ?? [];
+  }
+  const ids = new Set<number>();
+  for (const it of items) {
+    const n = it.name.toLowerCase();
+    for (const p of patterns) {
+      if (p && n.includes(p)) {
+        ids.add(it.id);
+        break;
+      }
+    }
+  }
+  const out = [...ids];
+  notableIdCache = { ids: out, at: Date.now(), key };
+  return out;
+}
+
 // Whether rare-drop posts include the boss/raid kill count the drop landed on. Default on; the
 // admin can switch it off from Admin → Integrations. Stored as the string 'off' when disabled.
 export const SHOW_KILL_COUNT_SETTING_KEY = 'show_kill_count';
@@ -243,4 +291,102 @@ export async function getTierBands(): Promise<TierBand[]> {
   } catch {
     return DEFAULT_TIER_BANDS;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Federation scalars (see docs/FEDERATION.md). Edited on Admin → Integrations;
+// consumed by /api/federation/v1/* and (at L2) the /exchange + /events tracks.
+// ---------------------------------------------------------------------------
+export const FEDERATION_SHARED_CREDIT_KEY = 'federation_shared_credit';
+export const FEDERATION_EXCHANGE_POLICY_KEY = 'federation_exchange_policy';
+export const FEDERATION_ASSOCIATION_PUSH_KEY = 'federation_association_push';
+export const FEDERATION_BROKER_TRUST_KEY = 'federation_broker_trust';
+// Master site-relayed-federation switch (WIRE §10.1). 'on' | '' (off). One toggle federates every
+// member of the clan; on enable the site registers with the broker and starts relaying. Read by the
+// plugin-facing /api/plugin/federation/* endpoints; NEVER exposes the broker URL to the plugin.
+export const FEDERATION_ENABLED_KEY = 'federation_enabled';
+// Optional broker-URL override (WIRE §10.1). The broker URL is SERVER-SIDE config: env
+// FEDERATION_BROKER_URL is the default (the pinned Anvil broker); this setting overrides it for a
+// self-hoster pointing at a different broker. Deliberately server-side only — it is NEVER returned to
+// the plugin (the plugin only ever calls its own home site).
+export const FEDERATION_BROKER_URL_KEY = 'federation_broker_url';
+// Per-clan opt-out for INBOUND relayed (cross-clan) credit writes (FEDERATION_SECURITY.md §3/priority
+// #1). Default ON. When '' (off), POST /events refuses any relayed write from another home with a
+// clean { credited:false, reason:'federation-writes-disabled' } — the clan still reads boards but takes
+// no federated credit. A clan that trusts nobody's relay flips this off.
+export const FEDERATION_ACCEPT_WRITES_KEY = 'federation_accept_writes';
+
+export type SharedCredit = 'accept' | 'exclusive';
+export type ExchangePolicy = 'auto-guest' | 'request-to-join' | 'reject';
+export interface BrokerTrust {
+  iss: string; // broker id / base URL (must match assertion `iss` at L2)
+  jwksUrl: string; // where to fetch the broker's signing keys
+}
+
+// Cross-clan crediting opt-out (decision 1, WIRE §5). Default 'accept'. Read by POST /events, which
+// rejects fanout.count > 1 with `200 {credited:false, reason:"exclusive"}` when set to 'exclusive'.
+export async function getSharedCredit(): Promise<SharedCredit> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_SHARED_CREDIT_KEY) });
+  return row?.value === 'exclusive' ? 'exclusive' : 'accept';
+}
+
+// Guest-on-exchange policy (decision 4). Default 'auto-guest'. POST /exchange branches on this when
+// the asserted discord_id isn't a member: auto-guest (inert guest + board:read token) / request-to-join
+// (pending, no token) / reject (403).
+export async function getExchangePolicy(): Promise<ExchangePolicy> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_EXCHANGE_POLICY_KEY) });
+  const v = row?.value;
+  return v === 'request-to-join' || v === 'reject' ? v : 'auto-guest';
+}
+
+// Whether this instance tells the broker "discord_id X is a member here" (decision 2). Default OFF
+// (self-host sovereignty); hosted instances are flipped on at provision. The outbound /assoc push
+// (federation.ts pushAssociation, fired from /exchange and /token) is gated on this flag.
+export async function getAssociationPush(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ASSOCIATION_PUSH_KEY) });
+  return row?.value === 'on';
+}
+
+// Brokers this instance trusts (WIRE §7). Stored as a JSON array of { iss, jwksUrl }. Empty = trust
+// no broker (L2 disabled). Malformed entries are dropped rather than throwing. POST /exchange requires
+// the assertion `iss` to be present here (and reads the matching jwksUrl to validate the signature).
+export async function getBrokerTrust(): Promise<BrokerTrust[]> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_TRUST_KEY) });
+  if (!row?.value) return [];
+  try {
+    const parsed = JSON.parse(row.value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (b): b is BrokerTrust =>
+          !!b && typeof b.iss === 'string' && b.iss.length > 0 && typeof b.jwksUrl === 'string' && b.jwksUrl.length > 0,
+      )
+      .map((b) => ({ iss: b.iss, jwksUrl: b.jwksUrl }));
+  } catch {
+    return [];
+  }
+}
+
+// Master site-relayed-federation switch (WIRE §10.1). Default OFF. When on, the plugin-facing
+// /api/plugin/federation/* endpoints relay to the broker + other clan sites server-to-server.
+export async function getFederationEnabled(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
+  return row?.value === 'on';
+}
+
+// Whether this clan accepts INBOUND relayed cross-clan credit writes (FEDERATION_SECURITY.md §3).
+// Default ON — absent setting ⇒ accept. Only an explicit '' (off) opts the clan out.
+export async function getAcceptFederatedWrites(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ACCEPT_WRITES_KEY) });
+  const v = row?.value; // default (no row) = accept; explicit '' / 'off' = opt out
+  return v !== '' && v !== 'off';
+}
+
+// Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting
+// override wins (self-hoster pointing elsewhere), else the FEDERATION_BROKER_URL env default (the
+// pinned Anvil broker). Trailing slashes trimmed. Null when neither is set (federation can't connect).
+export async function getBrokerBaseUrl(): Promise<string | null> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_URL_KEY) });
+  const raw = (row?.value?.trim() || process.env.FEDERATION_BROKER_URL?.trim() || '').replace(/\/+$/, '');
+  return raw || null;
 }

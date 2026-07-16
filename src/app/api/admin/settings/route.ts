@@ -4,6 +4,9 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
+import { getFederationEnabled } from '@/lib/pluginConfig';
+import { ensureRegisteredWithBroker } from '@/lib/federation';
+import { publicOrigin } from '@/lib/request-origin';
 
 const EXPOSED_KEYS = [
   'discord_webhook_url',
@@ -44,6 +47,18 @@ const EXPOSED_KEYS = [
   'setup_completed',
   // How many distinct staff confirmations a paid fee needs before it settles (default 1).
   'fee_confirmations_required',
+  // Federation scalars (docs/FEDERATION.md). Enums/bool/JSON stored as text; read back via the
+  // typed helpers in lib/pluginConfig.ts. The signing key, instance id and broker verification
+  // token are deliberately NOT here — the signing private key must never be API-readable.
+  'federation_shared_credit', // 'accept' | 'exclusive'
+  'federation_exchange_policy', // 'auto-guest' | 'request-to-join' | 'reject'
+  'federation_association_push', // 'on' | '' (off)
+  'federation_broker_trust', // JSON array of { iss, jwksUrl }
+  // Site-relayed federation (WIRE §10). The master switch; the inbound-relayed-write kill-switch; and
+  // an optional broker-URL override (server-side config, admin-only — NEVER surfaced to any plugin).
+  'federation_enabled', // 'on' | '' (off) — master switch
+  'federation_accept_writes', // 'on' | 'off' — accept INBOUND cross-clan relayed credit writes (default on)
+  'federation_broker_url', // optional override of the FEDERATION_BROKER_URL env default
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 
@@ -77,12 +92,26 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Snapshot the prior federation state so we can detect an off→on transition below.
+  const wasFederationEnabled = await getFederationEnabled();
+
   const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
   for (const key of EXPOSED_KEYS) {
     const raw = body[key];
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
     await upsertSetting(key, value ? value : null);
+  }
+
+  // Register-on-enable (WIRE §10.1): the first time an admin flips federation on, register this
+  // instance with the broker (domain-verified) so other clan sites' relayed /exchange calls are
+  // accepted, and add the broker to brokerTrust. Best-effort + fire-and-forget: a broker hiccup must
+  // never fail saving settings, and the plugin retries via /connect regardless.
+  if (body.federation_enabled !== undefined) {
+    const nowEnabled = await getFederationEnabled();
+    if (nowEnabled && !wasFederationEnabled) {
+      void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
+    }
   }
 
   return NextResponse.json({ success: true });

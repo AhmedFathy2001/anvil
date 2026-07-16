@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, players, completions } from '@/db/schema';
+import { events, tiles, teams, submissions, players, completions, clanMembers } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
@@ -14,6 +14,7 @@ import {
   getDeathTaunts,
   getSpoonTaunts,
   getAlwaysNotifyItems,
+  getAlwaysNotifyItemIds,
   getShowKillCount,
   getTierBands,
   type PluginWebhooks,
@@ -21,7 +22,8 @@ import {
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
-import { liveStatsForMembers } from '@/lib/liveStats';
+import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
+import { jsonWithEtag } from '@/lib/httpEtag';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -45,6 +47,7 @@ function generateCodeword(playerId: number, eventId: number): string {
   hmac.update(`${playerId}:${eventId}:${date}`);
   return hmac.digest('hex').slice(0, 6).toUpperCase();
 }
+
 
 /**
  * When a token holder resolves to no active event, check whether the RSN they're logged into is
@@ -101,7 +104,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, unlinkedActiveEvent] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, unlinkedActiveEvent] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
@@ -111,10 +114,11 @@ export async function GET(request: Request) {
           getDeathTaunts(),
           getSpoonTaunts(),
           getAlwaysNotifyItems(),
+          getAlwaysNotifyItemIds(),
           getShowKillCount(),
           activeEventForUnlinkedRsn(request),
         ]);
-      return NextResponse.json({
+      return jsonWithEtag(request, {
         event: null,
         team: null,
         player: null,
@@ -145,6 +149,7 @@ export async function GET(request: Request) {
         deathTaunts,
         spoonTaunts,
         alwaysNotifyItems,
+        alwaysNotifyItemIds,
         showKillCount,
       });
     }
@@ -225,11 +230,16 @@ export async function GET(request: Request) {
   const teamPlayers = await db
     .select({
       id: players.id,
+      name: players.name,
       clanMemberId: players.clanMemberId,
       statsSnapshot: players.statsSnapshot,
       cachedStats: players.cachedStats,
+      // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
+      // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
+      liveStatKeyTimes: clanMembers.liveStatKeyTimes,
     })
     .from(players)
+    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
     .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
@@ -251,6 +261,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // "Active now" attribution for stat tiles: a teammate who's contributed to a stat tile AND pushed
+  // live stats within this window is shown as actively grinding it (the plugin marks the caller "You"
+  // via its own local signal, so the caller is excluded here). Capped to bound the payload.
+  const ACTIVE_STAT_WINDOW_MS = 5 * 60_000;
+  const ACTIVE_WORKERS_CAP = 5;
+  const nowMs = Date.now();
+
   const trackedStats = statTilesRaw.map((t) => {
     const statName = t.trackedStat ?? '';
     const statType = t.statType ?? 'skill';
@@ -258,6 +275,7 @@ export async function GET(request: Request) {
     const trackingMode = t.trackingMode ?? 'team';
 
     let gainedTotal = 0;
+    const activeWorkers: string[] = [];
     const sources = trackingMode === 'individual'
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
@@ -268,6 +286,7 @@ export async function GET(request: Request) {
       const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
+      let playerGained = 0;
       for (const part of statKeys(statName)) {
         const baseline = readStatValue(p.statsSnapshot, statType, part);
         const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
@@ -277,7 +296,18 @@ export async function GET(request: Request) {
           : null;
         if (baseline == null || current == null) continue;
         const gained = current - baseline;
-        if (gained > 0) gainedTotal += gained;
+        if (gained > 0) { gainedTotal += gained; playerGained += gained; }
+      }
+      // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
+      // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
+      // CM/ToA tiles. The caller is excluded (the plugin marks itself "You" from its own local signal).
+      if (playerGained > 0 && p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+        const keyTimes = parseStatKeyTimes(p.liveStatKeyTimes);
+        const roseRecently = statKeys(statName).some((k) => {
+          const at = Date.parse(keyTimes[k] ?? '');
+          return Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS;
+        });
+        if (roseRecently) activeWorkers.push(p.name);
       }
     }
 
@@ -294,6 +324,9 @@ export async function GET(request: Request) {
       trackingMode,
       currentAmount: gainedTotal,
       goalAmount: goal,
+      // Teammates actively grinding this stat tile right now (RSNs), for the sidebar's "Active now".
+      // Empty on older plugins/servers; the caller is never in here (the plugin marks itself "You").
+      activeWorkers,
       // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
       // keep -1 (the plugin shows the skill sprite instead). Composite keys use the first
       // boss's icon (a CoX + CM tile shows the CoX item).
@@ -331,7 +364,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, tiers] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, tiers] =
     await Promise.all([
       buildSchedule(),
       getActiveWeekly(),
@@ -340,6 +373,7 @@ export async function GET(request: Request) {
       getDeathTaunts(),
       getSpoonTaunts(),
       getAlwaysNotifyItems(),
+      getAlwaysNotifyItemIds(),
       getShowKillCount(),
       getTierBands(),
     ]);
@@ -396,7 +430,7 @@ export async function GET(request: Request) {
       ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
     : [];
 
-  return NextResponse.json({
+  return jsonWithEtag(request, {
     event: {
       id: event.id,
       name: event.name,
@@ -426,6 +460,7 @@ export async function GET(request: Request) {
     deathTaunts,
     spoonTaunts,
     alwaysNotifyItems,
+    alwaysNotifyItemIds,
     showKillCount,
     completedTiles,
     trackedStats,

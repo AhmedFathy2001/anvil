@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { submissions, tiles, completions, teams, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
@@ -9,9 +10,10 @@ import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 export async function syncDropTileCompletion(
   tileId: number,
   teamId: number,
-  // When notifyCompletion is false the caller is folding the "tile completed" announcement into its
-  // own submission message (one webhook request instead of two). The team-win post still fires.
-  { notifyCompletion = true }: { notifyCompletion?: boolean } = {},
+  // notifyCompletion=false: the caller folds the "tile completed" post into its own submission message
+  // (one webhook, not two); the team-win post still fires. silent=true: suppress BOTH posts — for a bulk
+  // maintenance recompute that heals already-full tiles, which shouldn't re-announce old completions.
+  { notifyCompletion = true, silent = false }: { notifyCompletion?: boolean; silent?: boolean } = {},
 ) {
   // Get the tile to check its completion criteria
   const tile = await db.query.tiles.findFirst({
@@ -29,17 +31,53 @@ export async function syncDropTileCompletion(
   let totalAmount: number;
   let isComplete: boolean;
 
-  if (tile.tileType === 'timed') {
-    // Timed clear: pass/fail. Complete when any submission's reported duration is at or
-    // under the cap. No threshold configured → never auto-completes.
-    if (tile.timeThresholdSeconds == null) return null;
+  // Collection tiles (a SET of items via itemRequirements) complete when a full set is satisfied. Keyed on
+  // the PRESENCE of itemRequirements — independent of tile.tileType and tile.requiredAmount — because older
+  // / bulk-imported collections can carry a non-'drop' tileType or a stale requiredAmount, which made the
+  // `tile.tileType === 'drop' && tile.requiredAmount` guard below skip them so a full set never completed
+  // server-side (the clog masked it with a client-side full-set check).
+  const itemRequirements = tile.itemRequirements
+    ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[])
+    : null;
+
+  if (itemRequirements && itemRequirements.length > 0) {
+    const perItemTotals = await db
+      .select({ itemId: submissions.itemId, total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
+      .groupBy(submissions.itemId);
+    const itemTotalMap = new Map(perItemTotals.map((r) => [r.itemId, Number(r.total)]));
+    totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
+    // Grouped ("any full set") mode: requirements carrying a `group` name form OR-ed sets — one full set
+    // completes the tile (no mixing across sets). Ungrouped requirements stay AND-ed on top; no groups at
+    // all keeps the classic all-of collection semantics.
+    const met = (req: { itemId: number; requiredAmount: number }) =>
+      (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
+    const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
+    const groups = new Map<string, typeof itemRequirements>();
+    for (const r of itemRequirements) {
+      const g = r.group?.trim();
+      if (!g) continue;
+      const key = g.toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
+    isComplete = ungrouped.every(met) && anySetDone;
+  } else if (tile.tileType === 'timed') {
+    // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
+    // match, so the rank is the gate — complete on any submission, no time cap (each rank is its own
+    // challenge, so a cap is meaningless). Normal timed tiles: pass/fail on duration ≤ cap; no
+    // threshold configured (and not a rank tile) → never auto-completes.
+    const rankTile = parseTrialRankTile(tile.timedActivity) != null;
+    if (tile.timeThresholdSeconds == null && !rankTile) return null;
     const fastest = await db
       .select({ best: sql<number | null>`MIN(${submissions.durationSeconds})` })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
-    isComplete = best != null && best <= tile.timeThresholdSeconds;
+    isComplete = best != null && (rankTile || best <= tile.timeThresholdSeconds!);
   } else if (tile.tileType === 'value') {
     // Loot-value tiles: pass/fail on a single haul. A submission's `amount` carries the haul's
     // gp value; the tile completes when any one haul meets the threshold in requiredAmount.
@@ -65,50 +103,14 @@ export async function syncDropTileCompletion(
     totalAmount = result[0]?.total ?? 0;
     isComplete = totalAmount >= tile.requiredAmount;
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
-    const itemRequirements = tile.itemRequirements
-      ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
-      : null;
+    // Simple drop pool (no per-item requirements — collections are handled by the branch above).
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
 
-    if (itemRequirements) {
-      // Per-item mode: check each item individually
-      const perItemTotals = await db
-        .select({
-          itemId: submissions.itemId,
-          total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-        })
-        .from(submissions)
-        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)))
-        .groupBy(submissions.itemId);
-
-      const itemTotalMap = new Map(perItemTotals.map(r => [r.itemId, Number(r.total)]));
-      totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
-      // Grouped ("any full set") mode: requirements carrying a `group` name form sets that are
-      // OR-ed — the tile completes when ONE set is fully collected (no mixing across sets).
-      // Ungrouped requirements stay AND-ed on top, and a tile with no groups at all keeps the
-      // classic all-of collection semantics.
-      const met = (req: { itemId: number; requiredAmount: number }) =>
-        (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
-      const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
-      const groups = new Map<string, typeof itemRequirements>();
-      for (const r of itemRequirements) {
-        const g = r.group?.trim();
-        if (!g) continue;
-        const key = g.toLowerCase();
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(r);
-      }
-      const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
-      isComplete = ungrouped.every(met) && anySetDone;
-    } else {
-      // Simple mode: existing behavior
-      const result = await db
-        .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-        .from(submissions)
-        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-
-      totalAmount = result[0]?.total ?? 0;
-      isComplete = totalAmount >= tile.requiredAmount;
-    }
+    totalAmount = result[0]?.total ?? 0;
+    isComplete = totalAmount >= tile.requiredAmount;
   } else {
     return null;
   }
@@ -143,7 +145,7 @@ export async function syncDropTileCompletion(
       }) : null;
 
       if (team && event) {
-        if (notifyCompletion) {
+        if (notifyCompletion && !silent) {
           notifyTileCompletion({
             eventName: event.name,
             tileLabel: tile.label,
@@ -165,7 +167,7 @@ export async function syncDropTileCompletion(
         const eventTileIds = new Set(eventTiles.map(t => t.id));
         const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
 
-        if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+        if (!silent && completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
           notifyTeamWin({
             eventName: event.name,
             teamName: team.name,

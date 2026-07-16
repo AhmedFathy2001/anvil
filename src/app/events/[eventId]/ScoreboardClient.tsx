@@ -10,7 +10,8 @@ import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTim
 import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { Tile as FullTile } from '@/lib/types';
-import type { EventMvp } from '@/lib/memberBreakdown';
+import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
+import MvpHighlight from '@/components/MvpHighlight';
 
 interface Tile {
   id: number;
@@ -79,6 +80,8 @@ interface Props {
   completions: Completion[];
   tierBands?: TierBand[];
   mvp?: EventMvp | null;
+  mvpToday?: EventMvp | null;
+  teamMvps?: Record<number, TeamMvp | null>;
 }
 
 type TimeTone = 'starts' | 'ends' | 'ended';
@@ -96,7 +99,7 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {} }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -326,29 +329,14 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         </div>
       </div>
 
-      {mvp && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-gold/30 bg-gradient-to-r from-gold/10 to-transparent p-3 sm:p-4">
-          <span className="text-2xl shrink-0" aria-hidden>🏆</span>
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-gold/70">Event MVP</div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base sm:text-lg font-bold text-foreground truncate">{mvp.name}</span>
-              <span className="inline-flex items-center gap-1 text-xs text-text-muted">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: mvp.teamColor }} aria-hidden />
-                {mvp.teamName}
-              </span>
-            </div>
-          </div>
-          <div className="ml-auto text-right shrink-0">
-            {pointsMode ? (
-              <>
-                <div className="text-lg sm:text-xl font-bold text-gold tabular-nums">{mvp.points.toLocaleString()} pts</div>
-                <div className="text-xs text-text-muted tabular-nums">{mvp.tasks} task{mvp.tasks !== 1 ? 's' : ''}</div>
-              </>
-            ) : (
-              <div className="text-lg sm:text-xl font-bold text-gold tabular-nums">{mvp.tasks} task{mvp.tasks !== 1 ? 's' : ''}</div>
-            )}
-          </div>
+      {(mvpToday || mvp) && (
+        <div className={`mb-6 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+          {mvpToday && (
+            <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
+          )}
+          {mvp && (
+            <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />
+          )}
         </div>
       )}
 
@@ -366,6 +354,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               eventId={event.id}
               dropProgressByTeam={dropProgressByTeam}
               pointsMode={pointsMode}
+              teamMvps={teamMvps}
             />
 
             {/* XP/Stat Gains */}

@@ -9,6 +9,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig } from '@/lib/types';
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   initial: TileConfig;
   onSaved: (updated: TileConfig) => void;
   eventStarted?: boolean;
+  /** Current user is an admin — gates the live-event override that unlocks frozen fields. */
+  isAdmin?: boolean;
   pointsMode?: boolean;
   /** Admin-configured difficulty bands — drives the tier picker on the points field. */
   tierBands?: TierBand[];
@@ -97,13 +100,11 @@ const TIMED_ACTIVITY_SUGGESTIONS = [
     'Fight Caves',
     'Fortis Colosseum',
     'TzHaar-Ket-Rak',
-    // Non-boss timed content the plugin parses: Sailing's Barracuda Trials ("Time: 6:04.20"
-    // flanked by lines naming the course; 'Barracuda Trials' matches any course via the
-    // plugin's alias table) and Hallowed Sepulchre ("Overall time:" on the exit).
-    'Barracuda Trials',
-    'Tempor Tantrum',
-    'Jubbly Jive',
-    'Gwenith Glide',
+    // Sailing's Barracuda Trials: each course awards one of three ranks by time, and the ranks are
+    // SEPARATE challenges — so tiles target an exact course + rank ("Gwenith Glide — Marlin"), gated
+    // on the rank the game reports (not a time cap). The nine combos come from lib/barracudaTrials.
+    ...TRIAL_RANK_ACTIVITIES,
+    // Hallowed Sepulchre ("Overall time:" on the exit).
     'Hallowed Sepulchre',
     // Raids — base + every mode, from RAID_MODE_VARIANTS (the same strings the deathless/kill pickers
     // use), so the exact game spelling for each raid mode lives in exactly one place.
@@ -296,6 +297,7 @@ export default function TileTrackingConfig({
   initial,
   onSaved,
   eventStarted,
+  isAdmin,
   pointsMode,
   tierBands,
   categorySuggestions,
@@ -304,6 +306,12 @@ export default function TileTrackingConfig({
   // current points value maps back to whichever band it falls in.
   const bands = (tierBands && tierBands.length > 0 ? [...tierBands] : [...DEFAULT_TIER_BANDS])
     .sort((a, b) => a.min - b.min);
+  // Admin live-event override: after start, label/kind/required-amount are frozen. An admin can opt
+  // into unlocking them to fix a misconfigured tile mid-event; the save is flagged as an override in
+  // the tile history. `locked` is the effective "is this field frozen right now" flag the inputs use.
+  const canOverride = !!eventStarted && !!isAdmin;
+  const [liveOverride, setLiveOverride] = useState(false);
+  const locked = !!eventStarted && !(canOverride && liveOverride);
   const [kind, setKind] = useState<TileKind>(() => deriveKind(initial));
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
@@ -802,6 +810,9 @@ export default function TileTrackingConfig({
       const payload: Record<string, unknown> = {
         tileId,
         baseUpdatedAt: baseStamp,
+        // Signals the server to unlock label/kind/required-amount on a live board (admin-only,
+        // recorded as a live override). Ignored before start and for non-admins.
+        liveOverride: canOverride && liveOverride,
         label: label || undefined,
         description: description || null,
         optional,
@@ -961,6 +972,31 @@ export default function TileTrackingConfig({
 
   return (
     <div className="space-y-3">
+      {/* Admin live-event override — unlocks the normally-frozen fields on a running board. Only
+          rendered to admins after the event has started. */}
+      {canOverride && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={liveOverride}
+              onChange={(e) => setLiveOverride(e.target.checked)}
+              className="mt-0.5 accent-amber-400"
+            />
+            <span className="text-xs text-amber-200 leading-relaxed">
+              <span className="font-semibold">🔓 Override live-event lock (admin)</span>
+              <span className="block text-amber-200/80 mt-0.5">
+                Unlock this tile’s label, kind and required amount to fix a misconfigured tile on the
+                running board. The change is recorded as a{' '}
+                <span className="font-semibold">live override</span> in the tile history. If you lower a
+                required amount, run <span className="font-semibold">Recompute Completions</span> on the
+                Overview tab afterwards to heal teams already at the new target.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
       {/* Tile kind — the single source of truth for what this tile is */}
       <div>
         <label className="block text-xs text-text-muted mb-1">Tile Kind</label>
@@ -970,7 +1006,7 @@ export default function TileTrackingConfig({
               key={k.key}
               type="button"
               onClick={() => changeKind(k.key)}
-              disabled={eventStarted}
+              disabled={locked}
               className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
@@ -983,7 +1019,7 @@ export default function TileTrackingConfig({
         </div>
         <p className="text-[10px] text-text-muted mt-1 leading-relaxed">
           {KINDS.find((k) => k.key === kind)?.blurb}
-          {eventStarted && ' · Kind is locked after the event starts.'}
+          {locked && ' · Kind is locked after the event starts.'}
         </p>
       </div>
 
@@ -994,10 +1030,10 @@ export default function TileTrackingConfig({
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          disabled={eventStarted}
+          disabled={locked}
           className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
         />
-        {eventStarted && <p className="text-[10px] text-text-muted mt-0.5">Cannot change after event start</p>}
+        {locked && <p className="text-[10px] text-text-muted mt-0.5">Cannot change after event start</p>}
       </div>
 
       {/* Description */}
@@ -1187,7 +1223,7 @@ export default function TileTrackingConfig({
                 type="number"
                 value={requiredAmount}
                 onChange={(e) => setRequiredAmount(e.target.value)}
-                disabled={eventStarted}
+                disabled={locked}
                 placeholder="e.g. 10"
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
                 min="1"
@@ -1380,7 +1416,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="e.g. 100"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
@@ -1577,7 +1613,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="e.g. 50"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
@@ -1667,7 +1703,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="e.g. 5"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
@@ -1778,7 +1814,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="e.g. 1"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
@@ -1929,7 +1965,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="e.g. 1"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
@@ -2054,7 +2090,7 @@ export default function TileTrackingConfig({
               type="number"
               value={requiredAmount}
               onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={eventStarted}
+              disabled={locked}
               placeholder="1"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"

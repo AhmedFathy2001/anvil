@@ -29,8 +29,9 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
 
   useEffect(() => {
     fetch('/api/admin/users')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => setUsers(data))
+      .then((r) => (r.ok ? r.json() : { people: [] }))
+      // The endpoint now returns { people, unlinked }; tolerate the old bare-array shape too.
+      .then((data) => setUsers(Array.isArray(data) ? data : data.people ?? []))
       .catch(() => setUsers([]));
   }, []);
 

@@ -4,6 +4,7 @@ import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
+import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -165,7 +166,8 @@ type EventRow = typeof events.$inferSelect;
 
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
 // interactive for that team (per-cell + per-item progress).
-async function buildBoard(event: EventRow, callerTeamId: number | null) {
+// Exported so the federation board endpoint (/api/federation/v1/board) reuses the exact same shape.
+export async function buildBoard(event: EventRow, callerTeamId: number | null) {
   // Tiles stay hidden in-game until the host reveals them. Return the event shell with
   // an empty tile list (and no per-team completions, since those reference tiles) plus a
   // `tilesRevealed: false` flag the plugin can branch on. Mirrors the web board gate.
@@ -323,7 +325,9 @@ export async function GET(request: Request) {
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
-    return NextResponse.json(await buildBoard(event, null));
+    // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
+    // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
+    return jsonWithEtag(request, await buildBoard(event, null));
   }
 
   // Interactive path — the caller's own active event, scoped to their team.
@@ -335,5 +339,5 @@ export async function GET(request: Request) {
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  return NextResponse.json(await buildBoard(event, auth.teamId));
+  return jsonWithEtag(request, await buildBoard(event, auth.teamId));
 }

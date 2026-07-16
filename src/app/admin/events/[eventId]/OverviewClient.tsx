@@ -1,12 +1,15 @@
 'use client';
 
-import type { Event, Tile, Team, Completion } from '@/lib/types';
-import { useState, useCallback } from 'react';
+import type { Event, Tile, Team, Completion, Submission } from '@/lib/types';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import EventBoard from '@/components/EventBoard';
+import BoardFilters from '@/components/BoardFilters';
+import TileDetailModal from '@/components/TileDetailModal';
 import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
+import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
 
@@ -15,9 +18,10 @@ interface Props {
   tiles: Tile[];
   teams: Team[];
   completions: Completion[];
+  tierBands?: TierBand[];
 }
 
-export default function OverviewClient({ event, tiles, teams, completions }: Props) {
+export default function OverviewClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
   const [startDate, setStartDate] = useState(() => event.startDate ?? '');
@@ -29,6 +33,8 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   const [deleting, setDeleting] = useState(false);
   const [savingReveal, setSavingReveal] = useState(false);
   const [startingBingo, setStartingBingo] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState('');
 
   const [editType, setEditType] = useState(false);
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
@@ -38,6 +44,9 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
 
   const [localTiles, setLocalTiles] = useState<Tile[]>(tiles);
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
 
   const { connected: streamConnected } = useEventStream(event.id, {
     onUpdate: useCallback((data: EventStreamData) => {
@@ -45,6 +54,17 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
       setLocalTiles(data.tiles);
     }, []),
   });
+
+  // All teams' submissions (full rows incl. proof images) for the click-through management modal.
+  // Fetched directly — the event stream carries a lighter projection without imageUrl.
+  const fetchSubmissions = useCallback(async () => {
+    const res = await fetch(`/api/events/${event.id}/submissions`);
+    if (res.ok) setSubmissions(await res.json());
+  }, [event.id]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount fetch
+    void fetchSubmissions();
+  }, [fetchSubmissions]);
 
   const now = new Date();
   const isForceEnded = !!currentEvent.forceEndedAt;
@@ -57,6 +77,27 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
   // once it's over — i.e. any time it isn't actively running. Mirrors the API gates.
   const canChangeType = !eventStarted && !isForceEnded;
   const canDelete = !isActive;
+
+  // All-teams submission management from the board: click a tile to see/manage every team's proofs.
+  const teamNameById = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t.name])), [teams]);
+  const selectedTile = localTiles.find((t) => t.id === selectedTileId) ?? null;
+  const selectedTileSubmissions = selectedTileId ? submissions.filter((s) => s.tileId === selectedTileId) : [];
+  const selectedTileCompletedBy = selectedTileId
+    ? liveCompletions
+        .filter((c) => c.tileId === selectedTileId)
+        .map((c) => {
+          const t = teams.find((tm) => tm.id === c.teamId);
+          return { teamId: c.teamId, teamName: t?.name ?? 'Team', color: t?.color ?? '#888' };
+        })
+    : [];
+
+  async function deleteSubmission(submissionId: number, reason: string) {
+    await fetch(
+      `/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`,
+      { method: 'DELETE' },
+    );
+    setSubmissions((list) => list.filter((s) => s.id !== submissionId));
+  }
 
   const typeMeta = EVENT_MODES.find((m) => m.key === typeMode)!;
 
@@ -98,6 +139,25 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
       }
     } finally {
       setForceEnding(false);
+    }
+  }
+
+  async function recomputeCompletions() {
+    setRecomputing(true);
+    setRecomputeMsg('');
+    try {
+      const res = await fetch(`/api/events/${event.id}/recompute-completions`, { method: 'POST' });
+      if (res.ok) {
+        const { healed } = await res.json();
+        setRecomputeMsg(healed > 0 ? `Healed ${healed} tile${healed === 1 ? '' : 's'}.` : 'All up to date.');
+        router.refresh();
+      } else {
+        setRecomputeMsg('Failed — try again.');
+      }
+    } catch {
+      setRecomputeMsg('Failed — try again.');
+    } finally {
+      setRecomputing(false);
     }
   }
 
@@ -428,6 +488,15 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
                 ? 'Hide Tiles from Members'
                 : 'Reveal Tiles to Members'}
           </button>
+          <button
+            onClick={recomputeCompletions}
+            disabled={recomputing}
+            title="Re-check every tile's completion — heals tiles that were already at their target before a completion-rule change (e.g. a full item set collected earlier). Only adds; never removes a completion."
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {recomputing ? 'Recomputing...' : 'Recompute Completions'}
+          </button>
+          {recomputeMsg && <span className="text-xs text-text-muted self-center">{recomputeMsg}</span>}
           {canChangeType && !editMode && (
             editType ? (
               <>
@@ -467,12 +536,14 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
         </div>
       </div>
 
-      {/* Board Preview */}
+      {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div>
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
-          Board Preview
+          Board
         </h2>
+        <p className="text-sm text-text-muted mb-3">Click any tile to see and manage submissions from every team.</p>
+        <BoardFilters tiles={localTiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
         <EventBoard
           format={currentEvent.format}
           tiles={localTiles}
@@ -480,8 +551,26 @@ export default function OverviewClient({ event, tiles, teams, completions }: Pro
           completions={liveCompletions}
           teams={teams}
           pointsMode={pointsMode}
+          onTileClick={setSelectedTileId}
+          matchedTileIds={matchedTileIds}
         />
       </div>
+
+      {selectedTile && (
+        <TileDetailModal
+          tile={selectedTile}
+          submissions={selectedTileSubmissions}
+          completedBy={selectedTileCompletedBy}
+          canSubmit={false}
+          canManage={true}
+          canToggle={false}
+          onDelete={deleteSubmission}
+          onClose={() => setSelectedTileId(null)}
+          eventId={event.id}
+          teamNameById={teamNameById}
+          pointsMode={pointsMode}
+        />
+      )}
     </div>
   );
 }

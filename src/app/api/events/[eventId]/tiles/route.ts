@@ -39,7 +39,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -71,6 +71,19 @@ export async function PUT(
 
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;
+
+  // Admin-only live-event override. After start, label / kind / required-amount are frozen so a
+  // running board's rules don't shift under contestants. An admin can knowingly override that to
+  // fix a genuinely misconfigured tile (wrong name or count) mid-event — the edit is stamped as a
+  // live override in the tile history. Editors (non-admin tile authors) can't invoke it; they get a
+  // 403 rather than a silent skip so the UI can explain why. No-op when the event hasn't started.
+  const liveOverrideActive = !!eventStarted && liveOverride === true;
+  if (liveOverrideActive && editor.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Editing a locked field (label, kind, or required amount) on a live event is admin-only.' },
+      { status: 403 },
+    );
+  }
 
   // Validate inputs
   if (requiredAmount !== undefined && requiredAmount !== null) {
@@ -249,8 +262,9 @@ export async function PUT(
     }
   }
 
-  // label, tileType, requiredAmount only editable before event start
-  if (!eventStarted) {
+  // label, tileType, requiredAmount only editable before event start — unless an admin invokes the
+  // live-event override (liveOverrideActive), which unlocks them on a running board.
+  if (!eventStarted || liveOverrideActive) {
     if (label !== undefined) updateSet.label = label || tile.label;
     if (tileType !== undefined) updateSet.tileType = tileType || 'standard';
     if (requiredAmount !== undefined) updateSet.requiredAmount = requiredAmount || null;
@@ -346,7 +360,8 @@ export async function PUT(
     .where(eq(tiles.id, tileId))
     .returning();
 
-  // History: record the exact field diff (no-op edits are dropped by logTileAudit).
+  // History: record the exact field diff (no-op edits are dropped by logTileAudit). Edits made
+  // through the admin live-event override are flagged so the timeline can mark them.
   logTileAudit({
     eventId: eId,
     action: 'updated',
@@ -354,6 +369,7 @@ export async function PUT(
     tileLabel: updated.label,
     changedFields: diffTiles(tile, updated),
     actorUserId: editor.userId,
+    liveOverride: liveOverrideActive,
   });
 
   return NextResponse.json(updated);

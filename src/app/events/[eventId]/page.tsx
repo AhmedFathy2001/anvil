@@ -9,7 +9,7 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { getStatStandings } from '@/lib/statStandings';
 
 export const dynamic = 'force-dynamic';
@@ -69,6 +69,46 @@ export default async function EventScoreboardPage({
     submissions: eventSubmissions,
     statGains,
   });
+
+  // MVP of the day — the same split, but scored only over tiles completed in the last 24h. The
+  // completedAt filter is all it needs (computeEventMvp ignores completion timestamps); stat tiles
+  // still count via their total gain. Null when nothing was completed in the window.
+  const dayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const mvpTodayRaw = computeEventMvp({
+    scoringMode: event.scoringMode,
+    teams: eventTeams,
+    players: eventPlayers,
+    tiles: eventTiles,
+    completions: eventCompletions.filter((c) => c.completedAt >= dayAgoIso),
+    submissions: eventSubmissions,
+    statGains,
+  });
+  // Early in an event everything was completed recently, so the day MVP == the overall MVP. Drop the
+  // duplicate card in that case; keep it once they diverge (even the same player with different totals).
+  const mvpToday =
+    mvpTodayRaw &&
+    mvp &&
+    mvpTodayRaw.playerId === mvp.playerId &&
+    mvpTodayRaw.points === mvp.points &&
+    mvpTodayRaw.tasks === mvp.tasks
+      ? null
+      : mvpTodayRaw;
+
+  // Per-team MVP (overall) for the standings cards — the top contributor on each team.
+  const teamMvps: Record<number, TeamMvp | null> = {};
+  for (const team of eventTeams) {
+    teamMvps[team.id] = topMember(
+      computeMemberBreakdown({
+        teamId: team.id,
+        scoringMode: event.scoringMode,
+        players: eventPlayers,
+        tiles: eventTiles,
+        completions: eventCompletions,
+        submissions: eventSubmissions,
+        statGains,
+      }),
+    );
+  }
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client
   // round-trip. We need the viewer's session, their existing signup (if any), and whether
@@ -167,6 +207,8 @@ export default async function EventScoreboardPage({
           completions={eventCompletions}
           tierBands={tierBands}
           mvp={mvp}
+          mvpToday={mvpToday}
+          teamMvps={teamMvps}
         />
       )}
     </>

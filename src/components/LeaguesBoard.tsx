@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
+import type { TileStatus } from './BoardStatusTabs';
 
 interface Tile {
   id: number;
@@ -41,7 +42,13 @@ interface LeaguesBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   matchedTileIds?: Set<number> | null;
+  /** Per-tile status — when present the list sorts incomplete-first (like the plugin). */
+  statusById?: Map<number, TileStatus>;
 }
+
+// Plugin parity: in-progress first, then not-started, then completed. Within a status group the
+// board's own position order (difficulty / shuffle) is preserved.
+const STATUS_ORDER: Record<TileStatus, number> = { in_progress: 0, not_started: 1, completed: 2 };
 
 /**
  * Leagues-style board: a vertical task list (icon · title · points · progress · completion),
@@ -58,10 +65,15 @@ export default function LeaguesBoard({
   statProgress,
   expanded: wide,
   matchedTileIds,
+  statusById,
 }: LeaguesBoardProps) {
   const sorted = [...tiles]
     .filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true))
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => {
+      const sa = statusById ? STATUS_ORDER[statusById.get(a.id) ?? 'not_started'] : 0;
+      const sb = statusById ? STATUS_ORDER[statusById.get(b.id) ?? 'not_started'] : 0;
+      return sa - sb || a.position - b.position;
+    });
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -76,6 +88,24 @@ export default function LeaguesBoard({
   }, [sorted.length]);
   const visible = paginated ? sorted.slice(0, visibleCount) : sorted;
   const remaining = sorted.length - visible.length;
+
+  // Infinite scroll: reveal the next page whenever the sentinel scrolls near the viewport, instead
+  // of a "show more" click. rootMargin pre-loads ahead of the fold so scrolling stays smooth; the
+  // observer re-arms each time `remaining` changes and disconnects once the list is fully shown.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!paginated || remaining <= 0) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setVisibleCount((c) => Math.min(c + PAGE_SIZE, sorted.length));
+      },
+      { rootMargin: '600px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [paginated, remaining, sorted.length]);
 
   function toggle(id: number) {
     setExpanded((prev) => {
@@ -195,13 +225,9 @@ export default function LeaguesBoard({
       )}
       </div>
       {paginated && remaining > 0 && (
-        <button
-          type="button"
-          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-          className="mt-3 w-full py-2.5 text-sm font-medium text-gold border border-gold/30 rounded-lg bg-gold/5 hover:bg-gold/10 transition-colors"
-        >
-          Show {Math.min(PAGE_SIZE, remaining)} more · {remaining} remaining
-        </button>
+        <div ref={sentinelRef} className="mt-3 py-3 text-center text-xs text-text-muted" aria-hidden>
+          Loading more… <span className="text-text-muted/70">{remaining} left</span>
+        </div>
       )}
     </div>
   );

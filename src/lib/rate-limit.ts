@@ -14,6 +14,7 @@ import { db } from '@/db';
 import { rateLimits } from '@/db/schema';
 import { lt, sql } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { getClientIp } from '@/lib/federationSecurity';
 
 interface Options {
   limit: number;
@@ -27,20 +28,25 @@ interface Result {
   reset: number; // unix ms when the window resets
 }
 
-function getClientIp(request: Request): string {
-  const fwd = request.headers.get('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0]!.trim();
-  const real = request.headers.get('x-real-ip');
-  if (real) return real.trim();
-  return 'unknown';
-}
+// getClientIp lives in lib/federationSecurity (the `@/`-free, testable module) and trusts ONLY the
+// proxy-appended IP (x-real-ip / rightmost XFF) — never the spoofable leftmost XFF entry.
 
 export async function rateLimit(
   request: Request,
   scope: string,
   opts: Options,
 ): Promise<Result> {
-  const ident = getClientIp(request);
+  return rateLimitByKey(scope, getClientIp(request), opts);
+}
+
+// Fixed-window limiter keyed on an EXPLICIT identifier (not the request IP). Used by federation to
+// throttle relayed writes per (member, target instance) and inbound relayed writes per (member,
+// this instance) — see FEDERATION_SECURITY.md §3/§5. Same self-cleaning bucket store as rateLimit().
+export async function rateLimitByKey(
+  scope: string,
+  ident: string,
+  opts: Options,
+): Promise<Result> {
   const now = Date.now();
   const windowStart = Math.floor(now / opts.windowMs) * opts.windowMs;
   const reset = windowStart + opts.windowMs;

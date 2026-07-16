@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
+import { getTierBands } from '@/lib/pluginConfig';
 import AdminTeamBoardClient from './AdminTeamBoardClient';
 import CaptainAssignment from './CaptainAssignment';
 
@@ -28,6 +29,7 @@ export default async function AdminTeamBoardPage({
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
   let teamCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
@@ -47,6 +49,7 @@ export default async function AdminTeamBoardPage({
         tiles={eventTiles}
         completions={teamCompletions}
         players={eventPlayers}
+        tierBands={tierBands}
       />
     </>
   );
