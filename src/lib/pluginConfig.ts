@@ -3,6 +3,7 @@ import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import { FUN_DEATH_MESSAGES } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
+import { getItemMapping } from '@/lib/osrsItems';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -215,6 +216,53 @@ export async function getSpoonTaunts(): Promise<string[]> {
 // both lists — so this only needs to hold extras (e.g. new ornament kits). One name per line.
 export async function getAlwaysNotifyItems(): Promise<string[]> {
   return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+}
+
+// Prestige/notable items that ALWAYS post to the rare-drop channel — resolved to item ids so the plugin
+// matches by ID (reliable for untradeables like a ToA Cursed phalanx that have no GE value to gate on and
+// only ever matched by a fragile name compare). MIRRORS the plugin's baked-in ALWAYS_NOTIFY_FALLBACK
+// (AnvilPlugin.java) — keep the two in sync; admins extend it via the always_notify_items setting.
+const NOTABLE_ITEM_PATTERNS = [
+  'infernal cape', "dizana's quiver", 'purifying sigil',
+  'ancient blood ornament kit', 'sanguine ornament kit', 'holy ornament kit', 'sanguine dust',
+  'metamorphic dust', 'twisted ancestral colour kit',
+  'menaphite ornament kit', 'cursed phalanx', 'masori crafting kit',
+  'vestige', 'quartz', "executioner's axe head", 'eye of the duke', "leviathan's lure", "siren's staff",
+  'jar of', 'champion scroll', "champion's cape", 'enhanced crystal', 'blood shard', 'fire cape',
+];
+
+let notableIdCache: { ids: number[]; at: number; key: string } | null = null;
+const NOTABLE_ID_TTL_MS = 5 * 60_000;
+
+// Substring-resolve the notable name patterns (baked-in + admin) to the set of matching item ids — the same
+// `.contains()` semantics the plugin used on names. Cached briefly (the list is essentially static); on an
+// item-data outage it degrades to the last good set (or empty), and the plugin's name allowlist still covers.
+export async function getAlwaysNotifyItemIds(): Promise<number[]> {
+  const admin = await getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+  const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
+  const key = patterns.join('');
+  if (notableIdCache && notableIdCache.key === key && Date.now() - notableIdCache.at < NOTABLE_ID_TTL_MS) {
+    return notableIdCache.ids;
+  }
+  let items;
+  try {
+    items = await getItemMapping();
+  } catch {
+    return notableIdCache?.ids ?? [];
+  }
+  const ids = new Set<number>();
+  for (const it of items) {
+    const n = it.name.toLowerCase();
+    for (const p of patterns) {
+      if (p && n.includes(p)) {
+        ids.add(it.id);
+        break;
+      }
+    }
+  }
+  const out = [...ids];
+  notableIdCache = { ids: out, at: Date.now(), key };
+  return out;
 }
 
 // Whether rare-drop posts include the boss/raid kill count the drop landed on. Default on; the
