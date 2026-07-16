@@ -6,7 +6,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
 import { computeGainFromJson } from '@/lib/statTracking';
-import { liveStatsForMembers } from '@/lib/liveStats';
+import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
@@ -22,6 +22,10 @@ import { notifyTileCompletion } from '@/lib/discord';
 // Absolute sanity ceilings — reject obviously bogus pushes. No legit boss KC / skill XP approaches these.
 const MAX_KC = 1_000_000;
 const MAX_XP = 200_000_000;
+
+// How long a per-key "rose just now" stamp is retained. Well past the 5-min "Active now" window so
+// slight clock skew is tolerated, then dropped to keep the map small.
+const KEY_TIME_TTL_MS = 30 * 60_000;
 
 export async function POST(request: Request) {
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
@@ -69,20 +73,30 @@ export async function POST(request: Request) {
   // Merge into the member's live overlay — absolute counts only ever rise, so keep the max per key.
   const memberRow = await db.query.clanMembers.findFirst({
     where: eq(clanMembers.id, member.clanMemberId),
-    columns: { liveStats: true, status: true },
+    columns: { liveStats: true, status: true, liveStatKeyTimes: true },
   });
   const live = parsePluginStats(memberRow?.liveStats);
+  const keyTimes = parseStatKeyTimes(memberRow?.liveStatKeyTimes);
   let changed = false;
   for (const [key, val] of Object.entries(pushed)) {
     if (val > (live[key] ?? 0)) {
       live[key] = val;
+      // Stamp per-key recency ONLY on a real increase — this is the "grinding THIS stat right now"
+      // signal "Active now" reads, so one fishing push no longer lights up every tile they've touched.
+      keyTimes[key] = nowIso;
       changed = true;
     }
   }
   if (changed) {
+    // Drop stale stamps so the map stays small and an old grind doesn't linger as "active".
+    const nowMs = Date.parse(nowIso);
+    for (const [k, iso] of Object.entries(keyTimes)) {
+      const at = Date.parse(iso);
+      if (!Number.isFinite(at) || nowMs - at > KEY_TIME_TTL_MS) delete keyTimes[k];
+    }
     await db
       .update(clanMembers)
-      .set({ liveStats: JSON.stringify(live), liveStatsAt: nowIso })
+      .set({ liveStats: JSON.stringify(live), liveStatsAt: nowIso, liveStatKeyTimes: JSON.stringify(keyTimes) })
       .where(eq(clanMembers.id, member.clanMemberId));
   }
 

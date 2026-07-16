@@ -169,6 +169,13 @@
       "when": 1784171229571,
       "tag": "0023_tiny_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784172913777,
+      "tag": "0024_smiling_shiva",
+      "breakpoints": true
     }
   ]
 }

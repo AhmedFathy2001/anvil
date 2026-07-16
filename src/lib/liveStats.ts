@@ -29,3 +29,24 @@ export async function liveStatsForMembers(
   for (const r of rows) out.set(r.id, parsePluginStats(r.liveStats));
   return out;
 }
+
+/**
+ * Parse `clan_members.live_stat_key_times` — a {hiscoresKey -> ISO timestamp} map stamped by the live
+ * push ONLY when a key's value rose. Used by "Active now" to tell that a member is grinding a SPECIFIC
+ * stat tile right now (its key rose within the window), not every tile they've ever progressed. Tolerant:
+ * a null/garbage blob yields {}.
+ */
+export function parseStatKeyTimes(json: string | null | undefined): Record<string, string> {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}

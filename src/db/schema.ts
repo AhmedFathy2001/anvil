@@ -428,6 +428,11 @@ export const clanMembers = sqliteTable('clan_members', {
   // renames and works with no active bingo event. Replaces the per-event players.plugin_stats.
   liveStats: text('live_stats'),
   liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
+  // Per-KEY last-rose timestamps: JSON map ({"fishing":"2026-07-16T…","zulrah":"…"}) stamped only when
+  // a pushed value actually INCREASED. Lets "Active now" say a member is grinding a SPECIFIC stat tile
+  // (its stat rose within the window) instead of every tile they've ever progressed — liveStatsAt alone
+  // is per-member, so one fishing push otherwise lit them up on every tile. Pruned to the recent window.
+  liveStatKeyTimes: text('live_stat_key_times'),
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),

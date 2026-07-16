@@ -21,7 +21,7 @@ import {
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
-import { liveStatsForMembers } from '@/lib/liveStats';
+import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import crypto from 'crypto';
 
@@ -231,9 +231,9 @@ export async function GET(request: Request) {
       clanMemberId: players.clanMemberId,
       statsSnapshot: players.statsSnapshot,
       cachedStats: players.cachedStats,
-      // When this member last pushed live stats — the "is this teammate actively grinding right now"
-      // signal for stat-tile attribution in the sidebar's "Active now". Per-member (not per-stat).
-      liveStatsAt: clanMembers.liveStatsAt,
+      // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
+      // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
+      liveStatKeyTimes: clanMembers.liveStatKeyTimes,
     })
     .from(players)
     .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
@@ -295,12 +295,16 @@ export async function GET(request: Request) {
         const gained = current - baseline;
         if (gained > 0) { gainedTotal += gained; playerGained += gained; }
       }
-      if (playerGained > 0 && p.id !== auth.playerId && p.liveStatsAt
-          && activeWorkers.length < ACTIVE_WORKERS_CAP) {
-        const at = Date.parse(p.liveStatsAt);
-        if (Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS) {
-          activeWorkers.push(p.name);
-        }
+      // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
+      // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
+      // CM/ToA tiles. The caller is excluded (the plugin marks itself "You" from its own local signal).
+      if (playerGained > 0 && p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+        const keyTimes = parseStatKeyTimes(p.liveStatKeyTimes);
+        const roseRecently = statKeys(statName).some((k) => {
+          const at = Date.parse(keyTimes[k] ?? '');
+          return Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS;
+        });
+        if (roseRecently) activeWorkers.push(p.name);
       }
     }
 
