@@ -1,0 +1,1 @@
+ALTER TABLE `completions` ADD `credit_player_id` integer REFERENCES players(id);

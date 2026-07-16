@@ -120,6 +120,7 @@ export async function POST(request: Request) {
     if (statTiles.length > 0) {
       const teamPlayers = await db
         .select({
+          id: players.id,
           clanMemberId: players.clanMemberId,
           statsSnapshot: players.statsSnapshot,
           cachedStats: players.cachedStats,
@@ -146,9 +147,15 @@ export async function POST(request: Request) {
         const compKey = `${activePlayer.teamId}-${tile.id}`;
         if (done.has(compKey)) continue;
         const keys = statKeys(tile.trackedStat);
+        // For an individual tile, the finisher is the player who reached the goal alone (attributed so the
+        // activity feed can name them — a stat completion has no submission). Team tiles have no one player.
+        const individualFinisher =
+          tile.trackingMode === 'individual'
+            ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+            : undefined;
         const meets =
           tile.trackingMode === 'individual'
-            ? teamPlayers.some((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+            ? individualFinisher != null
             : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
         if (!meets) continue;
 
@@ -156,7 +163,7 @@ export async function POST(request: Request) {
         // would otherwise double-ping Discord.
         const inserted = await db
           .insert(completions)
-          .values({ teamId: activePlayer.teamId!, tileId: tile.id })
+          .values({ teamId: activePlayer.teamId!, tileId: tile.id, creditPlayerId: individualFinisher?.id ?? null })
           .onConflictDoNothing()
           .returning({ id: completions.id });
         if (inserted.length === 0) continue;

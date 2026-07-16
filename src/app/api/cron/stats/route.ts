@@ -359,7 +359,9 @@ export async function GET(request: Request) {
           // Notify only on a genuine insert (a live push may have completed it already).
           const inserted = await db
             .insert(completions)
-            .values({ teamId: f.player.teamId, tileId: tile.id })
+            // Individual stat tile → attribute to the player who reached the goal (no submission exists
+            // for a hiscores-driven completion, so this is how the activity feed says who finished it).
+            .values({ teamId: f.player.teamId, tileId: tile.id, creditPlayerId: f.player.id })
             .onConflictDoNothing()
             .returning({ id: completions.id });
           ctx.completionSet.add(key);

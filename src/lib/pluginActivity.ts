@@ -115,6 +115,7 @@ export async function buildActivity(args: {
       id: completions.id,
       tileId: completions.tileId,
       completedAt: completions.completedAt,
+      creditPlayerId: completions.creditPlayerId,
     })
     .from(completions)
     .where(and(eq(completions.teamId, teamId), gt(completions.id, since.comp)))
@@ -136,7 +137,11 @@ export async function buildActivity(args: {
   }
 
   const creditPlayerIds = Array.from(
-    new Set(subRows.map((r) => r.creditPlayerId).filter((id): id is number => id != null)),
+    new Set(
+      [...subRows.map((r) => r.creditPlayerId), ...compRows.map((r) => r.creditPlayerId)].filter(
+        (id): id is number => id != null,
+      ),
+    ),
   );
   const rsnById = new Map<number, string>();
   if (creditPlayerIds.length > 0) {
@@ -178,7 +183,12 @@ export async function buildActivity(args: {
     });
   }
   for (const r of compRows) {
-    const who = completedByTile.get(r.tileId) ?? null;
+    // Prefer the stored finisher (stat tiles: boss KC / skilling, which have no submission), else fall
+    // back to the crediting player of the latest submission on the tile (drop/kill-backed tiles).
+    const who =
+      (r.creditPlayerId != null ? rsnById.get(r.creditPlayerId) : undefined) ??
+      completedByTile.get(r.tileId) ??
+      null;
     entries.push({
       id: `c${r.id}`,
       ts: r.completedAt,

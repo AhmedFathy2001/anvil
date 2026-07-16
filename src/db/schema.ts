@@ -198,6 +198,11 @@ export const completions = sqliteTable('completions', {
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   completedAt: text('completed_at').default(sql`(datetime('now'))`).notNull(),
+  // The player who finished it, for stat tiles (boss KC / skilling) that complete via the hiscores
+  // sweep or a live push and so have NO submission to attribute. NULL for team-total tiles, admin
+  // manual completions, and submission-backed tiles (the activity feed attributes those from the
+  // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
+  creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
