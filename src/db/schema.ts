@@ -58,6 +58,18 @@ export const events = sqliteTable('events', {
   // moderator) always see the board regardless. Existing events were backfilled to 1
   // so their current (visible) behavior is preserved.
   tilesRevealed: integer('tiles_revealed').default(0).notNull(),
+  // Multi-account enrollment (all of a person's picked accounts land on ONE team). Set at create.
+  //   maxAccountsPerPerson — how many of their linked accounts a person may enter for THIS event.
+  //     1 (default) = classic one-account-per-person; existing events keep exactly that behaviour.
+  //   accountSlotMode — how a person's N accounts count for team size, board balance AND the MVP
+  //     rollup: 'per-person' (N accounts = 1 slot; MVP aggregates the person) or 'per-account'
+  //     (N accounts = N slots; MVP lists each account). Moot while maxAccountsPerPerson = 1.
+  //   feeMode — 'per-person' (one fee per person) or 'per-account' (a fee per entered account).
+  // Scoring is unaffected: each account is its own `players` row, so drop/kill/stat tiles already
+  // credit the team per account (team stat tiles sum; individual-mode tiles take the best account).
+  maxAccountsPerPerson: integer('max_accounts_per_person').default(1).notNull(),
+  accountSlotMode: text('account_slot_mode').default('per-person').notNull(),
+  feeMode: text('fee_mode').default('per-person').notNull(),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -540,12 +552,14 @@ export const eventSignups = sqliteTable('event_signups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // Nullable: a "guest" sign-up for an in-game roster member who has no linked site user yet
-  // (e.g. added by an admin / by name). Linked members still carry their user id, and the
-  // (eventId, userId) unique index keeps one sign-up per linked user — SQLite treats the NULLs
-  // as distinct, so multiple guest rows per event are allowed; guest dedup is by clanMemberId in code.
+  // (e.g. added by an admin / by name). Linked members carry their user id. A person may now enter up
+  // to events.maxAccountsPerPerson accounts, so there's no one-per-user unique any more; dedup is per
+  // ACCOUNT via the (eventId, clanMemberId) unique below, which covers guests (NULL userId) too.
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'restrict' }),
-  // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }
+  // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }. One profile PER
+  // PERSON: when someone enters several accounts, the answers live on their PRIMARY account's row and
+  // the sibling rows carry '{}' — the read-time join backfills them (see lib/draftProfiles).
   profileData: text('profile_data').notNull().default('{}'),
   // pending = awaiting fee/admin review, approved = eligible for draft, rejected = denied,
   // withdrawn = user opted out before the deadline.
@@ -553,7 +567,11 @@ export const eventSignups = sqliteTable('event_signups', {
   signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
-  uniqueIndex('event_signup_user_unique').on(table.eventId, table.userId),
+  // Multi-account: a person (userId) may now enter up to events.maxAccountsPerPerson accounts, so the
+  // old one-per-user unique is gone. Dedup is per ACCOUNT instead — one sign-up per (event, clanMember)
+  // — which also naturally covers guest rows (userId NULL). The (event, user) lookup stays a plain index.
+  uniqueIndex('event_signup_member_unique').on(table.eventId, table.clanMemberId),
+  index('event_signup_event_user_idx').on(table.eventId, table.userId),
   index('event_signups_event_id_idx').on(table.eventId),
   index('event_signups_user_id_idx').on(table.userId),
   index('event_signups_clan_member_id_idx').on(table.clanMemberId),
