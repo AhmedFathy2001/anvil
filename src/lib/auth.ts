@@ -740,22 +740,32 @@ export async function resolvePluginMember(
     }),
   );
 
-  // Caller told us their current RSN — match that clan_member (current name OR a previous alias).
-  let matchedMember = memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
-  // Rename fallback: no name matched, but the stable account hash points at one of this
-  // user's members whose stored name differs — they renamed to a name we haven't recorded
-  // yet. Without this the play would 401 (unknown RSN) and the member's hiscores tracking
-  // would 404-park forever until a roster sync or rename request happened to fix the name.
-  // Record the rename now (best-effort) so it self-heals the moment they simply play.
+  // Hash-FIRST identity. The account hash is the stable, unforgeable, rename-proof anchor, so when
+  // the client sends one we match on it BEFORE the (mutable, public) RSN. This makes an in-game
+  // rename a non-event: the member resolves by hash and we record the new name, instead of the play
+  // 401-parking tracking (unknown RSN) until a roster sync or rename request happens to fix the
+  // stored name. RSN is only the fallback for members whose hash isn't captured yet — linked via
+  // XP/manual/link-code, or last seen on a pre-hash plugin build.
+  let matchedMember: (typeof memberRows)[number] | null = null;
   let renamedFrom: string | null = null;
-  if (!matchedMember && accountHash) {
-    const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash);
-    if (hashMatch && hashMatch.rsnNormalized !== normalizedRsn) {
+  if (accountHash) {
+    const hashMatch = memberRows.find((m) => m.accountHash && m.accountHash === accountHash) ?? null;
+    if (hashMatch) {
       matchedMember = hashMatch;
-      renamedFrom = hashMatch.rsn;
+      // Same account (proven by hash), different stored name → they renamed. Record it so the
+      // display RSN + previousRsns alias set catch up; applyRenameOnPlay guards the RSN-unique
+      // index and defers to the mod merge flow if another row already holds the new name.
+      if (hashMatch.rsnNormalized !== normalizedRsn) {
+        renamedFrom = hashMatch.rsn;
+      }
     }
   }
-  if (!matchedMember) return null; // current account isn't on this user's roster
+  // No hash anchor yet (or none sent) — fall back to the RSN alias set (current name or a previously
+  // recorded one). Once this play anchors the hash (below), future renames resolve hash-first.
+  if (!matchedMember) {
+    matchedMember = memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
+  }
+  if (!matchedMember) return null; // current account isn't on this user's roster (by hash or name)
   if (renamedFrom) {
     await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
   }
