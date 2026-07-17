@@ -183,6 +183,13 @@
       "when": 1784258067128,
       "tag": "0025_steady_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784318167901,
+      "tag": "0026_multi_account_per_person",
+      "breakpoints": true
     }
   ]
 }
