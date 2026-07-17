@@ -394,6 +394,11 @@ export default function TileTrackingConfig({
       ? String(initial.requiredAmount)
       : '',
   );
+  // PvP min-loot floor in gp — a kill only counts if its loot is worth at least this. Empty = 0
+  // (no minimum, every kill counts). Accepts 5m / 500k shorthand via parseGp, like the value field.
+  const [pvpMinLootText, setPvpMinLootText] = useState<string>(
+    initial.tileType === 'pvp' && initial.pvpMinLootValue ? String(initial.pvpMinLootValue) : '',
+  );
   // 'single' = one haul must meet the threshold; 'total' = hauls sum toward it.
   const [valueMode, setValueMode] = useState<'single' | 'total'>(
     initial.tileType === 'valuetotal' ? 'total' : 'single',
@@ -833,6 +838,8 @@ export default function TileTrackingConfig({
         timedActivity: null,
         timeThresholdSeconds: null,
         partySize: null,
+        // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
+        pvpMinLootValue: null,
       };
 
       if (isStat) {
@@ -861,6 +868,8 @@ export default function TileTrackingConfig({
           ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
           : ['team:other'];
         payload.trackingMode = trackingMode;
+        // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
+        payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
       } else if (kind === 'diary') {
         // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -1708,6 +1717,23 @@ export default function TileTrackingConfig({
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Minimum loot value (optional)</label>
+            <Input
+              type="text"
+              value={pvpMinLootText}
+              onChange={(e) => setPvpMinLootText(e.target.value)}
+              placeholder="e.g. 10k — leave blank for none"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Only credit a kill worth at least this much loot (accepts <span className="text-foreground/70">10k</span>,{' '}
+              <span className="text-foreground/70">5m</span>). Blank = every kill counts. A value here means
+              the plugin waits to price the loot, so <span className="text-foreground/70">loot-key kills won&rsquo;t
+              count</span> for this tile.
+            </p>
           </div>
 
           <div>

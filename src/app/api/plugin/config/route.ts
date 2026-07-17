@@ -572,6 +572,10 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
           trackingMode: t.trackingMode ?? 'team',
+          // Minimum loot value (gp) a kill must yield to count. 0 = no minimum (every attributed
+          // kill counts, incl. loot-key kills). > 0 makes the plugin price the kill's loot and
+          // only credit kills worth at least this much.
+          minLootValue: t.pvpMinLootValue ?? 0,
         };
       }),
     pvpRoster,
