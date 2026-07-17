@@ -116,6 +116,13 @@ export const tiles = sqliteTable('tiles', {
   // Deathless and drop tiles keep their party gates in the overloaded timeThresholdSeconds
   // column (plugin back-compat); timed tiles can't reuse it since it already holds the cap.
   partySize: integer('party_size'),
+  // PVP tiles (tile_type='pvp'). Minimum loot value in gp a kill must yield to count toward the
+  // tile — an anti-farm floor so killing naked alts/teammates doesn't credit. NULL/0 = no minimum
+  // (every attributed kill counts, matching legacy behaviour and still crediting loot-key kills).
+  // When > 0 the plugin defers the credit until it prices the kill's loot and only counts kills
+  // worth at least this much — so a positive floor cannot credit loot-key / no-loot kills. A gp
+  // value (not seconds) so it needs its own column rather than reusing timeThresholdSeconds.
+  pvpMinLootValue: integer('pvp_min_loot_value'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.

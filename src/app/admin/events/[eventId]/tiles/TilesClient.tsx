@@ -45,6 +45,7 @@ function tileToTrackingInitial(tile: Tile) {
     // Timed raids keep their party size in its own column (deathless/drop ride
     // timeThresholdSeconds). Without this the editor reloaded blank and the next save nulled it.
     partySize: tile.partySize ?? null,
+    pvpMinLootValue: tile.pvpMinLootValue ?? null,
     updatedAt: tile.updatedAt ?? null,
   };
 }
