@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode, format } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
@@ -34,6 +34,24 @@ export async function POST(request: Request) {
   // applies to the bingo format, so force 'tiles' for a race.
   const resolvedScoringMode =
     resolvedFormat === 'tilerace' ? 'tiles' : scoringMode === 'points' ? 'points' : 'tiles';
+
+  // Multi-account enrollment knobs — all optional; the defaults reproduce one-account-per-person.
+  const MAX_ACCOUNTS_CAP = 10;
+  let resolvedMaxAccounts = 1;
+  if (maxAccountsPerPerson !== undefined) {
+    if (!Number.isInteger(maxAccountsPerPerson) || maxAccountsPerPerson < 1 || maxAccountsPerPerson > MAX_ACCOUNTS_CAP) {
+      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}` }, { status: 400 });
+    }
+    resolvedMaxAccounts = maxAccountsPerPerson;
+  }
+  if (accountSlotMode !== undefined && accountSlotMode !== 'per-person' && accountSlotMode !== 'per-account') {
+    return NextResponse.json({ error: "accountSlotMode must be 'per-person' or 'per-account'" }, { status: 400 });
+  }
+  if (feeMode !== undefined && feeMode !== 'per-person' && feeMode !== 'per-account') {
+    return NextResponse.json({ error: "feeMode must be 'per-person' or 'per-account'" }, { status: 400 });
+  }
+  const resolvedAccountSlotMode = accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
+  const resolvedFeeMode = feeMode === 'per-account' ? 'per-account' : 'per-person';
 
   if (!Number.isInteger(boardSize) || boardSize < 1) {
     return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
@@ -80,7 +98,10 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const event = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(events).values({ name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat }).returning();
+    const [created] = await tx.insert(events).values({
+      name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
+      maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
+    }).returning();
     const tileValues = resolvedLabels.map((label: string, index: number) => ({
       eventId: created.id,
       position: index,
