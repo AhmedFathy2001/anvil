@@ -121,12 +121,20 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => null)) as {
-    clanMemberId?: number;
+    clanMemberId?: number;      // legacy single-account form (still accepted)
+    clanMemberIds?: number[];   // multi-account selection (up to event.maxAccountsPerPerson)
     profile?: Record<string, unknown>;
   } | null;
 
-  if (!body || typeof body.clanMemberId !== 'number') {
-    return NextResponse.json({ error: 'clanMemberId is required' }, { status: 400 });
+  // Resolve the picked accounts: prefer the multi-account array, fall back to the legacy single id.
+  const rawIds = Array.isArray(body?.clanMemberIds)
+    ? body!.clanMemberIds
+    : typeof body?.clanMemberId === 'number'
+      ? [body!.clanMemberId]
+      : [];
+  const selectedIds = [...new Set(rawIds.filter((n): n is number => typeof n === 'number' && Number.isFinite(n)))];
+  if (selectedIds.length === 0) {
+    return NextResponse.json({ error: 'Select at least one account' }, { status: 400 });
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
@@ -134,13 +142,21 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  // Whether this is an edit of an existing active sign-up decides the window: editing gets
-  // the payment-deadline grace period (keep tweaking answers + pay until then); a new
-  // sign-up or a re-join after withdrawal must be inside the normal sign-up window.
-  const existing = await db.query.eventSignups.findFirst({
+  const maxAccounts = event.maxAccountsPerPerson ?? 1;
+  if (selectedIds.length > maxAccounts) {
+    return NextResponse.json(
+      { error: `This event allows at most ${maxAccounts} account${maxAccounts === 1 ? '' : 's'} per person.` },
+      { status: 400 },
+    );
+  }
+
+  // Every existing sign-up row this user has for the event (multi-account: possibly several).
+  const existingRows = await db.query.eventSignups.findMany({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
-  const isEditingActive = !!existing && existing.status !== 'withdrawn';
+  // Editing (any active row present) gets the payment-deadline grace; a first sign-up or a re-join
+  // after full withdrawal must be inside the normal window.
+  const isEditingActive = existingRows.some((r) => r.status !== 'withdrawn');
 
   const window = isEditingActive
     ? signupEditState({
@@ -164,111 +180,109 @@ export async function POST(
     );
   }
 
-  // Confirm the chosen RSN belongs to this user, is verified, and still in clan.
-  const account = await db.query.clanMembers.findFirst({
-    where: and(
-      eq(clanMembers.id, body.clanMemberId),
-      eq(clanMembers.userId, session.userId),
-      isNull(clanMembers.leftAt),
-    ),
+  // Confirm every chosen account belongs to this user, is verified, and still in clan.
+  const myAccounts = await db.query.clanMembers.findMany({
+    where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
   });
-  if (!account) {
-    return NextResponse.json({ error: 'Account not linked to your user' }, { status: 403 });
-  }
-  if (!account.verifiedAt) {
-    return NextResponse.json(
-      { error: 'Account must be verified before signing up' },
-      { status: 403 },
-    );
+  const accountById = new Map(myAccounts.map((a) => [a.id, a]));
+  for (const cid of selectedIds) {
+    const acc = accountById.get(cid);
+    if (!acc) {
+      return NextResponse.json({ error: 'Account not linked to your user' }, { status: 403 });
+    }
+    if (!acc.verifiedAt) {
+      return NextResponse.json({ error: `${acc.rsn} must be verified before signing up` }, { status: 403 });
+    }
   }
 
-  const profile = sanitizeProfile((body.profile ?? {}) as Record<string, unknown>);
+  // Deselected accounts (previously signed up, now unchecked) get withdrawn — but only when their fee
+  // is untouched. A paid fee means money changed hands, so it needs an admin (mirrors DELETE). Check
+  // up front so we never half-apply.
+  const deselected = existingRows.filter((r) => !selectedIds.includes(r.clanMemberId) && r.status !== 'withdrawn');
+  for (const r of deselected) {
+    const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, r.id) });
+    if (fee && fee.status !== 'pending') {
+      const rsn = accountById.get(r.clanMemberId)?.rsn ?? 'An account';
+      return NextResponse.json(
+        { error: `${rsn}'s fee is already paid — contact an admin to remove that account.` },
+        { status: 403 },
+      );
+    }
+  }
+
+  // One profile PER PERSON (option A): the answers live on the PRIMARY account's row; siblings carry
+  // '{}' and inherit at read time. Primary = the user's primary account if it's among the picks, else
+  // the first pick.
+  const primaryId = selectedIds.find((cid) => accountById.get(cid)?.isPrimary === 1) ?? selectedIds[0];
+  const profile = sanitizeProfile((body?.profile ?? {}) as Record<string, unknown>);
   const profileJson = serializeProfile(profile);
   const now = new Date().toISOString();
+  const existingByMember = new Map(existingRows.map((r) => [r.clanMemberId, r]));
+  const feePerAccount = (event.feeMode ?? 'per-person') === 'per-account';
 
-  // Upsert: edit if a signup already exists, else insert. We don't allow status changes
-  // through this endpoint — admin/mod actions live elsewhere.
-  //
-  // Re-signing up after a withdrawal flips the row back to 'pending'. Other statuses
-  // (approved/rejected) are left to admin actions — editing answers shouldn't silently
-  // re-open a rejected sign-up or downgrade an approved one.
-  const isReactivation = !!existing && existing.status === 'withdrawn';
-
-  let signupRow;
-  if (existing) {
-    [signupRow] = await db
-      .update(eventSignups)
-      .set({
-        clanMemberId: body.clanMemberId,
-        profileData: profileJson,
-        updatedAt: now,
-        ...(isReactivation ? { status: 'pending' as const } : {}),
-      })
-      .where(eq(eventSignups.id, existing.id))
-      .returning();
-  } else {
-    [signupRow] = await db
-      .insert(eventSignups)
-      .values({
-        eventId: id,
-        userId: session.userId,
-        clanMemberId: body.clanMemberId,
-        profileData: profileJson,
-        status: 'pending',
-        signedUpAt: now,
-        updatedAt: now,
-      })
-      .returning();
+  // 1) Withdraw the deselected accounts: soft-withdraw the row, drop the untouched fee + pool player.
+  for (const r of deselected) {
+    await db.update(eventSignups).set({ status: 'withdrawn', updatedAt: now }).where(eq(eventSignups.id, r.id));
+    await db.delete(signupFees).where(eq(signupFees.signupId, r.id));
+    await db.delete(players).where(and(eq(players.eventId, id), eq(players.clanMemberId, r.clanMemberId), isNull(players.teamId)));
   }
 
-  // For an active sign-up (new or re-activated), make sure the fee request and the
-  // draft-pool player row both exist. Withdrawal deletes the pending fee + pool row, so
-  // this is what restores them on a re-signup. Both inserts are idempotent (skip when a
-  // row already exists), so this is also a no-op for ordinary answer edits. Skipped for
-  // rejected sign-ups so a rejected user can't re-add themselves by editing the form.
-  const isActive = signupRow.status === 'pending' || signupRow.status === 'approved';
-  if (isActive) {
-    // Auto-create a fee row when the event has a fee. Keeping a 1:1 row even for free
-    // events would be noise — easier to gate on event.signupFee everywhere if it's null.
-    if (event.signupFee && event.signupFee > 0) {
-      const existingFee = await db.query.signupFees.findFirst({
-        where: eq(signupFees.signupId, signupRow.id),
-      });
-      if (!existingFee) {
-        await db.insert(signupFees).values({
-          signupId: signupRow.id,
-          amount: event.signupFee,
-          status: 'pending',
-        });
-      }
+  // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
+  const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
+  for (const cid of selectedIds) {
+    const account = accountById.get(cid)!;
+    const data = cid === primaryId ? profileJson : '{}';
+    const prior = existingByMember.get(cid);
+    let row;
+    if (prior) {
+      [row] = await db
+        .update(eventSignups)
+        .set({ profileData: data, updatedAt: now, ...(prior.status === 'withdrawn' ? { status: 'pending' as const } : {}) })
+        .where(eq(eventSignups.id, prior.id))
+        .returning();
+    } else {
+      [row] = await db
+        .insert(eventSignups)
+        .values({ eventId: id, userId: session.userId, clanMemberId: cid, profileData: data, status: 'pending', signedUpAt: now, updatedAt: now })
+        .returning();
     }
+    rows.push({ row, account });
+  }
 
-    // Auto-add the signed-up player to the event's draft pool. Mirrors the bulk
-    // promote-pool admin action, just at signup time so the pool fills itself as
-    // the form is filled. Idempotent: skip when a player row already exists for
-    // this clan member in this event (e.g. captain promoted directly, or the
-    // admin manually added them earlier).
+  // 3) For each active row: ensure its pool player (one per account) and its fee per feeMode.
+  //    per-account → every account owes a fee; per-person → only the primary's row carries it.
+  for (const { row, account } of rows) {
+    if (row.status !== 'pending' && row.status !== 'approved') continue;
+
     const existingPlayer = await db.query.players.findFirst({
-      where: and(eq(players.eventId, id), eq(players.clanMemberId, body.clanMemberId)),
+      where: and(eq(players.eventId, id), eq(players.clanMemberId, account.id)),
     });
     if (!existingPlayer) {
       await db.insert(players).values({
         eventId: id,
-        clanMemberId: body.clanMemberId,
+        clanMemberId: account.id,
         name: account.rsn,
-        // Seed the per-player timezone from the signup so captains see it on the draft
-        // board. Only set at creation — later admin edits to the player row win.
-        timezone: profile.timezone ?? null,
+        timezone: profile.timezone ?? null, // the person's tz applies to all their accounts
         playerToken: generatePlayerToken(),
       });
     }
+
+    if (event.signupFee && event.signupFee > 0) {
+      const owesFee = feePerAccount || account.id === primaryId;
+      const existingFee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });
+      if (owesFee && !existingFee) {
+        await db.insert(signupFees).values({ signupId: row.id, amount: event.signupFee, status: 'pending' });
+      } else if (!owesFee && existingFee && existingFee.status === 'pending') {
+        // per-person mode: a sibling account shouldn't carry a fee — clear an untouched leftover.
+        await db.delete(signupFees).where(eq(signupFees.id, existingFee.id));
+      }
+    }
   }
 
+  const primaryRow = rows.find((r) => r.account.id === primaryId)?.row ?? rows[0].row;
   return NextResponse.json({
-    signup: {
-      ...signupRow,
-      profile: parseProfile(signupRow.profileData),
-    },
+    signup: { ...primaryRow, profile: parseProfile(primaryRow.profileData) },
+    signups: rows.map(({ row }) => ({ ...row, profile: parseProfile(row.profileData) })),
   });
 }
 
@@ -315,53 +329,42 @@ export async function DELETE(
     );
   }
 
-  const existing = await db.query.eventSignups.findFirst({
+  // Withdraw pulls the WHOLE person out — every account they entered (multi-account: possibly several).
+  const existingRows = await db.query.eventSignups.findMany({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
-  if (!existing) {
+  const active = existingRows.filter((r) => r.status !== 'withdrawn');
+  if (active.length === 0) {
     return NextResponse.json({ ok: true });
   }
 
-  // A fee that's been touched (reported/collected/confirmed/disputed) means money has
-  // changed hands — they can't just self-withdraw and vanish. They contact an admin, who
-  // removes them manually and handles the refund. Only an untouched 'pending' fee lets
-  // them bail on their own.
-  const fee = await db.query.signupFees.findFirst({
-    where: eq(signupFees.signupId, existing.id),
-  });
-  if (fee && fee.status !== 'pending') {
-    return NextResponse.json(
-      { error: 'Your fee has already been paid — contact an admin to withdraw.' },
-      { status: 403 },
-    );
+  // A fee that's been touched (reported/collected/confirmed/disputed) on ANY account means money has
+  // changed hands — they can't just self-withdraw and vanish. Check them all first so we never leave
+  // the person half-withdrawn. Only untouched 'pending' fees let them bail on their own.
+  const feeBySignup = new Map<number, typeof signupFees.$inferSelect>();
+  for (const r of active) {
+    const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, r.id) });
+    if (fee) {
+      if (fee.status !== 'pending') {
+        return NextResponse.json(
+          { error: 'Your fee has already been paid — contact an admin to withdraw.' },
+          { status: 403 },
+        );
+      }
+      feeBySignup.set(r.id, fee);
+    }
   }
 
   const now = new Date().toISOString();
-
-  // Soft "withdraw" instead of delete: we keep the sign-up row so the roster and audit
-  // history stay intact even after a player drops.
-  await db
-    .update(eventSignups)
-    .set({ status: 'withdrawn', updatedAt: now })
-    .where(eq(eventSignups.id, existing.id));
-
-  // Remove the (untouched) fee request entirely — nothing to track once they're out, and
-  // it keeps the fee queue clean. A re-signup before the deadline re-creates it.
-  if (fee) {
-    await db.delete(signupFees).where(eq(signupFees.id, fee.id));
+  for (const r of active) {
+    // Soft "withdraw" keeps the row for roster/audit history; drop the untouched fee + pool player.
+    await db.update(eventSignups).set({ status: 'withdrawn', updatedAt: now }).where(eq(eventSignups.id, r.id));
+    const fee = feeBySignup.get(r.id);
+    if (fee) {
+      await db.delete(signupFees).where(eq(signupFees.id, fee.id));
+    }
+    await db.delete(players).where(and(eq(players.eventId, id), eq(players.clanMemberId, r.clanMemberId), isNull(players.teamId)));
   }
-
-  // Pull them back out of the pool. Pre-draft they can't be on a team yet, but we keep
-  // the teamId guard for safety/consistency with the admin path.
-  await db
-    .delete(players)
-    .where(
-      and(
-        eq(players.eventId, id),
-        eq(players.clanMemberId, existing.clanMemberId),
-        isNull(players.teamId),
-      ),
-    );
 
   return NextResponse.json({ ok: true });
 }
