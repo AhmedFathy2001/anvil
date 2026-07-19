@@ -5,7 +5,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
-import { computeGainFromJson } from '@/lib/statTracking';
+import { computeGainFromJson, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
@@ -138,6 +138,8 @@ export async function POST(request: Request) {
           clanMemberId: players.clanMemberId,
           statsSnapshot: players.statsSnapshot,
           cachedStats: players.cachedStats,
+          frozenAt: players.frozenAt,
+          frozenStats: players.frozenStats,
         })
         .from(players)
         .where(and(eq(players.eventId, activePlayer.eventId), eq(players.teamId, activePlayer.teamId!)));
@@ -145,6 +147,9 @@ export async function POST(request: Request) {
       // the merge we just wrote). Gain = sum over keys of max(0, max(hiscores, live) − baseline).
       const teamLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
       const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
+        // Benched players are pinned to frozenStats (no live overlay) so their locked gain still counts
+        // toward the team total but never climbs.
+        if (p.frozenAt) return computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, statType);
         const plug = (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {};
         return computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, statType);
       };
@@ -161,23 +166,34 @@ export async function POST(request: Request) {
         const compKey = `${activePlayer.teamId}-${tile.id}`;
         if (done.has(compKey)) continue;
         const keys = statKeys(tile.trackedStat);
+        const individual = isIndividualMode(tile.trackingMode);
         // For an individual tile, the finisher is the player who reached the goal alone (attributed so the
         // activity feed can name them — a stat completion has no submission). Team tiles have no one player.
-        const individualFinisher =
-          tile.trackingMode === 'individual'
-            ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
-            : undefined;
-        const meets =
-          tile.trackingMode === 'individual'
-            ? individualFinisher != null
-            : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
+        const individualFinisher = individual
+          ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+          : undefined;
+        const meets = individual
+          ? individualFinisher != null
+          : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
         if (!meets) continue;
+
+        // Freeze the per-member split at completion: the lone finisher for individual tiles, or every
+        // contributing team member's current gain for team tiles. Locks "who got what %" against the
+        // stat continuing to climb after the tile is done.
+        const splitRows = individual
+          ? [{ playerId: individualFinisher!.id, gained: gainFor(individualFinisher!, keys, tile.statType!) }]
+          : teamPlayers.map((p) => ({ playerId: p.id, gained: gainFor(p, keys, tile.statType!) }));
 
         // Notify only on a genuine insert — the sweep + this push can both cross a threshold and
         // would otherwise double-ping Discord.
         const inserted = await db
           .insert(completions)
-          .values({ teamId: activePlayer.teamId!, tileId: tile.id, creditPlayerId: individualFinisher?.id ?? null })
+          .values({
+            teamId: activePlayer.teamId!,
+            tileId: tile.id,
+            creditPlayerId: individualFinisher?.id ?? null,
+            statContributions: JSON.stringify(buildContributionSnapshot(tile.statGoal!, splitRows)),
+          })
           .onConflictDoNothing()
           .returning({ id: completions.id });
         if (inserted.length === 0) continue;

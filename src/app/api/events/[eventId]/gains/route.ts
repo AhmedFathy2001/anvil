@@ -87,11 +87,18 @@ export async function GET(
       continue;
     }
 
+    // Benched (sub-out) player: pin to the frozen snapshot with no live overlay, so their gain stays
+    // locked at the sub moment everywhere it's displayed.
+    const currentJson = player.frozenAt ? player.frozenStats : player.cachedStats;
+    const frozenView = !!player.frozenAt;
+
     // Use cached stats if available
-    if (player.cachedStats) {
+    if (currentJson) {
       try {
-        const currentStats = JSON.parse(player.cachedStats) as HiscoresSnapshot;
-        const pluginMap = (player.clanMemberId != null && memberLive.get(player.clanMemberId)) || {};
+        const currentStats = JSON.parse(currentJson) as HiscoresSnapshot;
+        const pluginMap = frozenView
+          ? {}
+          : (player.clanMemberId != null && memberLive.get(player.clanMemberId)) || {};
 
         // gains keyed by the composite trackedStat so clients keep indexing by tile.trackedStat.
         const gains: Record<string, number> = {};

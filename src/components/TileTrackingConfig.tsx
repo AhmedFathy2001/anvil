@@ -318,7 +318,11 @@ export default function TileTrackingConfig({
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
-  const [trackingMode, setTrackingMode] = useState<string>(initial.trackingMode || "team");
+  // "solo" was the old wire value for the "Solo (Any Member)" mode; the backend only ever honoured
+  // "individual", so normalize on load (the 0027 data migration flips stored rows too).
+  const [trackingMode, setTrackingMode] = useState<string>(
+    initial.trackingMode === "solo" ? "individual" : initial.trackingMode || "team",
+  );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
   // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
@@ -1208,9 +1212,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1643,9 +1647,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1750,9 +1754,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1861,9 +1865,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -2012,9 +2016,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)

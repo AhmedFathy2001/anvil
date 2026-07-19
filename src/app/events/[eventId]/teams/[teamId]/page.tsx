@@ -6,6 +6,8 @@ import TeamBoardClient from './TeamBoardClient';
 import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { getTierBands } from '@/lib/pluginConfig';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +43,19 @@ export default async function TeamBoardPage({
   const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
-  let teamCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let teamCompletions: Completion[] = [];
   if (tileIds.length > 0) {
+    const tileIdSet = new Set(tileIds);
     const allCompletions = await db.select().from(completions).where(eq(completions.teamId, tId));
-    teamCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
+    teamCompletions = allCompletions
+      .filter((c) => tileIdSet.has(c.tileId))
+      .map((c) => ({
+        id: c.id,
+        teamId: c.teamId,
+        tileId: c.tileId,
+        completedAt: c.completedAt,
+        statContributions: parseContributionSnapshot(c.statContributions),
+      }));
   }
 
   const { captainPassword: _, ...safeTeam } = team;

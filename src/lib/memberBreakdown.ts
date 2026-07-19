@@ -1,4 +1,5 @@
 import { tileWeight } from './utils';
+import type { StatContributionSnapshot } from './statTracking';
 
 // One tile a member contributed to, with their amount on it (kills / drops / items / gp, or — for
 // skill/boss tiles — their XP or KC gain).
@@ -78,6 +79,11 @@ interface BreakdownTile {
 interface BreakdownCompletion {
   teamId: number;
   tileId: number;
+  // Frozen per-member KC/XP split captured when a STAT tile completed. When present, it (not the live
+  // `statGains`) is the source of each member's share of this tile — the whole point is that a finished
+  // tile's attribution stops drifting as the underlying stat keeps climbing. NULL/absent for submission
+  // tiles and for legacy stat completions predating the freeze (those fall back to live statGains).
+  statContributions?: StatContributionSnapshot | null;
 }
 interface BreakdownSubmission {
   teamId: number;
@@ -135,10 +141,25 @@ export function computeMemberBreakdown(params: {
   for (const s of teamSubs) {
     record(s.creditPlayerId as number, s.tileId, Math.max(0, s.amount), 1, false);
   }
-  // Skill/boss tiles: each team member's gain is their contribution.
+  // Completed stat tiles: use the split frozen at completion so each member's share can't drift as the
+  // underlying KC/XP keeps climbing afterwards. Tracked here so the live pass below skips these tiles.
+  const frozenStatTiles = new Set<number>();
+  for (const c of completions) {
+    if (c.teamId !== teamId || !c.statContributions) continue;
+    const tile = tileById.get(c.tileId);
+    if (!tile || !tile.trackedStat) continue;
+    for (const r of c.statContributions.split) {
+      if (!teamPlayerIds.has(r.playerId) || r.gained <= 0) continue;
+      record(r.playerId, c.tileId, r.gained, 0, true);
+    }
+    frozenStatTiles.add(c.tileId);
+  }
+  // Skill/boss tiles without a frozen split (in-progress, or legacy completions): each team member's
+  // live gain is their contribution.
   if (statGains) {
     for (const [key, rows] of Object.entries(statGains)) {
       const tileId = Number(key);
+      if (frozenStatTiles.has(tileId)) continue; // already applied from the frozen split
       const tile = tileById.get(tileId);
       if (!tile || !tile.trackedStat) continue;
       for (const r of rows) {

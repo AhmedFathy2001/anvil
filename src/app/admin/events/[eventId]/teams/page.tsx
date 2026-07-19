@@ -4,6 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
+import { parseContributionSnapshot } from '@/lib/statTracking';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,15 @@ export default async function EventTeamsPage({
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const eventCompletions = tileIds.size
-    ? (await db.select().from(completions)).filter((c) => tileIds.has(c.tileId))
+    ? (await db.select().from(completions))
+        .filter((c) => tileIds.has(c.tileId))
+        .map((c) => ({
+          id: c.id,
+          teamId: c.teamId,
+          tileId: c.tileId,
+          completedAt: c.completedAt,
+          statContributions: parseContributionSnapshot(c.statContributions),
+        }))
     : [];
 
   // Surface each captain's display name so the team list can show who holds the seat.

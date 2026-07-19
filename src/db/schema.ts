@@ -222,6 +222,13 @@ export const completions = sqliteTable('completions', {
   // manual completions, and submission-backed tiles (the activity feed attributes those from the
   // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
   creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
+  // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
+  // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.
+  // Locks "who contributed what %" to completion time — the underlying hiscores stat keeps climbing
+  // afterwards, but a finished tile's attribution (and its display) must not drift. NULL for
+  // submission-backed / manual / non-stat completions (those already have stable per-submission
+  // amounts) and for legacy stat completions that predate this column (reads fall back to live).
+  statContributions: text('stat_contributions'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
@@ -251,6 +258,16 @@ export const players = sqliteTable('players', {
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
   // hiscores catches up. Lets boss-KC tiles complete instantly instead of waiting on hiscores lag.
   pluginStats: text('plugin_stats'),
+  // Bench / sub-out. When set, the player is frozen: the hiscores sweep stops fetching them and their
+  // stat gain is pinned to `frozenStats` (below) instead of climbing off live hiscores/plugin pushes.
+  // Their frozen gains STILL count toward team-mode tiles that complete later, and they keep showing in
+  // the member breakdown with their locked contribution — a sub-in gets a fresh baseline and stacks on
+  // top. NULL = actively tracked. Cleared on unfreeze and on progress-reset.
+  frozenAt: text('frozen_at'),
+  // Snapshot of `cachedStats` taken at the moment of freeze — the authoritative "current" for a frozen
+  // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
+  // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
+  frozenStats: text('frozen_stats'),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),

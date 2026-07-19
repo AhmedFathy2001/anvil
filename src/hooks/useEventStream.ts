@@ -8,6 +8,9 @@ interface Completion {
   tileId: number;
   eventId: number;
   completedAt: string;
+  // Frozen per-member KC/XP split for completed stat tiles — passed through to computeMemberBreakdown
+  // so a finished tile's contribution split stays put. Shape matches StatContributionSnapshot.
+  statContributions?: { goal: number; total: number; split: { playerId: number; gained: number }[] } | null;
 }
 
 interface Submission {

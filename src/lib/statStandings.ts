@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { tiles, players, teams, completions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { statKeys, statLabel } from '@/lib/tileKinds';
-import { jsonStatValue, effectiveValue } from '@/lib/statTracking';
+import { jsonStatValue, effectiveValue, parseContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
 
 export interface StatStandingPlayer {
@@ -49,11 +49,63 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(drafted.map((p) => p.clanMemberId));
 
+  // Completed stat tiles carry a frozen per-member split. Once a (team, tile) is done we display each
+  // member's contribution from that snapshot rather than the live gain, so a finished tile stops
+  // climbing past its goal. Key: `${teamId}-${tileId}` → playerId → frozen gained.
+  const statTileIds = statTiles.map((t) => t.id);
+  const frozenByTeamTile = new Map<string, Map<number, number>>();
+  if (statTileIds.length > 0) {
+    const comps = await db
+      .select({
+        teamId: completions.teamId,
+        tileId: completions.tileId,
+        statContributions: completions.statContributions,
+      })
+      .from(completions)
+      .where(inArray(completions.tileId, statTileIds));
+    for (const c of comps) {
+      const snap = parseContributionSnapshot(c.statContributions);
+      if (!snap) continue; // legacy completion w/o a frozen split → keep showing live
+      frozenByTeamTile.set(
+        `${c.teamId}-${c.tileId}`,
+        new Map(snap.split.map((r) => [r.playerId, r.gained])),
+      );
+    }
+  }
+
   return statTiles.map((tile) => {
     const keys = statKeys(tile.trackedStat);
     const rows: StatStandingPlayer[] = drafted
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
+        // If this player's team already completed the tile, freeze the display at the snapshotted gain.
+        const frozen = p.teamId != null ? frozenByTeamTile.get(`${p.teamId}-${tile.id}`) : undefined;
+        if (frozen) {
+          const gained = frozen.get(p.id) ?? 0;
+          return {
+            playerId: p.id,
+            name: p.name,
+            teamId: p.teamId,
+            baseline,
+            current: baseline + gained,
+            gained,
+            hasBaseline: !!p.statsSnapshot,
+          };
+        }
+        // Benched (sub-out) player: pin to their frozen snapshot, ignoring the live overlay so their
+        // gain stays put at the sub moment even if the plugin/hiscores would otherwise move it.
+        if (p.frozenAt) {
+          const current = readStat(p.frozenStats, tile.statType!, keys);
+          return {
+            playerId: p.id,
+            name: p.name,
+            teamId: p.teamId,
+            baseline,
+            current,
+            gained: Math.max(0, current - baseline),
+            hasBaseline: !!p.statsSnapshot,
+          };
+        }
         // Effective current folds in the plugin's real-time push (max per key), so standings reflect a
         // fresh kill / training burst before the hiscores sweep catches up — for boss KC AND skill XP.
         const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
