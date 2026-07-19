@@ -47,6 +47,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Post-draft roster tweaks.
   const [removingPlayerId, setRemovingPlayerId] = useState<number | null>(null);
   const [assigningPlayerId, setAssigningPlayerId] = useState<number | null>(null);
+  // Shared "action in flight" marker for the sub-out / reset controls, plus a one-line result toast.
+  const [busyPlayerId, setBusyPlayerId] = useState<number | null>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [addToTeamId, setAddToTeamId] = useState<number | null>(null);
   const [nameToAdd, setNameToAdd] = useState('');
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
@@ -297,6 +300,51 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     await fetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
     await fetchDraft();
     router.refresh();
+  }
+
+  // Sub a player out (freeze) or back in (unfreeze). Freezing locks their stat gain at the current
+  // moment — it still counts toward team tiles, but stops climbing — so a replacement can stack on top.
+  async function toggleFrozen(playerId: number, frozen: boolean) {
+    setBusyPlayerId(playerId);
+    try {
+      await fetch(`/api/events/${event.id}/players`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, frozen }),
+      });
+      await fetchDraft();
+      router.refresh();
+    } finally {
+      setBusyPlayerId(null);
+    }
+  }
+
+  // Reset one player's participation: un-completes their solo tiles, voids their submissions, and strips
+  // their share from team-tile splits (the team's completed tiles stay completed). `remove` also drops
+  // them off the roster. Irreversible — confirm first.
+  async function resetPlayer(playerId: number, playerName: string, remove: boolean) {
+    const action = remove ? 'remove and reset' : 'reset';
+    if (!window.confirm(
+      `${remove ? 'Remove' : 'Reset'} ${playerName}? This will ${action} their progress: solo tiles they finished reopen, their submissions are voided, and their share is stripped from team tiles (the team keeps its completed tiles). This cannot be undone.`,
+    )) return;
+    setBusyPlayerId(playerId);
+    try {
+      const res = await fetch(`/api/events/${event.id}/players/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, remove }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setResetNotice(
+          `Reset ${playerName}: ${d.removedCompletions} tile(s) reopened, ${d.voidedSubmissions} submission(s) voided, ${d.strippedFromSplits} team split(s) updated${d.removed ? ', removed from team' : ''}.`,
+        );
+      }
+      await fetchDraft();
+      router.refresh();
+    } finally {
+      setBusyPlayerId(null);
+    }
   }
 
   async function saveDraftOrder(order: number[]) {
@@ -1013,6 +1061,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 );
               })()}
 
+              {resetNotice && (
+                <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                  <span>{resetNotice}</span>
+                  <button onClick={() => setResetNotice(null)} className="text-amber-200/70 hover:text-amber-100 shrink-0" aria-label="Dismiss">✕</button>
+                </div>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-2">
                 {draftTeams.map((team) => {
                   const roster = draft.players.filter((p) => p.teamId === team.id);
@@ -1040,18 +1095,51 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         {roster.length === 0 ? (
                           <p className="text-xs text-text-muted">No players yet.</p>
                         ) : (
-                          roster.map((p) => (
-                            <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
-                              <span className="truncate">{p.name}</span>
-                              <button
-                                onClick={() => removeFromTeam(p.id)}
-                                disabled={removingPlayerId === p.id}
-                                className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 shrink-0"
-                              >
-                                {removingPlayerId === p.id ? '…' : 'Remove'}
-                              </button>
-                            </div>
-                          ))
+                          roster.map((p) => {
+                            const busy = busyPlayerId === p.id;
+                            const frozen = !!p.frozenAt;
+                            return (
+                              <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                                <span className="truncate flex items-center gap-1.5 min-w-0">
+                                  <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
+                                  {frozen && (
+                                    <span
+                                      className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
+                                      title="Subbed out — stat gains frozen at the sub moment; still count toward team tiles"
+                                    >
+                                      Benched
+                                    </span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => toggleFrozen(p.id, !frozen)}
+                                    disabled={busy}
+                                    title={frozen ? 'Resume live tracking for this player' : 'Freeze this player’s progress at the current moment (keeps counting, stops climbing)'}
+                                    className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {busy ? '…' : frozen ? 'Sub in' : 'Sub out'}
+                                  </button>
+                                  <button
+                                    onClick={() => resetPlayer(p.id, p.name, false)}
+                                    disabled={busy}
+                                    title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share). The team keeps its completed tiles."
+                                    className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    Reset
+                                  </button>
+                                  <button
+                                    onClick={() => removeFromTeam(p.id)}
+                                    disabled={removingPlayerId === p.id || busy}
+                                    title="Move back to the pool, keeping their contributions intact"
+                                    className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {removingPlayerId === p.id ? '…' : 'Remove'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                       {addToTeamId === team.id ? (
