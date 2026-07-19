@@ -767,6 +767,42 @@ export const feedback = sqliteTable('feedback', {
   index('feedback_created_at_idx').on(table.createdAt),
 ]);
 
+// ── Post-event participant surveys ──────────────────────────────────────────────────────────────
+// A per-event questionnaire an admin builds (from scratch or by loading a default template) and that
+// anyone with an approved sign-up fills out once the event ends. Questions are ordered rows; each
+// response stores all its answers as one JSON blob keyed by question id. Responses are attributed to
+// the submitting user but STAFF-ONLY (never surfaced publicly). This is unrelated to the app-level
+// `feedback` bug/support table above.
+export const surveyQuestions = sqliteTable('survey_questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  // 'rating' (1–5 scale), 'text' (free response), 'single' (choose one), 'multi' (choose many).
+  type: text('type').notNull().default('text'),
+  prompt: text('prompt').notNull(),
+  // JSON string[] of choices for 'single' / 'multi'; NULL for 'rating' / 'text'.
+  options: text('options'),
+  required: integer('required', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('survey_questions_event_id_idx').on(table.eventId),
+]);
+
+export const surveyResponses = sqliteTable('survey_responses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The participant who submitted (attributed, staff-only). set null on user delete keeps the response
+  // in the aggregate counts (just detached). One row per (event, user) — enforced below.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  // { [questionId]: number | string | string[] } — one blob per submission. Keys map to
+  // survey_questions.id; answers for since-deleted questions are ignored when results are rendered.
+  answers: text('answers').notNull(),
+  submittedAt: text('submitted_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('survey_responses_event_user_unique').on(table.eventId, table.userId),
+  index('survey_responses_event_id_idx').on(table.eventId),
+]);
+
 // ===========================================================================
 // Federation (Layer 0/1). See docs/FEDERATION.md + docs/FEDERATION_WIRE.md.
 // ===========================================================================
