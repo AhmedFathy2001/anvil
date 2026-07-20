@@ -45,9 +45,21 @@ export default async function EventSignupPage({
     )
     .orderBy(desc(clanMembers.isPrimary), desc(clanMembers.verifiedAt));
 
-  const signup = await db.query.eventSignups.findFirst({
+  const maxAccounts = event.maxAccountsPerPerson ?? 1;
+
+  // All of this user's sign-up rows for the event (multi-account: possibly several). The profile lives
+  // on ONE row (the primary account's); siblings carry '{}'. Pick that row as the representative for
+  // prefill + status/withdraw banners, falling back to any active row (or any row when fully withdrawn).
+  const allSignups = await db.query.eventSignups.findMany({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
+  const activeSignups = allSignups.filter((s) => s.status !== 'withdrawn');
+  const signup =
+    activeSignups.find((s) => s.profileData && s.profileData !== '{}') ??
+    activeSignups[0] ??
+    allSignups[0] ??
+    null;
+  const signedUpMemberIds = activeSignups.map((s) => s.clanMemberId);
 
   const fee = signup
     ? await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, signup.id) })
@@ -97,8 +109,9 @@ export default async function EventSignupPage({
         <h1 className="text-2xl sm:text-3xl font-bold text-gold break-words min-w-0">Sign up: {event.name}</h1>
       </div>
       <p className="text-sm text-text-muted mb-6">
-        One sign-up per Discord account. Pick the RSN you&apos;ll play with — that&apos;s the
-        only account that&apos;ll be tracked for this event.
+        {maxAccounts > 1
+          ? `Pick up to ${maxAccounts} of your linked accounts — they all play on the same team, and every one is tracked for this event.`
+          : "One sign-up per Discord account. Pick the RSN you'll play with — that's the only account that'll be tracked for this event."}
       </p>
 
       <PrizePoolHero
@@ -118,6 +131,8 @@ export default async function EventSignupPage({
           startDate: event.startDate,
         }}
         myAccounts={myAccounts}
+        maxAccounts={maxAccounts}
+        signedUpMemberIds={signedUpMemberIds}
         existingSignup={
           signup
             ? {

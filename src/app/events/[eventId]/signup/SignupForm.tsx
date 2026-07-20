@@ -56,6 +56,10 @@ interface Props {
     startDate: string | null;
   };
   myAccounts: MyAccount[];
+  // How many of their accounts this person may enter (event.maxAccountsPerPerson). 1 = classic.
+  maxAccounts: number;
+  // clanMemberIds of the accounts they currently have an active sign-up with (pre-checks the picker).
+  signedUpMemberIds: number[];
   existingSignup: ExistingSignup | null;
   fee: FeeRow | null;
   prefillClanMemberId: number | null;
@@ -177,6 +181,8 @@ export default function SignupForm({
   eventId,
   event,
   myAccounts,
+  maxAccounts,
+  signedUpMemberIds,
   existingSignup,
   fee,
   prefillClanMemberId,
@@ -190,17 +196,39 @@ export default function SignupForm({
     [myAccounts],
   );
 
-  // Pick a sane default for the account selector: existing signup → prefill from prior →
-  // first verified account. Falls back to 0 (no selection) if the user has no eligible
-  // accounts, which the form blocks below.
-  const initialAccountId =
-    existingSignup?.clanMemberId ??
-    (prefillClanMemberId && verifiedAccounts.some((a) => a.id === prefillClanMemberId)
-      ? prefillClanMemberId
-      : verifiedAccounts[0]?.id ?? 0);
+  // Default selection: the accounts they're already signed up with → prefill-from-prior → first
+  // verified account. Filtered to accounts they can actually pick.
+  const initialSelected = useMemo(() => {
+    const eligible = new Set(verifiedAccounts.map((a) => a.id));
+    if (signedUpMemberIds.some((id) => eligible.has(id))) {
+      return signedUpMemberIds.filter((id) => eligible.has(id));
+    }
+    const fallback =
+      prefillClanMemberId && eligible.has(prefillClanMemberId)
+        ? prefillClanMemberId
+        : verifiedAccounts[0]?.id ?? 0;
+    return fallback ? [fallback] : [];
+  }, [verifiedAccounts, signedUpMemberIds, prefillClanMemberId]);
 
   const initialProfile = (existingSignup ?? { profile: prefillProfile }).profile;
-  const [clanMemberId, setClanMemberId] = useState<number>(initialAccountId);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(initialSelected));
+
+  // Toggle an account. At maxAccounts=1 it behaves like a radio (replace); above that it's a capped
+  // multi-select (a checked account always toggles off; an unchecked one adds only while under the cap).
+  function toggleAccount(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else if (maxAccounts <= 1) {
+        next.clear();
+        next.add(id);
+      } else if (next.size < maxAccounts) {
+        next.add(id);
+      }
+      return next;
+    });
+  }
   const [activeDailyMin, setActiveDailyMin] = useState<string>(hoursBound(initialProfile.activeDailyHours, 'min'));
   const [activeDailyMax, setActiveDailyMax] = useState<string>(hoursBound(initialProfile.activeDailyHours, 'max'));
   const [activeWeeklyMin, setActiveWeeklyMin] = useState<string>(hoursBound(initialProfile.activeWeeklyHours, 'min'));
@@ -266,8 +294,8 @@ export default function SignupForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!clanMemberId) {
-      setError('Pick the RSN you want to play with.');
+    if (selectedIds.size === 0) {
+      setError(maxAccounts > 1 ? 'Pick at least one account to play with.' : 'Pick the RSN you want to play with.');
       return;
     }
     setSubmitting(true);
@@ -286,7 +314,7 @@ export default function SignupForm({
       const res = await fetch(`/api/events/${eventId}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanMemberId, profile }),
+        body: JSON.stringify({ clanMemberIds: Array.from(selectedIds), profile }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -398,46 +426,55 @@ export default function SignupForm({
         <PaymentReportSection eventId={eventId} fee={fee} isLocked={isLocked} />
       )}
 
-      {/* Account picker */}
+      {/* Account picker — single (radio) at maxAccounts=1, else a capped multi-select. */}
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Playing as</legend>
         <p className="text-xs text-text-muted">
-          You can only play with one of your linked RuneScape accounts. Stats and tile
-          progress will be tracked from this account only.
+          {maxAccounts > 1
+            ? `Pick up to ${maxAccounts} of your linked accounts — they all play on the same team, and every one is tracked. Your answers below apply to all of them.`
+            : 'You can only play with one of your linked RuneScape accounts. Stats and tile progress will be tracked from this account only.'}
         </p>
         <div className="space-y-1.5">
-          {verifiedAccounts.map((acct) => (
-            <label
-              key={acct.id}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                clanMemberId === acct.id
-                  ? 'border-gold bg-gold/10'
-                  : 'border-card-border hover:border-gold/40'
-              }`}
-            >
-              <input
-                type="radio"
-                name="clanMemberId"
-                value={acct.id}
-                checked={clanMemberId === acct.id}
-                onChange={() => setClanMemberId(acct.id)}
-                disabled={isLocked}
-                className="accent-gold"
-              />
-              <span className="font-medium">{acct.rsn}</span>
-              {acct.isPrimary === 1 && (
-                <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
-                  primary
-                </span>
-              )}
-              {acct.provisional === 1 && (
-                <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
-                  provisional
-                </span>
-              )}
-            </label>
-          ))}
+          {verifiedAccounts.map((acct) => {
+            const checked = selectedIds.has(acct.id);
+            const atCap = maxAccounts > 1 && !checked && selectedIds.size >= maxAccounts;
+            const disabled = isLocked || atCap;
+            return (
+              <label
+                key={acct.id}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                  checked
+                    ? 'border-gold bg-gold/10'
+                    : `border-card-border ${atCap ? 'opacity-50' : 'hover:border-gold/40'}`
+                } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <input
+                  type={maxAccounts > 1 ? 'checkbox' : 'radio'}
+                  name="account"
+                  value={acct.id}
+                  checked={checked}
+                  onChange={() => toggleAccount(acct.id)}
+                  disabled={disabled}
+                  className="accent-gold"
+                />
+                <span className="font-medium">{acct.rsn}</span>
+                {acct.isPrimary === 1 && (
+                  <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
+                    primary
+                  </span>
+                )}
+                {acct.provisional === 1 && (
+                  <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
+                    provisional
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
+        {maxAccounts > 1 && (
+          <p className="text-xs text-text-muted">{selectedIds.size} / {maxAccounts} selected</p>
+        )}
       </fieldset>
 
       {/* Activity */}
