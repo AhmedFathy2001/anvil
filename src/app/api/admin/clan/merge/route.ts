@@ -3,7 +3,9 @@ import { db } from '@/db';
 import {
   clanAuditLog,
   clanMembers,
+  eventSignups,
   players,
+  signupFees,
   weeklyParticipants,
 } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -74,6 +76,10 @@ export async function POST(request: Request) {
   // The source's current rsn itself is now historical for the target.
   const merged = Array.from(new Set([...targetPrevious, ...sourcePrevious, source.rsn].filter(Boolean)));
 
+  // The surviving identity's owner: at most one side is claimed (the conflict guard above), so this
+  // is unambiguous. Sign-ups adopted from the source inherit it when they were an unowned guest.
+  const finalOwner = target.userId ?? source.userId ?? null;
+
   // Move references off of source.
   await db.update(players).set({ clanMemberId: targetId }).where(eq(players.clanMemberId, sourceId));
   await db
@@ -85,13 +91,47 @@ export async function POST(request: Request) {
     .set({ clanMemberId: targetId })
     .where(eq(clanAuditLog.clanMemberId, sourceId));
 
+  // Event sign-ups: carry the source's sign-ups over to the target, deduping on the
+  // (event_id, clan_member_id) unique index. FK enforcement is OFF in this DB (no
+  // PRAGMA foreign_keys=ON — see db/index.ts), so the source delete below would otherwise silently
+  // ORPHAN these rows (they'd vanish from the Sign-ups panel, which inner-joins clan_members) and the
+  // onDelete cascade to signup_fees would never fire. Handle both explicitly.
+  const sourceSignups = await db
+    .select({ id: eventSignups.id, eventId: eventSignups.eventId, userId: eventSignups.userId })
+    .from(eventSignups)
+    .where(eq(eventSignups.clanMemberId, sourceId));
+  if (sourceSignups.length) {
+    const targetEventIds = new Set(
+      (
+        await db
+          .select({ eventId: eventSignups.eventId })
+          .from(eventSignups)
+          .where(eq(eventSignups.clanMemberId, targetId))
+      ).map((r) => r.eventId),
+    );
+    for (const s of sourceSignups) {
+      if (targetEventIds.has(s.eventId)) {
+        // Target already has a sign-up for this event — drop the duplicate source row. FK cascade to
+        // signup_fees isn't enforced here, so remove its fee first to avoid an orphaned fee row.
+        await db.delete(signupFees).where(eq(signupFees.signupId, s.id));
+        await db.delete(eventSignups).where(eq(eventSignups.id, s.id));
+      } else {
+        await db
+          .update(eventSignups)
+          .set({ clanMemberId: targetId, userId: s.userId ?? finalOwner })
+          .where(eq(eventSignups.id, s.id));
+        targetEventIds.add(s.eventId);
+      }
+    }
+  }
+
   // Promote any source-side fields the target is missing.
   await db
     .update(clanMembers)
     .set({
       previousRsns: merged.length ? JSON.stringify(merged) : null,
       accountHash: target.accountHash ?? source.accountHash,
-      userId: target.userId ?? source.userId,
+      userId: finalOwner,
       verifiedAt: target.verifiedAt ?? source.verifiedAt,
       verificationMethod: target.verificationMethod ?? source.verificationMethod,
       claimedAt: target.claimedAt ?? source.claimedAt,
