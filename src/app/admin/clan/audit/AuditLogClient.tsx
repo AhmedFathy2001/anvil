@@ -193,8 +193,6 @@ export default function AuditLogClient({
     return entries.filter((e) => e.eventType === filter);
   }, [entries, filter]);
 
-  const filterOptions = ['all', ...Object.keys(EVENT_LABELS)];
-
   async function doMerge() {
     if (!sourceId || !targetId) return;
     if (actionLock.current) return;
@@ -293,21 +291,19 @@ export default function AuditLogClient({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          {filterOptions.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => setFilter(opt)}
-              className={`px-2.5 py-1 rounded-md transition-colors capitalize ${
-                filter === opt
-                  ? 'bg-gold/20 text-gold border border-gold/40'
-                  : 'border border-card-border text-text-muted hover:text-foreground hover:bg-brown-light'
-              }`}
-            >
-              {opt === 'all' ? 'All' : EVENT_LABELS[opt]?.label ?? opt}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted">Filter</span>
+          <Select
+            value={filter}
+            onChange={setFilter}
+            ariaLabel="Filter by event type"
+            className="w-56 max-w-full"
+            options={[
+              { value: 'all', label: 'All events' },
+              ...Object.entries(EVENT_LABELS).map(([value, meta]) => ({ value, label: meta.label })),
+            ]}
+          />
         </div>
         <button
           onClick={() => setShowMerge((v) => !v)}
@@ -370,10 +366,17 @@ export default function AuditLogClient({
         ) : (
           <ul className="divide-y divide-card-border">
             {filtered.map((e) => {
-              const meta = EVENT_LABELS[e.eventType] ?? { label: e.eventType, color: 'text-foreground' };
+              // Unknown types (not in EVENT_LABELS) can be long ALL_CAPS_SNAKE tokens — de-snake them
+              // so they wrap at spaces instead of overflowing the fixed-width label column into the RSN.
+              const meta = EVENT_LABELS[e.eventType] ?? {
+                label: e.eventType.replace(/_/g, ' '),
+                color: 'text-foreground',
+              };
               return (
                 <li key={e.id} className="px-4 py-3 flex flex-wrap items-start gap-x-4 gap-y-1">
-                  <div className={`text-xs font-semibold uppercase tracking-wide w-28 shrink-0 ${meta.color}`}>
+                  <div
+                    className={`text-xs font-semibold uppercase tracking-wide w-32 shrink-0 break-words leading-snug ${meta.color}`}
+                  >
                     {meta.label}
                   </div>
                   {/* On phones the detail drops to its own full-width line under label + timestamp */}
