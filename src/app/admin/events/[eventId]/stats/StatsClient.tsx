@@ -4,10 +4,12 @@ import type { Event, Team, Tile, Player } from '@/lib/types';
 import type { StatTileStanding, TeamStanding } from '@/lib/statStandings';
 import Link from 'next/link';
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode } from '@/lib/utils';
 import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
+import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -43,6 +45,9 @@ interface ActivitySubmission {
 }
 
 export default function StatsClient({ event, teams, tiles, players, statStandings, teamStandings, statsPulledAt }: Props) {
+  const router = useRouter();
+  // Which player's baseline editor is open (per-row "Fix baseline" on the standings table).
+  const [baselinePlayer, setBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -380,7 +385,8 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
                             <th className="font-medium py-1 pr-3">Team</th>
                             <th className="font-medium py-1 pr-3 text-right">Baseline</th>
                             <th className="font-medium py-1 pr-3 text-right">Current</th>
-                            <th className="font-medium py-1 text-right">Gained</th>
+                            <th className="font-medium py-1 pr-3 text-right">Gained</th>
+                            <th className="font-medium py-1 text-right" aria-label="Fix baseline"></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -401,8 +407,17 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
                                   {p.hasBaseline ? p.baseline.toLocaleString() : '—'}
                                 </td>
                                 <td className="py-1.5 pr-3 text-right text-foreground">{p.current.toLocaleString()}</td>
-                                <td className="py-1.5 text-right font-medium text-accent-green-light">
+                                <td className="py-1.5 pr-3 text-right font-medium text-accent-green-light">
                                   +{p.gained.toLocaleString()} <span className="text-text-muted">({pct}%)</span>
+                                </td>
+                                <td className="py-1.5 text-right">
+                                  <button
+                                    onClick={() => setBaselinePlayer({ id: p.playerId, name: p.name })}
+                                    className="text-[11px] text-gold/90 hover:text-gold border border-gold/30 rounded px-1.5 py-0.5 transition-colors"
+                                    title="Reset this player's baseline from hiscores, or hand-edit a single skill's baseline — also clears any stuck live-stat overlay for the fixed skill"
+                                  >
+                                    Fix baseline
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -475,6 +490,16 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
           </div>
         )}
       </div>
+
+      {baselinePlayer && (
+        <PlayerBaselineEditor
+          eventId={event.id}
+          playerId={baselinePlayer.id}
+          playerName={baselinePlayer.name}
+          onClose={() => setBaselinePlayer(null)}
+          onSaved={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
