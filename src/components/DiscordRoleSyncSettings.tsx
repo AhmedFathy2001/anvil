@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
-import Input from '@/components/Input';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -13,9 +12,8 @@ export default function DiscordRoleSyncSettings() {
   const [nicknameSync, setNicknameSync] = useState(false);
   const [nicknameOverwrite, setNicknameOverwrite] = useState(false);
   const [autoMatch, setAutoMatch] = useState(true);
-  const [guildId, setGuildId] = useState('');
 
-  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true, guildId: '' });
+  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -59,13 +57,11 @@ export default function DiscordRoleSyncSettings() {
           nicknameSync: data.discord_nickname_sync_enabled === 'true',
           nicknameOverwrite: data.discord_nickname_overwrite === 'true',
           autoMatch: data.discord_auto_match_rank_by_name !== 'false',
-          guildId: data.discord_guild_id || '',
         };
         setRoleSync(next.roleSync);
         setNicknameSync(next.nicknameSync);
         setNicknameOverwrite(next.nicknameOverwrite);
         setAutoMatch(next.autoMatch);
-        setGuildId(next.guildId);
         setOriginal(next);
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -88,12 +84,11 @@ export default function DiscordRoleSyncSettings() {
           discord_nickname_overwrite: nicknameOverwrite ? 'true' : '',
           // On = clear the override (defaults to on); Off = explicit 'false'.
           discord_auto_match_rank_by_name: autoMatch ? '' : 'false',
-          discord_guild_id: guildId.trim(),
         }),
       });
       if (res.ok) {
         invalidateSettings();
-        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, guildId: guildId.trim() });
+        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -110,8 +105,7 @@ export default function DiscordRoleSyncSettings() {
     roleSync !== original.roleSync ||
     nicknameSync !== original.nicknameSync ||
     nicknameOverwrite !== original.nicknameOverwrite ||
-    autoMatch !== original.autoMatch ||
-    guildId.trim() !== original.guildId;
+    autoMatch !== original.autoMatch;
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings…</div>;
@@ -129,9 +123,8 @@ export default function DiscordRoleSyncSettings() {
         <span>
           <span className="text-sm font-medium">Enable Discord role sync</span>
           <span className="block text-xs text-text-muted">
-            Gives linked members their rank + default Discord roles. Requires the{' '}
-            <code className="text-gold">DISCORD_BOT_TOKEN</code> env var and the Server ID below. Master
-            switch — nickname sync also requires this on.
+            Gives linked members their rank + default Discord roles. Requires the bot connected in the
+            Discord bot section above. Master switch — nickname sync also requires this on.
           </span>
         </span>
       </label>
@@ -193,19 +186,6 @@ export default function DiscordRoleSyncSettings() {
           </span>
         </span>
       </label>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Discord Server (guild) ID</label>
-        <Input
-          value={guildId}
-          onChange={(e) => setGuildId(e.target.value)}
-          placeholder="e.g. 123456789012345678"
-          className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
-        />
-        <p className="text-xs text-text-muted mt-1">
-          Right-click your server icon in Discord → Copy Server ID (needs Developer Mode on).
-        </p>
-      </div>
 
       {message && (
         <div

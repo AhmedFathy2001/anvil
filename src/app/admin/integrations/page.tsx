@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import DiscordSettings from '@/components/DiscordSettings';
+import WebhookField from '@/components/WebhookField';
+import DiscordBotSettings from '@/components/DiscordBotSettings';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
@@ -11,10 +12,14 @@ import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import FederationSettings from '@/components/FederationSettings';
+import { listBotChannels } from '@/lib/discord-broadcast';
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminIntegrationsPage() {
+export default async function AdminIntegrationsPage() {
+  // Fetch the bot's channel list once, server-side, and pass it to every WebhookField so the
+  // channel pickers don't each fire their own request. `botEnabled` is false with no bot token.
+  const { enabled: botEnabled, channels } = await listBotChannels();
   return (
     <div className="max-w-3xl">
       <header className="mb-6">
@@ -64,7 +69,7 @@ export default function AdminIntegrationsPage() {
             you split specific posts into their own channels. Tip: paste several webhook URLs separated by spaces to
             rotate across them and dodge Discord rate limits.
           </p>
-          <DiscordSettings />
+          <WebhookField channels={channels} botEnabled={botEnabled} />
         </div>
       </section>
 
@@ -80,6 +85,18 @@ export default function AdminIntegrationsPage() {
 
       <div className="space-y-3">
         <CollapsibleSection
+          title="Discord bot"
+          summary="Connect a bot so Anvil can create webhooks, sync roles + nicknames, and make team channels. Managed clans use the shared Anvil bot by default; self-hosters bring their own."
+        >
+          <p className="text-sm text-text-muted -mt-1">
+            One bot powers webhook creation, role/nickname sync and team channels. Use the shared Anvil bot (when
+            available) or bring your own — it needs <em>Manage Webhooks</em>, <em>Manage Roles</em>,{' '}
+            <em>Manage Channels</em> and <em>Manage Nicknames</em>, with its role above the ones it manages.
+          </p>
+          <DiscordBotSettings />
+        </CollapsibleSection>
+
+        <CollapsibleSection
           title="Separate Discord channels"
           summary="Split bingo, weekly and sign-up posts into their own channels. Leave blank to use the master webhook. Each accepts multiple space-separated URLs (rotated to avoid rate limits)."
         >
@@ -88,10 +105,12 @@ export default function AdminIntegrationsPage() {
             <p className="text-xs text-text-muted mb-3">
               Event start / end, draft, blackout, and drop submissions. Falls back to the main webhook when blank.
             </p>
-            <DiscordSettings
+            <WebhookField
               settingKey="discord_webhook_bingo"
               label="Bingo events channel"
               helpText="Event start/end, draft, blackout, and submission notifications post here."
+              channels={channels}
+              botEnabled={botEnabled}
             />
           </div>
           <div className="border-t border-card-border pt-4">
@@ -99,10 +118,12 @@ export default function AdminIntegrationsPage() {
             <p className="text-xs text-text-muted mb-3">
               Skill / Boss of the Week start announcements and results. Leave blank to disable weekly posts.
             </p>
-            <DiscordSettings
+            <WebhookField
               settingKey="discord_webhook_weekly"
               label="SOTW / BOTW channel"
               helpText="Weekly competition start and results (winner) notifications post here."
+              channels={channels}
+              botEnabled={botEnabled}
             />
           </div>
           <div className="border-t border-card-border pt-4">
@@ -111,10 +132,12 @@ export default function AdminIntegrationsPage() {
               When an admin approves a sign-up, a post here pings the member to pay their entry fee. Leave blank to
               disable.
             </p>
-            <DiscordSettings
+            <WebhookField
               settingKey="discord_webhook_signups"
               label="Sign-up approvals channel"
               helpText="Posts a fee-payment nudge (pinging the member) each time a sign-up is approved."
+              channels={channels}
+              botEnabled={botEnabled}
             />
           </div>
         </CollapsibleSection>
@@ -127,30 +150,40 @@ export default function AdminIntegrationsPage() {
             Members fetch these on launch, so remapping a channel here takes effect on their next login — no plugin
             update needed. Leave blank to disable a notification.
           </p>
-          <DiscordSettings
+          <WebhookField
             settingKey="webhook_rare_drops"
             label="Rare drops channel"
             helpText="Valuable drops and pets are posted here by the plugin."
+            channels={channels}
+            botEnabled={botEnabled}
           />
-          <DiscordSettings
+          <WebhookField
             settingKey="webhook_deaths"
             label="Deaths channel"
             helpText="Death notifications (and the occasional surprise) are posted here by the plugin."
+            channels={channels}
+            botEnabled={botEnabled}
           />
-          <DiscordSettings
+          <WebhookField
             settingKey="webhook_combat_achievements"
             label="Combat achievements channel"
             helpText="CA tier clears (and high-tier task completions) are posted here by the plugin."
+            channels={channels}
+            botEnabled={botEnabled}
           />
-          <DiscordSettings
+          <WebhookField
             settingKey="webhook_pvp_kills"
             label="PvP kills channel"
             helpText="When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill is posted here."
+            channels={channels}
+            botEnabled={botEnabled}
           />
-          <DiscordSettings
+          <WebhookField
             settingKey="webhook_clips"
             label="Clips channel"
             helpText="On-demand OBS replay clips (captured via the plugin's clip hotkey) are posted here when small enough for Discord."
+            channels={channels}
+            botEnabled={botEnabled}
           />
         </CollapsibleSection>
 
@@ -159,7 +192,7 @@ export default function AdminIntegrationsPage() {
           summary="Bot-driven: give linked members their rank + default roles, optionally set nicknames to RSN."
         >
           <p className="text-sm text-text-muted -mt-1">
-            Needs a bot token in the environment plus the server ID. Turn on sync + nicknames below,
+            Needs the bot connected in the Discord bot section above. Turn on sync + nicknames below,
             then pick which roles the sync hands out.
           </p>
           <DiscordRoleSyncSettings />
