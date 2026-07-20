@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
-import { computeMemberBreakdown, topMember } from '@/lib/memberBreakdown';
+import { computeMemberBreakdown, topMember, rollupByOwner } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import PlayerContributions from '@/components/PlayerContributions';
@@ -99,19 +99,25 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
-  const memberBreakdown = useMemo(
-    () =>
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: teamPlayers,
-        tiles,
-        completions,
-        submissions,
-        statGains: gains,
-      }),
-    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
+  // Multi-account 'per-person' events roll a person's accounts into one contributor (MVP + breakdown).
+  const perPersonMode = event.accountSlotMode === 'per-person';
+  const ownerByPlayerId = useMemo(
+    () => new Map(teamPlayers.map((p) => [p.id, p.ownerUserId ?? null] as const)),
+    [teamPlayers],
   );
+
+  const memberBreakdown = useMemo(() => {
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: teamPlayers,
+      tiles,
+      completions,
+      submissions,
+      statGains: gains,
+    });
+    return perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd;
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
 
   // Auto-open the first person on the breakdown (top contributor) so their details show by default.
   // Runs once when the breakdown first has members; after that, closing the panel stays closed.
@@ -127,18 +133,17 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const teamMvp = topMember(memberBreakdown);
   const teamMvpTodayRaw = useMemo(() => {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    return topMember(
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: teamPlayers,
-        tiles,
-        completions: completions.filter((c) => c.completedAt >= dayAgo),
-        submissions,
-        statGains: gains,
-      }),
-    );
-  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains]);
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: teamPlayers,
+      tiles,
+      completions: completions.filter((c) => c.completedAt >= dayAgo),
+      submissions,
+      statGains: gains,
+    });
+    return topMember(perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd);
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
   const teamMvpToday =
     teamMvpTodayRaw &&
     teamMvp &&

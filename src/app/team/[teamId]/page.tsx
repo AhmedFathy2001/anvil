@@ -8,6 +8,7 @@ import MyTeamClient from './MyTeamClient';
 import DraftBoardClient from '@/app/captain/[teamId]/DraftBoardClient';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
+import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -76,11 +77,14 @@ export default async function MyTeamPage({
     );
   }
 
-  const [eventTiles, eventPlayers, tierBands] = await Promise.all([
+  const [eventTiles, rawEventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(players).where(eq(players.eventId, event.id)),
     getTierBands(),
   ]);
+  // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
+  // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
+  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const teamCompletions: Completion[] = tileIds.size

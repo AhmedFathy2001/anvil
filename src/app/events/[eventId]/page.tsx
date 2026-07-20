@@ -9,7 +9,8 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, computeMemberBreakdown, topMember, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
+import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
@@ -72,6 +73,9 @@ export default async function EventScoreboardPage({
         .where(inArray(submissions.tileId, tileIds))
     : [];
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+  // Multi-account: owner per player + slot mode, so 'per-person' events rank the MVP by person.
+  const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
+  const accountSlotMode = event.accountSlotMode;
   // Per skill/boss tile, each player's XP/KC gain — so stat tiles count toward the MVP too.
   const statStandings = await getStatStandings(id);
   const statGains: StatGainMap = {};
@@ -86,6 +90,8 @@ export default async function EventScoreboardPage({
     completions: eventCompletions,
     submissions: eventSubmissions,
     statGains,
+    ownerByPlayerId,
+    accountSlotMode,
   });
 
   // MVP of the day — the same split, but scored only over tiles completed in the last 24h. The
@@ -100,6 +106,8 @@ export default async function EventScoreboardPage({
     completions: eventCompletions.filter((c) => c.completedAt >= dayAgoIso),
     submissions: eventSubmissions,
     statGains,
+    ownerByPlayerId,
+    accountSlotMode,
   });
   // Early in an event everything was completed recently, so the day MVP == the overall MVP. Drop the
   // duplicate card in that case; keep it once they diverge (even the same player with different totals).
@@ -115,17 +123,16 @@ export default async function EventScoreboardPage({
   // Per-team MVP (overall) for the standings cards — the top contributor on each team.
   const teamMvps: Record<number, TeamMvp | null> = {};
   for (const team of eventTeams) {
-    teamMvps[team.id] = topMember(
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: eventPlayers,
-        tiles: eventTiles,
-        completions: eventCompletions,
-        submissions: eventSubmissions,
-        statGains,
-      }),
-    );
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: eventPlayers,
+      tiles: eventTiles,
+      completions: eventCompletions,
+      submissions: eventSubmissions,
+      statGains,
+    });
+    teamMvps[team.id] = topMember(accountSlotMode === 'per-person' ? rollupByOwner(bd, ownerByPlayerId) : bd);
   }
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client

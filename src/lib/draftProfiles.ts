@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { eventSignups } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { clanMembers, eventSignups } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { parseProfile, type SignupProfile } from './signup';
 
 // Frozen sign-up answers, keyed by the RSN (clanMemberId) the member chose to play with.
@@ -57,6 +57,27 @@ export async function loadEventProfiles(eventId: number): Promise<Map<number, Si
     }
   }
   return map;
+}
+
+// Owner (site user) per player, so multi-account surfaces can group a person's account rows for the
+// 'per-person' team-size + MVP rollup. Maps playerId → userId (null for guests / unlinked accounts).
+export async function loadPlayerOwners<T extends { id: number; clanMemberId: number | null }>(
+  players: T[],
+): Promise<Map<number, number | null>> {
+  const memberIds = [...new Set(players.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
+  const rows = memberIds.length
+    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    : [];
+  const byMember = new Map(rows.map((r) => [r.id, r.userId]));
+  return new Map(players.map((p) => [p.id, p.clanMemberId != null ? byMember.get(p.clanMemberId) ?? null : null]));
+}
+
+// Attach ownerUserId to each player row (from loadPlayerOwners) so it serializes to client components.
+export function attachOwners<T extends { id: number }>(
+  players: T[],
+  owners: Map<number, number | null>,
+): (T & { ownerUserId: number | null })[] {
+  return players.map((p) => ({ ...p, ownerUserId: owners.get(p.id) ?? null }));
 }
 
 // Attach the matching frozen profile to each player row (null when unlinked / no sign-up).

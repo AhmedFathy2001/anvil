@@ -7,6 +7,7 @@ import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
+import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +42,9 @@ export default async function TeamBoardPage({
   }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const rawEventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  // Owner per player so TeamBoardClient can roll a person's accounts into one contributor (per-person).
+  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
   const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);

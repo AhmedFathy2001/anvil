@@ -27,6 +27,10 @@ export interface Event {
   format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)
   discordCategoryId?: string | null; // Discord category holding this event's team channels
   tilesRevealed?: number; // 0 = tiles hidden from non-staff until an admin reveals them; 1 = visible
+  // Multi-account enrollment (see events schema). accountSlotMode drives team-size + MVP rollup.
+  maxAccountsPerPerson?: number;
+  accountSlotMode?: string; // 'per-person' (N accounts = 1 slot, MVP aggregates) | 'per-account'
+  feeMode?: string; // 'per-person' | 'per-account'
 }
 
 export interface Tile {
@@ -93,6 +97,10 @@ export interface Player {
   // Frozen sign-up answers for this player's chosen RSN, joined in at read time on the
   // draft surfaces (null when the player has no linked sign-up). See lib/draftProfiles.
   profile?: SignupProfile | null;
+  clanMemberId?: number | null; // identity of the account this player row represents
+  // Owner (site user) — multi-account: a person's account rows share this, driving the 'per-person'
+  // team-size + MVP rollup. Null for guests. Attached at read time (see lib/draftProfiles.attachOwners).
+  ownerUserId?: number | null;
 }
 
 export interface Completion {

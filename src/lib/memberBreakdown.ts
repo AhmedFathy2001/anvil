@@ -65,6 +65,64 @@ export function topMember(members: MemberContribution[]): TeamMvp | null {
   return { playerId: top.playerId, name: top.name, points: top.points, tasks: top.tasks };
 }
 
+/**
+ * Multi-account 'per-person' rollup: merge each person's several account-rows into ONE contributor so
+ * MVP + the breakdown list count the PERSON, not each alt. Rows sharing an owner (userId) are merged —
+ * points sum, tile contributions union by tileId (tasks/inProgress re-derived from the union), and the
+ * display name becomes "<lead RSN> +N". Guests (no owner) and single-account people pass through
+ * untouched, so this is a no-op for 'per-account' events and every existing (maxAccounts=1) event.
+ */
+export function rollupByOwner(
+  members: MemberContribution[],
+  ownerByPlayerId: Map<number, number | null>,
+): MemberContribution[] {
+  const groups = new Map<string, MemberContribution[]>();
+  for (const m of members) {
+    const owner = ownerByPlayerId.get(m.playerId);
+    const key = owner != null ? `u${owner}` : `p${m.playerId}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(m);
+    else groups.set(key, [m]);
+  }
+  const out: MemberContribution[] = [];
+  for (const grp of groups.values()) {
+    if (grp.length === 1) {
+      out.push(grp[0]);
+      continue;
+    }
+    const byTile = new Map<number, MemberTileContribution>();
+    let submissions = 0;
+    for (const m of grp) {
+      submissions += m.submissions;
+      for (const c of m.contributions) {
+        const ex = byTile.get(c.tileId);
+        if (ex) {
+          ex.amount += c.amount;
+          ex.count += c.count;
+          ex.completed = ex.completed || c.completed;
+        } else {
+          byTile.set(c.tileId, { ...c });
+        }
+      }
+    }
+    const contributions = [...byTile.values()];
+    const lead = grp.reduce((a, b) => (b.points > a.points ? b : a));
+    out.push({
+      playerId: lead.playerId,
+      name: `${lead.name} +${grp.length - 1}`,
+      points: grp.reduce((s, m) => s + m.points, 0),
+      tasks: contributions.filter((c) => c.completed).length,
+      inProgress: contributions.filter((c) => !c.completed).length,
+      submissions,
+      contributions,
+      frozenAt: grp.every((m) => m.frozenAt) ? lead.frozenAt : null,
+    });
+  }
+  return out.sort(
+    (a, b) => b.points - a.points || b.tasks - a.tasks || b.inProgress - a.inProgress || b.submissions - a.submissions,
+  );
+}
+
 interface BreakdownPlayer {
   id: number;
   name: string;
@@ -255,11 +313,15 @@ export function computeEventMvp(params: {
   completions: BreakdownCompletion[];
   submissions: BreakdownSubmission[];
   statGains?: StatGainMap;
+  // Multi-account 'per-person': roll a person's accounts into one contributor before ranking the MVP.
+  ownerByPlayerId?: Map<number, number | null>;
+  accountSlotMode?: string | null;
 }): EventMvp | null {
-  const { scoringMode, teams, players, tiles, completions, submissions, statGains } = params;
+  const { scoringMode, teams, players, tiles, completions, submissions, statGains, ownerByPlayerId, accountSlotMode } = params;
+  const perPerson = accountSlotMode === 'per-person' && !!ownerByPlayerId;
   let best: EventMvp | null = null;
   for (const team of teams) {
-    const members = computeMemberBreakdown({
+    const raw = computeMemberBreakdown({
       teamId: team.id,
       scoringMode,
       players,
@@ -268,6 +330,7 @@ export function computeEventMvp(params: {
       submissions,
       statGains,
     });
+    const members = perPerson ? rollupByOwner(raw, ownerByPlayerId!) : raw;
     for (const m of members) {
       if (
         !best ||
