@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Select from '@/components/Select';
+import Checkbox from '@/components/Checkbox';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 
 // Federation scalars (docs/FEDERATION.md). Persisted via the generic /api/admin/settings PUT under
@@ -146,105 +147,74 @@ export default function FederationSettings() {
   return (
     <div className="space-y-5">
       <div>
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="h-4 w-4 accent-gold"
-          />
-          <span className="text-sm font-medium">Enable federation</span>
-        </label>
-        <p className="text-xs text-text-muted mt-1">
-          The master switch. When on, this site registers with the Anvil broker and relays every
-          member&apos;s connected clans server-to-server — the plugin sidebar lights up with the other
-          clans they play in. Off = fully local, nothing leaves this site.
-        </p>
+        <Checkbox
+          checked={enabled}
+          onChange={setEnabled}
+          label="Connect to the Anvil network"
+          description="The main switch. On: your clan joins the network — members who also play in other connected clans see those clans in the plugin, and their drops can count across them. Off: everything stays private to this clan and nothing is shared."
+        />
       </div>
 
       <div className="border-t border-card-border pt-4">
-        <label className="block text-sm font-medium mb-1">Cross-clan crediting</label>
+        <label className="block text-sm font-medium mb-1">Counting drops from other clans</label>
         <p className="text-xs text-text-muted mb-2">
-          When a member plays in several connected clans at once, does a drop count here too?{' '}
-          <span className="text-foreground/80">Accept</span> credits regardless;{' '}
-          <span className="text-foreground/80">Exclusive</span> declines an event the player is
-          simultaneously crediting elsewhere.
+          If a member is doing the same boss for two connected clans at once, should the drop count for
+          your clan too?
         </p>
         <Select
           value={sharedCredit}
           onChange={setSharedCredit}
-          ariaLabel="Cross-clan crediting"
+          ariaLabel="Counting drops from other clans"
           options={[
-            { value: 'accept', label: 'Accept — credit regardless (default)' },
-            { value: 'exclusive', label: 'Exclusive — skip if credited elsewhere' },
+            { value: 'accept', label: 'Always count it (default)' },
+            { value: 'exclusive', label: 'Skip it if it already counts for another clan' },
           ]}
         />
       </div>
 
       <div className="border-t border-card-border pt-4">
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={acceptWrites}
-            onChange={(e) => setAcceptWrites(e.target.checked)}
-            className="h-4 w-4 accent-gold"
-          />
-          <span className="text-sm font-medium">Accept inbound relayed credits</span>
-        </label>
-        <p className="text-xs text-text-muted mt-1">
-          When another connected clan&apos;s home site relays a member&apos;s cross-clan completion to
-          us, credit it here (re-validated against our own rules — tile, proof, threshold). Turn this{' '}
-          <span className="text-foreground/80">off</span> to be a display-only member of the mesh: this
-          clan keeps reading other boards but takes no relayed credit. On by default.
-        </p>
+        <Checkbox
+          checked={acceptWrites}
+          onChange={setAcceptWrites}
+          label="Accept completions relayed from other clans"
+          description="When another connected clan tells us a member completed something, count it toward your board too (we still re-check it against your own tiles, proof and thresholds). Turn this off to watch other clans without ever taking credit from them. On by default."
+        />
       </div>
 
       <div className="border-t border-card-border pt-4">
-        <label className="block text-sm font-medium mb-1">Guest-on-exchange policy</label>
+        <label className="block text-sm font-medium mb-1">Visitors from other clans</label>
         <p className="text-xs text-text-muted mb-2">
-          What happens when a broker vouches for a Discord identity that isn&apos;t a member yet.{' '}
-          <span className="text-foreground/80">Auto-guest</span> connects them read-only (never
-          auto-placed on a team); <span className="text-foreground/80">Request to join</span> queues
-          them; <span className="text-foreground/80">Reject</span> refuses. Only takes effect once
-          identity federation (L2) is enabled.
+          What to do when someone from another connected clan — not a member here — shows up. (Only
+          applies once member linking is turned on.)
         </p>
         <Select
           value={exchangePolicy}
           onChange={setExchangePolicy}
-          ariaLabel="Guest-on-exchange policy"
+          ariaLabel="Visitors from other clans"
           options={[
-            { value: 'auto-guest', label: 'Auto-guest — connect read-only (default)' },
-            { value: 'request-to-join', label: 'Request to join — queue for approval' },
-            { value: 'reject', label: 'Reject — refuse non-members' },
+            { value: 'auto-guest', label: 'Let them view, read-only (default)' },
+            { value: 'request-to-join', label: 'Add them to a queue for you to approve' },
+            { value: 'reject', label: 'Keep them out' },
           ]}
         />
       </div>
 
       <div className="border-t border-card-border pt-4">
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={associationPush}
-            onChange={(e) => setAssociationPush(e.target.checked)}
-            className="h-4 w-4 accent-gold"
-          />
-          <span className="text-sm font-medium">Association push</span>
-        </label>
-        <p className="text-xs text-text-muted mt-1">
-          Tells the broker &ldquo;this Discord id is a member here&rdquo; so the plugin can
-          auto-populate the member&apos;s clan list. Carries only the (discord_id, instanceId) pair —
-          never board or game data. Default off for self-hosted (sovereignty). The outbound call is a
-          separate track; this flag stores the preference.
-        </p>
+        <Checkbox
+          checked={associationPush}
+          onChange={setAssociationPush}
+          label="Let members' plugins find this clan automatically"
+          description="Tells the network that a member belongs here, so their plugin can list your clan for them without setup. Only their Discord account and your clan are shared — never board or game data. Off by default."
+        />
       </div>
 
       <div className="border-t border-card-border pt-4">
-        <label className="block text-sm font-medium mb-1">Trusted brokers</label>
+        <label className="block text-sm font-medium mb-1">
+          Trusted identity servers <span className="text-text-muted font-normal">(advanced)</span>
+        </label>
         <p className="text-xs text-text-muted mb-2">
-          Brokers whose identity assertions this instance will accept at L2, as a JSON array of{' '}
-          <code className="text-foreground/80">{'{ "iss": "...", "jwksUrl": "..." }'}</code>. Leave
-          blank to trust none (identity federation disabled). Normally set by the broker at
-          registration.
+          The servers this clan trusts to confirm who a member is. You normally don&apos;t touch this —
+          it&apos;s filled in automatically when you connect. Leave blank to trust none.
         </p>
         <textarea
           value={brokerTrust}

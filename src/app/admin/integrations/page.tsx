@@ -10,6 +10,7 @@ import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
+import RoleSetting from '@/components/RoleSetting';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import FederationSettings from '@/components/FederationSettings';
 import { listBotChannels } from '@/lib/discord-broadcast';
@@ -55,11 +56,10 @@ export default async function AdminIntegrationsPage() {
           placeholder="https://discord.gg/your-invite"
           helpText="Shown as the Discord link in the top nav and on the home page. Hidden when blank."
         />
-        <PlainSetting
+        <RoleSetting
           settingKey="discord_member_ping_role_id"
-          label="Member ping role ID"
-          placeholder="e.g. 123456789012345678"
-          helpText="Role pinged when a bingo event starts or finishes. Leave blank for no ping."
+          label="Member ping role"
+          helpText="Role pinged when a bingo event starts or finishes. Leave as “No role” for no ping."
         />
         <div className="border-t border-card-border pt-5">
           <p className="text-sm font-medium mb-1">Master announcements webhook</p>
@@ -275,13 +275,12 @@ export default async function AdminIntegrationsPage() {
 
         <CollapsibleSection
           title="Federation"
-          summary="Multi-clan crediting, guest-on-exchange policy, association push and trusted brokers. Layer 0/1 is live; identity federation (L2) is opt-in and lands later."
+          summary="Link up with other Anvil clans so members' drops can count across the clans they play in. All optional, off until you turn it on."
         >
           <p className="text-sm text-text-muted -mt-1">
-            Federation lets members carry one plugin token across several connected clans. These
-            scalars control how this instance behaves; the instance id and signing key are generated
-            automatically and exposed (public half only) at{' '}
-            <code className="text-foreground/80">/api/federation/v1/meta</code>.
+            Federation connects your clan with other Anvil clans. A member who plays in several of them
+            shows up (and can earn) across all of them, and the plugin lists the clans they belong to.
+            Everything here is optional — leave it off to keep this clan fully private.
           </p>
           <FederationSettings />
         </CollapsibleSection>
