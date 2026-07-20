@@ -32,6 +32,9 @@ export interface MemberContribution {
   submissions: number;
   // Per-tile detail, so a member row can drill down into exactly what they did.
   contributions: MemberTileContribution[];
+  // Non-null = the member was subbed out (players.frozenAt). Their contribution stays in the totals
+  // (frozen gains still count) but the UI marks them so it's clear they're no longer active.
+  frozenAt?: string | null;
 }
 
 // Event-wide MVP: the single highest-scoring contributor across every team (not the best player on
@@ -66,6 +69,7 @@ interface BreakdownPlayer {
   id: number;
   name: string;
   teamId: number | null;
+  frozenAt?: string | null;
 }
 interface BreakdownTile {
   id: number;
@@ -228,6 +232,7 @@ export function computeMemberBreakdown(params: {
         inProgress,
         submissions: subCount,
         contributions,
+        frozenAt: p.frozenAt ?? null,
       };
     })
     // Points first, then completed tasks, then anyone with in-progress effort, then raw submissions.
