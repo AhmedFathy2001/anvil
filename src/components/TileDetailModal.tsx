@@ -724,7 +724,7 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Standard / stat tile manual toggle (count- and time-based tiles complete via submissions) */}
+          {/* Standard manual toggle (count- and time-based tiles complete via submissions) */}
           {!isCount && !isTimed && canToggle && onToggle && (
             <button
               onClick={handleToggle}
@@ -736,6 +736,21 @@ export default function TileDetailModal({
               }`}
             >
               {toggling ? '...' : isCompleted ? 'Mark Incomplete' : 'Mark Complete'}
+            </button>
+          )}
+
+          {/* Stat tiles auto-complete from hiscores, so there's no manual "Mark Complete" — but a
+              manager can REOPEN a completed one that finished off a bad/inflated gain. This deletes the
+              completion and its frozen per-member split (the drop-tile equivalent of deleting the
+              progress that completed it); the next hiscores sweep re-completes it only if the real team
+              total still qualifies. One-way: only shown while completed. */}
+          {isStatTile && isCompleted && canManage && onToggle && (
+            <button
+              onClick={handleToggle}
+              disabled={toggling}
+              className="w-full py-2 text-sm font-semibold rounded border transition-colors disabled:opacity-50 bg-red-400/10 border-red-400/30 text-red-400 hover:bg-red-400/20"
+            >
+              {toggling ? '...' : 'Reopen tile (clear completion)'}
             </button>
           )}
 
