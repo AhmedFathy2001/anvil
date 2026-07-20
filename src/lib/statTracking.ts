@@ -137,6 +137,37 @@ export function computeGainFromJson(
 }
 
 /**
+ * Bake a member's live plugin overlay into a stored snapshot, raising each overlay key to
+ * max(snapshot, overlay). Used when FREEZING (subbing out) a player so their locked `frozenStats`
+ * captures the effective current (hiscores ∪ un-synced live pushes), not just the last 15-min
+ * hiscores sweep — otherwise subbing out a member mid-grind silently drops the overlay portion of
+ * their gain, and the team total falls the instant they're benched. Merges into `cachedJson` for
+ * structure + latest values, falling back to `baselineJson` when the player was never hiscores-
+ * fetched (so we still know skill-vs-boss per key; a key absent from both is skipped, unclassifiable).
+ * Returns a JSON string to store, or null if neither snapshot exists (gain then stays 0).
+ */
+export function effectiveSnapshotJson(
+  cachedJson: string | null | undefined,
+  baselineJson: string | null | undefined,
+  liveMap: Record<string, number>,
+): string | null {
+  const snap = parseSnapshot(cachedJson) ?? parseSnapshot(baselineJson);
+  if (!snap) return null;
+  const skills = { ...(snap.skills ?? {}) };
+  const bosses = { ...(snap.bosses ?? {}) };
+  for (const [key, raw] of Object.entries(liveMap)) {
+    const v = typeof raw === 'number' ? raw : 0;
+    if (v <= 0) continue;
+    if (skills[key] != null) {
+      if ((skills[key].xp ?? 0) < v) skills[key] = { ...skills[key], xp: v };
+    } else if (bosses[key] != null) {
+      if ((bosses[key].score ?? 0) < v) bosses[key] = { ...bosses[key], score: v };
+    }
+  }
+  return JSON.stringify({ ...snap, skills, bosses });
+}
+
+/**
  * Reconcile the live overlay against a fresh hiscores read: drop any key hiscores has caught up to
  * (its value now IS the truth), keep only entries still ahead. This is what makes a stale / over-
  * reported push self-heal — the stored live blob shrinks back to nothing once hiscores confirms it.

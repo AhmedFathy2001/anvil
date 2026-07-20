@@ -4,6 +4,8 @@ import { clanMembers, players, events, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, generatePlayerToken } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
+import { liveStatsForMembers } from '@/lib/liveStats';
+import { effectiveSnapshotJson } from '@/lib/statTracking';
 
 interface MemberInput {
   clanMemberId: number;
@@ -338,8 +340,15 @@ export async function PATCH(
   // tracking on the next tick (baseline is untouched, so gains pick up from real current − baseline).
   if (frozen !== undefined) {
     if (frozen) {
+      // Capture the EFFECTIVE current, not just cachedStats: a member grinding since the last 15-min
+      // hiscores sweep has fresh gains only in their live plugin overlay (clan_members.live_stats).
+      // Baking that in means benching them mid-grind keeps their real locked gain instead of dropping
+      // the un-synced overlay portion (which would make the team total fall the instant they're subbed).
+      const overlay = player.clanMemberId != null
+        ? (await liveStatsForMembers([player.clanMemberId])).get(player.clanMemberId) ?? {}
+        : {};
       updateData.frozenAt = new Date().toISOString();
-      updateData.frozenStats = player.cachedStats; // latest known current; null if never fetched (gain 0)
+      updateData.frozenStats = effectiveSnapshotJson(player.cachedStats, player.statsSnapshot, overlay);
     } else {
       updateData.frozenAt = null;
       updateData.frozenStats = null;
