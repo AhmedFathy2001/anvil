@@ -323,8 +323,8 @@ export default function WebhookField({
 
       {!botEnabled && (
         <p className="text-[11px] text-text-muted">
-          Tip: set a Server ID + bot token under <span className="text-foreground/70">Discord roles &amp; nicknames</span>{' '}
-          to create webhooks automatically instead of pasting.
+          Tip: connect a bot in the <span className="text-foreground/70">Discord bot</span> tab to create webhooks
+          automatically instead of pasting.
         </p>
       )}
 

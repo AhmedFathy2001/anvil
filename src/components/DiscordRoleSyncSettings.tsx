@@ -124,7 +124,7 @@ export default function DiscordRoleSyncSettings() {
           <span className="text-sm font-medium">Enable Discord role sync</span>
           <span className="block text-xs text-text-muted">
             Gives linked members their rank + default Discord roles. Requires the bot connected in the
-            Discord bot section above. Master switch — nickname sync also requires this on.
+            Discord bot tab. Master switch — nickname sync also requires this on.
           </span>
         </span>
       </label>

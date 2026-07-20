@@ -97,9 +97,9 @@ export default function DiscordTeamChannelSettings() {
           <span className="text-sm font-medium">Enable Discord team channels</span>
           <span className="block text-xs text-text-muted">
             Lets you provision a private voice + text channel per team from an event&apos;s Teams tab,
-            and assign contestants their roles. Requires the bot connected in the Discord bot section
-            above. The bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above
-            the team roles it creates.
+            and assign contestants their roles. Requires the bot connected in the Discord bot tab. The
+            bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above the team
+            roles it creates.
           </span>
         </span>
       </label>
