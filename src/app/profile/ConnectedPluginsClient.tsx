@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-// Federation "Connected plugins" surface (FEDERATION.md / WIRE §4). Lists the user's active
-// federation tokens with a per-row Revoke and a Revoke-all, and lets them mint a new one (own
-// issuance via the current web session). The raw token is shown exactly once at mint time — the
-// server only ever stores its hash, so we can never re-display an existing token.
+// Federation "Connected plugins" surface (FEDERATION.md / WIRE §4). A read-only list of the user's
+// active federation connections with per-row Revoke + Revoke-all. Connecting is done from the plugin's
+// Sign in (device-code) flow — there's no manual web mint, so this never displays a raw token.
 interface FederationToken {
   tokenId: string;
   label: string | null;
@@ -18,9 +17,6 @@ export default function ConnectedPluginsClient() {
   const [tokens, setTokens] = useState<FederationToken[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [minting, setMinting] = useState(false);
-  const [freshToken, setFreshToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   async function load() {
     try {
@@ -37,31 +33,6 @@ export default function ConnectedPluginsClient() {
   useEffect(() => {
     load();
   }, []);
-
-  async function mint() {
-    setMinting(true);
-    setError('');
-    setFreshToken(null);
-    setCopied(false);
-    try {
-      const res = await fetch('/api/federation/v1/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: 'Web-issued', scopes: ['board:read'] }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Failed to create token');
-      }
-      const d = await res.json();
-      setFreshToken(d.token);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create token');
-    } finally {
-      setMinting(false);
-    }
-  }
 
   async function revoke(tokenId: string) {
     if (!confirm('Revoke this connection? The plugin using it will stop working immediately.')) return;
@@ -88,17 +59,6 @@ export default function ConnectedPluginsClient() {
     }
   }
 
-  async function copyFresh() {
-    if (!freshToken) return;
-    try {
-      await navigator.clipboard.writeText(freshToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError('Copy failed — select and copy manually');
-    }
-  }
-
   return (
     <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
       <div className="flex items-center justify-between mb-4">
@@ -119,32 +79,11 @@ export default function ConnectedPluginsClient() {
       </div>
 
       <p className="text-sm text-text-muted mb-4">
-        The RuneLite plugins linked to your account show up here — whether you connected one directly
-        or by playing in another connected clan. To connect a plugin, just open the Anvil plugin and
-        click <span className="text-foreground/80">Sign in</span> — no copying needed. Use this list to
-        see what&apos;s connected and disconnect anything you don&apos;t recognise, or if you lose a device.
+        The RuneLite plugins linked to your account show up here — whether you connected one directly or
+        by playing in another connected clan. To connect a plugin, open the Anvil plugin and click{' '}
+        <span className="text-foreground/80">Sign in</span> — no copying needed. Use this list to see
+        what&apos;s connected and disconnect anything you don&apos;t recognise, or if you lose a device.
       </p>
-
-      {freshToken && (
-        <div className="mb-4 border border-gold/30 bg-gold/5 rounded-lg p-3">
-          <p className="text-xs text-text-muted mb-2">
-            Your manual token — copy it now, it won&apos;t be shown again. Paste it into the plugin where it
-            asks for a token.
-          </p>
-          <div className="flex flex-wrap gap-2 items-center">
-            <code className="flex-1 min-w-0 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm font-mono break-all text-foreground">
-              {freshToken}
-            </code>
-            <button
-              type="button"
-              onClick={copyFresh}
-              className="px-3 py-2 text-sm border border-gold/30 text-gold rounded-lg hover:bg-gold/10 transition-colors"
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {tokens === null ? (
         <p className="text-sm text-text-muted">Loading…</p>
@@ -182,21 +121,6 @@ export default function ConnectedPluginsClient() {
       )}
 
       {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
-
-      <div className="mt-5 border-t border-card-border pt-4">
-        <p className="text-xs text-text-muted mb-2">
-          Most people never need this — connecting from the plugin&apos;s <span className="text-foreground/80">Sign in</span>{' '}
-          button is easier. Only create a token by hand if your plugin asks you to paste one in.
-        </p>
-        <button
-          type="button"
-          onClick={mint}
-          disabled={minting}
-          className="px-3 py-2 text-xs text-text-muted border border-card-border rounded-lg hover:border-gold/40 hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          {minting ? 'Creating…' : 'Create a manual token (advanced)'}
-        </button>
-      </div>
     </section>
   );
 }
