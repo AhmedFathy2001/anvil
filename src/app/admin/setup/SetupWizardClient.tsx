@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Input from '@/components/Input';
+import WebhookField from '@/components/WebhookField';
+import type { BroadcastChannel } from '@/lib/discord-broadcast';
 
 interface Props {
   initial: {
@@ -13,27 +15,26 @@ interface Props {
     rareDrops: string;
     deaths: string;
   };
+  // Feed the in-wizard webhook creation flow. Empty / false when no bot is connected — WebhookField
+  // then falls back to paste-only.
+  channels: BroadcastChannel[];
+  botEnabled: boolean;
 }
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
 
-// 3 input steps + a Done screen. Each step batch-saves only its own keys via
-// PUT /api/admin/settings on "Continue", so the flow stays a clean forward march instead
-// of the per-field Save buttons the atomic setting components use.
+// 3 input steps + a Done screen. Step 1 batch-saves its keys on Continue; steps 2–3 use WebhookField,
+// which creates/pastes and saves each webhook immediately, so those steps just advance.
 const TOTAL_STEPS = 3;
 
-export default function SetupWizardClient({ initial }: Props) {
+export default function SetupWizardClient({ initial, channels, botEnabled }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
 
   const [clanName, setClanName] = useState(initial.clanName);
   const [inviteUrl, setInviteUrl] = useState(initial.inviteUrl);
-  const [webhookUrl, setWebhookUrl] = useState(initial.webhookUrl);
-  const [rareDrops, setRareDrops] = useState(initial.rareDrops);
-  const [deaths, setDeaths] = useState(initial.deaths);
 
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
   async function saveKeys(keys: Record<string, string>): Promise<boolean> {
@@ -59,32 +60,6 @@ export default function SetupWizardClient({ initial }: Props) {
     }
   }
 
-  async function testWebhook() {
-    if (!webhookUrl.trim()) {
-      setMsg({ type: 'error', text: 'Paste a webhook link first.' });
-      return;
-    }
-    setTesting(true);
-    setMsg(null);
-    try {
-      const res = await fetch('/api/admin/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', webhook_url: webhookUrl.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      setMsg(
-        res.ok
-          ? { type: 'success', text: data.message || 'Test message sent — check your Discord channel!' }
-          : { type: 'error', text: data.error || 'That link did not work. Double-check it.' },
-      );
-    } catch {
-      setMsg({ type: 'error', text: 'Could not reach Discord. Check the link.' });
-    } finally {
-      setTesting(false);
-    }
-  }
-
   async function next(keys: Record<string, string>) {
     const ok = await saveKeys(keys);
     if (ok) {
@@ -93,12 +68,14 @@ export default function SetupWizardClient({ initial }: Props) {
     }
   }
 
+  // Steps whose webhooks already saved themselves (via WebhookField) just move forward.
+  function advance() {
+    setMsg(null);
+    setStep((s) => s + 1);
+  }
+
   async function finish() {
-    const ok = await saveKeys({
-      webhook_rare_drops: rareDrops.trim(),
-      webhook_deaths: deaths.trim(),
-      setup_completed: '1',
-    });
+    const ok = await saveKeys({ setup_completed: '1' });
     if (ok) setStep(TOTAL_STEPS); // Done screen
   }
 
@@ -159,40 +136,14 @@ export default function SetupWizardClient({ initial }: Props) {
         {step === 1 && (
           <StepShell
             title="Connect Discord"
-            subtitle="Anvil can post event announcements, results and drops to your server. Paste a webhook link for the channel you want those in."
+            subtitle="Anvil posts event announcements, results and drops to your server. Pick a channel and let the bot create the webhook for you — or paste one you already have."
           >
-            <Field
-              label="Announcements webhook"
-              hint="A webhook is just a link that lets Anvil post messages in one Discord channel."
-            >
-              <Input
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/…"
-                autoFocus
-              />
-            </Field>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={testWebhook}
-                disabled={testing || !webhookUrl.trim()}
-                className="text-sm px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:border-gold hover:text-gold transition-colors disabled:opacity-50"
-              >
-                {testing ? 'Sending…' : 'Send test message'}
-              </button>
-              <span className="text-xs text-text-muted">Posts a sample message so you can confirm it works.</span>
-            </div>
-
-            <details className="text-sm text-text-muted rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2.5">
-              <summary className="cursor-pointer text-gold/90 select-none">How do I get a webhook link?</summary>
-              <ol className="list-decimal ml-5 mt-2 space-y-1 leading-relaxed">
-                <li>In Discord, open the channel’s <span className="text-foreground/80">Edit Channel → Integrations → Webhooks</span>.</li>
-                <li>Click <span className="text-foreground/80">New Webhook</span>, then <span className="text-foreground/80">Copy Webhook URL</span>.</li>
-                <li>Paste it in the box above and hit <span className="text-foreground/80">Send test message</span>.</li>
-              </ol>
-            </details>
+            <WebhookField
+              channels={channels}
+              botEnabled={botEnabled}
+              label="Announcements channel"
+              helpText="Event start / end, draft, results and sign-up nudges post here. Create one with the bot, or paste a webhook URL."
+            />
           </StepShell>
         )}
 
@@ -202,20 +153,22 @@ export default function SetupWizardClient({ initial }: Props) {
             title="Drop & death feeds (optional)"
             subtitle="If your clan uses the Anvil plugin, it can post rare drops and deaths to their own channels. Skip this — you can add it anytime under Advanced settings."
           >
-            <Field label="Rare drops channel webhook" hint="Optional.">
-              <Input
-                value={rareDrops}
-                onChange={(e) => setRareDrops(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/…"
+            <WebhookField
+              settingKey="webhook_rare_drops"
+              label="Rare drops channel"
+              helpText="Valuable drops and pets post here (optional)."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <div className="border-t border-card-border pt-4">
+              <WebhookField
+                settingKey="webhook_deaths"
+                label="Deaths channel"
+                helpText="Death notifications post here (optional)."
+                channels={channels}
+                botEnabled={botEnabled}
               />
-            </Field>
-            <Field label="Deaths channel webhook" hint="Optional.">
-              <Input
-                value={deaths}
-                onChange={(e) => setDeaths(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/…"
-              />
-            </Field>
+            </div>
           </StepShell>
         )}
 
@@ -279,16 +232,6 @@ export default function SetupWizardClient({ initial }: Props) {
             </div>
 
             <div className="flex items-center gap-3">
-              {step === 1 && (
-                <button
-                  type="button"
-                  onClick={() => next({ discord_webhook_url: webhookUrl.trim() })}
-                  disabled={saving}
-                  className="text-sm text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
-                >
-                  Skip for now
-                </button>
-              )}
               {step === 0 && (
                 <PrimaryBtn
                   disabled={saving}
@@ -298,8 +241,8 @@ export default function SetupWizardClient({ initial }: Props) {
                 </PrimaryBtn>
               )}
               {step === 1 && (
-                <PrimaryBtn disabled={saving} onClick={() => next({ discord_webhook_url: webhookUrl.trim() })}>
-                  {saving ? 'Saving…' : 'Continue'}
+                <PrimaryBtn disabled={saving} onClick={advance}>
+                  Continue
                 </PrimaryBtn>
               )}
               {step === 2 && (
