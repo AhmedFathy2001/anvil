@@ -119,15 +119,17 @@ export default function ConnectedPluginsClient() {
       </div>
 
       <p className="text-sm text-text-muted mb-4">
-        Federation tokens let a RuneLite plugin connect to this clan — including from a broker
-        exchange when you play across clans. Each is long-lived and revocable; revoke one if a device
-        is lost.
+        The RuneLite plugins linked to your account show up here — whether you connected one directly
+        or by playing in another connected clan. To connect a plugin, just open the Anvil plugin and
+        click <span className="text-foreground/80">Sign in</span> — no copying needed. Use this list to
+        see what&apos;s connected and disconnect anything you don&apos;t recognise, or if you lose a device.
       </p>
 
       {freshToken && (
         <div className="mb-4 border border-gold/30 bg-gold/5 rounded-lg p-3">
           <p className="text-xs text-text-muted mb-2">
-            New connection token — copy it now, it won&apos;t be shown again.
+            Your manual token — copy it now, it won&apos;t be shown again. Paste it into the plugin where it
+            asks for a token.
           </p>
           <div className="flex flex-wrap gap-2 items-center">
             <code className="flex-1 min-w-0 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm font-mono break-all text-foreground">
@@ -148,7 +150,8 @@ export default function ConnectedPluginsClient() {
         <p className="text-sm text-text-muted">Loading…</p>
       ) : tokens.length === 0 ? (
         <div className="text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
-          No connected plugins yet.
+          No plugins connected yet — open the Anvil plugin and click{' '}
+          <span className="text-foreground/80">Sign in</span> to connect one.
         </div>
       ) : (
         <ul className="space-y-2">
@@ -180,14 +183,18 @@ export default function ConnectedPluginsClient() {
 
       {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
 
-      <div className="mt-4">
+      <div className="mt-5 border-t border-card-border pt-4">
+        <p className="text-xs text-text-muted mb-2">
+          Most people never need this — connecting from the plugin&apos;s <span className="text-foreground/80">Sign in</span>{' '}
+          button is easier. Only create a token by hand if your plugin asks you to paste one in.
+        </p>
         <button
           type="button"
           onClick={mint}
           disabled={minting}
-          className="px-3 py-2 text-sm border border-gold/30 text-gold rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-50"
+          className="px-3 py-2 text-xs text-text-muted border border-card-border rounded-lg hover:border-gold/40 hover:text-foreground transition-colors disabled:opacity-50"
         >
-          {minting ? 'Creating…' : 'Generate a connection token'}
+          {minting ? 'Creating…' : 'Create a manual token (advanced)'}
         </button>
       </div>
     </section>
