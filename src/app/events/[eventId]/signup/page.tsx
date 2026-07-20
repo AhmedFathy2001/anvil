@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
@@ -64,6 +64,20 @@ export default async function EventSignupPage({
   const fee = signup
     ? await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, signup.id) })
     : null;
+
+  // Multi-account per-account fee mode: a person owes a fee per entered account. Load them all (with
+  // the account RSN) so the form can show each one's amount + status. Per-person mode has a single fee
+  // (already `fee` above), so this list stays length ≤ 1 and the form hides it.
+  const accountFees = activeSignups.length
+    ? (
+        await db
+          .select({ amount: signupFees.amount, status: signupFees.status, rsn: clanMembers.rsn })
+          .from(signupFees)
+          .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+          .leftJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+          .where(inArray(signupFees.signupId, activeSignups.map((s) => s.id)))
+      ).map((f) => ({ rsn: f.rsn ?? 'Account', amount: f.amount, status: f.status }))
+    : [];
 
   let prefillProfile = signup ? parseProfile(signup.profileData) : {};
   let prefillClanMemberId = signup?.clanMemberId ?? null;
@@ -133,6 +147,7 @@ export default async function EventSignupPage({
         myAccounts={myAccounts}
         maxAccounts={maxAccounts}
         signedUpMemberIds={signedUpMemberIds}
+        accountFees={accountFees}
         existingSignup={
           signup
             ? {

@@ -60,6 +60,8 @@ interface Props {
   maxAccounts: number;
   // clanMemberIds of the accounts they currently have an active sign-up with (pre-checks the picker).
   signedUpMemberIds: number[];
+  // Per-account fees (multi-account 'per-account' fee mode). Length ≤ 1 in per-person mode → hidden.
+  accountFees: { rsn: string; amount: number; status: string }[];
   existingSignup: ExistingSignup | null;
   fee: FeeRow | null;
   prefillClanMemberId: number | null;
@@ -183,6 +185,7 @@ export default function SignupForm({
   myAccounts,
   maxAccounts,
   signedUpMemberIds,
+  accountFees,
   existingSignup,
   fee,
   prefillClanMemberId,
@@ -420,6 +423,27 @@ export default function SignupForm({
           </div>
         </div>
       </div>
+
+      {/* Per-account fee summary (multi-account 'per-account' fee mode — one fee per entered account). */}
+      {accountFees.length > 1 && (
+        <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-2">
+          <h2 className="text-sm font-bold flex items-center gap-2">
+            <span className="w-1 h-4 bg-gold rounded-full" />
+            Fees · one per account
+          </h2>
+          <ul className="space-y-1 text-sm">
+            {accountFees.map((f, i) => (
+              <li key={i} className="flex items-center justify-between gap-2">
+                <span className="font-medium">{f.rsn}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-gold">{f.amount.toLocaleString()} gp</span>
+                  <FeeStatusBadge status={f.status} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Fee status + optional payment report (only if a fee row exists) */}
       {fee && existingSignup && (
