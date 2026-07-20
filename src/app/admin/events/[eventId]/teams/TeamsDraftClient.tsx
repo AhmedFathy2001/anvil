@@ -17,6 +17,7 @@ import ClanMemberPicker from '@/components/ClanMemberPicker';
 import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode } from '@/lib/utils';
+import { countPicksTaken } from '@/lib/draft';
 
 interface DraftState {
   status: string;
@@ -96,7 +97,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     })(),
     players: initialPlayers,
     teams,
-    currentPickNumber: initialPlayers.filter((p) => p.teamId !== null).length,
+    currentPickNumber: countPicksTaken(initialPlayers),
     currentTeamId: null,
     round: 0,
     pickInRound: 0,

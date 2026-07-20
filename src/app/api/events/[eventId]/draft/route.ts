@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
+import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
@@ -63,7 +63,9 @@ export async function GET(
     ...eventTeams.filter((t) => !orderedSet.has(t.id)).map((t) => t.id),
   ];
   const pickedPlayers = eventPlayers.filter((p) => p.teamId !== null);
-  const currentPickNumber = pickedPlayers.length;
+  // Turns taken (not player rows): a multi-account person is one pick sharing one pickNumber, so the
+  // clock advances once per person. Equals pickedPlayers.length for single-account events.
+  const currentPickNumber = countPicksTaken(eventPlayers);
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
 
   let currentTeamId: number | null = null;

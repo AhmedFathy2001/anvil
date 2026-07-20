@@ -27,3 +27,17 @@ export function getRoundForPick(numTeams: number, pickNumber: number): number {
 export function getPickInRound(numTeams: number, pickNumber: number): number {
   return pickNumber % numTeams;
 }
+
+/**
+ * Number of draft picks (turns) taken so far. A single pick can assign several player rows the SAME
+ * pickNumber — a multi-account person is drafted as ONE pick that pulls all their accounts onto the
+ * team — so we count DISTINCT pick numbers, not player rows. For single-account events (every picked
+ * player has a unique pickNumber) this equals the count of players with a team, so it's a no-op there.
+ */
+export function countPicksTaken(players: { pickNumber: number | null }[]): number {
+  const seen = new Set<number>();
+  for (const p of players) {
+    if (p.pickNumber != null) seen.add(p.pickNumber);
+  }
+  return seen.size;
+}
