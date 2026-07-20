@@ -110,6 +110,17 @@ function validateRowFields(i: number, row: ImportRow): string | null {
   ) {
     return `Row ${i + 1}: requiredAmount must be an integer >= 1`;
   }
+  // A requiredAmount alongside @Set-grouped items is contradictory: a requiredAmount forces the
+  // simple drop-pool path in deriveItemFields, which discards the @Set groups — the tile silently
+  // stops being an "any one full set" collection and just tracks any-one-of-N. Reject it so the
+  // author disambiguates instead of being surprised in-game (a "Any Moons set" tile that reads 3/1).
+  if (
+    row.requiredAmount != null &&
+    Array.isArray(row.items) &&
+    row.items.some((it) => it != null && typeof it.group === 'string' && it.group.trim() !== '')
+  ) {
+    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for an "any one full set" collection, or remove the @Set groups for a pool.`;
+  }
   if (
     row.points !== undefined && row.points !== null &&
     (!Number.isInteger(row.points) || row.points < 0)
