@@ -581,6 +581,10 @@ export const eventSignups = sqliteTable('event_signups', {
   // pending = awaiting fee/admin review, approved = eligible for draft, rejected = denied,
   // withdrawn = user opted out before the deadline.
   status: text('status').notNull().default('pending'),
+  // When set, this approved sign-up does NOT count toward the entry-fee prize pool (lib/prizePool).
+  // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
+  // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
+  excludeFromPrizePool: integer('exclude_from_prize_pool', { mode: 'boolean' }).notNull().default(false),
   signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [

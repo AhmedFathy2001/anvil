@@ -28,6 +28,7 @@ const DEFAULT_TEAM_COLORS = [
 interface SignupRow {
   id: number;
   status: string;
+  excludeFromPrizePool: boolean;
   signedUpAt: string;
   updatedAt: string;
   profile: SignupProfile;
@@ -128,7 +129,7 @@ export default function SignupAdminPanel({
 
   async function performAction(
     sigId: number,
-    body: { action: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain'; teamName?: string; teamColor?: string },
+    body: { action: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'set-prize-exclusion'; teamName?: string; teamColor?: string; excludeFromPrizePool?: boolean },
   ) {
     setActingId(sigId);
     setActionError(null);
@@ -298,7 +299,7 @@ export default function SignupAdminPanel({
 
   // Live preview of the public prize pool: added bonus + entry fee × approved entries.
   // Mirrors lib/prizePool.ts (approved entries count regardless of fee payment).
-  const approvedSignupCount = signups.filter((s) => s.status === 'approved').length;
+  const approvedSignupCount = signups.filter((s) => s.status === 'approved' && !s.excludeFromPrizePool).length;
   const livePrizePool =
     (Number(addedPrizeInput) || 0) + (Number(feeInput) || 0) * approvedSignupCount;
 
@@ -763,6 +764,26 @@ export default function SignupAdminPanel({
                                 className="text-xs font-medium px-3 py-1 rounded border border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
                               >
                                 Withdraw / remove
+                              </button>
+                            )}
+                            {s.status === 'approved' && (
+                              <button
+                                onClick={() =>
+                                  performAction(s.id, { action: 'set-prize-exclusion', excludeFromPrizePool: !s.excludeFromPrizePool })
+                                }
+                                disabled={actingId === s.id}
+                                title={
+                                  s.excludeFromPrizePool
+                                    ? 'Not counted in the prize pool — click to count this entry’s fee toward it'
+                                    : 'Counts toward the prize pool — click to exclude a non-paying entry (e.g. a mid-event sub-in) so the pool isn’t inflated'
+                                }
+                                className={`text-xs font-medium px-3 py-1 rounded border transition-colors disabled:opacity-50 ${
+                                  s.excludeFromPrizePool
+                                    ? 'border-card-border text-text-muted hover:bg-brown-light'
+                                    : 'border-gold/30 text-gold hover:bg-gold/10'
+                                }`}
+                              >
+                                {actingId === s.id ? '…' : s.excludeFromPrizePool ? 'Excluded from pool' : 'Counts toward pool'}
                               </button>
                             )}
                           </>

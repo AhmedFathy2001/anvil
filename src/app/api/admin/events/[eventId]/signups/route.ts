@@ -59,6 +59,7 @@ export async function GET(
   const signups = rows.map((r) => ({
     id: r.signup.id,
     status: r.signup.status,
+    excludeFromPrizePool: r.signup.excludeFromPrizePool,
     signedUpAt: r.signup.signedUpAt,
     updatedAt: r.signup.updatedAt,
     profile: parseProfile(r.signup.profileData),

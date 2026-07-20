@@ -41,10 +41,11 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as {
-    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'edit-answers';
+    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'edit-answers' | 'set-prize-exclusion';
     teamName?: string;
     teamColor?: string;
     profile?: Record<string, unknown>;
+    excludeFromPrizePool?: boolean;
   } | null;
   if (!body || !body.action) {
     return NextResponse.json({ error: 'action is required' }, { status: 400 });
@@ -137,6 +138,19 @@ export async function PATCH(
         }
       })();
 
+      return NextResponse.json({ signup: updated });
+    }
+
+    case 'set-prize-exclusion': {
+      // Toggle whether this sign-up counts toward the entry-fee prize pool. For non-paying entries
+      // (a sub-in replacing someone who already paid, a comped player) so the pool reflects real money.
+      const exclude = body.excludeFromPrizePool === true;
+      const [updated] = await db
+        .update(eventSignups)
+        .set({ excludeFromPrizePool: exclude, updatedAt: now })
+        .where(eq(eventSignups.id, sigId))
+        .returning();
+      logAction('signup_prize_exclusion', { excluded: exclude });
       return NextResponse.json({ signup: updated });
     }
 
