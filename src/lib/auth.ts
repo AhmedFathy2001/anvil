@@ -5,6 +5,7 @@ import { clanAuditLog, clanMembers, detectedAccounts, events, players, pluginLin
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
+import { linkSignupsToOwner } from '@/lib/identity';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -452,6 +453,8 @@ async function autoLinkOrSuggestOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
+    // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
+    await linkSignupsToOwner(clanMemberId, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
   }
@@ -507,6 +510,8 @@ async function maybeAutoClaimEstablishedOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
+    // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
+    await linkSignupsToOwner(existing.id, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
   }
@@ -638,6 +643,8 @@ export async function claimAccountForUser(
   import('@/lib/discord-roles')
     .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
     .catch(() => {});
+  // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
+  linkSignupsToOwner(clanMemberId, userId).catch(() => {});
 
   return { ok: true, clanMemberId };
 }

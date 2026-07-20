@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
+import { linkSignupsToOwner } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 const MAX_NOTE_LEN = 500;
@@ -96,6 +97,9 @@ export async function POST(request: Request) {
       .returning({ id: clanMembers.id });
     clanMemberId = inserted[0].id;
   }
+
+  // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
+  await linkSignupsToOwner(clanMemberId, session.userId);
 
   db.insert(clanAuditLog)
     .values({
