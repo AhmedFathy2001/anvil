@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 
 interface ClanMember {
   id: number;
@@ -319,6 +320,36 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     fetchAll();
   }
 
+  // The per-row actions for an active member, collapsed into one dropdown instead of a button row.
+  function buildRowActions(m: ClanMember): ActionItem[] {
+    const items: ActionItem[] = [{ label: 'Rename', onClick: () => openRename(m) }];
+    if (isAdmin) items.push({ label: 'Set role', onClick: () => openRole(m), variant: 'gold' });
+    items.push({
+      label: m.isGuest ? 'Promote to member' : 'Demote to guest',
+      onClick: () => togglePromote(m),
+    });
+    items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
+    if (isAdmin && m.userId) {
+      items.push({
+        label: m.userBanned ? 'Unban site account' : 'Ban site account',
+        onClick: () => banUser(m),
+        variant: m.userBanned ? 'default' : 'danger',
+        title: m.userBanned ? 'This site account is banned' : 'Ban this member’s site account',
+      });
+    }
+    if (isAdmin && m.effectiveDiscordId) {
+      items.push({
+        label: m.federationBanned ? 'Fed unban' : 'Fed ban',
+        onClick: () => federationBan(m),
+        variant: m.federationBanned ? 'default' : 'danger',
+        title: m.federationBanned
+          ? 'On the federation denylist — blocked from re-joining via a broker exchange'
+          : 'Federation-ban: block this Discord identity from re-joining via a broker exchange (cross-clan)',
+      });
+    }
+    return items;
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -585,64 +616,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                           Rejoin
                         </button>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => openRename(m)}
-                            className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
-                          >
-                            Rename
-                          </button>
-                          {isAdmin && (
-                            <button
-                              onClick={() => openRole(m)}
-                              className="px-2 py-1 text-xs border border-gold/30 text-gold rounded hover:bg-gold/10 transition-colors"
-                            >
-                              Set role
-                            </button>
-                          )}
-                          <button
-                            onClick={() => togglePromote(m)}
-                            className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
-                          >
-                            {m.isGuest ? 'Promote' : 'Demote to guest'}
-                          </button>
-                          <button
-                            onClick={() => removeMember(m)}
-                            className="px-2 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                          >
-                            Remove
-                          </button>
-                          {isAdmin && m.userId && (
-                            <button
-                              onClick={() => banUser(m)}
-                              className={`px-2 py-1 text-xs border rounded transition-colors ${
-                                m.userBanned
-                                  ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
-                                  : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
-                              }`}
-                              title={m.userBanned ? 'This site account is banned' : 'Ban this member’s site account'}
-                            >
-                              {m.userBanned ? 'Unban' : 'Ban'}
-                            </button>
-                          )}
-                          {isAdmin && m.effectiveDiscordId && (
-                            <button
-                              onClick={() => federationBan(m)}
-                              className={`px-2 py-1 text-xs border rounded transition-colors ${
-                                m.federationBanned
-                                  ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
-                                  : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
-                              }`}
-                              title={
-                                m.federationBanned
-                                  ? 'On the federation denylist — blocked from re-joining via a broker exchange'
-                                  : 'Federation-ban: block this Discord identity from re-joining via a broker exchange (cross-clan)'
-                              }
-                            >
-                              {m.federationBanned ? 'Fed unban' : 'Fed ban'}
-                            </button>
-                          )}
-                        </>
+                        <ActionMenu items={buildRowActions(m)} />
                       )}
                     </div>
                   </td>

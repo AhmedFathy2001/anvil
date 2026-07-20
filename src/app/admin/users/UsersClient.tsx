@@ -5,6 +5,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
+import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 
 interface Character {
   id: number;
@@ -229,6 +230,27 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     { key: 'all', label: 'All accounts', count: users.length },
   ];
 
+  // Row actions for a non-owner account, collapsed into one dropdown.
+  function buildUserActions(user: User): ActionItem[] {
+    const items: ActionItem[] = [];
+    if (viewerIsOwner && user.role === 'admin') {
+      items.push({
+        label: 'Make owner',
+        onClick: () => handleTransferOwnership(user),
+        variant: 'gold',
+        title: 'Transfer ownership to this admin',
+      });
+    }
+    items.push({ label: 'Rename', onClick: () => startEdit(user) });
+    items.push({
+      label: user.banned ? 'Unban' : 'Ban',
+      onClick: () => banUser(user),
+      variant: user.banned ? 'default' : 'danger',
+    });
+    items.push({ label: 'Delete', onClick: () => handleDelete(user), variant: 'danger' });
+    return items;
+  }
+
   return (
     <div>
       <div className="mb-5">
@@ -422,38 +444,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
                         🔒 Protected
                       </span>
                     ) : (
-                      <div className="flex gap-1.5 justify-end flex-wrap">
-                        {viewerIsOwner && user.role === 'admin' && (
-                          <button
-                            onClick={() => handleTransferOwnership(user)}
-                            className="px-2 py-1 text-xs border border-gold/40 text-gold hover:bg-gold/10 rounded transition-colors"
-                            title="Transfer ownership to this admin"
-                          >
-                            Make owner
-                          </button>
-                        )}
-                        <button
-                          onClick={() => startEdit(user)}
-                          className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          onClick={() => banUser(user)}
-                          className={`px-2 py-1 text-xs border rounded transition-colors ${
-                            user.banned
-                              ? 'border-accent-green/30 text-accent-green-light hover:bg-accent-green/10'
-                              : 'border-red-500/40 text-red-300 hover:bg-red-500/10'
-                          }`}
-                        >
-                          {user.banned ? 'Unban' : 'Ban'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user)}
-                          className="px-2 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                        >
-                          Delete
-                        </button>
+                      <div className="flex justify-end">
+                        <ActionMenu items={buildUserActions(user)} />
                       </div>
                     )}
                   </td>
