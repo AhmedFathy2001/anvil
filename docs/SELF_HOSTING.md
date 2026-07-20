@@ -4,6 +4,13 @@ This guide walks a clan through standing up its **own** Anvil instance from
 scratch. Anvil is single-tenant: one deployment serves one clan. To run Anvil for
 several clans, deploy it once per clan (each with its own database and Discord app).
 
+> **Scope:** this open-source project is the **clan app** (and the shared RuneLite
+> plugin). The automated billing + multi-clan provisioning **control plane** that
+> powers the paid hosted service (`anvilosrs.com`) is a separate, **proprietary**
+> app and is *not* part of what you self-host. Self-hosting means running the clan
+> app yourself, one instance per clan — exactly what the hosted service runs for you,
+> minus the automation around it.
+
 > **Don't want to self-host?** I can run and maintain Anvil for your clan for a fee —
 > no infrastructure to manage on your end. [Reach out on Discord](https://discord.gg/nqTxCQAbv4)
 > if you'd rather have it hosted for you (or just want to support the project).
@@ -141,10 +148,15 @@ nothing here.
 3. **Storage → Blob**: create a Blob store and copy its token into
    `BLOB_READ_WRITE_TOKEN`.
 4. Deploy.
-5. The two cron jobs in `vercel.json` are scheduled automatically:
-   - `/api/cron/stats` (hourly) — refreshes event stat tiles from the OSRS
-     Hiscores.
-   - `/api/cron/weekly` (every 15 min) — refreshes weekly SotW/BotW leaderboards.
+5. Schedule the refresh routes (see [§ Cron / scheduled refreshes](#cron--scheduled-refreshes)
+   below). On Vercel, add a `vercel.json` with `crons` entries; the repo no longer
+   ships one because the reference deployment drives crons from an external
+   dispatcher. Recommended cadence:
+   - `/api/cron/stats` (every ~15 min) — refreshes event stat tiles + weekly
+     values from the OSRS Hiscores in one sweep.
+   - `/api/cron/weekly` (every 15 min) — weekly SotW/BotW lifecycle.
+   - `/api/cron/flush-notifications` (every minute) — drains queued Discord posts.
+   Each requires `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is set.
 
 ### Bootstrap your first admin
 
@@ -175,18 +187,27 @@ nothing here.
 
 ## 8. Point the RuneLite plugin at your instance
 
-The companion plugin is published to the RuneLite Plugin Hub as **Anvil** and
-ships with a configurable **Site URL**. Your members:
+The companion plugin is published to the RuneLite Plugin Hub as **Anvil** (one
+shared plugin serves every clan; you don't publish your own). Your members:
 
 1. Install **Anvil** from the RuneLite Plugin Hub.
 2. In **RuneLite → Configuration → Anvil → Site URL**, enter your instance's URL
-   (e.g. `https://your-domain.com`). _Only needed if you self-host — the default
-   points at the reference instance._
-3. Paste their **Player Token** (from their player dashboard on your site).
+   (e.g. `https://your-domain.com`, no trailing slash). **This is required for
+   self-hosters** — the field ships **empty** (there is no built-in default
+   pointing at any reference instance), so every member of a self-hosted clan
+   must set it to your domain.
+3. Paste their **Account Token** (Profile → Plugin on your site → Reveal → Copy).
+   One token works across every event they're signed up for. After that they just
+   play — the account they log in on links to their profile automatically.
 
-If you'd rather ship a build that defaults to your own URL, change the default in
-`plugin/src/main/java/com/osrsbingo/OsrsBingoConfig.java` and rebuild with
-`./gradlew build` (see `docs/PLUGIN_SUBMISSION.md` for Hub publishing).
+See [`PLUGIN_SETUP.md`](./PLUGIN_SETUP.md) for the full member walkthrough, the
+"is it working?" signals, and troubleshooting.
+
+If you'd rather ship a build that defaults **Site URL** to your own domain (so
+members don't have to type it), change the `apiUrl()` default in
+`Anvil.Plugin/src/main/java/com/anvil/AnvilConfig.java` and rebuild with
+`./gradlew build` (see `docs/PLUGIN_SUBMISSION.md` for Hub publishing). Note this
+means running your own Hub listing rather than the shared **Anvil** plugin.
 
 ---
 
@@ -229,11 +250,35 @@ docker run -d --name my-clan \
 > 3. From then on `db:migrate` runs only *future* migrations. Fresh instances need none
 >    of this — they migrate from `0000` cleanly.
 
-## Non-Vercel hosting notes
+## Cron / scheduled refreshes
 
-The only remaining Vercel-specific piece is **cron**. `vercel.json` schedules the
-refresh routes (`/api/cron/stats`, `/api/cron/weekly`, `/api/cron/flush-notifications`).
-Off Vercel, hit those from any scheduler (system cron, the Anvil control plane,
-GitHub Actions, a Kubernetes CronJob), sending `Authorization: Bearer $CRON_SECRET`.
+Anvil has three refresh routes that must be hit on a schedule — nothing calls them
+for you:
+
+| Route | Cadence (recommended) | Does |
+| --- | --- | --- |
+| `/api/cron/stats` | every ~15 min | One Hiscores sweep: refreshes event stat tiles **and** weekly SotW/BotW values (one fetch per member). |
+| `/api/cron/weekly` | every 15 min | Weekly competition lifecycle (open/close/enrollment/rename review). Stat *values* come from the stats sweep, not here. |
+| `/api/cron/flush-notifications` | every minute | Drains queued Discord webhook posts. |
+
+Send `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is set. Any scheduler
+works — system cron, GitHub Actions, a Kubernetes CronJob, or (on Vercel) a
+`vercel.json` `crons` block. There is also a `/api/cron/backup` route for off-box
+DB snapshots if you want them.
+
+> How the hosted fleet does it (for reference — this control plane is proprietary
+> and not something you run when self-hosting): a single every-minute host cron
+> POSTs to it, and it decides per minute which clans + jobs are due
+> — stats staggered across the hour, weekly across each 15-min window, flush every
+> minute — and enqueues them on a governed worker pool. You don't need any of that
+> for one instance; a plain crontab is fine.
 
 All Discord integrations work from any host.
+
+## Joining the Anvil ecosystem (optional)
+
+Your instance is fully standalone, but you can opt into the shared network at
+`anvilosrs.com` — a **directory + identity broker** (not a data server) that lets
+members and other clans discover your instance and, optionally, connect to several
+clans with one Discord login. Your board and player data never leave your box. See
+[`ECOSYSTEM.md`](./ECOSYSTEM.md) for how to register and prove domain ownership.
