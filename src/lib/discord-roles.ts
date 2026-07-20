@@ -153,20 +153,56 @@ async function readSetting(key: string): Promise<string | null> {
 }
 
 /**
- * Resolve the bot credentials shared by every bot-driven Discord feature (role sync,
- * nickname sync, team channels). Independent of any feature's enabled flag — callers
- * gate on their own setting, then call this for the token + guild. Returns null when
- * the token env or guild ID is missing, which callers treat as "skip silently".
+ * Where the effective bot token came from — surfaced in the admin UI so a clan can see whether it's
+ * on the shared Anvil bot (managed convenience) or its own:
+ *   byo      — a token an admin entered in Advanced settings (overrides everything)
+ *   own-env  — DISCORD_BOT_TOKEN in the environment (self-host, or a BYO managed container)
+ *   shared   — ANVIL_SHARED_BOT_TOKEN, injected by the provisioner for managed clans
+ *   none     — no token anywhere; all bot features stay off
+ */
+export type BotTokenSource = 'byo' | 'own-env' | 'shared' | 'none';
+
+/**
+ * Resolve the effective bot token by precedence: an admin-entered BYO token wins, then this
+ * instance's own env token, then the shared managed bot. The BYO token lives in the settings table
+ * (deliberately kept OUT of the readable settings API — see /api/admin/discord/bot) so a clan can
+ * point at its own bot without a redeploy, mirroring how guild ID is settings-first.
+ */
+async function resolveBotToken(): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
+  const byo = (await readSetting('discord_bot_token'))?.trim();
+  if (byo) return { token: byo, source: 'byo' };
+  const own = process.env.DISCORD_BOT_TOKEN;
+  if (own) return { token: own, source: 'own-env' };
+  const shared = process.env.ANVIL_SHARED_BOT_TOKEN;
+  if (shared) return { token: shared, source: 'shared' };
+  return null;
+}
+
+/** The source of the effective bot token, for the admin UI. 'none' when nothing is configured. */
+export async function getBotTokenSource(): Promise<BotTokenSource> {
+  return (await resolveBotToken())?.source ?? 'none';
+}
+
+/** True when a shared managed bot is available to fall back to (provisioner-injected env). */
+export function isSharedBotAvailable(): boolean {
+  return !!process.env.ANVIL_SHARED_BOT_TOKEN;
+}
+
+/**
+ * Resolve the bot credentials shared by every bot-driven Discord feature (role sync, nickname sync,
+ * team channels, webhook creation, broadcast). Independent of any feature's enabled flag — callers
+ * gate on their own setting, then call this for the token + guild. Returns null when no token
+ * resolves (see resolveBotToken) or the guild ID is missing, which callers treat as "skip silently".
  *
- * Guild ID is settings-driven (not env) so admins can change/test without redeploying;
- * an env override is allowed for local dev.
+ * Guild ID is settings-driven (not env) so admins can change/test without redeploying; an env
+ * override is allowed for local dev.
  */
 export async function getBotCredentials(): Promise<{ botToken: string; guildId: string } | null> {
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!botToken) return null;
+  const resolved = await resolveBotToken();
+  if (!resolved) return null;
   const guildId = (await readSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
   if (!guildId) return null;
-  return { botToken, guildId };
+  return { botToken: resolved.token, guildId };
 }
 
 function parseJsonRecord(raw: string | null): Record<string, string> {
