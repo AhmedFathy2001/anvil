@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, tiles } from '@/db/schema';
+import { players, tiles, clanMembers } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -123,6 +123,19 @@ export async function PATCH(
         })
         .where(eq(players.id, pId));
 
+      // Clear the member's live overlay too. The freshly-fetched hiscores is now the source of
+      // truth, so any live_stats entry is superseded — and a bogus push that landed ABOVE the real
+      // hiscores (e.g. a doubled XP push) is otherwise STUCK forever: reconcileLive only prunes
+      // entries hiscores has caught up to (h >= v), never one sitting above it. Without this, the
+      // effective current stays inflated (max(hiscores, stuck overlay)) even after a re-baseline.
+      // Repopulates from the next legit plugin push within seconds.
+      if (player.clanMemberId != null) {
+        await db
+          .update(clanMembers)
+          .set({ liveStats: '{}', liveStatKeyTimes: '{}' })
+          .where(eq(clanMembers.id, player.clanMemberId));
+      }
+
       return NextResponse.json({ success: true, snapshotAt: now });
     } catch {
       return NextResponse.json({ error: 'Failed to fetch hiscores for player' }, { status: 502 });
@@ -154,6 +167,27 @@ export async function PATCH(
       .update(players)
       .set({ statsSnapshot: JSON.stringify(snapshot) })
       .where(eq(players.id, pId));
+
+    // Drop any live-overlay entry for this key too, so a stuck/bogus push for the stat being
+    // corrected can't keep the effective current inflated after the baseline is fixed by hand.
+    if (player.clanMemberId != null) {
+      const memberRow = await db.query.clanMembers.findFirst({
+        where: eq(clanMembers.id, player.clanMemberId),
+        columns: { liveStats: true },
+      });
+      if (memberRow?.liveStats) {
+        try {
+          const live = JSON.parse(memberRow.liveStats) as Record<string, number>;
+          if (live[stat] !== undefined) {
+            delete live[stat];
+            await db
+              .update(clanMembers)
+              .set({ liveStats: JSON.stringify(live) })
+              .where(eq(clanMembers.id, player.clanMemberId));
+          }
+        } catch { /* malformed overlay — nothing to prune */ }
+      }
+    }
 
     return NextResponse.json({ success: true, stat, statType, baseline });
   }
