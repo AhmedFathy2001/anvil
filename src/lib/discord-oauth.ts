@@ -24,12 +24,32 @@ function requireConfig(): { clientId: string; clientSecret: string; redirectUri:
   return { clientId, clientSecret, redirectUri };
 }
 
+// How this instance logs users in:
+//   'own'      — direct Discord OAuth with this instance's own app (self-host / BYO). Env creds present.
+//   'brokered' — via the shared Anvil broker: no app of our own; the broker authenticates the Discord
+//                identity and hands back a signed assertion we verify (managed default). Requires the
+//                provisioner-injected ANVIL_SHARED_LOGIN signal + a broker URL.
+//   'none'     — nothing configured; login can't be offered.
+// Precedence favours an own app when present (a BYO override), else the shared broker. Kept ENV-only
+// and synchronous so the start route + login page can gate on it without a DB round-trip.
+export type OAuthMode = 'own' | 'brokered' | 'none';
+
+export function getOAuthMode(): OAuthMode {
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET && process.env.DISCORD_REDIRECT_URI) {
+    return 'own';
+  }
+  if (isSharedLoginAvailable()) return 'brokered';
+  return 'none';
+}
+
+// The shared brokered login is available only on instances the provisioner marked managed
+// (ANVIL_SHARED_LOGIN) AND that know their broker — an env signal a self-host can't self-declare.
+export function isSharedLoginAvailable(): boolean {
+  return Boolean(process.env.ANVIL_SHARED_LOGIN && process.env.FEDERATION_BROKER_URL);
+}
+
 export function isDiscordOAuthConfigured(): boolean {
-  return Boolean(
-    process.env.DISCORD_CLIENT_ID &&
-    process.env.DISCORD_CLIENT_SECRET &&
-    process.env.DISCORD_REDIRECT_URI,
-  );
+  return getOAuthMode() !== 'none';
 }
 
 export function buildAuthorizeUrl(state: string): string {
