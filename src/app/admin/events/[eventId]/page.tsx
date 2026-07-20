@@ -6,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import OverviewClient from './OverviewClient';
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
 import { getTierBands } from '@/lib/pluginConfig';
+import { parseContributionSnapshot } from '@/lib/statTracking';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,15 @@ export default async function EventOverviewPage({
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const eventCompletions = tileIds.size
-    ? (await db.select().from(completions)).filter((c) => tileIds.has(c.tileId))
+    ? (await db.select().from(completions))
+        .filter((c) => tileIds.has(c.tileId))
+        .map((c) => ({
+          id: c.id,
+          teamId: c.teamId,
+          tileId: c.tileId,
+          completedAt: c.completedAt,
+          statContributions: parseContributionSnapshot(c.statContributions),
+        }))
     : [];
 
   const session = await verifyUser();

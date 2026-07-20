@@ -18,6 +18,7 @@ const TABS = [
   { slug: 'teams', label: 'Teams & Draft' },
   { slug: 'signups', label: 'Sign-ups' },
   { slug: 'stats', label: 'Stats' },
+  { slug: 'survey', label: 'Survey' },
 ] as const;
 
 export default function EventTabNav({ eventId, tilesOnly = false }: Props) {

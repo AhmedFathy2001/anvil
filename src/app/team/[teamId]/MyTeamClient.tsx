@@ -160,16 +160,18 @@ export default function MyTeamClient({
     setSelectedTileId(tileId);
   }
 
-  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
+  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) {
     const res = await fetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Submission failed');
     }
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {

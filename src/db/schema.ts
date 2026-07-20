@@ -222,6 +222,13 @@ export const completions = sqliteTable('completions', {
   // manual completions, and submission-backed tiles (the activity feed attributes those from the
   // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
   creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
+  // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
+  // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.
+  // Locks "who contributed what %" to completion time — the underlying hiscores stat keeps climbing
+  // afterwards, but a finished tile's attribution (and its display) must not drift. NULL for
+  // submission-backed / manual / non-stat completions (those already have stable per-submission
+  // amounts) and for legacy stat completions that predate this column (reads fall back to live).
+  statContributions: text('stat_contributions'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
@@ -251,6 +258,16 @@ export const players = sqliteTable('players', {
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
   // hiscores catches up. Lets boss-KC tiles complete instantly instead of waiting on hiscores lag.
   pluginStats: text('plugin_stats'),
+  // Bench / sub-out. When set, the player is frozen: the hiscores sweep stops fetching them and their
+  // stat gain is pinned to `frozenStats` (below) instead of climbing off live hiscores/plugin pushes.
+  // Their frozen gains STILL count toward team-mode tiles that complete later, and they keep showing in
+  // the member breakdown with their locked contribution — a sub-in gets a fresh baseline and stacks on
+  // top. NULL = actively tracked. Cleared on unfreeze and on progress-reset.
+  frozenAt: text('frozen_at'),
+  // Snapshot of `cachedStats` taken at the moment of freeze — the authoritative "current" for a frozen
+  // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
+  // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
+  frozenStats: text('frozen_stats'),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -748,6 +765,42 @@ export const feedback = sqliteTable('feedback', {
 }, (table) => [
   index('feedback_status_idx').on(table.status),
   index('feedback_created_at_idx').on(table.createdAt),
+]);
+
+// ── Post-event participant surveys ──────────────────────────────────────────────────────────────
+// A per-event questionnaire an admin builds (from scratch or by loading a default template) and that
+// anyone with an approved sign-up fills out once the event ends. Questions are ordered rows; each
+// response stores all its answers as one JSON blob keyed by question id. Responses are attributed to
+// the submitting user but STAFF-ONLY (never surfaced publicly). This is unrelated to the app-level
+// `feedback` bug/support table above.
+export const surveyQuestions = sqliteTable('survey_questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  // 'rating' (1–5 scale), 'text' (free response), 'single' (choose one), 'multi' (choose many).
+  type: text('type').notNull().default('text'),
+  prompt: text('prompt').notNull(),
+  // JSON string[] of choices for 'single' / 'multi'; NULL for 'rating' / 'text'.
+  options: text('options'),
+  required: integer('required', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('survey_questions_event_id_idx').on(table.eventId),
+]);
+
+export const surveyResponses = sqliteTable('survey_responses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The participant who submitted (attributed, staff-only). set null on user delete keeps the response
+  // in the aggregate counts (just detached). One row per (event, user) — enforced below.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  // { [questionId]: number | string | string[] } — one blob per submission. Keys map to
+  // survey_questions.id; answers for since-deleted questions are ignored when results are rendered.
+  answers: text('answers').notNull(),
+  submittedAt: text('submitted_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('survey_responses_event_user_unique').on(table.eventId, table.userId),
+  index('survey_responses_event_id_idx').on(table.eventId),
 ]);
 
 // ===========================================================================

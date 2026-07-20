@@ -4,6 +4,8 @@ import { completions, tiles, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, resolveTeamMembership } from '@/lib/auth';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import type { Completion } from '@/lib/types';
 
 export async function GET(
   _request: Request,
@@ -17,10 +19,18 @@ export async function GET(
   });
   const tileIds = eventTiles.map((t) => t.id);
 
-  let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let eventCompletions: Completion[] = [];
   if (tileIds.length > 0) {
-    eventCompletions = await db.select().from(completions)
+    const rows = await db.select().from(completions)
       .where(inArray(completions.tileId, tileIds));
+    eventCompletions = rows.map((c) => ({
+      id: c.id,
+      teamId: c.teamId,
+      tileId: c.tileId,
+      completedAt: c.completedAt,
+      // Parse the frozen KC/XP split so clients feed it straight into computeMemberBreakdown.
+      statContributions: parseContributionSnapshot(c.statContributions),
+    }));
   }
 
   return NextResponse.json(eventCompletions);

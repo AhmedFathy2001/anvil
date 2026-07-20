@@ -55,7 +55,9 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
     error?: string;
   } | null>(null);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
-  const [completions, setCompletions] = useState<{ teamId: number; tileId: number }[]>([]);
+  const [completions, setCompletions] = useState<
+    { teamId: number; tileId: number; statContributions?: { goal: number; total: number; split: { playerId: number; gained: number }[] } | null }[]
+  >([]);
   const [breakdownTeams, setBreakdownTeams] = useState<Set<number>>(new Set());
   const [standingsQuery, setStandingsQuery] = useState('');
 
@@ -87,7 +89,13 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
           amount: s.amount,
         })),
       );
-      setCompletions(data.completions.map((c) => ({ teamId: c.teamId, tileId: c.tileId })));
+      setCompletions(
+        data.completions.map((c) => ({
+          teamId: c.teamId,
+          tileId: c.tileId,
+          statContributions: c.statContributions ?? null,
+        })),
+      );
     }, []),
   });
 

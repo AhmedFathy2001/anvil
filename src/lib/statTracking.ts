@@ -9,6 +9,59 @@ import type { HiscoresSnapshot } from '@/lib/hiscores';
 // accepted alias for a boss the plugin ingest uses). Anything not 'skill' is treated as a boss.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Tracking mode. The tile editor's "Solo" button historically saved the string 'solo', but every
+// completion path only ever checked 'individual' — so a "solo" tile silently fell through to the
+// team-sum branch (easier than intended, and no per-finisher credit). Both spellings now mean the
+// same thing here; new writes normalize to 'individual', and the 0027 data migration flips old rows.
+export function isIndividualMode(trackingMode: string | null | undefined): boolean {
+  return trackingMode === 'individual' || trackingMode === 'solo';
+}
+
+// A single member's frozen contribution to a completed stat tile (their XP/KC gain at completion).
+export interface StatContribution {
+  playerId: number;
+  gained: number;
+}
+
+// The frozen "who got what" snapshot stored on completions.statContributions for stat tiles. `goal`
+// and `total` are snapshotted too so the display ("512 / 500") stays stable even if the tile's
+// statGoal is edited later. `split` holds only positive contributors, sorted biggest-first.
+export interface StatContributionSnapshot {
+  goal: number;
+  total: number;
+  split: StatContribution[];
+}
+
+// Build the frozen split from each team member's gain at the moment the tile completed. Drops
+// zero/negative contributors and sorts descending so the top contributor reads first.
+export function buildContributionSnapshot(
+  goal: number,
+  rows: { playerId: number; gained: number }[],
+): StatContributionSnapshot {
+  const split = rows
+    .filter((r) => r.gained > 0)
+    .map((r) => ({ playerId: r.playerId, gained: r.gained }))
+    .sort((a, b) => b.gained - a.gained);
+  const total = split.reduce((sum, r) => sum + r.gained, 0);
+  return { goal, total, split };
+}
+
+// Parse a stored completions.statContributions blob. Returns null on null/malformed/legacy shape so
+// callers fall back to the live gain for that (older) completion.
+export function parseContributionSnapshot(
+  json: string | null | undefined,
+): StatContributionSnapshot | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as StatContributionSnapshot;
+    if (!parsed || !Array.isArray(parsed.split)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 /** Read one hiscores key's raw value out of a parsed snapshot. Missing / unranked → 0. */
 export function snapshotValue(
   snap: HiscoresSnapshot | null | undefined,

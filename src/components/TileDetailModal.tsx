@@ -77,7 +77,7 @@ interface Props {
   canSubmit: boolean;
   canManage: boolean;
   canToggle: boolean;
-  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) => Promise<void>;
+  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) => Promise<void>;
   onDelete?: (submissionId: number, reason: string) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
@@ -125,6 +125,9 @@ export default function TileDetailModal({
   // Loot-value tile: haul value entered as gp (accepts 5m / 500k / raw).
   const [valueGp, setValueGp] = useState('');
   const [creditPlayerId, setCreditPlayerId] = useState<string>(currentPlayerId ? String(currentPlayerId) : '');
+  // Which item in the set a collection submission is for. Required by the API for per-item tiles, so
+  // without a picker the submission was rejected 400 and silently dropped.
+  const [itemId, setItemId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -178,6 +181,20 @@ export default function TileDetailModal({
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   const perUnitProof = isDrop;
+  // Collection tile = a drop tile with per-item requirements. Its submissions must name WHICH item in
+  // the set (itemId), so the count form gets an item picker and handleSubmit requires a selection.
+  const itemReqs: { itemId: number; name: string }[] = (() => {
+    if (!tile.itemRequirements) return [];
+    try {
+      const parsed = JSON.parse(tile.itemRequirements);
+      return Array.isArray(parsed)
+        ? parsed.filter((r) => r && typeof r.itemId === 'number').map((r) => ({ itemId: r.itemId, name: r.name ?? `Item ${r.itemId}` }))
+        : [];
+    } catch {
+      return [];
+    }
+  })();
+  const isCollection = isDrop && itemReqs.length > 0;
   const isStatTile = !!tile.trackedStat;
   const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
@@ -260,6 +277,13 @@ export default function TileDetailModal({
       return;
     }
 
+    // Collection tiles track each item in the set separately, so a submission must say which one.
+    if (isCollection && !itemId) {
+      setError('Please choose which item in the set this is for');
+      return;
+    }
+    const submittedItemId = isCollection ? parseInt(itemId, 10) : undefined;
+
     setError('');
     setSubmitting(true);
     try {
@@ -273,6 +297,7 @@ export default function TileDetailModal({
           imageUrl: validImages[0],
           note,
           creditPlayerId: parseInt(creditPlayerId, 10),
+          itemId: submittedItemId,
         });
       } else {
         // Multiple images = multiple submissions
@@ -284,6 +309,7 @@ export default function TileDetailModal({
             imageUrl: url,
             note,
             creditPlayerId: parseInt(creditPlayerId, 10),
+            itemId: submittedItemId,
           });
         }
       }
@@ -291,6 +317,11 @@ export default function TileDetailModal({
       setImageUrls(['']);
       setNote('');
       setCreditPlayerId('');
+      setItemId('');
+    } catch (err) {
+      // Surface a rejected submission instead of silently clearing the form (the old behaviour made a
+      // 400 look like success — the collection-tile "submitted but not recorded" bug).
+      setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -364,6 +395,8 @@ export default function TileDetailModal({
       setValueGp('');
       setImageUrls(['']);
       setNote('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -820,6 +853,21 @@ export default function TileDetailModal({
                 <p className="text-xs text-yellow-400">
                   {remaining} more {countNoun}{remaining !== 1 ? 's' : ''} needed to complete this tile
                 </p>
+              )}
+
+              {/* Collection tiles: which item in the set this submission counts toward (required). */}
+              {isCollection && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Which item in the set? *</label>
+                  <Select
+                    value={itemId}
+                    onChange={setItemId}
+                    required
+                    placeholder="Select the item..."
+                    ariaLabel="Which item in the set"
+                    options={itemReqs.map((it) => ({ value: String(it.itemId), label: it.name }))}
+                  />
+                </div>
               )}
 
               {/* Who got this drop/kill */}

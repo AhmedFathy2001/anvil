@@ -7,6 +7,8 @@ import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import MyTeamClient from './MyTeamClient';
 import DraftBoardClient from '@/app/captain/[teamId]/DraftBoardClient';
 import { getTierBands } from '@/lib/pluginConfig';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,8 +75,16 @@ export default async function MyTeamPage({
   ]);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
-  const teamCompletions = tileIds.size
-    ? (await db.select().from(completions).where(eq(completions.teamId, tId))).filter((c) => tileIds.has(c.tileId))
+  const teamCompletions: Completion[] = tileIds.size
+    ? (await db.select().from(completions).where(eq(completions.teamId, tId)))
+        .filter((c) => tileIds.has(c.tileId))
+        .map((c) => ({
+          id: c.id,
+          teamId: c.teamId,
+          tileId: c.tileId,
+          completedAt: c.completedAt,
+          statContributions: parseContributionSnapshot(c.statContributions),
+        }))
     : [];
 
   const myPlayer = membership.playerId ? eventPlayers.find((p) => p.id === membership.playerId) : null;

@@ -244,7 +244,7 @@ export async function PATCH(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { playerId, name, discord, timezone, teamId, clanMemberId } = await request.json();
+  const { playerId, name, discord, timezone, teamId, clanMemberId, frozen } = await request.json();
 
   if (!playerId) {
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
@@ -273,6 +273,8 @@ export async function PATCH(
     cachedStats?: string | null;
     lastStatsFetch?: string | null;
     pluginStats?: string | null;
+    frozenAt?: string | null;
+    frozenStats?: string | null;
   } = {};
 
   if (name !== undefined) {
@@ -327,6 +329,20 @@ export async function PATCH(
       if (ownerUserId != null && member.userId == null) {
         await db.update(clanMembers).set({ userId: ownerUserId }).where(eq(clanMembers.id, cmId));
       }
+    }
+  }
+
+  // Bench / sub-out toggle. Freezing pins the player's stat gain to a snapshot of their current stats
+  // (frozenStats) and the hiscores sweep stops re-fetching them; their locked gain still counts toward
+  // team-mode tiles and their contribution split stays put. Unfreezing clears both and resumes live
+  // tracking on the next tick (baseline is untouched, so gains pick up from real current − baseline).
+  if (frozen !== undefined) {
+    if (frozen) {
+      updateData.frozenAt = new Date().toISOString();
+      updateData.frozenStats = player.cachedStats; // latest known current; null if never fetched (gain 0)
+    } else {
+      updateData.frozenAt = null;
+      updateData.frozenStats = null;
     }
   }
 

@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions } from '@/db/schema';
-import { and, eq, isNull, inArray } from 'drizzle-orm';
+import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
@@ -11,6 +11,8 @@ import PrizePoolHero from '@/components/PrizePoolHero';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { getStatStandings } from '@/lib/statStandings';
+import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
+import { isEventEnded } from '@/lib/survey';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,10 +34,26 @@ export default async function EventScoreboardPage({
   const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
-  let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let eventCompletions: {
+    id: number;
+    teamId: number;
+    tileId: number;
+    completedAt: string;
+    statContributions: StatContributionSnapshot | null;
+  }[] = [];
   if (tileIds.length > 0) {
+    const tileIdSet = new Set(tileIds);
     const allCompletions = await db.select().from(completions);
-    eventCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
+    eventCompletions = allCompletions
+      .filter((c) => tileIdSet.has(c.tileId))
+      .map((c) => ({
+        id: c.id,
+        teamId: c.teamId,
+        tileId: c.tileId,
+        completedAt: c.completedAt,
+        // Parse the frozen KC/XP split once here so the breakdown uses it for completed stat tiles.
+        statContributions: parseContributionSnapshot(c.statContributions),
+      }));
   }
 
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
@@ -160,6 +178,22 @@ export default async function EventScoreboardPage({
   const tilesHidden = !event.tilesRevealed;
   const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
 
+  // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
+  // exists and they haven't responded yet. Cheap guarded queries (only when they're eligible).
+  let showSurveyCta = false;
+  if (session && mySignup?.status === 'approved' && isEventEnded(event)) {
+    const [{ c: qCount }] = await db
+      .select({ c: count() })
+      .from(surveyQuestions)
+      .where(eq(surveyQuestions.eventId, id));
+    if (qCount > 0) {
+      const resp = await db.query.surveyResponses.findFirst({
+        where: and(eq(surveyResponses.eventId, id), eq(surveyResponses.userId, session.userId)),
+      });
+      showSurveyCta = !resp;
+    }
+  }
+
   const approvedCount = await countApprovedSignups(id);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
@@ -185,6 +219,20 @@ export default async function EventScoreboardPage({
         windowReason={window.reason}
         signupFee={event.signupFee}
       />
+      {showSurveyCta && (
+        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="font-semibold text-gold">This event has ended — how did it go?</p>
+            <p className="text-sm text-text-muted">Take a moment to share your feedback with the hosts.</p>
+          </div>
+          <Link
+            href={`/events/${id}/survey`}
+            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+          >
+            Fill out the survey →
+          </Link>
+        </div>
+      )}
       {hideBoardFromPlayer ? (
         window.reason === 'not_open_yet' ? (
           <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">

@@ -21,6 +21,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -276,7 +277,7 @@ export async function GET(request: Request) {
 
     let gainedTotal = 0;
     const activeWorkers: string[] = [];
-    const sources = trackingMode === 'individual'
+    const sources = isIndividualMode(trackingMode)
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
 

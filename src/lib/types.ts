@@ -1,6 +1,7 @@
 // Canonical shared types used across client components
 
 import type { SignupProfile } from '@/lib/signup';
+import type { StatContributionSnapshot } from '@/lib/statTracking';
 
 export interface Event {
   id: number;
@@ -86,6 +87,9 @@ export interface Player {
   snapshotAt?: string | null;
   cachedStats?: string | null;
   lastStatsFetch?: string | null;
+  // Bench / sub-out marker (players.frozenAt). Non-null = the player is frozen: their stat gain is
+  // pinned at the sub moment and still counts toward team tiles, but the sweep no longer tracks them.
+  frozenAt?: string | null;
   // Frozen sign-up answers for this player's chosen RSN, joined in at read time on the
   // draft surfaces (null when the player has no linked sign-up). See lib/draftProfiles.
   profile?: SignupProfile | null;
@@ -96,6 +100,10 @@ export interface Completion {
   teamId: number;
   tileId: number;
   completedAt: string;
+  // Frozen per-member KC/XP split for a completed STAT tile (see completions.statContributions). Fed
+  // to computeMemberBreakdown so a finished tile's "who got what %" stops drifting. Absent/null for
+  // submission-backed / manual tiles and legacy stat completions (breakdown falls back to live gains).
+  statContributions?: StatContributionSnapshot | null;
 }
 
 export interface Submission {

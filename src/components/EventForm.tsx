@@ -17,6 +17,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [name, setName] = useState(suggestedName);
   const [mode, setMode] = useState<Mode>('classic');
   const [size, setSize] = useState(5);
+  // Multi-account enrollment (per event). maxAccounts=1 keeps classic one-account-per-person and
+  // hides the mode selectors (they're moot at 1). All of a person's accounts land on ONE team.
+  const [maxAccounts, setMaxAccounts] = useState(1);
+  const [accountSlotMode, setAccountSlotMode] = useState<'per-person' | 'per-account'>('per-person');
+  const [feeMode, setFeeMode] = useState<'per-person' | 'per-account'>('per-person');
   const [activePreset, setActivePreset] = useState<string | null>(null);
   // Starter tile labels carried by a chosen preset (blank until picked). Merged into the
   // create payload so the board arrives pre-seeded.
@@ -78,6 +83,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           boardSize: size,
           format: meta.format,
           scoringMode: meta.scoringMode,
+          maxAccountsPerPerson: maxAccounts,
+          accountSlotMode,
+          feeMode,
           ...(presetCsv ? { tileLabels: presetCsv.labels } : presetLabels ? { tileLabels: presetLabels } : {}),
         }),
       });
@@ -211,6 +219,53 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           </span>
         </div>
       </div>
+
+      {/* Accounts per person — multi-account enrollment (all of a person's accounts on one team). */}
+      <div>
+        <label className="block text-sm font-medium text-foreground/70 mb-1.5">Accounts per person</label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            value={maxAccounts}
+            onChange={(e) => setMaxAccounts(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+            min={1}
+            max={10}
+            className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+          />
+          <span className="text-sm text-text-muted">
+            {maxAccounts <= 1
+              ? 'One account each (classic).'
+              : `Each person may enter up to ${maxAccounts} of their accounts — all on the same team.`}
+          </span>
+        </div>
+      </div>
+
+      {maxAccounts > 1 && (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground/70 mb-1.5">Team-size &amp; MVP counting</label>
+            <select
+              value={accountSlotMode}
+              onChange={(e) => setAccountSlotMode(e.target.value as 'per-person' | 'per-account')}
+              className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+            >
+              <option value="per-person">Per person — N accounts = 1 slot; MVP aggregates the person</option>
+              <option value="per-account">Per account — N accounts = N slots; MVP lists each account</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground/70 mb-1.5">Sign-up fee</label>
+            <select
+              value={feeMode}
+              onChange={(e) => setFeeMode(e.target.value as 'per-person' | 'per-account')}
+              className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+            >
+              <option value="per-person">Per person — one fee</option>
+              <option value="per-account">Per account — a fee per entered account</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <button

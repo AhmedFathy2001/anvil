@@ -31,6 +31,8 @@ export async function GET(
   const safeRaw = rawPlayers.map((row) => {
     const rest = { ...row };
     delete (rest as { playerToken?: unknown }).playerToken;
+    // The frozen-stats blob is a server-only snapshot for gain math; clients only need `frozenAt`.
+    delete (rest as { frozenStats?: unknown }).frozenStats;
     return rest;
   });
   // Surface each player's frozen sign-up answers so captains read them while drafting.
