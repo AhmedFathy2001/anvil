@@ -35,7 +35,9 @@ export default async function TeamBoardPage({
   // routes to your own team feel identical. Other teams (and staff/guests) stay on the view board.
   const myMembership = await resolveTeamMembership(eId, tId);
   if (myMembership && (myMembership.isCaptain || myMembership.playerId != null)) {
-    redirect(`/team/${tId}`);
+    // Carry the origin so My Team's back link returns to the scoreboard (this route), not the My
+    // Teams hub — reaching your own team here should feel like it did on the general board.
+    redirect(`/team/${tId}?from=scoreboard`);
   }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));

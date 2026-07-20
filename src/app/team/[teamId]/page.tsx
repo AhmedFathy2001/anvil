@@ -14,10 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function MyTeamPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ teamId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { teamId } = await params;
+  const { from } = await searchParams;
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
@@ -27,6 +30,11 @@ export default async function MyTeamPage({
   if (!team) notFound();
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) notFound();
+
+  // Origin-aware back link: reaching your own team via the scoreboard redirects here (see the view-
+  // board page), so honour where you came from — back to the scoreboard, not the My Teams hub.
+  const backHref = from === 'scoreboard' ? `/events/${event.id}` : '/team';
+  const backLabel = from === 'scoreboard' ? 'Back to scoreboard' : 'My teams';
 
   // Discord-session membership is the single auth gate — captain and/or player on this team.
   const membership = await resolveTeamMembership(event.id, tId);
@@ -41,8 +49,8 @@ export default async function MyTeamPage({
     return (
       <div>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
-            &larr; My teams
+          <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+            &larr; {backLabel}
           </Link>
           {membership.isCaptain && (
             <Link
@@ -92,8 +100,8 @@ export default async function MyTeamPage({
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
-          &larr; My teams
+        <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+          &larr; {backLabel}
         </Link>
         {membership.isCaptain && !eventStarted && (
           <Link
