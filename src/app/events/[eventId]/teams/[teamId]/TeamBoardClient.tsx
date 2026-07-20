@@ -272,9 +272,17 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                 {teamPlayers.map((player) => (
                   <span
                     key={player.id}
-                    className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-card-bg"
+                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 ${player.frozenAt ? 'bg-card-bg/50 text-text-muted' : 'bg-card-bg'}`}
                   >
-                    {player.name}
+                    <span className={player.frozenAt ? 'line-through' : ''}>{player.name}</span>
+                    {player.frozenAt && (
+                      <span
+                        className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px"
+                        title="Subbed out — no longer active on this team"
+                      >
+                        Subbed out
+                      </span>
+                    )}
                   </span>
                 ))}
               </div>

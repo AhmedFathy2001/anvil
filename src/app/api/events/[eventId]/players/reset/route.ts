@@ -21,7 +21,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { playerId, remove } = await request.json();
+  // `remove` also drops them off the roster (back to the pool). `subOut` keeps them on the team
+  // but benched (frozenAt set) so they still show as "subbed out" — a point-clearing sub-out, vs the
+  // default freeze which keeps points. `remove` and `subOut` are mutually exclusive; remove wins.
+  const { playerId, remove, subOut } = await request.json();
   const pId = parseInt(String(playerId), 10);
   if (!Number.isFinite(pId)) {
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
@@ -87,8 +90,10 @@ export async function POST(
     }
   }
 
-  // 4. Wipe their own stat state (baseline + current + freeze), so post-reset they contribute nothing
-  //    until re-baselined. If removing, also unassign from the team.
+  // 4. Wipe their own stat state (baseline + current). If removing, also unassign from the team.
+  //    Freeze state: a `subOut` clears points but keeps them benched (frozenAt set) so they still
+  //    show as subbed out; otherwise clear the freeze so a plain reset leaves them active-but-zeroed.
+  const benched = !!subOut && !remove;
   await db
     .update(players)
     .set({
@@ -97,7 +102,7 @@ export async function POST(
       cachedStats: null,
       lastStatsFetch: null,
       pluginStats: null,
-      frozenAt: null,
+      frozenAt: benched ? new Date().toISOString() : null,
       frozenStats: null,
       ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),
     })
@@ -109,5 +114,6 @@ export async function POST(
     removedCompletions,
     strippedFromSplits,
     removed: !!remove,
+    benched,
   });
 }

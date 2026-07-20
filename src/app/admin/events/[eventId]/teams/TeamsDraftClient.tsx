@@ -49,6 +49,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [assigningPlayerId, setAssigningPlayerId] = useState<number | null>(null);
   // Shared "action in flight" marker for the sub-out / reset controls, plus a one-line result toast.
   const [busyPlayerId, setBusyPlayerId] = useState<number | null>(null);
+  // When set, this player's row is showing the "Sub out" keep-points / clear-points choice.
+  const [subChoiceId, setSubChoiceId] = useState<number | null>(null);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [addToTeamId, setAddToTeamId] = useState<number | null>(null);
   const [nameToAdd, setNameToAdd] = useState('');
@@ -321,23 +323,30 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   // Reset one player's participation: un-completes their solo tiles, voids their submissions, and strips
   // their share from team-tile splits (the team's completed tiles stay completed). `remove` also drops
-  // them off the roster. Irreversible — confirm first.
-  async function resetPlayer(playerId: number, playerName: string, remove: boolean) {
-    const action = remove ? 'remove and reset' : 'reset';
+  // them off the roster; `subOut` keeps them on the team but benched (so they show as subbed out) while
+  // clearing their points. Irreversible — confirm first.
+  async function resetPlayer(
+    playerId: number,
+    playerName: string,
+    remove: boolean,
+    subOut = false,
+  ) {
+    const verb = remove ? 'Remove' : subOut ? 'Sub out & clear points for' : 'Reset';
     if (!window.confirm(
-      `${remove ? 'Remove' : 'Reset'} ${playerName}? This will ${action} their progress: solo tiles they finished reopen, their submissions are voided, and their share is stripped from team tiles (the team keeps its completed tiles). This cannot be undone.`,
+      `${verb} ${playerName}? Their solo tiles reopen, their submissions are voided, and their share is stripped from team tiles (the team keeps its completed tiles)${subOut ? ', and they stay benched as subbed out' : ''}. This cannot be undone.`,
     )) return;
     setBusyPlayerId(playerId);
+    setSubChoiceId(null);
     try {
       const res = await fetch(`/api/events/${event.id}/players/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId, remove }),
+        body: JSON.stringify({ playerId, remove, subOut }),
       });
       if (res.ok) {
         const d = await res.json();
         setResetNotice(
-          `Reset ${playerName}: ${d.removedCompletions} tile(s) reopened, ${d.voidedSubmissions} submission(s) voided, ${d.strippedFromSplits} team split(s) updated${d.removed ? ', removed from team' : ''}.`,
+          `${subOut ? 'Subbed out' : 'Reset'} ${playerName}: ${d.removedCompletions} tile(s) reopened, ${d.voidedSubmissions} submission(s) voided, ${d.strippedFromSplits} team split(s) updated${d.removed ? ', removed from team' : d.benched ? ', kept benched' : ''}.`,
         );
       }
       await fetchDraft();
@@ -1105,37 +1114,69 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                   {frozen && (
                                     <span
                                       className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
-                                      title="Subbed out — stat gains frozen at the sub moment; still count toward team tiles"
+                                      title="Subbed out — no longer active; stat gains frozen at the sub moment (kept-points subs still count toward team tiles, cleared-points subs contribute 0)"
                                     >
-                                      Benched
+                                      Subbed out
                                     </span>
                                   )}
                                 </span>
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    onClick={() => toggleFrozen(p.id, !frozen)}
-                                    disabled={busy}
-                                    title={frozen ? 'Resume live tracking for this player' : 'Freeze this player’s progress at the current moment (keeps counting, stops climbing)'}
-                                    className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
-                                  >
-                                    {busy ? '…' : frozen ? 'Sub in' : 'Sub out'}
-                                  </button>
-                                  <button
-                                    onClick={() => resetPlayer(p.id, p.name, false)}
-                                    disabled={busy}
-                                    title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share). The team keeps its completed tiles."
-                                    className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
-                                  >
-                                    Reset
-                                  </button>
-                                  <button
-                                    onClick={() => removeFromTeam(p.id)}
-                                    disabled={removingPlayerId === p.id || busy}
-                                    title="Move back to the pool, keeping their contributions intact"
-                                    className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
-                                  >
-                                    {removingPlayerId === p.id ? '…' : 'Remove'}
-                                  </button>
+                                  {subChoiceId === p.id ? (
+                                    <>
+                                      <span className="text-[10px] text-text-muted mr-0.5">Sub out:</span>
+                                      <button
+                                        onClick={() => { setSubChoiceId(null); toggleFrozen(p.id, true); }}
+                                        disabled={busy}
+                                        title="Bench this player but KEEP their points — their frozen contribution still counts toward team tiles."
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        {busy ? '…' : 'Keep pts'}
+                                      </button>
+                                      <button
+                                        onClick={() => resetPlayer(p.id, p.name, false, true)}
+                                        disabled={busy}
+                                        title="Bench this player AND clear their points (reopens their solo tiles, voids submissions, strips their team-tile share). They still show as subbed out."
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        Clear pts
+                                      </button>
+                                      <button
+                                        onClick={() => setSubChoiceId(null)}
+                                        disabled={busy}
+                                        title="Cancel"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => (frozen ? toggleFrozen(p.id, false) : setSubChoiceId(p.id))}
+                                        disabled={busy}
+                                        title={frozen ? 'Resume live tracking for this player' : 'Sub this player out — choose whether to keep or clear their points'}
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        {busy ? '…' : frozen ? 'Sub in' : 'Sub out'}
+                                      </button>
+                                      <button
+                                        onClick={() => resetPlayer(p.id, p.name, false)}
+                                        disabled={busy}
+                                        title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share) but keep them active. The team keeps its completed tiles."
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        Reset
+                                      </button>
+                                      <button
+                                        onClick={() => removeFromTeam(p.id)}
+                                        disabled={removingPlayerId === p.id || busy}
+                                        title="Move back to the pool, keeping their contributions intact"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        {removingPlayerId === p.id ? '…' : 'Remove'}
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             );
