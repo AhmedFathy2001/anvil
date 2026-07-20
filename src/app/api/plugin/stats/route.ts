@@ -23,9 +23,11 @@ import { notifyTileCompletion } from '@/lib/discord';
 const MAX_KC = 1_000_000;
 const MAX_XP = 200_000_000;
 
-// How long a per-key "rose just now" stamp is retained. Well past the 5-min "Active now" window so
-// slight clock skew is tolerated, then dropped to keep the map small.
-const KEY_TIME_TTL_MS = 30 * 60_000;
+// How long a per-key "rose just now" stamp is retained. Must outlast the stats sweep's stale-overlay
+// window (~6h, the OSRS logout backstop) so that check can tell a still-active grind from a stuck push;
+// "Active now" reads its own 5-min window and is unaffected by the longer retention. 7h > 6.5h sweep
+// threshold so a legit entry's stamp is still present when the sweep decides whether to keep it.
+const KEY_TIME_TTL_MS = 7 * 60 * 60_000;
 
 export async function POST(request: Request) {
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member

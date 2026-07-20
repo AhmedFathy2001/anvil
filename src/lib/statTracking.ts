@@ -191,3 +191,28 @@ export function reconcileLive(
     Object.entries(pruned).some(([k, v]) => liveMap[k] !== v);
   return { pruned, changed };
 }
+
+// OSRS force-logs-out at ~6 hours, so hiscores MUST reflect a player's real XP/KC within that window.
+// reconcileLive only drops overlay entries hiscores has caught up to (h >= v) — an entry sitting ABOVE
+// hiscores (a bogus/doubled push) is never pruned and stays stuck forever. This is the backstop: any
+// overlay key not refreshed (its value last rose) within maxAgeMs is provably stale — a real session
+// would have flushed to hiscores by now — so drop it and fall back to hiscores. `keyTimes` maps key ->
+// last-rose ISO (stamped by the plugin ingest on every increase); a missing stamp counts as stale, which
+// also heals legacy stuck overlays written before per-key stamping. Legit in-flight gains are unaffected:
+// a plateaued legit value is caught by reconcileLive (h >= v) within a sweep or two, long before 6h.
+export function pruneStaleOverlay(
+  liveMap: Record<string, number>,
+  keyTimes: Record<string, string> | null | undefined,
+  nowMs: number,
+  maxAgeMs: number,
+): { pruned: Record<string, number>; changed: boolean } {
+  const pruned: Record<string, number> = {};
+  for (const [k, v] of Object.entries(liveMap)) {
+    const iso = keyTimes?.[k];
+    const at = iso ? Date.parse(iso) : NaN;
+    // Keep only entries with a recent (< maxAge) stamp; missing/old stamp → stale, drop it.
+    if (Number.isFinite(at) && nowMs - at < maxAgeMs) pruned[k] = v;
+  }
+  const changed = Object.keys(liveMap).length !== Object.keys(pruned).length;
+  return { pruned, changed };
+}

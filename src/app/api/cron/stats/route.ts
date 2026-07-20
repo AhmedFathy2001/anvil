@@ -17,7 +17,14 @@ import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+
+// A live-overlay entry not refreshed within this window is stale: OSRS force-logs-out at ~6h, so
+// hiscores must reflect real XP/KC by then. Anything the overlay still holds above hiscores past this
+// is a bogus/doubled push — drop it and trust hiscores. Slightly over 6h so a full-length session's
+// last push isn't clipped early.
+const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { normalizeRsn } from '@/lib/auth';
@@ -93,6 +100,7 @@ interface MemberWork {
   clanMemberId: number | null;
   fetchRsn: string;
   liveMap: Record<string, number>;
+  liveKeyTimes: Record<string, string>; // key -> last-rose ISO, for the stale-overlay prune
   bingo: BingoTask[];
   weekly: WeeklyTask[];
   staleKey: string; // oldest task timestamp — drives oldest-first ordering
@@ -138,7 +146,7 @@ export async function GET(request: Request) {
     const key = keyFor(clanMemberId, provisionalRsn);
     let entry = work.get(key);
     if (!entry) {
-      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
+      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, liveKeyTimes: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
       work.set(key, entry);
     }
     if (clanMemberId != null) clanMemberIds.add(clanMemberId);
@@ -234,7 +242,7 @@ export async function GET(request: Request) {
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
     const members = await db
-      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats })
+      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats, liveStatKeyTimes: clanMembers.liveStatKeyTimes })
       .from(clanMembers)
       .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
     const memberById = new Map(members.map((m) => [m.id, m]));
@@ -244,6 +252,7 @@ export async function GET(request: Request) {
       if (m) {
         entry.fetchRsn = m.rsn;
         entry.liveMap = parsePluginStats(m.liveStats);
+        entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
       }
     }
   }
@@ -293,12 +302,15 @@ export async function GET(request: Request) {
       // (still-ahead) map is BOTH what we persist and the live overlay for this tick's gains.
       let liveMap = entry.liveMap;
       if (entry.clanMemberId != null) {
-        const { pruned, changed } = reconcileLive(entry.liveMap, snapshot);
-        liveMap = pruned;
-        if (changed) {
+        // 1) Drop keys hiscores has caught up to (h >= v). 2) Drop keys not refreshed within ~6h —
+        // the OSRS-logout backstop that heals a bogus push stuck ABOVE hiscores (which step 1 can't).
+        const rec = reconcileLive(entry.liveMap, snapshot);
+        const stale = pruneStaleOverlay(rec.pruned, entry.liveKeyTimes, Date.parse(ts), STALE_OVERLAY_MS);
+        liveMap = stale.pruned;
+        if (rec.changed || stale.changed) {
           await db
             .update(clanMembers)
-            .set({ liveStats: Object.keys(pruned).length ? JSON.stringify(pruned) : null })
+            .set({ liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null })
             .where(eq(clanMembers.id, entry.clanMemberId));
         }
       }
