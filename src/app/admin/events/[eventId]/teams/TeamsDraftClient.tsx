@@ -1080,6 +1080,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <div className="grid gap-3 sm:grid-cols-2">
                 {draftTeams.map((team) => {
                   const roster = draft.players.filter((p) => p.teamId === team.id);
+                  // Count active roster only — subbed-out (frozen) players are still listed but no
+                  // longer playing, so they shouldn't inflate the headcount.
+                  const activeCount = roster.filter((p) => !p.frozenAt).length;
+                  const subbedOutCount = roster.length - activeCount;
                   return (
                     <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
                       <div className="flex items-center gap-2 mb-2">
@@ -1098,7 +1102,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         >
                           Captain / page
                         </Link>
-                        <span className="text-xs text-text-muted ml-auto shrink-0">{roster.length} player{roster.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-text-muted ml-auto shrink-0">
+                          {activeCount} player{activeCount !== 1 ? 's' : ''}
+                          {subbedOutCount > 0 && <span className="text-amber-300/70"> · {subbedOutCount} subbed out</span>}
+                        </span>
                       </div>
                       <div className="space-y-1 mb-2">
                         {roster.length === 0 ? (
