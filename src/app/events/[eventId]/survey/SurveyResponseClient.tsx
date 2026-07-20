@@ -113,7 +113,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
                 onChange={(e) => setAnswer(q.id, e.target.value)}
                 rows={3}
                 placeholder="Your answer"
-                className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-sm focus:border-gold outline-none resize-y"
+                className="w-full bg-brown-dark border border-card-border rounded px-3 py-2 text-sm text-foreground placeholder:text-text-muted/60 focus:outline-none focus:border-gold transition-colors resize-y"
               />
             )}
 
@@ -121,7 +121,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
               <div className="space-y-1.5">
                 {q.options.map((opt) => (
                   <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="radio" name={`q-${q.id}`} checked={val === opt} onChange={() => setAnswer(q.id, opt)} />
+                    <input type="radio" name={`q-${q.id}`} checked={val === opt} onChange={() => setAnswer(q.id, opt)} className="h-4 w-4 accent-gold" />
                     {opt}
                   </label>
                 ))}
@@ -136,6 +136,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
                       type="checkbox"
                       checked={Array.isArray(val) && val.includes(opt)}
                       onChange={() => toggleMulti(q.id, opt)}
+                      className="h-4 w-4 accent-gold"
                     />
                     {opt}
                   </label>

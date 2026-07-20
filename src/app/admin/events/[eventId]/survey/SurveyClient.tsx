@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
+import Input from '@/components/Input';
+import Select from '@/components/Select';
 import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult } from '@/lib/survey';
 
 interface TemplateMeta {
@@ -176,11 +178,11 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
             <div key={q.key} className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
               <div className="flex items-start gap-2">
                 <span className="text-xs text-text-muted mt-2 w-5 shrink-0">{i + 1}.</span>
-                <input
+                <Input
                   value={q.prompt}
                   onChange={(e) => update(q.key, { prompt: e.target.value })}
                   placeholder="Question prompt"
-                  className="flex-1 bg-background border border-card-border rounded-lg px-3 py-2 text-sm focus:border-gold outline-none"
+                  className="flex-1"
                 />
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => move(q.key, -1)} disabled={i === 0} className="text-text-muted hover:text-foreground disabled:opacity-30 px-1" title="Move up">↑</button>
@@ -190,17 +192,15 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
               </div>
 
               <div className="flex flex-wrap items-center gap-3 pl-7">
-                <select
+                <Select
                   value={q.type}
-                  onChange={(e) => changeType(q.key, e.target.value as SurveyQuestionType)}
-                  className="bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs focus:border-gold outline-none"
-                >
-                  {SURVEY_QUESTION_TYPES.map((t) => (
-                    <option key={t} value={t}>{TYPE_LABELS[t]}</option>
-                  ))}
-                </select>
+                  onChange={(v) => changeType(q.key, v as SurveyQuestionType)}
+                  options={SURVEY_QUESTION_TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] }))}
+                  ariaLabel="Question type"
+                  className="w-40"
+                />
                 <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
-                  <input type="checkbox" checked={q.required} onChange={(e) => update(q.key, { required: e.target.checked })} />
+                  <input type="checkbox" checked={q.required} onChange={(e) => update(q.key, { required: e.target.checked })} className="h-4 w-4 accent-gold" />
                   Required
                 </label>
               </div>
@@ -209,11 +209,11 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
                 <div className="pl-7 space-y-1.5">
                   {q.options.map((opt, oi) => (
                     <div key={oi} className="flex items-center gap-2">
-                      <input
+                      <Input
                         value={opt}
                         onChange={(e) => update(q.key, { options: q.options.map((o, k) => (k === oi ? e.target.value : o)) })}
                         placeholder={`Option ${oi + 1}`}
-                        className="flex-1 bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs focus:border-gold outline-none"
+                        className="flex-1 px-2 py-1.5 text-xs"
                       />
                       <button
                         onClick={() => update(q.key, { options: q.options.filter((_, k) => k !== oi) })}
