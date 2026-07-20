@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
+import Select, { type SelectOption } from '@/components/Select';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 
@@ -68,23 +69,18 @@ export default function WebhookField({
     })();
   }, [settingKey]);
 
-  // Group channels by owning category for the picker's <optgroup>s. `channels` arrives pre-sorted
-  // (category, then position) from listBotChannels().
-  const groups = useMemo(() => {
-    const out: { name: string; channels: BroadcastChannel[] }[] = [];
-    const idx = new Map<string, number>();
-    for (const c of channels) {
-      const key = c.parentName ?? 'Uncategorized';
-      let i = idx.get(key);
-      if (i === undefined) {
-        i = out.length;
-        idx.set(key, i);
-        out.push({ name: key, channels: [] });
-      }
-      out[i].channels.push(c);
-    }
-    return out;
-  }, [channels]);
+  // Flat option list for the themed Select (no native <optgroup>). `channels` arrives pre-sorted
+  // (category, then position) from listBotChannels(), so same-category channels stay grouped, and the
+  // category rides along as a search keyword for the Select's filter box.
+  const channelOptions = useMemo<SelectOption[]>(
+    () =>
+      channels.map((c) => ({
+        value: c.id,
+        label: `#${c.name}`,
+        keywords: c.parentName ? [c.parentName] : undefined,
+      })),
+    [channels],
+  );
 
   // Check the bot's Manage Webhooks permission for the picked channel, live, so we can flag a
   // channel the bot can't create in before the admin clicks — and skip the doomed attempt.
@@ -255,22 +251,14 @@ export default function WebhookField({
         <div className="rounded-lg border border-card-border bg-bg/40 p-3 space-y-2">
           <p className="text-xs font-medium">Create with the bot</p>
           <div className="flex flex-wrap gap-2">
-            <select
+            <Select
               value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
-              className="min-w-[12rem] flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold/60"
-            >
-              <option value="">Select a channel…</option>
-              {groups.map((g) => (
-                <optgroup key={g.name} label={g.name}>
-                  {g.channels.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      #{c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              onChange={setChannelId}
+              options={channelOptions}
+              placeholder="Select a channel…"
+              ariaLabel="Channel for the webhook"
+              className="flex-1 min-w-[12rem]"
+            />
             <Input
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}

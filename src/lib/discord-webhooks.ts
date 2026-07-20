@@ -11,7 +11,24 @@
  * includes its `token`, which we bake into the standard webhook URL. GET returns the token too,
  * but only for bot-owned webhooks — which is exactly what find-or-reuse looks at.
  */
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { discordRest } from '@/lib/discord-roles';
+
+// Give a newly-created webhook the site's own favicon as its avatar, so its posts show the clan's
+// branding. Read once from public/ (the instance's own icon — self-hosters get theirs) and cached as
+// a data URI. If it can't be read the webhook is still created, just without a custom avatar.
+let cachedAvatar: string | null | undefined; // undefined = not tried yet
+async function siteAvatarDataUri(): Promise<string | null> {
+  if (cachedAvatar !== undefined) return cachedAvatar;
+  try {
+    const bytes = await readFile(join(process.cwd(), 'public', 'icon-192.png'));
+    cachedAvatar = `data:image/png;base64,${bytes.toString('base64')}`;
+  } catch {
+    cachedAvatar = null;
+  }
+  return cachedAvatar;
+}
 
 // Default name for Anvil-created webhooks. A stable name lets find-or-reuse detect and reuse an
 // existing one instead of spawning a duplicate on every click (Discord caps 15 webhooks/channel).
@@ -73,9 +90,10 @@ export async function createChannelWebhook(
   channelId: string,
   name: string,
 ): Promise<CreatedWebhook> {
+  const avatar = await siteAvatarDataUri();
   const res = await discordRest(botToken, `/channels/${channelId}/webhooks`, {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(avatar ? { name, avatar } : { name }),
   });
   if (!res.ok) throw new Error(await describeWebhookError(res));
   const wh = (await res.json()) as RawWebhook;
