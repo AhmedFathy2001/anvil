@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { clanMembers, events, players, teams } from '@/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
@@ -35,8 +35,18 @@ export async function GET(
     delete (rest as { frozenStats?: unknown }).frozenStats;
     return rest;
   });
+  // Owner (userId) per player so a multi-account pool can group a person's accounts into one card and
+  // the draft board can show they draft together (guests have no owner → their own single entry).
+  const memberIds = [...new Set(safeRaw.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
+  const ownerRows = memberIds.length
+    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    : [];
+  const ownerByMember = new Map(ownerRows.map((r) => [r.id, r.userId]));
   // Surface each player's frozen sign-up answers so captains read them while drafting.
-  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id));
+  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id)).map((p) => ({
+    ...p,
+    ownerUserId: p.clanMemberId != null ? ownerByMember.get(p.clanMemberId) ?? null : null,
+  }));
 
   const eventTeams = await db
     .select({
