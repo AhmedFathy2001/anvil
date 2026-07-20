@@ -1,6 +1,6 @@
 'use client';
 
-import type { Event, Tile, Team, Completion, Submission, Player } from '@/lib/types';
+import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
+  const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
 
   const teamPlayers = players.filter((p) => p.teamId === team.id);
 
@@ -33,6 +34,31 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
     if (res.ok) setSubmissions(await res.json());
   }, [event.id, team.id]);
+
+  // Stat-tile (skill XP / boss KC) progress per tile → the modal's "Player Progress" panel. Mirrors
+  // TeamBoardClient; without it the admin board's stat tiles read "No stat progress data available".
+  const fetchGains = useCallback(async () => {
+    const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const gainsMap: Record<number, PlayerGain[]> = {};
+    for (const tile of tiles) {
+      if (!tile.trackedStat) continue;
+      gainsMap[tile.id] = [];
+      for (const p of teamPlayers) {
+        const playerData = data.find((d: { playerId: number }) => d.playerId === p.id);
+        if (playerData) {
+          gainsMap[tile.id].push({
+            playerId: p.id,
+            playerName: p.name,
+            gained: playerData.gains?.[tile.trackedStat] ?? 0,
+            current: playerData.current?.[tile.trackedStat] ?? 0,
+          });
+        }
+      }
+    }
+    setGains(gainsMap);
+  }, [event.id, team.id, tiles, teamPlayers]);
 
   const fetchCompletions = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/completions`);
@@ -42,7 +68,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     }
   }, [event.id, team.id]);
 
-  useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
+  useEffect(() => { fetchSubmissions(); fetchGains(); }, [fetchSubmissions, fetchGains]);
 
   function handleTileClick(tileId: number) {
     setSelectedTileId(tileId);
@@ -151,6 +177,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           teamId={team.id}
           dropProgress={dropProgress.get(selectedTile.id)}
           perItemProgress={perItemProgressMap.get(selectedTile.id)}
+          statProgress={gains[selectedTile.id]}
           teamPlayers={teamPlayers.map((p) => ({ id: p.id, name: p.name }))}
           pointsMode={pointsMode}
         />
