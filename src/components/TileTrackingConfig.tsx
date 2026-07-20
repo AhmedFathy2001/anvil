@@ -1417,6 +1417,32 @@ export default function TileTrackingConfig({
               a specific item pulled from an opened PK loot key (use a Loot value tile for &ldquo;any key worth X&rdquo;).
             </p>
           </div>
+
+          {/* Raid party-size gate — only appears once a raid is named as a source, since party
+              size is only knowable inside a raid instance. Rides timeThresholdSeconds on the wire
+              (drop tiles carry no time cap). "solo Cursed phalanx" = 1. */}
+          {sourcesIncludeRaid(sourceNpcsText) && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Party size <span className="text-text-muted/60">(optional — blank = any size)</span>
+              </label>
+              <Input
+                type="number"
+                value={dropPartySize}
+                onChange={(e) => setDropPartySize(e.target.value)}
+                placeholder="any"
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                min="1"
+                max="100"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Require exactly this many players in the raid — <span className="text-foreground/70">1 = solo</span>{' '}
+                (e.g. a solo Cursed phalanx from ToA — invocation is Jagex&rsquo;s guarantee, so the tile only
+                gates party size). The plugin reads the raid&rsquo;s party size from the game, so a split team
+                still counts correctly. Blank = any size.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -2087,7 +2113,7 @@ export default function TileTrackingConfig({
               />
               <p className="text-[10px] text-text-muted mt-0.5">
                 Require exactly this many players in the raid (e.g. 5 for a 5-man ToB speedrun). The plugin
-                counts the distinct players it sees inside the instance.
+                reads the raid&rsquo;s party size from the game, so a split team still counts correctly.
               </p>
             </div>
           )}
@@ -2140,8 +2166,8 @@ export default function TileTrackingConfig({
               max="100"
             />
             <p className="text-[10px] text-text-muted mt-0.5">
-              Require exactly this many players in the raid (e.g. 5 for a 5-man ToB). The plugin counts
-              the distinct players it sees inside the instance.
+              Require exactly this many players in the raid (e.g. 5 for a 5-man ToB). The plugin reads
+              the raid&rsquo;s party size from the game, so a split team still counts correctly.
             </p>
           </div>
         </div>
