@@ -1,7 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
@@ -28,7 +28,9 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
 
-  const teamPlayers = players.filter((p) => p.teamId === team.id);
+  // Memoized so fetchGains' identity is stable — otherwise a fresh array each render re-runs the
+  // gains effect on every render → setGains → re-render loop (which also stole focus from modals).
+  const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
   const fetchSubmissions = useCallback(async () => {
     const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
