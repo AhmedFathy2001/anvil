@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
+import EventCountdown from '@/components/EventCountdown';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -215,6 +216,11 @@ export default async function EventScoreboardPage({
         signupFee={event.signupFee}
         addedPrizePool={event.addedPrizePool}
         approvedCount={approvedCount}
+      />
+      <EventCountdown
+        startDate={event.startDate}
+        endDate={event.endDate}
+        forceEndedAt={event.forceEndedAt}
       />
       <SignupBanner
         eventId={event.id}
