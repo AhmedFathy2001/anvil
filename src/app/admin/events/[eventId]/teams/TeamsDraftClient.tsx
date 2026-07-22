@@ -12,6 +12,7 @@ import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
+import AutoEnrollPanel from '@/components/AutoEnrollPanel';
 import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
@@ -703,6 +704,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               teamOrder={draft.teamOrder}
             />
           </div>
+        )}
+
+        {activeStep === 1 && draft.status === 'none' && (
+          <AutoEnrollPanel
+            eventId={event.id}
+            canCreateTeams={draft.status === 'none'}
+            draftInProgress={isDraftInProgress}
+            onEnrolled={async () => {
+              await fetchDraft();
+              router.refresh();
+            }}
+          />
         )}
 
         {activeStep === 1 && draft.status === 'none' && !signupsOpen && (

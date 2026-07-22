@@ -1,93 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, events, teams, eventSignups } from '@/db/schema';
+import { clanMembers, players, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyAdminOrModerator, generatePlayerToken } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';
-
-interface MemberInput {
-  clanMemberId: number;
-  name: string;
-  discord: string | null;
-  timezone: string | null;
-}
-
-// Create a player row for each member that doesn't have one yet. A member who ALREADY has a row
-// that's unassigned (sitting in the draft pool) is ASSIGNED to the team when a team is given,
-// instead of getting a duplicate row — this is what lets an admin put an already-enrolled/guest
-// pool player onto a team after the draft. Members already on a team are left as-is.
-async function upsertPlayers(
-  eventId: number,
-  members: MemberInput[],
-  assignTeamId: number | null,
-): Promise<(typeof players.$inferSelect)[]> {
-  const memberIds = members.map((m) => m.clanMemberId);
-  const existing = memberIds.length
-    ? await db.select().from(players).where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, memberIds)))
-    : [];
-  const byMember = new Map<number, typeof players.$inferSelect>();
-  for (const p of existing) if (p.clanMemberId != null) byMember.set(p.clanMemberId, p);
-
-  const pickedAt = assignTeamId != null ? new Date().toISOString() : null;
-  const results: (typeof players.$inferSelect)[] = [];
-  const toInsert: (typeof players.$inferInsert)[] = [];
-
-  for (const m of members) {
-    const row = byMember.get(m.clanMemberId);
-    if (row) {
-      if (assignTeamId != null && row.teamId == null) {
-        const [updated] = await db
-          .update(players)
-          .set({ teamId: assignTeamId, pickedAt })
-          .where(eq(players.id, row.id))
-          .returning();
-        results.push(updated);
-      } else {
-        results.push(row); // already in the pool, or already on a team — no duplicate
-      }
-    } else {
-      toInsert.push({
-        eventId,
-        clanMemberId: m.clanMemberId,
-        name: m.name,
-        discord: m.discord,
-        timezone: m.timezone,
-        playerToken: generatePlayerToken(),
-        teamId: assignTeamId,
-        pickedAt,
-      });
-    }
-  }
-  if (toInsert.length > 0) {
-    results.push(...(await db.insert(players).values(toInsert).returning()));
-  }
-  return results;
-}
-
-// Keep sign-ups and the pool consistent: adding someone as a player records an approved sign-up.
-// Linked members attach to their users row; an unlinked in-game member gets a GUEST sign-up
-// (userId null). An existing sign-up (any status) is left untouched so an admin's manual status
-// decisions aren't silently overridden.
-async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
-  if (clanMemberIds.length === 0) return;
-  const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, clanMemberIds));
-  for (const m of members) {
-    // Dedup: linked → by (event, user); guest → by (event, clan member).
-    const existing = await db.query.eventSignups.findFirst({
-      where:
-        m.userId != null
-          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.userId))
-          : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
-    });
-    if (existing) continue;
-    await db
-      .insert(eventSignups)
-      .values({ eventId, userId: m.userId ?? null, clanMemberId: m.id, status: 'approved', profileData: '{}' })
-      .catch(() => {}); // unique (event,user) race — ignore
-  }
-}
+import { upsertPlayers, backfillApprovedSignups, type MemberInput } from '@/lib/enroll';
 
 export async function GET(
   _request: Request,
