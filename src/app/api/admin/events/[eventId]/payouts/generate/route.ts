@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, payouts, players } from '@/db/schema';
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { verifyFeeCollector } from '@/lib/auth';
 import { getTeamStandings } from '@/lib/statStandings';
 import { buildPayoutPlan, suggestPlaceAmounts, getEventPrizePool, type PlanTeam } from '@/lib/payouts';
@@ -32,7 +32,11 @@ export async function POST(
     paidPlaces?: number;
     placeAmounts?: number[];
     totalPool?: number;
+    includeSubbed?: boolean;
   } | null;
+  // Subbed-out (benched/frozen) players are excluded from the split by default — they didn't finish
+  // the event on the team, so their share redistributes to the active members. Opt in to include them.
+  const includeSubbed = body?.includeSubbed === true;
 
   const standings = await getTeamStandings(id, event.scoringMode);
   const explicitAmounts =
@@ -55,14 +59,16 @@ export async function POST(
       : pool.total;
   const placeAmounts = explicitAmounts ?? suggestPlaceAmounts(totalPool, paidPlaces);
 
-  // Members (players with a linked account) for each paid team, in roster order.
+  // Members (players with a linked account) for each paid team, in roster order. Frozen/subbed-out
+  // players are filtered out unless includeSubbed is set.
   const teamIds = topTeams.map((t) => t.teamId);
-  const teamPlayers = teamIds.length
-    ? await db
-        .select()
-        .from(players)
-        .where(and(eq(players.eventId, id), inArray(players.teamId, teamIds), isNotNull(players.clanMemberId)))
-    : [];
+  const memberFilters = [
+    eq(players.eventId, id),
+    inArray(players.teamId, teamIds),
+    isNotNull(players.clanMemberId),
+    ...(includeSubbed ? [] : [isNull(players.frozenAt)]),
+  ];
+  const teamPlayers = teamIds.length ? await db.select().from(players).where(and(...memberFilters)) : [];
   const membersByTeam = new Map<number, { clanMemberId: number; rsn: string }[]>();
   for (const p of teamPlayers) {
     if (p.clanMemberId == null) continue;

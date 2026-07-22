@@ -77,6 +77,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const [paidPlaces, setPaidPlaces] = useState(3);
   const [poolBasis, setPoolBasis] = useState('');
   const [placeAmounts, setPlaceAmounts] = useState<string[]>([]);
+  const [includeSubbed, setIncludeSubbed] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const [newRsn, setNewRsn] = useState('');
@@ -130,7 +131,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       const res = await fetch(`/api/admin/events/${eventId}/payouts/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paidPlaces, placeAmounts: amounts }),
+        body: JSON.stringify({ paidPlaces, placeAmounts: amounts, includeSubbed }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -291,6 +292,16 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                 <span className="text-text-muted">(pool is {pool.total.toLocaleString()} gp)</span>
               )}
             </div>
+
+            <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-text-muted">
+              <input
+                type="checkbox"
+                checked={includeSubbed}
+                onChange={(e) => setIncludeSubbed(e.target.checked)}
+                className="accent-gold"
+              />
+              Include subbed-out (benched) players in the split
+            </label>
 
             <button
               onClick={generate}
