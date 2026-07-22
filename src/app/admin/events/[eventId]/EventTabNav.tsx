@@ -18,6 +18,7 @@ const TABS = [
   { slug: 'teams', label: 'Teams & Draft' },
   { slug: 'signups', label: 'Sign-ups' },
   { slug: 'stats', label: 'Stats' },
+  { slug: 'payouts', label: 'Payouts' },
   { slug: 'survey', label: 'Survey' },
 ] as const;
 
