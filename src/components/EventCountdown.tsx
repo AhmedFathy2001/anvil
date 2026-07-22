@@ -19,15 +19,16 @@ function parts(ms: number) {
   };
 }
 
-// Prominent, ticking countdown that appears ONLY in the final-day window: less than 24h until an
-// upcoming event starts, or until an active event ends (the `imminent` flag in eventTimeState).
-// Outside that window — days out, ended, or force-ended — it renders nothing, and the compact status
-// pill in the board header carries the timing instead. Rendered above the board so it still shows
-// when the board itself is hidden (sign-ups not open / tiles not revealed).
+// Prominent, ticking countdown to an upcoming event's start or an active event's end. Always shown
+// while there's a future target (days out included — a `Days` box appears past 24h). Click it to
+// reveal the exact date/time. Renders nothing once the event has ended or been force-ended. Rendered
+// above the board so it still shows when the board itself is hidden (sign-ups not open / tiles not
+// revealed).
 export default function EventCountdown({ startDate, endDate, forceEndedAt }: Props) {
   // Null until mounted so the server render (which has no stable "now") and the first client render
   // agree — the timer is client-only, avoiding a hydration mismatch on the live seconds.
   const [now, setNow] = useState<number | null>(null);
+  const [showExact, setShowExact] = useState(false);
   useEffect(() => {
     const tick = () => setNow(Date.now());
     tick();
@@ -38,7 +39,7 @@ export default function EventCountdown({ startDate, endDate, forceEndedAt }: Pro
   if (now === null) return null;
 
   const state = eventTimeState({ startDate, endDate, forceEndedAt, now });
-  if (!state.imminent || state.target === null) return null;
+  if (state.target === null) return null;
   if (state.phase !== 'upcoming' && state.phase !== 'active') return null;
 
   const remaining = state.target - now;
@@ -61,7 +62,12 @@ export default function EventCountdown({ startDate, endDate, forceEndedAt }: Pro
   const dot = starting ? 'bg-blue-400' : 'bg-gold';
 
   return (
-    <div className={`mb-6 rounded-xl border ${ring} p-5 text-center`}>
+    <button
+      type="button"
+      onClick={() => setShowExact((v) => !v)}
+      title="Click to show the exact time"
+      className={`mb-6 block w-full cursor-pointer rounded-xl border ${ring} p-5 text-center transition-colors`}
+    >
       <div className={`mb-3 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-widest ${accent}`}>
         <span className={`h-1.5 w-1.5 rounded-full ${dot} animate-pulse`} />
         {label}
@@ -76,7 +82,9 @@ export default function EventCountdown({ startDate, endDate, forceEndedAt }: Pro
           </div>
         ))}
       </div>
-      <div className="mt-3 text-xs text-text-muted">{formatExactTime(state.target)}</div>
-    </div>
+      <div className="mt-3 text-xs text-text-muted">
+        {showExact ? formatExactTime(state.target) : 'Click to show the exact time'}
+      </div>
+    </button>
   );
 }
