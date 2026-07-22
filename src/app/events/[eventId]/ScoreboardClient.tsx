@@ -6,8 +6,7 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { eventTimeState, formatCountdown, formatExactTime } from '@/lib/eventTime';
-import { formatNumber, tileWeight, isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { Tile as FullTile } from '@/lib/types';
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
@@ -84,15 +83,6 @@ interface Props {
   teamMvps?: Record<number, TeamMvp | null>;
 }
 
-type TimeTone = 'starts' | 'ends' | 'ended';
-interface TimeInfo {
-  tone: TimeTone;
-  /** Primary status line (live countdown when imminent, else exact time). */
-  text: string;
-  /** Exact time kept visible while counting down; null when text is already exact. */
-  exact: string | null;
-}
-
 interface TeamGains {
   teamId: number;
   totalGained: number;
@@ -103,7 +93,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [timeInfo, setTimeInfo] = useState<TimeInfo | null>(null);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
@@ -113,50 +102,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const selectedTileCompletions = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
-
-  // Shows the exact start/end time, switching to a live countdown within 24h.
-  useEffect(() => {
-    const updateTime = () => {
-      const now = Date.now();
-      const state = eventTimeState({
-        startDate: event.startDate,
-        endDate: event.endDate,
-        forceEndedAt: event.forceEndedAt,
-        now,
-      });
-
-      if (state.phase === 'force-ended') {
-        setTimeInfo({ tone: 'ended', text: 'Event force-ended', exact: null });
-        return;
-      }
-      if (state.phase === 'ended') {
-        setTimeInfo({ tone: 'ended', text: 'Event ended', exact: null });
-        return;
-      }
-      if (state.target === null) {
-        setTimeInfo(null);
-        return;
-      }
-
-      const exact = formatExactTime(state.target);
-      if (state.phase === 'upcoming') {
-        // Always count down to the start (days/hours/mins), with the exact time underneath — an
-        // upcoming bingo should show how long until kickoff, not just a static date.
-        setTimeInfo({ tone: 'starts', text: `Starts in ${formatCountdown(state.target - now)}`, exact });
-        return;
-      }
-      // active
-      setTimeInfo(
-        state.imminent
-          ? { tone: 'ends', text: `Ends in ${formatCountdown(state.target - now)}`, exact }
-          : { tone: 'ends', text: `Ends ${exact}`, exact: null },
-      );
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, [event.startDate, event.endDate, event.forceEndedAt]);
 
   useEffect(() => {
     fetch(`/api/events/${event.id}/submissions`)
@@ -250,7 +195,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     });
   }
 
-  const totalCompleted = completions.length;
   const draftActive = event.draftStatus === 'active' || event.draftStatus === 'paused';
 
   // Board filters — by text search, content category, and difficulty tier (derived from points).
@@ -277,56 +221,28 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1 break-words">{event.name}</h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text-muted">
-          <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
-            {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
-          </span>
-          {pointsMode && (
-            <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">
-              {totalWeight} pts on the board
-            </span>
-          )}
-          <span>{teams.length} team{teams.length !== 1 ? 's' : ''}</span>
-          <span>{totalCompleted} tile{totalCompleted !== 1 ? 's' : ''} completed</span>
-        </div>
-
+      {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
+          the board-level controls. */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         {draftActive && (
           <Link
             href={`/events/${event.id}/draft`}
-            className="inline-flex items-center gap-2 mt-3 text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/25 px-3 py-1.5 rounded-lg hover:bg-accent-green/25 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/25 px-3 py-1.5 rounded-lg hover:bg-accent-green/25 transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-accent-green-light animate-pulse" />
             Draft in Progress — Watch Live
           </Link>
         )}
-
-        {/* Time display and view controls */}
-        <div className="flex flex-wrap items-center gap-3 mt-4">
-          {timeInfo && (
-            <span className={`text-sm font-medium px-3 py-1.5 rounded-lg ${
-              timeInfo.tone === 'starts'
-                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25'
-                : timeInfo.tone === 'ends'
-                ? 'bg-accent-green/15 text-accent-green-light border border-accent-green/25'
-                : 'bg-red-500/15 text-red-400 border border-red-500/25'
-            }`}>
-              {timeInfo.text}
-              {timeInfo.exact && <span className="opacity-60 font-normal"> · {timeInfo.exact}</span>}
-            </span>
-          )}
-          <button
-            onClick={() => setFullscreen(!fullscreen)}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-              fullscreen
-                ? 'bg-gold/20 border-gold text-gold'
-                : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
-            }`}
-          >
-            {fullscreen ? 'Show Standings' : 'Fullscreen Board'}
-          </button>
-        </div>
+        <button
+          onClick={() => setFullscreen(!fullscreen)}
+          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+            fullscreen
+              ? 'bg-gold/20 border-gold text-gold'
+              : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
+          }`}
+        >
+          {fullscreen ? 'Show Standings' : 'Fullscreen Board'}
+        </button>
       </div>
 
       {(mvpToday || mvp) && (

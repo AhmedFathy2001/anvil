@@ -7,8 +7,8 @@ import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
-import PrizePoolHero from '@/components/PrizePoolHero';
-import EventCountdown from '@/components/EventCountdown';
+import EventHero from '@/components/EventHero';
+import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -209,18 +209,48 @@ export default async function EventScoreboardPage({
     approvedCount,
   });
 
+  // Hero props. Shape/points badge, and a board-momentum bar = unique required tiles cleared by
+  // anyone / total required. Progress is withheld until the event has started and the board is
+  // visible so it never leaks a hidden board's state.
+  const pointsMode = isPointsMode(event.scoringMode);
+  const requiredTiles = eventTiles.filter((t) => !t.optional);
+  const pointsOnBoard = pointsMode
+    ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
+    : null;
+  const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
+  const tilesCleared = new Set(
+    eventCompletions.filter((c) => requiredTileIds.has(c.tileId)).map((c) => c.tileId),
+  ).size;
+  // Pass progress whenever the board is visible; the hero itself only renders it once the event is
+  // underway (it knows the phase client-side), so we don't need the current time here.
+  const heroProgress =
+    !hideBoardFromPlayer && requiredTiles.length > 0
+      ? { cleared: tilesCleared, total: requiredTiles.length }
+      : null;
+
+  const prizeBreakdownParts: string[] = [];
+  if ((event.signupFee ?? 0) > 0) {
+    prizeBreakdownParts.push(
+      `${approvedCount} ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
+    );
+  }
+  if ((event.addedPrizePool ?? 0) > 0) {
+    prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
+  }
+
   return (
     <>
-      <PrizePoolHero
+      <EventHero
+        name={event.name}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
+        pointsOnBoard={pointsOnBoard}
+        teamsCount={safeTeams.length}
         prizePool={prizePool}
-        signupFee={event.signupFee}
-        addedPrizePool={event.addedPrizePool}
-        approvedCount={approvedCount}
-      />
-      <EventCountdown
+        prizeBreakdown={prizeBreakdownParts.length ? prizeBreakdownParts.join('  +  ') : null}
         startDate={event.startDate}
         endDate={event.endDate}
         forceEndedAt={event.forceEndedAt}
+        progress={heroProgress}
       />
       <SignupBanner
         eventId={event.id}
