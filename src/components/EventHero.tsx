@@ -13,9 +13,8 @@ interface Props {
   startDate?: string | null;
   endDate?: string | null;
   forceEndedAt?: string | null;
-  // Board momentum: unique required tiles cleared by anyone, out of the total. Null when the board
-  // is hidden or the event hasn't started (nothing to show yet).
-  progress: { cleared: number; total: number } | null;
+  // Prize per placement (gp by place, index 0 = 1st), shown as the reward breakdown. Empty = not set.
+  placementPrizes: number[];
 }
 
 function countParts(ms: number) {
@@ -28,6 +27,18 @@ function countParts(ms: number) {
   };
 }
 
+// Compact gp for the prize chips: 275,000,000 → "275M", 1,200,000,000 → "1.2B".
+function compactGp(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(n % 1e9 === 0 ? 0 : 1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return String(n);
+}
+
+function medal(place: number): string {
+  return place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `#${place}`;
+}
+
 const STATUS: Record<EventPhase, { label: string; dot: string; text: string }> = {
   active: { label: 'Live', dot: 'bg-accent-green-light', text: 'text-accent-green-light' },
   upcoming: { label: 'Upcoming', dot: 'bg-blue-400', text: 'text-blue-400' },
@@ -37,8 +48,8 @@ const STATUS: Record<EventPhase, { label: string; dot: string; text: string }> =
 };
 
 // The event page's hero: one cohesive header that merges identity (title + status + shape), the prize
-// pool (the reward), and a live countdown (the urgency) — with a board-progress bar underneath for a
-// sense of momentum. Forge-glow styling ties it to the Anvil brand.
+// pool (the reward), a live countdown (the urgency), and the prize-per-placement breakdown. Forge-glow
+// styling ties it to the Anvil brand.
 export default function EventHero({
   name,
   shapeBadge,
@@ -49,7 +60,7 @@ export default function EventHero({
   startDate,
   endDate,
   forceEndedAt,
-  progress,
+  placementPrizes,
 }: Props) {
   // Client-only clock — null until mounted so SSR and first render agree (no hydration mismatch).
   const [now, setNow] = useState<number | null>(null);
@@ -64,10 +75,7 @@ export default function EventHero({
   const phase = state?.phase ?? 'none';
   const status = STATUS[phase];
   const hasPrize = prizePool > 0;
-  // Momentum only reads as momentum once the event is underway — hide it before the start.
-  const started = phase === 'active' || phase === 'ended' || phase === 'force-ended';
-  const showProgress = started && progress !== null && progress.total > 0;
-  const pct = showProgress ? Math.min(100, Math.round((progress!.cleared / progress!.total) * 100)) : 0;
+  const prizes = placementPrizes.filter((p) => p > 0);
 
   return (
     <div className="relative mb-6 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">
@@ -94,7 +102,6 @@ export default function EventHero({
             </span>
           )}
           <span>{teamsCount} team{teamsCount !== 1 ? 's' : ''}</span>
-          {showProgress && <span>{progress!.cleared} of {progress!.total} tiles cleared</span>}
         </div>
 
         {/* The two focal points — reward and urgency. */}
@@ -115,18 +122,22 @@ export default function EventHero({
           </div>
         </div>
 
-        {/* Momentum */}
-        {showProgress && (
-          <div className="mt-6">
-            <div className="mb-1.5 flex items-center justify-between text-xs">
-              <span className="text-text-muted">Board cleared</span>
-              <span className="font-semibold text-gold tabular-nums">{pct}%</span>
+        {/* Prizes on the line — the reward per placement. */}
+        {prizes.length > 0 && (
+          <div className="mt-6 border-t border-card-border pt-4">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-gold/60">
+              Prizes on the line
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-black/30">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#c8962c] to-[#ffe9a8] transition-[width] duration-500"
-                style={{ width: `${pct}%` }}
-              />
+            <div className="flex flex-wrap gap-2">
+              {prizes.map((amt, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gold/20 bg-gold/5 px-3 py-1.5 text-sm"
+                >
+                  <span aria-hidden>{medal(i + 1)}</span>
+                  <span className="font-semibold text-gold tabular-nums">{compactGp(amt)}</span>
+                </span>
+              ))}
             </div>
           </div>
         )}

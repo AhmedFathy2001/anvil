@@ -7,6 +7,7 @@ import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -209,24 +210,13 @@ export default async function EventScoreboardPage({
     approvedCount,
   });
 
-  // Hero props. Shape/points badge, and a board-momentum bar = unique required tiles cleared by
-  // anyone / total required. Progress is withheld until the event has started and the board is
-  // visible so it never leaks a hidden board's state.
+  // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
   const pointsMode = isPointsMode(event.scoringMode);
   const requiredTiles = eventTiles.filter((t) => !t.optional);
   const pointsOnBoard = pointsMode
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;
-  const requiredTileIds = new Set(requiredTiles.map((t) => t.id));
-  const tilesCleared = new Set(
-    eventCompletions.filter((c) => requiredTileIds.has(c.tileId)).map((c) => c.tileId),
-  ).size;
-  // Pass progress whenever the board is visible; the hero itself only renders it once the event is
-  // underway (it knows the phase client-side), so we don't need the current time here.
-  const heroProgress =
-    !hideBoardFromPlayer && requiredTiles.length > 0
-      ? { cleared: tilesCleared, total: requiredTiles.length }
-      : null;
+  const placementPrizes = parsePlacementPrizes(event.placementPrizes);
 
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
@@ -250,7 +240,7 @@ export default async function EventScoreboardPage({
         startDate={event.startDate}
         endDate={event.endDate}
         forceEndedAt={event.forceEndedAt}
-        progress={heroProgress}
+        placementPrizes={placementPrizes}
       />
       <SignupBanner
         eventId={event.id}
