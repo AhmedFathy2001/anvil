@@ -778,6 +778,48 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
   return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
 }
 
+interface PayoutNotifyParams {
+  eventId: number;
+  eventName: string;
+  // Total gp actually paid out (sum of paid rows).
+  totalPaid: number;
+  // Paid recipients, grouped for display. `place` orders them (1 = winner); `amount` is gp.
+  recipients: { rsn: string; teamName: string | null; place: number | null; amount: number }[];
+}
+
+// Announce the prize payouts to the bingo channel once the winners have been paid. Fired
+// automatically when the last pending payout is marked paid, and re-runnable from the admin
+// "Announce" button. Mirrors notifyEventEnd's medal styling.
+export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean> {
+  const { eventId, eventName, totalPaid, recipients } = params;
+
+  // Order by place (nulls/manual last), then by amount desc within a place.
+  const ordered = [...recipients].sort(
+    (a, b) => (a.place ?? 99) - (b.place ?? 99) || b.amount - a.amount,
+  );
+  const lines = ordered.map((r) => {
+    const medal = r.place === 1 ? '🥇' : r.place === 2 ? '🥈' : r.place === 3 ? '🥉' : '•';
+    const team = r.teamName ? ` _(${r.teamName})_` : '';
+    return `${medal} **${r.rsn}**${team} — ${r.amount.toLocaleString()} gp`;
+  });
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Total paid out', value: `${totalPaid.toLocaleString()} gp`, inline: true },
+    { name: 'Winners', value: lines.join('\n') || 'No payouts', inline: false },
+  ];
+  pushLeaderboardField(fields, eventId);
+
+  const embed: DiscordEmbed = {
+    title: '💰 Prizes Paid Out!',
+    description: `Congratulations to the winners of **${eventName}**! Prizes have been sent.\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xffd700, // Gold
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+}
+
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
 
 function weeklyKind(type: string): string {
