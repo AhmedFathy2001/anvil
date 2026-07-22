@@ -225,6 +225,13 @@
       "when": 1784695684201,
       "tag": "0031_glamorous_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1784748209976,
+      "tag": "0032_graceful_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

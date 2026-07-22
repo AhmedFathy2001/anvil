@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { events, payouts, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
-import { getEventPrizePool } from '@/lib/payouts';
+import { getEventPrizePool, parsePlacementPrizes } from '@/lib/payouts';
 import { getTeamStandings } from '@/lib/statStandings';
 
 // Order payouts for display: by finishing place (manual/null-place rows last), then amount desc.
@@ -42,6 +42,7 @@ export async function GET(
     standings,
     announcedAt: event.payoutsAnnouncedAt,
     allPaid,
+    placementPrizes: parsePlacementPrizes(event.placementPrizes),
   });
 }
 

@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { events, payouts } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { events, payouts, players } from '@/db/schema';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { getTeamStandings } from '@/lib/statStandings';
 import { notifyPayout } from '@/lib/discord';
 
 // Suggested percentage split of the pool by number of paid places. First place is weighted heaviest;
@@ -143,4 +144,117 @@ export async function pendingPayoutCount(eventId: number): Promise<number> {
     .from(payouts)
     .where(and(eq(payouts.eventId, eventId), eq(payouts.status, 'pending')));
   return rows.length;
+}
+
+// ─── Prize-per-placement structure + generation ───────────────────────────────────────────────
+
+// Parse events.placementPrizes (JSON array of gp amounts by place) into a clean number[].
+export function parsePlacementPrizes(json: string | null | undefined): number[] {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((n) => (typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0));
+  } catch {
+    return [];
+  }
+}
+
+// Persist the prize-per-placement structure on the event, independent of generating payout rows.
+export async function savePlacementPrizes(eventId: number, placeAmounts: number[]): Promise<number[]> {
+  const clean = placeAmounts.map((n) => Math.max(0, Math.round(Number(n) || 0)));
+  await db.update(events).set({ placementPrizes: JSON.stringify(clean) }).where(eq(events.id, eventId));
+  return clean;
+}
+
+// Core payout generation. (Re)builds per-player payout rows for the top `placeAmounts.length` teams,
+// splitting each place's reward equally across that team's members (frozen/subbed-out excluded unless
+// includeSubbed). Existing PAID rows are preserved; stale pending auto-rows are pruned. Returns the
+// resulting rows sorted for display.
+export async function generatePayouts(
+  eventId: number,
+  opts: { placeAmounts: number[]; includeSubbed?: boolean },
+): Promise<(typeof payouts.$inferSelect)[]> {
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return [];
+
+  const standings = await getTeamStandings(eventId, event.scoringMode);
+  const paidPlaces = Math.min(Math.max(1, opts.placeAmounts.length), standings.length || 1);
+  const placeAmounts = opts.placeAmounts.slice(0, paidPlaces).map((n) => Math.max(0, Math.round(n)));
+  const topTeams = standings.slice(0, paidPlaces);
+
+  const teamIds = topTeams.map((t) => t.teamId);
+  const memberFilters = [
+    eq(players.eventId, eventId),
+    inArray(players.teamId, teamIds),
+    isNotNull(players.clanMemberId),
+    ...(opts.includeSubbed ? [] : [isNull(players.frozenAt)]),
+  ];
+  const teamPlayers = teamIds.length ? await db.select().from(players).where(and(...memberFilters)) : [];
+  const membersByTeam = new Map<number, { clanMemberId: number; rsn: string }[]>();
+  for (const p of teamPlayers) {
+    if (p.clanMemberId == null || p.teamId == null) continue;
+    const list = membersByTeam.get(p.teamId) ?? [];
+    list.push({ clanMemberId: p.clanMemberId, rsn: p.name });
+    membersByTeam.set(p.teamId, list);
+  }
+
+  const places: PlanTeam[] = topTeams.map((t) => ({
+    teamId: t.teamId,
+    teamName: t.name,
+    members: membersByTeam.get(t.teamId) ?? [],
+  }));
+  const plan = buildPayoutPlan({ places, placeAmounts });
+  const planMemberIds = new Set(plan.map((r) => r.clanMemberId));
+
+  const existing = await db.select().from(payouts).where(eq(payouts.eventId, eventId));
+  const existingByMember = new Map(
+    existing.filter((r) => r.clanMemberId != null).map((r) => [r.clanMemberId as number, r]),
+  );
+
+  // Prune stale pending auto-rows (a team that dropped out of the paid places). Paid + manual rows stay.
+  for (const r of existing) {
+    if (r.status === 'pending' && r.place != null && r.clanMemberId != null && !planMemberIds.has(r.clanMemberId)) {
+      await db.delete(payouts).where(eq(payouts.id, r.id));
+    }
+  }
+  for (const row of plan) {
+    const current = existingByMember.get(row.clanMemberId);
+    if (current) {
+      if (current.status === 'paid') continue; // never overwrite a completed payment
+      await db
+        .update(payouts)
+        .set({ rsn: row.rsn, teamId: row.teamId, teamName: row.teamName, place: row.place, amount: row.amount })
+        .where(eq(payouts.id, current.id));
+    } else {
+      await db
+        .insert(payouts)
+        .values({
+          eventId,
+          clanMemberId: row.clanMemberId,
+          rsn: row.rsn,
+          teamId: row.teamId,
+          teamName: row.teamName,
+          place: row.place,
+          amount: row.amount,
+          status: 'pending',
+        })
+        .onConflictDoNothing();
+    }
+  }
+
+  const rows = await db.select().from(payouts).where(eq(payouts.eventId, eventId));
+  return rows.sort((a, b) => (a.place ?? 99) - (b.place ?? 99) || b.amount - a.amount);
+}
+
+// Auto-generate payouts when an event ends — but only when a placement structure is configured and no
+// payouts exist yet. Idempotent, so it's safe to call from every end path (scheduled + force-end).
+export async function autoGeneratePayoutsOnEnd(eventId: number): Promise<void> {
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return;
+  const placeAmounts = parsePlacementPrizes(event.placementPrizes);
+  if (placeAmounts.length === 0) return; // no structure set — nothing to auto-generate
+  const existing = await db.select({ id: payouts.id }).from(payouts).where(eq(payouts.eventId, eventId));
+  if (existing.length > 0) return; // already has payouts (manual, or a prior auto-run)
+  await generatePayouts(eventId, { placeAmounts });
 }

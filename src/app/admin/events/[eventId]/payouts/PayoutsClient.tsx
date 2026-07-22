@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import PayoutRowControls, { type PayoutRow } from '@/components/PayoutRowControls';
+import Select from '@/components/Select';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -35,6 +36,7 @@ interface Payload {
   standings: Standing[];
   announcedAt: string | null;
   allPaid: boolean;
+  placementPrizes: number[];
 }
 
 interface Props {
@@ -79,6 +81,10 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const [placeAmounts, setPlaceAmounts] = useState<string[]>([]);
   const [includeSubbed, setIncludeSubbed] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [savingSplit, setSavingSplit] = useState(false);
+  // Seed the editable inputs from the server exactly once (saved structure if any, else a pool split),
+  // so live reloads after saving/generating don't clobber the admin's in-progress edits.
+  const seededRef = useRef(false);
 
   const [newRsn, setNewRsn] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -98,9 +104,22 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       }
       const payload: Payload = await res.json();
       setData(payload);
-      // Seed the pool basis once, and clamp the place count to the number of teams that exist.
-      setPoolBasis((prev) => (prev === '' ? String(payload.pool.total) : prev));
-      setPaidPlaces((prev) => Math.min(prev, Math.max(1, payload.standings.length || prev)));
+      // Seed the editable inputs once: prefer a previously-saved prize structure, else a pool split.
+      if (!seededRef.current) {
+        seededRef.current = true;
+        const maxPlaces = Math.max(1, payload.standings.length || 1);
+        if (payload.placementPrizes.length > 0) {
+          const places = Math.min(payload.placementPrizes.length, maxPlaces);
+          setPaidPlaces(places);
+          setPoolBasis(String(payload.pool.total));
+          setPlaceAmounts(payload.placementPrizes.slice(0, places).map(String));
+        } else {
+          const places = Math.min(3, maxPlaces);
+          setPaidPlaces(places);
+          setPoolBasis(String(payload.pool.total));
+          setPlaceAmounts(suggestAmounts(places, payload.pool.total));
+        }
+      }
     } catch {
       setErr('Network error.');
     } finally {
@@ -112,15 +131,36 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     load();
   }, [load]);
 
-  // Recalculate the per-placement rewards whenever the pool basis or place count changes — these are
-  // the "calculation" inputs. Editing an individual place's reward doesn't retrigger this, so manual
-  // fine-tuning sticks until the basis or place count is changed again.
-  useEffect(() => {
-    if (poolBasis.trim() === '') return;
-    const basis = cleanNum(poolBasis);
-    if (!Number.isFinite(basis)) return;
-    setPlaceAmounts(suggestAmounts(paidPlaces, basis));
-  }, [paidPlaces, poolBasis]);
+  // Change how many places pay out: resize (and re-split from the pool basis) the reward inputs.
+  function changePaidPlaces(n: number) {
+    setPaidPlaces(n);
+    setPlaceAmounts(suggestAmounts(n, cleanNum(poolBasis)));
+  }
+
+  // Persist the prize-per-placement structure WITHOUT generating rows — advertises it on the event
+  // page and lets payouts auto-generate when the event ends.
+  async function saveSplit() {
+    setSavingSplit(true);
+    setErr(null);
+    setNotice(null);
+    try {
+      const amounts = placeAmounts.slice(0, paidPlaces).map(cleanNum);
+      const res = await fetch(`/api/admin/events/${eventId}/payouts/prize-split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placeAmounts: amounts }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErr(d.error || 'Could not save the prize split.');
+        return;
+      }
+      await load();
+      setNotice('Prize split saved — it now shows on the event page and payouts auto-generate when the event ends.');
+    } finally {
+      setSavingSplit(false);
+    }
+  }
 
   async function generate() {
     setGenerating(true);
@@ -139,7 +179,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
         return;
       }
       await load();
-      setNotice('Suggested payouts generated — review and edit amounts, then mark each paid.');
+      setNotice('Payouts generated — review and edit amounts, then mark each paid.');
     } finally {
       setGenerating(false);
     }
@@ -209,8 +249,8 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
           Prize payouts
         </h2>
         <p className="text-sm text-text-muted mt-1">
-          Generate per-player prize splits from the final standings, mark each winner paid (with an optional
-          screenshot), and announce the winners to Discord.
+          Set the prize per placement (shown on the event page), then mark each winner paid — with an optional
+          screenshot — and announce them to Discord. Payouts auto-generate from the split when the event ends.
         </p>
       </div>
 
@@ -242,20 +282,19 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                   className="mt-1 block w-40 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-foreground"
                 />
               </label>
-              <label className="text-xs text-text-muted">
+              <div className="text-xs text-text-muted">
                 Paid places
-                <select
-                  value={paidPlaces}
-                  onChange={(e) => setPaidPlaces(Number(e.target.value))}
-                  className="mt-1 block bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-foreground"
-                >
-                  {Array.from({ length: maxPlaces }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n === 1 ? '1st only' : n === maxPlaces ? `Top ${n} (all)` : `Top ${n}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <Select
+                  value={String(paidPlaces)}
+                  onChange={(v) => changePaidPlaces(Number(v))}
+                  ariaLabel="Paid places"
+                  className="mt-1 w-40"
+                  options={Array.from({ length: maxPlaces }, (_, i) => i + 1).map((n) => ({
+                    value: String(n),
+                    label: n === 1 ? '1st only' : n === maxPlaces ? `Top ${n} (all)` : `Top ${n}`,
+                  }))}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setPlaceAmounts(suggestAmounts(paidPlaces, cleanNum(poolBasis)))}
@@ -303,18 +342,29 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               Include subbed-out (benched) players in the split
             </label>
 
-            <button
-              onClick={generate}
-              disabled={generating}
-              className="text-sm font-medium bg-gold/15 text-gold border border-gold/40 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
-            >
-              {generating ? 'Generating…' : payouts.length ? 'Regenerate payouts' : 'Generate payouts'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={saveSplit}
+                disabled={savingSplit || generating}
+                className="text-sm font-medium bg-gold/15 text-gold border border-gold/40 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
+              >
+                {savingSplit ? 'Saving…' : 'Save prize split'}
+              </button>
+              <button
+                onClick={generate}
+                disabled={generating || savingSplit}
+                className="text-sm font-medium border border-card-border text-foreground px-4 py-2 rounded-lg hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-50"
+              >
+                {generating ? 'Generating…' : payouts.length ? 'Regenerate payouts now' : 'Generate payouts now'}
+              </button>
+            </div>
 
             <p className="text-[11px] text-text-muted">
-              Rewards are calculated from the pool basis (default split — 1st 100% · 2nd 60/40 · 3rd 50/30/20) and
-              editable per placement. Each place is divided equally among the winning team&apos;s members, and every
-              row stays editable afterward. Paid rows are never overwritten.
+              <span className="text-foreground/80">Save prize split</span> to advertise the reward per placement on the
+              event page — payouts then <span className="text-foreground/80">auto-generate when the event ends</span>.
+              <span className="text-foreground/80"> Generate now</span> builds the per-player rows immediately. Rewards
+              are prefilled from the pool (default split — 1st 100% · 2nd 60/40 · 3rd 50/30/20), editable per placement,
+              and each place is split equally among the winning team&apos;s members. Paid rows are never overwritten.
             </p>
           </div>
         )}

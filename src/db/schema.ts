@@ -74,6 +74,11 @@ export const events = sqliteTable('events', {
   // Guards the auto-announce (fired once every payout is marked paid) from double-posting; the
   // manual "Announce" button re-stamps it. Null = not yet announced. See lib/discord notifyPayout.
   payoutsAnnouncedAt: text('payouts_announced_at'),
+  // The prize-per-placement structure, as a JSON array of gp amounts indexed by place
+  // (`[firstPlaceGp, secondPlaceGp, …]`). Set on the Payouts tab independently of generating the
+  // per-player payout rows, shown on the public event page, and used as the reward per place when
+  // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
+  placementPrizes: text('placement_prizes'),
 });
 
 export const tiles = sqliteTable('tiles', {

@@ -5,6 +5,7 @@ import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
+import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 
 export async function GET(
   _request: Request,
@@ -123,6 +124,10 @@ export async function PATCH(
       totalTiles: pointsMode ? totalScore : scoredTiles.length,
       unit: pointsMode ? 'pts' : 'tiles',
     }).catch(() => {});
+
+    // Auto-build payouts from the configured prize structure + final standings (no-op if no
+    // structure or payouts already exist). Fire-and-forget — a payout hiccup mustn't fail the end.
+    autoGeneratePayoutsOnEnd(event.id).catch(() => {});
 
     return NextResponse.json(updated);
   }

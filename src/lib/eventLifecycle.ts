@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { events, teams, tiles, completions } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd } from '@/lib/discord';
+import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { log } from '@/lib/logger';
 
 // Fires the one-time "event started" / "event ended" Discord posts for any event whose
@@ -76,6 +77,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         totalTiles: pointsMode ? totalScore : scoredTiles.length,
         unit: pointsMode ? 'pts' : 'tiles',
       });
+
+      // Auto-build the payout rows from the configured prize-per-placement structure and final
+      // standings. No-op when no structure is set or payouts already exist. Non-critical.
+      await autoGeneratePayoutsOnEnd(event.id).catch(() => {});
     }
   }
 }
