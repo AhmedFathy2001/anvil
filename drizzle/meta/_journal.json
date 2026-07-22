@@ -218,6 +218,13 @@
       "when": 1784561013676,
       "tag": "0030_signup_prize_exclusion",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1784695684201,
+      "tag": "0031_glamorous_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

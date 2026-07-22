@@ -70,6 +70,10 @@ export const events = sqliteTable('events', {
   maxAccountsPerPerson: integer('max_accounts_per_person').default(1).notNull(),
   accountSlotMode: text('account_slot_mode').default('per-person').notNull(),
   feeMode: text('fee_mode').default('per-person').notNull(),
+  // Set when the payout summary (winners + amounts) is posted to the bingo Discord webhook.
+  // Guards the auto-announce (fired once every payout is marked paid) from double-posting; the
+  // manual "Announce" button re-stamps it. Null = not yet announced. See lib/discord notifyPayout.
+  payoutsAnnouncedAt: text('payouts_announced_at'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -628,6 +632,40 @@ export const signupFees = sqliteTable('signup_fees', {
 }, (table) => [
   uniqueIndex('signup_fees_signup_unique').on(table.signupId),
   index('signup_fees_status_idx').on(table.status),
+]);
+
+// Prize payouts to event winners — the outbound mirror of signup_fees. One row per RECIPIENT
+// (per-player split: the winning team's prize divides equally across its members, one editable row
+// each). Amounts are auto-suggested from the prize pool at generation time, then admin-editable.
+// Status flow: pending → paid (a treasurer/admin marks it, optionally attaching a screenshot). When
+// every payout for the event is paid, the winners+amounts are announced to the bingo webhook.
+export const payouts = sqliteTable('payouts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // Recipient identity. clanMemberId is the stable link (set null if the member is later deleted or
+  // for free-form manual rows); `rsn` is the display name captured when the row was created.
+  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(),
+  // Which team they won with + finishing place (1 = first). Null for free-form manual entries.
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  teamName: text('team_name'),
+  place: integer('place'),
+  amount: integer('amount').notNull().default(0), // gp
+  // pending → paid. Kept as text (not a boolean) for parity with fee statuses and future states.
+  status: text('status').notNull().default('pending'),
+  // Storage URL of the optional payment-proof screenshot (key prefix `payouts/`). Deleted when the
+  // payout is reverted to pending or the row is removed.
+  proofBlobUrl: text('proof_blob_url'),
+  paidByUserId: integer('paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  paidAt: text('paid_at'),
+  notes: text('notes'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('payouts_event_id_idx').on(table.eventId),
+  index('payouts_status_idx').on(table.status),
+  // One auto-generated payout per (event, member). NULL clanMemberId rows (free-form) are exempt —
+  // SQLite treats NULLs as distinct in a unique index — so multiple manual entries are allowed.
+  uniqueIndex('payouts_event_member_unique').on(table.eventId, table.clanMemberId),
 ]);
 
 // User-submitted RSN rename requests, reviewed by a cron pass that mirrors WOM's
