@@ -375,6 +375,13 @@ export const users = sqliteTable('users', {
   // can show a durable "signed in / Disconnect" state instead of re-offering "Connect clans" on
   // every reload; cleared on POST /federation/disconnect. NULL = never federated.
   federationLinkedAt: text('federation_linked_at'),
+  // The member's broker session token (30-day, WIRE §9.2), encrypted at rest like the cached
+  // remote-clan tokens. Persisted after a completed device login so /state can periodically re-run
+  // the /me/instances relay — a clan the member connects LATER shows up here without a manual
+  // re-login. NULL until the first login; nulled when the broker rejects it or on disconnect.
+  federationBrokerSession: text('federation_broker_session'),
+  // Last successful connection-set sync via the relay — throttles the background refresh.
+  federationSyncedAt: text('federation_synced_at'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
 ]);

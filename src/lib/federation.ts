@@ -12,12 +12,13 @@
 import crypto from 'crypto';
 import { exportJWK, generateKeyPair, calculateJwkThumbprint, type JWK } from 'jose';
 import { db } from '@/db';
-import { settings, federationTokens, federationJti } from '@/db/schema';
-import { eq, lt } from 'drizzle-orm';
+import { settings, federationTokens, federationJti, users, clanMembers } from '@/db/schema';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import {
   getAssociationPush,
   getBrokerBaseUrl,
   getBrokerTrust,
+  getFederationEnabled,
   FEDERATION_BROKER_TRUST_KEY,
 } from '@/lib/pluginConfig';
 import { brokerRegister } from '@/lib/federationRelay';
@@ -358,5 +359,33 @@ export async function pushAssociation(
     });
   } catch {
     // fire-and-forget — swallow network/timeout/guard errors.
+  }
+}
+
+// Login-time association push: a rostered member's Discord login is a "member here" signal, so the
+// whole roster becomes discoverable in /me/instances as people log in — not only the few who mint a
+// federation token or complete a device connect. Pushes to every trusted broker plus the configured
+// relay broker (deduped). Gated on the federation master switch here and on the associationPush
+// consent + provisioned secret inside pushAssociation; only fires for users with a linked, active
+// clan_members row (a bare login on a public site is NOT a membership signal). Fire-and-forget.
+export async function pushMemberAssociations(userId: number): Promise<void> {
+  try {
+    if (!(await getFederationEnabled())) return;
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { discordId: true },
+    });
+    if (!user?.discordId) return;
+    const member = await db.query.clanMembers.findFirst({
+      where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),
+      columns: { id: true },
+    });
+    if (!member) return;
+    const targets = new Set((await getBrokerTrust()).map((b) => b.iss));
+    const base = await getBrokerBaseUrl();
+    if (base) targets.add(base);
+    for (const iss of targets) void pushAssociation(user.discordId, iss);
+  } catch (err) {
+    log.warn('federation.assoc.login-push-fail', { userId }, err);
   }
 }

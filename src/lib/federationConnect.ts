@@ -12,7 +12,7 @@
 // no clan connections.
 
 import { getBrokerBaseUrl, getFederationEnabled } from '@/lib/pluginConfig';
-import { getInstanceId } from '@/lib/federation';
+import { getInstanceId, pushAssociation } from '@/lib/federation';
 import { log } from '@/lib/logger';
 import {
   getConnectionsForUser,
@@ -24,6 +24,11 @@ import {
   markFederationLinked,
   clearFederationLinked,
   isFederationLinked,
+  getUserDiscordId,
+  saveBrokerSession,
+  getBrokerSessionInfo,
+  markFederationSynced,
+  clearBrokerSession,
 } from '@/lib/federationConnections';
 import {
   brokerDeviceStart,
@@ -33,6 +38,23 @@ import {
   type AggregatedClan,
 } from '@/lib/federationRelay';
 import { federationFetch, safeVerificationUrl } from '@/lib/federationSecurity';
+
+// How long a member's synced connection set is considered fresh before /state re-runs the relay.
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+// Bootstrap the mesh: tell the broker "this member is a member HERE" so THIS clan appears in the
+// member's /me/instances at their OTHER homes. Without it a first-ever connect finds an empty
+// directory everywhere and no association can ever form (the /exchange- and /token-side pushes only
+// fire for clans already in /me/instances — a chicken-and-egg). Fire-and-forget; pushAssociation
+// itself gates on the clan's associationPush consent + the provisioned FEDERATION_ASSOC_SECRET.
+async function pushHomeAssociation(userId: number, brokerBaseUrl: string): Promise<void> {
+  try {
+    const discordId = await getUserDiscordId(userId);
+    if (discordId) await pushAssociation(discordId, brokerBaseUrl);
+  } catch (err) {
+    log.warn('federation.assoc.push-fail', { userId }, err);
+  }
+}
 
 // Run the /me/instances → /assert → /exchange relay with a broker session token and persist the
 // resulting connections. On a broker/exchange blip it returns 'pending' WITHOUT clearing the saved
@@ -58,9 +80,50 @@ async function finishBrokerToken(
   // Discord but is in no OTHER clan yet), so /state reports a persistent signedIn and the plugin
   // shows Disconnect rather than re-offering Connect on reload.
   await markFederationLinked(userId);
+  // Keep the broker session (encrypted) instead of discarding it with the device session: it powers
+  // the background refresh that folds in clans the member connects at AFTER this one.
+  await saveBrokerSession(userId, brokerToken);
+  await markFederationSynced(userId);
   await clearDeviceSession(userId);
+  void pushHomeAssociation(userId, brokerBaseUrl);
   log.info('federation.connect.self-host.complete', { userId, clans: connections.length });
   return 'connected';
+}
+
+// Background re-sync of the member's connection set: re-run the /me/instances → /assert → /exchange
+// relay with the persisted broker session, so a clan the member connected at LATER shows up on this
+// home's sidebar without a manual disconnect/re-connect here. Throttled by federationSyncedAt;
+// best-effort (a blip keeps the cached set and waits for the next window). A broker 401 means the
+// 30-day session expired or was revoked — drop it so we stop retrying; the cached connections and
+// the signed-in marker stay (the member re-connects only when they next need a refresh).
+async function refreshConnections(
+  userId: number,
+  brokerBaseUrl: string,
+  ownInstanceId: string,
+): Promise<void> {
+  const { brokerSession, syncedAt } = await getBrokerSessionInfo(userId);
+  if (!brokerSession) return;
+  if (syncedAt && Date.now() - Date.parse(syncedAt) < SYNC_INTERVAL_MS) return;
+  // Stamp BEFORE the relay so concurrent /state polls can't stampede the broker — a failed attempt
+  // simply waits out the next window.
+  await markFederationSynced(userId);
+  try {
+    const connections = await connectViaBrokerToken({
+      brokerBaseUrl,
+      brokerToken: brokerSession,
+      ownInstanceId,
+      fetchImpl: federationFetch,
+    });
+    await replaceConnectionsForUser(userId, connections);
+    log.info('federation.state.refreshed', { userId, clans: connections.length });
+  } catch (err) {
+    if (String(err).includes('(401)')) {
+      await clearBrokerSession(userId);
+      log.info('federation.state.broker-session-expired', { userId });
+    } else {
+      log.warn('federation.state.refresh-fail', { userId }, err);
+    }
+  }
 }
 
 // Poll an EXISTING self-host device session and finish the connect if the member completed the
@@ -172,6 +235,7 @@ export interface StateResult {
 export async function disconnectMember(userId: number): Promise<void> {
   await clearConnectionsForUser(userId);
   await clearFederationLinked(userId);
+  await clearBrokerSession(userId).catch(() => {});
   await clearDeviceSession(userId).catch(() => {});
   log.info('federation.disconnect', { userId });
 }
@@ -185,9 +249,11 @@ export async function buildState(userId: number): Promise<StateResult> {
   }
   const brokerBaseUrl = await getBrokerBaseUrl();
   const ownInstanceId = await getInstanceId();
-  // Opportunistically advance any in-flight device login (best-effort — never fails /state).
+  // Opportunistically advance any in-flight device login, then re-sync the connection set off the
+  // persisted broker session (both best-effort — never fail /state).
   if (brokerBaseUrl) {
     await advanceSelfHost(userId, brokerBaseUrl, ownInstanceId).catch(() => {});
+    await refreshConnections(userId, brokerBaseUrl, ownInstanceId).catch(() => {});
   }
 
   const connections = await getConnectionsForUser(userId);

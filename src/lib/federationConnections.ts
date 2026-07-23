@@ -139,6 +139,60 @@ export async function isFederationLinked(userId: number): Promise<boolean> {
   return !!row?.federationLinkedAt;
 }
 
+// The member's Discord id — the identity the association push carries. Kept here so the connect
+// orchestration (lib/federationConnect) stays free of direct DB access.
+export async function getUserDiscordId(userId: number): Promise<string | null> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { discordId: true },
+  });
+  return row?.discordId ?? null;
+}
+
+// --- Persisted broker session (background connection refresh) ---------------------------------
+// The broker member session captured at device-login completion is kept (encrypted, §4) so /state
+// can re-run the /me/instances → /assert → /exchange relay later: a clan the member connects at
+// AFTER this one appears here without a manual re-login. `federationSyncedAt` throttles that
+// refresh. Cleared on disconnect and when the broker rejects the session (expired/revoked).
+
+export async function saveBrokerSession(userId: number, brokerToken: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ federationBrokerSession: encryptSecret(brokerToken, tokenEncKey()) })
+    .where(eq(users.id, userId));
+}
+
+export async function getBrokerSessionInfo(
+  userId: number,
+): Promise<{ brokerSession: string | null; syncedAt: string | null }> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { federationBrokerSession: true, federationSyncedAt: true },
+  });
+  if (!row?.federationBrokerSession) return { brokerSession: null, syncedAt: row?.federationSyncedAt ?? null };
+  try {
+    return {
+      brokerSession: decryptSecret(row.federationBrokerSession, tokenEncKey()),
+      syncedAt: row.federationSyncedAt ?? null,
+    };
+  } catch (err) {
+    // Undecryptable (key rotated / corrupt) = unusable — treat as absent; the member re-connects.
+    log.warn('federation.broker-session.decrypt-fail', { userId }, err);
+    return { brokerSession: null, syncedAt: row.federationSyncedAt ?? null };
+  }
+}
+
+export async function markFederationSynced(userId: number): Promise<void> {
+  await db.update(users).set({ federationSyncedAt: new Date().toISOString() }).where(eq(users.id, userId));
+}
+
+export async function clearBrokerSession(userId: number): Promise<void> {
+  await db
+    .update(users)
+    .set({ federationBrokerSession: null, federationSyncedAt: null })
+    .where(eq(users.id, userId));
+}
+
 // --- Self-host device-code login session (one in-flight per member) ---------------------------
 
 export interface DeviceSession {

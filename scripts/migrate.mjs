@@ -148,10 +148,41 @@ async function snapshotBeforeMigrate() {
   } catch {}
 }
 
+// Materialize provisioner-passed identity into the settings table. The managed control-plane hands
+// a new clan its name/invite as env vars (CLAN_NAME / DISCORD_INVITE_URL), but the admin UI, setup
+// checklist, and most reads go through settings rows — only a handful of pages ever fall back to
+// env. Seed ONLY when the row is missing or empty, so a clan admin's later edit always wins over a
+// container recreate. No-op for self-hosters (env unset) and on already-seeded DBs.
+async function seedSettingsFromEnv() {
+  const seeds = [
+    ['clan_name', process.env.CLAN_NAME],
+    ['discord_invite_url', process.env.DISCORD_INVITE_URL],
+  ];
+  for (const [key, raw] of seeds) {
+    const value = raw?.trim();
+    if (!value) continue;
+    try {
+      const existing = await client.execute({ sql: 'SELECT value FROM settings WHERE key = ?', args: [key] });
+      const current = existing.rows[0]?.value;
+      if (existing.rows.length > 0 && current != null && String(current).trim() !== '') continue;
+      if (existing.rows.length === 0) {
+        await client.execute({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', args: [key, value] });
+      } else {
+        await client.execute({ sql: 'UPDATE settings SET value = ? WHERE key = ?', args: [value, key] });
+      }
+      console.log(`[migrate] seeded settings.${key} from env`);
+    } catch (e) {
+      // Seeding is convenience, not correctness — never block boot on it.
+      console.warn(`[migrate] WARNING: seeding settings.${key} failed (continuing): ${e?.message || e}`);
+    }
+  }
+}
+
 try {
   await snapshotBeforeMigrate();
   await migrate(db, { migrationsFolder: './drizzle' });
   await reconcileBaselineDrift();
+  await seedSettingsFromEnv();
   console.log('[migrate] up to date');
   process.exit(0);
 } catch (err) {

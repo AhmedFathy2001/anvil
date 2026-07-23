@@ -7,6 +7,7 @@ import { signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { pushMemberAssociations } from '@/lib/federation';
 import { log } from '@/lib/logger';
 
 const SESSION_COOKIE = 'admin_session';
@@ -185,6 +186,11 @@ export async function completeDiscordLogin(
   }
 
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Federation: a rostered member logging in is a "member here" signal — advertise the association
+  // to the trusted broker(s) so this clan can auto-populate in the member's plugin at their other
+  // homes. Gated (enabled + associationPush + linked membership) and fire-and-forget inside.
+  void pushMemberAssociations(user.id);
 
   // Banned users complete the identity step but get no session cookie — refused at the door.
   if (user.banned) {
