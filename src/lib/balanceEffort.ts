@@ -42,6 +42,10 @@ interface ActivityRate {
   attemptMinutes?: Triplet;
   successRate?: Triplet;
   floor?: Floor;
+  // Raids only: typical bingo party size. A completed raid grants KC to *every* party member,
+  // so a team earns `partySize` KC per raid instance — a team-sum KC goal costs 1/partySize the
+  // raids one soloist would. Left unset (→ 1) for solo content, so this never discounts a boss.
+  partySize?: number;
 }
 interface SkillRate {
   xpPerHour: Triplet;
@@ -195,31 +199,30 @@ function floorFromHours(hours: Triplet, declared: Floor): Floor {
 // Resolves a kill-time triplet from the first of `names` that matches a curated rate. Boss KC
 // tiles pass [label, ...aliases, key] so an abbreviated display label ("CoX: CM") still finds
 // its rate via an alias; simple sources pass a single-element list.
-function killTripletForNames(
-  rates: BalanceRates,
-  names: (string | null | undefined)[],
-): { sec: Triplet; floor: Floor; defaulted: boolean } {
+type KillTriplet = { sec: Triplet; floor: Floor; defaulted: boolean; partySize: number };
+function killTripletForNames(rates: BalanceRates, names: (string | null | undefined)[]): KillTriplet {
   // Spawn-gated sources first: a superior "kill" costs a whole encounter (task kills +
   // task availability), not a respawn timer.
   for (const n of names) {
     if (n && isSuperiorSource(n)) {
       const sec = rates.gated?.superiorEncounterSeconds ?? [1500, 3000, 6000];
-      return { sec, floor: 'mid', defaulted: false };
+      return { sec, floor: 'mid', defaulted: false, partySize: 1 };
     }
   }
   const act = activityForNames(rates, names);
-  if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false };
+  if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false, partySize: 1 };
   // Attempt-model activities (CG, raids, Inferno) have no flat kill time — a "kill" costs
   // an attempt divided by the band's success rate (Infinity where that band can't finish).
+  // partySize (raids only) is carried through so KC-count tiles can amortise the shared kill.
   if (act?.attemptMinutes && act.successRate) {
     const sec = [0, 1, 2].map((b) =>
       act.successRate![b] > 0 ? (act.attemptMinutes![b] * 60) / act.successRate![b] : Infinity,
     ) as Triplet;
-    return { sec, floor: act.floor ?? 'high', defaulted: false };
+    return { sec, floor: act.floor ?? 'high', defaulted: false, partySize: Math.max(1, act.partySize ?? 1) };
   }
-  return { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true };
+  return { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true, partySize: 1 };
 }
-function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor: Floor; defaulted: boolean } {
+function killTriplet(rates: BalanceRates, source: string): KillTriplet {
   return killTripletForNames(rates, [source]);
 }
 
@@ -254,11 +257,18 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
     const boss = BOSSES.find((b) => b.key === firstKey);
     const label = boss?.label ?? BOSS_LABEL_BY_KEY.get(firstKey) ?? firstKey;
     const names = boss ? [boss.label, ...(boss.aliases ?? []), boss.key] : [label];
-    const { sec, floor, defaulted } = killTripletForNames(rates, names);
+    const { sec, floor, defaulted, partySize } = killTripletForNames(rates, names);
+    // Raid KC is a team-sum goal: a party of `partySize` earns that many KC per raid instance,
+    // so the team runs statGoal/partySize raids, not statGoal. Solo content has partySize 1.
+    const raids = tile.statGoal! / partySize;
     return {
-      hours: sec.map((s) => (tile.statGoal! * s) / 3600) as Triplet,
+      hours: sec.map((s) => (raids * s) / 3600) as Triplet,
       floor,
-      note: defaulted ? `no kill-time entry for ${label} — generic boss time used` : null,
+      note: defaulted
+        ? `no kill-time entry for ${label} — generic boss time used`
+        : partySize > 1
+          ? `raid KC — assumes a ~${partySize}-player party (each raid credits every member)`
+          : null,
     };
   }
 
@@ -343,10 +353,11 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
     const known = targets?.find((t) => activityFor(rates, t) || isSuperiorSource(t));
     if (known) {
       const kt = killTriplet(rates, known);
+      const reps = tile.requiredAmount! / kt.partySize; // raids credit the whole party
       return {
-        hours: kt.sec.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
+        hours: kt.sec.map((s) => (reps * s) / 3600) as Triplet,
         floor: kt.floor,
-        note: null,
+        note: kt.partySize > 1 ? `raid — assumes a ~${kt.partySize}-player party` : null,
       };
     }
     return {
