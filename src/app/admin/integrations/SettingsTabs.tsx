@@ -56,7 +56,10 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
 
   return (
     <div>
-      <div className="flex gap-1 overflow-x-auto border-b border-card-border mb-5" role="tablist">
+      <div
+        className="flex gap-1 overflow-x-auto border-b border-card-border mb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+      >
         {TABS.map((t) => (
           <button
             key={t.id}

@@ -19,6 +19,51 @@ const KEY_EXCHANGE_POLICY = 'federation_exchange_policy';
 const KEY_ASSOCIATION_PUSH = 'federation_association_push';
 const KEY_BROKER_TRUST = 'federation_broker_trust';
 
+// The stored trust entries are { iss, jwksUrl }, but jwksUrl is pure convention off the server
+// address — so the UI speaks "one server URL per line" and derives the rest. A rare custom keys URL
+// survives round-trips as a second token on the line ("https://broker https://elsewhere/keys.json").
+const JWKS_PATH = '/api/federation/v1/jwks.json';
+
+function trustJsonToLines(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return raw;
+    return parsed
+      .filter((b) => b && typeof b.iss === 'string')
+      .map((b) => {
+        const iss = b.iss.replace(/\/+$/, '');
+        return b.jwksUrl === `${iss}${JWKS_PATH}` ? iss : `${iss} ${b.jwksUrl}`;
+      })
+      .join('\n');
+  } catch {
+    return raw; // mid-edit / legacy junk — surface as-is rather than losing it
+  }
+}
+
+function trustLinesToJson(text: string): string {
+  const entries: { iss: string; jwksUrl: string }[] = [];
+  for (const line of text.split('\n')) {
+    const tokens = line.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) continue;
+    const iss = tokens[0].replace(/\/+$/, '');
+    let issUrl: URL;
+    try {
+      issUrl = new URL(iss);
+    } catch {
+      throw new Error(`“${tokens[0]}” isn't a URL`);
+    }
+    if (issUrl.protocol !== 'https:') throw new Error(`“${tokens[0]}” must be https`);
+    const jwksUrl = tokens[1] ?? `${iss}${JWKS_PATH}`;
+    try {
+      if (new URL(jwksUrl).protocol !== 'https:') throw new Error('keys URL must be https');
+    } catch {
+      throw new Error(`“${jwksUrl}” isn't a valid keys URL`);
+    }
+    entries.push({ iss, jwksUrl });
+  }
+  return entries.length > 0 ? JSON.stringify(entries) : '';
+}
+
 export default function FederationSettings() {
   const [enabled, setEnabled] = useState(false);
   const [acceptWrites, setAcceptWrites] = useState(true);
@@ -49,15 +94,9 @@ export default function FederationSettings() {
           : 'auto-guest',
       );
       setAssociationPush(s[KEY_ASSOCIATION_PUSH] === 'on');
-      // Pretty-print stored JSON if present, else leave blank.
+      // Present the stored JSON as friendly one-server-per-line text.
       const raw = s[KEY_BROKER_TRUST];
-      if (raw) {
-        try {
-          setBrokerTrust(JSON.stringify(JSON.parse(raw), null, 2));
-        } catch {
-          setBrokerTrust(raw);
-        }
-      }
+      if (raw) setBrokerTrust(trustJsonToLines(raw));
       setStatus('ready');
     } catch {
       // Never fall through to editable defaults — that's the silent-disable bug (finding #4).
@@ -75,25 +114,15 @@ export default function FederationSettings() {
     setSaving(true);
     setMessage(null);
 
-    // Validate broker trust JSON before sending (stored verbatim; malformed JSON would just be
-    // dropped by the reader, so warn the admin instead of silently discarding it).
+    // Convert the friendly one-server-per-line text back to the stored JSON; validate so a typo'd
+    // URL warns the admin instead of being silently dropped by the reader.
     let brokerTrustValue = '';
-    const trimmed = brokerTrust.trim();
-    if (trimmed) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (!Array.isArray(parsed)) throw new Error('must be an array');
-        for (const b of parsed) {
-          if (!b || typeof b.iss !== 'string' || typeof b.jwksUrl !== 'string') {
-            throw new Error('each entry needs { iss, jwksUrl }');
-          }
-        }
-        brokerTrustValue = JSON.stringify(parsed);
-      } catch (e) {
-        setMessage({ type: 'err', text: `Broker trust: ${e instanceof Error ? e.message : 'invalid JSON'}` });
-        setSaving(false);
-        return;
-      }
+    try {
+      brokerTrustValue = trustLinesToJson(brokerTrust);
+    } catch (e) {
+      setMessage({ type: 'err', text: `Identity servers: ${e instanceof Error ? e.message : 'invalid entry'}` });
+      setSaving(false);
+      return;
     }
 
     try {
@@ -204,17 +233,18 @@ export default function FederationSettings() {
 
           {acceptWrites && (
             <div className="border-t border-card-border pt-4">
-              <label className="block text-sm font-medium mb-1">If a drop counts for two clans at once</label>
+              <label className="block text-sm font-medium mb-1">…even when the same drop also counts elsewhere?</label>
               <p className="text-xs text-text-muted mb-2">
-                A member might be doing the same boss for your event and another clan&apos;s at the same time.
+                Say a member has the same tile live on your board and another clan&apos;s, and the drop lands
+                once: should one drop be allowed to complete both?
               </p>
               <Select
                 value={sharedCredit}
                 onChange={setSharedCredit}
-                ariaLabel="If a drop counts for two clans at once"
+                ariaLabel="Accept drops that also count for another clan"
                 options={[
-                  { value: 'accept', label: 'Count it here too (default)' },
-                  { value: 'exclusive', label: 'Let it count for the other clan only' },
+                  { value: 'accept', label: 'Yes — a shared drop counts here as well (default)' },
+                  { value: 'exclusive', label: 'No — only count drops that are ours alone' },
                 ]}
               />
             </div>
