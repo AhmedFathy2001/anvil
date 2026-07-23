@@ -28,7 +28,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
-  const state = await buildState(member.userId);
+  // ?force=1 = the member clicked Refresh — bypass the 5-minute re-sync window (30s floor server-side).
+  const force = new URL(request.url).searchParams.get('force') === '1';
+  const state = await buildState(member.userId, { forceRefresh: force });
   // ETag/304: the plugin polls this frequently but the aggregate rarely changes between polls; an
   // unchanged poll returns 304 with no body (each clan board can be tens of KB). See lib/httpEtag.
   return jsonWithEtag(request, state);

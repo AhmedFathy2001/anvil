@@ -41,6 +41,9 @@ import { federationFetch, safeVerificationUrl } from '@/lib/federationSecurity';
 
 // How long a member's synced connection set is considered fresh before /state re-runs the relay.
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+// Floor for an EXPLICIT (member-initiated) refresh — the plugin's Refresh button bypasses the
+// 5-minute window, but button-mashing still can't hammer the broker faster than this.
+const FORCED_SYNC_FLOOR_MS = 30 * 1000;
 
 // Bootstrap the mesh: tell the broker "this member is a member HERE" so THIS clan appears in the
 // member's /me/instances at their OTHER homes. Without it a first-ever connect finds an empty
@@ -100,10 +103,12 @@ async function refreshConnections(
   userId: number,
   brokerBaseUrl: string,
   ownInstanceId: string,
+  force = false,
 ): Promise<void> {
   const { brokerSession, syncedAt } = await getBrokerSessionInfo(userId);
   if (!brokerSession) return;
-  if (syncedAt && Date.now() - Date.parse(syncedAt) < SYNC_INTERVAL_MS) return;
+  const interval = force ? FORCED_SYNC_FLOOR_MS : SYNC_INTERVAL_MS;
+  if (syncedAt && Date.now() - Date.parse(syncedAt) < interval) return;
   // Stamp BEFORE the relay so concurrent /state polls can't stampede the broker — a failed attempt
   // simply waits out the next window.
   await markFederationSynced(userId);
@@ -243,17 +248,19 @@ export async function disconnectMember(userId: number): Promise<void> {
 // The GET /state shape (WIRE §10.2). Aggregates every connected clan's board + activity
 // server-to-server (short-TTL/ETag cached in the relay). For a self-host with a pending device login,
 // it auto-advances the poll so the sidebar flips to connected without a second explicit /connect.
-export async function buildState(userId: number): Promise<StateResult> {
+export async function buildState(userId: number, opts?: { forceRefresh?: boolean }): Promise<StateResult> {
   if (!(await getFederationEnabled())) {
     return { enabled: false, connected: false, signedIn: false, needsLogin: false, clans: [] };
   }
   const brokerBaseUrl = await getBrokerBaseUrl();
   const ownInstanceId = await getInstanceId();
   // Opportunistically advance any in-flight device login, then re-sync the connection set off the
-  // persisted broker session (both best-effort — never fail /state).
+  // persisted broker session (both best-effort — never fail /state). A member-initiated Refresh
+  // (`forceRefresh`) bypasses the 5-minute window (30s floor) so the button visibly does something
+  // after a network change instead of silently hitting the throttle.
   if (brokerBaseUrl) {
     await advanceSelfHost(userId, brokerBaseUrl, ownInstanceId).catch(() => {});
-    await refreshConnections(userId, brokerBaseUrl, ownInstanceId).catch(() => {});
+    await refreshConnections(userId, brokerBaseUrl, ownInstanceId, opts?.forceRefresh).catch(() => {});
   }
 
   const connections = await getConnectionsForUser(userId);
