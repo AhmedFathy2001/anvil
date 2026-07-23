@@ -16,6 +16,7 @@ import {
   getAlwaysNotifyItems,
   getAlwaysNotifyItemIds,
   getShowKillCount,
+  getClanDisplayName,
   getTierBands,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
@@ -123,6 +124,9 @@ export async function GET(request: Request) {
         event: null,
         team: null,
         player: null,
+        // The clan's display name — the sidebar's clan-filter label and the logged-out home card
+        // need it even when no event/team is resolvable for this token.
+        clanName: await getClanDisplayName(),
         // Non-null when the logged-in RSN IS a player in a live bingo but this token/account isn't
         // linked to it — the plugin surfaces a "verify your RSN" warning so tracking isn't silently off.
         unlinkedActiveEvent,
@@ -432,6 +436,7 @@ export async function GET(request: Request) {
     : [];
 
   return jsonWithEtag(request, {
+    clanName: await getClanDisplayName(),
     event: {
       id: event.id,
       name: event.name,

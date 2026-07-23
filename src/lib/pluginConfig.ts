@@ -276,6 +276,13 @@ export async function getShowKillCount(): Promise<boolean> {
   return row?.value !== 'off';
 }
 
+// The clan's display name for the plugin sidebar (clan filter label + logged-out home card). Same
+// resolution as the web header: settings row, provisioner env, generic fallback.
+export async function getClanDisplayName(): Promise<string> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
+  return row?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+}
+
 // Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so
 // the bands can be retuned/renamed/added without a web *or* plugin release; served to the plugin
 // in /api/plugin/config + /api/plugin/board and used by the web filters. Falls back to the curated
