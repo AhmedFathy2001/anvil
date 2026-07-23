@@ -1,11 +1,75 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Input from '@/components/Input';
 
 interface Role {
   id: string;
   name: string;
   position: number;
+}
+
+// One selectable list of Discord roles: a label + selected count, a name filter, and the
+// scrollable pills. Kept at module scope (not inline in the component) so the search input
+// keeps focus across re-renders. Filtering is case-insensitive substring on the role name.
+function RoleList({
+  label,
+  hint,
+  roles,
+  selected,
+  onToggle,
+  query,
+  onQueryChange,
+}: {
+  label: string;
+  hint: string;
+  roles: Role[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  query: string;
+  onQueryChange: (value: string) => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const filtered = q ? roles.filter((r) => r.name.toLowerCase().includes(q)) : roles;
+  return (
+    <div>
+      <p className="text-sm font-medium mb-0.5">
+        {label} <span className="text-text-muted font-normal">· {selected.size} selected</span>
+      </p>
+      <p className="text-xs text-text-muted mb-1.5">{hint}</p>
+      <Input
+        type="search"
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        placeholder={`Filter ${label.toLowerCase()}…`}
+        className="mb-1.5 text-xs px-2 py-1.5"
+      />
+      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 border border-card-border rounded-lg bg-brown-dark">
+        {filtered.length === 0 ? (
+          <p className="text-xs text-text-muted px-1 py-0.5">No roles match.</p>
+        ) : (
+          filtered.map((r) => {
+            const on = selected.has(r.id);
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => onToggle(r.id)}
+                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                  on
+                    ? 'bg-gold/20 text-gold border-gold/40'
+                    : 'text-text-muted border-card-border hover:text-foreground'
+                }`}
+              >
+                {on ? '✓ ' : ''}
+                {r.name}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
 // Picks which Discord roles the role sync assigns to every member (default) and every guest.
@@ -18,6 +82,8 @@ export default function DiscordAssignedRoles() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [memberQuery, setMemberQuery] = useState('');
+  const [guestQuery, setGuestQuery] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -74,55 +140,34 @@ export default function DiscordAssignedRoles() {
     );
   }
 
-  const RoleList = ({
-    selected,
-    onToggle,
-  }: {
-    selected: Set<string>;
-    onToggle: (id: string) => void;
-  }) => (
-    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 border border-card-border rounded-lg bg-brown-dark">
-      {roles.map((r) => {
-        const on = selected.has(r.id);
-        return (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => onToggle(r.id)}
-            className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-              on
-                ? 'bg-gold/20 text-gold border-gold/40'
-                : 'text-text-muted border-card-border hover:text-foreground'
-            }`}
-          >
-            {on ? '✓ ' : ''}
-            {r.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       <p className="text-sm text-text-muted -mt-1">
-        Pick the roles the sync gives people. Without these set, the sync resolves everyone but hands
-        out nothing — which is why members can resolve yet still get no role.
+        These are <span className="text-foreground">Discord server roles your bot hands out during
+        role sync</span>. The sync matches each person to their linked account, but only assigns the
+        roles you tick below — leave a list empty and those people still resolve, they just receive
+        no role.
       </p>
 
-      <div>
-        <p className="text-sm font-medium mb-1">
-          Member roles <span className="text-text-muted font-normal">(every full member gets these)</span>
-        </p>
-        <RoleList selected={defaultIds} onToggle={(id) => toggle(setDefaultIds, id)} />
-      </div>
+      <RoleList
+        label="Member roles"
+        hint="Every full member gets these."
+        roles={roles}
+        selected={defaultIds}
+        onToggle={(id) => toggle(setDefaultIds, id)}
+        query={memberQuery}
+        onQueryChange={setMemberQuery}
+      />
 
-      <div>
-        <p className="text-sm font-medium mb-1">
-          Guest roles <span className="text-text-muted font-normal">(verified guests get these instead)</span>
-        </p>
-        <RoleList selected={guestIds} onToggle={(id) => toggle(setGuestIds, id)} />
-      </div>
+      <RoleList
+        label="Guest roles"
+        hint="Verified guests get these instead."
+        roles={roles}
+        selected={guestIds}
+        onToggle={(id) => toggle(setGuestIds, id)}
+        query={guestQuery}
+        onQueryChange={setGuestQuery}
+      />
 
       <div className="flex items-center gap-3">
         <button

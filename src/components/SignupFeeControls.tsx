@@ -208,7 +208,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
             ref={fileRef}
             type="file"
             accept="image/*"
-            className="text-xs text-text-muted file:mr-2 file:rounded file:border-0 file:bg-card-bg file:px-2 file:py-1 file:text-xs file:text-foreground"
+            className="min-w-0 flex-1 text-xs text-text-muted file:mr-2 file:rounded file:border-0 file:bg-card-bg file:px-2 file:py-1 file:text-xs file:text-foreground"
           />
           <button
             onClick={() => markPaid(true)}

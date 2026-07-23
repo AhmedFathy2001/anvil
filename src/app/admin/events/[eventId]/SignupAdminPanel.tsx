@@ -401,11 +401,11 @@ export default function SignupAdminPanel({
           </div>
         </div>
 
-        <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex items-baseline justify-between gap-3">
-          <div className="text-xs uppercase tracking-wide text-text-muted">
+        <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">
             Total prize pool so far
           </div>
-          <div className="text-xl font-extrabold text-gold tabular-nums">
+          <div className="text-xl font-extrabold text-gold tabular-nums whitespace-nowrap">
             {livePrizePool.toLocaleString()} gp
           </div>
         </div>
@@ -574,10 +574,10 @@ export default function SignupAdminPanel({
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 flex-wrap justify-end min-w-0">
                       {s.captainTeam && (
                         <span
-                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[7.5rem] sm:max-w-[20rem]"
                           style={{
                             color: s.captainTeam.color,
                             borderColor: `${s.captainTeam.color}55`,
@@ -645,12 +645,12 @@ export default function SignupAdminPanel({
                       <div className="border-t border-card-border pt-3 flex flex-wrap gap-2">
                         {captainPromptId === s.id ? (
                           <div className="w-full space-y-2 rounded-lg bg-brown-dark p-2">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <Input
                                 value={captainTeamName}
                                 onChange={(e) => setCaptainTeamName(e.target.value)}
                                 placeholder="Team name"
-                                className="px-2 py-1 rounded bg-card-bg border border-card-border text-xs focus:outline-none focus:border-gold/60"
+                                className="min-w-0 px-2 py-1 rounded bg-card-bg border border-card-border text-xs focus:outline-none focus:border-gold/60"
                               />
                               <div className="flex items-center gap-1 flex-wrap">
                                 {DEFAULT_TEAM_COLORS.map((c) => (
@@ -840,9 +840,9 @@ function ProfileStat({
   plain?: boolean;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-text-muted uppercase tracking-wide">{label}</div>
-      <div className={`mt-0.5 ${plain ? 'text-foreground' : 'text-gold font-medium'}`}>
+      <div className={`mt-0.5 break-words ${plain ? 'text-foreground' : 'text-gold font-medium'}`}>
         {value === undefined || value === '' ? '—' : value}
       </div>
     </div>

@@ -305,7 +305,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
       {/* Event Details */}
-      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+      <div className="min-w-0 border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
@@ -545,7 +545,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
       </div>
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
-      <div>
+      <div className="min-w-0">
         <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
           Board

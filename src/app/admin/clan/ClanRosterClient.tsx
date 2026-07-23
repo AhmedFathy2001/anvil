@@ -37,6 +37,69 @@ const SOURCE_LABEL: Record<string, string> = {
   'plugin-roster': 'Clan sync',
 };
 
+// Shared badges — used by BOTH the desktop table and the mobile card list so the two
+// stay in lockstep. Kept at module scope (pure, member-only) to avoid remount churn.
+function AccountBadge({ m }: { m: ClanMember }) {
+  return m.userId ? (
+    <span
+      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light"
+      title="Has a site account — this person has signed in with Discord."
+    >
+      Account
+    </span>
+  ) : (
+    <span
+      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted"
+      title="Roster entry only — no site login yet (synced from the clan or added by hand)."
+    >
+      Roster only
+    </span>
+  );
+}
+
+function StatusBadge({ m }: { m: ClanMember }) {
+  if (m.leftAt) {
+    return (
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">
+        Left
+      </span>
+    );
+  }
+  if (m.isGuest) {
+    return (
+      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">
+        Guest
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">
+      Member
+    </span>
+  );
+}
+
+function PendingRoleBadge({ m }: { m: ClanMember }) {
+  if (!m.pendingRole) return null;
+  return (
+    <span
+      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+        m.pendingRole === 'admin' ? 'bg-gold/15 text-gold' : 'bg-blue-500/15 text-blue-400'
+      }`}
+      title={
+        m.userId
+          ? m.provisional
+            ? `Will be granted ${m.pendingRole} once a mod approves their verification`
+            : `Pending — will apply on next role sync`
+          : `Will be granted ${m.pendingRole} when this RSN is claimed via Discord + verified`
+      }
+    >
+      → {m.pendingRole}
+      {!m.userId ? ' (awaiting claim)' : m.provisional ? ' (awaiting mod approval)' : ' (pending)'}
+    </span>
+  );
+}
+
 export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -350,6 +413,15 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     return items;
   }
 
+  const filterDefs: { key: FilterMode; label: string; count: number }[] = [
+    { key: 'active', label: 'Active', count: counts.active },
+    { key: 'guests', label: 'Guests', count: counts.guests },
+    { key: 'left', label: 'Left', count: counts.left },
+    { key: 'linked', label: 'Has account', count: counts.linked },
+    { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
+    { key: 'all', label: 'All', count: counts.total },
+  ];
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -415,17 +487,20 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex gap-1 border border-card-border rounded-lg p-1 bg-card-bg flex-wrap">
-          {([
-            { key: 'active', label: 'Active', count: counts.active },
-            { key: 'guests', label: 'Guests', count: counts.guests },
-            { key: 'left', label: 'Left', count: counts.left },
-            { key: 'linked', label: 'Has account', count: counts.linked },
-            { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
-            { key: 'all', label: 'All', count: counts.total },
-          ] as { key: FilterMode; label: string; count: number }[]).map((f) => (
+      {/* Filters — a compact dropdown on phones, the full chip row from sm: up. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-4">
+        {/* Mobile: combo box */}
+        <div className="sm:hidden">
+          <Select
+            value={filter}
+            onChange={(v) => setFilter(v as FilterMode)}
+            ariaLabel="Filter roster"
+            options={filterDefs.map((f) => ({ value: f.key, label: `${f.label} (${f.count})` }))}
+          />
+        </div>
+        {/* Desktop: chip group */}
+        <div className="hidden sm:flex gap-1 border border-card-border rounded-lg p-1 bg-card-bg flex-wrap">
+          {filterDefs.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
@@ -443,7 +518,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search RSN or rank..."
-          className="flex-1 max-w-xs px-3 py-1.5 bg-brown-dark border border-card-border rounded text-sm"
+          className="w-full sm:flex-1 sm:max-w-xs px-3 py-1.5 bg-brown-dark border border-card-border rounded text-sm"
         />
       </div>
 
@@ -523,7 +598,9 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       {loading ? (
         <div className="text-center py-12 text-text-muted">Loading roster...</div>
       ) : (
-        <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+        <>
+        {/* Desktop: full table from sm: up. */}
+        <div className="hidden sm:block border border-card-border rounded-xl bg-card-bg overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-text-muted">
@@ -544,64 +621,16 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-4 py-3 font-medium">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span>{m.rsn}</span>
-                      {m.userId ? (
-                        <span
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light"
-                          title="Has a site account — this person has signed in with Discord."
-                        >
-                          Account
-                        </span>
-                      ) : (
-                        <span
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted"
-                          title="Roster entry only — no site login yet (synced from the clan or added by hand)."
-                        >
-                          Roster only
-                        </span>
-                      )}
+                      <AccountBadge m={m} />
                     </div>
                     {m.pendingRole && (
                       <div className="mt-1">
-                        <span
-                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                            m.pendingRole === 'admin'
-                              ? 'bg-gold/15 text-gold'
-                              : 'bg-blue-500/15 text-blue-400'
-                          }`}
-                          title={
-                            m.userId
-                              ? m.provisional
-                                ? `Will be granted ${m.pendingRole} once a mod approves their verification`
-                                : `Pending — will apply on next role sync`
-                              : `Will be granted ${m.pendingRole} when this RSN is claimed via Discord + verified`
-                          }
-                        >
-                          → {m.pendingRole}
-                          {!m.userId
-                            ? ' (awaiting claim)'
-                            : m.provisional
-                              ? ' (awaiting mod approval)'
-                              : ' (pending)'}
-                        </span>
+                        <PendingRoleBadge m={m} />
                       </div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-text-muted">{m.rank || '—'}</td>
-                  <td className="px-4 py-3">
-                    {m.leftAt ? (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">
-                        Left
-                      </span>
-                    ) : m.isGuest ? (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">
-                        Guest
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">
-                        Member
-                      </span>
-                    )}
-                  </td>
+                  <td className="px-4 py-3"><StatusBadge m={m} /></td>
                   <td className="px-4 py-3 text-text-muted text-xs">{SOURCE_LABEL[m.source] ?? m.source}</td>
                   <td className="px-4 py-3 text-text-muted text-xs">
                     {m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleDateString() : '—'}
@@ -632,6 +661,68 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile: one card per member (no sideways scroll). */}
+        <div className="sm:hidden space-y-3">
+          {filtered.map((m) => (
+            <div
+              key={m.id}
+              className={`border border-card-border rounded-xl bg-card-bg p-4 ${m.leftAt ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap font-medium">
+                    <span className="break-all">{m.rsn}</span>
+                    <AccountBadge m={m} />
+                  </div>
+                  {m.pendingRole && (
+                    <div className="mt-1">
+                      <PendingRoleBadge m={m} />
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0">
+                  {m.leftAt ? (
+                    <button
+                      onClick={() => rejoinMember(m)}
+                      className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
+                    >
+                      Rejoin
+                    </button>
+                  ) : (
+                    <ActionMenu items={buildRowActions(m)} />
+                  )}
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-text-muted">Status</dt>
+                  <dd className="mt-0.5"><StatusBadge m={m} /></dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-text-muted">Rank</dt>
+                  <dd className="mt-0.5 truncate">{m.rank || '—'}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-text-muted">Source</dt>
+                  <dd className="mt-0.5">{SOURCE_LABEL[m.source] ?? m.source}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-text-muted">Last seen</dt>
+                  <dd className="mt-0.5">
+                    {m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleDateString() : '—'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="border border-card-border rounded-xl bg-card-bg px-4 py-8 text-center text-text-muted">
+              No members match this filter.
+            </div>
+          )}
+        </div>
+        </>
       )}
 
       {/* Role-assignment notice */}

@@ -258,7 +258,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
       <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
         {!fullscreen && (
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
               Standings
@@ -311,7 +311,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             )}
           </div>
         )}
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
             Board Overview

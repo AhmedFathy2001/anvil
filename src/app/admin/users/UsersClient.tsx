@@ -251,6 +251,126 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     return items;
   }
 
+  // Shared cell renderers — used by BOTH the desktop table and the mobile card list so the two
+  // surfaces render identical content (avatar/characters, role control, row actions).
+  const renderPerson = (user: User) => {
+    const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
+    return (
+      <div className="flex items-center gap-3">
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt="" width={32} height={32} className="rounded-full shrink-0" />
+        ) : (
+          <span className="w-8 h-8 shrink-0 rounded-full bg-gold/20 text-gold flex items-center justify-center text-xs font-semibold">
+            {(user.displayName || '?').charAt(0).toUpperCase()}
+          </span>
+        )}
+        <div className="min-w-0">
+          <div className="font-medium truncate flex items-center gap-2">
+            {user.displayName}
+            {user.banned && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 shrink-0">Banned</span>
+            )}
+          </div>
+          <div className="text-xs text-text-muted truncate">
+            {user.discordUsername ? `@${user.discordUsername}` : '—'}
+          </div>
+          {/* Characters — the game accounts this person owns. */}
+          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+            {user.characters.map((c) => (
+              <span
+                key={c.id}
+                className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${
+                  c.left
+                    ? 'border-card-border text-text-muted/60'
+                    : c.verified
+                      ? 'border-accent-green/30 text-accent-green-light'
+                      : 'border-card-border text-text-muted'
+                }`}
+                title={`${c.isGuest ? 'Guest' : 'Member'}${c.verified ? ' · verified' : ''}${c.left ? ' · left clan' : ''}`}
+              >
+                {c.rsn}
+                <button
+                  onClick={() => removeCharacter(user, c)}
+                  className="text-red-400/70 hover:text-red-300 leading-none"
+                  title="Remove character"
+                  aria-label={`Remove ${c.rsn}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {addingTo === user.id ? (
+              <span className="inline-flex items-center gap-1">
+                <Combobox
+                  value={addRsn}
+                  onChange={setAddRsn}
+                  suggestions={unlinked.map((u) => u.rsn)}
+                  placeholder="Pick a roster/guest account or type an RSN"
+                  ariaLabel="Character RSN"
+                  className="w-64 max-w-[60vw]"
+                />
+                <button onClick={() => addCharacter(user)} disabled={charBusy} className="text-[11px] text-gold disabled:opacity-50">
+                  {charBusy ? '…' : 'Add'}
+                </button>
+                <button onClick={() => { setAddingTo(null); setAddRsn(''); setCharError(''); }} className="text-[11px] text-text-muted">✕</button>
+              </span>
+            ) : (
+              <button
+                onClick={() => { setAddingTo(user.id); setAddRsn(''); setCharError(''); }}
+                className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-card-border text-text-muted hover:border-gold/40 hover:text-gold transition-colors"
+              >
+                + character
+              </button>
+            )}
+            {addingTo === user.id && charError && <span className="text-[11px] text-red-400 w-full">{charError}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoleControl = (user: User) =>
+    user.isOwner ? (
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold/25 text-gold border border-gold/40"
+          title="Clan owner — provisioned this instance. Cannot be demoted or removed."
+        >
+          👑 Owner
+        </span>
+        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE_CLS[user.role]}`}>
+          {user.role}
+        </span>
+      </span>
+    ) : (
+      <div className="max-w-[15rem]">
+        <Select
+          value={user.role}
+          onChange={(v) => changeRole(user, v as Role)}
+          disabled={savingRoleId === user.id}
+          ariaLabel={`Role for ${user.displayName}`}
+          options={ROLE_OPTIONS}
+        />
+      </div>
+    );
+
+  const renderActionsControl = (user: User) =>
+    user.isOwner ? (
+      <span className="text-xs text-text-muted italic whitespace-nowrap" title="The owner cannot be demoted or removed. Transfer ownership to hand it off.">
+        🔒 Protected
+      </span>
+    ) : (
+      <div className="flex justify-end">
+        <ActionMenu items={buildUserActions(user)} />
+      </div>
+    );
+
+  const emptyMessage =
+    filter === 'staff'
+      ? 'No staff yet — switch to Members or All accounts and pick someone a role.'
+      : 'No accounts match.';
+
   return (
     <div>
       <div className="mb-5">
@@ -266,9 +386,23 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         </p>
       </div>
 
-      {/* Segmented filter — leads with Staff so the tab is about staff, not every login. */}
-      <div className="flex gap-2 mb-4 flex-wrap items-center">
-        <div className="inline-flex rounded-lg border border-card-border overflow-hidden">
+      {/* Filter — a combo box on phones, the segmented control from sm: up. Leads with Staff so the
+          tab reads as being about staff, not every login. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mb-4">
+        {/* Mobile: combo box */}
+        <div className="sm:hidden">
+          <Select
+            value={filter}
+            onChange={(v) => setFilter(v as MainFilter)}
+            ariaLabel="Filter people"
+            options={FILTERS.map((f) => ({
+              value: f.key,
+              label: f.count != null ? `${f.label} (${f.count})` : f.label,
+            }))}
+          />
+        </div>
+        {/* Desktop: segmented control */}
+        <div className="hidden sm:inline-flex rounded-lg border border-card-border overflow-hidden">
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -286,7 +420,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name…"
-          className="ml-auto w-52"
+          className="w-full sm:ml-auto sm:w-52"
         />
       </div>
 
@@ -320,7 +454,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         </div>
       )}
 
-      <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+      {/* Desktop: table from sm: up. */}
+      <div className="hidden sm:block border border-card-border rounded-xl bg-card-bg overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-card-border text-left text-text-muted">
@@ -331,138 +466,55 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
             </tr>
           </thead>
           <tbody>
-            {filtered.map((user) => {
-              const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
-              return (
-                <tr key={user.id} className="border-b border-card-border/50 hover:bg-card-bg-hover transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt="" width={32} height={32} className="rounded-full" />
-                      ) : (
-                        <span className="w-8 h-8 rounded-full bg-gold/20 text-gold flex items-center justify-center text-xs font-semibold">
-                          {(user.displayName || '?').charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <div className="font-medium truncate flex items-center gap-2">
-                          {user.displayName}
-                          {user.banned && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 shrink-0">Banned</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-text-muted truncate">
-                          {user.discordUsername ? `@${user.discordUsername}` : '—'}
-                        </div>
-                        {/* Characters — the game accounts this person owns. */}
-                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                          {user.characters.map((c) => (
-                            <span
-                              key={c.id}
-                              className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${
-                                c.left
-                                  ? 'border-card-border text-text-muted/60'
-                                  : c.verified
-                                    ? 'border-accent-green/30 text-accent-green-light'
-                                    : 'border-card-border text-text-muted'
-                              }`}
-                              title={`${c.isGuest ? 'Guest' : 'Member'}${c.verified ? ' · verified' : ''}${c.left ? ' · left clan' : ''}`}
-                            >
-                              {c.rsn}
-                              <button
-                                onClick={() => removeCharacter(user, c)}
-                                className="text-red-400/70 hover:text-red-300 leading-none"
-                                title="Remove character"
-                                aria-label={`Remove ${c.rsn}`}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
-                          {addingTo === user.id ? (
-                            <span className="inline-flex items-center gap-1">
-                              <Combobox
-                                value={addRsn}
-                                onChange={setAddRsn}
-                                suggestions={unlinked.map((u) => u.rsn)}
-                                placeholder="Pick a roster/guest account or type an RSN"
-                                ariaLabel="Character RSN"
-                                className="w-64"
-                              />
-                              <button onClick={() => addCharacter(user)} disabled={charBusy} className="text-[11px] text-gold disabled:opacity-50">
-                                {charBusy ? '…' : 'Add'}
-                              </button>
-                              <button onClick={() => { setAddingTo(null); setAddRsn(''); setCharError(''); }} className="text-[11px] text-text-muted">✕</button>
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => { setAddingTo(user.id); setAddRsn(''); setCharError(''); }}
-                              className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-card-border text-text-muted hover:border-gold/40 hover:text-gold transition-colors"
-                            >
-                              + character
-                            </button>
-                          )}
-                          {addingTo === user.id && charError && <span className="text-[11px] text-red-400 w-full">{charError}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {user.isOwner ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold/25 text-gold border border-gold/40"
-                          title="Clan owner — provisioned this instance. Cannot be demoted or removed."
-                        >
-                          👑 Owner
-                        </span>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE_CLS[user.role]}`}>
-                          {user.role}
-                        </span>
-                      </span>
-                    ) : (
-                      <div className="max-w-[15rem]">
-                        <Select
-                          value={user.role}
-                          onChange={(v) => changeRole(user, v as Role)}
-                          disabled={savingRoleId === user.id}
-                          ariaLabel={`Role for ${user.displayName}`}
-                          options={ROLE_OPTIONS}
-                        />
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-text-muted text-xs">
-                    {user.lastLoginAt
-                      ? new Date(user.lastLoginAt).toLocaleDateString()
-                      : `joined ${new Date(user.createdAt).toLocaleDateString()}`}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {user.isOwner ? (
-                      <span className="text-xs text-text-muted italic" title="The owner cannot be demoted or removed. Transfer ownership to hand it off.">
-                        🔒 Protected
-                      </span>
-                    ) : (
-                      <div className="flex justify-end">
-                        <ActionMenu items={buildUserActions(user)} />
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {filtered.map((user) => (
+              <tr key={user.id} className="border-b border-card-border/50 hover:bg-card-bg-hover transition-colors">
+                <td className="px-4 py-3">{renderPerson(user)}</td>
+                <td className="px-4 py-3">{renderRoleControl(user)}</td>
+                <td className="px-4 py-3 text-text-muted text-xs whitespace-nowrap">
+                  {user.lastLoginAt
+                    ? new Date(user.lastLoginAt).toLocaleDateString()
+                    : `joined ${new Date(user.createdAt).toLocaleDateString()}`}
+                </td>
+                <td className="px-4 py-3 text-right">{renderActionsControl(user)}</td>
+              </tr>
+            ))}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-text-muted">
-                  {filter === 'staff'
-                    ? 'No staff yet — switch to Members or All accounts and pick someone a role.'
-                    : 'No accounts match.'}
+                  {emptyMessage}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: one card per person (no sideways scroll). */}
+      <div className="sm:hidden space-y-3">
+        {filtered.map((user) => (
+          <div key={user.id} className="border border-card-border rounded-xl bg-card-bg p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">{renderPerson(user)}</div>
+              <div className="shrink-0">{renderActionsControl(user)}</div>
+            </div>
+            <div className="mt-3 space-y-3 border-t border-card-border/60 pt-3">
+              <div className="min-w-0">
+                <div className="text-xs text-text-muted mb-1">Role</div>
+                {renderRoleControl(user)}
+              </div>
+              <div className="text-xs text-text-muted">
+                {user.lastLoginAt
+                  ? `Last login ${new Date(user.lastLoginAt).toLocaleDateString()}`
+                  : `Joined ${new Date(user.createdAt).toLocaleDateString()}`}
+              </div>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="border border-card-border rounded-xl bg-card-bg px-4 py-8 text-center text-text-muted">
+            {emptyMessage}
+          </div>
+        )}
       </div>
     </div>
   );
