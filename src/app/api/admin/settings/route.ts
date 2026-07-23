@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 import { getFederationEnabled } from '@/lib/pluginConfig';
-import { ensureRegisteredWithBroker } from '@/lib/federation';
+import { ensureRegisteredWithBroker, pushAllMemberAssociations } from '@/lib/federation';
 import { publicOrigin } from '@/lib/request-origin';
 
 const EXPOSED_KEYS = [
@@ -112,6 +112,9 @@ export async function PUT(request: Request) {
     const nowEnabled = await getFederationEnabled();
     if (nowEnabled && !wasFederationEnabled) {
       void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
+      // (Re-)joining advertises the whole existing roster — leaving retracted the associations, and
+      // nobody should have to re-log-in just because the clan toggled the network off and on.
+      void pushAllMemberAssociations().catch(() => {});
       reRegistered = true;
     } else if (!nowEnabled) {
       // Leaving the network: tell the broker to stop advertising us and retract our member

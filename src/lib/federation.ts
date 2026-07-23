@@ -368,6 +368,38 @@ export async function pushAssociation(
   }
 }
 
+// Rejoin/backfill push: when the clan (re-)enables federation, advertise the WHOLE existing roster
+// instead of waiting for each member's next login — without this, a clan that left the network (which
+// retracts its associations, by design) rejoins to an empty member list and every sidebar stays blank
+// until people happen to log in again. Sequential on purpose: all hosted clans egress one box IP and
+// share the broker's /assoc rate bucket, so a parallel burst from a big roster could starve siblings.
+// Fire-and-forget from the settings save; capped as a sanity bound.
+const ASSOC_BACKFILL_CAP = 500;
+export async function pushAllMemberAssociations(): Promise<void> {
+  try {
+    if (!(await getFederationEnabled())) return;
+    if (!(await getAssociationPush())) return;
+    const rows = await db
+      .selectDistinct({ discordId: users.discordId })
+      .from(users)
+      .innerJoin(clanMembers, eq(clanMembers.userId, users.id))
+      .where(isNull(clanMembers.leftAt))
+      .limit(ASSOC_BACKFILL_CAP);
+    const targets = new Set((await getBrokerTrust()).map((b) => b.iss));
+    const base = await getBrokerBaseUrl();
+    if (base) targets.add(base);
+    for (const r of rows) {
+      if (!r.discordId) continue;
+      for (const iss of targets) {
+        await pushAssociation(r.discordId, iss);
+      }
+    }
+    log.info('federation.assoc.backfill', { members: rows.length });
+  } catch (err) {
+    log.warn('federation.assoc.backfill-fail', {}, err);
+  }
+}
+
 // Login-time association push: a rostered member's Discord login is a "member here" signal, so the
 // whole roster becomes discoverable in /me/instances as people log in — not only the few who mint a
 // federation token or complete a device connect. Pushes to every trusted broker plus the configured
