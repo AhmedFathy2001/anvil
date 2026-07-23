@@ -14,7 +14,10 @@ interface EffortTileWire {
   weight: number;
   hours: (number | null)[] | null; // [fast, avg, slow]; null entries = that band can't do it
   floor: 'anyone' | 'mid' | 'high' | 'elite';
-  ptsPerHour: number | null;
+  difficulty: number;
+  rawPtsPerHour: number | null; // points ÷ real hours (throughput)
+  ptsPerHour: number | null; // points ÷ effort-hours (difficulty-adjusted — the ranking metric)
+  oneOff: boolean;
   suggestedPoints: number | null;
   note: string | null;
 }
@@ -88,13 +91,14 @@ export default function EffortTable({
 
   const modelled = report.perTile
     .filter((t) => t.ptsPerHour != null)
-    .sort((a, b) => (b.ptsPerHour ?? 0) - (a.ptsPerHour ?? 0));
+    // Grind tiles first (ranked by adjusted throughput), one-offs pooled at the bottom.
+    .sort((a, b) => Number(a.oneOff) - Number(b.oneOff) || (b.ptsPerHour ?? 0) - (a.ptsPerHour ?? 0));
   const median = report.medianPtsPerHour;
 
   return (
     <div>
       <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">
-        Points vs effort{median != null && <> · board median {median.toFixed(1)} pts/h</>}
+        Points vs effort{median != null && <> · board median {median.toFixed(1)} adj. pts/h</>}
       </p>
       {modelled.length === 0 ? (
         <p className="text-xs text-text-muted">No tiles could be effort-modelled yet.</p>
@@ -107,22 +111,29 @@ export default function EffortTable({
                 <th className="py-1 pr-2 font-semibold">Est. hours (fast–slow)</th>
                 <th className="py-1 pr-2 font-semibold">Floor</th>
                 {pointsMode && <th className="py-1 pr-2 font-semibold text-right">Pts</th>}
-                <th className="py-1 pr-2 font-semibold text-right">Pts/h</th>
+                <th className="py-1 pr-2 font-semibold text-right" title="Raw points per real hour (throughput)">Pts/h</th>
+                <th className="py-1 pr-2 font-semibold text-right" title="Points per difficulty-adjusted hour — the fairness metric ranked here">Adj. pts/h</th>
                 {pointsMode && <th className="py-1 pr-2 font-semibold text-right">Suggested</th>}
                 {pointsMode && <th className="py-1 font-semibold" />}
               </tr>
             </thead>
             <tbody>
               {modelled.map((t) => {
-                const over = median != null && t.ptsPerHour! > median * 3;
-                const under = median != null && t.ptsPerHour! < median / 3;
+                // One-offs are judged on difficulty, not throughput — never flagged over/under.
+                const over = !t.oneOff && median != null && t.ptsPerHour! > median * 3;
+                const under = !t.oneOff && median != null && t.ptsPerHour! < median / 3;
                 const avg = t.hours?.[1] ?? null;
                 return (
                   <tr
                     key={t.tileId}
                     className={`border-t border-card-border/40 ${over ? 'bg-amber-500/5' : under ? 'bg-red-500/5' : ''}`}
                   >
-                    <td className="py-1.5 pr-2 max-w-[200px] truncate text-foreground">{t.label}</td>
+                    <td className="py-1.5 pr-2 max-w-[200px] truncate text-foreground">
+                      {t.note && (
+                        <span className="text-amber-300/80 mr-1" title={t.note}>⚠</span>
+                      )}
+                      {t.label}
+                    </td>
                     <td className="py-1.5 pr-2 text-text-muted whitespace-nowrap">
                       <span className="text-foreground/90 font-medium">{fmtHours(avg)}</span>
                       <span className="ml-1 opacity-70">({fmtHours(t.hours?.[0] ?? null)}–{fmtHours(t.hours?.[2] ?? null)})</span>
@@ -131,9 +142,18 @@ export default function EffortTable({
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${FLOOR_STYLE[t.floor]}`}>{t.floor}</span>
                     </td>
                     {pointsMode && <td className="py-1.5 pr-2 text-right text-foreground/90">{t.weight}</td>}
-                    <td className={`py-1.5 pr-2 text-right font-medium ${over ? 'text-amber-300' : under ? 'text-red-300' : 'text-foreground/90'}`}>
-                      {t.ptsPerHour!.toFixed(1)}
-                      {over ? ' ▲' : under ? ' ▼' : ''}
+                    <td className="py-1.5 pr-2 text-right text-text-muted/80">
+                      {t.rawPtsPerHour != null ? t.rawPtsPerHour.toFixed(1) : '—'}
+                    </td>
+                    <td className={`py-1.5 pr-2 text-right font-medium ${over ? 'text-amber-300' : under ? 'text-red-300' : t.oneOff ? 'text-text-muted' : 'text-foreground/90'}`}>
+                      {t.oneOff ? (
+                        <span className="text-[10px] uppercase tracking-wide text-text-muted" title="Single completion — scored on difficulty, not throughput">one-off</span>
+                      ) : (
+                        <>
+                          {t.ptsPerHour!.toFixed(1)}
+                          {over ? ' ▲' : under ? ' ▼' : ''}
+                        </>
+                      )}
                     </td>
                     {pointsMode && (
                       <td className="py-1.5 pr-2 text-right text-gold">{t.suggestedPoints ?? '—'}</td>
@@ -171,6 +191,8 @@ export default function EffortTable({
       )}
       <p className="text-[10px] text-text-muted mt-1 leading-relaxed">
         Estimates from curated rates (fast / average / slow player) + wiki drop rates — rough by design.
+        <span className="text-foreground/80"> Adj. pts/h</span> weights each hour by difficulty (elite ≈ 4× anyone),
+        so hard content isn&apos;t judged like a grind; one-off tiles are scored on difficulty alone.
         Override any rate via the <span className="text-gold">balance_rates</span> setting.
       </p>
     </div>

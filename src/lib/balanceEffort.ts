@@ -20,6 +20,23 @@ export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
 const FLOOR_ORDER: Floor[] = ['anyone', 'mid', 'high', 'elite'];
 
+// Difficulty is a first-class input, not just a label. An hour of elite content is worth
+// more points than an hour of AFK content, so we score points against *effort-hours*
+// (wall-clock × this multiplier) rather than raw wall-clock. This is what stops a one-shot
+// elite tile from being ranked as "overpaid" next to a chicken.
+const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.6, high: 2.5, elite: 4 };
+
+// Nobody should ever be told to drop a hard tile to 2 points. A tile's suggested value is
+// clamped up to this floor by difficulty — prestige has a price regardless of throughput.
+const FLOOR_MIN_POINTS: Record<Floor, number> = { anyone: 5, mid: 15, high: 50, elite: 100 };
+
+// One-shot / trivial tiles ("Complete Doom 1–8", "Kill a chicken") aren't grinds — their
+// value is the difficulty of doing the thing once, not points-per-hour. We keep them in the
+// table but exclude them from the board median and the over/underpaid flags, and never
+// suggest lowering them (only lifting to the difficulty floor). A tile counts as one-off if
+// it's a single completion, or if a single rep is under ~5 minutes of real time.
+const ONE_OFF_TINY_HOURS = 0.08;
+
 interface ActivityRate {
   killSeconds?: Triplet;
   attemptMinutes?: Triplet;
@@ -45,8 +62,14 @@ export interface TileEffort {
   /** Expected player-hours [fast, avg, slow]; Infinity = that band can't do it; null = unmodelled. */
   hours: Triplet | null;
   floor: Floor;
-  /** Points per expected hour at the average band; null when unmodelled/inaccessible. */
+  /** Difficulty multiplier applied to hours to get effort-hours (from the tile's floor). */
+  difficulty: number;
+  /** Raw points ÷ real average hours — throughput, shown for reference. null when unmodelled. */
+  rawPtsPerHour: number | null;
+  /** Points ÷ effort-hours (difficulty-adjusted) — the yardstick used for ranking and flags. */
   ptsPerHour: number | null;
+  /** Single-completion / trivial tile: judged on difficulty, not throughput; excluded from the median. */
+  oneOff: boolean;
   suggestedPoints: number | null;
   /** Why the tile couldn't be modelled, or which fallback was used. */
   note: string | null;
@@ -81,10 +104,34 @@ export function mergeRates(overrides: unknown): BalanceRates {
 // Boss hiscores key ("kreeArra") → display label ("Kree'Arra"), for stat-boss lookups.
 const BOSS_LABEL_BY_KEY = new Map(BOSSES.map((b) => [b.key, b.label]));
 
+// Match activity names loosely: lowercase, drop a leading "the", strip colons and collapse
+// whitespace. This is why "Chambers of Xeric Challenge Mode" (kill target), "chambers of
+// xeric: challenge mode" (rate key), and the "CoX: CM" display label can all resolve to the
+// same rate — before this, sub-mode raid tiles silently fell through to the generic boss time.
+function normName(s: string): string {
+  return s.trim().toLowerCase().replace(/^the\s+/, '').replace(/:/g, '').replace(/\s+/g, ' ').trim();
+}
+const normIndexCache = new WeakMap<object, Map<string, ActivityRate>>();
+function activityIndex(rates: BalanceRates): Map<string, ActivityRate> {
+  let idx = normIndexCache.get(rates.activities);
+  if (!idx) {
+    idx = new Map();
+    for (const [k, v] of Object.entries(rates.activities)) idx.set(normName(k), v);
+    normIndexCache.set(rates.activities, idx);
+  }
+  return idx;
+}
 function activityFor(rates: BalanceRates, name: string | null | undefined): ActivityRate | null {
   if (!name) return null;
-  const k = name.trim().toLowerCase();
-  return rates.activities[k] ?? rates.activities[k.replace(/^the /, '')] ?? null;
+  return activityIndex(rates).get(normName(name)) ?? null;
+}
+/** First curated rate that matches any of the candidate names (label, aliases, key). */
+function activityForNames(rates: BalanceRates, names: (string | null | undefined)[]): ActivityRate | null {
+  for (const n of names) {
+    const a = activityFor(rates, n);
+    if (a) return a;
+  }
+  return null;
 }
 
 // ---- Drop-rate lookup ---------------------------------------------------------------
@@ -145,14 +192,22 @@ function floorFromHours(hours: Triplet, declared: Floor): Floor {
   return declared;
 }
 
-function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor: Floor; defaulted: boolean } {
+// Resolves a kill-time triplet from the first of `names` that matches a curated rate. Boss KC
+// tiles pass [label, ...aliases, key] so an abbreviated display label ("CoX: CM") still finds
+// its rate via an alias; simple sources pass a single-element list.
+function killTripletForNames(
+  rates: BalanceRates,
+  names: (string | null | undefined)[],
+): { sec: Triplet; floor: Floor; defaulted: boolean } {
   // Spawn-gated sources first: a superior "kill" costs a whole encounter (task kills +
   // task availability), not a respawn timer.
-  if (isSuperiorSource(source)) {
-    const sec = rates.gated?.superiorEncounterSeconds ?? [1500, 3000, 6000];
-    return { sec, floor: 'mid', defaulted: false };
+  for (const n of names) {
+    if (n && isSuperiorSource(n)) {
+      const sec = rates.gated?.superiorEncounterSeconds ?? [1500, 3000, 6000];
+      return { sec, floor: 'mid', defaulted: false };
+    }
   }
-  const act = activityFor(rates, source);
+  const act = activityForNames(rates, names);
   if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false };
   // Attempt-model activities (CG, raids, Inferno) have no flat kill time — a "kill" costs
   // an attempt divided by the band's success rate (Infinity where that band can't finish).
@@ -163,6 +218,9 @@ function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor
     return { sec, floor: act.floor ?? 'high', defaulted: false };
   }
   return { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true };
+}
+function killTriplet(rates: BalanceRates, source: string): { sec: Triplet; floor: Floor; defaulted: boolean } {
+  return killTripletForNames(rates, [source]);
 }
 
 function parseJsonArray<T>(raw: string | null | undefined): T[] | null {
@@ -189,9 +247,14 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
         note: null,
       };
     }
-    // boss KC goal
-    const label = BOSS_LABEL_BY_KEY.get(tile.trackedStat) ?? tile.trackedStat;
-    const { sec, floor, defaulted } = killTriplet(rates, label);
+    // boss KC goal. trackedStat may hold comma-separated keys (gains SUM across them); use the
+    // first for the effort estimate. Resolve the rate through the boss's label + aliases so
+    // abbreviated labels ("CoX: CM") and sub-mode names still find their curated rate.
+    const firstKey = tile.trackedStat.split(',')[0].trim();
+    const boss = BOSSES.find((b) => b.key === firstKey);
+    const label = boss?.label ?? BOSS_LABEL_BY_KEY.get(firstKey) ?? firstKey;
+    const names = boss ? [boss.label, ...(boss.aliases ?? []), boss.key] : [label];
+    const { sec, floor, defaulted } = killTripletForNames(rates, names);
     return {
       hours: sec.map((s) => (tile.statGoal! * s) / 3600) as Triplet,
       floor,
@@ -362,27 +425,44 @@ export function analyzeEffort(
     const { hours, floor, note } = estimateTile(t, rates);
     const weight = tileWeight(scoringMode, t.points ?? 1);
     const avg = hours && Number.isFinite(hours[1]) && hours[1] > 0 ? hours[1] : null;
+    const difficulty = FLOOR_EFFORT_MULTIPLIER[floor];
+    const effortAvg = avg != null ? avg * difficulty : null;
+    // Single-completion or sub-5-minute tiles are one-offs: judged on difficulty, not throughput.
+    const count = t.statGoal ?? t.requiredAmount ?? null;
+    const oneOff = count === 1 || (avg != null && avg < ONE_OFF_TINY_HOURS);
     return {
       tileId: t.id,
       label: t.label,
       weight,
       hours,
       floor,
-      ptsPerHour: avg ? weight / avg : null,
+      difficulty,
+      rawPtsPerHour: avg ? weight / avg : null,
+      ptsPerHour: effortAvg ? weight / effortAvg : null,
+      oneOff,
       suggestedPoints: null, // filled below once the board median is known
       note,
     };
   });
 
   const modelled = perTile.filter((t) => t.ptsPerHour != null);
-  const pphSorted = modelled.map((t) => t.ptsPerHour!).sort((a, b) => a - b);
+  // The median (and the over/underpaid flags) are set by grind tiles only — one-offs have
+  // near-zero denominators that would blow up the benchmark. Difficulty-adjusted throughout.
+  const graded = modelled.filter((t) => !t.oneOff);
+  const pphSorted = graded.map((t) => t.ptsPerHour!).sort((a, b) => a - b);
   const medianPph = pphSorted.length ? pphSorted[Math.floor(pphSorted.length / 2)] : null;
 
   if (medianPph && opts.pointsMode) {
     for (const t of perTile) {
-      if (t.hours && Number.isFinite(t.hours[1]) && t.hours[1] > 0) {
-        const raw = medianPph * t.hours[1];
-        t.suggestedPoints = Math.max(1, raw >= 20 ? Math.round(raw / 5) * 5 : Math.round(raw));
+      if (!t.hours || !Number.isFinite(t.hours[1]) || t.hours[1] <= 0) continue;
+      const floorMin = FLOOR_MIN_POINTS[t.floor];
+      if (t.oneOff) {
+        // Never dock a one-off on throughput grounds — only lift it to its difficulty floor.
+        t.suggestedPoints = Math.max(floorMin, t.weight);
+      } else {
+        const raw = medianPph * t.hours[1] * t.difficulty;
+        const rounded = raw >= 20 ? Math.round(raw / 5) * 5 : Math.max(1, Math.round(raw));
+        t.suggestedPoints = Math.max(floorMin, rounded);
       }
     }
   }
@@ -396,15 +476,15 @@ export function analyzeEffort(
   const checks: BalanceCheck[] = [];
   const pct = (x: number) => `${Math.round(x * 100)}%`;
 
-  if (medianPph && opts.pointsMode && modelled.length >= 5) {
-    const over = modelled.filter((t) => t.ptsPerHour! > medianPph * 3);
-    const under = modelled.filter((t) => t.ptsPerHour! < medianPph / 3);
+  if (medianPph && opts.pointsMode && graded.length >= 5) {
+    const over = graded.filter((t) => t.ptsPerHour! > medianPph * 3);
+    const under = graded.filter((t) => t.ptsPerHour! < medianPph / 3);
     if (over.length) {
       checks.push({
         id: 'pph-overpaid',
         level: 'warn',
-        title: `${over.length} tile${over.length === 1 ? ' pays' : 's pay'} >3× the board's points-per-hour`,
-        detail: `${over.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${over.length > 4 ? '…' : ''} — the meta becomes farming these. Suggested points shown in the effort table.`,
+        title: `${over.length} tile${over.length === 1 ? ' pays' : 's pay'} >3× the board's points-per-effort-hour`,
+        detail: `${over.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${over.length > 4 ? '…' : ''} — even after weighting for difficulty these are the farm meta. Suggested points shown in the effort table.`,
         tileIds: over.map((t) => t.tileId),
       });
     }
@@ -412,11 +492,24 @@ export function analyzeEffort(
       checks.push({
         id: 'pph-underpaid',
         level: 'warn',
-        title: `${under.length} tile${under.length === 1 ? ' pays' : 's pay'} <⅓ of the board's points-per-hour`,
-        detail: `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — nobody rational touches these. Raise their points or shrink the requirement.`,
+        title: `${under.length} tile${under.length === 1 ? ' pays' : 's pay'} <⅓ of the board's points-per-effort-hour`,
+        detail: `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — too grindy for the points. Raise their points or shrink the requirement.`,
         tileIds: under.map((t) => t.tileId),
       });
     }
+  }
+
+  // Surface the silent generic-time fallback: a tile with no curated rate is a rough guess,
+  // not a modelled figure. Post-fix this catches genuinely unmodelled bosses, not raid modes.
+  const fallback = perTile.filter((t) => t.note && /generic/.test(t.note));
+  if (fallback.length) {
+    checks.push({
+      id: 'rate-fallback',
+      level: 'info',
+      title: `${fallback.length} tile${fallback.length === 1 ? ' uses' : 's use'} a generic time estimate`,
+      detail: `No curated kill-time for ${fallback.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${fallback.length > 4 ? '…' : ''} — their effort is a placeholder. Add rates via the balance_rates setting for a sharper read.`,
+      tileIds: fallback.map((t) => t.tileId),
+    });
   }
 
   const blocked = perTile.filter((t) => t.hours && !Number.isFinite(t.hours[1]));
