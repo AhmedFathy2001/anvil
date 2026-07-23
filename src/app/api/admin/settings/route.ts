@@ -107,11 +107,19 @@ export async function PUT(request: Request) {
   // instance with the broker (domain-verified) so other clan sites' relayed /exchange calls are
   // accepted, and add the broker to brokerTrust. Best-effort + fire-and-forget: a broker hiccup must
   // never fail saving settings, and the plugin retries via /connect regardless.
+  let reRegistered = false;
   if (body.federation_enabled !== undefined) {
     const nowEnabled = await getFederationEnabled();
     if (nowEnabled && !wasFederationEnabled) {
       void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
+      reRegistered = true;
     }
+  }
+  // Name sync: a clan rename must reach the broker directory too, or every OTHER clan's sidebar
+  // keeps labeling this instance with its provisioning-time name forever. Same idempotent reconcile
+  // (the broker updates `name` in place); homes pick the new label up on their next relay refresh.
+  if (!reRegistered && body.clan_name !== undefined && (await getFederationEnabled())) {
+    void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
   }
 
   return NextResponse.json({ success: true });
