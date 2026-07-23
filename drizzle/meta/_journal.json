@@ -239,6 +239,13 @@
       "when": 1784776123059,
       "tag": "0033_federation_broker_session",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1784798475746,
+      "tag": "0034_plugin_device_codes",
+      "breakpoints": true
     }
   ]
 }

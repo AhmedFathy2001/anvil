@@ -322,6 +322,35 @@ export const settings = sqliteTable('settings', {
   value: text('value'),
 });
 
+/**
+ * Device-code sign-in for the plugin (RFC 8628 shape, home-native — no broker involved). The plugin
+ * POSTs /api/plugin/auth/start, opens THIS site's /link-device page in the member's browser (URL
+ * pinned plugin-side to the configured home origin), and polls /api/plugin/auth/poll until the
+ * logged-in member approves the code — then the poll returns the account token exactly once.
+ * Works identically for hosted, self-hosted-networked, and fully-standalone instances.
+ */
+export const pluginDeviceCodes = sqliteTable('plugin_device_codes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // SHA-256 of the long random device_code the plugin holds; the raw value is never stored.
+  deviceCodeHash: text('device_code_hash').notNull(),
+  // Short human-typeable code shown in the plugin and confirmed on /link-device. Unambiguous
+  // alphabet, formatted XXXX-XXXX.
+  userCode: text('user_code').notNull(),
+  // pending → approved (member confirmed; user_id bound) → redeemed (token issued ONCE, single-use)
+  // | denied (member rejected) | expired (TTL elapsed, stamped lazily on poll).
+  status: text('status').notNull().default('pending'),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  // Minimum seconds between polls (slow_down pacing if the plugin polls faster).
+  interval: integer('interval').notNull().default(5),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  expiresAt: text('expires_at').notNull(),
+  lastPolledAt: text('last_polled_at'),
+}, (t) => [
+  uniqueIndex('plugin_device_codes_hash_unique').on(t.deviceCodeHash),
+  uniqueIndex('plugin_device_codes_user_code_unique').on(t.userCode),
+  index('plugin_device_codes_expires_idx').on(t.expiresAt),
+]);
+
 // Tiny fixed-window rate-limit bucket store. Rows are self-garbage-collected
 // by an opportunistic DELETE on each write; nothing else needs scheduling.
 export const rateLimits = sqliteTable('rate_limits', {
