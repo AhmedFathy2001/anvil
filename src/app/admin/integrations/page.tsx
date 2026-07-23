@@ -22,7 +22,7 @@ export default async function AdminIntegrationsPage() {
       </header>
 
       <p className="text-xs text-text-muted mb-5">
-        Clan name and roster sync live under <span className="text-foreground/80">Clan → Roster</span>.
+        Clan name and roster sync live under <span className="text-foreground/80">Clan → Members &amp; staff</span>.
       </p>
 
       <SettingsTabs channels={channels} botEnabled={botEnabled} />
