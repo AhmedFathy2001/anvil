@@ -113,6 +113,13 @@ export async function PUT(request: Request) {
     if (nowEnabled && !wasFederationEnabled) {
       void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
       reRegistered = true;
+    } else if (!nowEnabled) {
+      // Leaving the network: tell the broker to stop advertising us and retract our member
+      // associations. Fires on EVERY off-save (not just the transition) so a re-save can repair a
+      // missed/failed notify; idempotent + fire-and-forget broker-side. The inbound federation
+      // routes also refuse while disabled, so other homes drop us even before the broker syncs.
+      void ensureRegisteredWithBroker(publicOrigin(request), 'off').catch(() => {});
+      reRegistered = true;
     }
   }
   // Name sync: a clan rename must reach the broker directory too, or every OTHER clan's sidebar

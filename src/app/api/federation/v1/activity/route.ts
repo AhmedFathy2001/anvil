@@ -4,6 +4,7 @@ import { clanMembers, completions, events, players, tiles, teams } from '@/db/sc
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { resolveFederationToken } from '@/lib/federation';
+import { getFederationEnabled } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,13 @@ const ACTIVITY_LIMIT = 25;
 // Federation-authed (Bearer federation token, board:read). Same team-resolution as /board, and kept
 // ETag/304 (the feed rarely changes between the plugin's polls).
 export async function GET(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   const ctx = await resolveFederationToken(request);
   if (!ctx) {
     return NextResponse.json(

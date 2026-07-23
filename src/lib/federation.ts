@@ -174,29 +174,35 @@ async function ensureBrokerTrusted(brokerBaseUrl: string): Promise<void> {
 // echo (the broker then fetches it to verify domain control). Also trusts the broker for inbound
 // relayed exchanges. Best-effort: a broker being down must never fail the admin's settings save — the
 // plugin's /connect retries the whole path anyway.
-export async function ensureRegisteredWithBroker(baseUrl: string): Promise<void> {
+export async function ensureRegisteredWithBroker(
+  baseUrl: string,
+  participation: 'on' | 'off' = 'on',
+): Promise<void> {
   const brokerBaseUrl = await getBrokerBaseUrl();
   if (!brokerBaseUrl) {
     log.warn('federation.register.no-broker-url', {});
     return;
   }
-  await ensureBrokerTrusted(brokerBaseUrl).catch(() => {});
+  // Opting OUT must not (re-)trust the broker as an assertion issuer — only the join path does that.
+  if (participation === 'on') {
+    await ensureBrokerTrusted(brokerBaseUrl).catch(() => {});
+  }
 
   const [instanceId, name] = await Promise.all([getInstanceId(), getInstanceName()]);
   const tier = getFederationTier();
   try {
     const res = await brokerRegister(
       brokerBaseUrl,
-      { instanceId, baseUrl, name, type: tier },
+      { instanceId, baseUrl, name, type: tier, participation },
       getInstanceCredential(),
       federationFetch, // §1 SSRF guard on the broker outbound
     );
     if (res?.verificationToken) {
       await setSetting(FEDERATION_VERIFICATION_TOKEN_KEY, res.verificationToken);
     }
-    log.info('federation.register.ok', { instanceId, tier, state: res?.state ?? null });
+    log.info('federation.register.ok', { instanceId, tier, participation, state: res?.state ?? null });
   } catch (err) {
-    log.warn('federation.register.fail', { instanceId, tier }, err);
+    log.warn('federation.register.fail', { instanceId, tier, participation }, err);
   }
 }
 

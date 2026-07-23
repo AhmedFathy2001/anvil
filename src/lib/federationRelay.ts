@@ -211,7 +211,16 @@ export async function brokerAssert(
 // self-host registers self-service and gets a verificationToken to echo at /.well-known.
 export async function brokerRegister(
   brokerBaseUrl: string,
-  body: { instanceId: string; baseUrl: string; name: string; type: 'hosted' | 'self-host' },
+  body: {
+    instanceId: string;
+    baseUrl: string;
+    name: string;
+    type: 'hosted' | 'self-host';
+    // Network participation ('on'|'off'): 'off' asks the broker to stop advertising this instance
+    // and retract its member associations (the federation master switch's outward half). Absent =
+    // leave the broker-side state unchanged.
+    participation?: 'on' | 'off';
+  },
   credential: string | null,
   fetchImpl?: FetchLike,
 ): Promise<{ verificationToken?: string; state?: string } | null> {

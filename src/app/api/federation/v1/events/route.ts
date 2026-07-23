@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { submissions, tiles, teams, players, events, clanMembers } from '@/db/schema';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { resolveFederationToken, getInstanceId } from '@/lib/federation';
-import { getSharedCredit, getAcceptFederatedWrites } from '@/lib/pluginConfig';
+import { getSharedCredit, getAcceptFederatedWrites, getFederationEnabled } from '@/lib/pluginConfig';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { rateLimit, rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission } from '@/lib/discord';
@@ -43,6 +43,13 @@ const COUNT_ONLY_TILE_TYPES = new Set([
 // from the TOKEN's own membership, so a token can only ever credit its own team, and STILL run the
 // unchanged completion/anti-cheat pipeline (syncDropTileCompletion). Federation loosens nothing.
 export async function POST(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   const rl = await rateLimit(request, 'federation-events', { limit: 60, windowMs: 60_000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many events — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });

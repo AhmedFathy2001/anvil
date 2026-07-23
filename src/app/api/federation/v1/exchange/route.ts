@@ -11,7 +11,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/federationSecurity';
-import { getBrokerTrust, getExchangePolicy } from '@/lib/pluginConfig';
+import { getBrokerTrust, getExchangePolicy, getFederationEnabled } from '@/lib/pluginConfig';
 import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
 import {
   exchangeRateLimitKey,
@@ -124,6 +124,13 @@ async function ensureFederationGuest(
 }
 
 export async function POST(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   // findings #6 + #2: a COARSE per-IP throttle FIRST — before JSON.parse, the JWT decodes, and the
   // (uncached) getBrokerTrust() DB read — so an unauthenticated flood of forged assertions is capped
   // before any of that work runs. Keyed on the PROXY-APPENDED client IP (getClientIp: x-real-ip / last
