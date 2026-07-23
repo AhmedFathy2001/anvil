@@ -97,8 +97,10 @@ async function homeBoardForUser(userId: number): Promise<{
     now <= Date.parse(e.endDate);
   // The token is USER-scoped, so pre-login we can't know which linked account is about to play
   // (Jagex launchers know client-side; legacy logins don't). Deterministic guess: the PRIMARY
-  // account's live enrollment first, else any live one — the real account-scoped board takes over
-  // the moment an account resolves in-game.
+  // account's live enrollment first, else any live one; latest start wins within each tier —
+  // mirroring verifyPluginToken's pick so pre- and post-login agree. The real account-scoped board
+  // takes over the moment an account resolves in-game.
+  enrollments.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   const live =
     enrollments.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
     enrollments.find(isLive);

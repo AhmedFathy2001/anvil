@@ -801,6 +801,7 @@ export async function verifyPluginToken(
       name: players.name,
       teamId: players.teamId,
       eventId: players.eventId,
+      startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
@@ -808,11 +809,19 @@ export async function verifyPluginToken(
     .innerJoin(events, eq(players.eventId, events.id))
     .where(eq(players.clanMemberId, member.clanMemberId));
 
-  // The first live event this member is drafted into (a member in two concurrent events resolves to
-  // one — the plugin scopes to its own active event). Not signed up under this RSN → null.
-  const pick = playerRows.find(
+  // A member in two concurrent events resolves to ONE — the plugin scopes to a single active event
+  // (until the multi-enrollment rework lands). The pick is DETERMINISTIC, not row order: events
+  // already RUNNING beat upcoming ones the member is merely pre-drafted into, and among running
+  // events the latest start wins (the freshest board is almost always the one being played).
+  const candidates = playerRows.filter(
     (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
   );
+  const started = (p: (typeof candidates)[number]) => !!p.startDate && p.startDate <= nowIso;
+  candidates.sort((a, b) => {
+    if (started(a) !== started(b)) return started(a) ? -1 : 1;
+    return (b.startDate ?? '').localeCompare(a.startDate ?? '');
+  });
+  const pick = candidates[0];
   if (!pick) return null;
 
   return {
