@@ -42,3 +42,22 @@ export async function loadGuildRoles(force = false): Promise<GuildRole[]> {
 export function invalidateGuildRoles(): void {
   cache = null;
 }
+
+/**
+ * Create a new Discord role in the connected guild and return it. Invalidates the roles cache so
+ * the next `loadGuildRoles` includes it. Throws with a friendly message on failure.
+ */
+export async function createGuildRole(
+  name: string,
+  opts: { color?: number; mentionable?: boolean } = {},
+): Promise<GuildRole> {
+  const res = await fetch('/api/admin/discord/roles/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color: opts.color, mentionable: opts.mentionable }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not create the role');
+  invalidateGuildRoles();
+  return data.role as GuildRole;
+}

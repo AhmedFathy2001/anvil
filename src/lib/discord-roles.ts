@@ -363,14 +363,42 @@ export interface DiscordRole {
 }
 
 export async function fetchGuildRoles(): Promise<DiscordRole[]> {
-  const cfg = await loadRoleSyncConfig();
-  if (!cfg) return [];
-  const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/roles`);
+  // Gated on the BOT being connected (token + guild), NOT on role-sync being enabled — the role
+  // pickers (team channels, ping role, assigned roles) must list roles whenever the bot is up,
+  // independent of the role-sync toggle.
+  const creds = await getBotCredentials();
+  if (!creds) return [];
+  const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/roles`);
   if (!res.ok) {
     log.warn('discord-roles.list-roles-fail', { status: res.status });
     return [];
   }
   return (await res.json()) as DiscordRole[];
+}
+
+/**
+ * Create a new role in the guild (the bot needs Manage Roles). Returns the created role, or null
+ * when the bot isn't connected or Discord rejects it. New roles land at the bottom of the list.
+ */
+export async function createGuildRole(
+  name: string,
+  opts: { color?: number; mentionable?: boolean } = {},
+): Promise<DiscordRole | null> {
+  const creds = await getBotCredentials();
+  if (!creds) return null;
+  const body: Record<string, unknown> = { name };
+  if (typeof opts.color === 'number') body.color = opts.color;
+  if (typeof opts.mentionable === 'boolean') body.mentionable = opts.mentionable;
+  const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/roles`, {
+    method: 'POST',
+    headers: { 'X-Audit-Log-Reason': 'Created from Anvil admin' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    log.warn('discord-roles.create-role-fail', { status: res.status });
+    return null;
+  }
+  return (await res.json()) as DiscordRole;
 }
 
 interface DiscordGuildMember {
