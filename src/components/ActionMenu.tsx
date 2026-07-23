@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 export interface ActionItem {
@@ -9,6 +10,27 @@ export interface ActionItem {
   variant?: 'default' | 'gold' | 'danger';
   disabled?: boolean;
   title?: string;
+}
+
+interface Coords {
+  top: number;
+  left?: number;
+  right?: number;
+}
+
+// Compute a fixed-position anchor from the trigger's viewport rect. The menu is portalled to
+// <body> so an ancestor with `overflow` (e.g. a table wrapped in `overflow-x-auto`, which the
+// spec promotes to `overflow-y: auto`) can't clip it. Flips above the trigger when there isn't
+// room below.
+function computeCoords(btn: HTMLElement, itemCount: number, align: 'left' | 'right'): Coords {
+  const r = btn.getBoundingClientRect();
+  const estHeight = itemCount * 32 + 8; // ~1.5rem rows + padding
+  const below = r.bottom + 4;
+  const flip = below + estHeight > window.innerHeight - 8 && r.top - estHeight - 4 > 8;
+  const top = flip ? r.top - estHeight - 4 : below;
+  return align === 'right'
+    ? { top, right: Math.max(8, window.innerWidth - r.right) }
+    : { top, left: Math.max(8, r.left) };
 }
 
 // A compact per-row actions dropdown — replaces a long trailing row of buttons with one "Actions ▾"
@@ -23,31 +45,54 @@ export default function ActionMenu({
   align?: 'left' | 'right';
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<Coords | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  function toggle() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    if (btnRef.current) setCoords(computeCoords(btnRef.current, items.length, align));
+    setOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
     function onPointer(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    // Reposition while open so the menu tracks its trigger through scroll/resize (capture phase
+    // catches scrolling ancestors, not just the window).
+    function reflow() {
+      if (btnRef.current) setCoords(computeCoords(btnRef.current, items.length, align));
+    }
     document.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', reflow);
+    window.addEventListener('scroll', reflow, true);
     return () => {
       document.removeEventListener('pointerdown', onPointer);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', reflow);
+      window.removeEventListener('scroll', reflow, true);
     };
-  }, [open]);
+  }, [open, items.length, align]);
 
   if (items.length === 0) return null;
 
   return (
-    <div ref={ref} className="relative inline-block text-left">
+    <div className="inline-block text-left">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
         className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors inline-flex items-center gap-1"
@@ -67,39 +112,41 @@ export default function ActionMenu({
         </svg>
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className={cn(
-            'absolute z-50 mt-1 min-w-[10rem] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 py-1',
-            align === 'right' ? 'right-0' : 'left-0',
-          )}
-        >
-          {items.map((it, i) => (
-            <button
-              key={i}
-              type="button"
-              role="menuitem"
-              disabled={it.disabled}
-              title={it.title}
-              onClick={() => {
-                setOpen(false);
-                it.onClick();
-              }}
-              className={cn(
-                'w-full text-left px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                it.variant === 'danger'
-                  ? 'text-red-300 hover:bg-red-500/10'
-                  : it.variant === 'gold'
-                    ? 'text-gold hover:bg-gold/10'
-                    : 'text-foreground hover:bg-brown-light',
-              )}
-            >
-              {it.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        coords &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ position: 'fixed', top: coords.top, left: coords.left, right: coords.right }}
+            className="z-50 min-w-[10rem] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 py-1"
+          >
+            {items.map((it, i) => (
+              <button
+                key={i}
+                type="button"
+                role="menuitem"
+                disabled={it.disabled}
+                title={it.title}
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                  it.variant === 'danger'
+                    ? 'text-red-300 hover:bg-red-500/10'
+                    : it.variant === 'gold'
+                      ? 'text-gold hover:bg-gold/10'
+                      : 'text-foreground hover:bg-brown-light',
+                )}
+              >
+                {it.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
