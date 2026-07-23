@@ -25,6 +25,7 @@ import {
   clearFederationLinked,
   isFederationLinked,
   getUserDiscordId,
+  sharedAccountsForUser,
   saveBrokerSession,
   getBrokerSessionInfo,
   markFederationSynced,
@@ -71,7 +72,14 @@ async function finishBrokerToken(
 ): Promise<'connected' | 'pending'> {
   let connections;
   try {
-    connections = await connectViaBrokerToken({ brokerBaseUrl, brokerToken, ownInstanceId, fetchImpl: federationFetch });
+    connections = await connectViaBrokerToken({
+      brokerBaseUrl,
+      brokerToken,
+      ownInstanceId,
+      fetchImpl: federationFetch,
+      // Always present (empty array when nothing is shared) so remotes can PRUNE on revocation.
+      accountsFor: (instanceId) => sharedAccountsForUser(userId, instanceId),
+    });
   } catch (err) {
     // A broker/assert blip must NOT strand the flow: the brokerToken stays persisted so the next
     // advance retries the exchange directly. Never a 500, never a re-login (finding #15).
@@ -118,6 +126,7 @@ async function refreshConnections(
       brokerToken: brokerSession,
       ownInstanceId,
       fetchImpl: federationFetch,
+      accountsFor: (instanceId) => sharedAccountsForUser(userId, instanceId),
     });
     await replaceConnectionsForUser(userId, connections);
     log.info('federation.state.refreshed', { userId, clans: connections.length });

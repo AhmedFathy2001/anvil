@@ -236,15 +236,25 @@ export async function brokerRegister(
 // Remote-clan client (server-to-server). All under `<clan>/api/federation/v1/`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** A home-attested account the member explicitly shared with the target clan ("Share my RSN"). */
+export interface SharedAccount {
+  rsn: string;
+  primary: boolean;
+}
+
 // Exchange one broker assertion at its target clan for a federation token (WIRE §2/§8). Returns null
 // on any non-token response (422 re-fetch, 409 already-spent, 403 policy) — the caller drops that clan
-// from the connection set rather than failing the whole connect.
+// from the connection set rather than failing the whole connect. `accounts` (optional) carries the
+// member's per-clan shared RSNs — the remote applies them to its federation guest only (never to an
+// existing member row) and prunes ones no longer in the set, so revocation propagates the same way.
 export async function exchangeAssertion(
   baseUrl: string,
   assertion: string,
   fetchImpl?: FetchLike,
+  accounts?: SharedAccount[],
 ): Promise<{ token: string; instanceId?: string; guest?: boolean } | null> {
-  const { status, json } = await postJson(`${trimUrl(baseUrl)}${FED}/exchange`, { assertion }, { fetchImpl });
+  const body = accounts !== undefined ? { assertion, accounts } : { assertion };
+  const { status, json } = await postJson(`${trimUrl(baseUrl)}${FED}/exchange`, body, { fetchImpl });
   if (status !== 200 || !json || typeof json !== 'object') return null;
   const j = json as { token?: unknown; instanceId?: unknown; guest?: unknown; status?: unknown };
   if (typeof j.token !== 'string' || !j.token) return null; // e.g. { status: 'request-to-join' }
@@ -373,6 +383,7 @@ async function exchangeAll(
   assertions: BrokerAssertion[],
   ownInstanceId: string,
   fetchImpl?: FetchLike,
+  accountsFor?: (instanceId: string) => Promise<SharedAccount[]>,
 ): Promise<FederationConnection[]> {
   const byId = new Map(instances.map((i) => [i.instanceId, i]));
   const out: FederationConnection[] = [];
@@ -381,7 +392,8 @@ async function exchangeAll(
     const inst = byId.get(a.instanceId);
     if (!inst) continue;
     try {
-      const res = await exchangeAssertion(inst.baseUrl, a.assertion, fetchImpl);
+      const accounts = accountsFor ? await accountsFor(inst.instanceId).catch(() => []) : undefined;
+      const res = await exchangeAssertion(inst.baseUrl, a.assertion, fetchImpl, accounts);
       if (res?.token) {
         out.push({ instanceId: inst.instanceId, name: inst.name, baseUrl: inst.baseUrl, token: res.token });
       }
@@ -399,12 +411,14 @@ export async function connectViaBrokerToken(deps: {
   brokerToken: string;
   ownInstanceId: string;
   fetchImpl?: FetchLike;
+  /** Per-target shared-RSN resolver ("Share my RSN with this clan") — omitted = share nothing. */
+  accountsFor?: (instanceId: string) => Promise<SharedAccount[]>;
 }): Promise<FederationConnection[]> {
   const instances = await brokerMeInstances(deps.brokerBaseUrl, deps.brokerToken, deps.fetchImpl);
   const targets = instances.map((i) => i.instanceId).filter((id) => id !== deps.ownInstanceId);
   if (targets.length === 0) return [];
   const { assertions } = await brokerAssert(deps.brokerBaseUrl, deps.brokerToken, targets, deps.fetchImpl);
-  return exchangeAll(instances, assertions, deps.ownInstanceId, deps.fetchImpl);
+  return exchangeAll(instances, assertions, deps.ownInstanceId, deps.fetchImpl, deps.accountsFor);
 }
 
 export interface AggregatedClan {

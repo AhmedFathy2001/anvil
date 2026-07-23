@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { resolveFederationMember } from '@/lib/federationConnections';
+import { resolveFederationMember, sharedInstancesForMember } from '@/lib/federationConnections';
+import { resolvePluginMember } from '@/lib/auth';
 import { buildState } from '@/lib/federationConnect';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -31,7 +32,23 @@ export async function GET(request: Request) {
   // ?force=1 = the member clicked Refresh — bypass the 5-minute re-sync window (30s floor server-side).
   const force = new URL(request.url).searchParams.get('force') === '1';
   const state = await buildState(member.userId, { forceRefresh: force });
+
+  // Per-ACCOUNT share flags for the sidebar's "Share my RSN" affordance: resolvable only when the
+  // playing account itself resolves (X-RSN/X-Account-Hash → exact clan_members row). Logged out or
+  // unlinked → shareEligible:false and the plugin hides the buttons.
+  let shareEligible = false;
+  let sharedSet: Set<string> | null = null;
+  const playingMember = await resolvePluginMember(request);
+  if (playingMember) {
+    shareEligible = true;
+    sharedSet = await sharedInstancesForMember(playingMember.clanMemberId);
+  }
+  const payload = {
+    ...state,
+    shareEligible,
+    clans: state.clans.map((c) => ({ ...c, shared: sharedSet ? sharedSet.has(c.id) : false })),
+  };
   // ETag/304: the plugin polls this frequently but the aggregate rarely changes between polls; an
   // unchanged poll returns 304 with no body (each clan board can be tens of KB). See lib/httpEtag.
-  return jsonWithEtag(request, state);
+  return jsonWithEtag(request, payload);
 }

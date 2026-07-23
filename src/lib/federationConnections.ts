@@ -6,8 +6,14 @@
 // this — it only ever receives the aggregated { clans } shape from /state.
 
 import { db } from '@/db';
-import { federationConnections, federationDeviceSessions, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  federationConnections,
+  federationDeviceSessions,
+  federationAccountShares,
+  clanMembers,
+  users,
+} from '@/db/schema';
+import { and, eq, isNull, isNotNull } from 'drizzle-orm';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { dedupeConnectionsByInstanceId, type FederationConnection } from '@/lib/federationRelay';
 import { encryptSecret, decryptSecret } from '@/lib/federationSecurity';
@@ -191,6 +197,62 @@ export async function clearBrokerSession(userId: number): Promise<void> {
     .update(users)
     .set({ federationBrokerSession: null, federationSyncedAt: null })
     .where(eq(users.id, userId));
+}
+
+// --- Per-account federation shares ("Share my RSN with this clan") ----------------------------
+// Shares are per (account, remote instance) — each linked account is shared individually, by an
+// explicit plugin action while logged into it. Only VERIFIED, active accounts ever leave the home.
+
+export async function sharedAccountsForUser(
+  userId: number,
+  instanceId: string,
+): Promise<{ rsn: string; primary: boolean }[]> {
+  const rows = await db
+    .select({ rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
+    .from(federationAccountShares)
+    .innerJoin(clanMembers, eq(federationAccountShares.clanMemberId, clanMembers.id))
+    .where(
+      and(
+        eq(federationAccountShares.userId, userId),
+        eq(federationAccountShares.instanceId, instanceId),
+        isNull(clanMembers.leftAt),
+        isNotNull(clanMembers.verifiedAt),
+      ),
+    );
+  return rows.map((r) => ({ rsn: r.rsn, primary: r.isPrimary === 1 }));
+}
+
+/** The instanceIds a specific ACCOUNT is currently shared with (drives the sidebar button state). */
+export async function sharedInstancesForMember(clanMemberId: number): Promise<Set<string>> {
+  const rows = await db
+    .select({ instanceId: federationAccountShares.instanceId })
+    .from(federationAccountShares)
+    .where(eq(federationAccountShares.clanMemberId, clanMemberId));
+  return new Set(rows.map((r) => r.instanceId));
+}
+
+export async function setAccountShare(
+  userId: number,
+  clanMemberId: number,
+  instanceId: string,
+  share: boolean,
+): Promise<void> {
+  if (share) {
+    await db
+      .insert(federationAccountShares)
+      .values({ userId, clanMemberId, instanceId })
+      .onConflictDoNothing();
+  } else {
+    await db
+      .delete(federationAccountShares)
+      .where(
+        and(
+          eq(federationAccountShares.clanMemberId, clanMemberId),
+          eq(federationAccountShares.instanceId, instanceId),
+          eq(federationAccountShares.userId, userId),
+        ),
+      );
+  }
 }
 
 // --- Self-host device-code login session (one in-flight per member) ---------------------------

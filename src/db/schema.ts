@@ -982,6 +982,28 @@ export const federationConnections = sqliteTable('federation_connections', {
 // broker's domain. The plugin polls /connect repeatedly; each poll is a fresh server request, so the
 // broker's `device_code` handle must persist between them. One in-flight login per member (keyed on
 // user_id); cleared on completion/expiry.
+/**
+ * Per-ACCOUNT federation shares ("Share my RSN with this clan"). The member owns their identity:
+ * each linked account (clan_members row) is shared with each remote clan individually, by an
+ * explicit action from the plugin while logged into THAT account — never clan-wide, never implied.
+ * The exchange relay attaches only the accounts shared with the target instance; deleting a row
+ * revokes (the next exchange carries the reduced set and the remote prunes). RSNs never reach the
+ * broker — this is strictly home → chosen-remote.
+ */
+export const federationAccountShares = sqliteTable('federation_account_shares', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // Owner (for revocation/authz checks) — the user whose account is shared.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The specific shared account. Cascades away if the account link is ever deleted.
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // The remote instance (its stable UUID) this account is shared with.
+  instanceId: text('instance_id').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (t) => [
+  uniqueIndex('federation_account_shares_unique').on(t.clanMemberId, t.instanceId),
+  index('federation_account_shares_user_idx').on(t.userId),
+]);
+
 export const federationDeviceSessions = sqliteTable('federation_device_sessions', {
   userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   // The broker's secret poll handle from POST /device/start (WIRE §9.1).
