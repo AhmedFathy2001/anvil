@@ -24,6 +24,10 @@
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)
+//   revealAt            scheduled reveal time (Showdown boards — events whose rules use the
+//                       'scheduled' reveal policy; see lib/eventRules). ISO or any parseable
+//                       date-time, e.g. "2026-08-01 19:00" (stored as UTC ISO). Blank = the
+//                       tile stays hidden until a time is set. Ignored on classic events.
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
 //                       append "@Set" for any-one-set collections ("Dharok's helm:1@Dharok")
 //                       (e.g. "Blood moon helm:1; Blue moon helm:1"). Count is optional (def 1).
@@ -46,6 +50,7 @@ export const TILE_CSV_COLUMNS = [
   'targetNpcs',
   'timedActivity',
   'timeThresholdSeconds',
+  'revealAt',
   'items',
 ] as const;
 
@@ -76,6 +81,8 @@ export interface TileCsvRow {
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  /** Scheduled reveal time (ISO UTC) for Showdown boards; null = stays hidden. */
+  revealAt?: string | null;
   items?: TileCsvItem[] | null;
 }
 
@@ -213,6 +220,16 @@ function toSecondsLoose(v: string): number | null {
   return Math.round(val); // 's'/'sec'/none → seconds
 }
 
+// Forgiving date-time → ISO UTC. Accepts ISO or anything Date.parse understands ("2026-08-01
+// 19:00" is treated as the uploader's local time, same as typing it in the tile editor).
+// Unparseable → null (the importer surfaces nothing; the tile just stays unscheduled).
+function toIsoOrNull(v: string): string | null {
+  const s = v.trim();
+  if (s === '') return null;
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 // Resolve a tracked-stat cell to its stored key + inferred type, accepting either the bare key
 // ("mining", "zulrah") or the human label ("Mining", "Zulrah"). Returns null when it matches
 // nothing, in which case the raw value is kept for back-compat.
@@ -265,6 +282,7 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     targetNpcs: idx('targetnpcs'),
     timedActivity: idx('timedactivity'),
     timeThresholdSeconds: idx('timethresholdseconds'),
+    revealAt: idx('revealat'),
     items: idx('items'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
@@ -305,6 +323,7 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
     if (col.timeThresholdSeconds >= 0) row.timeThresholdSeconds = toSecondsLoose(get(cells, col.timeThresholdSeconds));
+    if (col.revealAt >= 0) row.revealAt = toIsoOrNull(get(cells, col.revealAt));
     if (col.items >= 0) {
       const parsedItems = parseItemsCell(get(cells, col.items));
       row.items = parsedItems.length > 0 ? parsedItems : null;
@@ -393,6 +412,7 @@ export function tileToCsvCells(t: Tile): string[] {
     jsonNamesToPipes(t.targetNpcs),
     t.timedActivity ?? '',
     t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
+    t.revealAt ?? '',
     tileItemsCell(t),
   ];
 }
