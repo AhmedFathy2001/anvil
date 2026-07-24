@@ -253,6 +253,13 @@
       "when": 1784803103663,
       "tag": "0035_federation_account_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1784898093077,
+      "tag": "0036_curious_eddie_brock",
+      "breakpoints": true
     }
   ]
 }

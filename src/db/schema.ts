@@ -277,6 +277,12 @@ export const players = sqliteTable('players', {
   // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
   // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
   frozenStats: text('frozen_stats'),
+  // Fun end-of-event "recap" counters, pushed by the plugin as ABSOLUTE per-event totals and max-merged
+  // (idempotent — a retry / client restart can't double-count). `deaths` = the player's own deaths this
+  // event; `lootGpGained` = GE value of ALL loot the plugin saw this event (not just value-tile hauls).
+  // Purely cosmetic (superlatives — "Most Deaths", "Loot Lord"); never feeds scoring. See lib/eventRecap.
+  deaths: integer('deaths').default(0),
+  lootGpGained: integer('loot_gp_gained').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
