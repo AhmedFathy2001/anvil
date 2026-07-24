@@ -1,10 +1,16 @@
-// The three event "base types", each a (format, scoringMode) pairing with its own
-// boardSize semantics. Shared by the create form (EventForm) and the admin Overview
+import { parseEventRules, type EventRules, type RevealPolicy } from '@/lib/eventRules';
+
+// The event "base types" offered at create / change-type. Each is a (format, scoringMode)
+// pairing plus an optional rules preset (lib/eventRules — the reveal-policy third axis), with
+// its own boardSize semantics. Shared by the create form (EventForm) and the admin Overview
 // "Change Type" editor so both offer identical choices and validation bounds.
-//   • classic — square N×N bingo grid (boardSize = N, tiles = N²)
-//   • leagues — points-scored task list (boardSize = tile count)
-//   • race    — ordered linear track   (boardSize = tile count)
-export type EventMode = 'classic' | 'leagues' | 'race';
+//   • classic   — square N×N bingo grid (boardSize = N, tiles = N²)
+//   • leagues   — points-scored task list (boardSize = tile count)
+//   • race      — ordered linear track   (boardSize = tile count)
+//   • showdown  — points list, tiles revealed on a per-tile schedule (Tiles tab sets times)
+//   • luckydraw — points list, a random draw reveals tiles on an interval
+//   • bounty    — points list, ONE open tile at a time; first team to finish claims it
+export type EventMode = 'classic' | 'leagues' | 'race' | 'showdown' | 'luckydraw' | 'bounty';
 
 export interface EventModeMeta {
   key: EventMode;
@@ -12,6 +18,8 @@ export interface EventModeMeta {
   blurb: string;
   format: 'bingo' | 'tilerace';
   scoringMode: 'tiles' | 'points';
+  /** Rules preset this mode ships with (undefined = classic behaviour, rules column stays NULL). */
+  revealPolicy?: RevealPolicy;
   sizeLabel: string;
   sizeHelp: (n: number) => string;
   min: number;
@@ -60,13 +68,63 @@ export const EVENT_MODES: EventModeMeta[] = [
     default: 10,
     square: false,
   },
+  {
+    key: 'showdown',
+    label: 'Showdown',
+    blurb: 'Tiles stay hidden until their scheduled moment — set each reveal time on the Tiles tab. Points-scored, DMM All Stars style.',
+    format: 'bingo',
+    scoringMode: 'points',
+    revealPolicy: 'scheduled',
+    sizeLabel: 'Number of tiles',
+    sizeHelp: (n) => `${n} scheduled reveal${n !== 1 ? 's' : ''}`,
+    min: 1,
+    max: 200,
+    default: 12,
+    square: false,
+  },
+  {
+    key: 'luckydraw',
+    label: 'Lucky draw',
+    blurb: 'A bingo caller: hidden tiles go live in random draws on a fixed interval. Points-scored.',
+    format: 'bingo',
+    scoringMode: 'points',
+    revealPolicy: 'interval',
+    sizeLabel: 'Number of tiles',
+    sizeHelp: (n) => `${n} tile${n !== 1 ? 's' : ''} in the draw pool`,
+    min: 2,
+    max: 200,
+    default: 24,
+    square: false,
+  },
+  {
+    key: 'bounty',
+    label: 'Bounty hunt',
+    blurb: 'One open tile at a time — the first team to finish it claims the points and the next bounty is drawn.',
+    format: 'bingo',
+    scoringMode: 'points',
+    revealPolicy: 'bounty',
+    sizeLabel: 'Number of tiles',
+    sizeHelp: (n) => `${n} bount${n !== 1 ? 'ies' : 'y'} in the rotation`,
+    min: 2,
+    max: 200,
+    default: 15,
+    square: false,
+  },
 ];
 
-/** Resolve the stored (format, scoringMode) pair back to its mode key. */
+/**
+ * Resolve a stored (format, scoringMode, rules) triple back to its mode key. `rules` accepts the
+ * raw JSON column or an already-parsed EventRules; omitting it keeps the legacy pair resolution.
+ */
 export function modeKeyFor(
   format: string | null | undefined,
   scoringMode: string | null | undefined,
+  rules?: string | EventRules | null,
 ): EventMode {
+  const parsed = typeof rules === 'string' || rules == null ? parseEventRules(rules ?? null) : rules;
+  if (parsed.revealPolicy === 'scheduled') return 'showdown';
+  if (parsed.revealPolicy === 'interval') return 'luckydraw';
+  if (parsed.revealPolicy === 'bounty') return 'bounty';
   if (format === 'tilerace') return 'race';
   if (scoringMode === 'points') return 'leagues';
   return 'classic';
