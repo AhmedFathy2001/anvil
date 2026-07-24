@@ -79,6 +79,8 @@ interface PersonStat {
   fastestClearTile: string | null;
   xpGained: number;
   kcGained: number;
+  deaths: number; // plugin-pushed per-event death count
+  lootGpTotal: number; // plugin-pushed total loot GP for the event
 }
 
 function emptyStat(personKey: string): PersonStat {
@@ -101,6 +103,8 @@ function emptyStat(personKey: string): PersonStat {
     fastestClearTile: null,
     xpGained: 0,
     kcGained: 0,
+    deaths: 0,
+    lootGpTotal: 0,
   };
 }
 
@@ -195,6 +199,9 @@ async function computeRecap(eventId: number): Promise<{
     if (!seededAccounts.has(p.id)) {
       s.accounts += 1;
       seededAccounts.add(p.id);
+      // Plugin-pushed per-event counters live on the player row — sum them across a person's accounts.
+      s.deaths += p.deaths ?? 0;
+      s.lootGpTotal += p.lootGpGained ?? 0;
     }
     if (!s.name) {
       s.name = p.name;
@@ -387,6 +394,17 @@ async function computeRecap(eventId: number): Promise<{
       s.submissions > 0 ? toEntry(s, s.submissions, `${s.submissions.toLocaleString()} submissions`) : null,
     ),
   );
+  // Plugin-only awards — populated once the plugin ships the deaths + total-loot-value capture.
+  pushAward(
+    award('loot-lord', '💰', 'Loot Lord', 'Most loot value banked', (s) =>
+      s.lootGpTotal > 0 ? toEntry(s, s.lootGpTotal, `${s.lootGpTotal.toLocaleString()} gp`) : null,
+    ),
+  );
+  pushAward(
+    award('wipe-magnet', '💀', 'Wipe Magnet', 'Died the most', (s) =>
+      s.deaths > 0 ? toEntry(s, s.deaths, `${s.deaths.toLocaleString()} ${s.deaths === 1 ? 'death' : 'deaths'}`) : null,
+    ),
+  );
 
   const totals: EventRecap['totals'] = {
     contenders: contenders.filter((s) => s.submissions > 0 || s.tilesFinished > 0 || s.xpGained > 0 || s.kcGained > 0).length,
@@ -440,6 +458,8 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
     if (s.xpGained > 0) stats.push({ key: 'xp', label: 'XP gained', value: s.xpGained.toLocaleString() });
     if (s.kcGained > 0) stats.push({ key: 'kc', label: 'Boss KC gained', value: s.kcGained.toLocaleString() });
     if (s.pvpKills > 0) stats.push({ key: 'pvp', label: 'PvP kills', value: s.pvpKills.toLocaleString() });
+    if (s.lootGpTotal > 0) stats.push({ key: 'loot', label: 'Loot value', value: `${s.lootGpTotal.toLocaleString()} gp` });
+    if (s.deaths > 0) stats.push({ key: 'deaths', label: 'Deaths', value: s.deaths.toLocaleString() });
     if (s.submissions > 0) stats.push({ key: 'subs', label: 'Submissions', value: s.submissions.toLocaleString() });
   }
 
