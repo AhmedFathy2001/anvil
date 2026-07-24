@@ -79,6 +79,14 @@ export const events = sqliteTable('events', {
   // per-player payout rows, shown on the public event page, and used as the reward per place when
   // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
   placementPrizes: text('placement_prizes'),
+  // Optional per-event game rules as JSON (see lib/eventRules.ts EventRules). Adds a third axis on
+  // top of (format, scoringMode): HOW tiles become playable and how points are awarded —
+  //   revealPolicy: 'all' (default; every tile visible once tilesRevealed flips) | 'scheduled'
+  //     (per-tile revealAt times) | 'interval' (a timed random/sequential draw) | 'bounty'
+  //     (exactly one open tile; first completion closes it and draws the next),
+  //   plus firstBonus / decay / lockout scoring modifiers.
+  // NULL = classic behaviour everywhere; parseEventRules(null) returns the defaults.
+  rules: text('rules'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -157,6 +165,16 @@ export const tiles = sqliteTable('tiles', {
   // between and the write is rejected (409) instead of silently clobbering theirs.
   // Nullable: legacy rows have no stamp until their first post-migration edit.
   updatedAt: text('updated_at'),
+  // Per-tile reveal state — only meaningful when the event's rules.revealPolicy != 'all'
+  // (see lib/eventRules.ts); NULL on classic events. All ISO UTC strings.
+  //   revealAt   — the PLANNED reveal time ('scheduled' policy; admin-set on the Tiles tab).
+  //   revealedAt — when the tile actually went live (stamped by the reveal engine — scheduled
+  //                due-times, interval/bounty draws). A tile is member-visible iff this is set.
+  //   closedAt   — when a 'bounty' tile was claimed (first completion) and stopped accepting
+  //                further completions. Closed tiles stay visible on the board.
+  revealAt: text('reveal_at'),
+  revealedAt: text('revealed_at'),
+  closedAt: text('closed_at'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
@@ -238,6 +256,11 @@ export const completions = sqliteTable('completions', {
   // submission-backed / manual / non-stat completions (those already have stable per-submission
   // amounts) and for legacy stat completions that predate this column (reads fall back to live).
   statContributions: text('stat_contributions'),
+  // Points this completion actually earned, FROZEN at completion time — only stamped on
+  // points-mode events whose rules add per-completion modifiers (first-team bonus, reveal
+  // decay). NULL = no modifier applied; standings fall back to the tile's live weight, which
+  // keeps legacy events (and admin mid-event point re-tuning) exactly as they were.
+  awardedPoints: integer('awarded_points'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
