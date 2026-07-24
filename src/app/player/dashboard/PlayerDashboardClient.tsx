@@ -1,6 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
+import type { PlayerRecap } from '@/lib/eventRecap';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -19,9 +20,10 @@ interface Props {
   playerId: number;
   playerName: string;
   players: Player[];
+  recap: PlayerRecap | null;
 }
 
-export default function PlayerDashboardClient({ event, team, tiles, completions: initialCompletions, playerId, playerName, players }: Props) {
+export default function PlayerDashboardClient({ event, team, tiles, completions: initialCompletions, playerId, playerName, players, recap }: Props) {
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
@@ -167,6 +169,10 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
       </div>
       <p className="text-text-muted text-sm mb-2">{event.name}</p>
 
+      {recap?.ended && (recap.awardsWon.length > 0 || recap.stats.length > 0) && (
+        <PlayerRecapCard recap={recap} />
+      )}
+
       {/* Event Countdown */}
       {eventCountdown && (
         <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
@@ -259,6 +265,44 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
           statProgress={gains[selectedTile.id]}
           pointsMode={pointsMode}
         />
+      )}
+    </div>
+  );
+}
+
+// Post-event "your event, by the numbers" card — the awards this player took home plus their headline
+// counters. Rendered only once the event has ended and there's something to show.
+function PlayerRecapCard({ recap }: { recap: PlayerRecap }) {
+  return (
+    <div className="mb-4 border border-gold/30 rounded-xl bg-gold/5 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1 h-5 bg-gold rounded-full" />
+        <h2 className="font-bold text-gold">Your event, by the numbers</h2>
+      </div>
+
+      {recap.awardsWon.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {recap.awardsWon.map((a) => (
+            <span
+              key={a.title}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-2.5 py-1 rounded-full"
+              title={a.valueLabel}
+            >
+              <span aria-hidden>{a.emoji}</span> {a.title}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {recap.stats.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {recap.stats.map((s) => (
+            <div key={s.key} className="border border-card-border rounded-lg bg-card-bg px-3 py-2 text-center">
+              <p className="text-lg font-extrabold text-text tabular-nums">{s.value}</p>
+              <p className="text-xs text-text-muted">{s.label}</p>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

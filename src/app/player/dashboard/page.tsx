@@ -3,6 +3,7 @@ import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyPlayer } from '@/lib/auth';
+import { getPlayerRecap } from '@/lib/eventRecap';
 import PlayerDashboardClient from './PlayerDashboardClient';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,10 @@ export default async function PlayerDashboardPage() {
 
   const { captainPassword: _, ...safeTeam } = team;
 
+  // "Your event, by the numbers" — a personal recap card. Only meaningful once the event ends, so the
+  // client only renders it when `recap.ended`.
+  const recap = await getPlayerRecap(event.id, player.id);
+
   return (
     <PlayerDashboardClient
       event={event}
@@ -51,6 +56,7 @@ export default async function PlayerDashboardPage() {
       playerId={player.id}
       playerName={player.name}
       players={eventPlayers}
+      recap={recap}
     />
   );
 }
