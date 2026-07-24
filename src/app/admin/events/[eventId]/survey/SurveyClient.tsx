@@ -315,20 +315,62 @@ function ResultsView({ eventId }: { eventId: number }) {
           </div>
 
           {r.question.type === 'text' ? (
-            <ul className="space-y-2">
-              {(r.texts ?? []).map((t, i) => (
-                <li key={i} className="text-sm border-l-2 border-card-border pl-3">
-                  <span className="text-foreground">{t.text}</span>
-                  <span className="text-xs text-text-muted ml-2">— {t.respondentName ?? 'Unknown'}</span>
-                </li>
-              ))}
-              {(r.texts ?? []).length === 0 && <li className="text-xs text-text-muted">No answers.</li>}
-            </ul>
+            <TextAnswers texts={r.texts ?? []} />
           ) : (
             <Bars counts={r.counts ?? {}} order={r.question.type === 'rating' ? Array.from({ length: RATING_MAX }, (_, i) => String(i + 1)) : r.question.options} answered={r.answered} rating={r.question.type === 'rating'} />
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Free-text results: one card per answer (name header + preserved line breaks) so 30 stacked
+// textarea responses read as 30 distinct answers, not one wall of text. Long lists fold behind
+// "Show all", long single answers clamp behind "Show more".
+const TEXT_PREVIEW_COUNT = 8;
+
+function TextAnswers({ texts }: { texts: { respondentName: string | null; text: string }[] }) {
+  const [showAll, setShowAll] = useState(false);
+  if (texts.length === 0) return <p className="text-xs text-text-muted">No answers.</p>;
+  const visible = showAll ? texts : texts.slice(0, TEXT_PREVIEW_COUNT);
+  return (
+    <div className="space-y-2">
+      {visible.map((t, i) => (
+        <TextAnswerCard key={i} respondentName={t.respondentName} text={t.text} />
+      ))}
+      {texts.length > TEXT_PREVIEW_COUNT && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="text-xs font-medium text-gold/90 hover:text-gold"
+        >
+          {showAll ? 'Show fewer' : `Show all ${texts.length} answers ↓`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Clamp very long answers by character count (cheap and SSR-safe vs. measuring rendered
+// lines); the cut lands on a word boundary via trimEnd so the ellipsis doesn't split a word.
+const TEXT_CLAMP_CHARS = 400;
+
+function TextAnswerCard({ respondentName, text }: { respondentName: string | null; text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > TEXT_CLAMP_CHARS;
+  const shown = expanded || !isLong ? text : `${text.slice(0, TEXT_CLAMP_CHARS).trimEnd()}…`;
+  return (
+    <div className="rounded-lg border border-card-border bg-background px-3 py-2">
+      <div className="text-xs font-semibold text-text-muted mb-1">{respondentName ?? 'Unknown'}</div>
+      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{shown}</p>
+      {isLong && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-xs font-medium text-gold/90 hover:text-gold"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
     </div>
   );
 }
