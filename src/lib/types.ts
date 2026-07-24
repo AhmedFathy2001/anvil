@@ -31,9 +31,18 @@ export interface Event {
   maxAccountsPerPerson?: number;
   accountSlotMode?: string; // 'per-person' (N accounts = 1 slot, MVP aggregates) | 'per-account'
   feeMode?: string; // 'per-person' | 'per-account'
+  // Per-event game rules JSON (lib/eventRules) — reveal policy + scoring modifiers. Null = classic.
+  rules?: string | null;
 }
 
-export interface Tile {
+export interface TileRevealState {
+  // Per-tile reveal state (reveal-policy events only — see lib/eventRules; null on classic events).
+  revealAt?: string | null; // planned reveal time ('scheduled' policy)
+  revealedAt?: string | null; // when the tile actually went live
+  closedAt?: string | null; // when a bounty tile was claimed
+}
+
+export interface Tile extends TileRevealState {
   id: number;
   eventId: number;
   position: number;
@@ -112,6 +121,9 @@ export interface Completion {
   // to computeMemberBreakdown so a finished tile's "who got what %" stops drifting. Absent/null for
   // submission-backed / manual tiles and legacy stat completions (breakdown falls back to live gains).
   statContributions?: StatContributionSnapshot | null;
+  // Frozen points this completion earned when event rules modified them (first-team bonus, reveal
+  // decay — see completions.awardedPoints). Absent/null = score the tile's live weight as always.
+  awardedPoints?: number | null;
 }
 
 export interface Submission {

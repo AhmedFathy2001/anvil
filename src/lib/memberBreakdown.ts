@@ -146,6 +146,9 @@ interface BreakdownCompletion {
   // tile's attribution stops drifting as the underlying stat keeps climbing. NULL/absent for submission
   // tiles and for legacy stat completions predating the freeze (those fall back to live statGains).
   statContributions?: StatContributionSnapshot | null;
+  // Frozen rule-modified award (first-team bonus / reveal decay). When set, it replaces the tile's
+  // live point weight in the member split so MVP math matches the team's actual score.
+  awardedPoints?: number | null;
 }
 interface BreakdownSubmission {
   teamId: number;
@@ -232,11 +235,19 @@ export function computeMemberBreakdown(params: {
   }
 
   // Points: split each completed non-optional tile's weight among its contributors by amount.
+  // A frozen awardedPoints (first-team bonus / reveal decay) replaces the live weight so the
+  // member split sums to what the team actually scored.
+  const awardByTile = new Map<number, number>();
+  for (const c of completions) {
+    if (c.teamId === teamId && c.awardedPoints != null) awardByTile.set(c.tileId, c.awardedPoints);
+  }
   const pointsByPlayer = new Map<number, number>();
   for (const tileId of completedTileIds) {
     const tile = tileById.get(tileId);
     if (!tile || tile.optional) continue; // optional tiles don't score
-    const weight = tileWeight(scoringMode, tile.points);
+    const weight = scoringMode === 'points' && awardByTile.has(tileId)
+      ? awardByTile.get(tileId)!
+      : tileWeight(scoringMode, tile.points);
     if (weight <= 0) continue;
     let total = 0;
     const contribs: [number, number][] = [];
