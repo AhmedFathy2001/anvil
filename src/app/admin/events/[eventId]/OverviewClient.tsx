@@ -37,7 +37,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const [recomputeMsg, setRecomputeMsg] = useState('');
 
   const [editType, setEditType] = useState(false);
-  const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
+  const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode, event.rules));
   const [typeSize, setTypeSize] = useState(event.boardSize);
   const [savingType, setSavingType] = useState(false);
   const [typeError, setTypeError] = useState('');
@@ -162,7 +162,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   }
 
   function startEditType() {
-    setTypeMode(modeKeyFor(currentEvent.format, currentEvent.scoringMode));
+    setTypeMode(modeKeyFor(currentEvent.format, currentEvent.scoringMode, currentEvent.rules));
     setTypeSize(currentEvent.boardSize);
     setTypeError('');
     setEditType(true);
@@ -196,6 +196,8 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           format: typeMeta.format,
           scoringMode: typeMeta.scoringMode,
           boardSize: typeSize,
+          // Reveal-policy modes carry their rules preset; classic modes clear any previous rules.
+          rules: typeMeta.revealPolicy ? { revealPolicy: typeMeta.revealPolicy } : null,
         }),
       });
       if (res.ok) {

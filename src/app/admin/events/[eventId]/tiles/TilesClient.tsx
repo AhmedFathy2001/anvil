@@ -14,6 +14,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
+import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
 import { statLabel } from '@/lib/tileKinds';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -74,6 +75,37 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+
+  // Reveal-policy events (lib/eventRules): tiles carry a hidden/scheduled/live/claimed state the
+  // host needs to see at a glance; 'scheduled' events additionally edit each tile's reveal time.
+  const eventRules = useMemo(() => parseEventRules(event.rules), [event.rules]);
+  const revealMode = hasRevealPolicy(eventRules);
+  const scheduledMode = eventRules.revealPolicy === 'scheduled';
+
+  function revealChip(tile: Tile): { label: string; cls: string; title?: string } | null {
+    if (!revealMode) return null;
+    if (tile.closedAt) return { label: '🎯 Claimed', cls: 'bg-red-500/20 text-red-300', title: `Claimed ${new Date(tile.closedAt).toLocaleString()}` };
+    if (tile.revealedAt) return { label: '🔓 Live', cls: 'bg-accent-green/20 text-accent-green-light', title: `Revealed ${new Date(tile.revealedAt).toLocaleString()}` };
+    if (scheduledMode && tile.revealAt) {
+      return {
+        label: `📅 ${new Date(tile.revealAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+        cls: 'bg-blue-500/20 text-blue-300',
+        title: 'Scheduled reveal time',
+      };
+    }
+    return {
+      label: '🙈 Hidden',
+      cls: 'bg-gray-500/20 text-gray-300',
+      title: scheduledMode ? 'No reveal time set — this tile stays hidden until one is' : 'Waiting to be drawn',
+    };
+  }
+
+  // Patch a tile's reveal schedule into local state after a RevealAtEditor save (the server is
+  // the only writer of revealedAt/closedAt, so only revealAt moves here).
+  function handleRevealAtSaved(tileId: number, revealAt: string | null) {
+    setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, revealAt } : t)));
+    setEditingFresh((prev) => (prev && prev.id === tileId ? { ...prev, revealAt } : prev));
+  }
 
   // Effort-model refetch trigger + the balance panel's one-click "apply suggested points".
   const [tilesVersion, setTilesVersion] = useState(0);
@@ -738,6 +770,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                         )}
                         <span className="text-[10px] font-mono text-text-muted w-7 shrink-0">#{t.position + 1}</span>
                         <span className={`flex-1 truncate text-sm ${sel ? 'text-gold font-medium' : 'text-foreground'}`}>{t.label}</span>
+                        {(() => {
+                          const rc = revealChip(t);
+                          return rc ? (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${rc.cls}`} title={rc.title}>
+                              {rc.label}
+                            </span>
+                          ) : null;
+                        })()}
                         {isManualOnlyDropTile(t) && <ManualOnlyBadge compact className="shrink-0" />}
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
                       </button>
@@ -768,6 +808,15 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
                       save, the second save is rejected instead of overwriting.
                     </p>
+                  )}
+                  {revealMode && (
+                    <RevealAtEditor
+                      key={`reveal-${editingTile.id}`}
+                      tile={editingTile}
+                      eventId={event.id}
+                      scheduled={scheduledMode}
+                      onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+                    />
                   )}
                   <TileTrackingConfig
                     key={editingTile.id}
@@ -920,6 +969,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                         Optional
                       </span>
                     ) : null}
+                    {(() => {
+                      const rc = revealChip(tile);
+                      return rc ? (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rc.cls}`} title={rc.title}>
+                          {rc.label}
+                        </span>
+                      ) : null;
+                    })()}
                     {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
                   </div>
@@ -959,6 +1016,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           lockHolder={lockHolder}
           categorySuggestions={categories}
           canDelete={canEditTileSet}
+          revealEditor={
+            revealMode ? (
+              <RevealAtEditor
+                tile={editingTile}
+                eventId={event.id}
+                scheduled={scheduledMode}
+                onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+              />
+            ) : null
+          }
           onClose={() => setEditingTileId(null)}
           onDelete={() => handleDeleteTile(editingTile.id, true)}
           onSaved={(updated) => {
@@ -1132,6 +1199,117 @@ function tileMeta(tile: Tile): string {
   }
 }
 
+// ISO → the local wall-clock string a <input type="datetime-local"> wants.
+function toLocalInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Reveal-policy status + (scheduled events) the per-tile reveal-time editor. The engine owns
+ * revealedAt/closedAt — this only writes the PLAN (tiles.revealAt); the every-minute tick flips
+ * the tile live once the time passes, so "Reveal now" is just "set the time to now".
+ */
+function RevealAtEditor({
+  tile,
+  eventId,
+  scheduled,
+  onSaved,
+}: {
+  tile: Tile;
+  eventId: number;
+  scheduled: boolean;
+  onSaved: (revealAt: string | null) => void;
+}) {
+  const [value, setValue] = useState(() => toLocalInputValue(tile.revealAt));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function save(revealAt: string | null) {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/tiles`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileId: tile.id, revealAt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ type: 'error', text: data.error || 'Could not save the reveal time.' });
+        return;
+      }
+      setValue(toLocalInputValue(data.revealAt));
+      onSaved(data.revealAt ?? null);
+      setMsg({ type: 'success', text: revealAt ? 'Reveal time saved.' : 'Reveal time cleared.' });
+    } catch {
+      setMsg({ type: 'error', text: 'Could not save the reveal time.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const status = tile.closedAt
+    ? { text: `🎯 Claimed ${new Date(tile.closedAt).toLocaleString()}`, cls: 'text-red-300' }
+    : tile.revealedAt
+      ? { text: `🔓 Live since ${new Date(tile.revealedAt).toLocaleString()}`, cls: 'text-accent-green-light' }
+      : { text: '🙈 Hidden from members', cls: 'text-text-muted' };
+
+  return (
+    <div className="mb-4 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-foreground/80">Reveal</span>
+        <span className={`text-xs ${status.cls}`}>{status.text}</span>
+      </div>
+      {scheduled && !tile.revealedAt && (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="datetime-local"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="bg-brown-dark border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:border-gold/50 focus:outline-none"
+            />
+            <button
+              onClick={() => save(value ? new Date(value).toISOString() : null)}
+              disabled={saving || !value}
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save time'}
+            </button>
+            {tile.revealAt && (
+              <button
+                onClick={() => save(null)}
+                disabled={saving}
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              onClick={() => save(new Date().toISOString())}
+              disabled={saving}
+              title="Sets the reveal time to now — the tile goes live on the next minute tick"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+            >
+              Reveal now
+            </button>
+          </div>
+          <p className="text-[11px] text-text-muted leading-relaxed">
+            The tile flips live within a minute of its reveal time. No time set = stays hidden.
+          </p>
+        </>
+      )}
+      {msg && (
+        <p className={`text-[11px] ${msg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>{msg.text}</p>
+      )}
+    </div>
+  );
+}
+
 interface DrawerProps {
   tile: Tile;
   eventId: number;
@@ -1146,9 +1324,11 @@ interface DrawerProps {
   lockHolder?: string | null;
   /** Categories used elsewhere on the board, for the category tag typeahead. */
   categorySuggestions?: string[];
+  /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
+  revealEditor?: React.ReactNode;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, revealEditor }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1194,6 +1374,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
               save, the second save is rejected instead of overwriting.
             </p>
           )}
+          {revealEditor}
           <TileTrackingConfig
             tileId={tile.id}
             eventId={eventId}

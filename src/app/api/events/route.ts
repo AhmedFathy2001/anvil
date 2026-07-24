@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
+import { validateEventRules } from '@/lib/eventRules';
 
 export async function GET() {
   const allEvents = await db.query.events.findMany({
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
@@ -52,6 +53,23 @@ export async function POST(request: Request) {
   }
   const resolvedAccountSlotMode = accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
   const resolvedFeeMode = feeMode === 'per-account' ? 'per-account' : 'per-person';
+
+  // Per-event game rules (reveal policy + scoring modifiers — lib/eventRules). Validated and
+  // canonicalised; all-defaults stores NULL so classic events stay exactly as before. Reveal
+  // policies ride on the points list shape, not the fixed N×N grid or the sequential race.
+  const rulesResult = validateEventRules(rules);
+  if ('error' in rulesResult) {
+    return NextResponse.json({ error: rulesResult.error }, { status: 400 });
+  }
+  const resolvedRules = rulesResult.rules;
+  if (resolvedRules && JSON.parse(resolvedRules).revealPolicy !== 'all') {
+    if (resolvedFormat !== 'bingo' || resolvedScoringMode !== 'points') {
+      return NextResponse.json(
+        { error: 'Reveal policies (showdown / lucky draw / bounty) require the points-scored bingo format.' },
+        { status: 400 },
+      );
+    }
+  }
 
   if (!Number.isInteger(boardSize) || boardSize < 1) {
     return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
@@ -101,6 +119,7 @@ export async function POST(request: Request) {
     const [created] = await tx.insert(events).values({
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
       maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
+      rules: resolvedRules,
     }).returning();
     const tileValues = resolvedLabels.map((label: string, index: number) => ({
       eventId: created.id,

@@ -13,6 +13,7 @@ export interface EventRow {
   boardSize: number;
   format: string;
   scoringMode: string;
+  rules?: string | null; // game rules JSON (lib/eventRules) — names reveal modes in the badge
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
@@ -153,7 +154,7 @@ function EventCard({
   // Editors only author tiles — send them straight to the Tiles tab.
   const cardHref = canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`;
   const tileCount = eventTileCount(event.format, event.scoringMode, event.boardSize);
-  const shapeBadge = eventShapeBadge(event.format, event.scoringMode, event.boardSize);
+  const shapeBadge = eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules);
 
   return (
     <div
