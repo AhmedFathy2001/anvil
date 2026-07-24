@@ -3,7 +3,13 @@ import { events, teams, tiles, completions } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd } from '@/lib/discord';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
+import { getEventRecap } from '@/lib/eventRecap';
 import { log } from '@/lib/logger';
+
+// The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
+// these that actually have a winner so the embed stays punchy.
+const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'loot-goblin', 'pker', 'untouchable'];
+const RECAP_HIGHLIGHT_COUNT = 5;
 
 // Fires the one-time "event started" / "event ended" Discord posts for any event whose
 // scheduled start/end time has passed. Both posts are guarded by an atomic flag flip
@@ -69,6 +75,22 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         return { teamName: team.name, tilesCompleted: teamScore };
       });
 
+      // Fun superlatives for the end post (MVP, biggest drop, most kills, …). Best-effort — a recap
+      // hiccup must never block the actual "event ended" announcement.
+      let superlatives: { emoji: string; title: string; winner: string; valueLabel: string }[] | undefined;
+      try {
+        const recap = await getEventRecap(event.id);
+        if (recap && recap.awards.length > 0) {
+          const byKey = new Map(recap.awards.map((a) => [a.key, a]));
+          superlatives = RECAP_HIGHLIGHT_ORDER.map((k) => byKey.get(k))
+            .filter((a): a is NonNullable<typeof a> => !!a)
+            .slice(0, RECAP_HIGHLIGHT_COUNT)
+            .map((a) => ({ emoji: a.emoji, title: a.title, winner: a.winner.name, valueLabel: a.winner.valueLabel }));
+        }
+      } catch (err) {
+        log.warn('event-lifecycle.recap-failed', { eventId: event.id, err: String(err) });
+      }
+
       log.info('event-lifecycle.end', { eventId: event.id });
       await notifyEventEnd({
         eventId: event.id,
@@ -76,6 +98,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         standings,
         totalTiles: pointsMode ? totalScore : scoredTiles.length,
         unit: pointsMode ? 'pts' : 'tiles',
+        superlatives,
       });
 
       // Auto-build the payout rows from the configured prize-per-placement structure and final

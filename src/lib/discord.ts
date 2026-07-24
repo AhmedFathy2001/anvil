@@ -721,6 +721,9 @@ interface EventEndNotifyParams {
   standings: { teamName: string; tilesCompleted: number }[];
   totalTiles: number;
   unit?: string;
+  // Optional fun end-of-event "superlatives" (MVP, biggest drop, most kills, …) to celebrate in the
+  // end post. Each is one pre-formatted line: emoji, award title, the winner, and their number.
+  superlatives?: { emoji: string; title: string; winner: string; valueLabel: string }[];
 }
 
 export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -752,7 +755,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventId, eventName, standings, totalTiles, unit = 'tiles' } = params;
+  const { eventId, eventName, standings, totalTiles, unit = 'tiles', superlatives } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
@@ -765,6 +768,12 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
   const fields: { name: string; value: string; inline?: boolean }[] = [
     { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
   ];
+  if (superlatives && superlatives.length > 0) {
+    const awardsText = superlatives
+      .map((a) => `${a.emoji} **${a.title}** — ${a.winner} _(${a.valueLabel})_`)
+      .join('\n');
+    fields.push({ name: '🏅 Superlatives', value: awardsText, inline: false });
+  }
   pushLeaderboardField(fields, eventId);
 
   const embed: DiscordEmbed = {
