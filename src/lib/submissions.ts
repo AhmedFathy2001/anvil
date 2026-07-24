@@ -3,6 +3,8 @@ import { submissions, tiles, completions, teams, events } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
@@ -119,9 +121,10 @@ export async function syncDropTileCompletion(
   // earlier tile in the sequence. Until then we leave it pending so the ordered
   // track stays strict, exactly like manual completions in the completions route.
   let raceBlocked = false;
+  let tileEvent: typeof events.$inferSelect | undefined;
   if (isComplete) {
-    const raceEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
-    if (raceEvent?.format === 'tilerace') {
+    tileEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
+    if (tileEvent?.format === 'tilerace') {
       const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, tile.eventId) });
       const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
       const doneTileIds = new Set(teamDone.map((c) => c.tileId));
@@ -129,14 +132,31 @@ export async function syncDropTileCompletion(
     }
   }
 
-  if (isComplete && !raceBlocked) {
+  // Event-rules gate (lib/completionGate): unrevealed/claimed tiles and lockout losses stay
+  // pending exactly like a race block — the evidence keeps accruing, the credit doesn't land.
+  // Also freezes the rule-adjusted award (first bonus / decay) for the row we're about to insert.
+  let ruleBlocked = false;
+  let awardedPoints: number | null = null;
+  let bountyEvent = false;
+  if (isComplete && !raceBlocked && tileEvent) {
+    const gate = await evaluateCompletionGate({ event: tileEvent, tile, teamId });
+    ruleBlocked = !gate.allowed;
+    awardedPoints = gate.awardedPoints;
+    bountyEvent = gate.bounty;
+  }
+
+  if (isComplete && !raceBlocked && !ruleBlocked) {
     // Auto-complete — use onConflictDoNothing to avoid race condition
-    const [inserted] = await db.insert(completions).values({ teamId, tileId })
+    const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints })
       .onConflictDoNothing()
       .returning();
 
     // Only notify if we actually inserted (not a duplicate)
     if (inserted) {
+      // Bounty rotation: close the claimed tile and draw the next one right away (the cron
+      // tick is the backstop). Fire-and-forget — a draw hiccup must never fail the credit.
+      if (bountyEvent) handleBountyClaim(tile.eventId, tileId).catch(() => {});
+
       const team = await db.query.teams.findFirst({
         where: eq(teams.id, teamId),
       });
@@ -180,10 +200,15 @@ export async function syncDropTileCompletion(
   } else if (!isComplete) {
     // Revert completion if it exists (idempotent DELETE). A race-blocked tile is
     // left untouched — its earlier-tile gate, not its own progress, is what's missing.
-    await db.delete(completions).where(
+    const removed = await db.delete(completions).where(
       and(eq(completions.teamId, teamId), eq(completions.tileId, tileId))
-    );
+    ).returning({ id: completions.id });
+    // Bounty events: if that was the claiming completion (e.g. its submissions were deleted),
+    // reopen the tile so the bounty isn't silently lost. Fire-and-forget, like the claim hook.
+    if (removed.length > 0) {
+      reopenBountyTileIfUnclaimed(tile.eventId, tileId).catch(() => {});
+    }
   }
 
-  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked };
+  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked };
 }

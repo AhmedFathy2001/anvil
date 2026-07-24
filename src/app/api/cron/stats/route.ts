@@ -14,6 +14,8 @@ import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
@@ -382,6 +384,10 @@ export async function GET(request: Request) {
 
       if (isIndividualMode(tile.trackingMode)) {
         if (gained >= tile.statGoal!) {
+          // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
+          // the sweep; the gain keeps accruing and credits if/when the tile opens up.
+          const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: f.player.teamId });
+          if (!gate.allowed) continue;
           // Notify only on a genuine insert (a live push may have completed it already).
           const inserted = await db
             .insert(completions)
@@ -395,11 +401,13 @@ export async function GET(request: Request) {
               statContributions: JSON.stringify(
                 buildContributionSnapshot(tile.statGoal!, [{ playerId: f.player.id, gained }]),
               ),
+              awardedPoints: gate.awardedPoints,
             })
             .onConflictDoNothing()
             .returning({ id: completions.id });
           ctx.completionSet.add(key);
           if (inserted.length > 0) {
+            if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
             const team = ctx.teamMap.get(f.player.teamId);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
             if (team) {
@@ -447,6 +455,9 @@ export async function GET(request: Request) {
           const key = `${team.id}-${tile.id}`;
           if (ctx.completionSet.has(key)) continue;
           if ((ctx.teamGains.get(key) || 0) >= tile.statGoal!) {
+            // Event-rules gate: same as the individual path above.
+            const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: team.id });
+            if (!gate.allowed) continue;
             const inserted = await db
               .insert(completions)
               // Freeze the per-member split as of this tick so the "who got what %" can't drift as the
@@ -457,11 +468,13 @@ export async function GET(request: Request) {
                 statContributions: JSON.stringify(
                   buildContributionSnapshot(tile.statGoal!, ctx.teamMemberGains.get(key) ?? []),
                 ),
+                awardedPoints: gate.awardedPoints,
               })
               .onConflictDoNothing()
               .returning({ id: completions.id });
             ctx.completionSet.add(key);
             if (inserted.length > 0) {
+              if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
               ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team.name, playerName: '(team total)' });
               notifyTileCompletion({
                 eventName: ctx.event.name,

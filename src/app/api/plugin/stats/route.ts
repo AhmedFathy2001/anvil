@@ -10,6 +10,8 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim } from '@/lib/revealEngine';
 
 // Real-time boss-KC / skill-XP ingest. The plugin posts {stats:[{name,kc}], skills:[{name,xp}]} with
 // ABSOLUTE counts (no image), debounced to one push per key per 15 s. We resolve the caller's clan
@@ -167,6 +169,12 @@ export async function POST(request: Request) {
       for (const tile of statTiles) {
         const compKey = `${activePlayer.teamId}-${tile.id}`;
         if (done.has(compKey)) continue;
+        // Event-rules gate: unrevealed/claimed tiles and lockout losses never credit, no matter
+        // what the pushed stats say. Also freezes the rule-adjusted award for the insert below.
+        const gate = event
+          ? await evaluateCompletionGate({ event, tile, teamId: activePlayer.teamId! })
+          : null;
+        if (gate && !gate.allowed) continue;
         const keys = statKeys(tile.trackedStat);
         const individual = isIndividualMode(tile.trackingMode);
         // For an individual tile, the finisher is the player who reached the goal alone (attributed so the
@@ -195,10 +203,12 @@ export async function POST(request: Request) {
             tileId: tile.id,
             creditPlayerId: individualFinisher?.id ?? null,
             statContributions: JSON.stringify(buildContributionSnapshot(tile.statGoal!, splitRows)),
+            awardedPoints: gate?.awardedPoints ?? null,
           })
           .onConflictDoNothing()
           .returning({ id: completions.id });
         if (inserted.length === 0) continue;
+        if (gate?.bounty) handleBountyClaim(activePlayer.eventId, tile.id).catch(() => {});
         done.add(compKey);
         completed.push(tile.label);
         if (event && team) {
