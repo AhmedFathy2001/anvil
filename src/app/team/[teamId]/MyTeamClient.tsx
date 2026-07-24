@@ -255,12 +255,20 @@ export default function MyTeamClient({
     [tiles, event.scoringMode],
   );
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    ? completions.reduce(
+        (sum, c) =>
+          sum +
+          (scoredTileIds.has(c.tileId)
+            // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live weight.
+            ? (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0)
+            : 0),
+        0,
+      )
     : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
     ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
     : scoredTiles.length;
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);

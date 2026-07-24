@@ -49,6 +49,8 @@ interface Completion {
   teamId: number;
   tileId: number;
   completedAt: string;
+  // Frozen rule-modified award (first bonus / reveal decay) — wins over the live tile weight.
+  awardedPoints?: number | null;
 }
 
 interface Event {
@@ -81,6 +83,9 @@ interface Props {
   mvp?: EventMvp | null;
   mvpToday?: EventMvp | null;
   teamMvps?: Record<number, TeamMvp | null>;
+  // Reveal-policy events (lib/eventRules): tiles the viewer can't see yet + when the next lands.
+  hiddenTileCount?: number;
+  nextRevealAt?: string | null;
 }
 
 interface TeamGains {
@@ -89,7 +94,7 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {} }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -153,10 +158,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
   const completionCounts = new Map<number, number>();
   for (const c of completions) {
-    // Only count completions of required (non-optional) tiles
+    // Only count completions of required (non-optional) tiles. A frozen awardedPoints
+    // (first-team bonus / reveal decay) wins over the tile's live weight in points mode.
     const w = weightById.get(c.tileId);
     if (w !== undefined) {
-      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + w);
+      const earned = pointsMode && c.awardedPoints != null ? c.awardedPoints : w;
+      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + earned);
     }
   }
 
@@ -404,6 +411,19 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </div>
           )}
 
+          {hiddenTileCount > 0 && (
+            <div className="mb-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-sm text-foreground/90">
+                <span aria-hidden className="mr-1.5">🙈</span>
+                <span className="font-semibold">{hiddenTileCount}</span> tile{hiddenTileCount === 1 ? '' : 's'} still hidden
+              </span>
+              <span className="text-xs text-text-muted">
+                {nextRevealAt
+                  ? `Next reveal ${new Date(nextRevealAt).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
+                  : 'Revealed as the event unfolds'}
+              </span>
+            </div>
+          )}
           <EventBoard
             format={event.format}
             tiles={tiles}

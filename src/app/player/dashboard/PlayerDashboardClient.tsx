@@ -139,12 +139,13 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
     [tiles, event.scoringMode],
   );
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
+    // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live tile weight.
+    ? completions.reduce((sum, c) => sum + (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0), 0)
     : completions.length;
   const total = pointsMode
     ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
     : tiles.length;
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
