@@ -4,6 +4,8 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd } from '@/lib/discord';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
+import { processTileReveals } from '@/lib/revealEngine';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
@@ -62,16 +64,22 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         : [];
 
       // Points-scoring events tally summed point weights of non-optional tiles;
-      // classic events tally raw completed-tile counts.
+      // classic events tally raw completed-tile counts. Rule-modified completions (first
+      // bonus / decay) score their frozen awardedPoints; reveal-policy events count only
+      // tiles that actually went live in the total (never-revealed tiles were never in play).
+      const rules = parseEventRules(event.rules);
       const pointsMode = event.scoringMode === 'points';
-      const scoredTiles = eventTiles.filter((t) => !t.optional);
+      const scoredTiles = visibleTiles(rules, eventTiles).filter((t) => !t.optional);
       const weightById = new Map(scoredTiles.map((t) => [t.id, pointsMode ? (t.points ?? 0) : 1]));
       const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
 
       const standings = eventTeams.map((team) => {
         const teamScore = eventCompletions
           .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+          .reduce(
+            (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
+            0,
+          );
         return { teamName: team.name, tilesCompleted: teamScore };
       });
 
@@ -106,4 +114,9 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       await autoGeneratePayoutsOnEnd(event.id).catch(() => {});
     }
   }
+
+  // Reveal-policy events: flip due tiles live (scheduled/interval draws) and reconcile the bounty
+  // rotation. After the start loop above, so on the tick an event begins the "event started" post
+  // lands before its first tile reveal. Never throws past its own catch.
+  await processTileReveals().catch(() => {});
 }

@@ -554,6 +554,45 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   return sendBingoWebhook({ embeds: [embed] });
 }
 
+interface TilesRevealedNotifyParams {
+  eventName: string;
+  tiles: { label: string; points: number | null }[];
+  /** Show per-tile point values (points-scoring events only). */
+  pointsMode: boolean;
+  /** Hidden tiles left after this reveal — the "more to come" teaser. */
+  hiddenRemaining: number;
+  /** 'bounty' posts a claim-framed title. */
+  bounty?: boolean;
+}
+
+// Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
+// next-tile). One embed per batch, not per tile, so an interval batch of 5 is a single post.
+export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
+  const { eventName, tiles, pointsMode, hiddenRemaining, bounty } = params;
+  if (tiles.length === 0) return false;
+
+  const lines = tiles
+    .slice(0, 15)
+    .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
+  const remaining = hiddenRemaining > 0
+    ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
+    : '';
+
+  const embed: DiscordEmbed = {
+    title: bounty
+      ? '🎯 New bounty tile is up!'
+      : tiles.length === 1
+        ? '🔓 New tile revealed!'
+        : `🔓 ${tiles.length} new tiles revealed!`,
+    description: `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}${remaining}`,
+    color: 0xffd700, // Gold
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ embeds: [embed] });
+}
+
 interface TeamWithPlayers {
   name: string;
   color: string;
