@@ -203,6 +203,11 @@ export default async function EventScoreboardPage({
     }
   }
 
+  // Fun end-of-event recap ("superlatives") CTA — shown to everyone once the event has ended, but only
+  // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
+  // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
+  const showRecapCta = isEventEnded(event) && !!mvp;
+
   const approvedCount = await countApprovedSignups(id);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
@@ -252,6 +257,20 @@ export default async function EventScoreboardPage({
         windowReason={window.reason}
         signupFee={event.signupFee}
       />
+      {showRecapCta && (
+        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="font-semibold text-gold">🏆 The awards are in!</p>
+            <p className="text-sm text-text-muted">See who took home MVP, the biggest drop, the most kills, and more.</p>
+          </div>
+          <Link
+            href={`/events/${id}/recap`}
+            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+          >
+            See the recap →
+          </Link>
+        </div>
+      )}
       {showSurveyCta && (
         <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
