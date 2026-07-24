@@ -117,6 +117,16 @@ export function validateAnswers(
 }
 
 // ── Results aggregation (staff view) ────────────────────────────────────────────────────────────
+
+// One respondent's full submission, attributed (staff-only). Powers the "By person" results view;
+// name is null for detached (deleted-user) rows.
+export interface SurveyRespondentView {
+  userId: number | null;
+  name: string | null;
+  submittedAt: string;
+  answers: SurveyAnswerMap;
+}
+
 export interface QuestionResult {
   question: SurveyQuestionView;
   answered: number;

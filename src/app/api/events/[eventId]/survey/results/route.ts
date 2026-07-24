@@ -28,17 +28,25 @@ export async function GET(
     : [];
   const nameById = new Map(nameRows.map((u) => [u.id, u.displayName]));
 
-  const responses = rRows.map((r) => {
-    let answers: SurveyAnswerMap = {};
-    try {
-      answers = JSON.parse(r.answers) as SurveyAnswerMap;
-    } catch { /* skip a malformed blob */ }
-    return { userId: r.userId, answers };
-  });
+  // Full attributed submissions, newest first — the "By person" view renders these directly.
+  const respondents = rRows
+    .map((r) => {
+      let answers: SurveyAnswerMap = {};
+      try {
+        answers = JSON.parse(r.answers) as SurveyAnswerMap;
+      } catch { /* skip a malformed blob */ }
+      return {
+        userId: r.userId,
+        name: r.userId != null ? nameById.get(r.userId) ?? null : null,
+        submittedAt: r.submittedAt,
+        answers,
+      };
+    })
+    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
 
   const results = aggregateSurvey(
     questions,
-    responses,
+    respondents,
     (userId) => (userId != null ? nameById.get(userId) ?? null : null),
   );
 
@@ -46,5 +54,6 @@ export async function GET(
     responseCount: rRows.length,
     questionCount: questions.length,
     results,
+    respondents,
   });
 }

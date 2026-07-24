@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
-import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult } from '@/lib/survey';
+import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult, type SurveyAnswerMap, type SurveyRespondentView } from '@/lib/survey';
 
 interface TemplateMeta {
   id: string;
@@ -261,8 +261,11 @@ function ResultsView({ eventId }: { eventId: number }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [results, setResults] = useState<QuestionResult[]>([]);
+  const [respondents, setRespondents] = useState<SurveyRespondentView[]>([]);
   const [responseCount, setResponseCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'questions' | 'people'>('questions');
+  const [query, setQuery] = useState('');
 
   async function load() {
     setLoading(true);
@@ -275,6 +278,7 @@ function ResultsView({ eventId }: { eventId: number }) {
         return;
       }
       setResults(data.results);
+      setRespondents(data.respondents ?? []);
       setResponseCount(data.responseCount);
       setLoaded(true);
     } finally {
@@ -302,27 +306,146 @@ function ResultsView({ eventId }: { eventId: number }) {
   }
 
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-text-muted">{responseCount} response{responseCount !== 1 ? 's' : ''}.</p>
-      {results.map((r) => (
-        <div key={r.question.id} className="border border-card-border rounded-xl p-4 bg-card-bg">
-          <div className="flex items-baseline justify-between gap-3 mb-3">
-            <h3 className="text-sm font-semibold">{r.question.prompt}</h3>
-            <span className="text-xs text-text-muted shrink-0">
-              {r.answered} answered
-              {r.average != null && ` · avg ${r.average.toFixed(1)}/${RATING_MAX}`}
-            </span>
-          </div>
-
-          {r.question.type === 'text' ? (
-            <TextAnswers texts={r.texts ?? []} />
-          ) : (
-            <Bars counts={r.counts ?? {}} order={r.question.type === 'rating' ? Array.from({ length: RATING_MAX }, (_, i) => String(i + 1)) : r.question.options} answered={r.answered} rating={r.question.type === 'rating'} />
-          )}
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex rounded-lg border border-card-border overflow-hidden">
+          {(['questions', 'people'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+            >
+              {v === 'questions' ? 'By question' : 'By person'}
+            </button>
+          ))}
         </div>
-      ))}
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={view === 'questions' ? 'Filter text answers…' : 'Search people & answers…'}
+          className="w-64 px-3 py-1.5 text-xs"
+        />
+        <span className="ml-auto text-xs text-text-muted">
+          {responseCount} response{responseCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {view === 'questions' ? (
+        <div className="space-y-5">
+          {results.map((r) => (
+            <div key={r.question.id} className="border border-card-border rounded-xl p-4 bg-card-bg">
+              <div className="flex items-baseline justify-between gap-3 mb-3">
+                <h3 className="text-sm font-semibold">{r.question.prompt}</h3>
+                <span className="text-xs text-text-muted shrink-0">
+                  {r.answered} answered
+                  {r.average != null && ` · avg ${r.average.toFixed(1)}/${RATING_MAX}`}
+                </span>
+              </div>
+
+              {r.question.type === 'text' ? (
+                <TextAnswers texts={r.texts ?? []} filter={query} />
+              ) : (
+                <Bars counts={r.counts ?? {}} order={r.question.type === 'rating' ? Array.from({ length: RATING_MAX }, (_, i) => String(i + 1)) : r.question.options} answered={r.answered} rating={r.question.type === 'rating'} />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <PeopleView respondents={respondents} questions={results.map((r) => r.question)} query={query} />
+      )}
     </div>
   );
+}
+
+// "By person": every submission as an expandable card showing the respondent's full response —
+// all questions in order with their complete (unclamped) answers. The search box matches
+// respondent names and free-text answer content.
+function PeopleView({
+  respondents,
+  questions,
+  query,
+}: {
+  respondents: SurveyRespondentView[];
+  questions: SurveyQuestionView[];
+  query: string;
+}) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? respondents.filter(
+        (p) =>
+          (p.name ?? 'unknown').toLowerCase().includes(q) ||
+          questions.some(
+            (qq) => qq.type === 'text' && String(p.answers[qq.id] ?? '').toLowerCase().includes(q),
+          ),
+      )
+    : respondents;
+
+  if (filtered.length === 0) {
+    return <p className="text-sm text-text-muted py-6 text-center">{q ? `No responses match “${query.trim()}”.` : 'No responses yet.'}</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {q && filtered.length < respondents.length && (
+        <p className="text-xs text-text-muted">
+          {filtered.length} of {respondents.length} responses match “{query.trim()}”
+        </p>
+      )}
+      {filtered.map((p, i) => {
+        const answeredN = questions.filter((qq) => {
+          const v = p.answers[qq.id];
+          return v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
+        }).length;
+        return (
+          <details key={p.userId ?? `detached-${i}`} className="border border-card-border rounded-xl bg-card-bg group">
+            <summary className="cursor-pointer select-none list-none flex items-center gap-3 p-3">
+              <span className="text-sm font-semibold">{p.name ?? 'Unknown'}</span>
+              <span className="ml-auto text-xs text-text-muted shrink-0">
+                {answeredN}/{questions.length} answered · {p.submittedAt.slice(0, 10)}
+              </span>
+              <span className="text-text-muted transition-transform group-open:rotate-90">▸</span>
+            </summary>
+            <div className="border-t border-card-border p-3 space-y-3">
+              {questions.map((qq) => (
+                <div key={qq.id}>
+                  <div className="text-xs text-text-muted mb-0.5">{qq.prompt}</div>
+                  <AnswerValue question={qq} value={p.answers[qq.id]} />
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+// Render one answer for the per-person view: stars for ratings, chips for multi-choice, full
+// text (line breaks preserved, never clamped) for free text.
+function AnswerValue({ question, value }: { question: SurveyQuestionView; value: SurveyAnswerMap[number] | undefined }) {
+  const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+  if (empty) return <p className="text-xs text-text-muted/70 italic">No answer</p>;
+
+  if (question.type === 'rating') {
+    const n = Math.min(Math.max(1, Number(value) || 1), RATING_MAX);
+    return (
+      <p className="text-sm">
+        <span className="text-gold">{'★'.repeat(n)}</span>
+        <span className="text-text-muted/50">{'★'.repeat(RATING_MAX - n)}</span>
+        <span className="text-xs text-text-muted ml-1.5">{n}/{RATING_MAX}</span>
+      </p>
+    );
+  }
+  if (question.type === 'multi') {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {(Array.isArray(value) ? value : [String(value)]).map((v) => (
+          <span key={v} className="text-xs px-2 py-0.5 rounded-full border border-card-border bg-background">{v}</span>
+        ))}
+      </div>
+    );
+  }
+  return <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{String(value)}</p>;
 }
 
 // Free-text results: one card per answer (name header + preserved line breaks) so 30 stacked
@@ -330,21 +453,34 @@ function ResultsView({ eventId }: { eventId: number }) {
 // "Show all", long single answers clamp behind "Show more".
 const TEXT_PREVIEW_COUNT = 8;
 
-function TextAnswers({ texts }: { texts: { respondentName: string | null; text: string }[] }) {
+function TextAnswers({ texts, filter }: { texts: { respondentName: string | null; text: string }[]; filter: string }) {
   const [showAll, setShowAll] = useState(false);
   if (texts.length === 0) return <p className="text-xs text-text-muted">No answers.</p>;
-  const visible = showAll ? texts : texts.slice(0, TEXT_PREVIEW_COUNT);
+
+  // Active search matches answer content or respondent name, and disables the preview fold —
+  // when you're filtering you want every hit, not the first 8.
+  const q = filter.trim().toLowerCase();
+  const matches = q
+    ? texts.filter((t) => t.text.toLowerCase().includes(q) || (t.respondentName ?? 'unknown').toLowerCase().includes(q))
+    : texts;
+  const visible = q || showAll ? matches : matches.slice(0, TEXT_PREVIEW_COUNT);
+
   return (
     <div className="space-y-2">
+      {q && (
+        <p className="text-xs text-text-muted">
+          {matches.length === 0 ? 'No answers match' : `${matches.length} of ${texts.length} match`} “{filter.trim()}”
+        </p>
+      )}
       {visible.map((t, i) => (
         <TextAnswerCard key={i} respondentName={t.respondentName} text={t.text} />
       ))}
-      {texts.length > TEXT_PREVIEW_COUNT && (
+      {!q && matches.length > TEXT_PREVIEW_COUNT && (
         <button
           onClick={() => setShowAll((v) => !v)}
           className="text-xs font-medium text-gold/90 hover:text-gold"
         >
-          {showAll ? 'Show fewer' : `Show all ${texts.length} answers ↓`}
+          {showAll ? 'Show fewer' : `Show all ${matches.length} answers ↓`}
         </button>
       )}
     </div>
