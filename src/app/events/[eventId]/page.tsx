@@ -257,32 +257,41 @@ export default async function EventScoreboardPage({
         windowReason={window.reason}
         signupFee={event.signupFee}
       />
-      {showRecapCta && (
-        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="font-semibold text-gold">🏆 The awards are in!</p>
-            <p className="text-sm text-text-muted">See who took home MVP, the biggest drop, the most kills, and more.</p>
+      {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
+          rather than two stacked gold banners shouting the same "event ended" note twice. */}
+      {(showRecapCta || showSurveyCta) && (
+        <div className="mb-6 rounded-xl border border-card-border bg-card-bg p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex items-center gap-3">
+            <span className="text-xl leading-none" aria-hidden>🏁</span>
+            <div className="min-w-0">
+              <p className="font-semibold">This event has ended</p>
+              <p className="text-sm text-text-muted">
+                {showRecapCta && showSurveyCta
+                  ? 'See who took home the awards, then let the hosts know how it went.'
+                  : showRecapCta
+                    ? 'See who took home MVP, the biggest drop, the most kills, and more.'
+                    : 'Take a moment to share your feedback with the hosts.'}
+              </p>
+            </div>
           </div>
-          <Link
-            href={`/events/${id}/recap`}
-            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
-          >
-            See the recap →
-          </Link>
-        </div>
-      )}
-      {showSurveyCta && (
-        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="font-semibold text-gold">This event has ended — how did it go?</p>
-            <p className="text-sm text-text-muted">Take a moment to share your feedback with the hosts.</p>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {showRecapCta && (
+              <Link
+                href={`/events/${id}/recap`}
+                className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+              >
+                🏆 See the recap →
+              </Link>
+            )}
+            {showSurveyCta && (
+              <Link
+                href={`/events/${id}/survey`}
+                className="text-sm font-medium text-text-muted border border-card-border px-4 py-2 rounded-lg hover:text-gold hover:border-gold/30 transition-colors"
+              >
+                Fill out the survey →
+              </Link>
+            )}
           </div>
-          <Link
-            href={`/events/${id}/survey`}
-            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
-          >
-            Fill out the survey →
-          </Link>
         </div>
       )}
       {hideBoardFromPlayer ? (
