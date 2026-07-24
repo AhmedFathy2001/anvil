@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 
 // GET /api/plugin/event/[id] — lightweight event + tile rundown for the plugin's
 // schedule detail view. Anonymous (mirrors the schedule list endpoint), so anyone
@@ -26,7 +27,8 @@ export async function GET(
 
   // Tiles stay hidden in this anonymous preview until the host reveals them — return an
   // empty list so the schedule detail view shows the event without leaking its board.
-  const tileRows = event.tilesRevealed
+  // Reveal-policy events additionally trim to the revealed subset (lib/eventRules).
+  const allTileRows = event.tilesRevealed
     ? await db
         .select({
           id: tiles.id,
@@ -41,11 +43,13 @@ export async function GET(
           statGoal: tiles.statGoal,
           trackingMode: tiles.trackingMode,
           optional: tiles.optional,
+          revealedAt: tiles.revealedAt,
         })
         .from(tiles)
         .where(eq(tiles.eventId, id))
         .orderBy(tiles.position)
     : [];
+  const tileRows = visibleTiles(parseEventRules(event.rules), allTileRows);
 
   return NextResponse.json({
     id: event.id,

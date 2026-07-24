@@ -10,6 +10,7 @@ import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -43,6 +44,7 @@ export default async function EventScoreboardPage({
     tileId: number;
     completedAt: string;
     statContributions: StatContributionSnapshot | null;
+    awardedPoints: number | null;
   }[] = [];
   if (tileIds.length > 0) {
     const tileIdSet = new Set(tileIds);
@@ -56,6 +58,7 @@ export default async function EventScoreboardPage({
         completedAt: c.completedAt,
         // Parse the frozen KC/XP split once here so the breakdown uses it for completed stat tiles.
         statContributions: parseContributionSnapshot(c.statContributions),
+        awardedPoints: c.awardedPoints,
       }));
   }
 
@@ -187,6 +190,14 @@ export default async function EventScoreboardPage({
   const tilesHidden = !event.tilesRevealed;
   const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
 
+  // Reveal-policy events (lib/eventRules): members only receive the revealed subset — hidden
+  // tile content must never reach the client. Staff keep the full board. The aggregate counts
+  // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
+  const rules = parseEventRules(event.rules);
+  const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
+  const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
+  const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
+
   // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
   // exists and they haven't responded yet. Cheap guarded queries (only when they're eligible).
   let showSurveyCta = false;
@@ -237,7 +248,7 @@ export default async function EventScoreboardPage({
     <>
       <EventHero
         name={event.name}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
         prizePool={prizePool}
@@ -311,13 +322,15 @@ export default async function EventScoreboardPage({
       ) : (
         <ScoreboardClient
           event={event}
-          tiles={eventTiles}
+          tiles={boardTiles}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}
           mvp={mvp}
           mvpToday={mvpToday}
           teamMvps={teamMvps}
+          hiddenTileCount={hiddenTileCount}
+          nextRevealAt={upcomingRevealAt}
         />
       )}
     </>

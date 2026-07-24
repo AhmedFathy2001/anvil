@@ -6,6 +6,7 @@ import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
+import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -192,10 +193,18 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
     };
   }
 
-  const [eventTiles, eventTeams] = await Promise.all([
+  const [allEventTiles, eventTeams] = await Promise.all([
     db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) }),
     db.query.teams.findMany({ where: eq(teams.eventId, event.id) }),
   ]);
+
+  // Reveal-policy events (see lib/eventRules): members only ever receive the revealed subset —
+  // hidden tile content must never reach a client. Completions/teams stay full-board (they only
+  // reference revealed tiles anyway: hidden tiles can't be completed). Classic events pass through.
+  const rules = parseEventRules(event.rules);
+  const revealMode = hasRevealPolicy(rules);
+  const eventTiles = visibleTiles(rules, allEventTiles);
+  const hiddenTileCount = allEventTiles.length - eventTiles.length;
 
   // All completions across the event's tiles, grouped per team (drives the race pips + read-only).
   const tileIds = eventTiles.map((t) => t.id);
@@ -247,6 +256,16 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
     yourTeamId: callerTeamId ?? -1,
     readOnly: callerTeamId == null,
     tilesRevealed: true,
+    // Reveal-policy extras (absent on classic events, so their payloads/ETags are unchanged):
+    // how tiles appear, how many are still hidden, and when the next one lands (null = no clock —
+    // bounty draws on completion). Old plugins ignore unknown fields.
+    ...(revealMode
+      ? {
+          revealPolicy: rules.revealPolicy,
+          hiddenTileCount,
+          nextRevealAt: nextRevealAt(event, rules, allEventTiles),
+        }
+      : {}),
     tiles: sortedTiles.map((t, index) => {
       // Compound tiles carry several distinct items; surface the per-item breakdown so the plugin's
       // detail page can render the whole set like the website (progress is 0 in read-only preview).
@@ -299,6 +318,9 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
         statType: t.statType ?? null,
         statName: t.trackedStat ?? null,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
+        // Reveal-policy state: when this tile went live, and (bounty) when it was claimed and
+        // stopped accepting completions. Only sent on reveal-mode events.
+        ...(revealMode ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
       };
     }),

@@ -26,6 +26,7 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { parseEventRules, hasRevealPolicy, nextRevealAt } from '@/lib/eventRules';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -265,18 +266,25 @@ export async function GET(request: Request) {
   // flows. Mirrors the web board + plugin board gates.
   const tilesRevealed = !!event.tilesRevealed;
 
-  // Get drop tiles with tracked item IDs
-  const dropTiles = tilesRevealed
-    ? await db.query.tiles.findMany({
-        where: and(eq(tiles.eventId, auth.eventId), eq(tiles.tileType, 'drop')),
-      })
+  // Reveal-policy events (lib/eventRules) narrow that further per-tile: the plugin only ever
+  // learns about REVEALED tiles (hidden tile content must never reach a client), and only
+  // still-open ones are worth detecting for — a claimed bounty tile is done rotating. The
+  // full-board rows stay server-side; completed-tile labels resolve off the revealed subset
+  // (a completed tile is revealed by definition).
+  const fullEventTiles = tilesRevealed
+    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) })
     : [];
+  const rules = parseEventRules(event.rules);
+  const revealMode = hasRevealPolicy(rules);
+  const allEventTiles = revealMode
+    ? fullEventTiles.filter((t) => t.revealedAt != null && t.closedAt == null)
+    : fullEventTiles;
+
+  // Get drop tiles with tracked item IDs
+  const dropTiles = allEventTiles.filter((t) => t.tileType === 'drop');
 
   // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
   // for these — match on the presence of a trackedStat field instead.
-  const allEventTiles = tilesRevealed
-    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) })
-    : [];
   const statTilesRaw = allEventTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
 
   // Get current submission totals per tile for this team
@@ -476,7 +484,10 @@ export async function GET(request: Request) {
         .where(eq(completions.teamId, auth.teamId))
         .all()
     : [];
-  const tileById = new Map(allEventTiles.map((t) => [t.id, t]));
+  // Label lookups include CLOSED reveal-mode tiles (a completed bounty tile is closed but its
+  // completion row still needs its label) — just never the still-hidden ones.
+  const visibleEventTiles = revealMode ? fullEventTiles.filter((t) => t.revealedAt != null) : fullEventTiles;
+  const tileById = new Map(visibleEventTiles.map((t) => [t.id, t]));
   const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
 
   // "Completed by <who>" for the plugin's completion chat line: the crediting player of the LATEST
@@ -531,6 +542,15 @@ export async function GET(request: Request) {
       // for the player's own active event straight from these two fields.
       format: event.format,
       scoringMode: event.scoringMode,
+      // Reveal-policy extras (absent on classic events): lets the sidebar show "next tile in
+      // 42m" and "N tiles still hidden". Old plugins ignore unknown fields.
+      ...(revealMode
+        ? {
+            revealPolicy: rules.revealPolicy,
+            hiddenTileCount: fullEventTiles.length - visibleEventTiles.length,
+            nextRevealAt: nextRevealAt(event, rules, fullEventTiles),
+          }
+        : {}),
     },
     team: {
       id: team.id,

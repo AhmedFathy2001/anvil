@@ -3,6 +3,7 @@ import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyCaptain } from '@/lib/auth';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import CaptainBoardClient from './CaptainBoardClient';
 import DraftBoardClient from './DraftBoardClient';
 
@@ -43,7 +44,11 @@ export default async function CaptainBoardPage({
     );
   }
 
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  // Reveal-policy events (lib/eventRules): captain board is a player surface — revealed tiles only.
+  const eventTiles = visibleTiles(
+    parseEventRules(event.rules),
+    await db.select().from(tiles).where(eq(tiles.eventId, event.id)),
+  );
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, event.id));
 
   const tileIds = eventTiles.map((t) => t.id);

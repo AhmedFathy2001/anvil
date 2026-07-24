@@ -7,6 +7,7 @@ import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 
@@ -60,6 +61,7 @@ export default async function TeamBoardPage({
         tileId: c.tileId,
         completedAt: c.completedAt,
         statContributions: parseContributionSnapshot(c.statContributions),
+        awardedPoints: c.awardedPoints,
       }));
   }
 
@@ -94,11 +96,15 @@ export default async function TeamBoardPage({
     );
   }
 
+  // Reveal-policy events (lib/eventRules): non-staff only receive the revealed subset —
+  // hidden tile content must never reach the client.
+  const boardTiles = isStaff ? eventTiles : visibleTiles(parseEventRules(event.rules), eventTiles);
+
   return (
     <TeamBoardClient
       event={event}
       team={safeTeam}
-      tiles={eventTiles}
+      tiles={boardTiles}
       completions={teamCompletions}
       players={eventPlayers}
       tierBands={tierBands}
