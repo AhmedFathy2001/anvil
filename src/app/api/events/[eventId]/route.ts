@@ -5,6 +5,8 @@ import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
+import { getEventStartReadiness } from '@/lib/eventLifecycle';
+import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
 
@@ -199,6 +201,22 @@ export async function PATCH(
       return NextResponse.json({ error: 'The end date has already passed. Update it before starting.' }, { status: 400 });
     }
 
+    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned.
+    // 409 + the blocker list so the UI can explain; `force: true` is the explicit admin override
+    // (the UI re-confirms before sending it).
+    if (body.force !== true) {
+      const readiness = await getEventStartReadiness(event.id, event.draftStatus);
+      if (!readiness.ready) {
+        return NextResponse.json(
+          {
+            error: `The bingo isn't ready to start: ${describeStartBlockers(readiness.blockers)}.`,
+            blockers: readiness.blockers,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Flip startNotified atomically first — only the request that wins the flip sends the
     // Discord embed, so a retried start-now (or the cron reaching the start time) can't
     // double-post it.
@@ -320,7 +338,11 @@ export async function PATCH(
     }
     updates.rules = rulesResult.rules;
   }
-  if ('startDate' in body) updates.startDate = body.startDate;
+  if ('startDate' in body) {
+    updates.startDate = body.startDate;
+    // Re-arm the start-hold warning: a rescheduled start that again arrives unready warns anew.
+    updates.startHoldNotified = 0;
+  }
   if ('endDate' in body) updates.endDate = body.endDate;
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;

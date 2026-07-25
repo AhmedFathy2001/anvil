@@ -12,6 +12,11 @@ export const events = sqliteTable('events', {
   endDate: text('end_date'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  // Set once when the "start held" warning is posted (scheduled start reached while the event
+  // wasn't startable — draft mid-way / no teams assigned; see lib/eventReadiness). The lifecycle
+  // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
+  // an admin edits startDate so a rescheduled start can warn again.
+  startHoldNotified: integer('start_hold_notified').default(0),
   // Set once when the draft-complete roster is posted to Discord, so the pick auto-complete
   // and the manual "End draft" action can't both fire the same embed (idempotency). Cleared
   // by a draft reset. `resend-roster` intentionally bypasses it.

@@ -433,21 +433,30 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
   }
 
-  async function startBingoNow() {
-    if (!confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+  async function startBingoNow(force = false) {
+    if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
     setStartingBingo(true);
     setStartBingoError(null);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start-now' }),
+        body: JSON.stringify(force ? { action: 'start-now', force: true } : { action: 'start-now' }),
       });
       if (res.ok) {
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));
-        setStartBingoError(data.error || 'Could not start the bingo.');
+        // Start safeguard (409 + blockers): offer the explicit override once, re-confirmed.
+        if (res.status === 409 && Array.isArray(data.blockers) && !force) {
+          if (confirm(`${data.error}\n\nStart anyway?`)) {
+            await startBingoNow(true);
+            return;
+          }
+          setStartBingoError(data.error);
+        } else {
+          setStartBingoError(data.error || 'Could not start the bingo.');
+        }
       }
     } finally {
       setStartingBingo(false);
@@ -991,7 +1000,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   event live, and announces the start in Discord. The end date stays as configured.
                 </p>
                 <button
-                  onClick={startBingoNow}
+                  onClick={() => startBingoNow()}
                   disabled={startingBingo}
                   className="text-sm font-bold bg-accent-green/20 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/30 transition-colors disabled:opacity-50"
                 >

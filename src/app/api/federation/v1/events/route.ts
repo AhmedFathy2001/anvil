@@ -18,6 +18,7 @@ import {
   homeCreditGate,
   federatedProofSatisfied,
 } from '@/lib/federationDecisions';
+import { isDraftInProgress } from '@/lib/eventReadiness';
 import { federationFetch } from '@/lib/federationSecurity';
 import { log } from '@/lib/logger';
 
@@ -306,6 +307,7 @@ export async function POST(request: Request) {
         endDate: events.endDate,
         forceEndedAt: events.forceEndedAt,
         startDate: events.startDate,
+        draftStatus: events.draftStatus,
       })
       .from(players)
       .innerJoin(events, eq(players.eventId, events.id))
@@ -323,6 +325,12 @@ export async function POST(request: Request) {
         const r = gate('event-ended');
         if (r) return r;
       } else if (enrollment.startDate && nowIso < enrollment.startDate) {
+        const r = gate('event-not-started');
+        if (r) return r;
+      } else if (isDraftInProgress(enrollment.draftStatus)) {
+        // Start-safeguard belt (mirrors the member submissions route): the lifecycle cron holds an
+        // unready start by keeping startDate in the future, but never credit mid-draft even in the
+        // brief window before the next tick.
         const r = gate('event-not-started');
         if (r) return r;
       }

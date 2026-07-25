@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 
 interface DiscordEmbed {
   title: string;
@@ -719,6 +720,34 @@ const memberPing = async (): Promise<Pick<DiscordWebhookPayload, 'content' | 'al
     allowed_mentions: { parse: [], roles: [roleId] },
   };
 };
+
+interface EventStartHeldNotifyParams {
+  eventName: string;
+  /** The start the admins scheduled (reached but not honored). */
+  scheduledStart: string;
+  blockers: StartBlockerCode[];
+}
+
+// The start-safeguard warning (lib/eventLifecycle): the scheduled start was reached while the event
+// wasn't startable, so the start is being held. Posted to the bingo channel exactly once per hold
+// (startHoldNotified latch) — it's the alert that reaches admins who scheduled a start and walked
+// away, and it tells members why the countdown is stalling. No member ping: it's a heads-up, not a
+// celebration.
+export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): Promise<boolean> {
+  const { eventName, scheduledStart, blockers } = params;
+
+  const embed: DiscordEmbed = {
+    title: '⏸️ Bingo Start Held',
+    description:
+      `**${eventName}** was due to start ${discordTime(scheduledStart)} but isn't ready to go live:\n` +
+      blockers.map((b) => `• ${startBlockerLabel(b)}`).join('\n') +
+      '\n\nThe event will start automatically once this is resolved.',
+    color: 0xffa500, // Orange
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ embeds: [embed] });
+}
 
 interface EventStartNotifyParams {
   eventId: number;

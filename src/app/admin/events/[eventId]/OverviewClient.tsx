@@ -255,14 +255,14 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
     }
   }
 
-  async function startBingoNow() {
-    if (!confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+  async function startBingoNow(force = false) {
+    if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
     setStartingBingo(true);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start-now' }),
+        body: JSON.stringify(force ? { action: 'start-now', force: true } : { action: 'start-now' }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -272,7 +272,15 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Could not start the bingo.');
+        // Start safeguard (409 + blockers): offer the explicit override once, re-confirmed.
+        if (res.status === 409 && Array.isArray(data.blockers) && !force) {
+          if (confirm(`${data.error}\n\nStart anyway?`)) {
+            await startBingoNow(true);
+            return;
+          }
+        } else {
+          alert(data.error || 'Could not start the bingo.');
+        }
       }
     } finally {
       setStartingBingo(false);
@@ -450,7 +458,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           )}
           {!eventStarted && !isForceEnded && !editMode && (
             <button
-              onClick={startBingoNow}
+              onClick={() => startBingoNow()}
               disabled={startingBingo}
               className="text-xs font-bold px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
             >
