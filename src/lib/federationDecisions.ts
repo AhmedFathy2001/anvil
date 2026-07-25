@@ -164,6 +164,39 @@ export function planGuestConflict(row: { leftAt: string | null } | null | undefi
   return row.leftAt == null ? 'reuse' : 'reactivate';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared-RSN claim classification ("Share my RSN with this clan"). A home-attested RSN claim may
+// only ever land on a FEDERATION GUEST row of the same discord identity — never bind to, rename, or
+// reactivate anyone else's row (identity-takeover class). But "anyone else's" must not include the
+// member THEMSELVES: an account they already linked here directly (account token / roster claim) is
+// the same identity holding the name through a STRONGER path, so the claim is satisfied, not a
+// takeover — treating it as a conflict made sharing look like it silently did nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SharedRsnClaim =
+  | 'free' // no row holds the name — the claimant may create/rename onto it
+  | 'own-guest' // an existing federation guest of this same identity — reusable/renamable
+  | 'satisfied' // the same identity already holds the name via a non-federation row — nothing to do
+  | 'conflict'; // someone else's row — refuse and audit
+
+export function classifySharedRsnClaim(
+  row:
+    | { isGuest: number | null; source: string | null; discordId: string | null; userId: number | null }
+    | null
+    | undefined,
+  discordId: string,
+  ownerUserId: number | null,
+): SharedRsnClaim {
+  if (!row) return 'free';
+  if (row.isGuest === 1 && row.source === 'federation' && row.discordId === discordId) {
+    return 'own-guest';
+  }
+  if (row.discordId === discordId || (ownerUserId != null && row.userId === ownerUserId)) {
+    return 'satisfied';
+  }
+  return 'conflict';
+}
+
 // #12 the `missing` conflict plan (the conflicting row vanished between the failed insert and the
 // re-read — astronomically unlikely) retries the find-or-create, but that retry must be BOUNDED: the
 // prior implementation recursed with no depth counter, so a pathological churn could recurse forever /

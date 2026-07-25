@@ -13,7 +13,7 @@ import crypto from 'crypto';
 import { exportJWK, generateKeyPair, calculateJwkThumbprint, type JWK } from 'jose';
 import { db } from '@/db';
 import { settings, federationTokens, federationJti, users, clanMembers } from '@/db/schema';
-import { and, eq, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, notInArray, or } from 'drizzle-orm';
 import {
   getAssociationPush,
   getBrokerBaseUrl,
@@ -288,6 +288,49 @@ export async function resolveFederationToken(request: Request): Promise<Federati
 // --- Shared token-mint (WIRE §4). The ONE place that inserts a federation_tokens row, so /token
 // (own issuance) and /exchange (broker assertion) mint the identical opaque, hashed, revocable
 // shape. Returns the raw token exactly once — the caller must surface it and never persist it. ---
+// Label stamped on every /exchange-minted token. Distinguishes the machine-rotated relay credential
+// (re-minted by the member's home on every ~5-min /state sync) from a real device connection in both
+// the "Connected plugins" UI and pruneExchangeTokens's match below.
+export const EXCHANGE_TOKEN_LABEL = 'Federation relay';
+
+// How many relay tokens to keep per discord identity. Each of the member's HOME clans holds exactly
+// one live token here (replaceConnectionsForUser keeps newest-per-instance), so this is really
+// "how many homes can relay for one member without thrashing". 3 is generous; a 4-home member's
+// oldest home just re-exchanges on its next sync (and the relay serves its stale cache meanwhile).
+const EXCHANGE_TOKENS_KEPT = 3;
+
+/**
+ * Delete superseded /exchange-minted relay tokens for one discord identity, keeping the newest
+ * {@link EXCHANGE_TOKENS_KEPT}. Called after every exchange mint: each re-mint supersedes that home's
+ * previous token, and with no pruning they pile up ~12/hour of plugin-open time into the profile's
+ * "Connected plugins" list (and the DB) forever. Hard-delete, not revoke — these are machine-rotated
+ * credentials with no audit value, and revoked rows would accumulate at the same rate.
+ *
+ * Unlabeled rows are matched too: /exchange minted with no label before EXCHANGE_TOKEN_LABEL existed,
+ * so the first post-deploy exchange sweeps a member's whole backlog. Accepted risk: /token CAN mint an
+ * unlabeled discordId-bearing row, but no client does today (the plugin's device sign-in issues
+ * users.pluginToken) — and worst case such a credential is rotated out and its holder re-links.
+ */
+export async function pruneExchangeTokens(discordId: string): Promise<number> {
+  const isRelayToken = and(
+    eq(federationTokens.discordId, discordId),
+    or(eq(federationTokens.label, EXCHANGE_TOKEN_LABEL), isNull(federationTokens.label)),
+  );
+  // Keep slots go to LIVE tokens only — a manually-revoked row must not displace another home's
+  // working token — and everything else (older live rows AND the whole revoked backlog) is deleted.
+  const kept = await db
+    .select({ id: federationTokens.id })
+    .from(federationTokens)
+    .where(and(isRelayToken, isNull(federationTokens.revokedAt)))
+    .orderBy(desc(federationTokens.createdAt), desc(federationTokens.id))
+    .limit(EXCHANGE_TOKENS_KEPT);
+  if (kept.length === 0) return 0; // can't happen right after a mint; guards notInArray([])
+  const result = await db
+    .delete(federationTokens)
+    .where(and(isRelayToken, notInArray(federationTokens.id, kept.map((r) => r.id))));
+  return (result as { rowsAffected?: number }).rowsAffected ?? 0;
+}
+
 export async function mintFederationToken(opts: {
   userId?: number | null;
   discordId?: string | null;

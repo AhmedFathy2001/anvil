@@ -63,6 +63,10 @@ Use `jose` (`jwtVerify` + `createRemoteJWKSet`) — do not hand-roll.
   `{ tokenId, tokenHash, memberId/discordId, scopes[], createdAt, lastUsedAt, revokedAt, label }`.
 - **Long-lived + revocable** (decision 3). Revoke = set `revokedAt`; `/token/revoke` + the
   "Connected plugins" UI operate on `tokenId`.
+- **`/exchange` mints are machine-rotated**: the member's home re-runs the exchange on every
+  connection re-sync (~5 min), each mint superseding that home's previous token. The instance labels
+  them (`Federation relay`) and prunes each identity's superseded relay tokens down to the newest
+  few on every mint — they are not user-created credentials and must not accumulate.
 - Scopes: `board:read`, `events:write`.
 - (Web session — the Discord OAuth site login — is separate: 30-day, unchanged.)
 
