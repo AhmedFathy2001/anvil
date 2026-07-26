@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { clanMembers, events, players, teams } from '@/db/schema';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
-import { getTeamForPick } from '@/lib/draft';
+import { getTeamForPick, countPicksTaken } from '@/lib/draft';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 
@@ -62,7 +62,8 @@ export async function POST(
     .select()
     .from(players)
     .where(eq(players.eventId, eId));
-  const pickedCount = eventPlayers.filter((p) => p.teamId !== null).length;
+  // Turns taken = DISTINCT pick numbers (a multi-account person is one pick sharing one pickNumber).
+  const pickedCount = countPicksTaken(eventPlayers);
   const unpicked = eventPlayers.filter((p) => p.teamId === null);
 
   if (unpicked.length === 0) {
@@ -94,7 +95,25 @@ export async function POST(
     return NextResponse.json({ error: 'Player has already been picked' }, { status: 400 });
   }
 
-  // Make the pick
+  // Multi-account: one pick drafts the whole PERSON — every one of their still-unpicked accounts in
+  // this event joins the SAME team, sharing this pick's number (guests have no owning user → just
+  // themselves). The group leaves the pool together and counts as a single turn.
+  const pickedMember = player.clanMemberId != null
+    ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+    : null;
+  const groupIds = [playerId];
+  if (pickedMember?.userId != null) {
+    const siblings = await db
+      .select({ id: players.id })
+      .from(players)
+      .innerJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
+      .where(and(eq(players.eventId, eId), eq(clanMembers.userId, pickedMember.userId), isNull(players.teamId)));
+    for (const s of siblings) {
+      if (s.id !== playerId) groupIds.push(s.id);
+    }
+  }
+
+  // Make the pick — the picked player and every grouped sibling share teamId + pickNumber.
   const now = new Date().toISOString();
   await db
     .update(players)
@@ -103,10 +122,10 @@ export async function POST(
       pickNumber: pickedCount,
       pickedAt: now,
     })
-    .where(eq(players.id, playerId));
+    .where(and(inArray(players.id, groupIds), eq(players.eventId, eId), isNull(players.teamId)));
 
   // Check if pool is now empty → auto-complete draft
-  const remainingPool = unpicked.length - 1;
+  const remainingPool = unpicked.length - groupIds.length;
   if (remainingPool === 0) {
     await db
       .update(events)

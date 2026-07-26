@@ -54,6 +54,7 @@ import {
   guestConflictExhausted,
   gateReplayThenBudget,
   planGuestConflict,
+  classifySharedRsnClaim,
   exchangeRateLimitKey,
   guestRateLimitKey,
 } from '../src/lib/federationDecisions.ts';
@@ -681,6 +682,24 @@ test('#11: planGuestConflict — active guest reused, departed guest reactivated
   assert.equal(planGuestConflict({ leftAt: '2026-01-01T00:00:00Z' }), 'reactivate'); // departed → NOT reused as-is
   assert.equal(planGuestConflict(null), 'missing');
   assert.equal(planGuestConflict(undefined), 'missing');
+});
+
+// ── Shared-RSN claims: never a takeover, but colliding with YOURSELF is satisfied, not a conflict ──
+test('classifySharedRsnClaim — own federation guest reusable, own stronger row satisfies, others conflict', () => {
+  const fedGuest = { isGuest: 1, source: 'federation', discordId: 'me', userId: null };
+  const ownLinked = { isGuest: 1, source: 'plugin-self', discordId: null, userId: 5 }; // account-token link
+  const ownByDiscord = { isGuest: 0, source: 'plugin-roster', discordId: 'me', userId: null };
+  const stranger = { isGuest: 1, source: 'plugin-self', discordId: 'other', userId: 9 };
+
+  assert.equal(classifySharedRsnClaim(null, 'me', 5), 'free'); // no row → claimant may take the name
+  assert.equal(classifySharedRsnClaim(fedGuest, 'me', 5), 'own-guest'); // own disposable claim row
+  assert.equal(classifySharedRsnClaim(fedGuest, 'other', 9), 'conflict'); // someone else's claim row
+  // The member's OWN non-federation row (the exact "shared my RSN where I already linked it" case):
+  // satisfied — NOT a conflict, and never renamed/vacated.
+  assert.equal(classifySharedRsnClaim(ownLinked, 'me', 5), 'satisfied');
+  assert.equal(classifySharedRsnClaim(ownByDiscord, 'me', null), 'satisfied'); // discord-id match, no site user
+  assert.equal(classifySharedRsnClaim(stranger, 'me', 5), 'conflict'); // anyone else's row — hard refuse
+  assert.equal(classifySharedRsnClaim(ownLinked, 'me', null), 'conflict'); // no owner identity → can't be "yours"
 });
 
 // ── #14: exchange + guest-creation rate limits are keyed per MEMBER (sub), not per home-clan IP ──

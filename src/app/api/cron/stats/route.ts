@@ -14,10 +14,19 @@ import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, effectiveValue, reconcileLive } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+
+// A live-overlay entry not refreshed within this window is stale: OSRS force-logs-out at ~6h, so
+// hiscores must reflect real XP/KC by then. Anything the overlay still holds above hiscores past this
+// is a bogus/doubled push — drop it and trust hiscores. Slightly over 6h so a full-length session's
+// last push isn't clipped early.
+const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { normalizeRsn } from '@/lib/auth';
@@ -63,6 +72,13 @@ interface EventCtx {
   teamMap: Map<number, TeamRow>;
   completionSet: Set<string>;
   teamGains: Map<string, number>;
+  // Per-member team-mode gains, keyed `${teamId}-${tileId}` → the raw contributors. Kept alongside
+  // teamGains (the running sum) so that when a team-mode stat tile crosses its goal we can freeze the
+  // exact per-member split onto completions.statContributions instead of only the total.
+  teamMemberGains: Map<string, { playerId: number; gained: number }[]>;
+  // Benched (sub-out) players on a team: their gain is pinned to frozenStats and never re-fetched, but
+  // it still counts toward team-mode tiles, so we seed it into teamGains/teamMemberGains each run.
+  frozenPlayers: { id: number; teamId: number; baselineJson: string | null; frozenStats: string | null }[];
   hasStatTiles: boolean;
   result: {
     eventId: number;
@@ -86,6 +102,7 @@ interface MemberWork {
   clanMemberId: number | null;
   fetchRsn: string;
   liveMap: Record<string, number>;
+  liveKeyTimes: Record<string, string>; // key -> last-rose ISO, for the stale-overlay prune
   bingo: BingoTask[];
   weekly: WeeklyTask[];
   staleKey: string; // oldest task timestamp — drives oldest-first ordering
@@ -131,7 +148,7 @@ export async function GET(request: Request) {
     const key = keyFor(clanMemberId, provisionalRsn);
     let entry = work.get(key);
     if (!entry) {
-      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
+      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, liveKeyTimes: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
       work.set(key, entry);
     }
     if (clanMemberId != null) clanMemberIds.add(clanMemberId);
@@ -168,6 +185,10 @@ export async function GET(request: Request) {
       teamMap: new Map(eventTeams.map((t) => [t.id, t])),
       completionSet: new Set(existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)),
       teamGains: new Map(),
+      teamMemberGains: new Map(),
+      frozenPlayers: eventPlayers
+        .filter((p) => p.teamId != null && p.frozenAt)
+        .map((p) => ({ id: p.id, teamId: p.teamId!, baselineJson: p.statsSnapshot, frozenStats: p.frozenStats })),
       hasStatTiles,
       result: { eventId: event.id, eventName: event.name, playersChecked: 0, playersSnapshotted: 0, tilesCompleted: [], errors: [] },
     };
@@ -175,6 +196,9 @@ export async function GET(request: Request) {
 
     for (const player of eventPlayers) {
       if (!player.teamId) continue;
+      // Benched players are pinned to frozenStats — don't re-fetch them (that would unfreeze the gain).
+      // Their contribution is seeded into team-mode sums from ctx.frozenPlayers in the finalize loop.
+      if (player.frozenAt) continue;
       const needsSnapshot = !player.statsSnapshot;
       // Fetch when the event has stat tiles (need current stats for gains) or the player still needs
       // a baseline. Events without stat tiles only snapshot missing baselines.
@@ -220,7 +244,7 @@ export async function GET(request: Request) {
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
     const members = await db
-      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats })
+      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats, liveStatKeyTimes: clanMembers.liveStatKeyTimes })
       .from(clanMembers)
       .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
     const memberById = new Map(members.map((m) => [m.id, m]));
@@ -230,6 +254,7 @@ export async function GET(request: Request) {
       if (m) {
         entry.fetchRsn = m.rsn;
         entry.liveMap = parsePluginStats(m.liveStats);
+        entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
       }
     }
   }
@@ -279,12 +304,15 @@ export async function GET(request: Request) {
       // (still-ahead) map is BOTH what we persist and the live overlay for this tick's gains.
       let liveMap = entry.liveMap;
       if (entry.clanMemberId != null) {
-        const { pruned, changed } = reconcileLive(entry.liveMap, snapshot);
-        liveMap = pruned;
-        if (changed) {
+        // 1) Drop keys hiscores has caught up to (h >= v). 2) Drop keys not refreshed within ~6h —
+        // the OSRS-logout backstop that heals a bogus push stuck ABOVE hiscores (which step 1 can't).
+        const rec = reconcileLive(entry.liveMap, snapshot);
+        const stale = pruneStaleOverlay(rec.pruned, entry.liveKeyTimes, Date.parse(ts), STALE_OVERLAY_MS);
+        liveMap = stale.pruned;
+        if (rec.changed || stale.changed) {
           await db
             .update(clanMembers)
-            .set({ liveStats: Object.keys(pruned).length ? JSON.stringify(pruned) : null })
+            .set({ liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null })
             .where(eq(clanMembers.id, entry.clanMemberId));
         }
       }
@@ -354,18 +382,32 @@ export async function GET(request: Request) {
       if (ctx.completionSet.has(key)) continue;
       const gained = computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
 
-      if (tile.trackingMode === 'individual') {
+      if (isIndividualMode(tile.trackingMode)) {
         if (gained >= tile.statGoal!) {
+          // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
+          // the sweep; the gain keeps accruing and credits if/when the tile opens up.
+          const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: f.player.teamId });
+          if (!gate.allowed) continue;
           // Notify only on a genuine insert (a live push may have completed it already).
           const inserted = await db
             .insert(completions)
             // Individual stat tile → attribute to the player who reached the goal (no submission exists
             // for a hiscores-driven completion, so this is how the activity feed says who finished it).
-            .values({ teamId: f.player.teamId, tileId: tile.id, creditPlayerId: f.player.id })
+            // The finisher hit the goal alone, so the frozen split is 100% theirs.
+            .values({
+              teamId: f.player.teamId,
+              tileId: tile.id,
+              creditPlayerId: f.player.id,
+              statContributions: JSON.stringify(
+                buildContributionSnapshot(tile.statGoal!, [{ playerId: f.player.id, gained }]),
+              ),
+              awardedPoints: gate.awardedPoints,
+            })
             .onConflictDoNothing()
             .returning({ id: completions.id });
           ctx.completionSet.add(key);
           if (inserted.length > 0) {
+            if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
             const team = ctx.teamMap.get(f.player.teamId);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
             if (team) {
@@ -383,6 +425,11 @@ export async function GET(request: Request) {
         }
       } else {
         ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
+        if (gained > 0) {
+          const members = ctx.teamMemberGains.get(key) ?? [];
+          members.push({ playerId: f.player.id, gained });
+          ctx.teamMemberGains.set(key, members);
+        }
       }
     }
   }
@@ -391,18 +438,43 @@ export async function GET(request: Request) {
   for (const ctx of ctxList) {
     if (ctx.hasStatTiles) {
       for (const tile of ctx.statTiles) {
-        if (tile.trackingMode !== 'team') continue;
+        if (isIndividualMode(tile.trackingMode)) continue;
+        const keys = statKeys(tile.trackedStat);
+        // Seed benched players' frozen gains into this run's team sums (they aren't fetched, so phase 3
+        // never counted them). Their locked contribution keeps counting toward the goal + the split.
+        for (const fp of ctx.frozenPlayers) {
+          const gained = computeGainFromJson(fp.baselineJson, fp.frozenStats, {}, keys, tile.statType!);
+          if (gained <= 0) continue;
+          const key = `${fp.teamId}-${tile.id}`;
+          ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
+          const members = ctx.teamMemberGains.get(key) ?? [];
+          members.push({ playerId: fp.id, gained });
+          ctx.teamMemberGains.set(key, members);
+        }
         for (const team of ctx.teams) {
           const key = `${team.id}-${tile.id}`;
           if (ctx.completionSet.has(key)) continue;
           if ((ctx.teamGains.get(key) || 0) >= tile.statGoal!) {
+            // Event-rules gate: same as the individual path above.
+            const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: team.id });
+            if (!gate.allowed) continue;
             const inserted = await db
               .insert(completions)
-              .values({ teamId: team.id, tileId: tile.id })
+              // Freeze the per-member split as of this tick so the "who got what %" can't drift as the
+              // team's underlying KC/XP keeps climbing after the tile is done.
+              .values({
+                teamId: team.id,
+                tileId: tile.id,
+                statContributions: JSON.stringify(
+                  buildContributionSnapshot(tile.statGoal!, ctx.teamMemberGains.get(key) ?? []),
+                ),
+                awardedPoints: gate.awardedPoints,
+              })
               .onConflictDoNothing()
               .returning({ id: completions.id });
             ctx.completionSet.add(key);
             if (inserted.length > 0) {
+              if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
               ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team.name, playerName: '(team total)' });
               notifyTileCompletion({
                 eventName: ctx.event.name,

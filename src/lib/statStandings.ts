@@ -1,8 +1,9 @@
 import { db } from '@/db';
-import { tiles, players, teams, completions } from '@/db/schema';
+import { tiles, players, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { parseEventRules, hasRevealPolicy, visibleTiles } from '@/lib/eventRules';
 import { statKeys, statLabel } from '@/lib/tileKinds';
-import { jsonStatValue, effectiveValue } from '@/lib/statTracking';
+import { jsonStatValue, effectiveValue, parseContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
 
 export interface StatStandingPlayer {
@@ -49,11 +50,63 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(drafted.map((p) => p.clanMemberId));
 
+  // Completed stat tiles carry a frozen per-member split. Once a (team, tile) is done we display each
+  // member's contribution from that snapshot rather than the live gain, so a finished tile stops
+  // climbing past its goal. Key: `${teamId}-${tileId}` → playerId → frozen gained.
+  const statTileIds = statTiles.map((t) => t.id);
+  const frozenByTeamTile = new Map<string, Map<number, number>>();
+  if (statTileIds.length > 0) {
+    const comps = await db
+      .select({
+        teamId: completions.teamId,
+        tileId: completions.tileId,
+        statContributions: completions.statContributions,
+      })
+      .from(completions)
+      .where(inArray(completions.tileId, statTileIds));
+    for (const c of comps) {
+      const snap = parseContributionSnapshot(c.statContributions);
+      if (!snap) continue; // legacy completion w/o a frozen split → keep showing live
+      frozenByTeamTile.set(
+        `${c.teamId}-${c.tileId}`,
+        new Map(snap.split.map((r) => [r.playerId, r.gained])),
+      );
+    }
+  }
+
   return statTiles.map((tile) => {
     const keys = statKeys(tile.trackedStat);
     const rows: StatStandingPlayer[] = drafted
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
+        // If this player's team already completed the tile, freeze the display at the snapshotted gain.
+        const frozen = p.teamId != null ? frozenByTeamTile.get(`${p.teamId}-${tile.id}`) : undefined;
+        if (frozen) {
+          const gained = frozen.get(p.id) ?? 0;
+          return {
+            playerId: p.id,
+            name: p.name,
+            teamId: p.teamId,
+            baseline,
+            current: baseline + gained,
+            gained,
+            hasBaseline: !!p.statsSnapshot,
+          };
+        }
+        // Benched (sub-out) player: pin to their frozen snapshot, ignoring the live overlay so their
+        // gain stays put at the sub moment even if the plugin/hiscores would otherwise move it.
+        if (p.frozenAt) {
+          const current = readStat(p.frozenStats, tile.statType!, keys);
+          return {
+            playerId: p.id,
+            name: p.name,
+            teamId: p.teamId,
+            baseline,
+            current,
+            gained: Math.max(0, current - baseline),
+            hasBaseline: !!p.statsSnapshot,
+          };
+        }
         // Effective current folds in the plugin's real-time push (max per key), so standings reflect a
         // fresh kill / training burst before the hiscores sweep catches up — for boss KC AND skill XP.
         const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
@@ -96,11 +149,17 @@ export interface TeamStanding {
 // Every team's current score vs the board total — the at-a-glance "who's ahead" leaderboard.
 // Points-scoring events sum tile point weights; classic/race events count completed tiles.
 // Optional tiles don't count toward the total (mirrors the scoring elsewhere).
+// Rule-modified completions (first-team bonus, reveal decay) score their FROZEN awardedPoints;
+// reveal-policy events count only revealed tiles in the total so mid-event percentages track
+// what's actually in play. First bonuses can push a score past the total — pct clamps at 100.
 export async function getTeamStandings(eventId: number, scoringMode: string): Promise<TeamStanding[]> {
-  const [eventTeams, eventTiles] = await Promise.all([
+  const [eventRow, eventTeams, allEventTiles] = await Promise.all([
+    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
   ]);
+  const rules = parseEventRules(eventRow?.rules);
+  const eventTiles = hasRevealPolicy(rules) ? visibleTiles(rules, allEventTiles) : allEventTiles;
   const tileIds = eventTiles.map((t) => t.id);
   const eventCompletions = tileIds.length
     ? await db.select().from(completions).where(inArray(completions.tileId, tileIds))
@@ -115,7 +174,10 @@ export async function getTeamStandings(eventId: number, scoringMode: string): Pr
     .map((team) => {
       const score = eventCompletions
         .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-        .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+        .reduce(
+          (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
+          0,
+        );
       return {
         teamId: team.id,
         name: team.name,
@@ -123,7 +185,7 @@ export async function getTeamStandings(eventId: number, scoringMode: string): Pr
         score,
         total,
         unit: pointsMode ? 'pts' : 'tiles',
-        pct: total > 0 ? Math.round((score / total) * 100) : 0,
+        pct: total > 0 ? Math.min(100, Math.round((score / total) * 100)) : 0,
       };
     })
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));

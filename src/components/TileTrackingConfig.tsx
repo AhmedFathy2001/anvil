@@ -318,7 +318,11 @@ export default function TileTrackingConfig({
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
-  const [trackingMode, setTrackingMode] = useState<string>(initial.trackingMode || "team");
+  // "solo" was the old wire value for the "Solo (Any Member)" mode; the backend only ever honoured
+  // "individual", so normalize on load (the 0027 data migration flips stored rows too).
+  const [trackingMode, setTrackingMode] = useState<string>(
+    initial.trackingMode === "solo" ? "individual" : initial.trackingMode || "team",
+  );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
   // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
@@ -393,6 +397,11 @@ export default function TileTrackingConfig({
     (initial.tileType === 'value' || initial.tileType === 'valuetotal') && initial.requiredAmount
       ? String(initial.requiredAmount)
       : '',
+  );
+  // PvP min-loot floor in gp — a kill only counts if its loot is worth at least this. Empty = 0
+  // (no minimum, every kill counts). Accepts 5m / 500k shorthand via parseGp, like the value field.
+  const [pvpMinLootText, setPvpMinLootText] = useState<string>(
+    initial.tileType === 'pvp' && initial.pvpMinLootValue ? String(initial.pvpMinLootValue) : '',
   );
   // 'single' = one haul must meet the threshold; 'total' = hauls sum toward it.
   const [valueMode, setValueMode] = useState<'single' | 'total'>(
@@ -833,6 +842,8 @@ export default function TileTrackingConfig({
         timedActivity: null,
         timeThresholdSeconds: null,
         partySize: null,
+        // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
+        pvpMinLootValue: null,
       };
 
       if (isStat) {
@@ -861,6 +872,8 @@ export default function TileTrackingConfig({
           ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
           : ['team:other'];
         payload.trackingMode = trackingMode;
+        // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
+        payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
       } else if (kind === 'diary') {
         // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -1199,9 +1212,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1404,6 +1417,32 @@ export default function TileTrackingConfig({
               a specific item pulled from an opened PK loot key (use a Loot value tile for &ldquo;any key worth X&rdquo;).
             </p>
           </div>
+
+          {/* Raid party-size gate — only appears once a raid is named as a source, since party
+              size is only knowable inside a raid instance. Rides timeThresholdSeconds on the wire
+              (drop tiles carry no time cap). "solo Cursed phalanx" = 1. */}
+          {sourcesIncludeRaid(sourceNpcsText) && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Party size <span className="text-text-muted/60">(optional — blank = any size)</span>
+              </label>
+              <Input
+                type="number"
+                value={dropPartySize}
+                onChange={(e) => setDropPartySize(e.target.value)}
+                placeholder="any"
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                min="1"
+                max="100"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Require exactly this many players in the raid — <span className="text-foreground/70">1 = solo</span>{' '}
+                (e.g. a solo Cursed phalanx from ToA — invocation is Jagex&rsquo;s guarantee, so the tile only
+                gates party size). The plugin reads the raid&rsquo;s party size from the game, so a split team
+                still counts correctly. Blank = any size.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1634,9 +1673,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1711,6 +1750,23 @@ export default function TileTrackingConfig({
           </div>
 
           <div>
+            <label className="block text-xs text-text-muted mb-1">Minimum loot value (optional)</label>
+            <Input
+              type="text"
+              value={pvpMinLootText}
+              onChange={(e) => setPvpMinLootText(e.target.value)}
+              placeholder="e.g. 10k — leave blank for none"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+            />
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Only credit a kill worth at least this much loot (accepts <span className="text-foreground/70">10k</span>,{' '}
+              <span className="text-foreground/70">5m</span>). Blank = every kill counts. A value here means
+              the plugin waits to price the loot, so <span className="text-foreground/70">loot-key kills won&rsquo;t
+              count</span> for this tile.
+            </p>
+          </div>
+
+          <div>
             <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
             <div className="flex gap-2">
               <button
@@ -1724,9 +1780,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1835,9 +1891,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -1986,9 +2042,9 @@ export default function TileTrackingConfig({
               </button>
               <button
                 type="button"
-                onClick={() => setTrackingMode("solo")}
+                onClick={() => setTrackingMode("individual")}
                 className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "solo" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
+                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
                 }`}
               >
                 Solo (Any Member)
@@ -2057,7 +2113,7 @@ export default function TileTrackingConfig({
               />
               <p className="text-[10px] text-text-muted mt-0.5">
                 Require exactly this many players in the raid (e.g. 5 for a 5-man ToB speedrun). The plugin
-                counts the distinct players it sees inside the instance.
+                reads the raid&rsquo;s party size from the game, so a split team still counts correctly.
               </p>
             </div>
           )}
@@ -2110,8 +2166,8 @@ export default function TileTrackingConfig({
               max="100"
             />
             <p className="text-[10px] text-text-muted mt-0.5">
-              Require exactly this many players in the raid (e.g. 5 for a 5-man ToB). The plugin counts
-              the distinct players it sees inside the instance.
+              Require exactly this many players in the raid (e.g. 5 for a 5-man ToB). The plugin reads
+              the raid&rsquo;s party size from the game, so a split team still counts correctly.
             </p>
           </div>
         </div>

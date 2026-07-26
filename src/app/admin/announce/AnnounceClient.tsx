@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import Select, { type SelectOption } from '@/components/Select';
+import Checkbox from '@/components/Checkbox';
 
 interface Channel {
   id: string;
@@ -45,16 +47,27 @@ export default function AnnounceClient() {
     })();
   }, []);
 
-  // Group channels under their category for a readable <optgroup> picker.
-  const grouped = useMemo(() => {
-    const map = new Map<string, Channel[]>();
-    for (const c of targets?.channels ?? []) {
-      const key = c.parentName ?? 'No category';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(c);
-    }
-    return Array.from(map.entries());
-  }, [targets]);
+  // Channel + role options for the themed Select. Channels arrive pre-sorted (category, then
+  // position), so same-category channels stay grouped; the category rides along as a search keyword.
+  const channelOptions = useMemo<SelectOption[]>(
+    () =>
+      (targets?.channels ?? []).map((c) => ({
+        value: c.id,
+        label: `#${c.name}`,
+        keywords: c.parentName ? [c.parentName] : undefined,
+      })),
+    [targets],
+  );
+  const roleOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: '', label: 'No ping' },
+      ...(targets?.roles ?? []).map((r) => ({
+        value: r.id,
+        label: r.isEveryone ? '@everyone' : `@${r.name}`,
+      })),
+    ],
+    [targets],
+  );
 
   async function send() {
     if (!channelId) {
@@ -111,8 +124,8 @@ export default function AnnounceClient() {
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <p className="text-sm mb-2">The Discord bot isn’t configured yet.</p>
         <p className="text-xs text-text-muted mb-4">
-          This tool posts as the bot, so it needs a bot token in the environment (<code>DISCORD_BOT_TOKEN</code>)
-          and your server ID. Set the server ID under Integrations → Discord roles &amp; nicknames.
+          This tool posts as the bot, so it needs the bot connected — set a bot token and your server ID
+          under Integrations → Discord bot.
         </p>
         <Link href="/admin/integrations" className="text-sm text-gold hover:underline">
           Go to Integrations →
@@ -129,18 +142,13 @@ export default function AnnounceClient() {
       {/* Channel */}
       <div>
         <label className="block text-sm font-medium mb-1">Channel</label>
-        <select value={channelId} onChange={(e) => setChannelId(e.target.value)} className={inputClass}>
-          <option value="">Select a channel…</option>
-          {grouped.map(([category, channels]) => (
-            <optgroup key={category} label={category}>
-              {channels.map((c) => (
-                <option key={c.id} value={c.id}>
-                  #{c.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <Select
+          value={channelId}
+          onChange={setChannelId}
+          options={channelOptions}
+          placeholder="Select a channel…"
+          ariaLabel="Channel"
+        />
         {targets.channels.length === 0 && (
           <p className="text-xs text-red-400 mt-1">
             The bot can’t see any text channels — check it’s in the server and has “View Channel”.
@@ -180,10 +188,7 @@ export default function AnnounceClient() {
 
       {/* Options */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input type="checkbox" checked={asEmbed} onChange={(e) => setAsEmbed(e.target.checked)} className="accent-gold" />
-          Send as an embed
-        </label>
+        <Checkbox checked={asEmbed} onChange={setAsEmbed} label="Send as an embed" />
 
         {asEmbed && (
           <label className="flex items-center gap-2 text-sm">
@@ -197,17 +202,16 @@ export default function AnnounceClient() {
           </label>
         )}
 
-        <label className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <span>Ping</span>
-          <select value={mentionRoleId} onChange={(e) => setMentionRoleId(e.target.value)} className={`${inputClass} w-auto py-1.5`}>
-            <option value="">No ping</option>
-            {targets.roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.isEveryone ? '@everyone' : `@${r.name}`}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            value={mentionRoleId}
+            onChange={setMentionRoleId}
+            options={roleOptions}
+            ariaLabel="Ping role"
+            className="min-w-[10rem]"
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-3 pt-1">

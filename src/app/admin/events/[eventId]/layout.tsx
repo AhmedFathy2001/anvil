@@ -67,7 +67,7 @@ export default async function EventLayout({
 
       <div className="flex items-center gap-2.5 text-sm text-text-muted mb-6 flex-wrap">
         <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
-          {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
+          {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
         </span>
         {raceFormat && (
           <span className="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-xs font-medium">

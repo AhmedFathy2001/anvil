@@ -8,6 +8,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { isDraftInProgress } from '@/lib/eventReadiness';
 
 export async function GET(
   request: Request,
@@ -128,6 +129,12 @@ export async function POST(
     if (now < event.startDate) {
       return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
     }
+  }
+  // Start safeguard belt: the lifecycle cron holds an unready event's startDate in the future, but
+  // between the start moment and the next tick the date can briefly read as passed — never accept a
+  // member submission while the team roster is literally mid-draft.
+  if (!isAdmin && isDraftInProgress(event.draftStatus)) {
+    return NextResponse.json({ error: 'The draft is still in progress — the event has not started yet.' }, { status: 400 });
   }
 
   // Verify tile belongs to event and is a drop tile

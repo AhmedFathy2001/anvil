@@ -7,15 +7,22 @@ import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import MyTeamClient from './MyTeamClient';
 import DraftBoardClient from '@/app/captain/[teamId]/DraftBoardClient';
 import { getTierBands } from '@/lib/pluginConfig';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
+import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MyTeamPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ teamId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { teamId } = await params;
+  const { from } = await searchParams;
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
@@ -25,6 +32,11 @@ export default async function MyTeamPage({
   if (!team) notFound();
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) notFound();
+
+  // Origin-aware back link: reaching your own team via the scoreboard redirects here (see the view-
+  // board page), so honour where you came from — back to the scoreboard, not the My Teams hub.
+  const backHref = from === 'scoreboard' ? `/events/${event.id}` : '/team';
+  const backLabel = from === 'scoreboard' ? 'Back to scoreboard' : 'My teams';
 
   // Discord-session membership is the single auth gate — captain and/or player on this team.
   const membership = await resolveTeamMembership(event.id, tId);
@@ -39,8 +51,8 @@ export default async function MyTeamPage({
     return (
       <div>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
-            &larr; My teams
+          <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+            &larr; {backLabel}
           </Link>
           {membership.isCaptain && (
             <Link
@@ -66,15 +78,30 @@ export default async function MyTeamPage({
     );
   }
 
-  const [eventTiles, eventPlayers, tierBands] = await Promise.all([
+  const [allEventTiles, rawEventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(players).where(eq(players.eventId, event.id)),
     getTierBands(),
   ]);
+  // Reveal-policy events (lib/eventRules): the team hub is a player surface — only revealed
+  // tiles ever reach the client, even for staff viewing their own team.
+  const eventTiles = visibleTiles(parseEventRules(event.rules), allEventTiles);
+  // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
+  // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
+  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
-  const teamCompletions = tileIds.size
-    ? (await db.select().from(completions).where(eq(completions.teamId, tId))).filter((c) => tileIds.has(c.tileId))
+  const teamCompletions: Completion[] = tileIds.size
+    ? (await db.select().from(completions).where(eq(completions.teamId, tId)))
+        .filter((c) => tileIds.has(c.tileId))
+        .map((c) => ({
+          id: c.id,
+          teamId: c.teamId,
+          tileId: c.tileId,
+          completedAt: c.completedAt,
+          statContributions: parseContributionSnapshot(c.statContributions),
+          awardedPoints: c.awardedPoints,
+        }))
     : [];
 
   const myPlayer = membership.playerId ? eventPlayers.find((p) => p.id === membership.playerId) : null;
@@ -82,8 +109,8 @@ export default async function MyTeamPage({
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link href="/team" className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
-          &larr; My teams
+        <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+          &larr; {backLabel}
         </Link>
         {membership.isCaptain && !eventStarted && (
           <Link

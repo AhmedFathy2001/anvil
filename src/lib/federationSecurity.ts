@@ -310,6 +310,10 @@ export function safeVerificationUrl(rawUrl: string | undefined | null, brokerBas
   }
   if (u.protocol !== 'https:') return null;
   if (u.hostname.toLowerCase() !== broker.hostname.toLowerCase()) return null;
+  // Path pin (§8): only the broker's device-login page is ever a valid verification URL — refuse any
+  // other page on the broker host (defense against a compromised broker response steering the
+  // member's browser at portal/redirect surfaces).
+  if (!u.pathname.startsWith('/federation/device')) return null;
   return u.toString();
 }
 

@@ -172,7 +172,7 @@ export default async function AdminDashboardPage() {
                         </div>
                         <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
                           <span className="bg-gold/15 text-gold px-1.5 py-0.5 rounded-full">
-                            {eventShapeBadge(e.format, e.scoringMode, e.boardSize)}
+                            {eventShapeBadge(e.format, e.scoringMode, e.boardSize, e.rules)}
                           </span>
                           <span>
                             {numTeams} team{numTeams !== 1 ? 's' : ''}

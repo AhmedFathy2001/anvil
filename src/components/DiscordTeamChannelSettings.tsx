@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
-import Input from '@/components/Input';
+import RoleSelect from '@/components/RoleSelect';
 
 // No baked-in defaults — these are clan-specific Discord role IDs each instance enters once.
 const DEFAULT_BINGO_ROLE_ID = '';
@@ -97,39 +97,34 @@ export default function DiscordTeamChannelSettings() {
           <span className="text-sm font-medium">Enable Discord team channels</span>
           <span className="block text-xs text-text-muted">
             Lets you provision a private voice + text channel per team from an event&apos;s Teams tab,
-            and assign contestants their roles. Requires the{' '}
-            <code className="text-gold">DISCORD_BOT_TOKEN</code> env var and the Server ID set in the
-            section above. The bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its
-            role above the team roles it creates.
+            and assign contestants their roles. Requires the bot connected in the Discord bot tab. The
+            bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above the team
+            roles it creates.
           </span>
         </span>
       </label>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Contestant (bingo) role ID</label>
-        <Input
+        <label className="block text-sm font-medium mb-1">Contestant (bingo) role</label>
+        <RoleSelect
           value={bingoRoleId}
-          onChange={(e) => setBingoRoleId(e.target.value)}
-          placeholder={DEFAULT_BINGO_ROLE_ID}
-          className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+          onChange={setBingoRoleId}
+          ariaLabel="Contestant (bingo) role"
+          className="max-w-sm"
         />
-        <p className="text-xs text-text-muted mt-1">
-          Given to every drafted contestant. Right-click the role in Discord → Copy Role ID (needs
-          Developer Mode on).
-        </p>
+        <p className="text-xs text-text-muted mt-1">Given to every drafted contestant.</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Team captain role ID</label>
-        <Input
+        <label className="block text-sm font-medium mb-1">Team captain role</label>
+        <RoleSelect
           value={captainRoleId}
-          onChange={(e) => setCaptainRoleId(e.target.value)}
-          placeholder={DEFAULT_CAPTAIN_ROLE_ID}
-          className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+          onChange={setCaptainRoleId}
+          ariaLabel="Team captain role"
+          className="max-w-sm"
         />
         <p className="text-xs text-text-muted mt-1">
-          Given to each team&apos;s captain when channels are provisioned. Leave blank to skip the
-          captain role entirely.
+          Given to each team&apos;s captain when channels are provisioned. Leave as “No role” to skip it.
         </p>
       </div>
 

@@ -63,6 +63,7 @@ A blank `label` auto-fills as `Tile N`.
 | `targetNpcs` | **Kill** tiles — NPC name(s), **pipe-separated** | e.g. `Cow\|Cow calf`; up to 25, ≤40 chars each |
 | `timedActivity` | **Timed** tiles — activity to time (e.g. `Inferno`) | ≤60 chars |
 | `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3); **Deathless** tiles — exact party size (blank = any); **Drop** tiles — exact raid party size for the drop to count (blank = any) | 1–86400 (e.g. 1800 = 30:00) |
+| `revealAt` | **Showdown boards only** (scheduled reveal policy) — when this tile goes live | ISO or `2026-08-01 19:00` (local, stored UTC); blank = stays hidden; other boards ignore it |
 | `items` | **Drop** tiles — tracked item(s) | See §3 for the mini-format |
 
 ---
@@ -211,7 +212,7 @@ Repeat completion** in-game and meeting the task's conditions again during the e
 ## 5. Header row (copy/paste)
 
 ```
-label,description,type,points,category,optional,requiredAmount,trackedStat,statType,statGoal,targetNpcs,timedActivity,timeThresholdSeconds,items
+label,description,type,points,category,optional,requiredAmount,trackedStat,statType,statGoal,targetNpcs,timedActivity,timeThresholdSeconds,revealAt,items
 ```
 
 See `docs/examples/tiles-example.csv` for a complete file covering every kind.

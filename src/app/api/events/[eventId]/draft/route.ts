@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { clanMembers, events, players, teams } from '@/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { getTeamForPick, getRoundForPick, getPickInRound } from '@/lib/draft';
+import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
@@ -31,10 +31,22 @@ export async function GET(
   const safeRaw = rawPlayers.map((row) => {
     const rest = { ...row };
     delete (rest as { playerToken?: unknown }).playerToken;
+    // The frozen-stats blob is a server-only snapshot for gain math; clients only need `frozenAt`.
+    delete (rest as { frozenStats?: unknown }).frozenStats;
     return rest;
   });
+  // Owner (userId) per player so a multi-account pool can group a person's accounts into one card and
+  // the draft board can show they draft together (guests have no owner → their own single entry).
+  const memberIds = [...new Set(safeRaw.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
+  const ownerRows = memberIds.length
+    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    : [];
+  const ownerByMember = new Map(ownerRows.map((r) => [r.id, r.userId]));
   // Surface each player's frozen sign-up answers so captains read them while drafting.
-  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id));
+  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id)).map((p) => ({
+    ...p,
+    ownerUserId: p.clanMemberId != null ? ownerByMember.get(p.clanMemberId) ?? null : null,
+  }));
 
   const eventTeams = await db
     .select({
@@ -61,7 +73,9 @@ export async function GET(
     ...eventTeams.filter((t) => !orderedSet.has(t.id)).map((t) => t.id),
   ];
   const pickedPlayers = eventPlayers.filter((p) => p.teamId !== null);
-  const currentPickNumber = pickedPlayers.length;
+  // Turns taken (not player rows): a multi-account person is one pick sharing one pickNumber, so the
+  // clock advances once per person. Equals pickedPlayers.length for single-account events.
+  const currentPickNumber = countPicksTaken(eventPlayers);
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
 
   let currentTeamId: number | null = null;

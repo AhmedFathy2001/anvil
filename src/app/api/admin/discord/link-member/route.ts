@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanMembers, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { linkSignupsToOwner } from '@/lib/identity';
 import { isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
 
 // POST { clanMemberId, discordUserId } — manually bind a clan member to a Discord user (for the
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
     .update(clanMembers)
     .set({ discordId: discordUserId, ...(linkedUser && member.userId == null ? { userId: linkedUser.id } : {}) })
     .where(eq(clanMembers.id, clanMemberId));
+  // Newly attached to an owner → adopt any guest sign-ups this character already had.
+  if (linkedUser && member.userId == null) await linkSignupsToOwner(clanMemberId, linkedUser.id);
 
   if (member.rsnNormalized) {
     const siblings = await db
@@ -51,6 +54,7 @@ export async function POST(request: Request) {
         .update(clanMembers)
         .set({ discordId: discordUserId, ...(linkedUser && row.userId == null ? { userId: linkedUser.id } : {}) })
         .where(eq(clanMembers.id, row.id));
+      if (linkedUser && row.userId == null) await linkSignupsToOwner(row.id, linkedUser.id);
     }
   }
 

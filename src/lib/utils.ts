@@ -1,3 +1,5 @@
+import { modeKeyFor } from '@/lib/eventModes';
+
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
 }
@@ -67,20 +69,31 @@ export function eventTileCount(
   return boardSize * boardSize;
 }
 
-/** Short mode label for badges/headers. */
-export function eventModeLabel(format: string | null | undefined, scoringMode: string | null | undefined): string {
-  if (isTileRaceFormat(format)) return 'Tile race';
-  if (isPointsMode(scoringMode)) return 'Leagues';
-  return 'Bingo';
+/** Short mode label for badges/headers. Pass the event's rules JSON to name reveal modes. */
+export function eventModeLabel(
+  format: string | null | undefined,
+  scoringMode: string | null | undefined,
+  rules?: string | null,
+): string {
+  switch (modeKeyFor(format, scoringMode, rules)) {
+    case 'race': return 'Tile race';
+    case 'showdown': return 'Showdown';
+    case 'luckydraw': return 'Lucky draw';
+    case 'bounty': return 'Bounty hunt';
+    case 'leagues': return 'Leagues';
+    default: return 'Bingo';
+  }
 }
 
-/** Compact shape badge, e.g. "5×5", "Race · 12", "Leagues · 30". */
+/** Compact shape badge, e.g. "5×5", "Race · 12", "Leagues · 30", "Showdown · 12". */
 export function eventShapeBadge(
   format: string | null | undefined,
   scoringMode: string | null | undefined,
   boardSize: number,
+  rules?: string | null,
 ): string {
-  if (isTileRaceFormat(format)) return `Race · ${boardSize}`;
-  if (isPointsMode(scoringMode)) return `Leagues · ${boardSize}`;
-  return `${boardSize}×${boardSize}`;
+  const key = modeKeyFor(format, scoringMode, rules);
+  if (key === 'classic') return `${boardSize}×${boardSize}`;
+  if (key === 'race') return `Race · ${boardSize}`;
+  return `${eventModeLabel(format, scoringMode, rules)} · ${boardSize}`;
 }

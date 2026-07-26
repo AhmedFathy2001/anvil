@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { users, clanMembers, clanAuditLog } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { linkSignupsToOwner } from '@/lib/identity';
 
 // POST /api/admin/users/[userId]/characters   Body: { rsn }
 //
@@ -73,6 +74,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
       .returning({ id: clanMembers.id });
     clanMemberId = inserted[0].id;
   }
+
+  // Adopt any guest sign-ups this character already had (created before it was attached to a person),
+  // so the Sign-ups panel stops showing them as "guest · no Discord" now that we know the owner.
+  await linkSignupsToOwner(clanMemberId, targetId);
 
   db.insert(clanAuditLog)
     .values({

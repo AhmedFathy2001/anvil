@@ -12,6 +12,11 @@ export const events = sqliteTable('events', {
   endDate: text('end_date'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  // Set once when the "start held" warning is posted (scheduled start reached while the event
+  // wasn't startable — draft mid-way / no teams assigned; see lib/eventReadiness). The lifecycle
+  // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
+  // an admin edits startDate so a rescheduled start can warn again.
+  startHoldNotified: integer('start_hold_notified').default(0),
   // Set once when the draft-complete roster is posted to Discord, so the pick auto-complete
   // and the manual "End draft" action can't both fire the same embed (idempotency). Cleared
   // by a draft reset. `resend-roster` intentionally bypasses it.
@@ -58,6 +63,35 @@ export const events = sqliteTable('events', {
   // moderator) always see the board regardless. Existing events were backfilled to 1
   // so their current (visible) behavior is preserved.
   tilesRevealed: integer('tiles_revealed').default(0).notNull(),
+  // Multi-account enrollment (all of a person's picked accounts land on ONE team). Set at create.
+  //   maxAccountsPerPerson — how many of their linked accounts a person may enter for THIS event.
+  //     1 (default) = classic one-account-per-person; existing events keep exactly that behaviour.
+  //   accountSlotMode — how a person's N accounts count for team size, board balance AND the MVP
+  //     rollup: 'per-person' (N accounts = 1 slot; MVP aggregates the person) or 'per-account'
+  //     (N accounts = N slots; MVP lists each account). Moot while maxAccountsPerPerson = 1.
+  //   feeMode — 'per-person' (one fee per person) or 'per-account' (a fee per entered account).
+  // Scoring is unaffected: each account is its own `players` row, so drop/kill/stat tiles already
+  // credit the team per account (team stat tiles sum; individual-mode tiles take the best account).
+  maxAccountsPerPerson: integer('max_accounts_per_person').default(1).notNull(),
+  accountSlotMode: text('account_slot_mode').default('per-person').notNull(),
+  feeMode: text('fee_mode').default('per-person').notNull(),
+  // Set when the payout summary (winners + amounts) is posted to the bingo Discord webhook.
+  // Guards the auto-announce (fired once every payout is marked paid) from double-posting; the
+  // manual "Announce" button re-stamps it. Null = not yet announced. See lib/discord notifyPayout.
+  payoutsAnnouncedAt: text('payouts_announced_at'),
+  // The prize-per-placement structure, as a JSON array of gp amounts indexed by place
+  // (`[firstPlaceGp, secondPlaceGp, …]`). Set on the Payouts tab independently of generating the
+  // per-player payout rows, shown on the public event page, and used as the reward per place when
+  // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
+  placementPrizes: text('placement_prizes'),
+  // Optional per-event game rules as JSON (see lib/eventRules.ts EventRules). Adds a third axis on
+  // top of (format, scoringMode): HOW tiles become playable and how points are awarded —
+  //   revealPolicy: 'all' (default; every tile visible once tilesRevealed flips) | 'scheduled'
+  //     (per-tile revealAt times) | 'interval' (a timed random/sequential draw) | 'bounty'
+  //     (exactly one open tile; first completion closes it and draws the next),
+  //   plus firstBonus / decay / lockout scoring modifiers.
+  // NULL = classic behaviour everywhere; parseEventRules(null) returns the defaults.
+  rules: text('rules'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -116,6 +150,13 @@ export const tiles = sqliteTable('tiles', {
   // Deathless and drop tiles keep their party gates in the overloaded timeThresholdSeconds
   // column (plugin back-compat); timed tiles can't reuse it since it already holds the cap.
   partySize: integer('party_size'),
+  // PVP tiles (tile_type='pvp'). Minimum loot value in gp a kill must yield to count toward the
+  // tile — an anti-farm floor so killing naked alts/teammates doesn't credit. NULL/0 = no minimum
+  // (every attributed kill counts, matching legacy behaviour and still crediting loot-key kills).
+  // When > 0 the plugin defers the credit until it prices the kill's loot and only counts kills
+  // worth at least this much — so a positive floor cannot credit loot-key / no-loot kills. A gp
+  // value (not seconds) so it needs its own column rather than reusing timeThresholdSeconds.
+  pvpMinLootValue: integer('pvp_min_loot_value'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
@@ -129,6 +170,16 @@ export const tiles = sqliteTable('tiles', {
   // between and the write is rejected (409) instead of silently clobbering theirs.
   // Nullable: legacy rows have no stamp until their first post-migration edit.
   updatedAt: text('updated_at'),
+  // Per-tile reveal state — only meaningful when the event's rules.revealPolicy != 'all'
+  // (see lib/eventRules.ts); NULL on classic events. All ISO UTC strings.
+  //   revealAt   — the PLANNED reveal time ('scheduled' policy; admin-set on the Tiles tab).
+  //   revealedAt — when the tile actually went live (stamped by the reveal engine — scheduled
+  //                due-times, interval/bounty draws). A tile is member-visible iff this is set.
+  //   closedAt   — when a 'bounty' tile was claimed (first completion) and stopped accepting
+  //                further completions. Closed tiles stay visible on the board.
+  revealAt: text('reveal_at'),
+  revealedAt: text('revealed_at'),
+  closedAt: text('closed_at'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
@@ -203,6 +254,18 @@ export const completions = sqliteTable('completions', {
   // manual completions, and submission-backed tiles (the activity feed attributes those from the
   // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
   creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
+  // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
+  // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.
+  // Locks "who contributed what %" to completion time — the underlying hiscores stat keeps climbing
+  // afterwards, but a finished tile's attribution (and its display) must not drift. NULL for
+  // submission-backed / manual / non-stat completions (those already have stable per-submission
+  // amounts) and for legacy stat completions that predate this column (reads fall back to live).
+  statContributions: text('stat_contributions'),
+  // Points this completion actually earned, FROZEN at completion time — only stamped on
+  // points-mode events whose rules add per-completion modifiers (first-team bonus, reveal
+  // decay). NULL = no modifier applied; standings fall back to the tile's live weight, which
+  // keeps legacy events (and admin mid-event point re-tuning) exactly as they were.
+  awardedPoints: integer('awarded_points'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
@@ -232,6 +295,22 @@ export const players = sqliteTable('players', {
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
   // hiscores catches up. Lets boss-KC tiles complete instantly instead of waiting on hiscores lag.
   pluginStats: text('plugin_stats'),
+  // Bench / sub-out. When set, the player is frozen: the hiscores sweep stops fetching them and their
+  // stat gain is pinned to `frozenStats` (below) instead of climbing off live hiscores/plugin pushes.
+  // Their frozen gains STILL count toward team-mode tiles that complete later, and they keep showing in
+  // the member breakdown with their locked contribution — a sub-in gets a fresh baseline and stacks on
+  // top. NULL = actively tracked. Cleared on unfreeze and on progress-reset.
+  frozenAt: text('frozen_at'),
+  // Snapshot of `cachedStats` taken at the moment of freeze — the authoritative "current" for a frozen
+  // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
+  // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
+  frozenStats: text('frozen_stats'),
+  // Fun end-of-event "recap" counters, pushed by the plugin as ABSOLUTE per-event totals and max-merged
+  // (idempotent — a retry / client restart can't double-count). `deaths` = the player's own deaths this
+  // event; `lootGpGained` = GE value of ALL loot the plugin saw this event (not just value-tile hauls).
+  // Purely cosmetic (superlatives — "Most Deaths", "Loot Lord"); never feeds scoring. See lib/eventRecap.
+  deaths: integer('deaths').default(0),
+  lootGpGained: integer('loot_gp_gained').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -276,6 +355,35 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value'),
 });
+
+/**
+ * Device-code sign-in for the plugin (RFC 8628 shape, home-native — no broker involved). The plugin
+ * POSTs /api/plugin/auth/start, opens THIS site's /link-device page in the member's browser (URL
+ * pinned plugin-side to the configured home origin), and polls /api/plugin/auth/poll until the
+ * logged-in member approves the code — then the poll returns the account token exactly once.
+ * Works identically for hosted, self-hosted-networked, and fully-standalone instances.
+ */
+export const pluginDeviceCodes = sqliteTable('plugin_device_codes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // SHA-256 of the long random device_code the plugin holds; the raw value is never stored.
+  deviceCodeHash: text('device_code_hash').notNull(),
+  // Short human-typeable code shown in the plugin and confirmed on /link-device. Unambiguous
+  // alphabet, formatted XXXX-XXXX.
+  userCode: text('user_code').notNull(),
+  // pending → approved (member confirmed; user_id bound) → redeemed (token issued ONCE, single-use)
+  // | denied (member rejected) | expired (TTL elapsed, stamped lazily on poll).
+  status: text('status').notNull().default('pending'),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  // Minimum seconds between polls (slow_down pacing if the plugin polls faster).
+  interval: integer('interval').notNull().default(5),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  expiresAt: text('expires_at').notNull(),
+  lastPolledAt: text('last_polled_at'),
+}, (t) => [
+  uniqueIndex('plugin_device_codes_hash_unique').on(t.deviceCodeHash),
+  uniqueIndex('plugin_device_codes_user_code_unique').on(t.userCode),
+  index('plugin_device_codes_expires_idx').on(t.expiresAt),
+]);
 
 // Tiny fixed-window rate-limit bucket store. Rows are self-garbage-collected
 // by an opportunistic DELETE on each write; nothing else needs scheduling.
@@ -330,6 +438,13 @@ export const users = sqliteTable('users', {
   // can show a durable "signed in / Disconnect" state instead of re-offering "Connect clans" on
   // every reload; cleared on POST /federation/disconnect. NULL = never federated.
   federationLinkedAt: text('federation_linked_at'),
+  // The member's broker session token (30-day, WIRE §9.2), encrypted at rest like the cached
+  // remote-clan tokens. Persisted after a completed device login so /state can periodically re-run
+  // the /me/instances relay — a clan the member connects LATER shows up here without a manual
+  // re-login. NULL until the first login; nulled when the broker rejects it or on disconnect.
+  federationBrokerSession: text('federation_broker_session'),
+  // Last successful connection-set sync via the relay — throttles the background refresh.
+  federationSyncedAt: text('federation_synced_at'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
 ]);
@@ -533,20 +648,30 @@ export const eventSignups = sqliteTable('event_signups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // Nullable: a "guest" sign-up for an in-game roster member who has no linked site user yet
-  // (e.g. added by an admin / by name). Linked members still carry their user id, and the
-  // (eventId, userId) unique index keeps one sign-up per linked user — SQLite treats the NULLs
-  // as distinct, so multiple guest rows per event are allowed; guest dedup is by clanMemberId in code.
+  // (e.g. added by an admin / by name). Linked members carry their user id. A person may now enter up
+  // to events.maxAccountsPerPerson accounts, so there's no one-per-user unique any more; dedup is per
+  // ACCOUNT via the (eventId, clanMemberId) unique below, which covers guests (NULL userId) too.
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'restrict' }),
-  // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }
+  // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }. One profile PER
+  // PERSON: when someone enters several accounts, the answers live on their PRIMARY account's row and
+  // the sibling rows carry '{}' — the read-time join backfills them (see lib/draftProfiles).
   profileData: text('profile_data').notNull().default('{}'),
   // pending = awaiting fee/admin review, approved = eligible for draft, rejected = denied,
   // withdrawn = user opted out before the deadline.
   status: text('status').notNull().default('pending'),
+  // When set, this approved sign-up does NOT count toward the entry-fee prize pool (lib/prizePool).
+  // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
+  // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
+  excludeFromPrizePool: integer('exclude_from_prize_pool', { mode: 'boolean' }).notNull().default(false),
   signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
-  uniqueIndex('event_signup_user_unique').on(table.eventId, table.userId),
+  // Multi-account: a person (userId) may now enter up to events.maxAccountsPerPerson accounts, so the
+  // old one-per-user unique is gone. Dedup is per ACCOUNT instead — one sign-up per (event, clanMember)
+  // — which also naturally covers guest rows (userId NULL). The (event, user) lookup stays a plain index.
+  uniqueIndex('event_signup_member_unique').on(table.eventId, table.clanMemberId),
+  index('event_signup_event_user_idx').on(table.eventId, table.userId),
   index('event_signups_event_id_idx').on(table.eventId),
   index('event_signups_user_id_idx').on(table.userId),
   index('event_signups_clan_member_id_idx').on(table.clanMemberId),
@@ -582,6 +707,40 @@ export const signupFees = sqliteTable('signup_fees', {
 }, (table) => [
   uniqueIndex('signup_fees_signup_unique').on(table.signupId),
   index('signup_fees_status_idx').on(table.status),
+]);
+
+// Prize payouts to event winners — the outbound mirror of signup_fees. One row per RECIPIENT
+// (per-player split: the winning team's prize divides equally across its members, one editable row
+// each). Amounts are auto-suggested from the prize pool at generation time, then admin-editable.
+// Status flow: pending → paid (a treasurer/admin marks it, optionally attaching a screenshot). When
+// every payout for the event is paid, the winners+amounts are announced to the bingo webhook.
+export const payouts = sqliteTable('payouts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // Recipient identity. clanMemberId is the stable link (set null if the member is later deleted or
+  // for free-form manual rows); `rsn` is the display name captured when the row was created.
+  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(),
+  // Which team they won with + finishing place (1 = first). Null for free-form manual entries.
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  teamName: text('team_name'),
+  place: integer('place'),
+  amount: integer('amount').notNull().default(0), // gp
+  // pending → paid. Kept as text (not a boolean) for parity with fee statuses and future states.
+  status: text('status').notNull().default('pending'),
+  // Storage URL of the optional payment-proof screenshot (key prefix `payouts/`). Deleted when the
+  // payout is reverted to pending or the row is removed.
+  proofBlobUrl: text('proof_blob_url'),
+  paidByUserId: integer('paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  paidAt: text('paid_at'),
+  notes: text('notes'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('payouts_event_id_idx').on(table.eventId),
+  index('payouts_status_idx').on(table.status),
+  // One auto-generated payout per (event, member). NULL clanMemberId rows (free-form) are exempt —
+  // SQLite treats NULLs as distinct in a unique index — so multiple manual entries are allowed.
+  uniqueIndex('payouts_event_member_unique').on(table.eventId, table.clanMemberId),
 ]);
 
 // User-submitted RSN rename requests, reviewed by a cron pass that mirrors WOM's
@@ -725,6 +884,42 @@ export const feedback = sqliteTable('feedback', {
   index('feedback_created_at_idx').on(table.createdAt),
 ]);
 
+// ── Post-event participant surveys ──────────────────────────────────────────────────────────────
+// A per-event questionnaire an admin builds (from scratch or by loading a default template) and that
+// anyone with an approved sign-up fills out once the event ends. Questions are ordered rows; each
+// response stores all its answers as one JSON blob keyed by question id. Responses are attributed to
+// the submitting user but STAFF-ONLY (never surfaced publicly). This is unrelated to the app-level
+// `feedback` bug/support table above.
+export const surveyQuestions = sqliteTable('survey_questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  // 'rating' (1–5 scale), 'text' (free response), 'single' (choose one), 'multi' (choose many).
+  type: text('type').notNull().default('text'),
+  prompt: text('prompt').notNull(),
+  // JSON string[] of choices for 'single' / 'multi'; NULL for 'rating' / 'text'.
+  options: text('options'),
+  required: integer('required', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('survey_questions_event_id_idx').on(table.eventId),
+]);
+
+export const surveyResponses = sqliteTable('survey_responses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The participant who submitted (attributed, staff-only). set null on user delete keeps the response
+  // in the aggregate counts (just detached). One row per (event, user) — enforced below.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  // { [questionId]: number | string | string[] } — one blob per submission. Keys map to
+  // survey_questions.id; answers for since-deleted questions are ignored when results are rendered.
+  answers: text('answers').notNull(),
+  submittedAt: text('submitted_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('survey_responses_event_user_unique').on(table.eventId, table.userId),
+  index('survey_responses_event_id_idx').on(table.eventId),
+]);
+
 // ===========================================================================
 // Federation (Layer 0/1). See docs/FEDERATION.md + docs/FEDERATION_WIRE.md.
 // ===========================================================================
@@ -821,6 +1016,28 @@ export const federationConnections = sqliteTable('federation_connections', {
 // broker's domain. The plugin polls /connect repeatedly; each poll is a fresh server request, so the
 // broker's `device_code` handle must persist between them. One in-flight login per member (keyed on
 // user_id); cleared on completion/expiry.
+/**
+ * Per-ACCOUNT federation shares ("Share my RSN with this clan"). The member owns their identity:
+ * each linked account (clan_members row) is shared with each remote clan individually, by an
+ * explicit action from the plugin while logged into THAT account — never clan-wide, never implied.
+ * The exchange relay attaches only the accounts shared with the target instance; deleting a row
+ * revokes (the next exchange carries the reduced set and the remote prunes). RSNs never reach the
+ * broker — this is strictly home → chosen-remote.
+ */
+export const federationAccountShares = sqliteTable('federation_account_shares', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // Owner (for revocation/authz checks) — the user whose account is shared.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The specific shared account. Cascades away if the account link is ever deleted.
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // The remote instance (its stable UUID) this account is shared with.
+  instanceId: text('instance_id').notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (t) => [
+  uniqueIndex('federation_account_shares_unique').on(t.clanMemberId, t.instanceId),
+  index('federation_account_shares_user_idx').on(t.userId),
+]);
+
 export const federationDeviceSessions = sqliteTable('federation_device_sessions', {
   userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   // The broker's secret poll handle from POST /device/start (WIRE §9.1).

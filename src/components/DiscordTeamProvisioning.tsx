@@ -36,6 +36,10 @@ export default function DiscordTeamProvisioning({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // Teardown gets a real confirmation dialog (listing exactly what will be deleted +
+  // type-to-confirm) instead of a bare confirm() — it's an irreversible Discord-wide delete.
+  const [teardownOpen, setTeardownOpen] = useState(false);
+  const [teardownConfirmText, setTeardownConfirmText] = useState('');
 
   const loadStatus = useCallback(async () => {
     try {
@@ -51,9 +55,6 @@ export default function DiscordTeamProvisioning({
   }, [loadStatus]);
 
   async function runAction(action: 'sync-all' | 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
-    if (action === 'teardown' && !confirm('Delete this event’s team roles, channels, and category in Discord? Contestants lose channel access, and their team roles vanish with the roles. The shared bingo & captain roles stay assigned — use “Remove bingo & captain roles” for those. This cannot be undone.')) {
-      return;
-    }
     if (
       action === 'unassign-shared-roles' &&
       !confirm('Take the shared bingo role off everyone in this event, and the captain role off its captains? The roles themselves are kept (they’re reused across events). Heads up: these roles are shared, so anyone also in another active event loses them there too.')
@@ -72,6 +73,7 @@ export default function DiscordTeamProvisioning({
       if (res.ok) {
         const r = data.report || {};
         let text = 'Done.';
+        let type: 'success' | 'error' = 'success';
         if (action === 'sync-all') {
           const teamsN = r.provision?.teams?.length ?? 0;
           const assignedN = r.assign?.assigned ?? 0;
@@ -86,9 +88,14 @@ export default function DiscordTeamProvisioning({
         } else if (action === 'unassign-shared-roles') {
           text = `Removed the bingo role from ${r.bingoRemoved ?? 0} member(s) and the captain role from ${r.captainRemoved ?? 0}.`;
         } else if (action === 'teardown') {
-          text = `Removed ${r.rolesDeleted ?? 0} role(s) and ${r.channelsDeleted ?? 0} channel(s).`;
+          const failedN = (r.rolesFailed ?? 0) + (r.channelsFailed ?? 0) + (r.categoryFailed ? 1 : 0);
+          text = `Removed ${r.rolesDeleted ?? 0} role(s) and ${r.channelsDeleted ?? 0} channel(s)${r.categoryDeleted ? ', plus the event category' : ''}.`;
+          if (failedN > 0) {
+            type = 'error';
+            text += ` Discord refused ${failedN} delete(s) — those are kept so a re-run can retry them.${r.failDetail ? ` ${r.failDetail}` : ''}`;
+          }
         }
-        setMessage({ type: 'success', text });
+        setMessage({ type, text });
         await loadStatus();
       } else {
         setMessage({ type: 'error', text: data.error || 'Action failed' });
@@ -229,7 +236,10 @@ export default function DiscordTeamProvisioning({
 
         {anyProvisioned && (
           <button
-            onClick={() => runAction('teardown')}
+            onClick={() => {
+              setTeardownConfirmText('');
+              setTeardownOpen(true);
+            }}
             disabled={!!busy}
             className="text-sm font-medium bg-red-400/10 text-red-400 border border-red-400/20 px-4 py-2 rounded-lg hover:bg-red-400/20 transition-colors disabled:opacity-50"
           >
@@ -237,6 +247,19 @@ export default function DiscordTeamProvisioning({
           </button>
         )}
       </div>
+
+      {teardownOpen && (
+        <TeardownConfirmModal
+          status={status}
+          confirmText={teardownConfirmText}
+          setConfirmText={setTeardownConfirmText}
+          onCancel={() => setTeardownOpen(false)}
+          onConfirm={() => {
+            setTeardownOpen(false);
+            runAction('teardown');
+          }}
+        />
+      )}
 
       {!draftComplete && (
         <p className="text-xs text-text-muted mt-2">
@@ -257,6 +280,106 @@ export default function DiscordTeamProvisioning({
         </div>
       )}
     </details>
+  );
+}
+
+// The teardown confirmation: an itemised list of every Discord resource about to be
+// deleted (built from the same status the badges render from), gated behind typing
+// DELETE — this nukes real channels with real message history, so a bare confirm()
+// isn't enough friction.
+function TeardownConfirmModal({
+  status,
+  confirmText,
+  setConfirmText,
+  onCancel,
+  onConfirm,
+}: {
+  status: StatusData;
+  confirmText: string;
+  setConfirmText: (v: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const affected = status.teams.filter((t) => t.hasRole || t.hasTextChannel || t.hasVoiceChannel);
+  const roleN = affected.filter((t) => t.hasRole).length;
+  const channelN = affected.reduce(
+    (n, t) => n + (t.hasTextChannel ? 1 : 0) + (t.hasVoiceChannel ? 1 : 0),
+    0,
+  );
+  const armed = confirmText.trim().toUpperCase() === 'DELETE';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCancel}>
+      <div
+        className="bg-card-bg border border-card-border rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto m-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 z-10">
+          <h3 className="text-lg font-bold text-red-400">Delete team roles &amp; channels</h3>
+          <p className="text-xs text-text-muted mt-1">
+            This permanently deletes {roleN} role(s), {channelN} channel(s)
+            {status.categoryId ? ' and the event category' : ''} from Discord — including all
+            channel message history. It cannot be undone.
+          </p>
+        </div>
+        <div className="p-4 space-y-3">
+          <ul className="space-y-1.5">
+            {affected.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center justify-between border border-card-border rounded-lg p-2 text-sm"
+              >
+                <span className="font-medium">{t.name}</span>
+                <span className="text-xs text-text-muted">
+                  {[
+                    t.hasRole && 'role',
+                    t.hasTextChannel && 'text channel',
+                    t.hasVoiceChannel && 'voice channel',
+                  ]
+                    .filter(Boolean)
+                    .join(' + ')}
+                </span>
+              </li>
+            ))}
+            {status.categoryId && (
+              <li className="flex items-center justify-between border border-card-border rounded-lg p-2 text-sm">
+                <span className="font-medium">Event category</span>
+                <span className="text-xs text-text-muted">category</span>
+              </li>
+            )}
+          </ul>
+          <p className="text-xs text-text-muted">
+            Contestants lose channel access, and their team roles vanish with the roles. The shared
+            bingo &amp; captain roles stay assigned — use “Remove bingo &amp; captain roles” for
+            those.
+          </p>
+          <label className="block text-xs text-text-muted">
+            Type <span className="font-mono font-bold text-red-400">DELETE</span> to confirm
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoFocus
+              className="mt-1 w-full bg-transparent border border-card-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-red-400/60"
+            />
+          </label>
+        </div>
+        <div className="p-4 border-t border-card-border flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="text-sm font-medium border border-card-border px-4 py-2 rounded-lg hover:bg-card-border/20 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!armed}
+            className="text-sm font-semibold bg-red-400/15 text-red-400 border border-red-400/30 px-4 py-2 rounded-lg hover:bg-red-400/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Delete everything listed
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

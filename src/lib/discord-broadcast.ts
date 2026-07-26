@@ -52,21 +52,19 @@ interface RawRole {
 }
 
 /**
- * List the channels the bot can post to + the roles it could ping, for the Announce form.
- * `enabled` is false when the bot isn't configured — the UI then shows a setup hint instead
- * of an empty picker. Failing Discord calls degrade to empty lists (logged), never throw.
+ * List just the channels the bot can post to (no roles call). Shared by the Announce form
+ * (via listBroadcastTargets) and the webhook channel picker, which only needs channels.
+ * `enabled` is false when the bot isn't configured — the UI shows a setup hint instead of an
+ * empty picker. A failing Discord call degrades to an empty list (logged), never throws.
  */
-export async function listBroadcastTargets(): Promise<{
+export async function listBotChannels(): Promise<{
   enabled: boolean;
   channels: BroadcastChannel[];
-  roles: BroadcastRole[];
 }> {
   const creds = await getBotCredentials();
-  if (!creds) return { enabled: false, channels: [], roles: [] };
+  if (!creds) return { enabled: false, channels: [] };
 
   let channels: BroadcastChannel[] = [];
-  let roles: BroadcastRole[] = [];
-
   const chRes = await discordRest(creds.botToken, `/guilds/${creds.guildId}/channels`);
   if (chRes.ok) {
     const raw = (await chRes.json()) as RawChannel[];
@@ -85,6 +83,26 @@ export async function listBroadcastTargets(): Promise<{
     log.warn('discord-broadcast.list-channels-fail', { status: chRes.status });
   }
 
+  return { enabled: true, channels };
+}
+
+/**
+ * List the channels the bot can post to + the roles it could ping, for the Announce form.
+ * `enabled` is false when the bot isn't configured — the UI then shows a setup hint instead
+ * of an empty picker. Failing Discord calls degrade to empty lists (logged), never throw.
+ */
+export async function listBroadcastTargets(): Promise<{
+  enabled: boolean;
+  channels: BroadcastChannel[];
+  roles: BroadcastRole[];
+}> {
+  const { enabled, channels } = await listBotChannels();
+  if (!enabled) return { enabled: false, channels: [], roles: [] };
+
+  const creds = await getBotCredentials();
+  if (!creds) return { enabled: false, channels: [], roles: [] };
+
+  let roles: BroadcastRole[] = [];
   const rlRes = await discordRest(creds.botToken, `/guilds/${creds.guildId}/roles`);
   if (rlRes.ok) {
     const raw = (await rlRes.json()) as RawRole[];

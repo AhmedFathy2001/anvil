@@ -11,7 +11,7 @@ import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import Input from '@/components/Input';
-import { computeMemberBreakdown, topMember } from '@/lib/memberBreakdown';
+import { computeMemberBreakdown, topMember, rollupByOwner } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import MemberBreakdown from '@/components/MemberBreakdown';
 import BoardFilters from '@/components/BoardFilters';
@@ -160,16 +160,18 @@ export default function MyTeamClient({
     setSelectedTileId(tileId);
   }
 
-  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
+  async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) {
     const res = await fetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Submission failed');
     }
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {
@@ -253,12 +255,20 @@ export default function MyTeamClient({
     [tiles, event.scoringMode],
   );
   const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
+    ? completions.reduce(
+        (sum, c) =>
+          sum +
+          (scoredTileIds.has(c.tileId)
+            // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live weight.
+            ? (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0)
+            : 0),
+        0,
+      )
     : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
   const total = pointsMode
     ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
     : scoredTiles.length;
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -270,19 +280,26 @@ export default function MyTeamClient({
     ? submissions.filter((s) => s.creditPlayerId === selectedMemberId)
     : [];
 
-  const memberBreakdown = useMemo(
-    () =>
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: teamPlayers,
-        tiles,
-        completions,
-        submissions,
-        statGains: gains,
-      }),
-    [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains],
+  // Multi-account 'per-person' events roll a person's several accounts into ONE contributor for the
+  // breakdown + MVP. No-op for per-account and every maxAccounts=1 event (owners are all distinct).
+  const perPersonMode = event.accountSlotMode === 'per-person';
+  const ownerByPlayerId = useMemo(
+    () => new Map(teamPlayers.map((p) => [p.id, p.ownerUserId ?? null] as const)),
+    [teamPlayers],
   );
+
+  const memberBreakdown = useMemo(() => {
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: teamPlayers,
+      tiles,
+      completions,
+      submissions,
+      statGains: gains,
+    });
+    return perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd;
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
 
   // Auto-open the first person on the breakdown (top contributor) so their details show by default.
   // Runs once when the breakdown first has members; after that, closing the panel stays closed.
@@ -298,18 +315,17 @@ export default function MyTeamClient({
   const teamMvp = topMember(memberBreakdown);
   const teamMvpTodayRaw = useMemo(() => {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    return topMember(
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: teamPlayers,
-        tiles,
-        completions: completions.filter((c) => c.completedAt >= dayAgo),
-        submissions,
-        statGains: gains,
-      }),
-    );
-  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains]);
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: teamPlayers,
+      tiles,
+      completions: completions.filter((c) => c.completedAt >= dayAgo),
+      submissions,
+      statGains: gains,
+    });
+    return topMember(perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd);
+  }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
   // Hide the day card while it just mirrors the overall MVP (early on everything was completed
   // recently); it reappears once they diverge.
   const teamMvpToday =
@@ -484,8 +500,19 @@ export default function MyTeamClient({
               </summary>
               <div className="px-4 pb-3 flex flex-wrap gap-2">
                 {teamPlayers.map((player) => (
-                  <span key={player.id} className="text-sm px-3 py-1.5 rounded-lg border border-card-border bg-brown-dark">
-                    {player.name}
+                  <span
+                    key={player.id}
+                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 ${player.frozenAt ? 'bg-brown-dark/50 text-text-muted' : 'bg-brown-dark'}`}
+                  >
+                    <span className={player.frozenAt ? 'line-through' : ''}>{player.name}</span>
+                    {player.frozenAt && (
+                      <span
+                        className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px"
+                        title="Subbed out — no longer active on this team"
+                      >
+                        Subbed out
+                      </span>
+                    )}
                   </span>
                 ))}
               </div>

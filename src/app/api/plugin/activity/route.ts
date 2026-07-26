@@ -43,6 +43,7 @@ export async function GET(request: Request) {
 
   const payload = await buildActivity({
     teamId: auth.teamId,
+    eventId: auth.eventId,
     selfPlayerId: auth.playerId,
     selfRsn: auth.rsn,
     since,
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
   const since = parseCursor(typeof body.since === 'string' ? body.since : null);
   const payload = await buildActivity({
     teamId: auth.teamId,
+    eventId: auth.eventId,
     selfPlayerId: auth.playerId,
     selfRsn: auth.rsn,
     since,

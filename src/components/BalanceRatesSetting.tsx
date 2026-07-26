@@ -37,22 +37,26 @@ function TripletInputs({
   scale?: number;
 }) {
   return (
-    <span className="flex gap-1">
+    <span className="flex gap-1 w-full sm:w-auto">
       {[0, 1, 2].map((i) => (
-        <Input
-          key={i}
-          type="number"
-          value={Math.round(value[i] * scale * 100) / 100}
-          onChange={(e) => {
-            const n = parseFloat(e.target.value);
-            if (!Number.isFinite(n) || n < 0) return;
-            const next = [...value] as Triplet;
-            next[i] = n / scale;
-            onChange(next);
-          }}
-          className="w-20 px-1.5 py-1 text-xs text-center"
-          aria-label={['fast', 'average', 'slow'][i]}
-        />
+        <span key={i} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 sm:flex-none">
+          <Input
+            type="number"
+            value={Math.round(value[i] * scale * 100) / 100}
+            onChange={(e) => {
+              const n = parseFloat(e.target.value);
+              if (!Number.isFinite(n) || n < 0) return;
+              const next = [...value] as Triplet;
+              next[i] = n / scale;
+              onChange(next);
+            }}
+            className="w-full sm:w-16 px-1.5 py-1 text-xs text-center"
+            aria-label={['fast', 'average', 'slow'][i]}
+          />
+          <span className="text-[10px] text-text-muted sm:hidden" aria-hidden>
+            {['Fast', 'Avg', 'Slow'][i]}
+          </span>
+        </span>
       ))}
     </span>
   );
@@ -180,7 +184,7 @@ export default function BalanceRatesSetting() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter…"
-          className="w-44 px-2.5 py-1.5 text-xs"
+          className="w-full sm:w-44 px-2.5 py-1.5 text-xs"
         />
       </div>
 
@@ -191,31 +195,33 @@ export default function BalanceRatesSetting() {
             const mod = isModified('activities', key);
             const attemptModel = !!(a.attemptMinutes && a.successRate);
             return (
-              <div key={key} className="px-3 py-2 flex items-center gap-2 flex-wrap text-xs">
-                <span className={`w-48 shrink-0 truncate ${mod ? 'text-gold' : 'text-foreground'}`} title={key}>
+              <div key={key} className="px-3 py-2 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 text-xs">
+                <span className={`w-full sm:w-48 min-w-0 shrink-0 truncate ${mod ? 'text-gold' : 'text-foreground'}`} title={key}>
                   {key}{mod ? ' •' : ''}
                 </span>
-                <span className="text-[10px] text-text-muted w-24 shrink-0">
-                  {attemptModel ? 'attempt min' : 'kill seconds'}
-                </span>
-                {attemptModel ? (
-                  <>
-                    <TripletInputs value={a.attemptMinutes!} onChange={(t) => setActivity(key, { attemptMinutes: t })} />
-                    <span className="text-[10px] text-text-muted">success %</span>
-                    <TripletInputs value={a.successRate!} onChange={(t) => setActivity(key, { successRate: t })} scale={100} />
-                  </>
-                ) : (
-                  <TripletInputs value={a.killSeconds ?? [60, 90, 150]} onChange={(t) => setActivity(key, { killSeconds: t })} />
-                )}
+                <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
+                  <span className="text-[10px] text-text-muted w-24 shrink-0">
+                    {attemptModel ? 'attempt min' : 'kill seconds'}
+                  </span>
+                  {attemptModel ? (
+                    <>
+                      <TripletInputs value={a.attemptMinutes!} onChange={(t) => setActivity(key, { attemptMinutes: t })} />
+                      <span className="text-[10px] text-text-muted w-24 shrink-0 sm:w-auto">success %</span>
+                      <TripletInputs value={a.successRate!} onChange={(t) => setActivity(key, { successRate: t })} scale={100} />
+                    </>
+                  ) : (
+                    <TripletInputs value={a.killSeconds ?? [60, 90, 150]} onChange={(t) => setActivity(key, { killSeconds: t })} />
+                  )}
+                </div>
                 <Select
-                  className="w-28"
+                  className="w-full sm:w-28"
                   ariaLabel={`Floor for ${key}`}
                   value={a.floor ?? 'anyone'}
                   onChange={(v) => setActivity(key, { floor: v as Floor })}
                   options={FLOOR_OPTIONS}
                 />
                 {mod && (
-                  <button onClick={() => resetRow('activities', key)} className="text-[10px] text-text-muted hover:text-foreground">
+                  <button onClick={() => resetRow('activities', key)} className="self-start text-[10px] text-text-muted hover:text-foreground">
                     reset
                   </button>
                 )}
@@ -227,12 +233,14 @@ export default function BalanceRatesSetting() {
             const s = merged.skills[key];
             const mod = isModified('skills', key);
             return (
-              <div key={key} className="px-3 py-2 flex items-center gap-2 flex-wrap text-xs">
-                <span className={`w-48 shrink-0 truncate ${mod ? 'text-gold' : 'text-foreground'}`}>{key}{mod ? ' •' : ''}</span>
-                <span className="text-[10px] text-text-muted w-24 shrink-0">XP / hour</span>
-                <TripletInputs value={s.xpPerHour} onChange={(t) => setSkill(key, { xpPerHour: t })} />
+              <div key={key} className="px-3 py-2 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 text-xs">
+                <span className={`w-full sm:w-48 min-w-0 shrink-0 truncate ${mod ? 'text-gold' : 'text-foreground'}`} title={key}>{key}{mod ? ' •' : ''}</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-[10px] text-text-muted w-24 shrink-0">XP / hour</span>
+                  <TripletInputs value={s.xpPerHour} onChange={(t) => setSkill(key, { xpPerHour: t })} />
+                </div>
                 {mod && (
-                  <button onClick={() => resetRow('skills', key)} className="text-[10px] text-text-muted hover:text-foreground">
+                  <button onClick={() => resetRow('skills', key)} className="self-start text-[10px] text-text-muted hover:text-foreground">
                     reset
                   </button>
                 )}
@@ -252,7 +260,7 @@ export default function BalanceRatesSetting() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addActivity()}
             placeholder="Add an activity (exact boss/source name)…"
-            className="w-72 px-2.5 py-1.5 text-xs"
+            className="w-full sm:w-72 px-2.5 py-1.5 text-xs"
           />
           <button
             onClick={addActivity}

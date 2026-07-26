@@ -5,11 +5,13 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
-import { computeGainFromJson } from '@/lib/statTracking';
+import { computeGainFromJson, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim } from '@/lib/revealEngine';
 
 // Real-time boss-KC / skill-XP ingest. The plugin posts {stats:[{name,kc}], skills:[{name,xp}]} with
 // ABSOLUTE counts (no image), debounced to one push per key per 15 s. We resolve the caller's clan
@@ -23,9 +25,11 @@ import { notifyTileCompletion } from '@/lib/discord';
 const MAX_KC = 1_000_000;
 const MAX_XP = 200_000_000;
 
-// How long a per-key "rose just now" stamp is retained. Well past the 5-min "Active now" window so
-// slight clock skew is tolerated, then dropped to keep the map small.
-const KEY_TIME_TTL_MS = 30 * 60_000;
+// How long a per-key "rose just now" stamp is retained. Must outlast the stats sweep's stale-overlay
+// window (~6h, the OSRS logout backstop) so that check can tell a still-active grind from a stuck push;
+// "Active now" reads its own 5-min window and is unaffected by the longer retention. 7h > 6.5h sweep
+// threshold so a legit entry's stamp is still present when the sweep decides whether to keep it.
+const KEY_TIME_TTL_MS = 7 * 60 * 60_000;
 
 export async function POST(request: Request) {
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
@@ -138,6 +142,8 @@ export async function POST(request: Request) {
           clanMemberId: players.clanMemberId,
           statsSnapshot: players.statsSnapshot,
           cachedStats: players.cachedStats,
+          frozenAt: players.frozenAt,
+          frozenStats: players.frozenStats,
         })
         .from(players)
         .where(and(eq(players.eventId, activePlayer.eventId), eq(players.teamId, activePlayer.teamId!)));
@@ -145,6 +151,9 @@ export async function POST(request: Request) {
       // the merge we just wrote). Gain = sum over keys of max(0, max(hiscores, live) − baseline).
       const teamLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
       const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
+        // Benched players are pinned to frozenStats (no live overlay) so their locked gain still counts
+        // toward the team total but never climbs.
+        if (p.frozenAt) return computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, statType);
         const plug = (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {};
         return computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, statType);
       };
@@ -160,27 +169,46 @@ export async function POST(request: Request) {
       for (const tile of statTiles) {
         const compKey = `${activePlayer.teamId}-${tile.id}`;
         if (done.has(compKey)) continue;
+        // Event-rules gate: unrevealed/claimed tiles and lockout losses never credit, no matter
+        // what the pushed stats say. Also freezes the rule-adjusted award for the insert below.
+        const gate = event
+          ? await evaluateCompletionGate({ event, tile, teamId: activePlayer.teamId! })
+          : null;
+        if (gate && !gate.allowed) continue;
         const keys = statKeys(tile.trackedStat);
+        const individual = isIndividualMode(tile.trackingMode);
         // For an individual tile, the finisher is the player who reached the goal alone (attributed so the
         // activity feed can name them — a stat completion has no submission). Team tiles have no one player.
-        const individualFinisher =
-          tile.trackingMode === 'individual'
-            ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
-            : undefined;
-        const meets =
-          tile.trackingMode === 'individual'
-            ? individualFinisher != null
-            : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
+        const individualFinisher = individual
+          ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+          : undefined;
+        const meets = individual
+          ? individualFinisher != null
+          : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
         if (!meets) continue;
+
+        // Freeze the per-member split at completion: the lone finisher for individual tiles, or every
+        // contributing team member's current gain for team tiles. Locks "who got what %" against the
+        // stat continuing to climb after the tile is done.
+        const splitRows = individual
+          ? [{ playerId: individualFinisher!.id, gained: gainFor(individualFinisher!, keys, tile.statType!) }]
+          : teamPlayers.map((p) => ({ playerId: p.id, gained: gainFor(p, keys, tile.statType!) }));
 
         // Notify only on a genuine insert — the sweep + this push can both cross a threshold and
         // would otherwise double-ping Discord.
         const inserted = await db
           .insert(completions)
-          .values({ teamId: activePlayer.teamId!, tileId: tile.id, creditPlayerId: individualFinisher?.id ?? null })
+          .values({
+            teamId: activePlayer.teamId!,
+            tileId: tile.id,
+            creditPlayerId: individualFinisher?.id ?? null,
+            statContributions: JSON.stringify(buildContributionSnapshot(tile.statGoal!, splitRows)),
+            awardedPoints: gate?.awardedPoints ?? null,
+          })
           .onConflictDoNothing()
           .returning({ id: completions.id });
         if (inserted.length === 0) continue;
+        if (gate?.bounty) handleBountyClaim(activePlayer.eventId, tile.id).catch(() => {});
         done.add(compKey);
         completed.push(tile.label);
         if (event && team) {

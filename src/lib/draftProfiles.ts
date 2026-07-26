@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { eventSignups } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { clanMembers, eventSignups } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { parseProfile, type SignupProfile } from './signup';
 
 // Frozen sign-up answers, keyed by the RSN (clanMemberId) the member chose to play with.
@@ -18,24 +18,66 @@ export async function loadEventProfiles(eventId: number): Promise<Map<number, Si
   const rows = await db
     .select({
       clanMemberId: eventSignups.clanMemberId,
+      userId: eventSignups.userId,
       profileData: eventSignups.profileData,
       status: eventSignups.status,
     })
     .from(eventSignups)
     .where(eq(eventSignups.eventId, eventId));
 
-  const map = new Map<number, SignupProfile>();
-  const storedIsTerminal = new Map<number, boolean>();
+  // Per clan member, keep the best raw row (prefer a non-terminal answer over a stale withdrawal).
+  const rawByMember = new Map<number, { profileData: string; terminal: boolean; userId: number | null }>();
   for (const row of rows) {
     const isTerminal = TERMINAL_STATUSES.has(row.status);
-    const canOverwrite = !map.has(row.clanMemberId)
-      // Only a terminal answer may be replaced — by a non-terminal one.
-      || (storedIsTerminal.get(row.clanMemberId) === true && !isTerminal);
-    if (!canOverwrite) continue;
-    map.set(row.clanMemberId, parseProfile(row.profileData));
-    storedIsTerminal.set(row.clanMemberId, isTerminal);
+    const existing = rawByMember.get(row.clanMemberId);
+    const canOverwrite = !existing || (existing.terminal && !isTerminal);
+    if (canOverwrite) {
+      rawByMember.set(row.clanMemberId, { profileData: row.profileData, terminal: isTerminal, userId: row.userId });
+    }
+  }
+
+  // One profile PER PERSON (multi-account): the real answers live on the primary account's row while
+  // sibling rows carry '{}'. Find each user's non-empty profile so siblings can inherit it below.
+  const profileByUser = new Map<number, SignupProfile>();
+  for (const r of rawByMember.values()) {
+    if (r.userId != null && r.profileData && r.profileData !== '{}' && !profileByUser.has(r.userId)) {
+      profileByUser.set(r.userId, parseProfile(r.profileData));
+    }
+  }
+
+  const map = new Map<number, SignupProfile>();
+  for (const [memberId, r] of rawByMember) {
+    if (r.profileData && r.profileData !== '{}') {
+      map.set(memberId, parseProfile(r.profileData));
+    } else if (r.userId != null && profileByUser.has(r.userId)) {
+      // Sibling account: inherit the person's profile from their primary row.
+      map.set(memberId, profileByUser.get(r.userId)!);
+    } else {
+      map.set(memberId, parseProfile(r.profileData));
+    }
   }
   return map;
+}
+
+// Owner (site user) per player, so multi-account surfaces can group a person's account rows for the
+// 'per-person' team-size + MVP rollup. Maps playerId → userId (null for guests / unlinked accounts).
+export async function loadPlayerOwners<T extends { id: number; clanMemberId: number | null }>(
+  players: T[],
+): Promise<Map<number, number | null>> {
+  const memberIds = [...new Set(players.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
+  const rows = memberIds.length
+    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    : [];
+  const byMember = new Map(rows.map((r) => [r.id, r.userId]));
+  return new Map(players.map((p) => [p.id, p.clanMemberId != null ? byMember.get(p.clanMemberId) ?? null : null]));
+}
+
+// Attach ownerUserId to each player row (from loadPlayerOwners) so it serializes to client components.
+export function attachOwners<T extends { id: number }>(
+  players: T[],
+  owners: Map<number, number | null>,
+): (T & { ownerUserId: number | null })[] {
+  return players.map((p) => ({ ...p, ownerUserId: owners.get(p.id) ?? null }));
 }
 
 // Attach the matching frozen profile to each player row (null when unlinked / no sign-up).

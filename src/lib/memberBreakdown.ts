@@ -1,4 +1,5 @@
 import { tileWeight } from './utils';
+import type { StatContributionSnapshot } from './statTracking';
 
 // One tile a member contributed to, with their amount on it (kills / drops / items / gp, or — for
 // skill/boss tiles — their XP or KC gain).
@@ -31,6 +32,9 @@ export interface MemberContribution {
   submissions: number;
   // Per-tile detail, so a member row can drill down into exactly what they did.
   contributions: MemberTileContribution[];
+  // Non-null = the member was subbed out (players.frozenAt). Their contribution stays in the totals
+  // (frozen gains still count) but the UI marks them so it's clear they're no longer active.
+  frozenAt?: string | null;
 }
 
 // Event-wide MVP: the single highest-scoring contributor across every team (not the best player on
@@ -61,10 +65,69 @@ export function topMember(members: MemberContribution[]): TeamMvp | null {
   return { playerId: top.playerId, name: top.name, points: top.points, tasks: top.tasks };
 }
 
+/**
+ * Multi-account 'per-person' rollup: merge each person's several account-rows into ONE contributor so
+ * MVP + the breakdown list count the PERSON, not each alt. Rows sharing an owner (userId) are merged —
+ * points sum, tile contributions union by tileId (tasks/inProgress re-derived from the union), and the
+ * display name becomes "<lead RSN> +N". Guests (no owner) and single-account people pass through
+ * untouched, so this is a no-op for 'per-account' events and every existing (maxAccounts=1) event.
+ */
+export function rollupByOwner(
+  members: MemberContribution[],
+  ownerByPlayerId: Map<number, number | null>,
+): MemberContribution[] {
+  const groups = new Map<string, MemberContribution[]>();
+  for (const m of members) {
+    const owner = ownerByPlayerId.get(m.playerId);
+    const key = owner != null ? `u${owner}` : `p${m.playerId}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(m);
+    else groups.set(key, [m]);
+  }
+  const out: MemberContribution[] = [];
+  for (const grp of groups.values()) {
+    if (grp.length === 1) {
+      out.push(grp[0]);
+      continue;
+    }
+    const byTile = new Map<number, MemberTileContribution>();
+    let submissions = 0;
+    for (const m of grp) {
+      submissions += m.submissions;
+      for (const c of m.contributions) {
+        const ex = byTile.get(c.tileId);
+        if (ex) {
+          ex.amount += c.amount;
+          ex.count += c.count;
+          ex.completed = ex.completed || c.completed;
+        } else {
+          byTile.set(c.tileId, { ...c });
+        }
+      }
+    }
+    const contributions = [...byTile.values()];
+    const lead = grp.reduce((a, b) => (b.points > a.points ? b : a));
+    out.push({
+      playerId: lead.playerId,
+      name: `${lead.name} +${grp.length - 1}`,
+      points: grp.reduce((s, m) => s + m.points, 0),
+      tasks: contributions.filter((c) => c.completed).length,
+      inProgress: contributions.filter((c) => !c.completed).length,
+      submissions,
+      contributions,
+      frozenAt: grp.every((m) => m.frozenAt) ? lead.frozenAt : null,
+    });
+  }
+  return out.sort(
+    (a, b) => b.points - a.points || b.tasks - a.tasks || b.inProgress - a.inProgress || b.submissions - a.submissions,
+  );
+}
+
 interface BreakdownPlayer {
   id: number;
   name: string;
   teamId: number | null;
+  frozenAt?: string | null;
 }
 interface BreakdownTile {
   id: number;
@@ -78,6 +141,14 @@ interface BreakdownTile {
 interface BreakdownCompletion {
   teamId: number;
   tileId: number;
+  // Frozen per-member KC/XP split captured when a STAT tile completed. When present, it (not the live
+  // `statGains`) is the source of each member's share of this tile — the whole point is that a finished
+  // tile's attribution stops drifting as the underlying stat keeps climbing. NULL/absent for submission
+  // tiles and for legacy stat completions predating the freeze (those fall back to live statGains).
+  statContributions?: StatContributionSnapshot | null;
+  // Frozen rule-modified award (first-team bonus / reveal decay). When set, it replaces the tile's
+  // live point weight in the member split so MVP math matches the team's actual score.
+  awardedPoints?: number | null;
 }
 interface BreakdownSubmission {
   teamId: number;
@@ -135,10 +206,25 @@ export function computeMemberBreakdown(params: {
   for (const s of teamSubs) {
     record(s.creditPlayerId as number, s.tileId, Math.max(0, s.amount), 1, false);
   }
-  // Skill/boss tiles: each team member's gain is their contribution.
+  // Completed stat tiles: use the split frozen at completion so each member's share can't drift as the
+  // underlying KC/XP keeps climbing afterwards. Tracked here so the live pass below skips these tiles.
+  const frozenStatTiles = new Set<number>();
+  for (const c of completions) {
+    if (c.teamId !== teamId || !c.statContributions) continue;
+    const tile = tileById.get(c.tileId);
+    if (!tile || !tile.trackedStat) continue;
+    for (const r of c.statContributions.split) {
+      if (!teamPlayerIds.has(r.playerId) || r.gained <= 0) continue;
+      record(r.playerId, c.tileId, r.gained, 0, true);
+    }
+    frozenStatTiles.add(c.tileId);
+  }
+  // Skill/boss tiles without a frozen split (in-progress, or legacy completions): each team member's
+  // live gain is their contribution.
   if (statGains) {
     for (const [key, rows] of Object.entries(statGains)) {
       const tileId = Number(key);
+      if (frozenStatTiles.has(tileId)) continue; // already applied from the frozen split
       const tile = tileById.get(tileId);
       if (!tile || !tile.trackedStat) continue;
       for (const r of rows) {
@@ -149,11 +235,19 @@ export function computeMemberBreakdown(params: {
   }
 
   // Points: split each completed non-optional tile's weight among its contributors by amount.
+  // A frozen awardedPoints (first-team bonus / reveal decay) replaces the live weight so the
+  // member split sums to what the team actually scored.
+  const awardByTile = new Map<number, number>();
+  for (const c of completions) {
+    if (c.teamId === teamId && c.awardedPoints != null) awardByTile.set(c.tileId, c.awardedPoints);
+  }
   const pointsByPlayer = new Map<number, number>();
   for (const tileId of completedTileIds) {
     const tile = tileById.get(tileId);
     if (!tile || tile.optional) continue; // optional tiles don't score
-    const weight = tileWeight(scoringMode, tile.points);
+    const weight = scoringMode === 'points' && awardByTile.has(tileId)
+      ? awardByTile.get(tileId)!
+      : tileWeight(scoringMode, tile.points);
     if (weight <= 0) continue;
     let total = 0;
     const contribs: [number, number][] = [];
@@ -207,6 +301,7 @@ export function computeMemberBreakdown(params: {
         inProgress,
         submissions: subCount,
         contributions,
+        frozenAt: p.frozenAt ?? null,
       };
     })
     // Points first, then completed tasks, then anyone with in-progress effort, then raw submissions.
@@ -229,11 +324,15 @@ export function computeEventMvp(params: {
   completions: BreakdownCompletion[];
   submissions: BreakdownSubmission[];
   statGains?: StatGainMap;
+  // Multi-account 'per-person': roll a person's accounts into one contributor before ranking the MVP.
+  ownerByPlayerId?: Map<number, number | null>;
+  accountSlotMode?: string | null;
 }): EventMvp | null {
-  const { scoringMode, teams, players, tiles, completions, submissions, statGains } = params;
+  const { scoringMode, teams, players, tiles, completions, submissions, statGains, ownerByPlayerId, accountSlotMode } = params;
+  const perPerson = accountSlotMode === 'per-person' && !!ownerByPlayerId;
   let best: EventMvp | null = null;
   for (const team of teams) {
-    const members = computeMemberBreakdown({
+    const raw = computeMemberBreakdown({
       teamId: team.id,
       scoringMode,
       players,
@@ -242,6 +341,7 @@ export function computeEventMvp(params: {
       submissions,
       statGains,
     });
+    const members = perPerson ? rollupByOwner(raw, ownerByPlayerId!) : raw;
     for (const m of members) {
       if (
         !best ||

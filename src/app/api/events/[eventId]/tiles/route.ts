@@ -4,6 +4,7 @@ import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyTileEditor, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
+import { parseEventRules, hasRevealPolicy, visibleTiles } from '@/lib/eventRules';
 
 export async function GET(
   _request: Request,
@@ -15,10 +16,16 @@ export async function GET(
   // Tiles hidden from members until an admin reveals them. Staff (admin/treasurer/
   // moderator/editor) still get the full list so the admin tooling works pre-reveal;
   // everyone else gets an empty list. Mirrors the web board + plugin gates.
+  // Reveal-policy events (lib/eventRules) trim members to the revealed subset the same way.
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
-  if (event && !event.tilesRevealed) {
+  const rules = parseEventRules(event?.rules);
+  if (event && (!event.tilesRevealed || hasRevealPolicy(rules))) {
     const staff = await verifyAdminOrModerator();
-    if (!staff) return NextResponse.json([]);
+    if (!staff && !event.tilesRevealed) return NextResponse.json([]);
+    if (!staff) {
+      const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+      return NextResponse.json(visibleTiles(rules, eventTiles));
+    }
   }
 
   const eventTiles = await db.query.tiles.findMany({
@@ -39,7 +46,7 @@ export async function PUT(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -196,6 +203,37 @@ export async function PUT(
     }
   }
 
+  // revealAt: planned reveal time for a 'scheduled' reveal-policy event (lib/eventRules). Always
+  // editable — including mid-event, so a host can re-time an upcoming reveal — but it can't hide a
+  // tile the engine already flipped live (revealedAt is engine-owned and never written here).
+  // Setting a past time is the "reveal now" gesture: the next minute tick flips the tile.
+  let revealAtValue: string | null | undefined;
+  if (revealAt !== undefined) {
+    if (revealAt === null || revealAt === '') {
+      revealAtValue = null;
+    } else if (typeof revealAt === 'string' && !Number.isNaN(Date.parse(revealAt))) {
+      revealAtValue = new Date(revealAt).toISOString();
+    } else {
+      return NextResponse.json({ error: 'revealAt must be an ISO date string or null' }, { status: 400 });
+    }
+  }
+
+  // pvpMinLootValue: optional minimum loot value (gp) a PvP kill must yield to count. 0 (or null)
+  // means no minimum. Capped at the max cash stack (2,147,483,647). Normalised so 0 stores as null.
+  let pvpMinLootValueValue: number | null | undefined;
+  if (pvpMinLootValue !== undefined) {
+    if (pvpMinLootValue === null || pvpMinLootValue === 0) {
+      pvpMinLootValueValue = null;
+    } else if (Number.isInteger(pvpMinLootValue) && pvpMinLootValue >= 1 && pvpMinLootValue <= 2147483647) {
+      pvpMinLootValueValue = pvpMinLootValue;
+    } else {
+      return NextResponse.json(
+        { error: 'pvpMinLootValue must be an integer between 0 and 2,147,483,647 gp' },
+        { status: 400 },
+      );
+    }
+  }
+
   // Build update set
   const updateSet: Record<string, unknown> = {
     // Concurrency stamp — every successful edit gets a fresh one (see baseUpdatedAt above).
@@ -223,6 +261,11 @@ export async function PUT(
     ...(timedActivityValue !== undefined ? { timedActivity: timedActivityValue } : {}),
     ...(timeThresholdValue !== undefined ? { timeThresholdSeconds: timeThresholdValue } : {}),
     ...(partySizeValue !== undefined ? { partySize: partySizeValue } : {}),
+    // PvP min-loot floor — always editable (admin can tune it on a live board, like the other
+    // PvP config), so no live-override gate is needed to change it.
+    ...(pvpMinLootValueValue !== undefined ? { pvpMinLootValue: pvpMinLootValueValue } : {}),
+    // Scheduled reveal time — always editable (see validation above).
+    ...(revealAtValue !== undefined ? { revealAt: revealAtValue } : {}),
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)
@@ -343,6 +386,11 @@ export async function PUT(
   }
   if (hasKillFields && !isKill && !isDiary && !isCa && !isPvp) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary/CA/PvP tiles, their selectors).' }, { status: 400 });
+  }
+  // Min-loot floor is a PvP-only knob — reject it on any other kind so switching kind can't leave a
+  // stray value behind (the editor clears it on kind change, but the API is the real guard).
+  if (merged.pvpMinLootValue != null && merged.pvpMinLootValue > 0 && !isPvp) {
+    return NextResponse.json({ error: 'Only PvP tiles can carry a minimum loot value.' }, { status: 400 });
   }
   if (merged.timedActivity && !isTimed && !isDeathless) {
     return NextResponse.json({ error: 'Only timed or deathless tiles can carry an activity.' }, { status: 400 });

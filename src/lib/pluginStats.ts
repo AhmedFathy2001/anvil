@@ -23,25 +23,42 @@ export function normalizeBossName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-// hiscores boss key -> the in-game KC-line names the plugin should watch (label + aliases),
-// lowercased. Sent to the plugin as `trackedKcNames`; the plugin normalizes both sides before
-// matching, so aliases like "chambers of xeric challenge mode" cover the mode-variant raids.
+// The KC chat line drops the leading "The" from boss names ("Your Leviathan kill count is: 1"
+// for The Leviathan), so both name forms must match. Empty when the name carries no article.
+function strippedArticleForm(name: string): string | null {
+  const stripped = name.replace(/^the\s+/i, '');
+  return stripped !== name ? stripped : null;
+}
+
+// hiscores boss key -> the in-game KC-line names the plugin should watch (label + aliases, plus
+// leading-"The"-stripped forms), lowercased. Sent to the plugin as `trackedKcNames`; the plugin
+// normalizes both sides before matching, so aliases like "chambers of xeric challenge mode" cover
+// the mode-variant raids.
 export function kcNamesForKey(key: string): string[] {
   const b = BOSSES.find((x) => x.key === key);
   if (!b) return [];
-  return [b.label, ...(b.aliases ?? [])].map((n) => n.toLowerCase());
+  const names = [b.label, ...(b.aliases ?? [])];
+  return [...names, ...names.map(strippedArticleForm).filter((n): n is string => n !== null)].map(
+    (n) => n.toLowerCase(),
+  );
 }
 
 // Reverse lookup: an in-game boss name (as the plugin saw it in chat) -> hiscores key, or null.
 // Labels are indexed first so a real boss name always wins over a generic shared alias
 // ("raids", "gwd", "dks") — which the plugin never pushes anyway (KC lines carry full names).
+// Article-stripped forms are indexed last so they can never displace an exact name.
 const REVERSE: Map<string, string> = (() => {
   const m = new Map<string, string>();
-  for (const b of BOSSES) m.set(normalizeBossName(b.label), b.key);
+  const add = (name: string, key: string) => {
+    const n = normalizeBossName(name);
+    if (!m.has(n)) m.set(n, key);
+  };
+  for (const b of BOSSES) add(b.label, b.key);
+  for (const b of BOSSES) for (const a of b.aliases ?? []) add(a, b.key);
   for (const b of BOSSES) {
-    for (const a of b.aliases ?? []) {
-      const n = normalizeBossName(a);
-      if (!m.has(n)) m.set(n, b.key);
+    for (const name of [b.label, ...(b.aliases ?? [])]) {
+      const stripped = strippedArticleForm(name);
+      if (stripped) add(stripped, b.key);
     }
   }
   return m;

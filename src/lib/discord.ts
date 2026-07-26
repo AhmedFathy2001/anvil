@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 
 interface DiscordEmbed {
   title: string;
@@ -554,6 +555,45 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   return sendBingoWebhook({ embeds: [embed] });
 }
 
+interface TilesRevealedNotifyParams {
+  eventName: string;
+  tiles: { label: string; points: number | null }[];
+  /** Show per-tile point values (points-scoring events only). */
+  pointsMode: boolean;
+  /** Hidden tiles left after this reveal — the "more to come" teaser. */
+  hiddenRemaining: number;
+  /** 'bounty' posts a claim-framed title. */
+  bounty?: boolean;
+}
+
+// Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
+// next-tile). One embed per batch, not per tile, so an interval batch of 5 is a single post.
+export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
+  const { eventName, tiles, pointsMode, hiddenRemaining, bounty } = params;
+  if (tiles.length === 0) return false;
+
+  const lines = tiles
+    .slice(0, 15)
+    .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
+  const remaining = hiddenRemaining > 0
+    ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
+    : '';
+
+  const embed: DiscordEmbed = {
+    title: bounty
+      ? '🎯 New bounty tile is up!'
+      : tiles.length === 1
+        ? '🔓 New tile revealed!'
+        : `🔓 ${tiles.length} new tiles revealed!`,
+    description: `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}${remaining}`,
+    color: 0xffd700, // Gold
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ embeds: [embed] });
+}
+
 interface TeamWithPlayers {
   name: string;
   color: string;
@@ -681,6 +721,34 @@ const memberPing = async (): Promise<Pick<DiscordWebhookPayload, 'content' | 'al
   };
 };
 
+interface EventStartHeldNotifyParams {
+  eventName: string;
+  /** The start the admins scheduled (reached but not honored). */
+  scheduledStart: string;
+  blockers: StartBlockerCode[];
+}
+
+// The start-safeguard warning (lib/eventLifecycle): the scheduled start was reached while the event
+// wasn't startable, so the start is being held. Posted to the bingo channel exactly once per hold
+// (startHoldNotified latch) — it's the alert that reaches admins who scheduled a start and walked
+// away, and it tells members why the countdown is stalling. No member ping: it's a heads-up, not a
+// celebration.
+export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): Promise<boolean> {
+  const { eventName, scheduledStart, blockers } = params;
+
+  const embed: DiscordEmbed = {
+    title: '⏸️ Bingo Start Held',
+    description:
+      `**${eventName}** was due to start ${discordTime(scheduledStart)} but isn't ready to go live:\n` +
+      blockers.map((b) => `• ${startBlockerLabel(b)}`).join('\n') +
+      '\n\nThe event will start automatically once this is resolved.',
+    color: 0xffa500, // Orange
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ embeds: [embed] });
+}
+
 interface EventStartNotifyParams {
   eventId: number;
   eventName: string;
@@ -721,6 +789,9 @@ interface EventEndNotifyParams {
   standings: { teamName: string; tilesCompleted: number }[];
   totalTiles: number;
   unit?: string;
+  // Optional fun end-of-event "superlatives" (MVP, biggest drop, most kills, …) to celebrate in the
+  // end post. Each is one pre-formatted line: emoji, award title, the winner, and their number.
+  superlatives?: { emoji: string; title: string; winner: string; valueLabel: string }[];
 }
 
 export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -752,7 +823,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventId, eventName, standings, totalTiles, unit = 'tiles' } = params;
+  const { eventId, eventName, standings, totalTiles, unit = 'tiles', superlatives } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
@@ -765,11 +836,59 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
   const fields: { name: string; value: string; inline?: boolean }[] = [
     { name: 'Final Standings', value: standingsText || 'No completions', inline: false },
   ];
+  if (superlatives && superlatives.length > 0) {
+    const awardsText = superlatives
+      .map((a) => `${a.emoji} **${a.title}** — ${a.winner} _(${a.valueLabel})_`)
+      .join('\n');
+    fields.push({ name: '🏅 Superlatives', value: awardsText, inline: false });
+  }
   pushLeaderboardField(fields, eventId);
 
   const embed: DiscordEmbed = {
     title: '🏁 Bingo Event Ended!',
     description: `**${eventName}** has concluded!\n━━━━━━━━━━━━━━━━━━━━`,
+    color: 0xffd700, // Gold
+    fields,
+    timestamp: new Date().toISOString(),
+  };
+
+  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+}
+
+interface PayoutNotifyParams {
+  eventId: number;
+  eventName: string;
+  // Total gp actually paid out (sum of paid rows).
+  totalPaid: number;
+  // Paid recipients, grouped for display. `place` orders them (1 = winner); `amount` is gp.
+  recipients: { rsn: string; teamName: string | null; place: number | null; amount: number }[];
+}
+
+// Announce the prize payouts to the bingo channel once the winners have been paid. Fired
+// automatically when the last pending payout is marked paid, and re-runnable from the admin
+// "Announce" button. Mirrors notifyEventEnd's medal styling.
+export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean> {
+  const { eventId, eventName, totalPaid, recipients } = params;
+
+  // Order by place (nulls/manual last), then by amount desc within a place.
+  const ordered = [...recipients].sort(
+    (a, b) => (a.place ?? 99) - (b.place ?? 99) || b.amount - a.amount,
+  );
+  const lines = ordered.map((r) => {
+    const medal = r.place === 1 ? '🥇' : r.place === 2 ? '🥈' : r.place === 3 ? '🥉' : '•';
+    const team = r.teamName ? ` _(${r.teamName})_` : '';
+    return `${medal} **${r.rsn}**${team} — ${r.amount.toLocaleString()} gp`;
+  });
+
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: 'Total paid out', value: `${totalPaid.toLocaleString()} gp`, inline: true },
+    { name: 'Winners', value: lines.join('\n') || 'No payouts', inline: false },
+  ];
+  pushLeaderboardField(fields, eventId);
+
+  const embed: DiscordEmbed = {
+    title: '💰 Prizes Paid Out!',
+    description: `Congratulations to the winners of **${eventName}**! Prizes have been sent.\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xffd700, // Gold
     fields,
     timestamp: new Date().toISOString(),

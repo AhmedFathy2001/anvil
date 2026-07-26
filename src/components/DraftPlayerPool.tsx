@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { SignupProfile } from '@/lib/signup';
 import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
 
@@ -13,6 +13,9 @@ interface Player {
   pickedAt: string | null;
   timezone?: string | null;
   profile?: SignupProfile | null;
+  // Owner (site user) — multi-account: a person's accounts share this so the pool groups them into
+  // one draftable card. Null for guests (no linked user) → their own solo card.
+  ownerUserId?: number | null;
 }
 
 interface Team {
@@ -34,6 +37,19 @@ export default function DraftPlayerPool({ players, teams, interactive, onPick, o
   const poolPlayers = players.filter((p) => p.teamId === null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
+  // Group the pool by owner so a person's several accounts show as ONE draftable card — picking any
+  // one drafts them all (the server assigns the whole group to the team). Guests (no owner) stay solo.
+  const groups = useMemo(() => {
+    const byOwner = new Map<string, Player[]>();
+    for (const p of poolPlayers) {
+      const key = p.ownerUserId != null ? `u${p.ownerUserId}` : `p${p.id}`;
+      const arr = byOwner.get(key);
+      if (arr) arr.push(p);
+      else byOwner.set(key, [p]);
+    }
+    return [...byOwner.entries()].map(([key, members]) => ({ key, members }));
+  }, [poolPlayers]);
+
   function toggle(id: number) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -53,12 +69,16 @@ export default function DraftPlayerPool({ players, teams, interactive, onPick, o
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-      {poolPlayers.map((player) => {
-        const tz = player.timezone ?? player.profile?.timezone ?? null;
-        const canExpand = hasProfileDetail(player.profile);
-        const isExpanded = expanded.has(player.id);
+      {groups.map((group) => {
+        const rep = group.members[0];
+        const multi = group.members.length > 1;
+        // Profile lives on the person's primary account; any group member may carry it (backfilled).
+        const profileMember = group.members.find((m) => hasProfileDetail(m.profile)) ?? rep;
+        const tz = profileMember.timezone ?? profileMember.profile?.timezone ?? null;
+        const canExpand = hasProfileDetail(profileMember.profile);
+        const isExpanded = expanded.has(rep.id);
         return (
-          <Fragment key={player.id}>
+          <Fragment key={group.key}>
             <div
               className={`border rounded-xl p-3 text-center transition-all ${
                 interactive
@@ -66,25 +86,32 @@ export default function DraftPlayerPool({ players, teams, interactive, onPick, o
                   : 'border-card-border bg-card-bg'
               } ${picking ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                {onPlayerClick ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onPlayerClick(player.name); }}
-                    className="font-medium text-sm text-gold hover:text-gold-light transition-colors underline decoration-gold/30 underline-offset-2"
-                    title="View Hiscores"
-                  >
-                    {player.name}
-                  </button>
-                ) : (
-                  <span className="font-medium text-sm">{player.name}</span>
-                )}
-                {tz && (
-                  <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded">{tz}</span>
-                )}
+              <div className="flex flex-col items-center gap-0.5">
+                {group.members.map((m, i) => (
+                  <div key={m.id} className="flex items-center justify-center gap-1.5 flex-wrap">
+                    {onPlayerClick ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onPlayerClick(m.name); }}
+                        className="font-medium text-sm text-gold hover:text-gold-light transition-colors underline decoration-gold/30 underline-offset-2"
+                        title="View Hiscores"
+                      >
+                        {m.name}
+                      </button>
+                    ) : (
+                      <span className="font-medium text-sm">{m.name}</span>
+                    )}
+                    {i === 0 && tz && (
+                      <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded">{tz}</span>
+                    )}
+                  </div>
+                ))}
               </div>
+              {multi && (
+                <div className="mt-0.5 text-[10px] text-text-muted">{group.members.length} accounts · drafted together</div>
+              )}
               {canExpand && (
                 <button
-                  onClick={() => toggle(player.id)}
+                  onClick={() => toggle(rep.id)}
                   className="mt-1 text-[10px] text-text-muted hover:text-gold transition-colors"
                   title="Sign-up answers"
                 >
@@ -94,19 +121,19 @@ export default function DraftPlayerPool({ players, teams, interactive, onPick, o
               {interactive && (
                 <button
                   disabled={picking}
-                  onClick={() => onPick?.(player.id)}
+                  onClick={() => onPick?.(rep.id)}
                   className="block w-full mt-1.5 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2 py-1 rounded-lg hover:bg-gold/20 transition-colors disabled:opacity-50"
                 >
-                  Pick
+                  {multi ? 'Pick all' : 'Pick'}
                 </button>
               )}
             </div>
-            {canExpand && isExpanded && player.profile && (
+            {canExpand && isExpanded && profileMember.profile && (
               <div className="col-span-full border border-card-border rounded-xl p-3 bg-brown-dark/40">
                 <div className="text-xs font-medium text-foreground/80 mb-2">
-                  {player.name} — sign-up answers
+                  {profileMember.name} — sign-up answers
                 </div>
-                <PlayerProfileDetail profile={player.profile} />
+                <PlayerProfileDetail profile={profileMember.profile} />
               </div>
             )}
           </Fragment>

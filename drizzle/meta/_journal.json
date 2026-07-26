@@ -176,6 +176,104 @@
       "when": 1784172913777,
       "tag": "0024_smiling_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1784258067128,
+      "tag": "0025_steady_menace",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784318167901,
+      "tag": "0026_multi_account_per_person",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1784466458159,
+      "tag": "0027_stat_contributions_and_solo_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1784467408615,
+      "tag": "0028_player_bench_freeze",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1784486077310,
+      "tag": "0029_event_surveys",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1784561013676,
+      "tag": "0030_signup_prize_exclusion",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1784695684201,
+      "tag": "0031_glamorous_king_bedlam",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1784748209976,
+      "tag": "0032_graceful_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1784776123059,
+      "tag": "0033_federation_broker_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1784798475746,
+      "tag": "0034_plugin_device_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1784803103663,
+      "tag": "0035_federation_account_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1784898093077,
+      "tag": "0036_curious_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1784899960378,
+      "tag": "0037_reveal_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1785017371053,
+      "tag": "0038_mixed_preak",
+      "breakpoints": true
     }
   ]
 }

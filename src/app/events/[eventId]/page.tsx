@@ -1,16 +1,22 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions } from '@/db/schema';
-import { and, eq, isNull, inArray } from 'drizzle-orm';
+import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
-import PrizePoolHero from '@/components/PrizePoolHero';
+import { parsePlacementPrizes } from '@/lib/payouts';
+import EventHero from '@/components/EventHero';
+import { isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, computeMemberBreakdown, topMember, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
+import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
+import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
+import { isEventEnded } from '@/lib/survey';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,10 +38,28 @@ export default async function EventScoreboardPage({
   const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
-  let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let eventCompletions: {
+    id: number;
+    teamId: number;
+    tileId: number;
+    completedAt: string;
+    statContributions: StatContributionSnapshot | null;
+    awardedPoints: number | null;
+  }[] = [];
   if (tileIds.length > 0) {
+    const tileIdSet = new Set(tileIds);
     const allCompletions = await db.select().from(completions);
-    eventCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
+    eventCompletions = allCompletions
+      .filter((c) => tileIdSet.has(c.tileId))
+      .map((c) => ({
+        id: c.id,
+        teamId: c.teamId,
+        tileId: c.tileId,
+        completedAt: c.completedAt,
+        // Parse the frozen KC/XP split once here so the breakdown uses it for completed stat tiles.
+        statContributions: parseContributionSnapshot(c.statContributions),
+        awardedPoints: c.awardedPoints,
+      }));
   }
 
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
@@ -54,6 +78,9 @@ export default async function EventScoreboardPage({
         .where(inArray(submissions.tileId, tileIds))
     : [];
   const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+  // Multi-account: owner per player + slot mode, so 'per-person' events rank the MVP by person.
+  const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
+  const accountSlotMode = event.accountSlotMode;
   // Per skill/boss tile, each player's XP/KC gain — so stat tiles count toward the MVP too.
   const statStandings = await getStatStandings(id);
   const statGains: StatGainMap = {};
@@ -68,6 +95,8 @@ export default async function EventScoreboardPage({
     completions: eventCompletions,
     submissions: eventSubmissions,
     statGains,
+    ownerByPlayerId,
+    accountSlotMode,
   });
 
   // MVP of the day — the same split, but scored only over tiles completed in the last 24h. The
@@ -82,6 +111,8 @@ export default async function EventScoreboardPage({
     completions: eventCompletions.filter((c) => c.completedAt >= dayAgoIso),
     submissions: eventSubmissions,
     statGains,
+    ownerByPlayerId,
+    accountSlotMode,
   });
   // Early in an event everything was completed recently, so the day MVP == the overall MVP. Drop the
   // duplicate card in that case; keep it once they diverge (even the same player with different totals).
@@ -97,17 +128,16 @@ export default async function EventScoreboardPage({
   // Per-team MVP (overall) for the standings cards — the top contributor on each team.
   const teamMvps: Record<number, TeamMvp | null> = {};
   for (const team of eventTeams) {
-    teamMvps[team.id] = topMember(
-      computeMemberBreakdown({
-        teamId: team.id,
-        scoringMode: event.scoringMode,
-        players: eventPlayers,
-        tiles: eventTiles,
-        completions: eventCompletions,
-        submissions: eventSubmissions,
-        statGains,
-      }),
-    );
+    const bd = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: eventPlayers,
+      tiles: eventTiles,
+      completions: eventCompletions,
+      submissions: eventSubmissions,
+      statGains,
+    });
+    teamMvps[team.id] = topMember(accountSlotMode === 'per-person' ? rollupByOwner(bd, ownerByPlayerId) : bd);
   }
 
   // Sign-up CTA — server-side so the right banner shows on first paint without a client
@@ -160,6 +190,35 @@ export default async function EventScoreboardPage({
   const tilesHidden = !event.tilesRevealed;
   const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
 
+  // Reveal-policy events (lib/eventRules): members only receive the revealed subset — hidden
+  // tile content must never reach the client. Staff keep the full board. The aggregate counts
+  // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
+  const rules = parseEventRules(event.rules);
+  const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
+  const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
+  const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
+
+  // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
+  // exists and they haven't responded yet. Cheap guarded queries (only when they're eligible).
+  let showSurveyCta = false;
+  if (session && mySignup?.status === 'approved' && isEventEnded(event)) {
+    const [{ c: qCount }] = await db
+      .select({ c: count() })
+      .from(surveyQuestions)
+      .where(eq(surveyQuestions.eventId, id));
+    if (qCount > 0) {
+      const resp = await db.query.surveyResponses.findFirst({
+        where: and(eq(surveyResponses.eventId, id), eq(surveyResponses.userId, session.userId)),
+      });
+      showSurveyCta = !resp;
+    }
+  }
+
+  // Fun end-of-event recap ("superlatives") CTA — shown to everyone once the event has ended, but only
+  // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
+  // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
+  const showRecapCta = isEventEnded(event) && !!mvp;
+
   const approvedCount = await countApprovedSignups(id);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
@@ -167,13 +226,37 @@ export default async function EventScoreboardPage({
     approvedCount,
   });
 
+  // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
+  const pointsMode = isPointsMode(event.scoringMode);
+  const requiredTiles = eventTiles.filter((t) => !t.optional);
+  const pointsOnBoard = pointsMode
+    ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
+    : null;
+  const placementPrizes = parsePlacementPrizes(event.placementPrizes);
+
+  const prizeBreakdownParts: string[] = [];
+  if ((event.signupFee ?? 0) > 0) {
+    prizeBreakdownParts.push(
+      `${approvedCount} ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
+    );
+  }
+  if ((event.addedPrizePool ?? 0) > 0) {
+    prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
+  }
+
   return (
     <>
-      <PrizePoolHero
+      <EventHero
+        name={event.name}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+        pointsOnBoard={pointsOnBoard}
+        teamsCount={safeTeams.length}
         prizePool={prizePool}
-        signupFee={event.signupFee}
-        addedPrizePool={event.addedPrizePool}
-        approvedCount={approvedCount}
+        prizeBreakdown={prizeBreakdownParts.length ? prizeBreakdownParts.join('  +  ') : null}
+        startDate={event.startDate}
+        endDate={event.endDate}
+        forceEndedAt={event.forceEndedAt}
+        placementPrizes={placementPrizes}
       />
       <SignupBanner
         eventId={event.id}
@@ -185,6 +268,43 @@ export default async function EventScoreboardPage({
         windowReason={window.reason}
         signupFee={event.signupFee}
       />
+      {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
+          rather than two stacked gold banners shouting the same "event ended" note twice. */}
+      {(showRecapCta || showSurveyCta) && (
+        <div className="mb-6 rounded-xl border border-card-border bg-card-bg p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex items-center gap-3">
+            <span className="text-xl leading-none" aria-hidden>🏁</span>
+            <div className="min-w-0">
+              <p className="font-semibold">This event has ended</p>
+              <p className="text-sm text-text-muted">
+                {showRecapCta && showSurveyCta
+                  ? 'See who took home the awards, then let the hosts know how it went.'
+                  : showRecapCta
+                    ? 'See who took home MVP, the biggest drop, the most kills, and more.'
+                    : 'Take a moment to share your feedback with the hosts.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {showRecapCta && (
+              <Link
+                href={`/events/${id}/recap`}
+                className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+              >
+                🏆 See the recap →
+              </Link>
+            )}
+            {showSurveyCta && (
+              <Link
+                href={`/events/${id}/survey`}
+                className="text-sm font-medium text-text-muted border border-card-border px-4 py-2 rounded-lg hover:text-gold hover:border-gold/30 transition-colors"
+              >
+                Fill out the survey →
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
       {hideBoardFromPlayer ? (
         window.reason === 'not_open_yet' ? (
           <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
@@ -202,13 +322,15 @@ export default async function EventScoreboardPage({
       ) : (
         <ScoreboardClient
           event={event}
-          tiles={eventTiles}
+          tiles={boardTiles}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}
           mvp={mvp}
           mvpToday={mvpToday}
           teamMvps={teamMvps}
+          hiddenTileCount={hiddenTileCount}
+          nextRevealAt={upcomingRevealAt}
         />
       )}
     </>

@@ -37,7 +37,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const [recomputeMsg, setRecomputeMsg] = useState('');
 
   const [editType, setEditType] = useState(false);
-  const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode));
+  const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode, event.rules));
   const [typeSize, setTypeSize] = useState(event.boardSize);
   const [savingType, setSavingType] = useState(false);
   const [typeError, setTypeError] = useState('');
@@ -162,7 +162,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   }
 
   function startEditType() {
-    setTypeMode(modeKeyFor(currentEvent.format, currentEvent.scoringMode));
+    setTypeMode(modeKeyFor(currentEvent.format, currentEvent.scoringMode, currentEvent.rules));
     setTypeSize(currentEvent.boardSize);
     setTypeError('');
     setEditType(true);
@@ -196,6 +196,8 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           format: typeMeta.format,
           scoringMode: typeMeta.scoringMode,
           boardSize: typeSize,
+          // Reveal-policy modes carry their rules preset; classic modes clear any previous rules.
+          rules: typeMeta.revealPolicy ? { revealPolicy: typeMeta.revealPolicy } : null,
         }),
       });
       if (res.ok) {
@@ -253,14 +255,14 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
     }
   }
 
-  async function startBingoNow() {
-    if (!confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+  async function startBingoNow(force = false) {
+    if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
     setStartingBingo(true);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start-now' }),
+        body: JSON.stringify(force ? { action: 'start-now', force: true } : { action: 'start-now' }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -270,7 +272,15 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Could not start the bingo.');
+        // Start safeguard (409 + blockers): offer the explicit override once, re-confirmed.
+        if (res.status === 409 && Array.isArray(data.blockers) && !force) {
+          if (confirm(`${data.error}\n\nStart anyway?`)) {
+            await startBingoNow(true);
+            return;
+          }
+        } else {
+          alert(data.error || 'Could not start the bingo.');
+        }
       }
     } finally {
       setStartingBingo(false);
@@ -305,7 +315,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
       {/* Event Details */}
-      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+      <div className="min-w-0 border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
@@ -336,7 +346,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
                 </button>
               ))}
             </div>
-            <label className="block text-xs text-text-muted mb-1">{typeMeta.sizeLabel}</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">{typeMeta.sizeLabel}</label>
             <div className="flex items-center gap-2 mb-1">
               <Input
                 type="number"
@@ -354,13 +364,13 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 mb-4">
             <div>
-              <label className="block text-xs text-text-muted mb-1">Type</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Type</label>
               <p className="text-sm font-medium">
                 {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
               </p>
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
                 {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
               </label>
               <p className="text-sm font-medium">
@@ -389,7 +399,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 mb-4">
             <div>
-              <label className="block text-xs text-text-muted mb-1">Start Date</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Start Date</label>
               <p className="text-sm font-medium">
                 <span suppressHydrationWarning>
                   {currentEvent.startDate ? new Date(currentEvent.startDate).toLocaleString() : 'Not set'}
@@ -397,7 +407,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
               </p>
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">End Date</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">End Date</label>
               <p className="text-sm font-medium">
                 <span suppressHydrationWarning>
                   {currentEvent.endDate ? new Date(currentEvent.endDate).toLocaleString() : 'Not set'}
@@ -448,7 +458,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           )}
           {!eventStarted && !isForceEnded && !editMode && (
             <button
-              onClick={startBingoNow}
+              onClick={() => startBingoNow()}
               disabled={startingBingo}
               className="text-xs font-bold px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
             >
@@ -473,6 +483,13 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
               {resuming ? 'Resuming...' : 'Resume Event'}
             </button>
           )}
+        </div>
+
+        {/* Secondary utilities — grouped apart from the lifecycle actions above. */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap border-t border-card-border pt-3">
+          {/* Revealing mid-event is fine; HIDING once the event has started would black out the live
+              board for members, so the hide action drops away once the event begins. */}
+          {(!currentEvent.tilesRevealed || !eventStarted) && (
           <button
             onClick={toggleReveal}
             disabled={savingReveal}
@@ -488,6 +505,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
                 ? 'Hide Tiles from Members'
                 : 'Reveal Tiles to Members'}
           </button>
+          )}
           <button
             onClick={recomputeCompletions}
             disabled={recomputing}
@@ -537,7 +555,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
       </div>
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
-      <div>
+      <div className="min-w-0">
         <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />
           Board

@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { users, clanMembers } from '@/db/schema';
-import { and, inArray, isNull } from 'drizzle-orm';
+import { users, clanMembers, eventSignups } from '@/db/schema';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
 export interface Character {
@@ -96,6 +96,23 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
     banned: !!u.banned,
     characters: byUser.get(u.id) ?? [],
   }));
+}
+
+// When a clan_member (character) becomes owned by a site user, any event sign-ups that were created
+// for that character while it was still a GUEST carry a null `userId` — a stale snapshot taken at
+// sign-up time that no later link ever backfilled. Left alone they keep rendering as
+// "guest · no Discord" in the admin Sign-ups panel even though the People view shows the character
+// attached, AND the owner can't manage them from their own account (the self-serve sign-up page finds
+// rows by `userId`). Point those rows at the now-known owner so the sign-up follows the person.
+//
+// Safe against the only unique index on event_signups — (event_id, clan_member_id): there is at most
+// one sign-up per (event, character), so adopting its owner can never collide with a sibling row.
+// Call this at every place that links a clan_member to a user.
+export async function linkSignupsToOwner(clanMemberId: number, userId: number): Promise<void> {
+  await db
+    .update(eventSignups)
+    .set({ userId })
+    .where(and(eq(eventSignups.clanMemberId, clanMemberId), isNull(eventSignups.userId)));
 }
 
 // Unowned game accounts (roster members + guests not yet attached to a person, still in the clan).

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, players, completions, clanMembers } from '@/db/schema';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
 import { requireSecret } from '@/lib/env';
@@ -16,14 +16,17 @@ import {
   getAlwaysNotifyItems,
   getAlwaysNotifyItemIds,
   getShowKillCount,
+  getClanDisplayName,
   getTierBands,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { parseEventRules, hasRevealPolicy, nextRevealAt } from '@/lib/eventRules';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -48,6 +51,86 @@ function generateCodeword(playerId: number, eventId: number): string {
   return hmac.digest('hex').slice(0, 6).toUpperCase();
 }
 
+
+/**
+ * Server-resolved home-board summary for the sidebar, keyed to the TOKEN's user alone (no in-game
+ * login needed): linked members → a player row in a LIVE event → that team's completed/total scored
+ * tiles (points-weighted for Leagues). This is what lets the plugin render the home clan's board at
+ * the login screen — the same resolution the website's My Team page performs — while the live layers
+ * (nearest tiles, active-now) still wait for a playing account. Null when the user isn't enrolled
+ * anywhere live.
+ */
+async function homeBoardForUser(userId: number): Promise<{
+  eventName: string;
+  tilesComplete: number;
+  tilesTotal: number;
+  pointsScored: boolean;
+} | null> {
+  const myMembers = await db
+    .select({ id: clanMembers.id, isPrimary: clanMembers.isPrimary })
+    .from(clanMembers)
+    .where(and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)));
+  if (myMembers.length === 0) return null;
+  const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
+
+  const enrollments = await db
+    .select({
+      eventId: events.id,
+      eventName: events.name,
+      scoringMode: events.scoringMode,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      teamId: players.teamId,
+      clanMemberId: players.clanMemberId,
+    })
+    .from(players)
+    .innerJoin(events, eq(players.eventId, events.id))
+    .where(inArray(players.clanMemberId, myMembers.map((m) => m.id)));
+
+  const now = Date.now();
+  const isLive = (e: (typeof enrollments)[number]) =>
+    e.teamId != null &&
+    !e.forceEndedAt &&
+    e.startDate != null &&
+    e.endDate != null &&
+    Date.parse(e.startDate) <= now &&
+    now <= Date.parse(e.endDate);
+  // The token is USER-scoped, so pre-login we can't know which linked account is about to play
+  // (Jagex launchers know client-side; legacy logins don't). Deterministic guess: the PRIMARY
+  // account's live enrollment first, else any live one; latest start wins within each tier —
+  // mirroring verifyPluginToken's pick so pre- and post-login agree. The real account-scoped board
+  // takes over the moment an account resolves in-game.
+  enrollments.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  const live =
+    enrollments.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
+    enrollments.find(isLive);
+  if (!live) return null;
+
+  // Optional tiles are bonus: excluded from both tallies, matching the website's scoredTiles filter
+  // and the plugin's own logged-in summary.
+  const tileRows = await db
+    .select({ id: tiles.id, points: tiles.points, optional: tiles.optional })
+    .from(tiles)
+    .where(eq(tiles.eventId, live.eventId));
+  const scored = tileRows.filter((t) => !t.optional);
+  const doneIds = new Set(
+    (
+      await db
+        .select({ tileId: completions.tileId })
+        .from(completions)
+        .where(eq(completions.teamId, live.teamId as number))
+    ).map((c) => c.tileId),
+  );
+  const totalPoints = scored.reduce((sum, t) => sum + (t.points ?? 1), 0);
+  const pointsScored = live.scoringMode === 'points' && totalPoints > 0;
+  const tilesTotal = pointsScored ? totalPoints : scored.length;
+  const tilesComplete = pointsScored
+    ? scored.filter((t) => doneIds.has(t.id)).reduce((sum, t) => sum + (t.points ?? 1), 0)
+    : scored.filter((t) => doneIds.has(t.id)).length;
+
+  return { eventName: live.eventName, tilesComplete, tilesTotal, pointsScored };
+}
 
 /**
  * When a token holder resolves to no active event, check whether the RSN they're logged into is
@@ -104,7 +187,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, unlinkedActiveEvent] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, unlinkedActiveEvent, homeBoard] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
@@ -117,11 +200,18 @@ export async function GET(request: Request) {
           getAlwaysNotifyItemIds(),
           getShowKillCount(),
           activeEventForUnlinkedRsn(request),
+          homeBoardForUser(userOnly.userId),
         ]);
       return jsonWithEtag(request, {
         event: null,
         team: null,
         player: null,
+        // The clan's display name — the sidebar's clan-filter label and the logged-out home card
+        // need it even when no event/team is resolvable for this token.
+        clanName: await getClanDisplayName(),
+        // Server-resolved board summary off the token's USER (linked member → live enrollment), so
+        // the sidebar shows the home board even at the login screen. Null when not enrolled anywhere.
+        homeBoard,
         // Non-null when the logged-in RSN IS a player in a live bingo but this token/account isn't
         // linked to it — the plugin surfaces a "verify your RSN" warning so tracking isn't silently off.
         unlinkedActiveEvent,
@@ -176,18 +266,25 @@ export async function GET(request: Request) {
   // flows. Mirrors the web board + plugin board gates.
   const tilesRevealed = !!event.tilesRevealed;
 
-  // Get drop tiles with tracked item IDs
-  const dropTiles = tilesRevealed
-    ? await db.query.tiles.findMany({
-        where: and(eq(tiles.eventId, auth.eventId), eq(tiles.tileType, 'drop')),
-      })
+  // Reveal-policy events (lib/eventRules) narrow that further per-tile: the plugin only ever
+  // learns about REVEALED tiles (hidden tile content must never reach a client), and only
+  // still-open ones are worth detecting for — a claimed bounty tile is done rotating. The
+  // full-board rows stay server-side; completed-tile labels resolve off the revealed subset
+  // (a completed tile is revealed by definition).
+  const fullEventTiles = tilesRevealed
+    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) })
     : [];
+  const rules = parseEventRules(event.rules);
+  const revealMode = hasRevealPolicy(rules);
+  const allEventTiles = revealMode
+    ? fullEventTiles.filter((t) => t.revealedAt != null && t.closedAt == null)
+    : fullEventTiles;
+
+  // Get drop tiles with tracked item IDs
+  const dropTiles = allEventTiles.filter((t) => t.tileType === 'drop');
 
   // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
   // for these — match on the presence of a trackedStat field instead.
-  const allEventTiles = tilesRevealed
-    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, auth.eventId) })
-    : [];
   const statTilesRaw = allEventTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
 
   // Get current submission totals per tile for this team
@@ -276,7 +373,7 @@ export async function GET(request: Request) {
 
     let gainedTotal = 0;
     const activeWorkers: string[] = [];
-    const sources = trackingMode === 'individual'
+    const sources = isIndividualMode(trackingMode)
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
 
@@ -387,7 +484,10 @@ export async function GET(request: Request) {
         .where(eq(completions.teamId, auth.teamId))
         .all()
     : [];
-  const tileById = new Map(allEventTiles.map((t) => [t.id, t]));
+  // Label lookups include CLOSED reveal-mode tiles (a completed bounty tile is closed but its
+  // completion row still needs its label) — just never the still-hidden ones.
+  const visibleEventTiles = revealMode ? fullEventTiles.filter((t) => t.revealedAt != null) : fullEventTiles;
+  const tileById = new Map(visibleEventTiles.map((t) => [t.id, t]));
   const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
 
   // "Completed by <who>" for the plugin's completion chat line: the crediting player of the LATEST
@@ -431,6 +531,7 @@ export async function GET(request: Request) {
     : [];
 
   return jsonWithEtag(request, {
+    clanName: await getClanDisplayName(),
     event: {
       id: event.id,
       name: event.name,
@@ -441,6 +542,15 @@ export async function GET(request: Request) {
       // for the player's own active event straight from these two fields.
       format: event.format,
       scoringMode: event.scoringMode,
+      // Reveal-policy extras (absent on classic events): lets the sidebar show "next tile in
+      // 42m" and "N tiles still hidden". Old plugins ignore unknown fields.
+      ...(revealMode
+        ? {
+            revealPolicy: rules.revealPolicy,
+            hiddenTileCount: fullEventTiles.length - visibleEventTiles.length,
+            nextRevealAt: nextRevealAt(event, rules, fullEventTiles),
+          }
+        : {}),
     },
     team: {
       id: team.id,
@@ -572,6 +682,10 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: submissionMap[t.id] ?? 0,
           trackingMode: t.trackingMode ?? 'team',
+          // Minimum loot value (gp) a kill must yield to count. 0 = no minimum (every attributed
+          // kill counts, incl. loot-key kills). > 0 makes the plugin price the kill's loot and
+          // only credit kills worth at least this much.
+          minLootValue: t.pvpMinLootValue ?? 0,
         };
       }),
     pvpRoster,

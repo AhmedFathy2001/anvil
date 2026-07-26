@@ -44,6 +44,7 @@ export default async function AdminEventsPage() {
     boardSize: e.boardSize,
     format: e.format,
     scoringMode: e.scoringMode,
+    rules: e.rules,
     startDate: e.startDate,
     endDate: e.endDate,
     forceEndedAt: e.forceEndedAt,

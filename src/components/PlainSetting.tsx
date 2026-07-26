@@ -12,8 +12,8 @@ interface PlainSettingProps {
   helpText?: string;
 }
 
-// A single labelled text setting backed by the settings table — no webhook test, unlike
-// DiscordSettings. Used for plain values like the Discord invite URL or a role ID.
+// A single labelled text setting backed by the settings table — no webhook create/test, unlike
+// WebhookField. Used for plain values like the Discord invite URL or a role ID.
 export default function PlainSetting({ settingKey, label, placeholder, helpText }: PlainSettingProps) {
   const [value, setValue] = useState('');
   const [original, setOriginal] = useState('');

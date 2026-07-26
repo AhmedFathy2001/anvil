@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 import { getFederationEnabled } from '@/lib/pluginConfig';
-import { ensureRegisteredWithBroker } from '@/lib/federation';
+import { ensureRegisteredWithBroker, pushAllMemberAssociations } from '@/lib/federation';
 import { publicOrigin } from '@/lib/request-origin';
 
 const EXPOSED_KEYS = [
@@ -107,11 +107,29 @@ export async function PUT(request: Request) {
   // instance with the broker (domain-verified) so other clan sites' relayed /exchange calls are
   // accepted, and add the broker to brokerTrust. Best-effort + fire-and-forget: a broker hiccup must
   // never fail saving settings, and the plugin retries via /connect regardless.
+  let reRegistered = false;
   if (body.federation_enabled !== undefined) {
     const nowEnabled = await getFederationEnabled();
     if (nowEnabled && !wasFederationEnabled) {
       void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
+      // (Re-)joining advertises the whole existing roster — leaving retracted the associations, and
+      // nobody should have to re-log-in just because the clan toggled the network off and on.
+      void pushAllMemberAssociations().catch(() => {});
+      reRegistered = true;
+    } else if (!nowEnabled) {
+      // Leaving the network: tell the broker to stop advertising us and retract our member
+      // associations. Fires on EVERY off-save (not just the transition) so a re-save can repair a
+      // missed/failed notify; idempotent + fire-and-forget broker-side. The inbound federation
+      // routes also refuse while disabled, so other homes drop us even before the broker syncs.
+      void ensureRegisteredWithBroker(publicOrigin(request), 'off').catch(() => {});
+      reRegistered = true;
     }
+  }
+  // Name sync: a clan rename must reach the broker directory too, or every OTHER clan's sidebar
+  // keeps labeling this instance with its provisioning-time name forever. Same idempotent reconcile
+  // (the broker updates `name` in place); homes pick the new label up on their next relay refresh.
+  if (!reRegistered && body.clan_name !== undefined && (await getFederationEnabled())) {
+    void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
   }
 
   return NextResponse.json({ success: true });

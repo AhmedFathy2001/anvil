@@ -20,6 +20,7 @@ import { signupWindowState } from '@/lib/signup';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import ConnectedPluginsClient from './ConnectedPluginsClient';
+import { getFederationEnabled } from '@/lib/pluginConfig';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
 import LinkedAccountsClient from './LinkedAccountsClient';
@@ -41,6 +42,11 @@ export default async function ProfilePage({
   if (!user) {
     redirect('/login');
   }
+
+  // The "Connected plugins" panel is a federation-only surface (cross-clan tokens, minted for the
+  // broker Sign-in flow). Until this clan turns federation on it has no home in the plugin — the
+  // plugin connects to one clan via its Account Token — so don't show a multi-clan token UI at all.
+  const federationEnabled = await getFederationEnabled();
 
   const linkedAccounts = await db.query.clanMembers.findMany({
     where: and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)),
@@ -394,8 +400,9 @@ export default async function ProfilePage({
         <PluginPlayerTokenClient />
       </section>
 
-      {/* Federation: connected plugins (tokens that let a plugin reach this clan, incl. cross-clan). */}
-      <ConnectedPluginsClient />
+      {/* Federation: connected plugins (cross-clan tokens). Only meaningful once federation is on —
+          otherwise the plugin has nowhere to use them (single-clan Account Token), so it's hidden. */}
+      {federationEnabled && <ConnectedPluginsClient />}
 
       {/* Secondary path: no plugin */}
       <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">

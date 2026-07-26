@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanMembers, pluginLinkCodes, users } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { getBrokerTrust } from '@/lib/pluginConfig';
+import { getBrokerTrust, getFederationEnabled } from '@/lib/pluginConfig';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import {
   getInstanceId,
@@ -22,6 +22,13 @@ export const dynamic = 'force-dynamic';
 // long-lived + revocable federation token and return it exactly ONCE. The broker's /exchange (L2)
 // mints the same federation_tokens shape from a broker assertion; that is a later track.
 export async function POST(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   // Rate-limited (WIRE §8): brute-forcing link codes here must be as expensive as at /plugin/link.
   const rl = await rateLimit(request, 'federation-token', { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {

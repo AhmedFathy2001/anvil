@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
@@ -45,13 +45,39 @@ export default async function EventSignupPage({
     )
     .orderBy(desc(clanMembers.isPrimary), desc(clanMembers.verifiedAt));
 
-  const signup = await db.query.eventSignups.findFirst({
+  const maxAccounts = event.maxAccountsPerPerson ?? 1;
+
+  // All of this user's sign-up rows for the event (multi-account: possibly several). The profile lives
+  // on ONE row (the primary account's); siblings carry '{}'. Pick that row as the representative for
+  // prefill + status/withdraw banners, falling back to any active row (or any row when fully withdrawn).
+  const allSignups = await db.query.eventSignups.findMany({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
   });
+  const activeSignups = allSignups.filter((s) => s.status !== 'withdrawn');
+  const signup =
+    activeSignups.find((s) => s.profileData && s.profileData !== '{}') ??
+    activeSignups[0] ??
+    allSignups[0] ??
+    null;
+  const signedUpMemberIds = activeSignups.map((s) => s.clanMemberId);
 
   const fee = signup
     ? await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, signup.id) })
     : null;
+
+  // Multi-account per-account fee mode: a person owes a fee per entered account. Load them all (with
+  // the account RSN) so the form can show each one's amount + status. Per-person mode has a single fee
+  // (already `fee` above), so this list stays length ≤ 1 and the form hides it.
+  const accountFees = activeSignups.length
+    ? (
+        await db
+          .select({ amount: signupFees.amount, status: signupFees.status, rsn: clanMembers.rsn })
+          .from(signupFees)
+          .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+          .leftJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+          .where(inArray(signupFees.signupId, activeSignups.map((s) => s.id)))
+      ).map((f) => ({ rsn: f.rsn ?? 'Account', amount: f.amount, status: f.status }))
+    : [];
 
   let prefillProfile = signup ? parseProfile(signup.profileData) : {};
   let prefillClanMemberId = signup?.clanMemberId ?? null;
@@ -97,8 +123,9 @@ export default async function EventSignupPage({
         <h1 className="text-2xl sm:text-3xl font-bold text-gold break-words min-w-0">Sign up: {event.name}</h1>
       </div>
       <p className="text-sm text-text-muted mb-6">
-        One sign-up per Discord account. Pick the RSN you&apos;ll play with — that&apos;s the
-        only account that&apos;ll be tracked for this event.
+        {maxAccounts > 1
+          ? `Pick up to ${maxAccounts} of your linked accounts — they all play on the same team, and every one is tracked for this event.`
+          : "One sign-up per Discord account. Pick the RSN you'll play with — that's the only account that'll be tracked for this event."}
       </p>
 
       <PrizePoolHero
@@ -118,6 +145,9 @@ export default async function EventSignupPage({
           startDate: event.startDate,
         }}
         myAccounts={myAccounts}
+        maxAccounts={maxAccounts}
+        signedUpMemberIds={signedUpMemberIds}
+        accountFees={accountFees}
         existingSignup={
           signup
             ? {

@@ -6,8 +6,14 @@
 // this — it only ever receives the aggregated { clans } shape from /state.
 
 import { db } from '@/db';
-import { federationConnections, federationDeviceSessions, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  federationConnections,
+  federationDeviceSessions,
+  federationAccountShares,
+  clanMembers,
+  users,
+} from '@/db/schema';
+import { and, eq, isNull, isNotNull } from 'drizzle-orm';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { dedupeConnectionsByInstanceId, type FederationConnection } from '@/lib/federationRelay';
 import { encryptSecret, decryptSecret } from '@/lib/federationSecurity';
@@ -137,6 +143,116 @@ export async function isFederationLinked(userId: number): Promise<boolean> {
     columns: { federationLinkedAt: true },
   });
   return !!row?.federationLinkedAt;
+}
+
+// The member's Discord id — the identity the association push carries. Kept here so the connect
+// orchestration (lib/federationConnect) stays free of direct DB access.
+export async function getUserDiscordId(userId: number): Promise<string | null> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { discordId: true },
+  });
+  return row?.discordId ?? null;
+}
+
+// --- Persisted broker session (background connection refresh) ---------------------------------
+// The broker member session captured at device-login completion is kept (encrypted, §4) so /state
+// can re-run the /me/instances → /assert → /exchange relay later: a clan the member connects at
+// AFTER this one appears here without a manual re-login. `federationSyncedAt` throttles that
+// refresh. Cleared on disconnect and when the broker rejects the session (expired/revoked).
+
+export async function saveBrokerSession(userId: number, brokerToken: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ federationBrokerSession: encryptSecret(brokerToken, tokenEncKey()) })
+    .where(eq(users.id, userId));
+}
+
+export async function getBrokerSessionInfo(
+  userId: number,
+): Promise<{ brokerSession: string | null; syncedAt: string | null }> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { federationBrokerSession: true, federationSyncedAt: true },
+  });
+  if (!row?.federationBrokerSession) return { brokerSession: null, syncedAt: row?.federationSyncedAt ?? null };
+  try {
+    return {
+      brokerSession: decryptSecret(row.federationBrokerSession, tokenEncKey()),
+      syncedAt: row.federationSyncedAt ?? null,
+    };
+  } catch (err) {
+    // Undecryptable (key rotated / corrupt) = unusable — treat as absent; the member re-connects.
+    log.warn('federation.broker-session.decrypt-fail', { userId }, err);
+    return { brokerSession: null, syncedAt: row.federationSyncedAt ?? null };
+  }
+}
+
+export async function markFederationSynced(userId: number): Promise<void> {
+  await db.update(users).set({ federationSyncedAt: new Date().toISOString() }).where(eq(users.id, userId));
+}
+
+export async function clearBrokerSession(userId: number): Promise<void> {
+  await db
+    .update(users)
+    .set({ federationBrokerSession: null, federationSyncedAt: null })
+    .where(eq(users.id, userId));
+}
+
+// --- Per-account federation shares ("Share my RSN with this clan") ----------------------------
+// Shares are per (account, remote instance) — each linked account is shared individually, by an
+// explicit plugin action while logged into it. Only VERIFIED, active accounts ever leave the home.
+
+export async function sharedAccountsForUser(
+  userId: number,
+  instanceId: string,
+): Promise<{ rsn: string; primary: boolean }[]> {
+  const rows = await db
+    .select({ rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
+    .from(federationAccountShares)
+    .innerJoin(clanMembers, eq(federationAccountShares.clanMemberId, clanMembers.id))
+    .where(
+      and(
+        eq(federationAccountShares.userId, userId),
+        eq(federationAccountShares.instanceId, instanceId),
+        isNull(clanMembers.leftAt),
+        isNotNull(clanMembers.verifiedAt),
+      ),
+    );
+  return rows.map((r) => ({ rsn: r.rsn, primary: r.isPrimary === 1 }));
+}
+
+/** The instanceIds a specific ACCOUNT is currently shared with (drives the sidebar button state). */
+export async function sharedInstancesForMember(clanMemberId: number): Promise<Set<string>> {
+  const rows = await db
+    .select({ instanceId: federationAccountShares.instanceId })
+    .from(federationAccountShares)
+    .where(eq(federationAccountShares.clanMemberId, clanMemberId));
+  return new Set(rows.map((r) => r.instanceId));
+}
+
+export async function setAccountShare(
+  userId: number,
+  clanMemberId: number,
+  instanceId: string,
+  share: boolean,
+): Promise<void> {
+  if (share) {
+    await db
+      .insert(federationAccountShares)
+      .values({ userId, clanMemberId, instanceId })
+      .onConflictDoNothing();
+  } else {
+    await db
+      .delete(federationAccountShares)
+      .where(
+        and(
+          eq(federationAccountShares.clanMemberId, clanMemberId),
+          eq(federationAccountShares.instanceId, instanceId),
+          eq(federationAccountShares.userId, userId),
+        ),
+      );
+  }
 }
 
 // --- Self-host device-code login session (one in-flight per member) ---------------------------

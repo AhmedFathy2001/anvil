@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `start_hold_notified` integer DEFAULT 0;

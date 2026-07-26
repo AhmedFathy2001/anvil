@@ -29,6 +29,7 @@ import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
 // combined value to a decimal string (what the API expects) at the overwrite site.
+const MANAGE_CHANNELS = 1 << 4;
 const VIEW_CHANNEL = 1 << 10;
 const SEND_MESSAGES = 1 << 11;
 const CONNECT = 1 << 20;
@@ -41,15 +42,37 @@ const CHANNEL_CATEGORY = 4;
 
 // Permission-overwrite target types.
 const OVERWRITE_ROLE = 0;
+const OVERWRITE_MEMBER = 1;
 
 interface TeamChannelConfig {
   botToken: string;
   guildId: string;
+  // The bot's own user ID, so channels can carry an allow-overwrite for the bot itself.
+  // Without it the @everyone VIEW_CHANNEL deny locks the bot out of the private channels
+  // it creates (it can create them — a guild-level POST — but never see, rename, or
+  // delete them again unless it has Administrator). Null if /users/@me failed.
+  botUserId: string | null;
   // The shared role every contestant in the event gets. Admin-configured; not created
   // or deleted by us. Null = skip assigning it.
   bingoRoleId: string | null;
   // The shared role every team captain gets. Admin-configured. Null = skip.
   captainRoleId: string | null;
+}
+
+// The bot's user ID is immutable per token — resolve once per process.
+const botUserIdCache = new Map<string, string>();
+
+async function getBotUserId(botToken: string): Promise<string | null> {
+  const cached = botUserIdCache.get(botToken);
+  if (cached) return cached;
+  const res = await discordRest(botToken, '/users/@me');
+  if (!res.ok) {
+    log.warn('discord-teams.bot-identity-fail', { status: res.status });
+    return null;
+  }
+  const me = (await res.json()) as { id: string };
+  botUserIdCache.set(botToken, me.id);
+  return me.id;
 }
 
 async function readSetting(key: string): Promise<string | null> {
@@ -69,6 +92,7 @@ export async function loadTeamChannelConfig(): Promise<TeamChannelConfig | null>
   return {
     botToken: creds.botToken,
     guildId: creds.guildId,
+    botUserId: await getBotUserId(creds.botToken),
     bingoRoleId: (await readSetting('discord_bingo_role_id')) || null,
     captainRoleId: (await readSetting('discord_captain_role_id')) || null,
   };
@@ -164,6 +188,16 @@ async function createChannel(
     // @everyone (role id == guild id) can't even see the channel.
     { id: cfg.guildId, type: OVERWRITE_ROLE, deny: String(VIEW_CHANNEL) },
   ];
+  // The @everyone deny applies to the bot too (channel overwrites beat guild-level
+  // permissions unless the bot is Administrator), so grant the bot access explicitly —
+  // otherwise it creates a channel it can never rename or delete again.
+  if (cfg.botUserId) {
+    overwrites.push({
+      id: cfg.botUserId,
+      type: OVERWRITE_MEMBER,
+      allow: String(VIEW_CHANNEL | MANAGE_CHANNELS),
+    });
+  }
   for (const roleId of opts.allowRoleIds) {
     overwrites.push({
       id: roleId,
@@ -216,13 +250,24 @@ async function removeRole(cfg: TeamChannelConfig, discordUserId: string, roleId:
   }
 }
 
-// DELETE a role or channel; 404 (already gone) is treated as success. Returns false only
-// on a real error so teardown can keep the DB column populated for a retry.
-async function deleteResource(cfg: TeamChannelConfig, path: string): Promise<boolean> {
+// DELETE a role or channel; 404 (already gone) is treated as success. Returns ok:false only
+// on a real error so teardown can keep the DB column populated for a retry, with a
+// human-readable detail for the report.
+async function deleteResource(
+  cfg: TeamChannelConfig,
+  path: string,
+): Promise<{ ok: boolean; detail?: string }> {
   const res = await discordRest(cfg.botToken, path, { method: 'DELETE' });
-  if (res.ok || res.status === 404) return true;
+  if (res.ok || res.status === 404) return { ok: true };
+  let detail = await describeDiscordError(res);
+  // 403 on a /channels delete is almost always the bot locked out of its own private
+  // channel (created before we started granting the bot an overwrite) — the generic
+  // "give it Manage Channels" hint doesn't fix that, so say what actually does.
+  if (res.status === 403 && path.startsWith('/channels/')) {
+    detail = `${detail} If the bot already has those permissions, it can't see this private channel (created before the bot granted itself access): delete the channels by hand in Discord and re-run this — or temporarily give the bot Administrator, re-run, then remove it.`;
+  }
   log.warn('discord-teams.delete-fail', { status: res.status, path });
-  return false;
+  return { ok: false, detail };
 }
 
 // =============================================================================
@@ -584,6 +629,12 @@ export interface TeardownReport {
   rolesDeleted: number;
   channelsDeleted: number;
   categoryDeleted: boolean;
+  // Deletes Discord refused (the IDs stay in the DB so a re-run can retry them).
+  rolesFailed: number;
+  channelsFailed: number;
+  categoryFailed: boolean;
+  // Human-readable cause of the first failed delete, for the admin UI.
+  failDetail?: string;
 }
 
 /**
@@ -626,38 +677,51 @@ export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
  * auto-strips it from members, so contestants lose channel access cleanly.
  */
 export async function teardownTeamDiscord(eventId: number): Promise<TeardownReport> {
+  const empty = { rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false, rolesFailed: 0, channelsFailed: 0, categoryFailed: false };
   const cfg = await loadTeamChannelConfig();
   if (!cfg) {
-    return { ok: false, reason: 'team sync disabled or unconfigured', rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false };
+    return { ok: false, reason: 'team sync disabled or unconfigured', ...empty };
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event) return { ok: false, reason: 'event not found', rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false };
+  if (!event) return { ok: false, reason: 'event not found', ...empty };
 
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
 
   let rolesDeleted = 0;
   let channelsDeleted = 0;
+  let rolesFailed = 0;
+  let channelsFailed = 0;
+  let failDetail: string | undefined;
+
+  const noteFail = (kind: 'role' | 'channel', detail?: string) => {
+    if (kind === 'role') rolesFailed++;
+    else channelsFailed++;
+    if (!failDetail && detail) failDetail = detail;
+  };
 
   for (const team of eventTeams) {
     const cleared: Partial<typeof teams.$inferInsert> = {};
     if (team.discordTextChannelId) {
-      if (await deleteResource(cfg, `/channels/${team.discordTextChannelId}`)) {
+      const r = await deleteResource(cfg, `/channels/${team.discordTextChannelId}`);
+      if (r.ok) {
         channelsDeleted++;
         cleared.discordTextChannelId = null;
-      }
+      } else noteFail('channel', r.detail);
     }
     if (team.discordVoiceChannelId) {
-      if (await deleteResource(cfg, `/channels/${team.discordVoiceChannelId}`)) {
+      const r = await deleteResource(cfg, `/channels/${team.discordVoiceChannelId}`);
+      if (r.ok) {
         channelsDeleted++;
         cleared.discordVoiceChannelId = null;
-      }
+      } else noteFail('channel', r.detail);
     }
     if (team.discordRoleId) {
-      if (await deleteResource(cfg, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`)) {
+      const r = await deleteResource(cfg, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`);
+      if (r.ok) {
         rolesDeleted++;
         cleared.discordRoleId = null;
-      }
+      } else noteFail('role', r.detail);
     }
     if (Object.keys(cleared).length > 0) {
       await db.update(teams).set(cleared).where(eq(teams.id, team.id));
@@ -665,14 +729,19 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
   }
 
   let categoryDeleted = false;
+  let categoryFailed = false;
   if (event.discordCategoryId) {
-    if (await deleteResource(cfg, `/channels/${event.discordCategoryId}`)) {
+    const r = await deleteResource(cfg, `/channels/${event.discordCategoryId}`);
+    if (r.ok) {
       categoryDeleted = true;
       await db.update(events).set({ discordCategoryId: null }).where(eq(events.id, eventId));
+    } else {
+      categoryFailed = true;
+      if (!failDetail && r.detail) failDetail = r.detail;
     }
   }
 
-  return { ok: true, rolesDeleted, channelsDeleted, categoryDeleted };
+  return { ok: true, rolesDeleted, channelsDeleted, categoryDeleted, rolesFailed, channelsFailed, categoryFailed, failDetail };
 }
 
 /**

@@ -65,16 +65,18 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
                 />
                 <span className="font-bold text-lg truncate">{team.name}</span>
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-xl font-bold" style={{ color: team.color }}>
-                  {completed}
-                </span>
-                <span className="text-text-muted text-sm">/{totalTiles}{pointsMode ? ' pts' : ''}</span>
+              <div className="text-right min-w-0">
+                <div className="whitespace-nowrap">
+                  <span className="text-xl font-bold" style={{ color: team.color }}>
+                    {completed}
+                  </span>
+                  <span className="text-text-muted text-sm">/{totalTiles}{pointsMode ? ' pts' : ''}</span>
+                </div>
                 <p className="text-xs text-text-muted">
                   {tilesLeft} {pointsMode ? 'pts ' : ''}remaining
                   {dropInfo && dropInfo.inProgress > 0 && (
-                    <span className="text-yellow-400 ml-1">
-                      · {dropInfo.inProgress} drop{dropInfo.inProgress !== 1 ? 's' : ''} in progress
+                    <span className="text-yellow-400">
+                      {' · '}{dropInfo.inProgress} drop{dropInfo.inProgress !== 1 ? 's' : ''} in progress
                     </span>
                   )}
                 </p>
@@ -97,7 +99,7 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
             {mvp && (
               <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-card-border/60 text-[11px] text-text-muted">
                 <span aria-hidden>🏆</span>
-                <span className="text-gold/90 font-medium truncate">{mvp.name}</span>
+                <span className="text-gold/90 font-medium truncate min-w-0">{mvp.name}</span>
                 <span className="shrink-0 ml-auto">
                   {pointsMode ? `${mvp.points.toLocaleString()} pts` : `${mvp.tasks} task${mvp.tasks !== 1 ? 's' : ''}`}
                 </span>

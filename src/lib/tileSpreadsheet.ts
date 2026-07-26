@@ -172,6 +172,8 @@ export async function buildTileSpreadsheet(opts: {
     '    names or "Any <Tier>" wildcards, PIPE-separated ONLY (task names can contain commas).',
     '    pvp tiles: team:other (any rival team member) or rsn:<name> bounty entries.',
     '  • timedActivity / timeThresholdSeconds — timed tiles only; time as mm:ss (30:00), seconds (1800), or 30m.',
+    '  • revealAt — Showdown boards only (scheduled reveals): when this tile goes live, e.g. 2026-08-01 19:00',
+    '    (your local time; stored as UTC). Blank = stays hidden until you set a time. Other boards ignore it.',
     '',
     'THE items CELL (drop / collection tiles)',
     '  • Format: Name:count; Name2:count2  — entries are SEMICOLON-separated, :count is optional (def 1).',

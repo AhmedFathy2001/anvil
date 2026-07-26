@@ -4,6 +4,10 @@ import { completions, tiles, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, resolveTeamMembership } from '@/lib/auth';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
+import type { Completion } from '@/lib/types';
 
 export async function GET(
   _request: Request,
@@ -17,10 +21,20 @@ export async function GET(
   });
   const tileIds = eventTiles.map((t) => t.id);
 
-  let eventCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let eventCompletions: Completion[] = [];
   if (tileIds.length > 0) {
-    eventCompletions = await db.select().from(completions)
+    const rows = await db.select().from(completions)
       .where(inArray(completions.tileId, tileIds));
+    eventCompletions = rows.map((c) => ({
+      id: c.id,
+      teamId: c.teamId,
+      tileId: c.tileId,
+      completedAt: c.completedAt,
+      // Parse the frozen KC/XP split so clients feed it straight into computeMemberBreakdown.
+      statContributions: parseContributionSnapshot(c.statContributions),
+      // Frozen rule-modified award (first bonus / decay) — clients score it over the live weight.
+      awardedPoints: c.awardedPoints,
+    }));
   }
 
   return NextResponse.json(eventCompletions);
@@ -123,10 +137,26 @@ export async function POST(
   if (existing) {
     // Remove completion
     await db.delete(completions).where(eq(completions.id, existing.id));
+    // Bounty events: pulling back the claiming completion reopens the tile (no-op elsewhere).
+    await reopenBountyTileIfUnclaimed(eId, tileId).catch(() => {});
     return NextResponse.json({ action: 'removed', tileId, teamId });
   } else {
+    // Event-rules gate (lib/completionGate): captains can't complete unrevealed/claimed/locked
+    // tiles. Admins bypass the block (board surgery) but still get the frozen award stamped so
+    // an admin-forced completion scores consistently with everyone else's.
+    const gate = await evaluateCompletionGate({ event, tile, teamId });
+    if (!gate.allowed && !isAdmin) {
+      return NextResponse.json({ error: gate.reason ?? 'This tile cannot be completed right now.' }, { status: 400 });
+    }
+
     // Add completion
-    const [completion] = await db.insert(completions).values({ teamId, tileId }).returning();
+    const [completion] = await db
+      .insert(completions)
+      .values({ teamId, tileId, awardedPoints: gate.awardedPoints })
+      .returning();
+
+    // Bounty rotation: close the claimed tile and draw the next immediately (cron backstops).
+    if (gate.bounty) handleBountyClaim(eId, tileId).catch(() => {});
 
     // Send Discord notification for tile completion
     notifyTileCompletion({

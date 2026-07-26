@@ -113,6 +113,10 @@ gate for directory-listed clans, so these carry the weight):
 1. **Inert by default.** An exchange-created guest gets a **read-only board view** and is **not
    placed on any team** — it cannot credit tiles, submit, or affect anything until an admin
    drafts/promotes it. `/exchange` must never auto-place a guest on a team.
+   *Anchoring:* when the identity already has a real, active row at the instance (account-token
+   link, claimed roster row), the guest token anchors to **that** row; only an identity with no
+   rows at all gets a synthetic `guest:<discord_id>` placeholder row (retired automatically once a
+   real row appears). Either way the token stays `board:read`-only.
 2. **Sticky ban.** Admin has both **Remove** (delete the guest row) and **Ban** (a persistent
    denylist keyed on `discord_id` that blocks future `/exchange` from re-creating them). Remove
    alone is whack-a-mole; Ban stops the re-spawn.

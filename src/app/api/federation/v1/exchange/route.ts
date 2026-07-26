@@ -7,13 +7,14 @@ import {
 } from 'jose';
 import { db } from '@/db';
 import { users, clanMembers, federationBans, clanAuditLog } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/federationSecurity';
-import { getBrokerTrust, getExchangePolicy } from '@/lib/pluginConfig';
+import { getBrokerTrust, getExchangePolicy, getFederationEnabled } from '@/lib/pluginConfig';
 import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
 import {
+  classifySharedRsnClaim,
   exchangeRateLimitKey,
   guestRateLimitKey,
   planGuestConflict,
@@ -21,8 +22,10 @@ import {
   gateReplayThenBudget,
 } from '@/lib/federationDecisions';
 import {
+  EXCHANGE_TOKEN_LABEL,
   getInstanceId,
   mintFederationToken,
+  pruneExchangeTokens,
   pushAssociation,
   recordFederationJti,
   type FederationScope,
@@ -50,17 +53,201 @@ function guestRsnFor(discordId: string): string {
   return `guest:${discordId}`;
 }
 
-// Find-or-create the INERT federation guest for a discord_id (decision 4 / FEDERATION.md guardrail 1).
-// INERTNESS GUARANTEE: this only ever writes a clan_members row (isGuest=1) — it NEVER touches
-// `players`, teams, or the draft, so an exchange-created guest is structurally unable to be on a team,
-// credit a tile, or submit. It stays read-only (board:read-scoped token, board preview only) until an
-// admin explicitly drafts/promotes it. Idempotent: a repeat exchange reuses the existing guest row.
+// ── Shared-RSN application ("Share my RSN with this clan", per-account) ─────────────────────────
+// The exchange body may carry `accounts` — RSNs the member EXPLICITLY shared with this clan from
+// their home (each account shared individually, while logged into it). Attested by the member's
+// home, so treated as a labeled claim, never as local verification. HARD RULES (identity-takeover
+// class, see classifySharedRsnClaim): a shared RSN may only ever land on a FEDERATION GUEST row of
+// this same discordId — it never binds to, renames, or reactivates anyone ELSE's row; such a
+// collision is audit-logged and skipped. A row the SAME identity already holds through a stronger
+// path (account-token link, claimed roster row) satisfies the claim as-is — nothing to do, and no
+// scary conflict audit for a member colliding with themselves. The set is authoritative per
+// exchange: federation guests whose RSN is no longer shared are pruned (soft-left) and a
+// placeholder anchor reverts to its placeholder name — revocation at home propagates here on the
+// next relay. An ADOPTED anchor (a real row, see ensureFederationGuest) is never renamed/reverted.
+
+const MAX_SHARED_ACCOUNTS = 5;
+const RSN_SHAPE = /^[A-Za-z0-9 _-]{1,12}$/;
+
+function sanitizeSharedAccounts(raw: unknown): { rsn: string; primary: boolean }[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: { rsn: string; primary: boolean }[] = [];
+  for (const entry of raw) {
+    if (out.length >= MAX_SHARED_ACCOUNTS) break;
+    const rsn = typeof (entry as { rsn?: unknown })?.rsn === 'string' ? (entry as { rsn: string }).rsn.trim() : '';
+    if (!RSN_SHAPE.test(rsn)) continue;
+    const norm = normalizeRsn(rsn);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    out.push({ rsn, primary: (entry as { primary?: unknown }).primary === true });
+  }
+  return out;
+}
+
+async function applySharedAccounts(
+  discordId: string,
+  anchorGuestId: number,
+  rawAccounts: unknown,
+  ownerUserId: number | null,
+): Promise<void> {
+  const shared = sanitizeSharedAccounts(rawAccounts);
+  const sharedNorms = new Set(shared.map((a) => normalizeRsn(a.rsn)));
+  const placeholderRsn = guestRsnFor(discordId);
+  const placeholderNorm = normalizeRsn(placeholderRsn);
+  const nowIso = new Date().toISOString();
+
+  const conflictAudit = (rsn: string) =>
+    db
+      .insert(clanAuditLog)
+      .values({
+        clanMemberId: anchorGuestId,
+        eventType: 'federation_rsn_conflict',
+        newValue: JSON.stringify({ discordId, claimedRsn: rsn }),
+        notes:
+          'A federated home attested this RSN for its member, but the name already belongs to a different row here — claim ignored. Review if unexpected.',
+      })
+      .catch(() => {});
+
+  // Who holds this normalized RSN, and what is the shared-RSN claim allowed to do about it?
+  // (classifySharedRsnClaim: free / own-guest / satisfied / conflict.)
+  const claimOn = async (
+    norm: string,
+  ): Promise<{ claim: ReturnType<typeof classifySharedRsnClaim>; row: { id: number; leftAt: string | null } | null }> => {
+    const row = await db.query.clanMembers.findFirst({
+      where: eq(clanMembers.rsnNormalized, norm),
+      columns: { id: true, leftAt: true, isGuest: true, discordId: true, userId: true, source: true },
+    });
+    return { claim: classifySharedRsnClaim(row, discordId, ownerUserId), row: row ?? null };
+  };
+
+  // 1. A PLACEHOLDER anchor (the disposable federation row the token is bound to) carries the
+  //    primary RSN — or reverts to the placeholder name when nothing is shared any more. An ADOPTED
+  //    anchor is the member's real row here and is never renamed or reverted by a federated claim.
+  const anchor = await db.query.clanMembers.findFirst({
+    where: eq(clanMembers.id, anchorGuestId),
+    columns: { id: true, rsnNormalized: true, source: true },
+  });
+  if (!anchor) return;
+  const primary = shared.find((a) => a.primary) ?? shared[0] ?? null;
+  const desiredRsn = primary ? primary.rsn : placeholderRsn;
+  const desiredNorm = primary ? normalizeRsn(primary.rsn) : placeholderNorm;
+  // The name the anchor ends up holding — step 2 skips creating a sibling row for it.
+  let anchorNorm = anchor.rsnNormalized;
+  if (anchor.source === 'federation' && anchor.rsnNormalized !== desiredNorm) {
+    const { claim, row } = await claimOn(desiredNorm);
+    if (claim === 'conflict') {
+      conflictAudit(desiredRsn);
+    } else if (claim !== 'satisfied') {
+      // 'free' or 'own-guest'. A stale sibling guest already holding the name must vacate first
+      // (unique rsn_normalized).
+      if (row && row.id !== anchor.id) {
+        await db
+          .update(clanMembers)
+          .set({ leftAt: nowIso })
+          .where(eq(clanMembers.id, row.id));
+      }
+      await db
+        .update(clanMembers)
+        .set({
+          rsn: desiredRsn,
+          rsnNormalized: desiredNorm,
+          verificationMethod: primary ? 'federation' : null,
+        })
+        .where(eq(clanMembers.id, anchor.id));
+      anchorNorm = desiredNorm;
+    }
+  }
+
+  // 2. Other shared accounts each get their own federation-guest row (same discord identity).
+  for (const account of shared) {
+    const norm = normalizeRsn(account.rsn);
+    if (norm === anchorNorm) continue; // the anchor already carries it
+    const { claim, row } = await claimOn(norm);
+    if (claim === 'conflict') {
+      conflictAudit(account.rsn);
+      continue;
+    }
+    if (claim === 'satisfied') continue; // already theirs here via a stronger row — nothing to do
+    if (claim === 'own-guest' && row) {
+      if (row.leftAt) {
+        await db.update(clanMembers).set({ leftAt: null }).where(eq(clanMembers.id, row.id));
+      }
+      continue;
+    }
+    await db
+      .insert(clanMembers)
+      .values({
+        rsn: account.rsn,
+        rsnNormalized: norm,
+        discordId,
+        isGuest: 1,
+        source: 'federation',
+        verificationMethod: 'federation',
+        notes: 'RSN shared via federation by its owner (home-attested).',
+        lastSeenInClan: nowIso,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 3. PRUNE: federation guests of this identity holding an RSN that is no longer shared (and isn't
+  //    the anchor) leave softly — un-sharing at home actually revokes here.
+  const mine = await db
+    .select({ id: clanMembers.id, rsnNormalized: clanMembers.rsnNormalized })
+    .from(clanMembers)
+    .where(
+      and(
+        eq(clanMembers.discordId, discordId),
+        eq(clanMembers.isGuest, 1),
+        eq(clanMembers.source, 'federation'),
+        isNull(clanMembers.leftAt),
+      ),
+    );
+  for (const row of mine) {
+    if (row.id === anchorGuestId) continue;
+    if (row.rsnNormalized === placeholderNorm || sharedNorms.has(row.rsnNormalized)) continue;
+    await db.update(clanMembers).set({ leftAt: nowIso }).where(eq(clanMembers.id, row.id));
+  }
+}
+
+// Find-or-create the anchor row a guest exchange binds its token to (decision 4 / FEDERATION.md
+// guardrail 1). ADOPTION FIRST: an identity that already has a real, active row here — linked via
+// account token, a claimed roster row — anchors to THAT row instead of getting a `guest:<discordId>`
+// placeholder manufactured next to it (which sat in the roster and the member's profile as a
+// confusing stranger). Only an identity with no rows at all gets the synthetic placeholder. Any
+// leftover placeholder from before an adoptable row existed is retired (soft-left) on the way.
+// INERTNESS GUARANTEE: this only ever writes clan_members rows — it NEVER touches `players`, teams,
+// or the draft, so an exchange-anchored guest is structurally unable to be on a team, credit a tile,
+// or submit (and the guest token stays board:read-scoped regardless of which row anchors it).
+// Idempotent: a repeat exchange resolves to the same row.
 async function ensureFederationGuest(
   discordId: string,
   ownerUserId: number | null,
 ): Promise<{ id: number; created: boolean }> {
   const rsn = guestRsnFor(discordId);
   const rsnNormalized = normalizeRsn(rsn);
+
+  // Adoption: a row is adoptable when it's owned by this identity's site user, or — for an identity
+  // with no site user here — carries this discord_id and is unowned (never someone else's row).
+  const adoptable = await db.query.clanMembers.findFirst({
+    where: and(
+      ownerUserId != null
+        ? eq(clanMembers.userId, ownerUserId)
+        : and(eq(clanMembers.discordId, discordId), isNull(clanMembers.userId)),
+      isNull(clanMembers.leftAt),
+      ne(clanMembers.rsnNormalized, rsnNormalized),
+    ),
+    orderBy: [desc(clanMembers.isPrimary), asc(clanMembers.id)],
+    columns: { id: true },
+  });
+  if (adoptable) {
+    // Retire a lingering placeholder (idempotent — matches nothing once it's gone).
+    await db
+      .update(clanMembers)
+      .set({ leftAt: new Date().toISOString() })
+      .where(and(eq(clanMembers.rsnNormalized, rsnNormalized), isNull(clanMembers.leftAt)));
+    return { id: adoptable.id, created: false };
+  }
 
   // finding #12: BOUNDED retry loop (was an unbounded recursion). A `missing` conflict — the row
   // vanished between our failed insert and the re-read — retries the find-or-create, but at most
@@ -124,6 +311,13 @@ async function ensureFederationGuest(
 }
 
 export async function POST(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   // findings #6 + #2: a COARSE per-IP throttle FIRST — before JSON.parse, the JWT decodes, and the
   // (uncached) getBrokerTrust() DB read — so an unauthenticated flood of forged assertions is capped
   // before any of that work runs. Keyed on the PROXY-APPENDED client IP (getClientIp: x-real-ip / last
@@ -141,7 +335,7 @@ export async function POST(request: Request) {
   // caller is the relaying HOME site, so all its members share one IP and an IP-only budget would let
   // one member starve the whole clan's exchanges. The member-keyed limit (and the tighter guest-CREATION
   // budget) are applied once `sub` is cryptographically established.
-  let body: { assertion?: unknown };
+  let body: { assertion?: unknown; accounts?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -277,7 +471,15 @@ export async function POST(request: Request) {
       discordId: sub,
       memberId: primary.id,
       scopes,
+      label: EXCHANGE_TOKEN_LABEL,
     });
+    // Every re-mint supersedes this home's previous relay token — sweep the backlog (keep newest few
+    // for multi-homing). Fire-and-forget: pruning must never delay or fail the exchange.
+    void pruneExchangeTokens(sub)
+      .then((n) => {
+        if (n > 0) log.info('federation.exchange.token-prune', { sub, pruned: n });
+      })
+      .catch(() => {});
 
     // Association push (decision 2): confirm "member here" to the asserting broker. Fire-and-forget.
     void pushAssociation(sub, broker.iss);
@@ -327,6 +529,14 @@ export async function POST(request: Request) {
 
   const guest = await ensureFederationGuest(sub, existingUser?.id ?? null);
 
+  // Apply/prune the member's per-clan shared RSNs (see applySharedAccounts — federation rows only,
+  // hard no-takeover rules). `accounts` present-but-empty still runs: that's how revocation propagates.
+  if (body.accounts !== undefined) {
+    await applySharedAccounts(sub, guest.id, body.accounts, existingUser?.id ?? null).catch((e) =>
+      log.warn('federation.exchange.shared-accounts-fail', { memberId: guest.id }, e),
+    );
+  }
+
   // Inert = read-only. A guest token is board:read ONLY — never events:write — so even a bug that
   // put it on a team couldn't credit a tile. Belt to the "never on a team" structural guarantee.
   const scopes: FederationScope[] = ['board:read'];
@@ -335,7 +545,14 @@ export async function POST(request: Request) {
     discordId: sub,
     memberId: guest.id,
     scopes,
+    label: EXCHANGE_TOKEN_LABEL,
   });
+  // Sweep this identity's superseded relay tokens (see the member path above for why).
+  void pruneExchangeTokens(sub)
+    .then((n) => {
+      if (n > 0) log.info('federation.exchange.token-prune', { sub, pruned: n });
+    })
+    .catch(() => {});
 
   void pushAssociation(sub, broker.iss);
 

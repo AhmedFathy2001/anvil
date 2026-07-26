@@ -4,6 +4,7 @@ import { clanMembers, events, players } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { resolveFederationToken } from '@/lib/federation';
+import { getFederationEnabled } from '@/lib/pluginConfig';
 import { buildBoard } from '@/app/api/plugin/board/route';
 import { jsonWithEtag } from '@/lib/httpEtag';
 
@@ -16,6 +17,13 @@ export const dynamic = 'force-dynamic';
 // Multi-RSN: a token can own several accounts. An optional X-RSN header (or ?rsn=) narrows to one,
 // exactly like the plugin token path; a member-pinned token narrows to its member.
 export async function GET(request: Request) {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   const ctx = await resolveFederationToken(request);
   if (!ctx) {
     return NextResponse.json(

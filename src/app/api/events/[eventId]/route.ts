@@ -3,8 +3,12 @@ import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
+import { getEventStartReadiness } from '@/lib/eventLifecycle';
+import { describeStartBlockers } from '@/lib/eventReadiness';
+import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
+import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
 
 export async function GET(
   _request: Request,
@@ -21,10 +25,19 @@ export async function GET(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const eventTiles = await db.query.tiles.findMany({
+  const allEventTiles = await db.query.tiles.findMany({
     where: eq(tiles.eventId, id),
     orderBy: (tiles, { asc }) => [asc(tiles.position)],
   });
+
+  // Reveal-policy events: members only receive the revealed subset — hidden tile content must
+  // never reach the client. Staff keep the full board so admin tooling (and previews) work.
+  const rules = parseEventRules(event.rules);
+  let eventTiles = allEventTiles;
+  if (hasRevealPolicy(rules)) {
+    const staff = await verifyAdminOrModerator();
+    if (!staff) eventTiles = visibleTiles(rules, allEventTiles);
+  }
 
   const eventTeams = await db.query.teams.findMany({
     where: eq(teams.eventId, id),
@@ -44,6 +57,9 @@ export async function GET(
   return NextResponse.json({
     ...event,
     tiles: eventTiles,
+    // Reveal-policy events: how many tiles the caller can't see yet (0 for staff/classic) —
+    // lets boards render "N tiles still hidden" without knowing what they are.
+    hiddenTileCount: allEventTiles.length - eventTiles.length,
     teams: safeTeams,
     completions: eventCompletions,
   });
@@ -103,16 +119,21 @@ export async function PATCH(
       : [];
 
     // Points-scoring events tally summed point weights of non-optional tiles;
-    // classic events tally raw completed-tile counts.
+    // classic events tally raw completed-tile counts. Mirrors eventLifecycle: frozen
+    // awardedPoints win over live weights, and only revealed tiles count in the total.
+    const forceEndRules = parseEventRules(event.rules);
     const pointsMode = event.scoringMode === 'points';
-    const scoredTiles = eventTiles.filter(t => !t.optional);
+    const scoredTiles = visibleTiles(forceEndRules, eventTiles).filter(t => !t.optional);
     const weightById = new Map(scoredTiles.map(t => [t.id, pointsMode ? (t.points ?? 0) : 1]));
     const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
 
     const standings = eventTeams.map(team => {
       const teamScore = eventCompletions
         .filter(c => c.teamId === team.id && weightById.has(c.tileId))
-        .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+        .reduce(
+          (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
+          0,
+        );
       return { teamName: team.name, tilesCompleted: teamScore };
     });
 
@@ -123,6 +144,10 @@ export async function PATCH(
       totalTiles: pointsMode ? totalScore : scoredTiles.length,
       unit: pointsMode ? 'pts' : 'tiles',
     }).catch(() => {});
+
+    // Auto-build payouts from the configured prize structure + final standings (no-op if no
+    // structure or payouts already exist). Fire-and-forget — a payout hiccup mustn't fail the end.
+    autoGeneratePayoutsOnEnd(event.id).catch(() => {});
 
     return NextResponse.json(updated);
   }
@@ -174,6 +199,22 @@ export async function PATCH(
     }
     if (event.endDate <= now) {
       return NextResponse.json({ error: 'The end date has already passed. Update it before starting.' }, { status: 400 });
+    }
+
+    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned.
+    // 409 + the blocker list so the UI can explain; `force: true` is the explicit admin override
+    // (the UI re-confirms before sending it).
+    if (body.force !== true) {
+      const readiness = await getEventStartReadiness(event.id, event.draftStatus);
+      if (!readiness.ready) {
+        return NextResponse.json(
+          {
+            error: `The bingo isn't ready to start: ${describeStartBlockers(readiness.blockers)}.`,
+            blockers: readiness.blockers,
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Flip startNotified atomically first — only the request that wins the flip sends the
@@ -232,6 +273,20 @@ export async function PATCH(
     }
     // A tile race is always scored by furthest tile reached; force 'tiles' there.
     const resolvedScoringMode = format === 'tilerace' ? 'tiles' : scoringMode;
+
+    // Rules preset travels with the type change (showdown/luckydraw/bounty carry a reveal
+    // policy; the three classic types clear it). Same validation + shape constraint as create.
+    const rulesResult = validateEventRules(body.rules);
+    if ('error' in rulesResult) {
+      return NextResponse.json({ error: rulesResult.error }, { status: 400 });
+    }
+    const resolvedRules = rulesResult.rules;
+    if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && (format !== 'bingo' || resolvedScoringMode !== 'points')) {
+      return NextResponse.json(
+        { error: 'Reveal policies (showdown / lucky draw / bounty) require the points-scored bingo format.' },
+        { status: 400 },
+      );
+    }
     if (!Number.isInteger(boardSize) || boardSize < 1) {
       return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
     }
@@ -260,7 +315,7 @@ export async function PATCH(
       await tx.insert(tiles).values(tileValues);
       const [row] = await tx
         .update(events)
-        .set({ format, scoringMode: resolvedScoringMode, boardSize })
+        .set({ format, scoringMode: resolvedScoringMode, boardSize, rules: resolvedRules })
         .where(eq(events.id, id))
         .returning();
       return row;
@@ -273,7 +328,21 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
-  if ('startDate' in body) updates.startDate = body.startDate;
+  // Per-event game rules (lib/eventRules) — lets admins tune interval/bonus settings in place.
+  // The reveal POLICY itself shouldn't hop between kinds mid-event; the change-type action (which
+  // is pre-start-gated and rebuilds tiles) is the way to switch modes.
+  if ('rules' in body) {
+    const rulesResult = validateEventRules(body.rules);
+    if ('error' in rulesResult) {
+      return NextResponse.json({ error: rulesResult.error }, { status: 400 });
+    }
+    updates.rules = rulesResult.rules;
+  }
+  if ('startDate' in body) {
+    updates.startDate = body.startDate;
+    // Re-arm the start-hold warning: a rescheduled start that again arrives unready warns anew.
+    updates.startHoldNotified = 0;
+  }
   if ('endDate' in body) updates.endDate = body.endDate;
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;

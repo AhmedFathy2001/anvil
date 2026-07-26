@@ -6,6 +6,10 @@ import TeamBoardClient from './TeamBoardClient';
 import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { getTierBands } from '@/lib/pluginConfig';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
+import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,18 +37,32 @@ export default async function TeamBoardPage({
   // routes to your own team feel identical. Other teams (and staff/guests) stay on the view board.
   const myMembership = await resolveTeamMembership(eId, tId);
   if (myMembership && (myMembership.isCaptain || myMembership.playerId != null)) {
-    redirect(`/team/${tId}`);
+    // Carry the origin so My Team's back link returns to the scoreboard (this route), not the My
+    // Teams hub — reaching your own team here should feel like it did on the general board.
+    redirect(`/team/${tId}?from=scoreboard`);
   }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const rawEventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  // Owner per player so TeamBoardClient can roll a person's accounts into one contributor (per-person).
+  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
   const tierBands = await getTierBands();
 
   const tileIds = eventTiles.map((t) => t.id);
-  let teamCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];
+  let teamCompletions: Completion[] = [];
   if (tileIds.length > 0) {
+    const tileIdSet = new Set(tileIds);
     const allCompletions = await db.select().from(completions).where(eq(completions.teamId, tId));
-    teamCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
+    teamCompletions = allCompletions
+      .filter((c) => tileIdSet.has(c.tileId))
+      .map((c) => ({
+        id: c.id,
+        teamId: c.teamId,
+        tileId: c.tileId,
+        completedAt: c.completedAt,
+        statContributions: parseContributionSnapshot(c.statContributions),
+        awardedPoints: c.awardedPoints,
+      }));
   }
 
   const { captainPassword: _, ...safeTeam } = team;
@@ -78,11 +96,15 @@ export default async function TeamBoardPage({
     );
   }
 
+  // Reveal-policy events (lib/eventRules): non-staff only receive the revealed subset —
+  // hidden tile content must never reach the client.
+  const boardTiles = isStaff ? eventTiles : visibleTiles(parseEventRules(event.rules), eventTiles);
+
   return (
     <TeamBoardClient
       event={event}
       team={safeTeam}
-      tiles={eventTiles}
+      tiles={boardTiles}
       completions={teamCompletions}
       players={eventPlayers}
       tierBands={tierBands}

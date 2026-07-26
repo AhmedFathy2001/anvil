@@ -6,7 +6,7 @@ import {
   getPublicJwk,
   FEDERATION_CAPABILITIES,
 } from '@/lib/federation';
-import { getBrokerTrust } from '@/lib/pluginConfig';
+import { getBrokerTrust, getFederationEnabled } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,13 @@ export const dynamic = 'force-dynamic';
 // stable instanceId, human name, hosted/self-hosted type, wire version, supported capabilities, the
 // brokers this instance trusts, and the instance's PUBLIC signing JWK (never the private half).
 export async function GET() {
+  // Master switch (WIRE §10.1): federation OFF must mean OFF for the INBOUND surface too — a
+  // clan that left the network stops serving exchanges/reads/relays, so other homes' refreshes
+  // drop it within one cycle instead of keeping a ghost connection alive.
+  if (!(await getFederationEnabled())) {
+    return NextResponse.json({ error: 'federation_disabled' }, { status: 403 });
+  }
+
   const [instanceId, name, publicKey, brokerTrust] = await Promise.all([
     getInstanceId(),
     getInstanceName(),

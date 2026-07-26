@@ -1,6 +1,7 @@
 // Canonical shared types used across client components
 
 import type { SignupProfile } from '@/lib/signup';
+import type { StatContributionSnapshot } from '@/lib/statTracking';
 
 export interface Event {
   id: number;
@@ -26,9 +27,22 @@ export interface Event {
   format?: string; // 'bingo' (grid) | 'tilerace' (ordered linear track)
   discordCategoryId?: string | null; // Discord category holding this event's team channels
   tilesRevealed?: number; // 0 = tiles hidden from non-staff until an admin reveals them; 1 = visible
+  // Multi-account enrollment (see events schema). accountSlotMode drives team-size + MVP rollup.
+  maxAccountsPerPerson?: number;
+  accountSlotMode?: string; // 'per-person' (N accounts = 1 slot, MVP aggregates) | 'per-account'
+  feeMode?: string; // 'per-person' | 'per-account'
+  // Per-event game rules JSON (lib/eventRules) — reveal policy + scoring modifiers. Null = classic.
+  rules?: string | null;
 }
 
-export interface Tile {
+export interface TileRevealState {
+  // Per-tile reveal state (reveal-policy events only — see lib/eventRules; null on classic events).
+  revealAt?: string | null; // planned reveal time ('scheduled' policy)
+  revealedAt?: string | null; // when the tile actually went live
+  closedAt?: string | null; // when a bounty tile was claimed
+}
+
+export interface Tile extends TileRevealState {
   id: number;
   eventId: number;
   position: number;
@@ -54,6 +68,7 @@ export interface Tile {
   timedActivity?: string | null; // activity identifier (timed tiles only)
   timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
   partySize?: number | null; // timed raid tiles — exact party size required (null = any)
+  pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
   // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.
   updatedAt?: string | null;
 }
@@ -85,9 +100,16 @@ export interface Player {
   snapshotAt?: string | null;
   cachedStats?: string | null;
   lastStatsFetch?: string | null;
+  // Bench / sub-out marker (players.frozenAt). Non-null = the player is frozen: their stat gain is
+  // pinned at the sub moment and still counts toward team tiles, but the sweep no longer tracks them.
+  frozenAt?: string | null;
   // Frozen sign-up answers for this player's chosen RSN, joined in at read time on the
   // draft surfaces (null when the player has no linked sign-up). See lib/draftProfiles.
   profile?: SignupProfile | null;
+  clanMemberId?: number | null; // identity of the account this player row represents
+  // Owner (site user) — multi-account: a person's account rows share this, driving the 'per-person'
+  // team-size + MVP rollup. Null for guests. Attached at read time (see lib/draftProfiles.attachOwners).
+  ownerUserId?: number | null;
 }
 
 export interface Completion {
@@ -95,6 +117,13 @@ export interface Completion {
   teamId: number;
   tileId: number;
   completedAt: string;
+  // Frozen per-member KC/XP split for a completed STAT tile (see completions.statContributions). Fed
+  // to computeMemberBreakdown so a finished tile's "who got what %" stops drifting. Absent/null for
+  // submission-backed / manual tiles and legacy stat completions (breakdown falls back to live gains).
+  statContributions?: StatContributionSnapshot | null;
+  // Frozen points this completion earned when event rules modified them (first-team bonus, reveal
+  // decay — see completions.awardedPoints). Absent/null = score the tile's live weight as always.
+  awardedPoints?: number | null;
 }
 
 export interface Submission {
@@ -152,6 +181,8 @@ export interface TileConfig {
   timeThresholdSeconds: number | null;
   // Timed raid tiles: require exactly this many players in the raid instance. null = any.
   partySize?: number | null;
+  // PvP tiles: minimum loot value (gp) a kill must yield to count. null/0 = no minimum.
+  pvpMinLootValue?: number | null;
   updatedAt?: string | null;
 }
 

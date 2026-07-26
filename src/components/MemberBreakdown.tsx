@@ -69,7 +69,15 @@ export default function MemberBreakdown({
                 </span>
               )}
               <span className="text-xs text-text-muted w-4 shrink-0 text-right tabular-nums">{i + 1}</span>
-              <span className={`text-sm font-medium truncate min-w-0 flex-1 ${isSelected ? 'text-gold' : ''}`}>{m.name}</span>
+              <span className={`text-sm font-medium truncate min-w-0 flex-1 ${m.frozenAt ? 'text-text-muted line-through' : ''} ${isSelected ? 'text-gold' : ''}`}>{m.name}</span>
+              {m.frozenAt && (
+                <span
+                  className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
+                  title="Subbed out — no longer active; their locked contribution still counts unless it was cleared"
+                >
+                  Subbed out
+                </span>
+              )}
               {pointsMode && (
                 <span className="text-sm font-semibold text-gold shrink-0 tabular-nums">
                   {m.points.toLocaleString()} pts

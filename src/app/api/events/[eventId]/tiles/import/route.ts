@@ -43,6 +43,8 @@ interface ImportRow {
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  /** Scheduled reveal time (ISO UTC) for Showdown boards — always applied, like the PUT route. */
+  revealAt?: string | null;
   items?: { name?: string; count: number; id?: number; group?: string | null }[] | null;
 }
 
@@ -105,10 +107,27 @@ function validateRowFields(i: number, row: ImportRow): string | null {
     return `Row ${i + 1}: unknown type "${row.tileType}" — use one of ${[...VALID_TILE_TYPES].join(', ')}`;
   }
   if (
+    row.revealAt !== undefined && row.revealAt !== null &&
+    (typeof row.revealAt !== 'string' || Number.isNaN(Date.parse(row.revealAt)))
+  ) {
+    return `Row ${i + 1}: revealAt must be a parseable date-time (e.g. "2026-08-01 19:00") or blank`;
+  }
+  if (
     row.requiredAmount !== undefined && row.requiredAmount !== null &&
     (!Number.isInteger(row.requiredAmount) || row.requiredAmount < 1)
   ) {
     return `Row ${i + 1}: requiredAmount must be an integer >= 1`;
+  }
+  // A requiredAmount alongside @Set-grouped items is contradictory: a requiredAmount forces the
+  // simple drop-pool path in deriveItemFields, which discards the @Set groups — the tile silently
+  // stops being an "any one full set" collection and just tracks any-one-of-N. Reject it so the
+  // author disambiguates instead of being surprised in-game (a "Any Moons set" tile that reads 3/1).
+  if (
+    row.requiredAmount != null &&
+    Array.isArray(row.items) &&
+    row.items.some((it) => it != null && typeof it.group === 'string' && it.group.trim() !== '')
+  ) {
+    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for an "any one full set" collection, or remove the @Set groups for a pool.`;
   }
   if (
     row.points !== undefined && row.points !== null &&
@@ -278,6 +297,11 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   }
   if (row.timedActivity !== undefined) s.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
   if (row.timeThresholdSeconds !== undefined) s.timeThresholdSeconds = row.timeThresholdSeconds ?? null;
+  // Scheduled reveal time — always editable (like the PUT route), so a Showdown host can re-time
+  // upcoming reveals by re-uploading the sheet mid-event. Normalised to UTC ISO.
+  if (row.revealAt !== undefined) {
+    s.revealAt = row.revealAt ? new Date(row.revealAt).toISOString() : null;
+  }
   if (allowPreStart) {
     if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';

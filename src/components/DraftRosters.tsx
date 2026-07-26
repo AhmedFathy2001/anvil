@@ -5,6 +5,7 @@ interface Player {
   name: string;
   teamId: number | null;
   pickNumber: number | null;
+  ownerUserId?: number | null; // multi-account: a person's accounts share this (for per-person headcount)
 }
 
 interface Team {
@@ -36,6 +37,13 @@ interface Props {
   onPlayerClick?: (rsn: string) => void;
   gainsData?: PlayerGains[];
   tileGoals?: TileGoalInfo[];
+  accountSlotMode?: string; // 'per-person' counts a person's accounts as one toward the headcount
+}
+
+// How many "slots" a roster fills: distinct people in per-person mode, else raw account rows.
+function rosterSlots(roster: { id: number; ownerUserId?: number | null }[], perPerson: boolean): number {
+  if (!perPerson) return roster.length;
+  return new Set(roster.map((p) => (p.ownerUserId != null ? `u${p.ownerUserId}` : `p${p.id}`))).size;
 }
 
 function formatCompact(value: number, type: string): string {
@@ -47,7 +55,8 @@ function formatCompact(value: number, type: string): string {
   return `${value.toLocaleString()} kc`;
 }
 
-export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals }: Props) {
+export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals, accountSlotMode }: Props) {
+  const perPerson = accountSlotMode === 'per-person';
   const pickedPlayers = players
     .filter((p) => p.teamId !== null)
     .sort((a, b) => (a.pickNumber ?? 0) - (b.pickNumber ?? 0));
@@ -71,7 +80,11 @@ export default function DraftRosters({ players, teams, teamOrder, onPlayerClick,
                 style={{ backgroundColor: team.color }}
               />
               <span className="font-semibold text-sm">{team.name}</span>
-              <span className="text-xs text-text-muted ml-auto">{roster.length} players</span>
+              <span className="text-xs text-text-muted ml-auto">
+                {perPerson && rosterSlots(roster, true) !== roster.length
+                  ? `${rosterSlots(roster, true)} people · ${roster.length} accts`
+                  : `${roster.length} players`}
+              </span>
             </div>
             {roster.length > 0 ? (
               <div className="space-y-1">

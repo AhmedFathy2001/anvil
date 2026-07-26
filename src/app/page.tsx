@@ -17,6 +17,7 @@ import LocalTime from '@/components/LocalTime';
 import EventTimer from '@/components/EventTimer';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { eventTileCount, eventShapeBadge, tileWeight, isPointsMode } from '@/lib/utils';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { signupWindowState } from '@/lib/signup';
 
 export const dynamic = 'force-dynamic';
@@ -134,7 +135,11 @@ export default async function HomePage() {
       const evTeams = activeTeams.filter((t) => t.eventId === event.id);
       // The leader is the highest SCORE, which is summed points in a points event and a plain
       // tile count in classic/tile-race (tileWeight is 1 there). Optional tiles don't score.
-      const scoredTiles = activeTiles.filter((t) => t.eventId === event.id && !t.optional);
+      // Reveal-policy events: only revealed tiles count toward the visible total so the home
+      // progress bar reflects what's actually in play (no content leaves the server here anyway).
+      const scoredTiles = visibleTiles(parseEventRules(event.rules), activeTiles).filter(
+        (t) => t.eventId === event.id && !t.optional,
+      );
       const weightById = new Map(scoredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
       const total = scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
       const unit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
@@ -143,7 +148,14 @@ export default async function HomePage() {
       for (const team of evTeams) {
         const score = evCompletions
           .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+          .reduce(
+            (sum, c) =>
+              sum +
+              (isPointsMode(event.scoringMode) && c.awardedPoints != null
+                ? c.awardedPoints
+                : weightById.get(c.tileId) || 0),
+            0,
+          );
         if (!top || score > top.score) {
           top = { name: team.name, color: team.color, score, total, unit };
         }
@@ -182,7 +194,14 @@ export default async function HomePage() {
       for (const team of evTeams) {
         const score = evCompletions
           .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0);
+          .reduce(
+            (sum, c) =>
+              sum +
+              (isPointsMode(event.scoringMode) && c.awardedPoints != null
+                ? c.awardedPoints
+                : weightById.get(c.tileId) || 0),
+            0,
+          );
         if (!bestTeam || score > bestTeam.score) {
           bestTeam = { teamName: team.name, teamColor: team.color, score, unit };
         }
@@ -359,7 +378,7 @@ export default async function HomePage() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
                         <span className="text-xs bg-gold/15 text-gold px-2 py-1 rounded-full font-medium whitespace-nowrap">
-                          {eventShapeBadge(event.format, event.scoringMode, event.boardSize)}
+                          {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
                         </span>
                         {signupsOpen && (
                           <span className="text-xs bg-accent-green/15 text-accent-green-light px-2 py-1 rounded-full font-medium whitespace-nowrap">
@@ -461,7 +480,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted mb-2">
-                    <span>{eventShapeBadge(event.format, event.scoringMode, event.boardSize)}</span>
+                    <span>{eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}</span>
                     <span>·</span>
                     <span>{numTeams} team{numTeams !== 1 ? 's' : ''}</span>
                   </div>
