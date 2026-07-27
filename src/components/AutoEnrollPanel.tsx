@@ -12,6 +12,9 @@ interface Props {
   draftInProgress: boolean;
   // Called after a successful enroll so the parent can refresh the pool / team lists.
   onEnrolled: () => void | Promise<void>;
+  // Format-first flow: pin the panel to one placement and hide the chooser — the Teams tab
+  // already asked "draft / one team each / one shared team", so don't ask again here.
+  fixedPlacement?: Placement;
 }
 
 const OPTIONS: { value: Placement; label: string; hint: string; needsTeams: boolean }[] = [
@@ -21,8 +24,8 @@ const OPTIONS: { value: Placement; label: string; hint: string; needsTeams: bool
 ];
 
 // Bulk-enroll every plugin-active clan member into this event. Sits on the Teams tab's pool step.
-export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgress, onEnrolled }: Props) {
-  const [placement, setPlacement] = useState<Placement>('draft_pool');
+export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgress, onEnrolled, fixedPlacement }: Props) {
+  const [placement, setPlacement] = useState<Placement>(fixedPlacement ?? 'draft_pool');
   const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -91,6 +94,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
         )}
       </p>
 
+      {!fixedPlacement && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {OPTIONS.map((o) => {
           const active = placement === o.value;
@@ -115,6 +119,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
           );
         })}
       </div>
+      )}
 
       <button
         onClick={enroll}

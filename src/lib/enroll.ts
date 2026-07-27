@@ -200,6 +200,54 @@ export async function autoEnrollActivePluginMembers(
   return { placement, eligible: eligible.length, added: newlyEnrolled, teamsCreated };
 }
 
+// Give every player already in the event's pool (teamId null) a team, per the chosen non-draft
+// format: 'individual' = a solo team named after each player, 'one_team' = everyone onto one shared
+// "Clan" team. Complements autoEnrollActivePluginMembers (which only covers plugin-active clan
+// members) by teaming up sign-up-form players and manually-added guests too — this is what lets the
+// format-first Teams flow skip manual team creation entirely. Idempotent: players already on a team
+// are untouched, same-named teams are reused.
+export async function placeUnassignedPlayers(
+  eventId: number,
+  placement: 'one_team' | 'individual',
+): Promise<{ placed: number; teamsCreated: number }> {
+  const pool = await db
+    .select()
+    .from(players)
+    .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+  if (pool.length === 0) return { placed: 0, teamsCreated: 0 };
+
+  let teamsCreated = 0;
+  const pickedAt = new Date().toISOString();
+
+  if (placement === 'one_team') {
+    const teamId = await findOrCreateTeam(eventId, 'Clan', teamColorForIndex(0), (created) => {
+      if (created) teamsCreated++;
+    });
+    await db
+      .update(players)
+      .set({ teamId, pickedAt })
+      .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+    return { placed: pool.length, teamsCreated };
+  }
+
+  // individual — one solo team per pool player, reusing an existing team with their name (re-runs
+  // and mixed auto-enroll/pool flows must not spawn "Nisbro (2)" duplicates).
+  const existingTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const teamByName = new Map(existingTeams.map((t) => [t.name.trim().toLowerCase(), t.id]));
+  let colorIdx = existingTeams.length;
+  for (const p of pool) {
+    const key = p.name.trim().toLowerCase();
+    let teamId = teamByName.get(key);
+    if (teamId == null) {
+      teamId = await insertTeam(eventId, p.name, teamColorForIndex(colorIdx++));
+      teamByName.set(key, teamId);
+      teamsCreated++;
+    }
+    await db.update(players).set({ teamId, pickedAt }).where(eq(players.id, p.id));
+  }
+  return { placed: pool.length, teamsCreated };
+}
+
 // captain_password is a legacy NOT NULL column on older live DBs (retired in schema, dropped by
 // migration but may linger). Auto-created utility teams have no captain, so stuff a random inert
 // value to satisfy any lingering constraint — nothing reads it.
