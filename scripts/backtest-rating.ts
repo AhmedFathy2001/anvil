@@ -106,11 +106,13 @@ interface Contribution {
 }
 
 async function actualContributions(eventId: number): Promise<Contribution> {
+  // Optional tiles never score (mirrors lifecycle standings + memberBreakdown) — completing one
+  // is activity, not points, so they're excluded from the points sums entirely.
   const comps = await q(
     `SELECT c.id, c.tile_id, c.team_id, c.credit_player_id, c.stat_contributions,
             COALESCE(c.awarded_points, t.points, 1) AS pts
      FROM completions c JOIN tiles t ON t.id = c.tile_id
-     WHERE t.event_id = ?`,
+     WHERE t.event_id = ? AND COALESCE(t.optional, 0) = 0`,
     [eventId],
   );
   const subs = await q(
@@ -217,6 +219,24 @@ function volumeScore(bosses: Record<string, number>): number {
   return v;
 }
 
+/**
+ * Overall XP from the snapshot — the skilling half of volume/activity. Skilling is a feature,
+ * not an afterthought: boards mix skill tiles heavily and XP gained is the best hours proxy in
+ * the game, so a high-XP skiller must not be invisible next to a PvMer.
+ */
+function overallXp(statsSnapshotJson: string | null): number {
+  if (!statsSnapshotJson) return 0;
+  try {
+    const snap = JSON.parse(statsSnapshotJson) as Record<string, unknown>;
+    const skills = (snap.skills ?? snap) as Record<string, unknown>;
+    const overall = skills?.overall as { xp?: number } | undefined;
+    const xp = Number(overall?.xp ?? 0);
+    return Number.isFinite(xp) && xp > 0 ? xp : 0;
+  } catch {
+    return 0;
+  }
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────────────────────
 
 const eventId = Number(arg('event'));
@@ -275,8 +295,27 @@ for (const [tid, pts] of teamOrder) console.log(`  ${teamName.get(tid) ?? tid}: 
 const spread = teamOrder.length >= 2 ? teamOrder[0][1] / Math.max(1, teamOrder[teamOrder.length - 1][1]) : 1;
 console.log(`  → spread: top is ${spread.toFixed(1)}× bottom`);
 
+// Drop-off timeline: last day (1-based, from event start) each player fed a submission — the
+// give-up date made visible. Stat-tile-only grinders have no submissions; their rows say 'stat'.
+const lastActive = new Map<number, number>();
+if (eventStart) {
+  const subTimes = await q(
+    `SELECT s.credit_player_id AS pid, MAX(s.created_at) AS last
+     FROM submissions s JOIN tiles t ON t.id = s.tile_id
+     WHERE t.event_id = ? AND s.credit_player_id IS NOT NULL GROUP BY s.credit_player_id`,
+    [eventId],
+  );
+  for (const r of subTimes) {
+    const day = Math.floor((Date.parse(String(r.last)) - Date.parse(eventStart)) / 86_400_000) + 1;
+    if (Number.isFinite(day)) lastActive.set(Number(r.pid), Math.max(1, day));
+  }
+}
+const eventDays = event.end_date
+  ? Math.max(1, Math.round((Date.parse(String(event.end_date)) - Date.parse(eventStart)) / 86_400_000))
+  : null;
+
 console.log(`\n  Per-person (attributable points), and the no-show decomposition:`);
-const byTeamPeople = new Map<number, { name: string; pts: number; frozen: boolean }[]>();
+const byTeamPeople = new Map<number, { name: string; pts: number; frozen: boolean; lastDay: number | null }[]>();
 for (const p of roster) {
   const tid = p.team_id == null ? -1 : Number(p.team_id);
   let list = byTeamPeople.get(tid);
@@ -285,6 +324,7 @@ for (const p of roster) {
     name: String(p.name),
     pts: actual.byPlayer.get(Number(p.id)) ?? 0,
     frozen: p.frozen_at != null,
+    lastDay: lastActive.get(Number(p.id)) ?? null,
   });
 }
 for (const [tid] of teamOrder) {
@@ -296,8 +336,13 @@ for (const [tid] of teamOrder) {
     `  ${teamName.get(tid)}: ${people.length} rostered, ${zero} contributed nothing;` +
       ` top carry ${top ? `${top.name} = ${pct(top.pts / Math.max(1, attributed))} of attributed pts` : '—'}`,
   );
-  for (const x of people)
-    console.log(`      ${x.pts > 0 ? fmt(x.pts).padStart(7) : '      0'}  ${x.name}${x.frozen ? '  (subbed out)' : ''}`);
+  for (const x of people) {
+    const last = x.lastDay == null ? (x.pts > 0 ? 'stat-only' : '—') : `d${x.lastDay}${eventDays ? `/${eventDays}` : ''}`;
+    console.log(
+      `      ${x.pts > 0 ? fmt(x.pts).padStart(7) : '      0'}  ${x.name.padEnd(16)} last active ${last}` +
+        `${x.frozen ? '  (subbed out)' : ''}`,
+    );
+  }
 }
 
 // ── 2. RATING (pre-event only) ─────────────────────────────────────────────────────────────────
@@ -319,8 +364,9 @@ for (const p of allPlayers) {
 }
 
 const priorContrib = new Map<number, Contribution>();
-// Latest prior-event snapshot per person → the activity delta baseline.
+// Latest prior-event snapshot per person → the activity delta baselines (KC volume + XP).
 const priorSnapshotVol = new Map<string, number>();
+const priorSnapshotXp = new Map<string, number>();
 for (const pe of priors) {
   const rows = await q(`SELECT id, name, clan_member_id, stats_snapshot FROM players WHERE event_id = ?`, [
     Number(pe.id),
@@ -329,8 +375,10 @@ for (const pe of priors) {
     if (!r.stats_snapshot) continue;
     const key = personKeyOf(r.clan_member_id == null ? null : Number(r.clan_member_id), String(r.name));
     const vol = volumeScore(parseBosses(String(r.stats_snapshot)));
+    const xp = overallXp(String(r.stats_snapshot));
     // priors are start-date ordered, so later events overwrite → latest baseline wins.
     if (vol > 0) priorSnapshotVol.set(key, vol);
+    if (xp > 0) priorSnapshotXp.set(key, xp);
   }
 }
 console.log(`\n── 2. Pre-event ratings ──`);
@@ -357,8 +405,11 @@ interface Person {
   cap: number;
   capMarkers: string[];
   volume: number;
+  xp: number;
   /** KC-volume gained since the person's previous-event snapshot; null = no prior snapshot. */
   activity: number | null;
+  /** Overall XP gained since the previous-event snapshot; null = no prior snapshot. */
+  activityXp: number | null;
   evidence: number;
   evidenceEvents: number;
   rating: number;
@@ -382,7 +433,9 @@ for (const p of roster) {
         cap: 0,
         capMarkers: [],
         volume: 0,
+        xp: 0,
         activity: null,
+        activityXp: null,
         evidence: 0,
         evidenceEvents: 0,
         rating: 0,
@@ -397,6 +450,7 @@ for (const p of roster) {
   // person's), volume sums later from the merged map (hours are the person's too).
   const bosses = parseBosses(p.stats_snapshot ? String(p.stats_snapshot) : null);
   for (const [k, kc] of Object.entries(bosses)) person.bosses[k] = Math.max(person.bosses[k] ?? 0, kc);
+  person.xp += overallXp(p.stats_snapshot ? String(p.stats_snapshot) : null); // alts sum: hours are the person's
   // A row frozen mid-event with nothing scored is a sub-out (never played) — the replacement's
   // row carries the team's real strength.
   if (p.frozen_at != null && (actual.byPlayer.get(Number(p.id)) ?? 0) <= 0) person.subbedOut = true;
@@ -409,6 +463,8 @@ for (const person of people.values()) {
   person.volume = volumeScore(person.bosses);
   const baseline = priorSnapshotVol.get(person.key);
   person.activity = baseline == null ? null : Math.max(0, person.volume - baseline);
+  const xpBaseline = priorSnapshotXp.get(person.key);
+  person.activityXp = xpBaseline == null || person.xp <= 0 ? null : Math.max(0, person.xp - xpBaseline);
 
   let evidence = 0;
   let wsum = 0;
@@ -438,20 +494,32 @@ for (const person of people.values()) {
 const pool = [...people.values()].filter((r) => r.teamId != null); // unrostered/removed rows are out
 const capMax = Math.max(1e-9, ...pool.map((r) => r.cap));
 const volMax = Math.max(1e-9, ...pool.map((r) => r.volume));
+const xpMax = Math.max(1e-9, ...pool.map((r) => r.xp));
 const actMax = Math.max(1e-9, ...pool.map((r) => r.activity ?? 0));
+const actXpMax = Math.max(1e-9, ...pool.map((r) => r.activityXp ?? 0));
 const evMax = Math.max(1e-9, ...pool.map((r) => r.evidence));
+// Measured activity blends (flow: KC-delta ⊕ XP-delta). Unknown activity is imputed at the POOL
+// MEDIAN of measured players — "assume typical", never "assume their stock": redistributing the
+// weight instead let unknown-activity players ride 85% capability while measured-but-modest
+// players got judged on reality (the J K U > Drenvox inversion).
+const actBlendOf = (r: Person): number | null =>
+  r.activity == null && r.activityXp == null
+    ? null
+    : 0.5 * ((r.activity ?? 0) / actMax) + 0.5 * ((r.activityXp ?? 0) / actXpMax);
+const measuredActs = pool.map(actBlendOf).filter((v): v is number => v != null).sort((a, b) => a - b);
+const medianAct = measuredActs.length ? measuredActs[Math.floor(measuredActs.length / 2)] : 0;
 for (const r of pool) {
   const evTrust = r.evidenceEvents / (r.evidenceEvents + SHRINK_K);
   const evW = EVIDENCE_WEIGHT * evTrust;
-  const actW = r.activity == null ? 0 : ACTIVITY_WEIGHT;
-  const spare = EVIDENCE_WEIGHT - evW + (ACTIVITY_WEIGHT - actW);
-  const capW = CAP_WEIGHT + spare * (CAP_WEIGHT / (CAP_WEIGHT + VOLUME_WEIGHT));
-  const volW = VOLUME_WEIGHT + spare * (VOLUME_WEIGHT / (CAP_WEIGHT + VOLUME_WEIGHT));
-  r.rating =
-    capW * (r.cap / capMax) +
-    volW * Math.pow(r.volume / volMax, 3) + // cubed: breadth alone shouldn't rate casuals up
-    actW * ((r.activity ?? 0) / actMax) +
-    evW * (r.evidence / evMax);
+  // Unearned EVIDENCE weight flows to capability (the honest prior). Activity keeps its full
+  // weight for everyone via the median imputation above.
+  const capW = CAP_WEIGHT + (EVIDENCE_WEIGHT - evW);
+  const volW = VOLUME_WEIGHT;
+  // Volume = mostly boss-KC breadth×depth; lifetime XP is the weakest hours signal (stock, not
+  // flow) so it gets the small share. XP GAINED is a great signal, XP OWNED is not.
+  const volBlend = 0.75 * Math.pow(r.volume / volMax, 3) + 0.25 * Math.pow(r.xp / xpMax, 3);
+  const actBlend = actBlendOf(r) ?? medianAct;
+  r.rating = capW * (r.cap / capMax) + volW * volBlend + ACTIVITY_WEIGHT * actBlend + evW * (r.evidence / evMax);
 }
 
 const withHistory = pool.filter((r) => r.evidenceEvents > 0).length;
@@ -465,7 +533,8 @@ for (const r of [...pool].sort((a, b) => b.rating - a.rating)) {
   const name = [...r.names].join(' + ');
   console.log(
     `  ${r.rating.toFixed(3)}  ${name.padEnd(16)} cap=${r.cap.toFixed(0).padStart(4)}` +
-      ` vol=${r.volume.toFixed(0).padStart(4)} act=${r.activity == null ? '   ?' : r.activity.toFixed(0).padStart(4)}` +
+      ` vol=${r.volume.toFixed(0).padStart(4)} xp=${(r.xp / 1e6).toFixed(0).padStart(4)}m` +
+      ` act=${r.activity == null ? '  ?' : r.activity.toFixed(0).padStart(3)}/${r.activityXp == null ? '  ?' : `${(r.activityXp / 1e6).toFixed(0)}m`}` +
       ` evid=${fmt(r.evidence).padStart(7)}/ev(${r.evidenceEvents})` +
       `${r.subbedOut ? '  [subbed out]' : ''}` +
       (r.capMarkers.length ? `  [${r.capMarkers.slice(0, 3).join(', ')}${r.capMarkers.length > 3 ? ', …' : ''}]` : ''),
