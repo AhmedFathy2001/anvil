@@ -81,6 +81,10 @@ export interface TileEffort {
   floor: Floor;
   /** Difficulty multiplier applied to hours to get effort-hours (from the tile's floor). */
   difficulty: number;
+  /** Hours the tile is PRICED against: avg band normally, a fast-leaning blend for high/elite
+   *  tiles (teams assign gated tiles to whoever's closest to capable — nobody sends the average
+   *  player to the Inferno). Null = unmodelled for pricing. */
+  pricingHours: number | null;
   /** Raw points ÷ real average hours — throughput, shown for reference. null when unmodelled. */
   rawPtsPerHour: number | null;
   /** Points ÷ effort-hours (difficulty-adjusted) — the yardstick used for ranking and flags. */
@@ -482,7 +486,13 @@ export function analyzeEffort(
     const weight = tileWeight(scoringMode, t.points ?? 1);
     const avg = hours && Number.isFinite(hours[1]) && hours[1] > 0 ? hours[1] : null;
     const difficulty = FLOOR_EFFORT_MULTIPLIER[floor];
-    const effortAvg = avg != null ? avg * difficulty : null;
+    // Assignee-band pricing (plan A2): high/elite tiles price against 60/40 fast/avg — and when
+    // the avg band literally can't do it (Infinity) but the fast band can, the fast band alone
+    // carries the price: that's exactly the Inferno case, a real tile for the one who'll get it.
+    const fast = hours && Number.isFinite(hours[0]) && hours[0] > 0 ? hours[0] : null;
+    const gated = floor === 'high' || floor === 'elite';
+    const pricingHours = gated && fast != null ? (avg != null ? 0.6 * fast + 0.4 * avg : fast) : avg;
+    const effortAvg = pricingHours != null ? pricingHours * difficulty : null;
     // Single-completion or sub-5-minute tiles are one-offs: judged on difficulty, not throughput.
     const count = t.statGoal ?? t.requiredAmount ?? null;
     const oneOff = count === 1 || (avg != null && avg < ONE_OFF_TINY_HOURS);
@@ -490,9 +500,9 @@ export function analyzeEffort(
     const windowHours = CAMP_HOURS_PER_DAY * CAMPERS_PER_TILE * Math.max(1, opts.eventDays ?? DEFAULT_EVENT_DAYS);
     let hitProbability: number | null = null;
     let pClass: TileEffort['pClass'] = null;
-    if (avg != null) {
+    if (pricingHours != null) {
       const needed = Math.max(1, count ?? 1);
-      hitProbability = poissonTail(needed, needed * (windowHours / avg));
+      hitProbability = poissonTail(needed, needed * (windowHours / pricingHours));
       pClass = hitProbability < LOTTERY_P ? 'lottery' : hitProbability < LONG_SHOT_P ? 'long-shot' : 'grind';
     }
     return {
@@ -505,6 +515,7 @@ export function analyzeEffort(
       rawPtsPerHour: avg ? weight / avg : null,
       ptsPerHour: effortAvg ? weight / effortAvg : null,
       oneOff,
+      pricingHours,
       hitProbability,
       pClass,
       expectedPoints: hitProbability != null ? weight * hitProbability : null,
@@ -524,7 +535,7 @@ export function analyzeEffort(
 
   if (medianPph && opts.pointsMode) {
     for (const t of perTile) {
-      if (!t.hours || !Number.isFinite(t.hours[1]) || t.hours[1] <= 0) continue;
+      if (t.pricingHours == null) continue;
       // Lottery tiles keep the author's points untouched — 1pt meme and 800pt jackpot are both
       // legitimate; the class label + expected points carry the information instead.
       if (t.pClass === 'lottery') continue;
@@ -533,7 +544,7 @@ export function analyzeEffort(
         // Never dock a one-off on throughput grounds — only lift it to its difficulty floor.
         t.suggestedPoints = Math.max(floorMin, t.weight);
       } else {
-        const raw = medianPph * t.hours[1] * t.difficulty;
+        const raw = medianPph * t.pricingHours! * t.difficulty;
         const rounded = raw >= 20 ? Math.round(raw / 5) * 5 : Math.max(1, Math.round(raw));
         t.suggestedPoints = Math.max(floorMin, rounded);
       }
