@@ -1,0 +1,27 @@
+{
+  "_comment": "Capability markers for the player profile (balance-engine plan B2). Each marker: hiscores boss key, domain, weight (points at full comfort), fullKc (KC where the log ramp tops out — 1 KC proves capability at ~30% of weight). Overridable per-clan via the capability_markers setting (merged by key, like balance_rates). Skilling capability is NOT marker-based — it rides the XP volume/activity axes in the fold.",
+  "markers": [
+    { "key": "tzKalZuk", "label": "Inferno", "domain": "endgame-pvm", "weight": 40, "fullKc": 10 },
+    { "key": "solHeredit", "label": "Colosseum (quiver)", "domain": "endgame-pvm", "weight": 40, "fullKc": 10 },
+    { "key": "doomOfMokhaiotl", "label": "Doom of Mokhaiotl", "domain": "endgame-pvm", "weight": 15, "fullKc": 25 },
+    { "key": "tzTokJad", "label": "Fight Caves", "domain": "endgame-pvm", "weight": 6, "fullKc": 25 },
+    { "key": "theCorruptedGauntlet", "label": "Corrupted Gauntlet", "domain": "endgame-pvm", "weight": 12, "fullKc": 50 },
+    { "key": "phosanisNightmare", "label": "Phosani's Nightmare", "domain": "endgame-pvm", "weight": 10, "fullKc": 50 },
+    { "key": "chambersOfXericChallengeMode", "label": "CoX: CM", "domain": "raids", "weight": 25, "fullKc": 50 },
+    { "key": "theatreOfBloodHardMode", "label": "ToB: HM", "domain": "raids", "weight": 25, "fullKc": 50 },
+    { "key": "tombsOfAmascutExpert", "label": "ToA: Expert", "domain": "raids", "weight": 20, "fullKc": 50 },
+    { "key": "chambersOfXeric", "label": "CoX", "domain": "raids", "weight": 8, "fullKc": 50 },
+    { "key": "theatreOfBlood", "label": "ToB", "domain": "raids", "weight": 10, "fullKc": 50 },
+    { "key": "tombsOfAmascut", "label": "ToA", "domain": "raids", "weight": 6, "fullKc": 50 },
+    { "key": "nex", "label": "Nex", "domain": "endgame-pvm", "weight": 6, "fullKc": 50 },
+    { "key": "vardorvis", "label": "Vardorvis", "domain": "endgame-pvm", "weight": 4, "fullKc": 50 },
+    { "key": "dukeSucellus", "label": "Duke Sucellus", "domain": "endgame-pvm", "weight": 4, "fullKc": 50 },
+    { "key": "theLeviathan", "label": "The Leviathan", "domain": "endgame-pvm", "weight": 4, "fullKc": 50 },
+    { "key": "theWhisperer", "label": "The Whisperer", "domain": "endgame-pvm", "weight": 4, "fullKc": 50 },
+    { "key": "zulrah", "label": "Zulrah", "domain": "midgame-pvm", "weight": 2, "fullKc": 50 },
+    { "key": "vorkath", "label": "Vorkath", "domain": "midgame-pvm", "weight": 2, "fullKc": 50 },
+    { "key": "callisto", "label": "Callisto", "domain": "wildy-pvp", "weight": 3, "fullKc": 50 },
+    { "key": "vetion", "label": "Vet'ion", "domain": "wildy-pvp", "weight": 3, "fullKc": 50 },
+    { "key": "venenatis", "label": "Venenatis", "domain": "wildy-pvp", "weight": 3, "fullKc": 50 }
+  ]
+}
