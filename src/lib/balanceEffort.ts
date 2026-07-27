@@ -37,6 +37,19 @@ const FLOOR_MIN_POINTS: Record<Floor, number> = { anyone: 5, mid: 15, high: 50, 
 // it's a single completion, or if a single rep is under ~5 minutes of real time.
 const ONE_OFF_TINY_HOURS = 0.08;
 
+// Realizability — the troll axis. Points measure value-vs-time and stay author-owned: a fairly
+// EV-priced 800pt 3rd-age tile is STILL a lottery, because P(it lands inside one event) is a few
+// percent — face value isn't realizable value, and deliberately camping it is throwing hours away.
+// So we classify instead of repricing: expected successes in the window follow a Poisson process
+// at the tile's modelled rate, P(≥needed) decides grind / long-shot / lottery, and lottery tiles
+// are excluded from the over/underpaid flags + median (their suggested points stay untouched).
+// Board-level balance should read EXPECTED points (face × P), not face.
+const CAMP_HOURS_PER_DAY = 4; // assumed serious-camp commitment per camper
+const CAMPERS_PER_TILE = 2;
+const DEFAULT_EVENT_DAYS = 10; // when the caller doesn't know the event window
+const LOTTERY_P = 0.15;
+const LONG_SHOT_P = 0.5;
+
 interface ActivityRate {
   killSeconds?: Triplet;
   attemptMinutes?: Triplet;
@@ -74,6 +87,12 @@ export interface TileEffort {
   ptsPerHour: number | null;
   /** Single-completion / trivial tile: judged on difficulty, not throughput; excluded from the median. */
   oneOff: boolean;
+  /** P(the tile completes within the event window) at an assumed serious camp; null = unmodelled. */
+  hitProbability: number | null;
+  /** Realizability class from hitProbability: grind ≥ 0.5 > long-shot ≥ 0.15 > lottery. */
+  pClass: 'grind' | 'long-shot' | 'lottery' | null;
+  /** Face points × hitProbability — what the tile is worth to a team plan. Null when unmodelled. */
+  expectedPoints: number | null;
   suggestedPoints: number | null;
   /** Why the tile couldn't be modelled, or which fallback was used. */
   note: string | null;
@@ -422,11 +441,37 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
   return { hours: null, floor: 'anyone', note: UNMODELLED[type] ?? 'not modelled' };
 }
 
+// P(X ≥ n) for X ~ Poisson(lambda): the chance a tile needing n successes lands inside the
+// window when the window's expected success count is lambda. Log-space accumulation; normal
+// approximation for huge n so a 5000-kill tile can't overflow the term loop.
+function poissonTail(n: number, lambda: number): number {
+  if (n <= 0) return 1;
+  if (lambda <= 0) return 0;
+  if (n > 2000) {
+    const z = (lambda - n + 0.5) / Math.sqrt(lambda);
+    // Abramowitz–Stegun erf approximation, plenty for a classification threshold.
+    const t = 1 / (1 + 0.3275911 * Math.abs(z / Math.SQRT2));
+    const erf =
+      1 -
+      (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+        t *
+        Math.exp(-(z * z) / 2);
+    return Math.max(0, Math.min(1, 0.5 * (1 + Math.sign(z) * erf)));
+  }
+  let logTerm = -lambda;
+  let cdf = Math.exp(logTerm);
+  for (let k = 1; k < n; k++) {
+    logTerm += Math.log(lambda / k);
+    cdf += Math.exp(logTerm);
+  }
+  return Math.max(0, Math.min(1, 1 - cdf));
+}
+
 // ---- Board-level audit --------------------------------------------------------------
 
 export function analyzeEffort(
   tiles: Tile[],
-  opts: { pointsMode: boolean; ratesOverride?: unknown },
+  opts: { pointsMode: boolean; ratesOverride?: unknown; eventDays?: number | null },
 ): EffortReport {
   const rates = mergeRates(opts.ratesOverride);
   const scoringMode = opts.pointsMode ? 'points' : 'tiles';
@@ -441,6 +486,15 @@ export function analyzeEffort(
     // Single-completion or sub-5-minute tiles are one-offs: judged on difficulty, not throughput.
     const count = t.statGoal ?? t.requiredAmount ?? null;
     const oneOff = count === 1 || (avg != null && avg < ONE_OFF_TINY_HOURS);
+    // Realizability: expected successes in the camp window at the avg-band rate → P(≥needed).
+    const windowHours = CAMP_HOURS_PER_DAY * CAMPERS_PER_TILE * Math.max(1, opts.eventDays ?? DEFAULT_EVENT_DAYS);
+    let hitProbability: number | null = null;
+    let pClass: TileEffort['pClass'] = null;
+    if (avg != null) {
+      const needed = Math.max(1, count ?? 1);
+      hitProbability = poissonTail(needed, needed * (windowHours / avg));
+      pClass = hitProbability < LOTTERY_P ? 'lottery' : hitProbability < LONG_SHOT_P ? 'long-shot' : 'grind';
+    }
     return {
       tileId: t.id,
       label: t.label,
@@ -451,6 +505,9 @@ export function analyzeEffort(
       rawPtsPerHour: avg ? weight / avg : null,
       ptsPerHour: effortAvg ? weight / effortAvg : null,
       oneOff,
+      hitProbability,
+      pClass,
+      expectedPoints: hitProbability != null ? weight * hitProbability : null,
       suggestedPoints: null, // filled below once the board median is known
       note,
     };
@@ -458,14 +515,19 @@ export function analyzeEffort(
 
   const modelled = perTile.filter((t) => t.ptsPerHour != null);
   // The median (and the over/underpaid flags) are set by grind tiles only — one-offs have
-  // near-zero denominators that would blow up the benchmark. Difficulty-adjusted throughout.
-  const graded = modelled.filter((t) => !t.oneOff);
+  // near-zero denominators that would blow up the benchmark, and lottery tiles are priced as
+  // jackpots on purpose (EV math is meaningless as a flag in either direction). Difficulty-
+  // adjusted throughout.
+  const graded = modelled.filter((t) => !t.oneOff && t.pClass !== 'lottery');
   const pphSorted = graded.map((t) => t.ptsPerHour!).sort((a, b) => a - b);
   const medianPph = pphSorted.length ? pphSorted[Math.floor(pphSorted.length / 2)] : null;
 
   if (medianPph && opts.pointsMode) {
     for (const t of perTile) {
       if (!t.hours || !Number.isFinite(t.hours[1]) || t.hours[1] <= 0) continue;
+      // Lottery tiles keep the author's points untouched — 1pt meme and 800pt jackpot are both
+      // legitimate; the class label + expected points carry the information instead.
+      if (t.pClass === 'lottery') continue;
       const floorMin = FLOOR_MIN_POINTS[t.floor];
       if (t.oneOff) {
         // Never dock a one-off on throughput grounds — only lift it to its difficulty floor.
@@ -520,6 +582,24 @@ export function analyzeEffort(
       title: `${fallback.length} tile${fallback.length === 1 ? ' uses' : 's use'} a generic time estimate`,
       detail: `No curated kill-time for ${fallback.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${fallback.length > 4 ? '…' : ''} — their effort is a placeholder. Add rates via the balance_rates setting for a sharper read.`,
       tileIds: fallback.map((t) => t.tileId),
+    });
+  }
+
+  const lotteries = perTile.filter((t) => t.pClass === 'lottery');
+  if (lotteries.length) {
+    const face = lotteries.reduce((s, t) => s + t.weight, 0);
+    const expected = lotteries.reduce((s, t) => s + (t.expectedPoints ?? 0), 0);
+    checks.push({
+      id: 'lottery-tiles',
+      level: 'info',
+      title: `${lotteries.length} lottery tile${lotteries.length === 1 ? '' : 's'} — jackpots, not plans`,
+      detail:
+        `${lotteries.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${lotteries.length > 4 ? '…' : ''} land ` +
+        `within the event with <${Math.round(LOTTERY_P * 100)}% odds even at a serious camp ` +
+        `(~${CAMP_HOURS_PER_DAY}h/day × ${CAMPERS_PER_TILE} players). Their ${Math.round(face)} face points are ` +
+        `≈${Math.round(expected)} expected — the points can stand (jackpots are fun), but nobody should be ` +
+        `assigned to camp these, and board balance should count the expected value, not the face value.`,
+      tileIds: lotteries.map((t) => t.tileId),
     });
   }
 

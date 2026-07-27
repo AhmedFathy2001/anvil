@@ -39,7 +39,14 @@ export async function GET(
     }
   }
 
-  const report = analyzeEffort(eventTiles, { pointsMode: isPointsMode(event.scoringMode), ratesOverride });
+  // Event window for the realizability (lottery) classification — falls back to the model's
+  // default when dates aren't set yet at authoring time.
+  const eventDays =
+    event.startDate && event.endDate
+      ? Math.max(1, Math.round((Date.parse(event.endDate) - Date.parse(event.startDate)) / 86_400_000))
+      : null;
+
+  const report = analyzeEffort(eventTiles, { pointsMode: isPointsMode(event.scoringMode), ratesOverride, eventDays });
   // Infinity doesn't survive JSON — encode as null and let the client re-read hours[1] == null
   // alongside `blocked` to mean "average band can't do it".
   const perTile = report.perTile.map((t) => ({
