@@ -281,6 +281,13 @@
       "when": 1785137513619,
       "tag": "0039_players-pvp-kills",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1785143412878,
+      "tag": "0040_player-event-facts",
+      "breakpoints": true
     }
   ]
 }

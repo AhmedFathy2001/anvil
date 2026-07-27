@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const events = sqliteTable('events', {
@@ -801,6 +801,50 @@ export const playerSnapshots = sqliteTable('player_snapshots', {
   // One baseline + one current per member per competition. NULLs are distinct in SQLite, so
   // legacy/orphan rows (NULL competition) never collide here.
   uniqueIndex('player_snapshots_member_comp_kind_idx').on(table.clanMemberId, table.weeklyCompetitionId, table.kind),
+]);
+
+// One materialized row per PERSON per finished event — the longitudinal evidence the player
+// profile folds over (balance-engine plan). Written once at event end (idempotent re-write on
+// demand), backfillable for past events. A person = linked user ('u<id>') > clan member
+// ('m<id>') > bare RSN ('n<rsn>') — durable across events, unlike per-event player ids.
+export const playerEventFacts = sqliteTable('player_event_facts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  personKey: text('person_key').notNull(),
+  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(), // lead-account display name at event time
+  accounts: integer('accounts').default(1).notNull(),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  // Outcome facts (points via the same split the scoreboard/MVP math uses).
+  points: real('points').default(0).notNull(),
+  tilesContributed: integer('tiles_contributed').default(0).notNull(),
+  tilesFinished: integer('tiles_finished').default(0).notNull(),
+  submissions: integer('submissions').default(0).notNull(),
+  xpGained: integer('xp_gained').default(0).notNull(),
+  kcGained: integer('kc_gained').default(0).notNull(),
+  deaths: integer('deaths').default(0).notNull(),
+  lootGpGained: integer('loot_gp_gained').default(0).notNull(),
+  pvpKills: integer('pvp_kills').default(0).notNull(),
+  // Timeline / reliability. Days are 1-based from event start; lastActiveDay NULL = never active.
+  // July lesson: WHEN someone went dark matters as much as whether — a mid-event drop-off on a
+  // collapsed team is environmental, not personal.
+  activeDays: integer('active_days').default(0).notNull(),
+  lastActiveDay: integer('last_active_day'),
+  eventDays: integer('event_days'),
+  subbedOut: integer('subbed_out').default(0).notNull(),
+  // Team context, so the profile fold can discount demoralized-team events: the team's final
+  // rank/points next to the winner's lets "gave up once buried" read differently from "no-show".
+  teamRank: integer('team_rank'),
+  teamsTotal: integer('teams_total'),
+  teamPoints: real('team_points'),
+  topTeamPoints: real('top_team_points'),
+  // Extensible extras (timed PBs, per-domain rates) as JSON — additive without migrations.
+  detail: text('detail'),
+  computedAt: text('computed_at').notNull(),
+}, (table) => [
+  uniqueIndex('player_event_facts_event_person_idx').on(table.eventId, table.personKey),
+  index('player_event_facts_person_idx').on(table.personKey),
 ]);
 
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.

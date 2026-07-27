@@ -8,6 +8,7 @@ import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { getEventStartReadiness } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
+import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
 
 export async function GET(
@@ -148,6 +149,9 @@ export async function PATCH(
     // Auto-build payouts from the configured prize structure + final standings (no-op if no
     // structure or payouts already exist). Fire-and-forget — a payout hiccup mustn't fail the end.
     autoGeneratePayoutsOnEnd(event.id).catch(() => {});
+
+    // Materialize player_event_facts (longitudinal profile evidence). Fire-and-forget like payouts.
+    writePlayerEventFacts(event.id).catch(() => {});
 
     return NextResponse.json(updated);
   }

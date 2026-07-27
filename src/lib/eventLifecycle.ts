@@ -5,6 +5,7 @@ import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/di
 import { computeStartReadiness, type StartReadiness } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
+import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
@@ -180,6 +181,13 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // Auto-build the payout rows from the configured prize-per-placement structure and final
       // standings. No-op when no structure is set or payouts already exist. Non-critical.
       await autoGeneratePayoutsOnEnd(event.id).catch(() => {});
+
+      // Materialize the per-person player_event_facts rows (longitudinal profile evidence).
+      // Best-effort like the recap — a facts hiccup never blocks the end announcement, and the
+      // backfill script can always re-materialize later.
+      await writePlayerEventFacts(event.id).catch((err) =>
+        log.warn('event-lifecycle.facts-failed', { eventId: event.id, err: String(err) }),
+      );
     }
   }
 
