@@ -15,5 +15,12 @@ export default async function SetupPage() {
 
   // Channels feed the in-wizard webhook creation flow (steps 2–3); empty/off when no bot is connected.
   const [status, bot] = await Promise.all([getSetupStatus(), listBotChannels()]);
-  return <SetupWizardClient initial={status.values} channels={bot.channels} botEnabled={bot.enabled} />;
+  return (
+    <SetupWizardClient
+      initial={status.values}
+      channels={bot.channels}
+      botEnabled={bot.enabled}
+      provisioned={status.provisioned}
+    />
+  );
 }
