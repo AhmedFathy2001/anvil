@@ -9,6 +9,7 @@ import { getEventStartReadiness } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
+import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
 
 export async function GET(
@@ -261,7 +262,34 @@ export async function PATCH(
       }).catch(() => {});
     }
 
-    return NextResponse.json(updated);
+    // Balance advisory (never a blocker — lopsided teams can be a deliberate social choice): if
+    // the projected strength spread is wide, say so and hand back the single swap that would
+    // shrink it most. Best-effort; a profile hiccup never delays the start we just performed.
+    let balanceWarning: { spreadPct: number; message: string; suggestedSwap: unknown } | null = null;
+    try {
+      const eventTeams = await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, id));
+      if (eventTeams.length >= 2) {
+        const balance = await buildDraftBalance(id);
+        const teamIds = eventTeams.map((t) => t.id);
+        const spreadPct = projectedSpreadPct(balance, teamIds);
+        if (spreadPct >= 25) {
+          const swap = bestBalancingSwap(balance, teamIds);
+          balanceWarning = {
+            spreadPct,
+            message:
+              `Projected team strength is ${spreadPct}% apart top-to-bottom.` +
+              (swap
+                ? ` Swapping ${swap.give} and ${swap.take} would bring it to ~${swap.spreadAfterPct}%.`
+                : ''),
+            suggestedSwap: swap,
+          };
+        }
+      }
+    } catch {
+      /* advisory only */
+    }
+
+    return NextResponse.json({ ...updated, balanceWarning });
   }
 
   // Handle change-mode action — switch the event's base type (classic / leagues / race)

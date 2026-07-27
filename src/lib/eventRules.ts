@@ -24,6 +24,13 @@
 export type RevealPolicy = 'all' | 'scheduled' | 'interval' | 'bounty';
 export type RevealOrder = 'random' | 'sequential';
 
+// How much the player-profile engine steers team formation (balance-engine plan, Part C).
+// 'off' = current behaviour. 'advisory' = staff see strength bars / badges, nothing enforced.
+// 'tiered-snake' = the draft blocks stacking top-tier players while another team has none.
+// 'dynamic-order' = the weakest projected team picks next each round instead of fixed serpentine.
+// 'auto' = teams are built by the greedy balancer ("Balance teams" button); the draft is skipped.
+export type BalanceMode = 'off' | 'advisory' | 'tiered-snake' | 'dynamic-order' | 'auto';
+
 export interface EventRules {
   revealPolicy: RevealPolicy;
   /** 'interval' policy: minutes between draws. */
@@ -38,6 +45,8 @@ export interface EventRules {
   decay: { floorPct: number; hours: number } | null;
   /** First completion locks the tile for all other teams. Implied by 'bounty'. */
   lockout: boolean;
+  /** Team-formation steering from player profiles. Never blocks event start; 'off' = classic. */
+  balanceMode: BalanceMode;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -48,9 +57,11 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   firstBonus: 0,
   decay: null,
   lockout: false,
+  balanceMode: 'off',
 };
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty'];
+const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'auto'];
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : NaN;
@@ -88,6 +99,9 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     decay,
     // Bounty is single-claim by definition — treat it as lockout everywhere.
     lockout: obj.lockout === true || policy === 'bounty',
+    balanceMode: BALANCE_MODES.includes(obj.balanceMode as BalanceMode)
+      ? (obj.balanceMode as BalanceMode)
+      : 'off',
   };
 }
 
@@ -131,13 +145,17 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.lockout !== undefined && typeof o.lockout !== 'boolean') {
     return { error: 'rules.lockout must be a boolean' };
   }
+  if (o.balanceMode !== undefined && !BALANCE_MODES.includes(o.balanceMode as BalanceMode)) {
+    return { error: "rules.balanceMode must be 'off', 'advisory', 'tiered-snake', 'dynamic-order', or 'auto'" };
+  }
   // Canonicalise through the parser so what we store is exactly what reads produce.
   const canonical = parseEventRules(JSON.stringify(o));
   const isDefault =
     canonical.revealPolicy === 'all' &&
     canonical.firstBonus === 0 &&
     canonical.decay === null &&
-    !canonical.lockout;
+    !canonical.lockout &&
+    canonical.balanceMode === 'off';
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 

@@ -4,6 +4,8 @@ import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick, countPicksTaken } from '@/lib/draft';
+import { parseEventRules } from '@/lib/eventRules';
+import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam, tierPickBlockReason, type DraftBalance } from '@/lib/draftBalance';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -74,7 +76,22 @@ export async function POST(
     return NextResponse.json({ error: 'No players left in pool' }, { status: 400 });
   }
 
-  const expectedTeamId = getTeamForPick(teamOrder, pickedCount);
+  // Balance modes (events.rules.balanceMode): 'dynamic-order' replaces fixed serpentine with
+  // weakest-projected-team-picks-next; 'tiered-snake' keeps serpentine but polices S/A-tier
+  // stacking below. Profile compute only runs when a mode needs it.
+  const balanceMode = parseEventRules(event.rules).balanceMode;
+  let balance: DraftBalance | null = null;
+  if (balanceMode === 'dynamic-order' || balanceMode === 'tiered-snake') {
+    try {
+      balance = await buildDraftBalance(eId);
+    } catch {
+      balance = null; // profile hiccup → classic behaviour, never a stuck draft
+    }
+  }
+  const expectedTeamId =
+    balanceMode === 'dynamic-order' && balance
+      ? dynamicNextTeam(balance, teamOrder, picksTakenByTeam(eventPlayers))
+      : getTeamForPick(teamOrder, pickedCount);
 
   // Resolve which team this caller captains (cookie, or web session for the team on the clock).
   let captainTeamId: number | null = captain ? captain.teamId : null;
@@ -97,6 +114,15 @@ export async function POST(
   }
   if (player.teamId !== null) {
     return NextResponse.json({ error: 'Player has already been picked' }, { status: 400 });
+  }
+
+  // Tiered-snake coverage: no second S while a team has none (same for A). Admins can override —
+  // they can already pick out of turn; the constraint is for captains.
+  if (!isAdmin && balanceMode === 'tiered-snake' && balance) {
+    const reason = tierPickBlockReason(balance, playerId, expectedTeamId, teamOrder);
+    if (reason) {
+      return NextResponse.json({ error: reason }, { status: 400 });
+    }
   }
 
   // Multi-account: one pick drafts the whole PERSON — every one of their still-unpicked accounts in
@@ -174,7 +200,16 @@ export async function POST(
   const nextPickNumber = pickedCount + 1;
   let nextTeamId: number | null = null;
   if (remainingPool > 0) {
-    nextTeamId = getTeamForPick(teamOrder, nextPickNumber);
+    if (balanceMode === 'dynamic-order' && balance) {
+      // Apply the pick we just made in-memory (profiles were computed pre-pick).
+      const pickedProfile = balance.byPlayerId.get(playerId);
+      if (pickedProfile) pickedProfile.teamId = expectedTeamId;
+      const counts = picksTakenByTeam(eventPlayers);
+      counts.set(expectedTeamId, (counts.get(expectedTeamId) ?? 0) + 1);
+      nextTeamId = dynamicNextTeam(balance, teamOrder, counts);
+    } else {
+      nextTeamId = getTeamForPick(teamOrder, nextPickNumber);
+    }
   }
 
   return NextResponse.json({
