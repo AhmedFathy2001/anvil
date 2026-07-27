@@ -4,6 +4,7 @@ import { players, tiles, submissions, completions, events } from '@/db/schema';
 import { and, eq, inArray, or, isNotNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { parseContributionSnapshot, buildContributionSnapshot } from '@/lib/statTracking';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Reset a single player's participation in an event — the "nuclear" option, minus the whole-team blast
 // radius. Per the product decision: this resets THIS player's own progress only. Their solo/individual
@@ -21,10 +22,15 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   // `remove` also drops them off the roster (back to the pool). `subOut` keeps them on the team
   // but benched (frozenAt set) so they still show as "subbed out" — a point-clearing sub-out, vs the
-  // default freeze which keeps points. `remove` and `subOut` are mutually exclusive; remove wins.
-  const { playerId, remove, subOut } = await request.json();
+  // default freeze which keeps points. `drop` goes further than `remove`: the player row is deleted
+  // outright, so they stop appearing (and being counted) anywhere in the event — for enrollments that
+  // were a mistake or subs who shouldn't linger in the pool. Mutually exclusive; drop > remove > subOut.
+  const { playerId, remove, subOut, drop } = await request.json();
   const pId = parseInt(String(playerId), 10);
   if (!Number.isFinite(pId)) {
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
@@ -38,7 +44,7 @@ export async function POST(
   }
 
   // Removing from the roster mid-draft would corrupt the snake-pick flow (same guard as the roster PATCH).
-  if (remove) {
+  if (remove || drop) {
     const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
     if (event && (event.draftStatus === 'active' || event.draftStatus === 'paused')) {
       return NextResponse.json({ error: 'Cannot remove a player while the draft is in progress.' }, { status: 409 });
@@ -90,23 +96,30 @@ export async function POST(
     }
   }
 
-  // 4. Wipe their own stat state (baseline + current). If removing, also unassign from the team.
-  //    Freeze state: a `subOut` clears points but keeps them benched (frozenAt set) so they still
-  //    show as subbed out; otherwise clear the freeze so a plain reset leaves them active-but-zeroed.
-  const benched = !!subOut && !remove;
-  await db
-    .update(players)
-    .set({
-      statsSnapshot: null,
-      snapshotAt: null,
-      cachedStats: null,
-      lastStatsFetch: null,
-      pluginStats: null,
-      frozenAt: benched ? new Date().toISOString() : null,
-      frozenStats: null,
-      ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),
-    })
-    .where(eq(players.id, pId));
+  // 4. Drop deletes the row outright (FKs to players are all onDelete: 'set null', and their
+  //    submissions/solo completions were already deleted above) — they vanish from the pool,
+  //    rosters, and every headcount. Otherwise wipe their own stat state (baseline + current);
+  //    if removing, also unassign from the team. Freeze state: a `subOut` clears points but keeps
+  //    them benched (frozenAt set) so they still show as subbed out; otherwise clear the freeze so
+  //    a plain reset leaves them active-but-zeroed.
+  const benched = !!subOut && !remove && !drop;
+  if (drop) {
+    await db.delete(players).where(eq(players.id, pId));
+  } else {
+    await db
+      .update(players)
+      .set({
+        statsSnapshot: null,
+        snapshotAt: null,
+        cachedStats: null,
+        lastStatsFetch: null,
+        pluginStats: null,
+        frozenAt: benched ? new Date().toISOString() : null,
+        frozenStats: null,
+        ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),
+      })
+      .where(eq(players.id, pId));
+  }
 
   return NextResponse.json({
     ok: true,
@@ -114,6 +127,7 @@ export async function POST(
     removedCompletions,
     strippedFromSplits,
     removed: !!remove,
+    dropped: !!drop,
     benched,
   });
 }
