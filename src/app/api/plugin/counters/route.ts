@@ -4,15 +4,18 @@ import { players, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 
-// Real-time ingest for the fun end-of-event "recap" counters (total deaths + total loot GP for the
-// active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry or a client
-// restart mid-event can't double-count: we keep max(stored, pushed) per counter. Purely cosmetic
-// (feeds the superlatives recap only, never scoring). No screenshot, no active-tile requirement.
+// Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
+// kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
+// or a client restart mid-event can't double-count: we keep max(stored, pushed) per counter. Purely
+// cosmetic (feeds the superlatives recap only, never scoring). No screenshot, no active-tile
+// requirement — pvpKills in particular exists so the PKer superlative works with no pvp tile on the
+// board.
 
 // Sanity ceilings — reject obviously bogus pushes. Loot GP stays well under 2^53 (~9 quadrillion), so
 // the JS-number-backed integer column keeps full precision.
 const MAX_DEATHS = 100_000;
 const MAX_LOOT_GP = 1_000_000_000_000; // 1 trillion
+const MAX_PVP_KILLS = 100_000;
 
 // Coerce a pushed value into a clean non-negative integer within [0, max]; anything else → null (absent).
 function clampCounter(v: unknown, max: number): number | null {
@@ -26,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
   }
 
-  let body: { deaths?: unknown; lootGp?: unknown };
+  let body: { deaths?: unknown; lootGp?: unknown; pvpKills?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -34,7 +37,8 @@ export async function POST(request: Request) {
   }
   const deaths = clampCounter(body?.deaths, MAX_DEATHS);
   const lootGp = clampCounter(body?.lootGp, MAX_LOOT_GP);
-  if (deaths == null && lootGp == null) {
+  const pvpKills = clampCounter(body?.pvpKills, MAX_PVP_KILLS);
+  if (deaths == null && lootGp == null && pvpKills == null) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
@@ -48,6 +52,7 @@ export async function POST(request: Request) {
       teamId: players.teamId,
       deaths: players.deaths,
       lootGpGained: players.lootGpGained,
+      pvpKills: players.pvpKills,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
@@ -64,11 +69,16 @@ export async function POST(request: Request) {
   // Absolute counts only ever rise — keep the max so a retry or restart never regresses the total.
   const curDeaths = active.deaths ?? 0;
   const curLoot = active.lootGpGained ?? 0;
+  const curPvp = active.pvpKills ?? 0;
   const newDeaths = deaths != null ? Math.max(curDeaths, deaths) : curDeaths;
   const newLoot = lootGp != null ? Math.max(curLoot, lootGp) : curLoot;
+  const newPvp = pvpKills != null ? Math.max(curPvp, pvpKills) : curPvp;
 
-  if (newDeaths !== curDeaths || newLoot !== curLoot) {
-    await db.update(players).set({ deaths: newDeaths, lootGpGained: newLoot }).where(eq(players.id, active.id));
+  if (newDeaths !== curDeaths || newLoot !== curLoot || newPvp !== curPvp) {
+    await db
+      .update(players)
+      .set({ deaths: newDeaths, lootGpGained: newLoot, pvpKills: newPvp })
+      .where(eq(players.id, active.id));
     return NextResponse.json({ ok: true, updated: 1 });
   }
   return NextResponse.json({ ok: true, updated: 0 });
