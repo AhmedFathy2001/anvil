@@ -9,6 +9,7 @@ import DraftOrderSetup from '@/components/DraftOrderSetup';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
+import BalancePanel from '@/components/BalancePanel';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
@@ -904,6 +905,24 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
       {/* Draft — steps 1-3 each render their own section, one at a time. */}
       <div className={activeStep === 0 || format === null ? 'hidden' : ''}>
+        {/* Profile-driven balance advisory + modes (classic draft format only): strength bars,
+            tiered pool, the balanceMode selector and the admin auto-balance action. */}
+        {!nonDraft && (activeStep === 2 || activeStep === 3) && (
+          <div className="mb-6">
+            <BalancePanel
+              eventId={event.id}
+              rules={event.rules}
+              teams={draftTeams.map((t) => ({ id: t.id, name: t.name, color: t.color ?? null }))}
+              playersSignature={draft.players.map((p) => `${p.id}:${p.teamId ?? ''}`).join(',')}
+              draftStatus={draft.status}
+              editLocked={editLocked}
+              onChanged={() => {
+                fetchDraft();
+                router.refresh();
+              }}
+            />
+          </div>
+        )}
         {!nonDraft && (activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">
             <DraftStatus
