@@ -57,9 +57,12 @@ interface Props {
   tierBands?: TierBand[];
   /** Current user is an admin — gates the admin-only live-event tile override. */
   isAdmin?: boolean;
+  // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
+  // authoring surface renders disabled.
+  editLocked?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
@@ -561,7 +564,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   return (
-    <div className="space-y-8">
+    // Disabled fieldset natively disables every control inside — the locked (finished) event's
+    // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
+    <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
       {/* CSV import */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
@@ -1056,7 +1061,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }
 

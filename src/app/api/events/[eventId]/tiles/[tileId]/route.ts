@@ -4,6 +4,7 @@ import { tiles, events } from '@/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
 import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Fresh single-tile read for the editor: opening a tile re-fetches it (instead of trusting
 // the page-load list) so a save starts from the latest state — and carries the updatedAt
@@ -40,6 +41,9 @@ export async function DELETE(
 
   const { eventId, tileId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const tId = parseInt(tileId, 10);
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });

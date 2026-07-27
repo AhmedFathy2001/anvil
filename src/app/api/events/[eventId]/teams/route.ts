@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
 import { placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -34,6 +35,9 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
 
   // Teams are part of the draft setup — once the draft is underway (or done) the team
   // set is frozen so the snake order stays valid. Adding a team mid-draft would leave it
@@ -125,6 +129,9 @@ export async function DELETE(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { searchParams } = new URL(request.url);
   const teamId = searchParams.get('teamId');
 
@@ -170,6 +177,9 @@ export async function PATCH(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { teamId, name, color, captainUserId } = await request.json();
 
   if (!teamId) {

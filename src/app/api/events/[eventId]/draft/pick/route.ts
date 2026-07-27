@@ -6,6 +6,7 @@ import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@
 import { getTeamForPick, countPicksTaken } from '@/lib/draft';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function POST(
   request: Request,
@@ -13,6 +14,9 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { playerId } = await request.json();
 
   if (!playerId) {

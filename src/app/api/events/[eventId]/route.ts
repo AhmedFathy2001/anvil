@@ -156,6 +156,22 @@ export async function PATCH(
     return NextResponse.json(updated);
   }
 
+  // Post-finish edit lock: 'unlock-editing' re-opens a finished event's content for corrections
+  // (teams/players/tiles/completions/submissions mutations start passing lib/eventLock's guard
+  // again); 'lock-editing' clears the override so the finished event is read-only once more.
+  if (body.action === 'unlock-editing' || body.action === 'lock-editing') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    const [updated] = await db
+      .update(events)
+      .set({ editUnlockedAt: body.action === 'unlock-editing' ? new Date().toISOString() : null })
+      .where(eq(events.id, id))
+      .returning();
+    return NextResponse.json(updated);
+  }
+
   // Handle resume action
   if (body.action === 'resume') {
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });

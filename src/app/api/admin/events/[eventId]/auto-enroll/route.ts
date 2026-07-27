@@ -8,6 +8,7 @@ import {
   listEligiblePluginMembers,
   type EnrollPlacement,
 } from '@/lib/enroll';
+import { assertEventEditable } from '@/lib/eventLock';
 
 const PLACEMENTS: EnrollPlacement[] = ['one_team', 'draft_pool', 'individual'];
 
@@ -41,6 +42,9 @@ export async function POST(
   }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

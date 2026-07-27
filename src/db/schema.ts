@@ -92,6 +92,11 @@ export const events = sqliteTable('events', {
   //   plus firstBonus / decay / lockout scoring modifiers.
   // NULL = classic behaviour everywhere; parseEventRules(null) returns the defaults.
   rules: text('rules'),
+  // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
+  // event-content mutation (teams, players, draft, tiles, completions, submissions — see
+  // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
+  // again. NULL = locked once finished (the default for every event).
+  editUnlockedAt: text('edit_unlocked_at'),
 });
 
 export const tiles = sqliteTable('tiles', {

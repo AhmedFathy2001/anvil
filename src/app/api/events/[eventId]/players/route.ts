@@ -7,6 +7,7 @@ import { findOrCreateClanMember } from '@/lib/clan';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';
 import { upsertPlayers, backfillApprovedSignups, type MemberInput } from '@/lib/enroll';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -46,6 +47,9 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   const body = await request.json();
 
   // Optional ?teamId= — drop the new player(s) straight onto a team (admin adding someone after
@@ -127,6 +131,9 @@ export async function DELETE(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { searchParams } = new URL(request.url);
   const playerId = searchParams.get('playerId');
 
@@ -165,6 +172,9 @@ export async function PATCH(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { playerId, name, discord, timezone, teamId, clanMemberId, frozen } = await request.json();
 
   if (!playerId) {

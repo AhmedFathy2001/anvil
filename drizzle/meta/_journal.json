@@ -288,6 +288,13 @@
       "when": 1785143412878,
       "tag": "0040_player-event-facts",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1785144112762,
+      "tag": "0041_event-edit-lock",
+      "breakpoints": true
     }
   ]
 }

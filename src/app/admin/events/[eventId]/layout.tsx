@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
 import EventTabNav from './EventTabNav';
+import EventLockBanner from './EventLockBanner';
+import { isEventOver, eventEditLocked } from '@/lib/eventLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +87,12 @@ export default async function EventLayout({
       </div>
 
       <EventTabNav eventId={id} tilesOnly={isEditor} />
+
+      {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
+          give admins the explicit unlock/re-lock control. */}
+      {isEventOver(event) && (
+        <EventLockBanner eventId={id} locked={eventEditLocked(event)} canToggle={session?.role === 'admin'} />
+      )}
 
       {children}
     </div>

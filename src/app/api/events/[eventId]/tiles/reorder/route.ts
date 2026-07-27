@@ -4,6 +4,7 @@ import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditor } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Rewrites the whole board order in one shot: `order` is a permutation of ALL the event's
 // tile ids, and the tile at order[i] gets position i. Pre-start only — positions define the
@@ -22,6 +23,9 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) {
