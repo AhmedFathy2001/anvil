@@ -4,7 +4,7 @@ This guide walks a clan through standing up its **own** Anvil instance from
 scratch. Anvil is single-tenant: one deployment serves one clan. To run Anvil for
 several clans, deploy it once per clan (each with its own database and Discord app).
 
-> **Scope:** this open-source project is the **clan app** (and the shared RuneLite
+> **Scope:** this source-available project is the **clan app** (and the shared RuneLite
 > plugin). The automated billing + multi-clan provisioning **control plane** that
 > powers the paid hosted service (`anvilosrs.com`) is a separate, **proprietary**
 > app and is *not* part of what you self-host. Self-hosting means running the clan

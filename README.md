@@ -192,20 +192,22 @@ setup, the database-migration workflow, and PR guidelines.
 
 ## Managed hosting & support
 
-Don't want to run the infrastructure yourself? I can **host and maintain Anvil for
-your clan for a fee** — you get the full platform without touching Turso, Vercel, or
-deployments. [Get in touch on Discord](https://discord.gg/nqTxCQAbv4) to talk it through.
-
-And if you'd simply like to support continued development, the door's open — reach
-out on the same [Discord](https://discord.gg/nqTxCQAbv4) (or
-[buy me a coffee](https://buymeacoffee.com/ahmedfathy2001) ☕).
+Don't want to run the infrastructure yourself? I **host and maintain Anvil for your
+clan** — your own instance on your own subdomain, provisioned automatically, no
+servers to touch. Plans start with a 30-day free trial at
+[anvilosrs.com](https://anvilosrs.com), and paying for hosting is what funds continued
+development. Questions? [Come say hi on Discord](https://discord.gg/nqTxCQAbv4).
 
 ## License
 
-Released under the [MIT License with an Attribution requirement](LICENSE). You're
-free to self-host, modify, and redistribute Anvil; the only condition is that the
-**"Built by Ahmed Fathy"** credit in the site footer stays visible. The optional
-"Buy me a coffee" link may be removed or replaced.
+Released under the [PolyForm Noncommercial License 1.0.0 with an Attribution
+requirement](LICENSE). Anvil is **source-available, not open source**: you're free
+to self-host, modify, and redistribute it for **noncommercial** use — running it for
+your own clan is explicitly permitted, including collecting contributions from your
+own members to cover hosting. Two conditions: the **"Built by Ahmed Fathy"** credit
+in the site footer stays visible, and you may not offer Anvil (or a service based on
+it) to third parties for a fee — that includes reselling it as hosting. Want a
+commercial licence? Get in touch.
 
-Built by [Ahmed Fathy](https://github.com/AhmedFathy2001). If Anvil saved your
-clan some time, you can [buy me a coffee](https://buymeacoffee.com/ahmedfathy2001) ☕.
+Built by [Ahmed Fathy](https://github.com/AhmedFathy2001). If Anvil saved your clan
+some time, the best support is [hosting with me](https://anvilosrs.com) 🔨.
