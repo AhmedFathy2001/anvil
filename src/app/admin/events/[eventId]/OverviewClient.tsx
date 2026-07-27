@@ -31,6 +31,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const [forceEnding, setForceEnding] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const [savingReveal, setSavingReveal] = useState(false);
   const [startingBingo, setStartingBingo] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
@@ -211,6 +212,28 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
       }
     } finally {
       setSavingType(false);
+    }
+  }
+
+  async function cloneEvent() {
+    if (!confirm(
+      `Clone "${currentEvent.name}"? A new event is created with the same settings, tiles and survey questions — no teams, players or dates. You'll be taken to the copy.`,
+    )) return;
+    setCloning(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      if (res.ok) {
+        const { id } = await res.json();
+        router.push(`/admin/events/${id}`);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Could not clone event');
+        setCloning(false);
+      }
+    } catch {
+      alert('Could not clone event');
+      setCloning(false);
     }
   }
 
@@ -541,6 +564,16 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
                 Change Type
               </button>
             )
+          )}
+          {!editMode && !editType && (
+            <button
+              onClick={cloneEvent}
+              disabled={cloning}
+              title="Create a new event with the same settings, tiles and survey questions — no teams, players or dates. Handy for running the same board again."
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {cloning ? 'Cloning...' : 'Clone Event'}
+            </button>
           )}
           {canDelete && !editMode && !editType && (
             <button
