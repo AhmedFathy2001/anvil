@@ -48,7 +48,6 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
   const [profiles, setProfiles] = useState<ProfileRow[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
 
   const mode = useMemo(() => {
     try {
@@ -58,6 +57,11 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
       return 'off';
     }
   }, [rules]);
+
+  // When balancing is Off (the default for almost every event) this panel is just a wall of numbers
+  // nobody asked for — start collapsed so it doesn't dominate the tab. One click expands it, and
+  // turning any mode on opens it (see setMode).
+  const [collapsed, setCollapsed] = useState(mode === 'off');
 
   const fetchProfiles = useCallback(async () => {
     const res = await fetch(`/api/admin/player-profiles?eventId=${eventId}`);
@@ -121,6 +125,8 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
         const data = await res.json().catch(() => null);
         setNote(data?.error ?? 'Could not save the balance mode.');
       } else {
+        // Turning a mode on reveals the detail; switching back to Off tucks it away again.
+        setCollapsed(value === 'off');
         onChanged();
       }
     } finally {
@@ -156,7 +162,10 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
           <span className="w-1 h-4 bg-gold rounded-full" />
           Team balance
           {spreadPct != null && (
-            <span className={`text-xs font-medium ${spreadPct >= 25 ? 'text-red-400' : 'text-text-muted'}`}>
+            <span
+              className={`text-xs font-medium ${spreadPct >= 25 ? 'text-red-400' : 'text-text-muted'}`}
+              title="Strength gap between the strongest and weakest team. Lower is more balanced; turns red at 25%+."
+            >
               spread {spreadPct}%
             </span>
           )}
@@ -190,7 +199,21 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
         </div>
       </div>
       {note && <p className="text-xs text-text-muted mt-2">{note}</p>}
-      <p className="text-xs text-text-muted/80 mt-1">{MODES.find((m) => m.value === mode)?.hint}</p>
+      <p className="text-xs text-text-muted mt-1">
+        Projected roster strength from each player&apos;s past-event history — advisory only.{' '}
+        {MODES.find((m) => m.value === mode)?.hint}
+      </p>
+
+      {/* Plain-language key for the shorthand below — the whole reason this used to read as gibberish. */}
+      {!collapsed && (
+        <p className="text-[11px] text-text-muted/80 mt-2 leading-relaxed">
+          <span className="text-foreground/70">Tiers</span> rank players strongest → weakest:{' '}
+          <span className="text-gold">S</span> = top 25%, then A, B, <span>C</span> = bottom 25% (so{' '}
+          <span className="text-foreground/70">S×3</span> means three top-tier players). The{' '}
+          <span className="text-foreground/70">number</span> is each team&apos;s projected strength — higher
+          is a stronger roster on paper.
+        </p>
+      )}
 
       {!collapsed && profiles == null && <p className="text-xs text-text-muted mt-3">Rating the pool…</p>}
 
@@ -212,8 +235,23 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
                         style={{ width: `${Math.round((s / maxStrength) * 100)}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-muted">{(s * 100).toFixed(0)}</span>
-                    <span className="w-20 text-text-muted/80">
+                    <span
+                      className="w-10 text-right text-text-muted"
+                      title="Projected strength — the team's combined member ratings. Higher is stronger on paper."
+                    >
+                      {(s * 100).toFixed(0)}
+                    </span>
+                    <span
+                      className="text-text-muted/80 whitespace-nowrap shrink-0"
+                      title={
+                        TIERS.map((tier) => {
+                          const c = teamTiers.filter((p) => tierByPerson.get(p.personKey) === tier).length;
+                          return c > 0 ? `${c} ${tier}-tier` : null;
+                        })
+                          .filter(Boolean)
+                          .join(', ') || 'No players yet'
+                      }
+                    >
                       {TIERS.map((tier) => {
                         const c = teamTiers.filter((p) => tierByPerson.get(p.personKey) === tier).length;
                         return c > 0 ? `${tier}×${c} ` : '';
@@ -227,7 +265,9 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
 
           {pool.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-text-muted mb-1.5">Pool by tier — ? = thin history, ?? = no history</p>
+              <p className="text-xs font-medium text-text-muted mb-1.5">
+                Undrafted players, tagged with their tier — <span className="text-text-muted/80">? = thin history, ?? = no history</span> behind the rating
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {pool.map((p) => {
                   const tier = tierByPerson.get(p.personKey) ?? 'C';
