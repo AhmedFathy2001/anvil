@@ -60,8 +60,10 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
 
   // When balancing is Off (the default for almost every event) this panel is just a wall of numbers
   // nobody asked for — start collapsed so it doesn't dominate the tab. One click expands it, and
-  // turning any mode on opens it (see setMode).
-  const [collapsed, setCollapsed] = useState(mode === 'off');
+  // turning any mode on opens it (see setMode). NOT collapsed on a locked (finished) event: the
+  // whole tab sits inside a disabled <fieldset> there, which also disables the Show toggle — so a
+  // collapsed panel would be permanently stuck shut. Show it open (read-only) instead.
+  const [collapsed, setCollapsed] = useState(mode === 'off' && !editLocked);
 
   const fetchProfiles = useCallback(async () => {
     const res = await fetch(`/api/admin/player-profiles?eventId=${eventId}`);
