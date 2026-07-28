@@ -237,7 +237,20 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   const isDraftInProgress = draft.status === 'active' || draft.status === 'paused';
 
+  // A finished event is read-only unless the admin unlocked editing (the server 409s every mutation
+  // route via lib/eventLock; this is the client mirror). Every mutating handler calls this first, and
+  // the mutating buttons are disabled below. VIEW actions — opening a player's stats, expanding
+  // sign-up answers, navigating the wizard steps — are deliberately NOT gated by it.
+  function mutationsBlocked(): boolean {
+    if (editLocked) {
+      setResetNotice('Editing is locked — this event has finished. Use “Unlock editing” at the top to make changes.');
+      return true;
+    }
+    return false;
+  }
+
   async function deleteTeam(teamId: number) {
+    if (mutationsBlocked()) return;
     setDeleting(teamId);
     try {
       const res = await fetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
@@ -255,6 +268,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function addSelectedFromRoster() {
+    if (mutationsBlocked()) return;
     if (selectedClanMemberIds.length === 0) return;
     setAddingPlayer(true);
     const res = await fetch(`/api/events/${event.id}/players`, {
@@ -273,6 +287,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Add a player by typing a name — for someone with no clan-member/RSN row yet (a Discord-only
   // guest, or an off-roster ringer). Creates a guest clan member from the name. teamId null = pool.
   async function addPlayerByName(teamId: number | null) {
+    if (mutationsBlocked()) return;
     const name = nameToAdd.trim();
     if (!name) return;
     setAddingPlayer(true);
@@ -300,6 +315,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Assign an already-in-pool player onto a team — post-draft, for someone who was signed up /
   // added to the pool but never drafted (e.g. a late/guest add).
   async function assignToTeam(playerId: number, teamId: number) {
+    if (mutationsBlocked()) return;
     setAssigningPlayerId(playerId);
     try {
       await fetch(`/api/events/${event.id}/players`, {
@@ -316,6 +332,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   // Move a player back to the pool (remove from their team) — post-draft roster fix.
   async function removeFromTeam(playerId: number) {
+    if (mutationsBlocked()) return;
     setRemovingPlayerId(playerId);
     try {
       await fetch(`/api/events/${event.id}/players`, {
@@ -332,6 +349,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   // Add the picked clan member(s) straight onto a team — for someone missed during the draft.
   async function addMembersToTeam(teamId: number) {
+    if (mutationsBlocked()) return;
     if (selectedClanMemberIds.length === 0) return;
     setAddingPlayer(true);
     try {
@@ -352,6 +370,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function deletePlayer(playerId: number) {
+    if (mutationsBlocked()) return;
     await fetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
     await fetchDraft();
     router.refresh();
@@ -360,6 +379,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Sub a player out (freeze) or back in (unfreeze). Freezing locks their stat gain at the current
   // moment — it still counts toward team tiles, but stops climbing — so a replacement can stack on top.
   async function toggleFrozen(playerId: number, frozen: boolean) {
+    if (mutationsBlocked()) return;
     setBusyPlayerId(playerId);
     try {
       await fetch(`/api/events/${event.id}/players`, {
@@ -386,6 +406,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     subOut = false,
     drop = false,
   ) {
+    if (mutationsBlocked()) return;
     const verb = drop
       ? 'Remove from the event'
       : remove
@@ -419,6 +440,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function saveDraftOrder(order: number[]) {
+    if (mutationsBlocked()) return;
     setSavingOrder(true);
     await fetch(`/api/events/${event.id}/draft`, {
       method: 'POST',
@@ -431,6 +453,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function doDraftAction(action: string) {
+    if (mutationsBlocked()) return;
     setDraftAction(action);
     await fetch(`/api/events/${event.id}/draft`, {
       method: 'POST',
@@ -443,6 +466,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function adminPick(playerId: number) {
+    if (mutationsBlocked()) return;
     setPicking(true);
     await fetch(`/api/events/${event.id}/draft/pick`, {
       method: 'POST',
@@ -458,6 +482,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   async function resetPlayerSnapshot(playerId: number) {
+    if (mutationsBlocked()) return;
     setResettingSnapshot(playerId);
     try {
       await fetch(`/api/events/${event.id}/players/${playerId}/snapshot`, {
@@ -472,6 +497,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function resendRosterToDiscord() {
+    // Deliberately NOT lock-guarded: re-broadcasting the final roster to Discord is a comms action,
+    // not an edit to recorded results, so it stays available on a finished event.
     setResendingRoster(true);
     setRosterMessage(null);
     try {
@@ -494,6 +521,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function startBingoNow(force = false) {
+    if (mutationsBlocked()) return;
     if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
     setStartingBingo(true);
     setStartBingoError(null);
@@ -524,6 +552,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   async function undoLastPick() {
+    if (mutationsBlocked()) return;
     setUndoing(true);
     setLastUndone(null);
     try {
@@ -568,6 +597,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [placing, setPlacing] = useState(false);
   const [placeNotice, setPlaceNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   async function placePool() {
+    if (mutationsBlocked()) return;
     if (format !== 'individual' && format !== 'one_team') return;
     setPlacing(true);
     setPlaceNotice(null);
@@ -659,11 +689,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     : ([teamsDone, poolDone, orderDone][activeStep] ?? true);
 
   return (
-    // A disabled fieldset natively disables every button/input/select inside it — the low-touch way
-    // to make a locked (finished) event's whole Teams tab read-only. Links (Manage Board, team
-    // pages) stay clickable. min-w-0 defeats fieldset's min-content default that breaks responsive
-    // layouts.
-    <fieldset disabled={editLocked} className="space-y-12 block min-w-0 border-0 p-0 m-0">
+    // Read-only when the event is finished is enforced two ways that leave VIEWING untouched:
+    // mutationsBlocked() guards every mutating handler, and the mutating buttons take `editLocked`
+    // in their disabled. Clicking a player for stats, expanding answers and step navigation stay
+    // live — a blanket disabled <fieldset> used to kill those too.
+    <div className="space-y-12 min-w-0">
       {/* Format-first: nothing else renders until the admin picks how teams work. Non-draft picks
           skip team creation and the draft entirely — enrolment teams everyone up in one click. */}
       {format === null && (
@@ -972,7 +1002,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </p>
             <button
               onClick={placePool}
-              disabled={placing || unplacedCount === 0}
+              disabled={placing || unplacedCount === 0 || editLocked}
               className="w-full text-sm font-bold bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
             >
               {placing
@@ -1019,7 +1049,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 />
                 <button
                   onClick={addSelectedFromRoster}
-                  disabled={addingPlayer || selectedClanMemberIds.length === 0}
+                  disabled={addingPlayer || selectedClanMemberIds.length === 0 || editLocked}
                   className="w-full text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/25 transition-colors disabled:opacity-50"
                 >
                   {addingPlayer
@@ -1042,7 +1072,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   />
                   <button
                     onClick={() => addPlayerByName(null)}
-                    disabled={addingPlayer || !nameToAdd.trim()}
+                    disabled={addingPlayer || !nameToAdd.trim() || editLocked}
                     className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50 shrink-0"
                   >
                     Add
@@ -1094,9 +1124,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             Answers {isExpanded ? '▾' : '▸'}
                           </button>
                         )}
+                        {/* Mutating actions only — disabled on a locked event. `contents` keeps the
+                            fieldset out of the flex layout; the name + Answers view buttons above
+                            stay live. */}
+                        <fieldset disabled={editLocked} className="contents">
                         <button
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
-                          className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded"
+                          className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded disabled:opacity-50"
                           title="Edit player details"
                         >
                           Edit
@@ -1111,9 +1145,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             {resettingSnapshot === player.id ? '...' : 'Reset Snap'}
                           </button>
                         )}
-                        <button onClick={() => deletePlayer(player.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">
+                        <button onClick={() => deletePlayer(player.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50">
                           Remove
                         </button>
+                        </fieldset>
                       </div>
                       </div>
                       {canExpand && isExpanded && player.profile && (
@@ -1289,7 +1324,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               {draft.status !== 'none' && (
                 <button
                   onClick={() => doDraftAction('reset')}
-                  disabled={!!draftAction}
+                  disabled={!!draftAction || editLocked}
                   className="text-sm font-medium bg-red-400/10 text-red-400 border border-red-400/20 px-4 py-2 rounded-lg hover:bg-red-400/20 transition-colors disabled:opacity-50"
                 >
                   {draftAction === 'reset' ? '...' : 'Reset Draft'}
@@ -1343,7 +1378,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           <span className="text-sm font-medium truncate flex-1">{p.name}</span>
                           <select
                             defaultValue=""
-                            disabled={assigningPlayerId === p.id}
+                            disabled={assigningPlayerId === p.id || editLocked}
                             onChange={(e) => {
                               const tid = parseInt(e.target.value, 10);
                               if (Number.isFinite(tid)) assignToTeam(p.id, tid);
@@ -1361,7 +1396,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           </select>
                           <button
                             onClick={() => resetPlayer(p.id, p.name, false, false, true)}
-                            disabled={busyPlayerId === p.id || assigningPlayerId === p.id}
+                            disabled={busyPlayerId === p.id || assigningPlayerId === p.id || editLocked}
                             title="Delete this player from the event entirely — they stop appearing here and in any headcount"
                             className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                           >
@@ -1431,7 +1466,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                     </span>
                                   )}
                                 </span>
-                                <div className="flex items-center gap-1 shrink-0">
+                                {/* All-mutating action cluster — disabled on a locked event; the
+                                    player name beside it stays selectable. */}
+                                <fieldset disabled={editLocked} className="flex items-center gap-1 shrink-0 border-0 p-0 m-0 min-w-0">
                                   {removeChoiceId === p.id ? (
                                     <>
                                       <span className="text-[10px] text-text-muted mr-0.5">Remove:</span>
@@ -1516,12 +1553,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                       </button>
                                     </>
                                   )}
-                                </div>
+                                </fieldset>
                               </div>
                             );
                           })
                         )}
                       </div>
+                      {/* Adding players to a team is an edit — disabled on a locked event. */}
+                      <fieldset disabled={editLocked} className="contents">
                       {addToTeamId === team.id ? (
                         <div className="space-y-2 border-t border-card-border pt-2">
                           <ClanMemberPicker
@@ -1575,6 +1614,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           + Add player
                         </button>
                       )}
+                      </fieldset>
                     </div>
                   );
                 })}
@@ -1607,16 +1647,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           {teams.find((t) => t.id === player.teamId)?.name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      {/* RSN / baseline edits — disabled on a locked event. */}
+                      <fieldset disabled={editLocked} className="flex items-center gap-2 border-0 p-0 m-0 min-w-0">
                         <button
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
-                          className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded"
+                          className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setEditingBaselinePlayer({ id: player.id, name: player.name })}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-400/20 px-2 py-0.5 rounded"
+                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-400/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
                           Stats
                         </button>
@@ -1627,7 +1668,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         >
                           {resettingSnapshot === player.id ? '...' : 'Reset'}
                         </button>
-                      </div>
+                      </fieldset>
                     </div>
                   ))}
               </div>
@@ -1717,6 +1758,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           }}
         />
       )}
-    </fieldset>
+    </div>
   );
 }
