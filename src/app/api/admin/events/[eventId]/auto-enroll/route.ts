@@ -78,6 +78,8 @@ export async function POST(
     );
   }
 
-  const result = await autoEnrollActivePluginMembers(id, placement);
+  // 'individual' honors the event's slot mode: per-person groups a person's alts onto one team.
+  const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
+  const result = await autoEnrollActivePluginMembers(id, placement, slotMode);
   return NextResponse.json(result);
 }

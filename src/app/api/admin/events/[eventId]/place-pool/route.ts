@@ -43,6 +43,8 @@ export async function POST(
     return NextResponse.json({ error: "placement must be 'one_team' or 'individual'" }, { status: 400 });
   }
 
-  const result = await placeUnassignedPlayers(id, body.placement);
+  // per-person (default) groups a person's alts onto one team; per-account gives each its own.
+  const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
+  const result = await placeUnassignedPlayers(id, body.placement, slotMode);
   return NextResponse.json(result);
 }
