@@ -10,13 +10,15 @@ import { parseEventRules, type EventRules, type RevealPolicy } from '@/lib/event
 //   • showdown  — points list, tiles revealed on a per-tile schedule (Tiles tab sets times)
 //   • luckydraw — points list, a random draw reveals tiles on an interval
 //   • bounty    — points list, ONE open tile at a time; first team to finish claims it
-export type EventMode = 'classic' | 'leagues' | 'race' | 'showdown' | 'luckydraw' | 'bounty';
+// 'ladder' = points-scored task list rendered as an INDIVIDUAL leaderboard (teams optional); tasks
+// rotate via a reveal policy sub-choice (progressive/one-at-a-time/rotating). DMM All-Stars feel.
+export type EventMode = 'classic' | 'leagues' | 'race' | 'showdown' | 'luckydraw' | 'bounty' | 'ladder';
 
 export interface EventModeMeta {
   key: EventMode;
   label: string;
   blurb: string;
-  format: 'bingo' | 'tilerace';
+  format: 'bingo' | 'tilerace' | 'ladder';
   scoringMode: 'tiles' | 'points';
   /** Rules preset this mode ships with (undefined = classic behaviour, rules column stays NULL). */
   revealPolicy?: RevealPolicy;
@@ -110,6 +112,21 @@ export const EVENT_MODES: EventModeMeta[] = [
     default: 15,
     square: false,
   },
+  {
+    key: 'ladder',
+    label: 'Ladder',
+    blurb: 'A points-scored task list ranked as an individual leaderboard (teams optional). Tasks rotate — progressive, one-at-a-time or a rotating window — and can decay in value. Monthly-ladder style.',
+    format: 'ladder',
+    scoringMode: 'points',
+    // Default rotation; the reveal-policy config lets the admin switch to bounty / rotating.
+    revealPolicy: 'interval',
+    sizeLabel: 'Number of tasks',
+    sizeHelp: (n) => `${n} task${n !== 1 ? 's' : ''} in the pool`,
+    min: 2,
+    max: 200,
+    default: 30,
+    square: false,
+  },
 ];
 
 /**
@@ -122,6 +139,9 @@ export function modeKeyFor(
   rules?: string | EventRules | null,
 ): EventMode {
   const parsed = typeof rules === 'string' || rules == null ? parseEventRules(rules ?? null) : rules;
+  // Ladder is a FORMAT, and a ladder can use any rotation policy — so it wins over the reveal-policy
+  // resolution below (which maps bingo+policy to showdown/luckydraw/bounty).
+  if (format === 'ladder') return 'ladder';
   if (parsed.revealPolicy === 'scheduled') return 'showdown';
   if (parsed.revealPolicy === 'interval') return 'luckydraw';
   if (parsed.revealPolicy === 'bounty') return 'bounty';

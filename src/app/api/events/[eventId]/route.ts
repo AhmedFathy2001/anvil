@@ -313,25 +313,26 @@ export async function PATCH(
     }
 
     const { format, scoringMode, boardSize } = body;
-    if (format !== 'bingo' && format !== 'tilerace') {
-      return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+    if (format !== 'bingo' && format !== 'tilerace' && format !== 'ladder') {
+      return NextResponse.json({ error: "format must be 'bingo', 'tilerace' or 'ladder'" }, { status: 400 });
     }
     if (scoringMode !== 'tiles' && scoringMode !== 'points') {
       return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
     }
-    // A tile race is always scored by furthest tile reached; force 'tiles' there.
-    const resolvedScoringMode = format === 'tilerace' ? 'tiles' : scoringMode;
+    // A tile race is always scored by furthest tile reached; a ladder is always points-scored.
+    const resolvedScoringMode = format === 'tilerace' ? 'tiles' : format === 'ladder' ? 'points' : scoringMode;
 
-    // Rules preset travels with the type change (showdown/luckydraw/bounty carry a reveal
-    // policy; the three classic types clear it). Same validation + shape constraint as create.
+    // Rules preset travels with the type change (reveal policies carry over; classic types clear it).
+    // Same validation + shape constraint as create — reveal policies ride points-bingo or ladder.
     const rulesResult = validateEventRules(body.rules);
     if ('error' in rulesResult) {
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
     }
     const resolvedRules = rulesResult.rules;
-    if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && (format !== 'bingo' || resolvedScoringMode !== 'points')) {
+    const allowsReveal = (format === 'bingo' && resolvedScoringMode === 'points') || format === 'ladder';
+    if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && !allowsReveal) {
       return NextResponse.json(
-        { error: 'Reveal policies (showdown / lucky draw / bounty) require the points-scored bingo format.' },
+        { error: 'Reveal policies require the points-scored bingo or ladder format.' },
         { status: 400 },
       );
     }

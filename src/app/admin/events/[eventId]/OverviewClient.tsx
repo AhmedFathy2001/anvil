@@ -8,7 +8,7 @@ import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
+import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel } from '@/lib/utils';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
@@ -73,6 +73,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const eventEnded = currentEvent.endDate ? new Date(currentEvent.endDate) <= now : false;
   const isActive = eventStarted && !eventEnded;
   const raceFormat = isTileRaceFormat(currentEvent.format);
+  const ladderFormat = isLadderFormat(currentEvent.format);
   const pointsMode = isPointsMode(currentEvent.scoringMode);
   // Type can only change before the event goes live; delete is allowed before start or
   // once it's over — i.e. any time it isn't actively running. Mirrors the API gates.
@@ -389,15 +390,15 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Type</label>
               <p className="text-sm font-medium">
-                {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
+                {eventModeLabel(currentEvent.format, currentEvent.scoringMode, currentEvent.rules)}
               </p>
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
-                {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
+                {raceFormat ? 'Track Length' : ladderFormat ? 'Tasks' : pointsMode ? 'Tiles' : 'Board Size'}
               </label>
               <p className="text-sm font-medium">
-                {raceFormat || pointsMode
+                {raceFormat || ladderFormat || pointsMode
                   ? `${currentEvent.boardSize} tiles`
                   : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
               </p>

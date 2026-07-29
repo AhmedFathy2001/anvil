@@ -53,6 +53,14 @@ export function isTileRaceFormat(format: string | null | undefined): boolean {
 }
 
 /**
+ * A ladder event: a points-scored task list rendered as an individual leaderboard (teams optional).
+ * Same engine as Leagues bingo (dynamic points-scored tile list) — only the render differs.
+ */
+export function isLadderFormat(format: string | null | undefined): boolean {
+  return format === 'ladder';
+}
+
+/**
  * Total tiles for an event, accounting for all three shapes:
  *   • classic bingo (bingo + tiles) → a square N×N grid → N²
  *   • Leagues bingo (bingo + points) → an arbitrary task list → N
@@ -65,6 +73,7 @@ export function eventTileCount(
   boardSize: number,
 ): number {
   if (isTileRaceFormat(format)) return boardSize;
+  if (isLadderFormat(format)) return boardSize; // dynamic task list, like points
   if (isPointsMode(scoringMode)) return boardSize;
   return boardSize * boardSize;
 }
@@ -80,6 +89,7 @@ export function eventModeLabel(
     case 'showdown': return 'Showdown';
     case 'luckydraw': return 'Lucky draw';
     case 'bounty': return 'Bounty hunt';
+    case 'ladder': return 'Ladder';
     case 'leagues': return 'Leagues';
     default: return 'Bingo';
   }
