@@ -594,6 +594,31 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
   return sendBingoWebhook({ embeds: [embed] });
 }
 
+interface BountyClaimNotifyParams {
+  eventName: string;
+  tileLabel: string;
+  points: number | null;
+  /** The player who was first to finish the mission and locked it. */
+  rsn: string;
+}
+
+// Fired when a lock-out (bounty) mission is claimed — the first player to finish it locks everyone
+// else out. Posts to the same bingo channel as the reveal announcement; the reveal engine calls it
+// fire-and-forget from handleBountyClaim, once, for the completion that actually closed the tile.
+export async function notifyBountyClaim(params: BountyClaimNotifyParams): Promise<boolean> {
+  const { eventName, tileLabel, points, rsn } = params;
+  const embed: DiscordEmbed = {
+    title: '🏆 Mission claimed!',
+    description:
+      `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `**${rsn}** claimed **${tileLabel}**${points != null ? ` — ${points} pts` : ''}` +
+      `\n\n🔒 Locked — first to finish wins it.`,
+    color: 0xffd700, // Gold
+    timestamp: new Date().toISOString(),
+  };
+  return sendBingoWebhook({ embeds: [embed] });
+}
+
 interface TeamWithPlayers {
   name: string;
   color: string;

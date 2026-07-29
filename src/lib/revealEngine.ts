@@ -1,8 +1,8 @@
 import { db } from '@/db';
-import { events, tiles, completions } from '@/db/schema';
+import { events, tiles, completions, players, submissions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { parseEventRules, hasRevealPolicy, type EventRules, type RevealOrder } from '@/lib/eventRules';
-import { notifyTilesRevealed } from '@/lib/discord';
+import { notifyTilesRevealed, notifyBountyClaim } from '@/lib/discord';
 import { log } from '@/lib/logger';
 
 // The reveal engine — flips tiles live on reveal-policy events (see lib/eventRules.ts).
@@ -184,12 +184,62 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
   const rules = parseEventRules(event.rules);
   if (rules.revealPolicy !== 'bounty') return;
   const now = new Date().toISOString();
-  await db
+  // Only the call that ACTUALLY closes the tile announces it, so a claim posts to Discord exactly once
+  // even though every completion path calls this fire-and-forget.
+  const closed = await db
     .update(tiles)
     .set({ closedAt: now })
-    .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)));
+    .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)))
+    .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
+  if (closed.length > 0) {
+    void announceBountyClaim(event.name, closed[0], tileId);
+  }
   if (!engineActive(event, now)) return;
   await revealForEvent(event, rules, now);
+}
+
+// Resolve who claimed a bounty tile and post it to the clan channel. Finisher = the crediting player
+// of the first (claiming) completion — stat tiles carry creditPlayerId, submission-backed tiles
+// resolve it from the latest submission on the tile. Fire-and-forget; failures never block rotation.
+async function announceBountyClaim(
+  eventName: string,
+  tile: { id: number; label: string; points: number | null },
+  tileId: number,
+): Promise<void> {
+  try {
+    const claim = await db
+      .select({ teamId: completions.teamId, creditPlayerId: completions.creditPlayerId, awardedPoints: completions.awardedPoints })
+      .from(completions)
+      .where(eq(completions.tileId, tileId))
+      .orderBy(completions.completedAt)
+      .limit(1);
+    if (claim.length === 0) return;
+    const { teamId, creditPlayerId, awardedPoints } = claim[0];
+
+    let rsn: string | null = null;
+    if (creditPlayerId != null) {
+      const p = await db.select({ name: players.name }).from(players).where(eq(players.id, creditPlayerId)).limit(1);
+      rsn = p[0]?.name ?? null;
+    }
+    if (!rsn) {
+      const subs = await db
+        .select({ name: players.name })
+        .from(submissions)
+        .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+        .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId)))
+        .orderBy(submissions.createdAt); // ascending → last write is the finishing hand
+      rsn = subs.length > 0 ? subs[subs.length - 1].name ?? null : null;
+    }
+
+    await notifyBountyClaim({
+      eventName,
+      tileLabel: tile.label,
+      points: awardedPoints ?? tile.points,
+      rsn: rsn ?? 'Someone',
+    });
+  } catch (err) {
+    log.info('reveal-engine.bounty-claim-notify-failed', { tileId, err: String(err) });
+  }
 }
 
 /**
