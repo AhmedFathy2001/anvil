@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       isPrimary: clanMembers.isPrimary,
       verifiedAt: clanMembers.verifiedAt,
       verificationMethod: clanMembers.verificationMethod,
+      accountHash: clanMembers.accountHash,
       provisional: clanMembers.provisional,
       lastSeenInClan: clanMembers.lastSeenInClan,
       userId: users.id,
@@ -64,6 +65,9 @@ export async function GET(request: Request) {
       isPrimary: r.isPrimary === 1,
       verifiedAt: r.verifiedAt,
       verificationMethod: r.verificationMethod,
+      // "On the plugin" = we hold a Jagex account hash from the plugin handshake, or the account was
+      // plugin-verified. Non-plugin accounts still track via hiscores (just no live overlay).
+      hasPlugin: r.accountHash != null || r.verificationMethod === 'plugin',
       provisional: r.provisional === 1,
       lastSeenInClan: r.lastSeenInClan,
       user: r.userId

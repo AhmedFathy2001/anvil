@@ -11,6 +11,8 @@ export interface PickableMember {
   isPrimary: boolean;
   verifiedAt: string | null;
   verificationMethod: string | null;
+  // On the plugin (live overlay available). False = tracked via hiscores only.
+  hasPlugin?: boolean;
   provisional: boolean;
   lastSeenInClan: string | null;
   user: {
@@ -231,6 +233,29 @@ export default function ClanMemberPicker(props: Props) {
                           title="No Discord-linked user — magic link fallback may be needed"
                         >
                           unlinked
+                        </span>
+                      )}
+                      {m.isPrimary && (
+                        <span
+                          className="text-[9px] uppercase tracking-wide bg-gold/20 text-gold px-1 py-0.5 rounded"
+                          title="This person's primary (main) account"
+                        >
+                          main
+                        </span>
+                      )}
+                      {m.hasPlugin ? (
+                        <span
+                          className="text-[9px] uppercase tracking-wide bg-accent-green/15 text-accent-green-light px-1 py-0.5 rounded"
+                          title="On the plugin — live stat tracking"
+                        >
+                          ✦ live
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[9px] uppercase tracking-wide bg-text-muted/15 text-text-muted px-1 py-0.5 rounded"
+                          title="Not on the plugin — tracked via hiscores only (still counts)"
+                        >
+                          hiscores
                         </span>
                       )}
                     </div>
