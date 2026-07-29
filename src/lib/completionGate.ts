@@ -44,7 +44,9 @@ export async function evaluateCompletionGate(args: {
     return { allowed: false, reason: 'This tile has not been revealed yet.', awardedPoints: null, bounty, rules };
   }
   if (revealMode && tile.closedAt != null) {
-    return { allowed: false, reason: 'This tile has already been claimed.', awardedPoints: null, bounty, rules };
+    // Rotating tasks expire off the window; bounties close on first claim.
+    const reason = rules.revealPolicy === 'rotating' ? 'This task has expired.' : 'This tile has already been claimed.';
+    return { allowed: false, reason, awardedPoints: null, bounty, rules };
   }
 
   // Only hit the DB when a rule actually cares who completed the tile before.

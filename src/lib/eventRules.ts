@@ -10,6 +10,10 @@
 //                 (random or in position order), starting at event start. "Bingo caller" boards.
 //   'bounty'    — exactly one tile is open at a time; the first team to complete it claims it
 //                 (tile closes) and the next tile is drawn immediately.
+//   'rotating'  — a rolling WINDOW of revealWindowSize open tiles: each interval draw opens new
+//                 random tiles and EXPIRES (closes) the oldest so the window stays that size.
+//                 Unlike bounty, an open tile can be completed by many players before it expires
+//                 (individual ladders). "Rotating tasks" boards.
 //
 // A tile on a reveal-policy event is member-visible iff tiles.revealedAt is set. The event-level
 // tilesRevealed flag stays the master gate: while it's 0 nothing is visible and the engine does
@@ -21,7 +25,7 @@
 //   lockout    — first completion locks the tile for every other team (works in tiles mode too;
 //                affects gating, not weights).
 
-export type RevealPolicy = 'all' | 'scheduled' | 'interval' | 'bounty';
+export type RevealPolicy = 'all' | 'scheduled' | 'interval' | 'bounty' | 'rotating';
 export type RevealOrder = 'random' | 'sequential';
 
 // How much the player-profile engine steers team formation (balance-engine plan, Part C).
@@ -35,9 +39,11 @@ export interface EventRules {
   revealPolicy: RevealPolicy;
   /** 'interval' policy: minutes between draws. */
   revealIntervalMinutes: number;
-  /** 'interval' policy: tiles revealed per draw. */
+  /** 'interval' / 'rotating' policy: tiles revealed per draw. */
   revealBatchSize: number;
-  /** 'interval' / 'bounty': which hidden tile is drawn next. */
+  /** 'rotating' policy: how many tiles stay open at once (older ones expire as new ones draw). */
+  revealWindowSize: number;
+  /** 'interval' / 'bounty' / 'rotating': which hidden tile is drawn next. */
   revealOrder: RevealOrder;
   /** Extra points for the first team completing a tile. 0 = off. */
   firstBonus: number;
@@ -53,6 +59,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   revealPolicy: 'all',
   revealIntervalMinutes: 60,
   revealBatchSize: 1,
+  revealWindowSize: 3,
   revealOrder: 'random',
   firstBonus: 0,
   decay: null,
@@ -60,7 +67,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   balanceMode: 'off',
 };
 
-const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty'];
+const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'auto'];
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
@@ -94,6 +101,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
     revealBatchSize: clampInt(obj.revealBatchSize, 1, 50, 1),
+    revealWindowSize: clampInt(obj.revealWindowSize, 1, 50, 3),
     revealOrder: obj.revealOrder === 'sequential' ? 'sequential' : 'random',
     firstBonus: clampInt(obj.firstBonus, 0, 100000, 0),
     decay,
@@ -117,7 +125,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   }
   const o = input as Record<string, unknown>;
   if (o.revealPolicy !== undefined && !REVEAL_POLICIES.includes(o.revealPolicy as RevealPolicy)) {
-    return { error: "rules.revealPolicy must be 'all', 'scheduled', 'interval', or 'bounty'" };
+    return { error: "rules.revealPolicy must be 'all', 'scheduled', 'interval', 'bounty', or 'rotating'" };
   }
   if (o.revealOrder !== undefined && o.revealOrder !== 'random' && o.revealOrder !== 'sequential') {
     return { error: "rules.revealOrder must be 'random' or 'sequential'" };
@@ -125,6 +133,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   for (const [key, min, max] of [
     ['revealIntervalMinutes', 5, 10080],
     ['revealBatchSize', 1, 50],
+    ['revealWindowSize', 1, 50],
     ['firstBonus', 0, 100000],
   ] as const) {
     const v = o[key];
@@ -203,7 +212,7 @@ export function nextRevealAt(
       .sort();
     return planned[0] ?? null;
   }
-  if (rules.revealPolicy === 'interval') {
+  if (rules.revealPolicy === 'interval' || rules.revealPolicy === 'rotating') {
     const lastRevealed = tiles
       .map((t) => t.revealedAt)
       .filter((v): v is string => !!v)

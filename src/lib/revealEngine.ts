@@ -87,44 +87,73 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
     // Only tiles the host actually scheduled flip automatically; unscheduled ones stay hidden
     // until they get a time (or the host reveals them by setting one in the past).
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
-  } else if (rules.revealPolicy === 'interval') {
+  } else if (rules.revealPolicy === 'interval' || rules.revealPolicy === 'rotating') {
     // Deterministic target count: one batch at start, another per elapsed interval. Computing
     // the target (rather than "reveal one per tick") makes a missed tick self-heal — after
-    // downtime the board catches up to where the clock says it should be.
+    // downtime the board catches up to where the clock says it should be. Rotating draws the same
+    // way; expired tiles stay counted as revealed, so the cumulative target keeps pulling new ones.
     const startMs = Date.parse(event.startDate!);
-    if (!Number.isFinite(startMs)) return;
-    const elapsedMs = Date.parse(now) - startMs;
-    const dueBatches = Math.floor(elapsedMs / (rules.revealIntervalMinutes * 60_000)) + 1;
-    const target = Math.min(eventTiles.length, dueBatches * rules.revealBatchSize);
-    const need = target - (eventTiles.length - hidden.length);
-    if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
+    if (Number.isFinite(startMs)) {
+      const elapsedMs = Date.parse(now) - startMs;
+      const dueBatches = Math.floor(elapsedMs / (rules.revealIntervalMinutes * 60_000)) + 1;
+      const target = Math.min(eventTiles.length, dueBatches * rules.revealBatchSize);
+      const need = target - (eventTiles.length - hidden.length);
+      if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
+    }
   } else if (rules.revealPolicy === 'bounty') {
     const anyOpen = eventTiles.some((t) => t.revealedAt != null && t.closedAt == null);
     if (!anyOpen) toReveal = draw(hidden, 1, rules.revealOrder);
   }
-  if (toReveal.length === 0) return;
 
   // Conditional flip — only rows still hidden actually turn, and only those get announced.
-  const flipped = await db
-    .update(tiles)
-    .set({ revealedAt: now })
-    .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
-    .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
-  if (flipped.length === 0) return;
+  if (toReveal.length > 0) {
+    const flipped = await db
+      .update(tiles)
+      .set({ revealedAt: now })
+      .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
+      .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
+    if (flipped.length > 0) {
+      log.info('reveal-engine.reveal', {
+        eventId: event.id,
+        policy: rules.revealPolicy,
+        count: flipped.length,
+        hiddenLeft: hidden.length - flipped.length,
+      });
+      notifyTilesRevealed({
+        eventName: event.name,
+        tiles: flipped.map((t) => ({ label: t.label, points: t.points })),
+        pointsMode: event.scoringMode === 'points',
+        hiddenRemaining: hidden.length - flipped.length,
+        bounty: rules.revealPolicy === 'bounty',
+      }).catch(() => {});
+    }
+  }
 
-  log.info('reveal-engine.reveal', {
-    eventId: event.id,
-    policy: rules.revealPolicy,
-    count: flipped.length,
-    hiddenLeft: hidden.length - flipped.length,
-  });
-  notifyTilesRevealed({
-    eventName: event.name,
-    tiles: flipped.map((t) => ({ label: t.label, points: t.points })),
-    pointsMode: event.scoringMode === 'points',
-    hiddenRemaining: hidden.length - flipped.length,
-    bounty: rules.revealPolicy === 'bounty',
-  }).catch(() => {});
+  // Rotating window: after any fresh draw, EXPIRE the oldest still-open tiles so at most
+  // revealWindowSize stay live. Fresh reveals are newest (this tick's `now`), so they survive; the
+  // oldest close via `closedAt` — the same close-out bounty uses, so the completion gate already
+  // refuses an expired task. A no-op between draws / once the window is at size.
+  if (rules.revealPolicy === 'rotating') {
+    const openNow = await db
+      .select({ id: tiles.id, revealedAt: tiles.revealedAt })
+      .from(tiles)
+      .where(and(eq(tiles.eventId, event.id), isNotNull(tiles.revealedAt), isNull(tiles.closedAt)));
+    const excess = openNow.length - rules.revealWindowSize;
+    if (excess > 0) {
+      const oldest = openNow
+        .sort((a, b) => String(a.revealedAt).localeCompare(String(b.revealedAt)))
+        .slice(0, excess);
+      await db
+        .update(tiles)
+        .set({ closedAt: now })
+        .where(and(inArray(tiles.id, oldest.map((t) => t.id)), isNull(tiles.closedAt)));
+      log.info('reveal-engine.rotate-expire', {
+        eventId: event.id,
+        expired: oldest.length,
+        windowSize: rules.revealWindowSize,
+      });
+    }
+  }
 }
 
 /** Cron pass: run the engine over every live reveal-policy event. */
