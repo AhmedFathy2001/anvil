@@ -592,6 +592,32 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     } catch {}
   }
 
+  // Multi-account config for the "One team each" / shared-team formats. accountSlotMode decides how a
+  // person's alts map to teams (per-person = alts share one team; per-account = each alt its own),
+  // maxAccountsPerPerson caps how many of a person's accounts may enter. Persisted on the event.
+  const [slotMode, setSlotMode] = useState<'per-person' | 'per-account'>(
+    event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person',
+  );
+  const [maxAccounts, setMaxAccounts] = useState<number>(event.maxAccountsPerPerson ?? 1);
+  const [savingAccountCfg, setSavingAccountCfg] = useState(false);
+  async function saveAccountConfig(next: { slotMode?: 'per-person' | 'per-account'; maxAccounts?: number }) {
+    if (mutationsBlocked()) return;
+    const body: Record<string, unknown> = {};
+    if (next.slotMode !== undefined) body.accountSlotMode = next.slotMode;
+    if (next.maxAccounts !== undefined) body.maxAccountsPerPerson = next.maxAccounts;
+    setSavingAccountCfg(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setSavingAccountCfg(false);
+    }
+  }
+
   // Non-draft formats: team up everyone sitting unassigned in the pool in one click — solo teams
   // ('individual') or the one shared team ('one_team'). This replaces team creation + the draft.
   const [placing, setPlacing] = useState(false);
@@ -996,10 +1022,57 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </div>
             <p className="text-xs text-text-muted">
               {format === 'individual'
-                ? 'Each pool player gets a solo team named after them — no manual team setup, no draft.'
+                ? slotMode === 'per-person'
+                  ? 'Each person gets one team named after their main account; their alts share that team and their totals combine — no manual team setup, no draft.'
+                  : 'Each account gets its own team named after it (alts count as separate teams) — no manual team setup, no draft.'
                 : 'Everyone in the pool lands on one shared team — no manual team setup, no draft.'}
               {' '}Run it again any time to team up late joiners.
             </p>
+
+            {/* Account / alt config — a pre-start decision (drives team formation + scoring rollup). */}
+            <div className="rounded-lg border border-card-border bg-card-bg/60 p-3 space-y-3">
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-foreground/80 font-medium">
+                  Max accounts per person
+                  <span className="block text-text-muted font-normal">How many of a person&apos;s accounts (alts) may enter.</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={maxAccounts}
+                  disabled={savingAccountCfg || eventStarted || editLocked}
+                  onChange={(e) => setMaxAccounts(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+                  onBlur={() => maxAccounts !== (event.maxAccountsPerPerson ?? 1) && saveAccountConfig({ maxAccounts })}
+                  className="w-16 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:border-gold/50 disabled:opacity-50"
+                />
+              </label>
+              {format === 'individual' && (
+                <div className="text-xs">
+                  <span className="text-foreground/80 font-medium">When a person has alts</span>
+                  <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {([
+                      { v: 'per-person', label: 'One team per person', hint: 'Alts share the team; totals combine.' },
+                      { v: 'per-account', label: 'Each alt its own team', hint: 'Every account is a separate team.' },
+                    ] as const).map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        disabled={savingAccountCfg || eventStarted || editLocked}
+                        onClick={() => { setSlotMode(o.v); saveAccountConfig({ slotMode: o.v }); }}
+                        className={`text-left rounded-lg border px-3 py-2 transition-colors disabled:opacity-50 ${
+                          slotMode === o.v ? 'border-gold/60 bg-gold/10' : 'border-card-border hover:border-gold/30'
+                        }`}
+                      >
+                        <div className="font-medium">{o.label}</div>
+                        <div className="text-[11px] text-text-muted leading-tight mt-0.5">{o.hint}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={placePool}
               disabled={placing || unplacedCount === 0 || editLocked}

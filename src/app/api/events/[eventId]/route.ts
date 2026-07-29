@@ -408,6 +408,22 @@ export async function PATCH(
     }
     updates.addedPrizePool = body.addedPrizePool;
   }
+  // Multi-account config — same validation as event create (api/events/route.ts). Editable in place so
+  // the "One team each" setup can tune it; the pre-start gate below refuses changes once live so a
+  // slot-mode flip can't retroactively scramble MVP / recap aggregation.
+  const MAX_ACCOUNTS_CAP = 10;
+  if ('maxAccountsPerPerson' in body) {
+    if (!Number.isInteger(body.maxAccountsPerPerson) || body.maxAccountsPerPerson < 1 || body.maxAccountsPerPerson > MAX_ACCOUNTS_CAP) {
+      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}` }, { status: 400 });
+    }
+    updates.maxAccountsPerPerson = body.maxAccountsPerPerson;
+  }
+  if ('accountSlotMode' in body) {
+    if (body.accountSlotMode !== 'per-person' && body.accountSlotMode !== 'per-account') {
+      return NextResponse.json({ error: "accountSlotMode must be 'per-person' or 'per-account'" }, { status: 400 });
+    }
+    updates.accountSlotMode = body.accountSlotMode;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -426,6 +442,18 @@ export async function PATCH(
   const existing = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!existing) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+  // Multi-account config is a pre-start decision — it drives team formation and scoring rollups, so
+  // block edits once the event has started or force-ended (mirrors change-mode's pre-start gate).
+  if ('accountSlotMode' in body || 'maxAccountsPerPerson' in body) {
+    const now = new Date().toISOString();
+    const started = !!existing.startDate && existing.startDate <= now;
+    if (started || existing.forceEndedAt) {
+      return NextResponse.json(
+        { error: 'Account settings can only change before the event starts.' },
+        { status: 409 },
+      );
+    }
   }
   const finalStart = 'startDate' in body ? (body.startDate as string | null) : existing.startDate;
   const finalEnd = 'endDate' in body ? (body.endDate as string | null) : existing.endDate;
