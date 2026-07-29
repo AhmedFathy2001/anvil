@@ -314,6 +314,55 @@ export function computeMemberBreakdown(params: {
     );
 }
 
+// One row of the individual ladder — a player (or a rolled-up person) ranked event-wide by points.
+export interface IndividualStanding {
+  playerId: number; // the lead account's id (per-person rollup uses the top-scoring account)
+  name: string;
+  points: number;
+  tasks: number;
+  teamId: number;
+  teamName: string;
+  teamColor: string;
+  frozenAt?: string | null;
+}
+
+// The full event-wide INDIVIDUAL leaderboard: every team's member breakdown, concatenated and
+// re-sorted best-first. For 'per-person' events a person's alts are rolled into one row first (they
+// share a solo team in the ladder's default one-team-each enrollment). Drives the ladder render;
+// same inputs as computeEventMvp (which is just this list's head).
+export function computeIndividualStandings(params: {
+  scoringMode: string | null | undefined;
+  teams: { id: number; name: string; color: string }[];
+  players: BreakdownPlayer[];
+  tiles: BreakdownTile[];
+  completions: BreakdownCompletion[];
+  submissions: BreakdownSubmission[];
+  statGains?: StatGainMap;
+  ownerByPlayerId?: Map<number, number | null>;
+  accountSlotMode?: string | null;
+}): IndividualStanding[] {
+  const { scoringMode, teams, players, tiles, completions, submissions, statGains, ownerByPlayerId, accountSlotMode } = params;
+  const perPerson = accountSlotMode === 'per-person' && !!ownerByPlayerId;
+  const out: IndividualStanding[] = [];
+  for (const team of teams) {
+    const raw = computeMemberBreakdown({ teamId: team.id, scoringMode, players, tiles, completions, submissions, statGains });
+    const members = perPerson ? rollupByOwner(raw, ownerByPlayerId!) : raw;
+    for (const m of members) {
+      out.push({
+        playerId: m.playerId,
+        name: m.name,
+        points: m.points,
+        tasks: m.tasks,
+        teamId: team.id,
+        teamName: team.name,
+        teamColor: team.color,
+        frozenAt: m.frozenAt ?? null,
+      });
+    }
+  }
+  return out.sort((a, b) => b.points - a.points || b.tasks - a.tasks || a.name.localeCompare(b.name));
+}
+
 // The event MVP — highest points (then tasks) across ALL teams' members. Returns null until someone
 // has actually scored or completed a task.
 export function computeEventMvp(params: {

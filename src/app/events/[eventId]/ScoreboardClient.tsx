@@ -6,11 +6,12 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { Tile as FullTile } from '@/lib/types';
-import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
+import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
+import LadderStandings from '@/components/LadderStandings';
 
 interface Tile {
   id: number;
@@ -86,6 +87,10 @@ interface Props {
   // Reveal-policy events (lib/eventRules): tiles the viewer can't see yet + when the next lands.
   hiddenTileCount?: number;
   nextRevealAt?: string | null;
+  // Ladder events: the event-wide individual leaderboard (primary standings). `ladderHasTeams` = the
+  // event runs real multi-person teams, so rows carry a team label and the team board also shows.
+  individualStandings?: IndividualStanding[];
+  ladderHasTeams?: boolean;
 }
 
 interface TeamGains {
@@ -94,7 +99,8 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, individualStandings = [], ladderHasTeams = false }: Props) {
+  const ladder = isLadderFormat(event.format);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -268,17 +274,40 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           <div className="min-w-0">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
-              Standings
+              {ladder ? 'Leaderboard' : 'Standings'}
             </h2>
-            <Scoreboard
-              teams={teams}
-              totalTiles={pointsMode ? totalWeight : requiredTiles.length}
-              completionCounts={completionCounts}
-              eventId={event.id}
-              dropProgressByTeam={dropProgressByTeam}
-              pointsMode={pointsMode}
-              teamMvps={teamMvps}
-            />
+            {ladder ? (
+              <>
+                <LadderStandings standings={individualStandings} showTeam={ladderHasTeams} />
+                {ladderHasTeams && (
+                  <div className="mt-6">
+                    <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
+                      <span className="w-1 h-4 bg-gold/60 rounded-full" />
+                      Teams
+                    </h3>
+                    <Scoreboard
+                      teams={teams}
+                      totalTiles={totalWeight}
+                      completionCounts={completionCounts}
+                      eventId={event.id}
+                      dropProgressByTeam={dropProgressByTeam}
+                      pointsMode
+                      teamMvps={teamMvps}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <Scoreboard
+                teams={teams}
+                totalTiles={pointsMode ? totalWeight : requiredTiles.length}
+                completionCounts={completionCounts}
+                eventId={event.id}
+                dropProgressByTeam={dropProgressByTeam}
+                pointsMode={pointsMode}
+                teamMvps={teamMvps}
+              />
+            )}
 
             {/* XP/Stat Gains */}
             {statTiles.length > 0 && teamGains.length > 0 && (

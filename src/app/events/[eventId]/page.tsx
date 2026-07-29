@@ -9,10 +9,10 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
-import { isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { isPointsMode, isLadderFormat, eventShapeBadge } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
@@ -124,6 +124,31 @@ export default async function EventScoreboardPage({
     mvpTodayRaw.tasks === mvp.tasks
       ? null
       : mvpTodayRaw;
+
+  // Ladder events: the event-wide INDIVIDUAL leaderboard (the primary standings for this format).
+  // Reuses the exact MVP inputs — it's the full sorted list, of which the MVP is the head. Only
+  // computed for ladder events so other formats pay nothing. ladderHasTeams = real multi-person
+  // teams exist, so the render labels rows by team and also shows the team board.
+  let individualStandings: IndividualStanding[] = [];
+  let ladderHasTeams = false;
+  if (isLadderFormat(event.format)) {
+    individualStandings = computeIndividualStandings({
+      scoringMode: event.scoringMode,
+      teams: eventTeams,
+      players: eventPlayers,
+      tiles: eventTiles,
+      completions: eventCompletions,
+      submissions: eventSubmissions,
+      statGains,
+      ownerByPlayerId,
+      accountSlotMode,
+    });
+    const playersPerTeam = new Map<number, number>();
+    for (const p of eventPlayers) {
+      if (p.teamId != null) playersPerTeam.set(p.teamId, (playersPerTeam.get(p.teamId) ?? 0) + 1);
+    }
+    ladderHasTeams = [...playersPerTeam.values()].some((n) => n > 1);
+  }
 
   // Per-team MVP (overall) for the standings cards — the top contributor on each team.
   const teamMvps: Record<number, TeamMvp | null> = {};
@@ -331,6 +356,8 @@ export default async function EventScoreboardPage({
           teamMvps={teamMvps}
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
+          individualStandings={individualStandings}
+          ladderHasTeams={ladderHasTeams}
         />
       )}
     </>
