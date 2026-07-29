@@ -79,19 +79,22 @@ export async function POST(
         };
         if (p.baselineValue === null) updates.baselineValue = result.value;
 
-        // Mirror the cron's implausible-jump flag (see src/lib/gainsValidation.ts).
-        if (p.currentValue !== null) {
+        // Mirror the cron's implausible-gain flag — cumulative gain over elapsed comp time, not the
+        // per-fetch delta (see src/lib/gainsValidation.ts).
+        const baseForGain = p.baselineValue ?? (updates.baselineValue as number | undefined) ?? null;
+        if (baseForGain !== null) {
           const spike = checkRateSpike({
             type: compType,
             metric: comp[0].metric,
-            delta: result.value - p.currentValue,
-            fromIso: p.lastUpdated,
+            gained: result.value - baseForGain,
+            sinceIso: comp[0].startDate,
             toIso: nowIso,
           });
-          if (spike.flagged) {
-            updates.flagged = 1;
-            updates.flagReason = describeRateSpike(compType, spike);
-          }
+          // Reconcile (set OR clear): unlike the auto sweep this is a deliberate admin action, so it
+          // also clears a stale flag the check no longer trips — the one-click fix for rows the old
+          // per-interval logic false-flagged.
+          updates.flagged = spike.flagged ? 1 : 0;
+          updates.flagReason = spike.flagged ? describeRateSpike(compType, spike) : null;
         }
         await db.update(weeklyParticipants).set(updates).where(eq(weeklyParticipants.id, p.id));
         updated++;
