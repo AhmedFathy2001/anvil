@@ -90,6 +90,7 @@ interface Props {
   // Ladder events: the event-wide individual leaderboard (primary standings). `ladderHasTeams` = the
   // event runs real multi-person teams, so rows carry a team label and the team board also shows.
   individualStandings?: IndividualStanding[];
+  individualStandingsMonthly?: IndividualStanding[];
   ladderHasTeams?: boolean;
 }
 
@@ -99,7 +100,7 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, individualStandings = [], ladderHasTeams = false }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
   const ladder = isLadderFormat(event.format);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -278,7 +279,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </h2>
             {ladder ? (
               <>
-                <LadderStandings standings={individualStandings} showTeam={ladderHasTeams} />
+                <LadderStandings standings={individualStandings} monthly={individualStandingsMonthly} showTeam={ladderHasTeams} />
                 {ladderHasTeams && (
                   <div className="mt-6">
                     <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">

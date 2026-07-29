@@ -14,6 +14,7 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
+import { monthWindowUtc } from '@/lib/ladderStandings';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
@@ -130,18 +131,26 @@ export default async function EventScoreboardPage({
   // computed for ladder events so other formats pay nothing. ladderHasTeams = real multi-person
   // teams exist, so the render labels rows by team and also shows the team board.
   let individualStandings: IndividualStanding[] = [];
+  let individualStandingsMonthly: IndividualStanding[] = [];
   let ladderHasTeams = false;
   if (isLadderFormat(event.format)) {
-    individualStandings = computeIndividualStandings({
+    const ladderInputs = {
       scoringMode: event.scoringMode,
       teams: eventTeams,
       players: eventPlayers,
       tiles: eventTiles,
-      completions: eventCompletions,
       submissions: eventSubmissions,
       statGains,
       ownerByPlayerId,
       accountSlotMode,
+    };
+    individualStandings = computeIndividualStandings({ ...ladderInputs, completions: eventCompletions });
+    // The same board windowed to the current UTC month — ladder points are completion-gated, so
+    // filtering completions by completedAt gives an exact "this month" leaderboard beside the all-time.
+    const { start: monthStart, end: monthEnd } = monthWindowUtc();
+    individualStandingsMonthly = computeIndividualStandings({
+      ...ladderInputs,
+      completions: eventCompletions.filter((c) => c.completedAt >= monthStart && c.completedAt < monthEnd),
     });
     const playersPerTeam = new Map<number, number>();
     for (const p of eventPlayers) {
@@ -357,6 +366,7 @@ export default async function EventScoreboardPage({
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
           individualStandings={individualStandings}
+          individualStandingsMonthly={individualStandingsMonthly}
           ladderHasTeams={ladderHasTeams}
         />
       )}
