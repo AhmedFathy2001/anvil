@@ -21,7 +21,10 @@
 //
 // Scoring modifiers (points-mode only; frozen into completions.awardedPoints at completion time):
 //   firstBonus — extra points for the FIRST team to complete each tile.
-//   decay      — a tile's points fall linearly from 100% at reveal to floorPct after `hours`.
+//   decay      — a tile's points scale linearly from 100% at reveal to `targetPct%` after `hours`,
+//                then hold. targetPct < 100 DECAYS (rewards racing; 0 = down to nothing), targetPct
+//                > 100 GROWS (rewards patience / clearing older tasks). Independent of expiry — pair
+//                with the 'rotating' reveal policy to also close the task, or leave it open.
 //   lockout    — first completion locks the tile for every other team (works in tiles mode too;
 //                affects gating, not weights).
 
@@ -47,8 +50,9 @@ export interface EventRules {
   revealOrder: RevealOrder;
   /** Extra points for the first team completing a tile. 0 = off. */
   firstBonus: number;
-  /** Linear points decay after reveal, down to floorPct% after `hours`. Null = off. */
-  decay: { floorPct: number; hours: number } | null;
+  /** Linear points scaling after reveal: from 100% to `targetPct%` over `hours`, then held. < 100
+   *  decays (0 = to nothing), > 100 grows. `floorPct` is the legacy key (still parsed). Null = off. */
+  decay: { targetPct: number; hours: number } | null;
   /** First completion locks the tile for all other teams. Implied by 'bounty'. */
   lockout: boolean;
   /** Team-formation steering from player profiles. Never blocks event start; 'off' = classic. */
@@ -90,10 +94,11 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     ? (obj.revealPolicy as RevealPolicy)
     : 'all';
   let decay: EventRules['decay'] = null;
-  const d = obj.decay as { floorPct?: unknown; hours?: unknown } | null | undefined;
+  const d = obj.decay as { targetPct?: unknown; floorPct?: unknown; hours?: unknown } | null | undefined;
   if (d && typeof d === 'object') {
     decay = {
-      floorPct: clampInt(d.floorPct, 0, 100, 50),
+      // Accept the legacy `floorPct` key. Target may exceed 100 for growth (cap 1000% = 10×).
+      targetPct: clampInt(d.targetPct ?? d.floorPct, 0, 1000, 50),
       hours: clampInt(d.hours, 1, 720, 24),
     };
   }
@@ -142,13 +147,14 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     }
   }
   if (o.decay !== undefined && o.decay !== null) {
-    const d = o.decay as { floorPct?: unknown; hours?: unknown };
+    const d = o.decay as { targetPct?: unknown; floorPct?: unknown; hours?: unknown };
+    const t = d.targetPct ?? d.floorPct; // legacy key accepted
     if (
       typeof d !== 'object' ||
-      typeof d.floorPct !== 'number' || !Number.isInteger(d.floorPct) || d.floorPct < 0 || d.floorPct > 100 ||
+      typeof t !== 'number' || !Number.isInteger(t) || t < 0 || t > 1000 ||
       typeof d.hours !== 'number' || !Number.isFinite(d.hours) || d.hours < 1 || d.hours > 720
     ) {
-      return { error: 'rules.decay must be { floorPct: 0–100, hours: 1–720 } or null' };
+      return { error: 'rules.decay must be { targetPct: 0–1000, hours: 1–720 } or null' };
     }
   }
   if (o.lockout !== undefined && typeof o.lockout !== 'boolean') {
@@ -252,8 +258,8 @@ export function completionAward(args: {
     const nowMs = args.nowMs ?? Date.now();
     if (Number.isFinite(revealedMs) && nowMs > revealedMs) {
       const frac = Math.min(1, (nowMs - revealedMs) / (rules.decay.hours * 3_600_000));
-      const floor = rules.decay.floorPct / 100;
-      pts = Math.max(0, Math.round(pts * (1 - (1 - floor) * frac)));
+      const target = rules.decay.targetPct / 100; // < 1 decays toward it, > 1 grows toward it
+      pts = Math.max(0, Math.round(pts * (1 - (1 - target) * frac)));
     }
   }
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
