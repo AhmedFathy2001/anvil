@@ -19,6 +19,9 @@ interface ClanMember {
   lastSeenInClan: string | null;
   notes: string | null;
   userId: number | null;
+  // 1 = this account is the person's primary (main). Only meaningful when userId is set (a person
+  // with one or more linked accounts).
+  isPrimary: number;
   userBanned?: boolean;
   // Federation (WIRE §4): the authoritative Discord id + whether it's on the sticky federation
   // denylist. federationBanned members are blocked from re-joining via a broker /exchange (L2).
@@ -246,6 +249,17 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) fetchAll();
   }
 
+  // Make this account the person's primary (main) — the default representative for per-person events
+  // and the name their team takes. Demotes their other accounts server-side.
+  async function setPrimary(member: ClanMember) {
+    const res = await fetch(`/api/admin/clan/${member.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ setPrimary: true }),
+    });
+    if (res.ok) fetchAll();
+  }
+
   async function removeMember(member: ClanMember) {
     if (!confirm(`Mark ${member.rsn} as left the clan?`)) return;
     const res = await fetch(`/api/admin/clan/${member.id}`, { method: 'DELETE' });
@@ -391,6 +405,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       label: m.isGuest ? 'Promote to member' : 'Demote to guest',
       onClick: () => togglePromote(m),
     });
+    // Set-primary only matters for a linked person, and only when this isn't already their main.
+    if (m.userId && m.isPrimary !== 1) {
+      items.push({
+        label: 'Set as main account',
+        onClick: () => setPrimary(m),
+        title: 'Make this the person’s primary account — the default entry for per-person events',
+      });
+    }
     items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
     if (isAdmin && m.userId) {
       items.push({
