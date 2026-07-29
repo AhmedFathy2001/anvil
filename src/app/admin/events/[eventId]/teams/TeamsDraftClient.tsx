@@ -102,6 +102,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       if (assigned.length > 0 && maxRoster <= 1) return 'individual'; // all solo teams
       return 'draft'; // multiple teams being built by hand — the classic flow
     }
+    // A ladder event is individual-primary by design — default a fresh one to one-team-each (the
+    // admin can still switch to real teams). Other formats ask on the first screen.
+    if (event.format === 'ladder') return 'individual';
     return null; // fresh event — ask
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
