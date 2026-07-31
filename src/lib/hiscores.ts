@@ -14,6 +14,7 @@ export interface HiscoresSnapshot {
 // meantime (the lib's own mapping wins when both know the boss).
 const EXTRA_HISCORE_BOSSES: Record<string, string> = {
   'Maggot King': 'maggotKing',
+  'Mad Angel': 'madAngel',
 };
 
 /**

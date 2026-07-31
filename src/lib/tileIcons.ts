@@ -30,6 +30,7 @@ export const NOTABLE_ACTIVITY_ITEMS: Record<string, number> = {
   'barracuda trials': 31745, 'barracuda trial': 31745,                    // Captured wind mote
   'tempor tantrum': 31745, 'jubbly jive': 31745, 'gwenith glide': 31745,
   'maggot king': 33634,                                                   // Elder venator fang
+  'mad angel': 34027, 'the mad angel': 34027,                             // Hallowfell
 };
 
 /** Item id of the signature reward for an activity name, or null. Mode suffixes fall back. */

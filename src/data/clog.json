@@ -1,8 +1,8 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Module:Collection_log/data.json",
-  "generatedAt": "2026-07-01T21:20:49.403Z",
-  "activityCount": 124,
-  "itemCount": 1706,
+  "generatedAt": "2026-07-31T11:14:52.828Z",
+  "activityCount": 125,
+  "itemCount": 1712,
   "manualOnlyIds": [
     2978,
     2979,
@@ -329,7 +329,8 @@
     32409,
     32410,
     33143,
-    33423
+    33423,
+    34024
   ],
   "activities": {
     "Abyssal Sire": [
@@ -730,6 +731,14 @@
       {
         "id": 33642,
         "name": "Maggot marquess"
+      },
+      {
+        "id": 34040,
+        "name": "Mr mcgroot"
+      },
+      {
+        "id": 34042,
+        "name": "Aggy"
       }
     ],
     "Amoxliatl": [
@@ -5578,6 +5587,10 @@
       {
         "id": 31572,
         "name": "Squid beak"
+      },
+      {
+        "id": 34024,
+        "name": "Jeweller's chisel"
       }
     ],
     "Monkey Backpacks": [
@@ -6826,6 +6839,10 @@
       {
         "id": 31283,
         "name": "Soup"
+      },
+      {
+        "id": 34040,
+        "name": "Mr mcgroot"
       }
     ],
     "Skotizo": [
@@ -7398,6 +7415,28 @@
       {
         "id": 28334,
         "name": "Awakener's orb"
+      }
+    ],
+    "The Mad Angel": [
+      {
+        "id": 21726,
+        "name": "Granite dust"
+      },
+      {
+        "id": 34027,
+        "name": "Hallowfell"
+      },
+      {
+        "id": 34030,
+        "name": "Jar of light"
+      },
+      {
+        "id": 34033,
+        "name": "Ardeaglais teleport"
+      },
+      {
+        "id": 34042,
+        "name": "Aggy"
       }
     ],
     "The Nightmare": [
