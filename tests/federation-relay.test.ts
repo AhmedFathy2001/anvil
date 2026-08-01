@@ -22,6 +22,7 @@ import {
   brokerMeInstances,
   brokerRegister,
   connectViaBrokerToken,
+  aggregateClans,
   fanOutCredit,
   computeServerFanout,
   dedupeConnectionsByInstanceId,
@@ -254,6 +255,20 @@ test('self-host device path → login (pending) → poll complete → connected'
   assert.equal(connections.length, 1);
   assert.equal(connections[0].instanceId, CLANB_ID);
   assert.equal(connections[0].token, `B-token-assert-${CLANB_ID}-device`);
+  // Clan B answered the exchange with guest:false — we cache its verdict so /state can tell the
+  // plugin the player is a REAL member there (it opens the sidebar on that clan, not the home).
+  assert.equal(connections[0].guest, false);
+});
+
+test('aggregated clans[] carries the member flag from the cached exchange verdict', async () => {
+  _clearRelayReadCache();
+  const conns: FederationConnection[] = [
+    { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' },
+    { instanceId: 'clan-c', name: 'Clan C', baseUrl: clanBBase, token: 'B-token-y', guest: true },
+  ];
+  const clans = await aggregateClans(conns, federationFetch);
+  assert.equal(clans.find((c) => c.id === CLANB_ID)?.member, true);   // no guest flag → a member
+  assert.equal(clans.find((c) => c.id === 'clan-c')?.member, false);  // an auto-created guest there
 });
 
 test('fan-out relay → 2nd clan credited with the declared target', async () => {

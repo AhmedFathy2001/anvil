@@ -1056,6 +1056,11 @@ export const federationConnections = sqliteTable('federation_connections', {
   // The federation token the REMOTE clan minted at its /exchange (a secret we hold to act as this
   // member there). Raw, not hashed — we must replay it as a Bearer. See note above.
   token: text('token').notNull(),
+  // What the remote said this member IS to them at /exchange (WIRE §7): 1 = an auto-created federation
+  // guest, 0 = a real member of that clan. Re-stamped on every re-sync, so a guest promoted to member
+  // there flips here within the sync window. The plugin uses it to land the sidebar on the clan the
+  // player actually belongs to instead of always the configured home.
+  isGuest: integer('is_guest').default(0).notNull(),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   lastUsedAt: text('last_used_at'),
 }, (table) => [

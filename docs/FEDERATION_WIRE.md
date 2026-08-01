@@ -181,7 +181,7 @@ it opens. Never sent to the plugin. One toggle federates
 every member of that clan — hosted and self-host use the exact same path.
 
 ### 10.2 Plugin ↔ home site  (the ONLY federation endpoints the plugin calls)
-- `GET  /api/plugin/federation/state` → `{ enabled, connected, needsLogin, verificationUrl?, clans:[{ id, name, board, activity, … }] }` — the plugin polls this and renders `clans[]`.
+- `GET  /api/plugin/federation/state` → `{ enabled, connected, needsLogin, verificationUrl?, clans:[{ id, name, board, activity, member, … }] }` — the plugin polls this and renders `clans[]`. `member` is our CACHED `/exchange` verdict for that clan (`false` = we're an auto-created federation guest there), re-stamped on each re-sync; the plugin opens its sidebar on a clan the player really belongs to and falls back to the configured home when they're a guest everywhere. Absent on an older home → the plugin keeps its old home-first default.
 - `POST /api/plugin/federation/connect` → `{ status:"connected" }` (an existing broker session) **or** `{ status:"login", verificationUrl }` (device-code — plugin opens verificationUrl for the member's one-time Discord login on the broker's domain).
 The plugin holds **no** clan tokens and opens **no** clan connections.
 
