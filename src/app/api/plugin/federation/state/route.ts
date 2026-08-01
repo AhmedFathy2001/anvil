@@ -36,6 +36,11 @@ export async function GET(request: Request) {
   // Per-ACCOUNT share flags for the sidebar's "Share my RSN" affordance: resolvable only when the
   // playing account itself resolves (X-RSN/X-Account-Hash → exact clan_members row). Logged out or
   // unlinked → shareEligible:false and the plugin hides the buttons.
+  //
+  // No verifiedAt re-check here even though /share gates on it: resolvePluginMember has ALREADY
+  // verified this account by the time it returns (ensurePluginVerifiedOnPlay — playing an account you
+  // own is the proof), so a resolvable member is a verified one and the extra read would be a
+  // per-poll query that is always true.
   let shareEligible = false;
   let sharedSet: Set<string> | null = null;
   const playingMember = await resolvePluginMember(request);

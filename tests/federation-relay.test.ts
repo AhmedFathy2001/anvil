@@ -54,6 +54,7 @@ import {
   guestConflictExhausted,
   gateReplayThenBudget,
   planGuestConflict,
+  anchorRenamable,
   classifySharedRsnClaim,
   exchangeRateLimitKey,
   guestRateLimitKey,
@@ -700,6 +701,18 @@ test('classifySharedRsnClaim — own federation guest reusable, own stronger row
   assert.equal(classifySharedRsnClaim(ownByDiscord, 'me', null), 'satisfied'); // discord-id match, no site user
   assert.equal(classifySharedRsnClaim(stranger, 'me', 5), 'conflict'); // anyone else's row — hard refuse
   assert.equal(classifySharedRsnClaim(ownLinked, 'me', null), 'conflict'); // no owner identity → can't be "yours"
+});
+
+// Only a disposable federation PLACEHOLDER may be renamed by a shared-RSN claim. The promoted-guest
+// case is the one that bites: "Promote to member" clears isGuest but leaves source='federation', so
+// a source-only check would rename a real member's row out from under them on the next relay.
+test('anchorRenamable — placeholder only; real, adopted and promoted rows are never renamed', () => {
+  assert.equal(anchorRenamable({ source: 'federation', isGuest: 1 }), true); // the disposable placeholder
+  assert.equal(anchorRenamable({ source: 'federation', isGuest: 0 }), false); // promoted to member — hands off
+  assert.equal(anchorRenamable({ source: 'plugin-roster', isGuest: 0 }), false); // adopted real row
+  assert.equal(anchorRenamable({ source: 'manual', isGuest: 1 }), false); // admin-added guest, not ours to rename
+  assert.equal(anchorRenamable(null), false);
+  assert.equal(anchorRenamable(undefined), false);
 });
 
 // ── #14: exchange + guest-creation rate limits are keyed per MEMBER (sub), not per home-clan IP ──

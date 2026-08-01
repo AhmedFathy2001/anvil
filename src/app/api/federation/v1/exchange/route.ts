@@ -14,6 +14,7 @@ import { getClientIp } from '@/lib/federationSecurity';
 import { getBrokerTrust, getExchangePolicy, getFederationEnabled } from '@/lib/pluginConfig';
 import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
 import {
+  anchorRenamable,
   classifySharedRsnClaim,
   exchangeRateLimitKey,
   guestRateLimitKey,
@@ -65,6 +66,8 @@ function guestRsnFor(discordId: string): string {
 // exchange: federation guests whose RSN is no longer shared are pruned (soft-left) and a
 // placeholder anchor reverts to its placeholder name — revocation at home propagates here on the
 // next relay. An ADOPTED anchor (a real row, see ensureFederationGuest) is never renamed/reverted.
+// Runs on BOTH exchange paths — member and auto-guest. The rules below are keyed on the ROW the
+// claim lands on, never on which path called, so a member sharing an alt gets the same treatment.
 
 const MAX_SHARED_ACCOUNTS = 5;
 const RSN_SHAPE = /^[A-Za-z0-9 _-]{1,12}$/;
@@ -124,9 +127,10 @@ async function applySharedAccounts(
   // 1. A PLACEHOLDER anchor (the disposable federation row the token is bound to) carries the
   //    primary RSN — or reverts to the placeholder name when nothing is shared any more. An ADOPTED
   //    anchor is the member's real row here and is never renamed or reverted by a federated claim.
+  //    (anchorRenamable — placeholder only; a real or promoted row is never renamed.)
   const anchor = await db.query.clanMembers.findFirst({
     where: eq(clanMembers.id, anchorGuestId),
-    columns: { id: true, rsnNormalized: true, source: true },
+    columns: { id: true, rsnNormalized: true, source: true, isGuest: true },
   });
   if (!anchor) return;
   const primary = shared.find((a) => a.primary) ?? shared[0] ?? null;
@@ -134,7 +138,7 @@ async function applySharedAccounts(
   const desiredNorm = primary ? normalizeRsn(primary.rsn) : placeholderNorm;
   // The name the anchor ends up holding — step 2 skips creating a sibling row for it.
   let anchorNorm = anchor.rsnNormalized;
-  if (anchor.source === 'federation' && anchor.rsnNormalized !== desiredNorm) {
+  if (anchorRenamable(anchor) && anchor.rsnNormalized !== desiredNorm) {
     const { claim, row } = await claimOn(desiredNorm);
     if (claim === 'conflict') {
       conflictAudit(desiredRsn);
@@ -465,6 +469,19 @@ export async function POST(request: Request) {
   if (memberRows.length > 0) {
     // Existing member → full plugin token (board:read + events:write). Pin to their primary member.
     const primary = memberRows.find((m) => m.isPrimary === 1) ?? memberRows[0];
+
+    // Shares apply to MEMBERS too. This path used to return before applySharedAccounts ever ran, so
+    // "Share my RSN" was a silent no-op in the most common case of all — a member of both clans
+    // sharing an alt with the clan they're already in. Safe here because the claim rules are
+    // row-driven, not path-driven: step 1 no-ops on a non-guest anchor (their real row is never
+    // renamed), their own accounts classify 'satisfied', anyone else's 'conflict', and only genuinely
+    // new RSNs become inert federation-guest rows. Step 3's prune is what makes un-sharing revoke.
+    if (body.accounts !== undefined) {
+      await applySharedAccounts(sub, primary.id, body.accounts, existingUser!.id).catch((e) =>
+        log.warn('federation.exchange.shared-accounts-fail', { memberId: primary.id }, e),
+      );
+    }
+
     const scopes: FederationScope[] = ['board:read', 'events:write'];
     const { token, tokenId } = await mintFederationToken({
       userId: existingUser!.id,

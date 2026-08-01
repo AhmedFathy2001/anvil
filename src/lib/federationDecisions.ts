@@ -197,6 +197,23 @@ export function classifySharedRsnClaim(
   return 'conflict';
 }
 
+/**
+ * May a shared-RSN claim RENAME the anchor row the exchange token is bound to? Only a disposable
+ * federation PLACEHOLDER may be — never a real row someone actually plays as.
+ *
+ * Both conditions are load-bearing. `source` alone misses a federation guest an admin promoted via
+ * "Promote to member": that flips isGuest to 0 but leaves source='federation', so a rename would hit
+ * a now-REAL member row on the next relay. `isGuest` alone would let a federated claim rename an
+ * ordinary roster-created guest. An ADOPTED anchor (a real row picked up by ensureFederationGuest)
+ * fails both and is left alone, which is the point.
+ */
+export function anchorRenamable(
+  anchor: { source: string | null; isGuest: number | null } | null | undefined,
+): boolean {
+  if (!anchor) return false;
+  return anchor.source === 'federation' && anchor.isGuest === 1;
+}
+
 // #12 the `missing` conflict plan (the conflicting row vanished between the failed insert and the
 // re-read — astronomically unlikely) retries the find-or-create, but that retry must be BOUNDED: the
 // prior implementation recursed with no depth counter, so a pathological churn could recurse forever /
