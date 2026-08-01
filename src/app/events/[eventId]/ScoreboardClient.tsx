@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
@@ -115,28 +117,26 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
 
-  useEffect(() => {
+  const router = useRouter();
+
+  const refetchSubmissions = useCallback(() => {
     fetch(`/api/events/${event.id}/submissions`)
       .then((r) => r.ok ? r.json() : [])
-      .then(setSubmissions);
+      .then(setSubmissions)
+      .catch(() => {});
   }, [event.id]);
 
-  // Fetch gains data for all teams (for stat tiles)
-  useEffect(() => {
+  const refetchGains = useCallback(() => {
     const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
     if (statTiles.length === 0) return;
-
-    // Fetch gains for all teams in parallel
+    // Fetch gains for all teams in parallel, aggregate by tile.
     Promise.all(
       teams.map(async (team) => {
         const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
         if (!res.ok) return null;
         const data = await res.json();
-
-        // Aggregate gains by tile
         const tileGains: Record<number, number> = {};
         let totalGained = 0;
-
         for (const tile of statTiles) {
           let tileTotal = 0;
           for (const player of data) {
@@ -146,13 +146,25 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           tileGains[tile.id] = tileTotal;
           totalGained += tileTotal;
         }
-
         return { teamId: team.id, totalGained, tileGains };
       })
     ).then((results) => {
       setTeamGains(results.filter((r): r is TeamGains => r !== null));
-    });
+    }).catch(() => {});
   }, [event.id, teams, tiles]);
+
+  useEffect(() => { refetchSubmissions(); }, [refetchSubmissions]);
+  useEffect(() => { refetchGains(); }, [refetchGains]);
+
+  // Semi-realtime: on tab-focus (throttled) poll a tiny pulse endpoint; only when the board actually
+  // changes do we pull fresh data — router.refresh() for the server-rendered standings/completions,
+  // plus the client-side submissions/gains. An unchanged board is a 304 (no body), so it's cheap.
+  const onBoardChange = useCallback(() => {
+    router.refresh();
+    refetchSubmissions();
+    refetchGains();
+  }, [router, refetchSubmissions, refetchGains]);
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
 
   // Exclude optional tiles from completion counts
   const pointsMode = isPointsMode(event.scoringMode);
