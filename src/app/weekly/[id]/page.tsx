@@ -5,6 +5,7 @@ import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import LiveRefresher from '@/components/LiveRefresher';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,7 @@ export default async function WeeklyLeaderboardPage({
 
   return (
     <div>
+      <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
       <div className="mb-6">
         <Link
           href="/weekly"
