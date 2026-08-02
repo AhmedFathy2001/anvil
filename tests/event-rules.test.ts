@@ -53,7 +53,9 @@ test('validateEventRules: defaults store NULL; presets canonicalise; bad shapes 
 
   assert.ok('error' in validateEventRules({ revealPolicy: 'sometimes' }));
   assert.ok('error' in validateEventRules({ revealIntervalMinutes: 2 }));
-  assert.ok('error' in validateEventRules({ decay: { floorPct: 200, hours: 4 } }));
+  // targetPct/floorPct > 100 is GROWTH (ladder missions), valid up to 1000 (= 10×).
+  assert.ok('rules' in validateEventRules({ decay: { floorPct: 200, hours: 4 } }));
+  assert.ok('error' in validateEventRules({ decay: { floorPct: 2000, hours: 4 } }));
   assert.ok('error' in validateEventRules({ lockout: 'yes' }));
   assert.ok('error' in validateEventRules('nope'));
 });
