@@ -26,6 +26,7 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { serverInfo } from '@/lib/serverInfo';
 import { parseEventRules, hasRevealPolicy, nextRevealAt } from '@/lib/eventRules';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
@@ -205,6 +206,9 @@ export async function GET(request: Request) {
           homeBoardForUser(userOnly.userId),
         ]);
       return jsonWithEtag(request, {
+        // Version + capability handshake — present on every /config shape (enrolled or not) so the
+        // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
+        server: serverInfo(),
         event: null,
         team: null,
         player: null,
@@ -615,6 +619,7 @@ export async function GET(request: Request) {
     : undefined;
 
   return jsonWithEtag(request, {
+    server: serverInfo(),
     clanName: await getClanDisplayName(),
     event: {
       id: event.id,

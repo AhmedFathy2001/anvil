@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users as usersTable, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
+import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import "./globals.css";
@@ -105,6 +106,8 @@ export default async function RootLayout({
               >
                 Anvil is source-available
               </a>
+              {" · "}
+              <span title={`build ${GIT_SHA}`}>v{APP_VERSION}</span>
             </p>
             <Link href="/feedback" className="hover:text-foreground transition-colors">
               Feedback &amp; bug reports

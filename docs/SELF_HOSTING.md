@@ -250,6 +250,41 @@ docker run -d --name my-clan \
 > 3. From then on `db:migrate` runs only *future* migrations. Fresh instances need none
 >    of this — they migrate from `0000` cleanly.
 
+## Versioning & updates
+
+Anvil is versioned with **semver git tags** (`v1.0.0`, `v1.1.0`, …), and every tagged
+release publishes a prebuilt image to GHCR — so instead of building from source you can
+pin a version:
+
+```bash
+docker pull ghcr.io/ahmedfathy2001/anvil-site:1.0.0   # exact release (recommended)
+docker pull ghcr.io/ahmedfathy2001/anvil-site:1.0     # latest patch of a minor
+docker pull ghcr.io/ahmedfathy2001/anvil-site:stable  # tracks the hosted stable fleet
+```
+
+Check what any instance is running at `GET /api/version` (semver + exact build commit) —
+it's also shown in the site footer.
+
+**Upgrading:**
+
+1. **Back up first**: copy the SQLite file out of the `/data` volume (or rely on your
+   Litestream stream).
+2. Pull the new tag and recreate the container with the same volume/env. Pending
+   migrations run automatically on boot; a migration failure aborts boot rather than
+   serving a half-built schema.
+3. **Migrations are forward-only.** Rolling back means restoring the pre-upgrade DB
+   backup and starting the old image again — never run an older image against a newer
+   database.
+
+Skipping versions is fine (migrations chain), but read the release notes between your
+version and the target — breaking changes and plugin-API notes are called out there.
+
+**Staying compatible with the plugin:** members install the shared Anvil plugin from the
+RuneLite Hub, which is always the latest version. The plugin detects what your site
+supports and hides features your version doesn't have yet (see
+[`PLUGIN_WIRE.md`](./PLUGIN_WIRE.md)) — but staying within ~2 minor versions of current
+is the supported window. Update at least a couple of times a year.
+
 ## Cron / scheduled refreshes
 
 Anvil has three refresh routes that must be hit on a schedule — nothing calls them

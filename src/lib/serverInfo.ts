@@ -1,0 +1,60 @@
+import pkg from '../../package.json';
+
+/**
+ * Deployment identity + plugin-API contract, in one place.
+ *
+ * Self-hosted instances can lag many releases behind the always-latest hub plugin, and one plugin
+ * multi-homes across several sites on different versions at once — so the plugin gates features on
+ * the CAPABILITIES a site advertises, never on version-number comparison. The full contract and
+ * change rules live in docs/PLUGIN_WIRE.md; the short form:
+ *
+ *  - Plugin-facing responses are additive-only: new fields/endpoints may appear, existing ones
+ *    never change meaning or disappear within an api level.
+ *  - Shipping a new plugin-facing feature family? Add its capability string here so newer plugins
+ *    can detect it on older sites that lack it.
+ *  - A breaking change (remove/rename/repurpose) requires bumping PLUGIN_API_LEVEL and a
+ *    release-note callout — old plugins compare it to decide "this site is too new/old for me".
+ */
+export const APP_VERSION: string = pkg.version;
+
+/** Immutable git SHA baked in by CI (Dockerfile ARG). 'dev' outside a CI-built image. */
+export const GIT_SHA: string = process.env.GIT_SHA || 'dev';
+
+export const PLUGIN_API_LEVEL = 1;
+
+// Baseline set as of v1.0.0 — everything the plugin-facing API supported when the handshake first
+// shipped. Sites that predate the handshake send nothing; the plugin treats "no server block" as
+// exactly this baseline.
+export const PLUGIN_CAPABILITIES = [
+  'stats-live', // live stat overlay pushes + unified KC/XP tracking
+  'drop-tiles',
+  'kill-tiles',
+  'timed-tiles',
+  'lms-tiles',
+  'value-tiles',
+  'gain-tiles',
+  'deathless-tiles',
+  'pvp-tiles',
+  'diary-tiles',
+  'ca-tiles',
+  'clog-tiles',
+  'weekly', // SOTW/BOTW competitions
+  'schedule',
+  'notify', // server-forwarded Discord notifications
+  'counters',
+  'activity-feed',
+  'federation',
+  'ladder', // ladder format + missions board + standings
+  'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
+  'config-etag', // conditional GET on /api/plugin/config + /board
+] as const;
+
+/** The `server` block returned to the plugin (and /api/version). */
+export function serverInfo() {
+  return {
+    version: APP_VERSION,
+    sha: GIT_SHA,
+    apiLevel: PLUGIN_API_LEVEL,
+    capabilities: [...PLUGIN_CAPABILITIES],
+  };
+}
