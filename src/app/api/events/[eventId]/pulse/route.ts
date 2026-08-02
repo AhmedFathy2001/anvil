@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { events, tiles, completions, submissions } from '@/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { cachedPulseToken } from '@/lib/pulseCache';
 
 /**
  * Cheap "did anything change?" pulse for an event board. Returns a tiny fingerprint of the board's
@@ -20,12 +21,18 @@ export async function GET(
     return jsonWithEtag(request, { v: 'none' });
   }
 
+  // Collapse concurrent viewers' polls of the same board to one DB computation per ~5s.
+  const token = await cachedPulseToken(`event:${eId}`, () => computeEventToken(eId));
+  return jsonWithEtag(request, { v: token });
+}
+
+async function computeEventToken(eId: number): Promise<string> {
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
     columns: { tilesRevealed: true, forceEndedAt: true, endDate: true },
   });
   if (!event) {
-    return jsonWithEtag(request, { v: 'none' });
+    return 'none';
   }
 
   // Tile-level board state (reveal/expiry flips + count) in one pass.
@@ -72,5 +79,5 @@ export async function GET(
     sub.max ?? '',
   ].join('|');
 
-  return jsonWithEtag(request, { v: token });
+  return token;
 }

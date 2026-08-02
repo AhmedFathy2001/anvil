@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { cachedPulseToken } from '@/lib/pulseCache';
 
 /**
  * Cheap change-pulse for a weekly (SOTW/BOTW) leaderboard — same contract as the event pulse: a tiny
@@ -18,12 +19,18 @@ export async function GET(
     return jsonWithEtag(request, { v: 'none' });
   }
 
+  // Collapse concurrent viewers' polls of the same board to one DB computation per ~5s.
+  const token = await cachedPulseToken(`weekly:${compId}`, () => computeWeeklyToken(compId));
+  return jsonWithEtag(request, { v: token });
+}
+
+async function computeWeeklyToken(compId: number): Promise<string> {
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, compId),
     columns: { status: true, endDate: true },
   });
   if (!comp) {
-    return jsonWithEtag(request, { v: 'none' });
+    return 'none';
   }
 
   // sum(currentValue) moves whenever any participant's tracked value changes; count catches
@@ -37,13 +44,11 @@ export async function GET(
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, compId));
 
-  const token = [
+  return [
     comp.status,
     comp.endDate ?? '',
     Number(agg?.count ?? 0),
     Number(agg?.cur ?? 0),
     Number(agg?.base ?? 0),
   ].join('|');
-
-  return jsonWithEtag(request, { v: token });
 }
