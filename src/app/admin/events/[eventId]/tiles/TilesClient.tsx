@@ -14,7 +14,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
 import { statLabel } from '@/lib/tileKinds';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -47,6 +47,8 @@ function tileToTrackingInitial(tile: Tile) {
     // timeThresholdSeconds). Without this the editor reloaded blank and the next save nulled it.
     partySize: tile.partySize ?? null,
     pvpMinLootValue: tile.pvpMinLootValue ?? null,
+    mission: !!tile.mission,
+    missionRules: tile.rules ? parseTileMissionRules(tile.rules) : null,
     updatedAt: tile.updatedAt ?? null,
   };
 }

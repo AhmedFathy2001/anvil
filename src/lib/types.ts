@@ -69,6 +69,8 @@ export interface Tile extends TileRevealState {
   timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
   partySize?: number | null; // timed raid tiles — exact party size required (null = any)
   pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
+  mission?: number | null; // 1 = a mission tile (hidden until announced mid-event; see tiles.mission)
+  rules?: string | null; // per-mission scoring JSON (see tiles.rules / MissionRules); null on normal tiles
   // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.
   updatedAt?: string | null;
 }
@@ -183,7 +185,20 @@ export interface TileConfig {
   partySize?: number | null;
   // PvP tiles: minimum loot value (gp) a kill must yield to count. null/0 = no minimum.
   pvpMinLootValue?: number | null;
+  // MISSION tiles: hidden until announced mid-event, with their own scoring. `mission` flags it;
+  // `missionRules` holds lockout / first-clear bonus / decay / auto-expiry (null on a normal tile).
+  mission?: boolean;
+  missionRules?: TileMissionRules | null;
   updatedAt?: string | null;
+}
+
+// Per-mission scoring the tile editor sends (serialized into tiles.rules server-side). Mirrors
+// lib/eventRules MissionRules. Decay/bonus only bite in a points event; lockout works anywhere.
+export interface TileMissionRules {
+  lockout: boolean;
+  firstBonus: number;
+  decay: { targetPct: number; hours: number } | null;
+  expiryHours: number | null;
 }
 
 export interface PlayerGain {
