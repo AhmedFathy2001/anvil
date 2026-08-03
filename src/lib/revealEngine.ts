@@ -1,7 +1,14 @@
 import { db } from '@/db';
 import { events, tiles, completions, players, submissions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
-import { parseEventRules, hasRevealPolicy, type EventRules, type RevealOrder } from '@/lib/eventRules';
+import {
+  parseEventRules,
+  hasRevealPolicy,
+  hasMissions,
+  parseTileMissionRules,
+  type EventRules,
+  type RevealOrder,
+} from '@/lib/eventRules';
 import { notifyTilesRevealed, notifyBountyClaim } from '@/lib/discord';
 import { log } from '@/lib/logger';
 
@@ -156,16 +163,141 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
   }
 }
 
-/** Cron pass: run the engine over every live reveal-policy event. */
+// ---- Missions — a parallel announce track over the mission-flagged tile subset ------------------
+// Independent of the board's revealPolicy: a classic bingo can drop missions while its normal tiles
+// stay visible. Announcing a mission stamps `revealedAt` (its decay anchor); each mission carries its
+// own scoring (tiles.rules) and can auto-expire. Reuses the same draw()/flip/notify primitives.
+
+/**
+ * One mission pass over a single event: announce due missions (interval / scheduled), then close
+ * expired (past their per-mission window) and claimed (lockout) missions. Manual mode announces
+ * nothing here — the admin drives it via {@link announceNextMission}. Idempotent.
+ */
+async function announceMissionsForEvent(event: EventRow, rules: EventRules, now: string): Promise<void> {
+  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  const missionTiles = eventTiles.filter((t) => t.mission);
+  if (missionTiles.length === 0) return;
+
+  const cfg = rules.mission;
+  const announceMode = cfg?.announceMode ?? 'manual';
+  const order: RevealOrder = cfg?.order ?? 'random';
+  const intervalMinutes = cfg?.intervalMinutes ?? 60;
+
+  const hidden = missionTiles.filter((t) => t.revealedAt == null);
+
+  let toReveal: TileRow[] = [];
+  if (announceMode === 'scheduled') {
+    toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
+  } else if (announceMode === 'interval' && hidden.length > 0) {
+    // One mission per interval, catch-up target from event start (self-heals a missed tick).
+    const startMs = Date.parse(event.startDate!);
+    if (Number.isFinite(startMs)) {
+      const dueBatches = Math.floor((Date.parse(now) - startMs) / (intervalMinutes * 60_000)) + 1;
+      const target = Math.min(missionTiles.length, dueBatches);
+      const need = target - (missionTiles.length - hidden.length);
+      if (need > 0) toReveal = draw(hidden, need, order);
+    }
+  }
+  await flipAndAnnounceMissions(event, toReveal, hidden.length);
+  await closeExpiredAndClaimedMissions(event, missionTiles, now);
+}
+
+/** Conditionally flip the drawn missions live and announce the batch to Discord (mission wording). */
+async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hiddenCount: number): Promise<number> {
+  if (toReveal.length === 0) return 0;
+  const now = new Date().toISOString();
+  const flipped = await db
+    .update(tiles)
+    .set({ revealedAt: now })
+    .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
+    .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
+  if (flipped.length > 0) {
+    log.info('reveal-engine.mission-announce', { eventId: event.id, count: flipped.length });
+    notifyTilesRevealed({
+      eventName: event.name,
+      tiles: flipped.map((t) => ({ label: t.label, points: t.points })),
+      pointsMode: event.scoringMode === 'points',
+      hiddenRemaining: Math.max(0, hiddenCount - flipped.length),
+      mission: true,
+    }).catch(() => {});
+  }
+  return flipped.length;
+}
+
+/**
+ * Close announced-open missions that are done: a lockout mission with a completion is CLAIMED (close at
+ * the claim time + announce the finisher), and any mission past its `expiryHours` window is EXPIRED.
+ * Mirrors the bounty reconcile + rotating-window trim, scoped to missions, with no next-tile draw.
+ */
+async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: TileRow[], now: string): Promise<void> {
+  const open = missionTiles.filter((t) => t.revealedAt != null && t.closedAt == null);
+  if (open.length === 0) return;
+
+  const comps = await db
+    .select({ tileId: completions.tileId, completedAt: completions.completedAt })
+    .from(completions)
+    .where(inArray(completions.tileId, open.map((t) => t.id)));
+  const claimedAt = new Map<number, string>();
+  for (const c of comps) {
+    const prev = claimedAt.get(c.tileId);
+    if (!prev || c.completedAt < prev) claimedAt.set(c.tileId, c.completedAt);
+  }
+
+  const nowMs = Date.parse(now);
+  for (const t of open) {
+    const m = parseTileMissionRules(t.rules);
+    let closeAt: string | null = null;
+    let claimed = false;
+    if (m.lockout && claimedAt.has(t.id)) {
+      closeAt = claimedAt.get(t.id)!; // lockout claim → close at the claim moment
+      claimed = true;
+    } else if (m.expiryHours != null && t.revealedAt) {
+      const revealedMs = Date.parse(t.revealedAt);
+      if (Number.isFinite(revealedMs) && nowMs - revealedMs >= m.expiryHours * 3_600_000) closeAt = now;
+    }
+    if (!closeAt) continue;
+    const done = await db
+      .update(tiles)
+      .set({ closedAt: closeAt })
+      .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)))
+      .returning({ id: tiles.id });
+    if (done.length > 0 && claimed) {
+      void announceBountyClaim(event.name, { id: t.id, label: t.label, points: t.points }, t.id);
+    }
+  }
+}
+
+/**
+ * Manual "Announce next mission" — draw ONE hidden mission (by the configured order) and flip it live.
+ * Returns how many were announced (0 when the pool is empty). Admin-triggered from the event route.
+ */
+export async function announceNextMission(eventId: number): Promise<{ announced: number }> {
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { announced: 0 };
+  const rules = parseEventRules(event.rules);
+  const now = new Date().toISOString();
+  if (!engineActive(event, now)) return { announced: 0 };
+  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eventId));
+  const hidden = eventTiles.filter((t) => t.mission && t.revealedAt == null);
+  if (hidden.length === 0) return { announced: 0 };
+  const order: RevealOrder = rules.mission?.order ?? 'random';
+  const count = await flipAndAnnounceMissions(event, draw(hidden, 1, order), hidden.length);
+  return { announced: count };
+}
+
+/** Cron pass: run the board reveal engine and the mission announce track over every live event. */
 export async function processTileReveals(): Promise<void> {
   const now = new Date().toISOString();
   const allEvents = await db.select().from(events);
   for (const event of allEvents) {
     const rules = parseEventRules(event.rules);
-    if (!hasRevealPolicy(rules)) continue;
+    const revealMode = hasRevealPolicy(rules);
+    const missions = hasMissions(rules);
+    if (!revealMode && !missions) continue;
     if (!engineActive(event, now)) continue;
     try {
-      await revealForEvent(event, rules, now);
+      if (revealMode) await revealForEvent(event, rules, now);
+      if (missions) await announceMissionsForEvent(event, rules, now);
     } catch (err) {
       log.warn('reveal-engine.fail', { eventId: event.id, err: String(err) });
     }

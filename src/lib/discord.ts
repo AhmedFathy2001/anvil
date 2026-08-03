@@ -564,28 +564,40 @@ interface TilesRevealedNotifyParams {
   hiddenRemaining: number;
   /** 'bounty' posts a claim-framed title. */
   bounty?: boolean;
+  /** Mission announce (mid-event objective drop) — posts mission-framed wording. */
+  mission?: boolean;
 }
 
 // Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
-// next-tile). One embed per batch, not per tile, so an interval batch of 5 is a single post.
+// next-tile, mission announces). One embed per batch, not per tile, so an interval batch of 5 is a
+// single post.
 export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
-  const { eventName, tiles, pointsMode, hiddenRemaining, bounty } = params;
+  const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission } = params;
   if (tiles.length === 0) return false;
 
+  const noun = mission ? 'mission' : 'tile';
   const lines = tiles
     .slice(0, 15)
     .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
   if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
-  const remaining = hiddenRemaining > 0
-    ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
-    : '';
+  const remaining = mission
+    ? '' // missions drop from their own pool; a "still hidden" count would spoil the surprise
+    : hiddenRemaining > 0
+      ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
+      : '';
 
-  const embed: DiscordEmbed = {
-    title: bounty
+  const title = mission
+    ? tiles.length === 1
+      ? '⚡ New mission is live!'
+      : `⚡ ${tiles.length} new missions are live!`
+    : bounty
       ? '🎯 New bounty tile is up!'
       : tiles.length === 1
         ? '🔓 New tile revealed!'
-        : `🔓 ${tiles.length} new tiles revealed!`,
+        : `🔓 ${tiles.length} new ${noun}s revealed!`;
+
+  const embed: DiscordEmbed = {
+    title,
     description: `**${eventName}**\n━━━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}${remaining}`,
     color: 0xffd700, // Gold
     timestamp: new Date().toISOString(),

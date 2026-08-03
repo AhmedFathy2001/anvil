@@ -11,6 +11,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
+import { announceNextMission } from '@/lib/revealEngine';
 
 export async function GET(
   _request: Request,
@@ -155,6 +156,23 @@ export async function PATCH(
     writePlayerEventFacts(event.id).catch(() => {});
 
     return NextResponse.json(updated);
+  }
+
+  // Manually announce the next hidden mission (drops one from the mission pool, by the configured
+  // order, and stamps it live + posts to Discord). The interval/scheduled modes do this on the cron.
+  if (body.action === 'announce-mission') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    if (!event.tilesRevealed) {
+      return NextResponse.json({ error: 'Arm the board (reveal tiles) before announcing missions.' }, { status: 400 });
+    }
+    const { announced } = await announceNextMission(id);
+    if (announced === 0) {
+      return NextResponse.json({ error: 'No hidden missions left to announce.' }, { status: 400 });
+    }
+    return NextResponse.json({ announced });
   }
 
   // Post-finish edit lock: 'unlock-editing' re-opens a finished event's content for corrections
