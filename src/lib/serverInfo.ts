@@ -47,6 +47,7 @@ export const PLUGIN_CAPABILITIES = [
   'ladder', // ladder format + missions board + standings
   'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
   'config-etag', // conditional GET on /api/plugin/config + /board
+  'bingo-missions', // mid-event announced mission tiles on a normal bingo (lockout/bonus/decay/expiry)
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

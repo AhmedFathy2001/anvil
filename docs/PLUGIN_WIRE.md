@@ -64,7 +64,9 @@ Defined in `src/lib/serverInfo.ts` (site) — that list is the source of truth. 
 of v1.0.0: `stats-live`, `drop-tiles`, `kill-tiles`, `timed-tiles`, `lms-tiles`,
 `value-tiles`, `gain-tiles`, `deathless-tiles`, `pvp-tiles`, `diary-tiles`, `ca-tiles`,
 `clog-tiles`, `weekly`, `schedule`, `notify`, `counters`, `activity-feed`, `federation`,
-`ladder`, `reveal-modes`, `config-etag`.
+`ladder`, `reveal-modes`, `config-etag`. Post-baseline additions: `bingo-missions`
+(mid-event announced mission tiles on a normal bingo — the plugin gates its mission strip
+on this so it isn't confused by a self-hosted site that predates the feature).
 
 ## Checklist: shipping a new plugin-facing feature
 

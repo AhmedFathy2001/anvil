@@ -27,7 +27,7 @@ import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
-import { parseEventRules, hasRevealPolicy, nextRevealAt } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
 import crypto from 'crypto';
@@ -282,9 +282,13 @@ export async function GET(request: Request) {
     : [];
   const rules = parseEventRules(event.rules);
   const revealMode = hasRevealPolicy(rules);
-  const allEventTiles = revealMode
-    ? fullEventTiles.filter((t) => t.revealedAt != null && t.closedAt == null)
-    : fullEventTiles;
+  // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
+  // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
+  // into the tracked lists even on a classic board.
+  const allEventTiles = fullEventTiles.filter((t) => {
+    if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
+    return !revealMode || (t.revealedAt != null && t.closedAt == null);
+  });
 
   // Get drop tiles with tracked item IDs
   const dropTiles = allEventTiles.filter((t) => t.tileType === 'drop');
@@ -529,7 +533,9 @@ export async function GET(request: Request) {
   let recentClaims:
     | { tileId: number; label: string; points: number; rsn: string | null; at: string }[]
     | undefined;
-  if (rules.lockout && tilesRevealed) {
+  // Lockout can come from the event rules OR from an individual mission's own rules.
+  const hasLockoutMissions = fullEventTiles.some((t) => isMissionTile(t) && parseTileMissionRules(t.rules).lockout);
+  if ((rules.lockout || hasLockoutMissions) && tilesRevealed) {
     const claimRows = await db
       .select({
         tileId: completions.tileId,
@@ -605,18 +611,30 @@ export async function GET(request: Request) {
     ladderMonthly = toPluginStandings(boards.monthly, auth.playerId, boards.ownerByPlayerId, boards.perPerson);
   }
 
-  // Open missions for a reveal-mode board: the revealed, still-open tiles with their face points and
-  // reveal time. The plugin uses revealedAt + the decay rule to show a live grow/decay value per
-  // mission and a per-second countdown to the next drop.
-  const missions = revealMode
-    ? allEventTiles.map((t) => ({
-        tileId: t.id,
-        label: t.label,
-        points: t.points ?? 0,
-        revealedAt: t.revealedAt ?? null,
-        category: t.category ?? null,
-      }))
-    : undefined;
+  // The plugin's "missions board": the announced, still-open objectives with their face points, reveal
+  // time, and per-mission decay/lockout, so it can show a live grow/decay value + a countdown. On a
+  // reveal-policy board every open tile is a mission (ladder/rotating); on a classic board only the
+  // announced MISSION-flagged tiles are. Each carries its own decay (mission tiles) or the event's.
+  const missionSource = revealMode ? allEventTiles : allEventTiles.filter((t) => isMissionTile(t));
+  const missions =
+    missionSource.length > 0
+      ? missionSource.map((t) => {
+          const m = isMissionTile(t) ? parseTileMissionRules(t.rules) : null;
+          return {
+            tileId: t.id,
+            label: t.label,
+            points: t.points ?? 0,
+            revealedAt: t.revealedAt ?? null,
+            category: t.category ?? null,
+            decay: m ? m.decay : rules.decay,
+            lockout: m ? m.lockout : rules.lockout,
+          };
+        })
+      : undefined;
+  // Countdown target: the board's next reveal, else the next mission drop (classic-with-missions).
+  const effectiveNextRevealAt = revealMode
+    ? nextRevealAt(event, rules, fullEventTiles)
+    : nextMissionAt(event, rules, fullEventTiles);
 
   return jsonWithEtag(request, {
     server: serverInfo(),
@@ -631,17 +649,19 @@ export async function GET(request: Request) {
       // for the player's own active event straight from these two fields.
       format: event.format,
       scoringMode: event.scoringMode,
-      // Reveal-policy extras (absent on classic events): lets the sidebar show the timed reveal, the
-      // open missions, and (with decay) their live value. Old plugins ignore unknown fields.
+      // Reveal-policy board extras (absent on classic events). Old plugins ignore unknown fields.
       ...(revealMode
         ? {
             revealPolicy: rules.revealPolicy,
             hiddenTileCount: fullEventTiles.length - visibleEventTiles.length,
-            nextRevealAt: nextRevealAt(event, rules, fullEventTiles),
-            decay: rules.decay,
-            missions,
           }
         : {}),
+      // The missions board: the announced objectives + the countdown/decay they need. Present for a
+      // reveal board (its open tiles) OR a classic board that has announced mission tiles.
+      ...(revealMode || missions
+        ? { nextRevealAt: effectiveNextRevealAt, decay: rules.decay }
+        : {}),
+      ...(missions ? { missions } : {}),
       // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.
       ...(ladderStandings ? { standings: ladderStandings, monthlyStandings: ladderMonthly } : {}),
       // Lock-out claims (event-wide) so the plugin can announce another player's claim.
