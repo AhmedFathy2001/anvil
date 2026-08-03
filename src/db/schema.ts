@@ -185,6 +185,16 @@ export const tiles = sqliteTable('tiles', {
   revealAt: text('reveal_at'),
   revealedAt: text('revealed_at'),
   closedAt: text('closed_at'),
+  // MISSION tiles (DMM-All-Stars-style objectives dropped mid-event). A mission is hidden until
+  // ANNOUNCED (which stamps revealedAt, the decay anchor) — independent of the board's revealPolicy,
+  // so a classic bingo can still drop missions while its normal tiles stay visible. Announced from
+  // their own pool (event rules.mission: manual / interval / scheduled, random or in order); each
+  // mission carries its own scoring in `rules` and can auto-expire.
+  mission: integer('mission').default(0).notNull(),
+  // Per-MISSION scoring JSON (null on normal tiles): { lockout?, firstBonus?, decay?:{targetPct,hours},
+  // expiryHours? } — parsed by lib/eventRules.parseTileMissionRules and merged over the event rules in
+  // the completion gate. Decay/first-bonus only bite in a points-scoring event; lockout works anywhere.
+  rules: text('rules'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
