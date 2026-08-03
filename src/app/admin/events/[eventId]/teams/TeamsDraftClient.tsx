@@ -17,6 +17,8 @@ import AutoEnrollPanel from '@/components/AutoEnrollPanel';
 import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
+import PlayerRatingBadge from '@/components/PlayerRatingBadge';
+import { usePlayerRatings } from '@/hooks/usePlayerRatings';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { countPicksTaken } from '@/lib/draft';
@@ -138,6 +140,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     pickInRound: 0,
     totalPicked: initialPlayers.filter((p) => p.teamId !== null).length,
     poolRemaining: initialPlayers.filter((p) => p.teamId === null).length,
+  });
+
+  // Per-person ratings for the whole tab — one fetch, shared by the balance panel, the pool cards
+  // and every roster row (see components/PlayerRatingBadge). Only the classic draft format asks for
+  // them: solo/one-team events have nothing to balance, so they skip the (DB-heavy) profile sweep.
+  const playersSignature = draft.players.map((p) => `${p.id}:${p.teamId ?? ''}`).join(',');
+  const ratings = usePlayerRatings({
+    eventId: event.id,
+    signature: playersSignature,
+    enabled: !nonDraft && format !== null,
   });
 
   // One-step-at-a-time view: which phase's section is on screen. Starts at the first unfinished
@@ -972,7 +984,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               eventId={event.id}
               rules={event.rules}
               teams={draftTeams.map((t) => ({ id: t.id, name: t.name, color: t.color ?? null }))}
-              playersSignature={draft.players.map((p) => `${p.id}:${p.teamId ?? ''}`).join(',')}
+              ratings={ratings}
               draftStatus={draft.status}
               editLocked={editLocked}
               onChanged={() => {
@@ -1182,6 +1194,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         {tz && (
                           <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded flex-shrink-0">{tz}</span>
                         )}
+                        <PlayerRatingBadge ratings={ratings} playerId={player.id} />
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                         {canExpand && (
@@ -1329,6 +1342,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   onPick={adminPick}
                   onPlayerClick={setStatsRsn}
                   picking={picking}
+                  ratings={ratings}
                 />
               </div>
             )}
@@ -1338,7 +1352,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Team Rosters
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} />
+              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
           </div>
         )}
@@ -1451,7 +1465,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <div className="space-y-1.5">
                       {unassigned.map((p) => (
                         <div key={p.id} className="flex items-center gap-2 border border-card-border rounded-lg p-2 bg-card-bg">
-                          <span className="text-sm font-medium truncate flex-1">{p.name}</span>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="text-sm font-medium truncate">{p.name}</span>
+                            <PlayerRatingBadge ratings={ratings} playerId={p.id} />
+                          </div>
                           <select
                             defaultValue=""
                             disabled={assigningPlayerId === p.id || editLocked}
@@ -1533,6 +1550,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                               <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
                                 <span className="truncate flex items-center gap-1.5 min-w-0">
                                   <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
+                                  <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                                   {frozen && (
                                     <span
                                       className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
@@ -1755,7 +1773,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Final Rosters
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} />
+              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
           </div>
         )}

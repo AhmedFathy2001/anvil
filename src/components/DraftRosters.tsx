@@ -1,5 +1,8 @@
 'use client';
 
+import PlayerRatingBadge from '@/components/PlayerRatingBadge';
+import type { PlayerRatings } from '@/hooks/usePlayerRatings';
+
 interface Player {
   id: number;
   name: string;
@@ -38,6 +41,8 @@ interface Props {
   gainsData?: PlayerGains[];
   tileGoals?: TileGoalInfo[];
   accountSlotMode?: string; // 'per-person' counts a person's accounts as one toward the headcount
+  /** Staff-only pool ratings. Omitted on the public spectator board — no badges render there. */
+  ratings?: PlayerRatings | null;
 }
 
 // How many "slots" a roster fills: distinct people in per-person mode, else raw account rows.
@@ -55,7 +60,7 @@ function formatCompact(value: number, type: string): string {
   return `${value.toLocaleString()} kc`;
 }
 
-export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals, accountSlotMode }: Props) {
+export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals, accountSlotMode, ratings }: Props) {
   const perPerson = accountSlotMode === 'per-person';
   const pickedPlayers = players
     .filter((p) => p.teamId !== null)
@@ -109,6 +114,7 @@ export default function DraftRosters({ players, teams, teamOrder, onPlayerClick,
                         ) : (
                           <span className="text-foreground">{p.name}</span>
                         )}
+                        <PlayerRatingBadge ratings={ratings} playerId={p.id} className="ml-auto" />
                       </div>
                       {pg && tileGoals && tileGoals.length > 0 && (
                         <div className="ml-7 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">

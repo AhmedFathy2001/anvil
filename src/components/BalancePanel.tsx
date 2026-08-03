@@ -1,32 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { PlayerRatings, RatedProfile } from '@/hooks/usePlayerRatings';
+import { ratingScore } from '@/components/PlayerRatingBadge';
 
 // Draft-side balance advisory (balance-engine plan, Phase 4/5 UI). Renders on the Teams & Draft
 // tab for the classic draft format: projected team-strength bars, the pool grouped into S/A/B/C
 // tiers with capability hints, the balanceMode selector, and the admin "Balance teams" action.
 // Everything is staff-facing information — the enforcement itself (tiered picks, dynamic order,
 // greedy placement) lives server-side; this panel is how staff see and choose it.
+//
+// The ratings themselves come from the page-level usePlayerRatings hook (one fetch shared with the
+// per-member badges on the pool cards and roster rows) rather than a fetch of its own.
 
-interface ProfileRow {
-  personKey: string;
-  rsn: string;
-  playerIds: number[];
-  teamId: number | null;
-  rating: number;
-  band: 'wide' | 'medium' | 'tight';
-  capabilityMarkers: { key: string; label: string; domain: string; kc: number }[];
-  reliability: number | null;
-  subbedOutBefore: boolean;
-  evidenceEvents: number;
-}
+type ProfileRow = RatedProfile;
 
 interface Props {
   eventId: number;
   rules: string | null | undefined; // events.rules JSON (parsed leniently server-side)
   teams: { id: number; name: string; color: string | null }[];
-  /** Signature of current assignments — the panel refetches profiles when it changes. */
-  playersSignature: string;
+  /** Shared pool ratings (page-level hook) — profiles, tiers, and a refetch for after balancing. */
+  ratings: PlayerRatings;
   draftStatus: string;
   editLocked: boolean;
   /** Called after auto-balance / mode change so the parent refreshes rosters. */
@@ -42,10 +36,9 @@ const MODES = [
 ] as const;
 
 const TIERS = ['S', 'A', 'B', 'C'] as const;
-type Tier = (typeof TIERS)[number];
 
-export default function BalancePanel({ eventId, rules, teams, playersSignature, draftStatus, editLocked, onChanged }: Props) {
-  const [profiles, setProfiles] = useState<ProfileRow[] | null>(null);
+export default function BalancePanel({ eventId, rules, teams, ratings, draftStatus, editLocked, onChanged }: Props) {
+  const profiles: ProfileRow[] | null = ratings.profiles;
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -65,29 +58,8 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
   // collapsed panel would be permanently stuck shut. Show it open (read-only) instead.
   const [collapsed, setCollapsed] = useState(mode === 'off' && !editLocked);
 
-  const fetchProfiles = useCallback(async () => {
-    const res = await fetch(`/api/admin/player-profiles?eventId=${eventId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setProfiles(data.profiles as ProfileRow[]);
-    }
-  }, [eventId]);
-
-  useEffect(() => {
-    fetchProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when assignments change
-  }, [fetchProfiles, playersSignature]);
-
-  // Mirror of the server's quartile tiering (lib/draftBalance) — profiles arrive rating-sorted.
-  const tierByPerson = useMemo(() => {
-    const map = new Map<string, Tier>();
-    const n = profiles?.length ?? 0;
-    profiles?.forEach((p, i) => {
-      const q = n <= 1 ? 0 : i / n;
-      map.set(p.personKey, q < 0.25 ? 'S' : q < 0.5 ? 'A' : q < 0.75 ? 'B' : 'C');
-    });
-    return map;
-  }, [profiles]);
+  // Quartile tiering (mirror of lib/draftBalance) is computed once by the shared hook.
+  const tierByPerson = ratings.tierByPersonKey;
 
   const strengths = useMemo(() => {
     const map = new Map<number, number>(teams.map((t) => [t.id, 0]));
@@ -147,7 +119,7 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
       } else {
         setNote(`Placed ${data.placed} — projected spread now ${data.spreadPct}%.`);
         onChanged();
-        fetchProfiles();
+        ratings.refetch();
       }
     } finally {
       setBusy(null);
@@ -211,9 +183,10 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
         <p className="text-[11px] text-text-muted/80 mt-2 leading-relaxed">
           <span className="text-foreground/70">Tiers</span> rank players strongest → weakest:{' '}
           <span className="text-gold">S</span> = top 25%, then A, B, <span>C</span> = bottom 25% (so{' '}
-          <span className="text-foreground/70">S×3</span> means three top-tier players). The{' '}
-          <span className="text-foreground/70">number</span> is each team&apos;s projected strength — higher
-          is a stronger roster on paper.
+          <span className="text-foreground/70">S×3</span> means three top-tier players). The number beside a{' '}
+          <span className="text-foreground/70">team bar</span> is that roster&apos;s projected strength; the
+          number beside a <span className="text-foreground/70">player</span> — here and on every pool card
+          and roster row — is their own 0-100 rating. Hover either for the breakdown.
         </p>
       )}
 
@@ -268,7 +241,8 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
           {pool.length > 0 && (
             <div>
               <p className="text-xs font-medium text-text-muted mb-1.5">
-                Undrafted players, tagged with their tier — <span className="text-text-muted/80">? = thin history, ?? = no history</span> behind the rating
+                Undrafted players, tagged with their tier and 0-100 rating —{' '}
+                <span className="text-text-muted/80">? = thin history, ?? = no history</span> behind the rating
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {pool.map((p) => {
@@ -283,7 +257,7 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
                   return (
                     <span
                       key={p.personKey}
-                      title={`${p.rsn} — tier ${tier}${marker ? ` · ${marker}` : ''}${flags ? ` · ${flags}` : ''}`}
+                      title={`${p.rsn} — rating ${ratingScore(p)}/100, tier ${tier}${marker ? ` · ${marker}` : ''}${flags ? ` · ${flags}` : ''}`}
                       className={`text-xs px-2 py-0.5 rounded-lg border ${
                         tier === 'S'
                           ? 'border-gold/40 text-gold'
@@ -292,7 +266,7 @@ export default function BalancePanel({ eventId, rules, teams, playersSignature, 
                             : 'border-card-border text-text-muted'
                       } ${flags ? 'opacity-70' : ''}`}
                     >
-                      {tier} · {p.rsn}
+                      {tier} · {p.rsn} · <span className="font-mono tabular-nums">{ratingScore(p)}</span>
                       {marker ? ` · ${marker}` : ''}
                       {bandGlyph(p)}
                     </span>
