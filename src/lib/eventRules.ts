@@ -31,6 +31,21 @@
 export type RevealPolicy = 'all' | 'scheduled' | 'interval' | 'bounty' | 'rotating';
 export type RevealOrder = 'random' | 'sequential';
 
+// MISSIONS — a subset of a bingo's tiles authored up front but HIDDEN, announced mid-event from
+// their own pool (independent of the board's revealPolicy). How/when they drop is the event-level
+// `rules.mission` announce policy below; each mission's SCORING (lockout/firstBonus/decay/expiry)
+// lives per-tile in `tiles.rules` (see MissionRules). Announcing a mission stamps its `revealedAt`
+// (the decay anchor); the board's normal tiles stay visible throughout.
+export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled';
+export interface MissionConfig {
+  /** manual = admin drops each; interval = every intervalMinutes; scheduled = per-tile revealAt. */
+  announceMode: MissionAnnounceMode;
+  /** Which hidden mission is drawn next (random, or by board position). */
+  order: RevealOrder;
+  /** 'interval' mode: minutes between mission drops. */
+  intervalMinutes: number;
+}
+
 // How much the player-profile engine steers team formation (balance-engine plan, Part C).
 // 'off' = current behaviour. 'advisory' = staff see strength bars / badges, nothing enforced.
 // 'tiered-snake' = the draft blocks stacking top-tier players while another team has none.
@@ -57,6 +72,8 @@ export interface EventRules {
   lockout: boolean;
   /** Team-formation steering from player profiles. Never blocks event start; 'off' = classic. */
   balanceMode: BalanceMode;
+  /** Mission announce policy (how/when hidden mission tiles drop). Null = no missions on this event. */
+  mission: MissionConfig | null;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -69,9 +86,11 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   decay: null,
   lockout: false,
   balanceMode: 'off',
+  mission: null,
 };
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
+const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'auto'];
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
@@ -102,6 +121,17 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       hours: clampInt(d.hours, 1, 720, 24),
     };
   }
+  let mission: EventRules['mission'] = null;
+  const m = obj.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown } | null | undefined;
+  if (m && typeof m === 'object') {
+    mission = {
+      announceMode: MISSION_ANNOUNCE_MODES.includes(m.announceMode as MissionAnnounceMode)
+        ? (m.announceMode as MissionAnnounceMode)
+        : 'manual',
+      order: m.order === 'sequential' ? 'sequential' : 'random',
+      intervalMinutes: clampInt(m.intervalMinutes, 5, 10080, 60),
+    };
+  }
   return {
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
@@ -115,6 +145,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     balanceMode: BALANCE_MODES.includes(obj.balanceMode as BalanceMode)
       ? (obj.balanceMode as BalanceMode)
       : 'off',
+    mission,
   };
 }
 
@@ -163,6 +194,22 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.balanceMode !== undefined && !BALANCE_MODES.includes(o.balanceMode as BalanceMode)) {
     return { error: "rules.balanceMode must be 'off', 'advisory', 'tiered-snake', 'dynamic-order', or 'auto'" };
   }
+  if (o.mission !== undefined && o.mission !== null) {
+    const m = o.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown };
+    if (typeof m !== 'object' || Array.isArray(m)) {
+      return { error: 'rules.mission must be an object or null' };
+    }
+    if (m.announceMode !== undefined && !MISSION_ANNOUNCE_MODES.includes(m.announceMode as MissionAnnounceMode)) {
+      return { error: "rules.mission.announceMode must be 'manual', 'interval', or 'scheduled'" };
+    }
+    if (m.order !== undefined && m.order !== 'random' && m.order !== 'sequential') {
+      return { error: "rules.mission.order must be 'random' or 'sequential'" };
+    }
+    const iv = m.intervalMinutes;
+    if (iv !== undefined && (typeof iv !== 'number' || !Number.isInteger(iv) || iv < 5 || iv > 10080)) {
+      return { error: 'rules.mission.intervalMinutes must be an integer between 5 and 10080' };
+    }
+  }
   // Canonicalise through the parser so what we store is exactly what reads produce.
   const canonical = parseEventRules(JSON.stringify(o));
   const isDefault =
@@ -170,7 +217,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.firstBonus === 0 &&
     canonical.decay === null &&
     !canonical.lockout &&
-    canonical.balanceMode === 'off';
+    canonical.balanceMode === 'off' &&
+    canonical.mission === null;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 
@@ -179,20 +227,41 @@ export function hasRevealPolicy(rules: EventRules): boolean {
   return rules.revealPolicy !== 'all';
 }
 
-type RevealStateTile = { revealAt?: string | null; revealedAt?: string | null; closedAt?: string | null };
+/** True when this event has a mission announce policy configured. */
+export function hasMissions(rules: EventRules): boolean {
+  return rules.mission != null;
+}
 
-/** Member-visibility of one tile. Classic events: always true (the event-level flag gates instead). */
+type RevealStateTile = {
+  revealAt?: string | null;
+  revealedAt?: string | null;
+  closedAt?: string | null;
+  mission?: boolean | number | null;
+};
+
+/** A mission tile (hidden until announced), across the DB int (0/1) and boolean shapes. */
+export function isMissionTile(tile: { mission?: boolean | number | null }): boolean {
+  return tile.mission === true || tile.mission === 1;
+}
+
+/**
+ * Member-visibility of one tile. A MISSION tile is visible only once announced (`revealedAt` set),
+ * regardless of the board's policy — so a classic bingo can hide missions while its normal tiles show.
+ * A non-mission tile follows the board: always visible on classic, else visible once revealed.
+ */
 export function isTileRevealed(rules: EventRules, tile: RevealStateTile): boolean {
+  if (isMissionTile(tile)) return tile.revealedAt != null;
   return !hasRevealPolicy(rules) || tile.revealedAt != null;
 }
 
-/** The member-visible subset of an event's tiles. Closed bounty tiles stay visible. */
+/** The member-visible subset of an event's tiles. Closed (claimed/expired) tiles stay visible. */
 export function visibleTiles<T extends RevealStateTile>(rules: EventRules, tiles: T[]): T[] {
-  if (!hasRevealPolicy(rules)) return tiles;
-  return tiles.filter((t) => t.revealedAt != null);
+  // Fast path: classic board with no mission tiles → everything is visible (bit-identical to before).
+  if (!hasRevealPolicy(rules) && !tiles.some(isMissionTile)) return tiles;
+  return tiles.filter((t) => isTileRevealed(rules, t));
 }
 
-/** True when a tile can still accept completions under the rules (revealed and not claimed). */
+/** True when a tile can still accept completions under the rules (revealed and not claimed/expired). */
 export function isTileOpen(rules: EventRules, tile: RevealStateTile): boolean {
   if (!isTileRevealed(rules, tile)) return false;
   return tile.closedAt == null;
@@ -238,6 +307,44 @@ export function nextRevealAt(
 }
 
 /**
+ * When the next MISSION drops, for the in-game countdown. Mirrors {@link nextRevealAt} but over the
+ * mission pool + `rules.mission` announce policy: scheduled → earliest hidden mission's revealAt;
+ * interval → one interval after the last announced mission (or event start); manual/none → null.
+ */
+export function nextMissionAt(
+  event: { startDate?: string | null },
+  rules: EventRules,
+  tiles: RevealStateTile[],
+  nowMs: number = Date.now(),
+): string | null {
+  const cfg = rules.mission;
+  if (!cfg) return null;
+  const missionTiles = tiles.filter(isMissionTile);
+  const hidden = missionTiles.filter((t) => t.revealedAt == null);
+  if (hidden.length === 0) return null;
+  if (cfg.announceMode === 'scheduled') {
+    const earliest = hidden.map((t) => t.revealAt).filter((v): v is string => !!v).sort()[0];
+    if (!earliest) return null;
+    const at = Date.parse(earliest);
+    return Number.isFinite(at) ? new Date(Math.max(at, nowMs)).toISOString() : null;
+  }
+  if (cfg.announceMode === 'interval') {
+    const lastAnnounced = missionTiles
+      .map((t) => t.revealedAt)
+      .filter((v): v is string => !!v)
+      .sort()
+      .pop();
+    const anchor = lastAnnounced ?? event.startDate;
+    if (!anchor) return null;
+    const anchorMs = Date.parse(anchor);
+    if (!Number.isFinite(anchorMs)) return null;
+    const next = lastAnnounced ? anchorMs + cfg.intervalMinutes * 60_000 : anchorMs;
+    return new Date(Math.max(next, nowMs)).toISOString();
+  }
+  return null; // manual
+}
+
+/**
  * Points actually earned by a completion, or null when nothing rule-driven applies (classic
  * points/tiles events stay on live tile weights). Frozen into completions.awardedPoints.
  */
@@ -264,4 +371,54 @@ export function completionAward(args: {
   }
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
   return pts;
+}
+
+// ---- Per-mission scoring (tiles.rules) --------------------------------------------------------
+// Each mission tile carries its own lockout / first-clear bonus / decay-or-grow / auto-expiry. These
+// are the SAME modifiers as the event-level rules, but scoped to one mission and merged over the event
+// rules in the completion gate. Decay + firstBonus only bite in a points-scoring event (completionAward
+// gates on scoringMode); lockout works anywhere. `expiryHours` auto-closes an unclaimed mission.
+export interface MissionRules {
+  lockout: boolean;
+  firstBonus: number;
+  decay: { targetPct: number; hours: number } | null;
+  /** Hours after announce a mission auto-closes if unclaimed. Null = never (open till claimed/end). */
+  expiryHours: number | null;
+}
+
+export const DEFAULT_MISSION_RULES: MissionRules = { lockout: false, firstBonus: 0, decay: null, expiryHours: null };
+
+/** Tolerant parse of a tile's `rules` JSON. Anything missing/malformed → the no-modifier default. */
+export function parseTileMissionRules(raw: string | null | undefined): MissionRules {
+  if (!raw) return DEFAULT_MISSION_RULES;
+  let o: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return DEFAULT_MISSION_RULES;
+    o = parsed as Record<string, unknown>;
+  } catch {
+    return DEFAULT_MISSION_RULES;
+  }
+  let decay: MissionRules['decay'] = null;
+  const d = o.decay as { targetPct?: unknown; floorPct?: unknown; hours?: unknown } | null | undefined;
+  if (d && typeof d === 'object') {
+    decay = { targetPct: clampInt(d.targetPct ?? d.floorPct, 0, 1000, 50), hours: clampInt(d.hours, 1, 720, 24) };
+  }
+  return {
+    lockout: o.lockout === true,
+    firstBonus: clampInt(o.firstBonus, 0, 100000, 0),
+    decay,
+    expiryHours: o.expiryHours == null ? null : clampInt(o.expiryHours, 1, 8760, 24),
+  };
+}
+
+/**
+ * Canonical JSON for a tile's mission rules, or null when everything is at its default (store NULL so
+ * a non-mission tile keeps a NULL `rules` column). Used by the tile-edit API + CSV import.
+ */
+export function serializeTileMissionRules(input: Partial<MissionRules> | null | undefined): string | null {
+  if (!input) return null;
+  const m = parseTileMissionRules(JSON.stringify(input));
+  const isDefault = !m.lockout && m.firstBonus === 0 && m.decay === null && m.expiryHours === null;
+  return isDefault ? null : JSON.stringify(m);
 }
