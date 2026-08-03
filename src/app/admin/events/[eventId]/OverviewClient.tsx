@@ -12,6 +12,7 @@ import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel } from '
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
+import MissionAdminPanel from '@/components/MissionAdminPanel';
 
 interface Props {
   event: Event;
@@ -587,6 +588,9 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           )}
         </div>
       </div>
+
+      {/* Missions — mid-event hidden-objective controls (only shows when the board has mission tiles). */}
+      <MissionAdminPanel event={currentEvent} tiles={localTiles} />
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">
