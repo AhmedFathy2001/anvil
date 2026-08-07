@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 // Themed dropdown that replaces native <select> across the app. Custom popover so
@@ -60,6 +61,29 @@ export default function Select({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // The popover renders in a portal with fixed positioning so it ESCAPES any `overflow` ancestor
+  // (e.g. a table's overflow-x-auto) that would otherwise clip it. Anchored to the trigger's rect,
+  // recomputed on open + scroll/resize, and flipped above the trigger when there's more room there.
+  const [coords, setCoords] = useState<{ left: number; top: number; width: number; maxHeight: number; above: boolean } | null>(null);
+
+  const layout = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const margin = 4;
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    const above = spaceBelow < 240 && spaceAbove > spaceBelow;
+    setCoords({
+      left: r.left,
+      top: above ? r.top - margin : r.bottom + margin,
+      width: r.width,
+      maxHeight: Math.max(160, Math.min(320, above ? spaceAbove : spaceBelow)),
+      above,
+    });
+  }, []);
 
   const hasSearch = searchable ?? options.length > SEARCH_AUTO_THRESHOLD;
 
@@ -80,6 +104,7 @@ export default function Select({
   function openMenu() {
     setQuery('');
     setHighlight(selectedIndex >= 0 ? selectedIndex : firstEnabled(options, 0, 1));
+    layout();
     setOpen(true);
   }
 
@@ -101,18 +126,32 @@ export default function Select({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  // Close on outside click + Escape.
+  // Close on outside click + Escape. The popover lives in a portal OUTSIDE the container, so a
+  // click on an option would read as "outside" and close before its onClick fired — guard on the
+  // popover element too.
   useEffect(() => {
     if (!open) return;
     function onPointer(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+      setQuery('');
     }
     document.addEventListener('pointerdown', onPointer);
     return () => document.removeEventListener('pointerdown', onPointer);
   }, [open]);
+
+  // Keep the portaled popover anchored to the trigger while open.
+  useEffect(() => {
+    if (!open) return;
+    const onReflow = () => layout();
+    window.addEventListener('scroll', onReflow, true); // capture — catch scroll on any ancestor
+    window.addEventListener('resize', onReflow);
+    return () => {
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open, layout]);
 
   // Keep the highlighted row scrolled into view.
   useEffect(() => {
@@ -240,10 +279,21 @@ export default function Select({
         />
       )}
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-full min-w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50">
+      {open && coords && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            top: coords.top,
+            minWidth: coords.width,
+            maxHeight: coords.maxHeight,
+            transform: coords.above ? 'translateY(-100%)' : undefined,
+          }}
+          className="z-[60] flex flex-col min-w-max max-w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 overflow-hidden"
+        >
           {hasSearch && (
-            <div className="p-1.5 border-b border-card-border/60">
+            <div className="p-1.5 border-b border-card-border/60 shrink-0">
               <input
                 autoFocus
                 type="text"
@@ -260,7 +310,7 @@ export default function Select({
             ref={listRef}
             role="listbox"
             aria-label={ariaLabel}
-            className="max-h-60 overflow-auto py-1"
+            className="flex-1 overflow-auto py-1"
           >
             {filtered.length === 0 && (
               <li className="px-3 py-1.5 text-sm text-text-muted/60 cursor-default">No matches</li>
@@ -295,7 +345,8 @@ export default function Select({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
