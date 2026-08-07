@@ -53,6 +53,20 @@ function tileToTrackingInitial(tile: Tile) {
   };
 }
 
+// Text match for the tile search box — label, category, stat, description, or exact #position.
+// Shared by the Cards filter and the Quick Build left-pane search so both behave identically.
+// `q` is expected already trimmed + lowercased by the caller.
+function tileMatchesQuery(t: Tile, q: string): boolean {
+  if (!q) return true;
+  return (
+    !!t.label?.toLowerCase().includes(q) ||
+    !!t.category?.toLowerCase().includes(q) ||
+    !!t.trackedStat?.toLowerCase().includes(q) ||
+    !!t.description?.toLowerCase().includes(q) ||
+    String(t.position + 1) === q.replace(/^#/, '')
+  );
+}
+
 interface Props {
   event: Event;
   tiles: Tile[];
@@ -236,6 +250,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (created.length) {
         setLocalTiles((prev) => [...prev, ...created]);
         setEditingTileId(created[0].id);
+        // Freshly added "Tile N" rows won't match an active search — clear it so they show up.
+        setSearch('');
       }
       router.refresh();
     } finally {
@@ -324,17 +340,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
-      if (!q) return true;
-      return (
-        t.label?.toLowerCase().includes(q) ||
-        t.category?.toLowerCase().includes(q) ||
-        t.trackedStat?.toLowerCase().includes(q) ||
-        t.description?.toLowerCase().includes(q) ||
-        String(t.position + 1) === q.replace(/^#/, '') ||
-        false
-      );
+      return tileMatchesQuery(t, q);
     });
   }, [localTiles, search, kindFilter, categoryFilter, tierFilter, tierBands]);
+
+  // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
+  // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
+  // keeps the query alive across the Cards ⇄ Quick build toggle.
+  const gridFiltering = search.trim().length > 0;
+  const gridTiles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? localTiles.filter((t) => tileMatchesQuery(t, q)) : localTiles;
+  }, [localTiles, search]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -734,11 +751,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 )}
                 {adding && <span className="text-[11px] text-text-muted">working…</span>}
               </div>
+              {localTiles.length > 0 && (
+                <div className="p-2.5 border-b border-card-border">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search tiles…"
+                      className="w-full pl-3 pr-8 py-1.5 text-sm"
+                    />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        aria-label="Clear search"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <ul className="overflow-y-auto max-h-[72vh]">
-                {localTiles.map((t) => {
+                {gridTiles.map((t) => {
                   const k = tileKind(t);
                   const sel = editingTileId === t.id;
-                  const draggable = !eventStarted && !reordering;
+                  // Reordering a filtered list would move tiles by absolute slot while showing a
+                  // non-contiguous subset — confusing. Disable drag while a search is active.
+                  const draggable = !eventStarted && !reordering && !gridFiltering;
                   const isDragging = dragTileId === t.id;
                   const isDragOver = dragOverTileId === t.id && dragTileId !== t.id;
                   return (
@@ -793,6 +834,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 })}
                 {localTiles.length === 0 && (
                   <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
+                )}
+                {localTiles.length > 0 && gridTiles.length === 0 && (
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles match your search.</li>
                 )}
               </ul>
             </div>
