@@ -101,22 +101,28 @@ export async function middleware(request: NextRequest) {
         }
       }
 
-      // Editors = moderator access PLUS bingo-tile authoring on existing events. They reach the
-      // events list and each event's Tiles tab, but cannot create events, and never land on the
-      // other event surfaces (Overview/Teams/Sign-ups/Stats are admin-only actions) — any hit
-      // there bounces to that event's Tiles tab.
+      // Editors author bingo tiles. Two flavours (distinguished by editorScope in the token):
+      //  • GLOBAL editor (scope 'all'): moderator access PLUS tile authoring on every event.
+      //  • BOARD-scoped editor (scope 'assigned'): NOT mod-tier — only the events list (filtered to
+      //    their granted boards, server-side) and each granted board's Tiles tab. Everything else
+      //    (dashboard, weekly, clan, schedule, verifications, feedback) bounces to the events list.
       if (role === 'editor') {
-        const allowed = [
-          '/admin/dashboard',
-          '/admin/weekly',
-          '/admin/clan',
-          '/admin/schedule',
-          '/admin/verifications',
-          '/admin/feedback',
-        ];
+        const scoped = data.editorScope === 'assigned';
+        // Global editors keep the moderator surfaces; scoped editors get NONE of them.
+        const allowed = scoped
+          ? []
+          : [
+              '/admin/dashboard',
+              '/admin/weekly',
+              '/admin/clan',
+              '/admin/schedule',
+              '/admin/verifications',
+              '/admin/feedback',
+            ];
         const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
         if (!canEvents && !allowed.some((p) => pathname.startsWith(p))) {
-          return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+          // Scoped editors have no dashboard — send them to their events list instead.
+          return NextResponse.redirect(new URL(scoped ? '/admin/events' : '/admin/dashboard', request.url));
         }
         const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
         if (eventPage && eventPage[2] !== '/tiles' && !(eventPage[2] ?? '').startsWith('/tiles/')) {

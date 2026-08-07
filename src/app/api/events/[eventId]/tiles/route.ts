@@ -21,7 +21,10 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   const rules = parseEventRules(event?.rules);
   if (event && (!event.tilesRevealed || hasRevealPolicy(rules))) {
-    const staff = await verifyAdminOrModerator();
+    // Board-scoped editors aren't mod-tier (verifyAdminOrModerator excludes them), but they still
+    // need the FULL board for the event they're granted — so treat this event's tile editors as
+    // staff here too.
+    const staff = (await verifyAdminOrModerator()) || (await verifyTileEditorForEvent(eId));
     if (!staff && !event.tilesRevealed) return NextResponse.json([]);
     if (!staff) {
       const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });

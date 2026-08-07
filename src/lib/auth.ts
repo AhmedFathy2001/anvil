@@ -57,8 +57,12 @@ export function timingSafeStrEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
-export function signUserToken(userId: number, username: string, role: string): string {
-  return sign(JSON.stringify({ userId, username, role, iat: Date.now() }), ADMIN_SESSION_SECRET);
+export function signUserToken(userId: number, username: string, role: string, editorScope: string = 'all'): string {
+  // editorScope rides in the token so middleware (edge, no DB) can tell a board-scoped editor
+  // (role 'editor' + scope 'assigned') from a global editor and route them to /admin/events only.
+  // Server gates (verifyUser/verifyAdminOrModerator) re-read the live scope from the DB, so a stale
+  // token only affects coarse page-routing until the next login.
+  return sign(JSON.stringify({ userId, username, role, editorScope, iat: Date.now() }), ADMIN_SESSION_SECRET);
 }
 
 export function signCaptainToken(teamId: number): string {
@@ -113,7 +117,11 @@ export async function verifyAdmin(): Promise<boolean> {
 export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  // Treasurers and editors do everything moderators can; this gate accepts all mod-tier roles.
+  // A board-scoped editor (role 'editor' + scope 'assigned') is NOT mod-tier — they can only
+  // author tiles on their granted boards. Exclude them so they can't reach clan/verification/weekly
+  // moderator surfaces. A GLOBAL editor (scope 'all') keeps full moderator access.
+  if (user.role === 'editor' && user.editorScope === 'assigned') return null;
+  // Treasurers and (global) editors do everything moderators can; this gate accepts all mod-tier roles.
   if (user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator' || user.role === 'editor') {
     return user;
   }
