@@ -424,6 +424,14 @@ export const users = sqliteTable('users', {
   // mod-tier roles with one extra capability each (fee collection / tile authoring).
   //   admin > {treasurer, editor} > moderator > member.
   role: text('role').notNull().default('member'),
+  // Editor reach. Only meaningful for role 'editor':
+  //   'all'      — global editor: can author tiles on EVERY event (the classic editor behavior).
+  //   'assigned' — board-scoped editor: can author tiles only on events they hold an event_editors
+  //                grant for, and only sees those events in the admin list.
+  // Defaults to 'all' so every pre-existing editor keeps global reach. Non-editor roles ignore it.
+  // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
+  // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
+  editorScope: text('editor_scope').notNull().default('all'),
   // The clan owner — the person who provisioned this instance. Exactly one user has this set.
   // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
   // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can
@@ -465,6 +473,22 @@ export const users = sqliteTable('users', {
   federationSyncedAt: text('federation_synced_at'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
+]);
+
+// Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though
+// they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
+// by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
+// the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
+export const eventEditors = sqliteTable('event_editors', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  // The admin who granted this (audit only; nullable for system/backfill rows).
+  grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('event_editors_event_user_unique').on(table.eventId, table.userId),
+  index('event_editors_user_idx').on(table.userId),
 ]);
 
 export const weeklyCompetitions = sqliteTable('weekly_competitions', {

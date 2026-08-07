@@ -393,6 +393,18 @@ export async function PATCH(
 
   // Default: update dates and/or sign-up config
   const updates: Record<string, unknown> = {};
+  // Rename the event in place. Trim and require a non-empty name (mirrors create); cap length so an
+  // overlong title can't break Discord embeds / board headers. Editable at any point in the lifecycle.
+  if ('name' in body) {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) {
+      return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 });
+    }
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'name must be 100 characters or fewer' }, { status: 400 });
+    }
+    updates.name = name;
+  }
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
   // Per-event game rules (lib/eventRules) — lets admins tune interval/bonus settings in place.

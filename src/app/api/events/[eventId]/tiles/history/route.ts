@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tileAuditLog, users } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 
 // Most recent tile-history entries for an event, newest first. Staff/editor only (same gate as
 // the tile-authoring routes). The acting user's display name is joined at read time (the token's
@@ -13,13 +13,12 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  const { eventId } = await params;
-  const eId = parseInt(eventId, 10);
 
   const rows = await db
     .select({

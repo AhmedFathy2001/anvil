@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import OverviewClient from './OverviewClient';
+import EventEditorsPanel from './EventEditorsPanel';
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
@@ -83,6 +84,11 @@ export default async function EventOverviewPage({
         teams={eventTeams}
         completions={eventCompletions}
       />
+      {isAdmin && (
+        <div className="mt-8 max-w-2xl">
+          <EventEditorsPanel eventId={event.id} />
+        </div>
+      )}
       {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}
     </>
   );

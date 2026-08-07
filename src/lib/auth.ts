@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, detectedAccounts, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -69,6 +69,10 @@ export interface UserPayload {
   userId: number;
   username: string;
   role: string;
+  // Only meaningful for role 'editor': 'all' = global editor (edits every event), 'assigned' =
+  // board-scoped editor (edits only granted events). Always present so callers don't branch on
+  // undefined; non-editor roles carry 'all' but never consult it. See users.editorScope.
+  editorScope: string;
 }
 
 export async function verifyUser(): Promise<UserPayload | null> {
@@ -85,12 +89,17 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, role: true, banned: true },
+      columns: { id: true, role: true, banned: true, editorScope: true },
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
     if (!dbUser || dbUser.banned) return null;
-    return { userId: dbUser.id, username: typeof data.username === 'string' ? data.username : 'user', role: dbUser.role };
+    return {
+      userId: dbUser.id,
+      username: typeof data.username === 'string' ? data.username : 'user',
+      role: dbUser.role,
+      editorScope: dbUser.editorScope ?? 'all',
+    };
   } catch {
     return null;
   }
@@ -111,14 +120,38 @@ export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   return null;
 }
 
-// Bingo-authoring gate. Editors are moderators who can additionally build/edit an event's tiles
-// (the Quick Build grid, CSV import, per-tile config, add/remove tiles). They cannot create events,
-// or manage teams/signups/players/fees — those stay admin-only. Admins pass too.
-export async function verifyTileEditor(): Promise<UserPayload | null> {
+// Per-event bingo-authoring gate. A caller may build/edit THIS event's tiles (Quick Build grid, CSV
+// import, per-tile config, add/remove tiles) when they are:
+//   • an admin, or
+//   • a global editor (role 'editor' + scope 'all') — edits every event, the classic behavior, or
+//   • the holder of an event_editors grant for this specific event (any role, incl. a board-scoped
+//     editor or a moderator/treasurer given one board).
+// They still cannot create events or manage teams/signups/players/fees — those stay admin-only.
+export async function verifyTileEditorForEvent(eventId: number): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin' || user.role === 'editor') return user;
-  return null;
+  if (user.role === 'admin') return user;
+  if (user.role === 'editor' && user.editorScope === 'all') return user;
+  const grant = await db.query.eventEditors.findFirst({
+    where: and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, user.userId)),
+    columns: { id: true },
+  });
+  return grant ? user : null;
+}
+
+// Non-event authoring gate for the shared tile-editor helper APIs (item/NPC/clog/CA search) that
+// carry no event-specific data. Passes admins, global editors, and anyone holding at least one
+// board grant — i.e. anyone who can author tiles *somewhere* needs these lookups.
+export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+  if (user.role === 'admin') return user;
+  if (user.role === 'editor' && user.editorScope === 'all') return user;
+  const grant = await db.query.eventEditors.findFirst({
+    where: eq(eventEditors.userId, user.userId),
+    columns: { id: true },
+  });
+  return grant ? user : null;
 }
 
 // Fee-collection gate. Regular moderators cannot collect sign-up fees — only admins

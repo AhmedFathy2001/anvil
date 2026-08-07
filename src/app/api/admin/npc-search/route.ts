@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { BOSSES } from '@/lib/constants';
 
 // In-memory cache — fetched once per server lifecycle (same pattern as items-search).
@@ -62,7 +62,7 @@ async function getNames(): Promise<string[]> {
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure kill tiles too, not just admins.
-  const editor = await verifyTileEditor();
+  const editor = await verifyTileEditorAnywhere();
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

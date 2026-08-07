@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorAnywhere } from '@/lib/auth';
 import clogData from '@/data/clog.json';
 
 // Serves the bundled collection-log dataset (src/data/clog.json, built by scripts/build-clog-dataset.mjs)
@@ -13,7 +13,7 @@ const activities = clogData.activities as Record<string, { id: number; name: str
 const manualOnly = new Set<number>((clogData as { manualOnlyIds?: number[] }).manualOnlyIds ?? []);
 
 export async function GET(request: Request) {
-  const editor = await verifyTileEditor();
+  const editor = await verifyTileEditorAnywhere();
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events, settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
 import { computePlayerProfiles } from '@/lib/playerProfile';
 import { isPointsMode } from '@/lib/utils';
@@ -17,12 +17,12 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const { eventId } = await params;
-  const eId = parseInt(eventId, 10);
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) {
