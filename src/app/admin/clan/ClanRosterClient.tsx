@@ -28,8 +28,13 @@ interface ClanMember {
   effectiveDiscordId?: string | null;
   federationBanned?: boolean;
   provisional: number;
-  pendingRole: 'admin' | 'moderator' | null;
+  pendingRole: PendingRole | null;
 }
+
+// Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
+// Users page staff roles so both "Set role" surfaces offer the same tiers. 'none' clears it.
+type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
+type PendingRoleValue = PendingRole | 'none';
 
 type FilterMode = 'active' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
 
@@ -118,7 +123,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [adding, setAdding] = useState(false);
 
   const [roleTarget, setRoleTarget] = useState<ClanMember | null>(null);
-  const [roleValue, setRoleValue] = useState<'admin' | 'moderator' | 'none'>('none');
+  const [roleValue, setRoleValue] = useState<PendingRoleValue>('none');
   const [roleSaving, setRoleSaving] = useState(false);
   const [roleError, setRoleError] = useState('');
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
@@ -777,12 +782,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               <label className="block text-xs text-text-muted mb-1">Role</label>
               <Select
                 value={roleValue}
-                onChange={(v) => setRoleValue(v as 'admin' | 'moderator' | 'none')}
+                onChange={(v) => setRoleValue(v as PendingRoleValue)}
                 ariaLabel="Role"
                 options={[
                   { value: 'none', label: 'None (clear)' },
-                  { value: 'moderator', label: 'Moderator' },
-                  { value: 'admin', label: 'Admin' },
+                  { value: 'moderator', label: 'Moderator — clan + verifications' },
+                  { value: 'editor', label: 'Editor — edit event tiles' },
+                  { value: 'treasurer', label: 'Treasurer — moderator + collect fees' },
+                  { value: 'admin', label: 'Admin — full access' },
                 ]}
               />
             </div>

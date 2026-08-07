@@ -5,9 +5,9 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 
-const VALID = new Set(['admin', 'moderator']);
+const VALID = new Set(['admin', 'moderator', 'editor', 'treasurer']);
 
-// PUT /api/admin/clan/[id]/pending-role { role: 'admin' | 'moderator' | null }
+// PUT /api/admin/clan/[id]/pending-role { role: 'admin' | 'moderator' | 'editor' | 'treasurer' | null }
 //
 // Stamps a pre-assigned role onto a clan member. When the member later claims their
 // account via the plugin (high-trust), the role applies immediately. If they claim
@@ -32,7 +32,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
-  let body: { role?: 'admin' | 'moderator' | null };
+  let body: { role?: 'admin' | 'moderator' | 'editor' | 'treasurer' | null };
   try {
     body = await request.json();
   } catch {
@@ -40,7 +40,7 @@ export async function PUT(
   }
   const role = body.role ?? null;
   if (role !== null && !VALID.has(role)) {
-    return NextResponse.json({ error: "role must be 'admin', 'moderator', or null" }, { status: 400 });
+    return NextResponse.json({ error: "role must be 'admin', 'moderator', 'editor', 'treasurer', or null" }, { status: 400 });
   }
 
   const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
