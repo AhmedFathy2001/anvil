@@ -189,7 +189,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // Forward the pathname to server components so layouts/pages can make path-aware decisions the
+  // token alone can't drive — e.g. the admin shell redirects a board-scoped editor (live editorScope
+  // read from the DB) off any non-/admin/events page, even when their session token predates the
+  // editorScope field. Middleware here is only the coarse gate.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-anvil-pathname', pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

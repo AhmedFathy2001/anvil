@@ -1,3 +1,5 @@
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanMembers, users } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
@@ -40,6 +42,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // no dashboard/weekly/clan/schedule. Global editors + all other staff keep the full shell below.
   const isScopedEditor = session.role === 'editor' && session.editorScope === 'assigned';
   if (isScopedEditor) {
+    // Server-side backstop for the middleware gate: a board editor may only be on /admin/events*.
+    // This reads the LIVE editorScope (verifyUser → DB), so it holds even when the session token
+    // predates editorScope (middleware would otherwise wave a stale-token scoped editor through).
+    const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+    if (pathname && !pathname.startsWith('/admin/events')) {
+      redirect('/admin/events');
+    }
     const scopedGroups: SidebarGroup[] = [
       {
         label: 'Events',
