@@ -377,11 +377,15 @@ export default function TileTrackingConfig({
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
     initial.tileType === 'diary' ? initial.targetNpcs || [] : [],
   );
-  // PvP-kill selectors ride the targetNpcs column too — 'team:other' (any rival team
-  // member) or 'rsn:<name>' bounty entries. Split back into mode + RSN text for the form.
-  const [pvpTargetMode, setPvpTargetMode] = useState<'other-team' | 'rsn'>(
-    initial.tileType === 'pvp' && (initial.targetNpcs || []).some((s) => s.startsWith('rsn:')) ? 'rsn' : 'other-team',
-  );
+  // PvP-kill selectors ride the targetNpcs column too — 'any' (any player at all), 'team:other'
+  // (any rival team member), or 'rsn:<name>' bounty entries. Split back into mode + RSN text.
+  const [pvpTargetMode, setPvpTargetMode] = useState<'anyone' | 'other-team' | 'rsn'>(() => {
+    if (initial.tileType !== 'pvp') return 'other-team';
+    const t = initial.targetNpcs || [];
+    if (t.includes('any')) return 'anyone';
+    if (t.some((s) => s.startsWith('rsn:'))) return 'rsn';
+    return 'other-team';
+  });
   const [pvpRsnsText, setPvpRsnsText] = useState<string>(
     initial.tileType === 'pvp'
       ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
@@ -905,11 +909,15 @@ export default function TileTrackingConfig({
         payload.targetNpcs = targetNpcNames;
         payload.trackingMode = trackingMode;
       } else if (kind === 'pvp') {
-        // PvP selectors ride the targetNpcs column — 'team:other' or 'rsn:<name>' entries.
+        // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
+        // 'rsn:<name>' entries.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = pvpTargetMode === 'rsn'
-          ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
-          : ['team:other'];
+        payload.targetNpcs =
+          pvpTargetMode === 'rsn'
+            ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
+            : pvpTargetMode === 'anyone'
+              ? ['any']
+              : ['team:other'];
         payload.trackingMode = trackingMode;
         // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
         payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
@@ -1061,6 +1069,8 @@ export default function TileTrackingConfig({
               type="button"
               onClick={() => changeKind(k.key)}
               disabled={locked}
+              // Hover any kind (not just the selected one) to read what it does + how it's tracked.
+              title={k.blurb}
               className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
@@ -1734,26 +1744,41 @@ export default function TileTrackingConfig({
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">Who counts as a target?</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setPvpTargetMode('anyone')}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                  pvpTargetMode === 'anyone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Anyone
+              </button>
               <button
                 type="button"
                 onClick={() => setPvpTargetMode('other-team')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                   pvpTargetMode === 'other-team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
                 }`}
               >
-                Any rival team member
+                Rival team
               </button>
               <button
                 type="button"
                 onClick={() => setPvpTargetMode('rsn')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                   pvpTargetMode === 'rsn' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
                 }`}
               >
                 Specific player(s)
               </button>
             </div>
+            {pvpTargetMode === 'anyone' && (
+              <p className="text-[10px] text-text-muted mt-2">
+                <span className="text-foreground/70">Any</span> player kill counts — no team or bounty list. The
+                victim doesn&rsquo;t need to be in the event. (Still dangerous-PvP only; safe minigames never count.)
+              </p>
+            )}
             {pvpTargetMode === 'rsn' && (
               <div className="mt-2">
                 <Input
