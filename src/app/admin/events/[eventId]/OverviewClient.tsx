@@ -13,6 +13,7 @@ import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
 import MissionAdminPanel from '@/components/MissionAdminPanel';
+import EventEditorsPanel from './EventEditorsPanel';
 
 interface Props {
   event: Event;
@@ -20,9 +21,11 @@ interface Props {
   teams: Team[];
   completions: Completion[];
   tierBands?: TierBand[];
+  /** Current user is an admin — gates the board-editor management panel. */
+  canManageEditors?: boolean;
 }
 
-export default function OverviewClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS }: Props) {
+export default function OverviewClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, canManageEditors = false }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
   const [startDate, setStartDate] = useState(() => event.startDate ?? '');
@@ -339,8 +342,11 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
+      {/* Left column: event details + (admin) board-editor management, so both sit near the top
+          instead of below the whole board. */}
+      <div className="min-w-0 space-y-8">
       {/* Event Details */}
-      <div className="min-w-0 border border-card-border rounded-xl p-5 bg-card-bg">
+      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
@@ -587,6 +593,9 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             </button>
           )}
         </div>
+      </div>
+
+        {canManageEditors && <EventEditorsPanel eventId={event.id} />}
       </div>
 
       {/* Missions — mid-event hidden-objective controls (only shows when the board has mission tiles). */}
