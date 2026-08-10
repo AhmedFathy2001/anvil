@@ -147,6 +147,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [rankFilter, setRankFilter] = useState<string>('any');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('any');
 
+  // Bulk selection — ids only, so a refetch keeps whatever is still on screen selected.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>('');
+  const [bulkRole, setBulkRole] = useState<PendingRoleValue>('moderator');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [showAdd, setShowAdd] = useState(false);
   const [addRsn, setAddRsn] = useState('');
@@ -275,6 +281,88 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     }
     return { active, guests, left, linked, unlinked, total: members.length };
   }, [members]);
+
+  // ── Bulk selection ────────────────────────────────────────────────────────
+  // Selection is by id and survives filter changes, so you can stage a few names from one filter,
+  // switch to another, add more, then apply once.
+  const selectedCount = selected.size;
+  const visibleIds = useMemo(() => filtered.map((m) => m.id), [filtered]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  function toggleOne(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setBulkNotice(null);
+  }
+
+  function toggleAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+    setBulkNotice(null);
+  }
+
+  // Every bulk action goes through one endpoint (POST /api/admin/clan/bulk), which re-applies the
+  // same guards the per-row routes do and reports per-member skips instead of failing the batch.
+  async function runBulk() {
+    if (!bulkAction || selectedCount === 0) return;
+    const ids = [...selected];
+    const n = ids.length;
+    const role = bulkRole === 'none' ? null : bulkRole;
+
+    const confirmText: Record<string, string> = {
+      remove: `Mark ${n} member${n === 1 ? '' : 's'} as left the clan?`,
+      ban: `Ban the site accounts of ${n} selected member${n === 1 ? '' : 's'}? They lose all access immediately.`,
+      'fed-ban': `Federation-ban ${n} selected member${n === 1 ? '' : 's'}? This blocks those Discord identities from re-joining via another clan.`,
+      demote: `Demote ${n} member${n === 1 ? '' : 's'} to guest?`,
+    };
+    if (confirmText[bulkAction] && !confirm(confirmText[bulkAction])) return;
+
+    let reason: string | undefined;
+    if (bulkAction === 'ban') {
+      const input = prompt(`Optional reason for banning ${n} account${n === 1 ? '' : 's'}:`);
+      if (input === null) return; // cancelled
+      reason = input.trim() || undefined;
+    }
+
+    setBulkBusy(true);
+    setBulkNotice(null);
+    const res = await fetch('/api/admin/clan/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action: bulkAction, role, reason }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBulkBusy(false);
+    if (!res.ok) {
+      setBulkNotice({ type: 'err', text: data.error || 'Bulk action failed' });
+      return;
+    }
+
+    const parts = [`${data.applied} member${data.applied === 1 ? '' : 's'} updated`];
+    if (bulkAction === 'set-role' && role) {
+      parts.push(
+        data.appliedNow
+          ? `${data.appliedNow} promoted immediately, the rest apply on verification`
+          : 'applies when they verify via Discord',
+      );
+    }
+    const skipped: { rsn: string; reason: string }[] = data.skipped ?? [];
+    if (skipped.length) {
+      const shown = skipped.slice(0, 3).map((sk) => `${sk.rsn} (${sk.reason})`).join(', ');
+      parts.push(`${skipped.length} skipped: ${shown}${skipped.length > 3 ? '…' : ''}`);
+    }
+    setBulkNotice({ type: 'ok', text: `${parts.join(' · ')}.` });
+    setSelected(new Set());
+    fetchAll();
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -675,6 +763,76 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         />
       </div>
 
+      {/* Bulk actions — admin-only (the endpoint is too). Appears as soon as anything is ticked. */}
+      {isAdmin && (selectedCount > 0 || bulkNotice) && (
+        <div className="border border-gold/30 rounded-xl bg-gold/5 px-4 py-3 mb-4">
+          {selectedCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-gold">
+                {selectedCount} selected
+              </span>
+              <button
+                onClick={() => setSelected(new Set())}
+                className="text-xs text-text-muted hover:text-foreground underline decoration-dotted"
+              >
+                Clear
+              </button>
+              <span className="mx-1 h-4 w-px bg-card-border" aria-hidden />
+              <Select
+                value={bulkAction}
+                onChange={(v) => {
+                  setBulkAction(v);
+                  setBulkNotice(null);
+                }}
+                ariaLabel="Bulk action"
+                options={[
+                  { value: '', label: 'Choose an action…' },
+                  { value: 'set-role', label: 'Set staff role' },
+                  { value: 'promote', label: 'Promote to member' },
+                  { value: 'demote', label: 'Demote to guest' },
+                  { value: 'rejoin', label: 'Re-add to roster' },
+                  { value: 'remove', label: 'Remove from roster' },
+                  { value: 'ban', label: 'Ban site accounts' },
+                  { value: 'unban', label: 'Unban site accounts' },
+                  { value: 'fed-ban', label: 'Federation ban' },
+                  { value: 'fed-unban', label: 'Federation unban' },
+                ]}
+              />
+              {bulkAction === 'set-role' && (
+                <Select
+                  value={bulkRole}
+                  onChange={(v) => setBulkRole(v as PendingRoleValue)}
+                  ariaLabel="Role to assign"
+                  options={[
+                    { value: 'moderator', label: 'Moderator' },
+                    { value: 'treasurer', label: 'Treasurer' },
+                    { value: 'editor', label: 'Editor' },
+                    { value: 'admin', label: 'Admin' },
+                    { value: 'none', label: 'Clear pending role' },
+                  ]}
+                />
+              )}
+              <button
+                onClick={runBulk}
+                disabled={!bulkAction || bulkBusy}
+                className="px-4 py-1.5 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+              >
+                {bulkBusy ? 'Applying…' : 'Apply'}
+              </button>
+            </div>
+          )}
+          {bulkNotice && (
+            <p
+              className={`text-xs ${selectedCount > 0 ? 'mt-2' : ''} ${
+                bulkNotice.type === 'ok' ? 'text-accent-green-light' : 'text-red-400'
+              }`}
+            >
+              {bulkNotice.text}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Add form */}
       {showAdd && (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
@@ -757,6 +915,18 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-text-muted">
+                {isAdmin && (
+                  <th className="pl-4 pr-0 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 align-middle"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all shown members"
+                      title="Select everything matching the current filters"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 font-medium">RSN</th>
                 <th className="px-4 py-3 font-medium">Rank</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -771,6 +941,17 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   key={m.id}
                   className={`border-b border-card-border/50 hover:bg-card-bg-hover transition-colors ${m.leftAt ? 'opacity-60' : ''}`}
                 >
+                  {isAdmin && (
+                    <td className="pl-4 pr-0 py-3">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 align-middle"
+                        checked={selected.has(m.id)}
+                        onChange={() => toggleOne(m.id)}
+                        aria-label={`Select ${m.rsn}`}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span>{m.rsn}</span>
@@ -806,7 +987,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-text-muted">
+                  <td colSpan={isAdmin ? 7 : 6} className="px-4 py-8 text-center text-text-muted">
                     No members match this filter.
                   </td>
                 </tr>
@@ -825,6 +1006,15 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap font-medium">
+                    {isAdmin && (
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 shrink-0"
+                        checked={selected.has(m.id)}
+                        onChange={() => toggleOne(m.id)}
+                        aria-label={`Select ${m.rsn}`}
+                      />
+                    )}
                     <span className="break-all">{m.rsn}</span>
                     <AccountBadge m={m} />
                   </div>
