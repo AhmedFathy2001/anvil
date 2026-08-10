@@ -17,7 +17,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
 import { statLabel } from '@/lib/tileKinds';
-import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
@@ -584,17 +584,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     await syncTilesFromServer();
   }
 
-  /** A tile as a canonical CSV row — the shape the library and the importer both speak. */
-  function csvRowFromTile(tile: Parameters<typeof tileToCsvCells>[0]): Record<string, unknown> {
-    const cells = tileToCsvCells(tile);
-    const row: Record<string, unknown> = {};
-    TILE_CSV_COLUMNS.forEach((col, i) => {
-      const v = cells[i];
-      if (v !== undefined && v !== null && v !== '') row[col] = v;
-    });
-    return row;
-  }
-
   /**
    * Harvest: copy this board's configured tiles into the clan's task library so later boards can
    * draw from them. Placeholder tiles ("Tile 7") are skipped — they carry no task. Deliberately
@@ -622,7 +611,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             category: t.category ?? null,
             description: t.description ?? null,
             tileType: t.tileType ?? 'standard',
-            config: csvRowFromTile(t),
+            config: tileToCsvRow(t),
           })),
         }),
       });

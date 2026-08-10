@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
-import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
-import Textarea from '@/components/Textarea';
-import { tileTierKey, type TierBand } from '@/lib/tileFilter';
+import TileTrackingConfig from '@/components/TileTrackingConfig';
+import { type TierBand } from '@/lib/tileFilter';
+import type { TileConfig } from '@/lib/types';
 import type { LibraryTask } from '@/lib/tileLibrary';
+import { blankTileConfig, payloadToCsvRow, toTileConfig } from './taskConfig';
 
 // The clan's task catalogue, as an editable list. Boards draw from this, so it's worth curating:
 // the tasks here decide what a generated board feels like.
 //
-// Editing is deliberately scoped to what a curator changes in bulk — wording, value, category. The
-// per-kind config (drop targets, thresholds, item lists) is carried verbatim from wherever the task
-// came from and shown read-only; changing THAT is board work, and the board editor already does it
-// properly with live locks. Harvesting an edited tile back replaces the task.
+// Tasks are authored with the SAME editor the board uses — kind picker, item search, thresholds,
+// the lot. A task is just a tile without a board, so anything else would mean a second, worse tile
+// editor and a curator staring at JSON.
 
 interface Props {
   tierBands: TierBand[];
@@ -28,7 +28,10 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
   const [tierFilter, setTierFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [editing, setEditing] = useState<LibraryTask | null>(null);
+  // The editor target: an existing task, or 'new' for one that doesn't exist yet. `draft` holds the
+  // TileConfig the editor is mounted with (item ids resolved), null while that resolution runs.
+  const [editing, setEditing] = useState<LibraryTask | 'new' | null>(null);
+  const [draft, setDraft] = useState<TileConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -128,6 +131,58 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
     });
   }
 
+  async function openTask(task: LibraryTask) {
+    setEditing(task);
+    setDraft(null);
+    setDraft(
+      await toTileConfig(task.config, {
+        label: task.label,
+        points: task.points,
+        category: task.category,
+        description: task.description,
+      }),
+    );
+  }
+
+  function openNew() {
+    setEditing('new');
+    setDraft(blankTileConfig());
+  }
+
+  function closeEditor() {
+    setEditing(null);
+    setDraft(null);
+  }
+
+  /** The editor hands back the same payload the board API would get; store it as a CSV row. */
+  async function saveFromEditor(payload: Record<string, unknown>): Promise<TileConfig | null> {
+    const config = payloadToCsvRow(payload);
+    const common = {
+      label: (payload.label as string) || 'Untitled task',
+      points: (payload.points as number) ?? 0,
+      category: (payload.category as string | null) ?? null,
+      description: (payload.description as string | null) ?? null,
+      config,
+    };
+    const ok =
+      editing === 'new'
+        ? await post({ action: 'add', tasks: [{ ...common, tileType: config.tileType ?? 'standard' }] }, 'Task added.')
+        : await post({ action: 'update', id: (editing as LibraryTask).id, ...common }, 'Saved.');
+    if (!ok) return null;
+    closeEditor();
+    return { ...(payload as unknown as TileConfig), updatedAt: null };
+  }
+
+  async function deleteOne(task: LibraryTask) {
+    if (!confirm(`Delete “${task.label}” from the library?`)) return;
+    await post({ action: 'delete', ids: [task.id] }, 'Deleted.');
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(task.id);
+      return next;
+    });
+  }
+
   const tierLabel = (key: string | null) => tierBands.find((b) => b.key === key)?.label ?? '—';
 
   return (
@@ -160,6 +215,13 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
         </span>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={openNew}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
+          >
+            ＋ New task
+          </button>
           {pendingSeed > 0 && (
             <button
               type="button"
@@ -236,7 +298,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
               />
               <button
                 type="button"
-                onClick={() => setEditing(t)}
+                onClick={() => openTask(t)}
                 className="flex-1 min-w-0 text-left hover:text-gold transition-colors"
               >
                 <span className="block truncate">{t.label}</span>
@@ -250,141 +312,64 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                 {tierLabel(t.tier)}
               </span>
               <span className="shrink-0 text-xs text-text-muted tabular-nums w-14 text-right">{t.points}p</span>
+              <button
+                type="button"
+                onClick={() => deleteOne(t)}
+                disabled={busy}
+                aria-label={`Delete ${t.label}`}
+                title="Delete this task"
+                className="shrink-0 w-7 h-7 rounded-md text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Edit drawer */}
+      {/* Editor — the board's own tile editor, driving a task instead of a tile row. */}
       {editing && (
-        <EditTask
-          task={editing}
-          tierBands={tierBands}
-          categories={categories}
-          busy={busy}
-          onClose={() => setEditing(null)}
-          onSave={async (patch) => {
-            const ok = await post({ action: 'update', id: editing.id, ...patch }, 'Saved.');
-            if (ok) setEditing(null);
-          }}
-        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={editing === 'new' ? 'New task' : `Edit ${editing.label}`}
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+        >
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeEditor} />
+          <div className="relative w-full max-w-2xl my-auto border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-1 h-5 bg-gold rounded-full shrink-0" />
+                <h2 className="font-semibold truncate">
+                  {editing === 'new' ? 'New task' : editing.label}
+                </h2>
+              </div>
+              <button
+                onClick={closeEditor}
+                aria-label="Close"
+                className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-5">
+              {draft === null ? (
+                <p className="text-sm text-text-muted">Loading the task…</p>
+              ) : (
+                <TileTrackingConfig
+                  initial={draft}
+                  onSave={saveFromEditor}
+                  onSaved={() => { /* saveFromEditor already refreshed the list and closed */ }}
+                  pointsMode
+                  tierBands={tierBands}
+                  categorySuggestions={categories}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function EditTask({
-  task,
-  tierBands,
-  categories,
-  busy,
-  onClose,
-  onSave,
-}: {
-  task: LibraryTask;
-  tierBands: TierBand[];
-  categories: string[];
-  busy: boolean;
-  onClose: () => void;
-  onSave: (patch: { label: string; description: string; points: number; category: string }) => void;
-}) {
-  const [label, setLabel] = useState(task.label);
-  const [description, setDescription] = useState(task.description ?? '');
-  const [points, setPoints] = useState(task.points);
-  const [category, setCategory] = useState(task.category ?? '');
-
-  const tier = tierTierLabel(points, tierBands);
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Edit ${task.label}`}
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
-    >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg my-auto border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-1 h-5 bg-gold rounded-full shrink-0" />
-            <h2 className="font-semibold truncate">Edit task</h2>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
-          >
-            ×
-          </button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Label</label>
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Description</label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-text-muted mb-1">
-                Points <span className="text-text-muted/60">({tier})</span>
-              </label>
-              <NumberInput value={points} onChange={setPoints} min={0} max={100000} fallback={0} />
-            </div>
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Category</label>
-              <Input
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                list="tile-library-categories"
-                placeholder="e.g. Raids"
-              />
-              <datalist id="tile-library-categories">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-          </div>
-
-          {/* Read-only: the per-kind config travels with the task. Editing it belongs on a board,
-              where the real tile editor (and its locking) lives. */}
-          <div>
-            <label className="block text-xs text-text-muted mb-1">
-              Tracking config <span className="text-text-muted/60">({task.tileType})</span>
-            </label>
-            <pre className="text-[11px] font-mono text-text-muted bg-brown-dark border border-card-border rounded-lg p-3 overflow-x-auto max-h-40">
-              {JSON.stringify(task.config, null, 2)}
-            </pre>
-            <p className="text-[11px] text-text-muted mt-1">
-              Carried from wherever this task came from. To change how it tracks, edit it on a board
-              and add that board to the library again.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 border-t border-card-border pt-3">
-            <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm text-text-muted hover:text-foreground">
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={busy || !label.trim()}
-              onClick={() => onSave({ label, description, points, category })}
-              className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors disabled:opacity-50"
-            >
-              {busy ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Live tier label for the points field — the same derivation the draw uses. */
-function tierTierLabel(points: number, bands: TierBand[]): string {
-  const key = tileTierKey(points, bands);
-  return bands.find((b) => b.key === key)?.label ?? '—';
-}

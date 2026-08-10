@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { listLibrary } from '@/lib/tileLibrary';
-import { tileToCsvCells, TILE_CSV_COLUMNS, type TileCsvRow } from '@/lib/csvTiles';
+import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,17 +27,6 @@ function seedKeyFor(label: string, tileType: string): string {
     .slice(0, 48);
   const prefix = tileType === 'standard' ? 'drop' : tileType;
   return `${prefix}-${slug}`;
-}
-
-/** Rebuild a TileCsvRow from a stored tile via the canonical CSV cells — one conversion, not two. */
-function rowFromTile(tile: Parameters<typeof tileToCsvCells>[0]): TileCsvRow {
-  const cells = tileToCsvCells(tile);
-  const row: Record<string, unknown> = {};
-  TILE_CSV_COLUMNS.forEach((col, i) => {
-    const v = cells[i];
-    if (v !== undefined && v !== null && v !== '') row[col] = v;
-  });
-  return row as TileCsvRow;
 }
 
 export async function GET(request: Request) {
@@ -66,7 +55,7 @@ export async function GET(request: Request) {
         label: t.label,
         category: t.category ?? undefined,
         points: t.points ?? 0,
-        config: rowFromTile(t as unknown as Parameters<typeof tileToCsvCells>[0]),
+        config: tileToCsvRow(t as unknown as Parameters<typeof tileToCsvRow>[0]),
       }));
     source = event.name;
   } else {

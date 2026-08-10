@@ -15,8 +15,16 @@ import { parseTileMissionRules } from '@/lib/eventRules';
 import NumberInput from '@/components/NumberInput';
 
 interface Props {
-  tileId: number;
-  eventId: number;
+  /** Board editing: the tile row being edited. Omit when `onSave` takes over the write. */
+  tileId?: number;
+  /** Board editing: the event that owns the tile. Omit when `onSave` takes over the write. */
+  eventId?: number;
+  /**
+   * Detached editing (the task library): handle the write yourself instead of PUTting to the
+   * board's tiles endpoint. Receives the same payload the board API would get and returns the
+   * saved TileConfig, or null if the save failed (the component then shows its error state).
+   */
+  onSave?: (payload: Record<string, unknown>) => Promise<TileConfig | null>;
   initial: TileConfig;
   onSaved: (updated: TileConfig) => void;
   eventStarted?: boolean;
@@ -296,6 +304,7 @@ function extractCountLikeNumbers(text: string): number[] {
 export default function TileTrackingConfig({
   tileId,
   eventId,
+  onSave,
   initial,
   onSaved,
   eventStarted,
@@ -969,6 +978,18 @@ export default function TileTrackingConfig({
         payload.timeThresholdSeconds = sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()
           ? parseInt(dropPartySize, 10)
           : null;
+      }
+
+      // Detached mode: the caller owns the write (library tasks have no event or tile row).
+      if (onSave) {
+        const saved = await onSave(payload);
+        if (saved) {
+          setBaseStamp(saved.updatedAt ?? null);
+          onSaved(saved);
+        } else {
+          setError('Could not save — try again.');
+        }
+        return; // the finally below clears `saving`
       }
 
       const res = await fetch(`/api/events/${eventId}/tiles`, {
