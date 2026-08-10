@@ -175,11 +175,6 @@ async function main() {
   const curated = JSON.parse(readFileSync(CURATED_PATH, 'utf8'));
   // Only rate activities the app already knows about. A rate for content no tile can reference is
   // dead weight, and a floor we'd have to invent for it is exactly the guessing this replaces.
-  // Alias BOTH sides: our own file carries "inferno" and "tzkal-zuk" (and "fight caves" /
-  // "tztok-jad") as separate keys because tiles are authored either way, so both must resolve to
-  // the one rate the sources publish.
-  const curatedByNorm = new Map(Object.keys(curated.activities).map((k) => [alias(norm(k)), k]));
-
   const activities = {};
   const report = [];
   for (const curatedKey of Object.keys(curated.activities)) {
@@ -187,6 +182,9 @@ async function main() {
     // per-band success rate (and divided by party size), which carries information a single
     // kills/hour figure cannot — replacing it with one would be a downgrade dressed as a sourcing.
     if (!Array.isArray(curated.activities[curatedKey]?.killSeconds)) continue;
+    // Alias BOTH sides: our own file carries "inferno" and "tzkal-zuk" (and "fight caves" /
+    // "tztok-jad") as separate keys because tiles get authored either way, so both must resolve to
+    // the single rate the sources publish.
     const normKey = alias(norm(curatedKey));
     const built = buildTriplet(wom.get(normKey), wiki.get(normKey));
     if (!built) continue;
