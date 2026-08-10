@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
 
@@ -142,24 +142,34 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
   // Success note shown on the page picker after a batch — the dialog stays open for the next page.
   const [lastBatch, setLastBatch] = useState<string | null>(null);
 
-  async function openModal() {
-    setOpen(true);
-    if (activities) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/clog');
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        onError(data.error || 'Could not load the collection log dataset.');
-        setOpen(false);
-        return;
+  // Load the dataset whenever the dialog opens, not when a particular button is clicked — the
+  // Add tiles menu opens this from outside, and hanging the fetch off the trigger meant the menu
+  // route showed an empty activity list.
+  useEffect(() => {
+    if (!open || activities) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/admin/clog');
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          onError(data.error || 'Could not load the collection log dataset.');
+          setOpen(false);
+          return;
+        }
+        setActivities(data.activities as ActivityMeta[]);
+        setGeneratedAt(data.generatedAt ?? null);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setActivities(data.activities as ActivityMeta[]);
-      setGeneratedAt(data.generatedAt ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activities]);
 
   async function pickActivity(name: string) {
     setActivity(name);
@@ -331,7 +341,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
     <>
       {!hideTrigger && (
       <button
-        onClick={openModal}
+        onClick={() => setOpen(true)}
         disabled={!canGrow}
         title={
           canGrow
