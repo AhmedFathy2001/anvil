@@ -398,6 +398,13 @@ export default async function ProfilePage({
           playing&rdquo; for you to add with one click — no manual verification needed.
         </p>
         <PluginPlayerTokenClient />
+        <p className="text-sm text-text-muted mt-4">
+          First time?{' '}
+          <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
+            Read the plugin setup guide
+          </Link>{' '}
+          — install, sign-in, notification toggles and OBS clips, with screenshots.
+        </p>
       </section>
 
       {/* Federation: connected plugins (cross-clan tokens). Only meaningful once federation is on —

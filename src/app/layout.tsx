@@ -109,9 +109,14 @@ export default async function RootLayout({
               {" · "}
               <span title={`build ${GIT_SHA}`}>v{APP_VERSION}</span>
             </p>
-            <Link href="/feedback" className="hover:text-foreground transition-colors">
-              Feedback &amp; bug reports
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link href="/guide" className="hover:text-foreground transition-colors">
+                Guides
+              </Link>
+              <Link href="/feedback" className="hover:text-foreground transition-colors">
+                Feedback &amp; bug reports
+              </Link>
+            </div>
           </div>
         </footer>
         <Analytics />
