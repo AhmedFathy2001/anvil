@@ -21,14 +21,16 @@ export async function GET() {
   // clan_members.discordId column) so the roster can show/toggle both the site ban and the
   // federation ban.
   const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is number => v != null))];
+  // users.role rides along so the roster can filter by site role without a second round-trip.
   const userRows = userIds.length
     ? await db
-        .select({ id: users.id, banned: users.banned, discordId: users.discordId })
+        .select({ id: users.id, banned: users.banned, discordId: users.discordId, role: users.role })
         .from(users)
         .where(inArray(users.id, userIds))
     : [];
   const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.id));
   const userDiscordId = new Map(userRows.map((u) => [u.id, u.discordId]));
+  const userRole = new Map(userRows.map((u) => [u.id, u.role]));
 
   // Effective Discord id per member (federation bans are keyed on discord_id, WIRE §4).
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
@@ -53,6 +55,7 @@ export async function GET() {
       return {
         ...r,
         userBanned: r.userId != null && bannedIds.has(r.userId),
+        userRole: r.userId != null ? userRole.get(r.userId) ?? null : null,
         effectiveDiscordId: did,
         federationBanned: did != null && fedBanned.has(did),
       };

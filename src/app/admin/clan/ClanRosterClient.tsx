@@ -23,6 +23,9 @@ interface ClanMember {
   // with one or more linked accounts).
   isPrimary: number;
   userBanned?: boolean;
+  // Live site role of the linked account ('admin' | 'treasurer' | 'moderator' | 'editor' |
+  // 'member'), null when the RSN has no site login yet. Drives the role filter.
+  userRole?: string | null;
   // Federation (WIRE §4): the authoritative Discord id + whether it's on the sticky federation
   // denylist. federationBanned members are blocked from re-joining via a broker /exchange (L2).
   effectiveDiscordId?: string | null;
@@ -37,6 +40,33 @@ type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
 type PendingRoleValue = PendingRole | 'none';
 
 type FilterMode = 'active' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+
+// Site roles a member can hold (or be queued for). 'staff' is the catch-all — anything above a
+// plain member — because "show me everyone with power" is the question staff actually ask.
+const ROLE_FILTERS = [
+  { value: 'staff', label: 'Any staff' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'treasurer', label: 'Treasurer' },
+  { value: 'moderator', label: 'Moderator' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'member', label: 'Member (no staff role)' },
+  { value: 'none', label: 'No site account' },
+] as const;
+type RoleFilter = (typeof ROLE_FILTERS)[number]['value'] | 'any';
+
+const STAFF_ROLES = new Set(['admin', 'treasurer', 'moderator', 'editor']);
+
+// A member matches a role filter on either their LIVE role or a queued (pending) one — a pre-assigned
+// admin is who you're looking for when you filter by admin, even before they've claimed their RSN.
+function matchesRole(m: ClanMember, filter: RoleFilter): boolean {
+  if (filter === 'any') return true;
+  const live = m.userRole ?? null;
+  const pending = m.pendingRole ?? null;
+  if (filter === 'none') return !m.userId;
+  if (filter === 'staff') return STAFF_ROLES.has(live || '') || STAFF_ROLES.has(pending || '');
+  if (filter === 'member') return !!m.userId && !STAFF_ROLES.has(live || '') && !pending;
+  return live === filter || pending === filter;
+}
 
 // How a member landed on the roster — friendlier than the raw source keys.
 const SOURCE_LABEL: Record<string, string> = {
@@ -113,6 +143,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('active');
+  // Secondary filters, applied on top of the status chips: in-game rank + site role.
+  const [rankFilter, setRankFilter] = useState<string>('any');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('any');
+
 
   const [showAdd, setShowAdd] = useState(false);
   const [addRsn, setAddRsn] = useState('');
@@ -196,9 +230,37 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       if (q && !m.rsn.toLowerCase().includes(q) && !(m.rank || '').toLowerCase().includes(q)) {
         return false;
       }
+      if (rankFilter !== 'any') {
+        const rank = (m.rank || '').trim();
+        if (rankFilter === 'none' ? !!rank : rank.toLowerCase() !== rankFilter.toLowerCase()) return false;
+      }
+      if (!matchesRole(m, roleFilter)) return false;
       return true;
     });
-  }, [members, search, filter]);
+  }, [members, search, filter, rankFilter, roleFilter]);
+
+  // Rank options come from the roster itself — in-game ranks are free text pushed by the plugin,
+  // so there's no fixed list to hardcode. Counted over the status-filtered set the chips describe.
+  const rankOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    let unranked = 0;
+    for (const m of members) {
+      const rank = (m.rank || '').trim();
+      if (!rank) {
+        unranked++;
+        continue;
+      }
+      counts.set(rank, (counts.get(rank) ?? 0) + 1);
+    }
+    const opts = [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
+      .map(([rank, n]) => ({ value: rank, label: `${rank} (${n})` }));
+    return [
+      { value: 'any', label: 'Any rank' },
+      ...opts,
+      ...(unranked ? [{ value: 'none', label: `No rank (${unranked})` }] : []),
+    ];
+  }, [members]);
 
   const counts = useMemo(() => {
     let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0;
@@ -575,6 +637,34 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               <span className="ml-1.5 opacity-70">({f.count})</span>
             </button>
           ))}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full sm:w-auto">
+          <Select
+            value={rankFilter}
+            onChange={setRankFilter}
+            ariaLabel="Filter by in-game rank"
+            options={rankOptions}
+          />
+          <Select
+            value={roleFilter}
+            onChange={(v) => setRoleFilter(v as RoleFilter)}
+            ariaLabel="Filter by site role"
+            options={[
+              { value: 'any', label: 'Any role' },
+              ...ROLE_FILTERS.map((r) => ({ value: r.value, label: r.label })),
+            ]}
+          />
+          {(rankFilter !== 'any' || roleFilter !== 'any') && (
+            <button
+              onClick={() => {
+                setRankFilter('any');
+                setRoleFilter('any');
+              }}
+              className="px-2 py-1.5 text-xs text-text-muted hover:text-foreground underline decoration-dotted self-start sm:self-auto"
+            >
+              Clear
+            </button>
+          )}
         </div>
         <Input
           type="text"
