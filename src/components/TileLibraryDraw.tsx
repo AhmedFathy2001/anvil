@@ -25,8 +25,9 @@ export default function TileLibraryDraw({
   onDrawn,
   bands = DEFAULT_TIER_BANDS,
 }: {
-  /** How many tiles the board needs — the draw is checked against it before you can build. */
-  target: number;
+  /** How many tiles the board needs, when it's fixed (create form). Omit on the Tiles tab, where a
+   *  draw is appended to an existing board and any size is valid. */
+  target?: number;
   drawn: LibraryTask[] | null;
   onDrawn: (tasks: LibraryTask[] | null) => void;
   bands?: TierBand[];
@@ -63,7 +64,7 @@ export default function TileLibraryDraw({
   // A sensible opening spread: weight the middle tiers, and never suggest more than the library
   // actually holds. Only seeded once meta arrives, and never over a user's own edits.
   useEffect(() => {
-    if (!meta || Object.keys(counts).length > 0 || target <= 0) return;
+    if (!meta || Object.keys(counts).length > 0 || !target || target <= 0) return;
     const weights: Record<string, number> = { troll: 0.05, easy: 0.3, medium: 0.35, hard: 0.2, ultra: 0.1 };
     const next: Record<string, number> = {};
     bands.forEach((b) => {
@@ -207,7 +208,7 @@ export default function TileLibraryDraw({
           </button>
         )}
         <span className="text-xs text-text-muted">
-          {asked} asked · board needs {target}
+          {asked} asked{target ? ` · board needs ${target}` : ''}
         </span>
       </div>
 
@@ -234,7 +235,7 @@ export default function TileLibraryDraw({
         </div>
       )}
 
-      {drawn && drawn.length !== target && (
+      {drawn && target !== undefined && drawn.length !== target && (
         <p className="text-xs text-yellow-400">
           {drawn.length} drawn but the board needs {target} — adjust the counts or the board size
           before creating.

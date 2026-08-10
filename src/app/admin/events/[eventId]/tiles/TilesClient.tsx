@@ -8,6 +8,7 @@ import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
+import LibraryTileGenerator from './LibraryTileGenerator';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
@@ -84,6 +85,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
@@ -577,9 +579,67 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   async function handleSkillsCreated(summary: { created: number; ignored: number; label: string }) {
     setImportMsg({
       type: 'success',
-      text: `Added ${summary.created} skill tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
     });
     await syncTilesFromServer();
+  }
+
+  /** A tile as a canonical CSV row — the shape the library and the importer both speak. */
+  function csvRowFromTile(tile: Parameters<typeof tileToCsvCells>[0]): Record<string, unknown> {
+    const cells = tileToCsvCells(tile);
+    const row: Record<string, unknown> = {};
+    TILE_CSV_COLUMNS.forEach((col, i) => {
+      const v = cells[i];
+      if (v !== undefined && v !== null && v !== '') row[col] = v;
+    });
+    return row;
+  }
+
+  /**
+   * Harvest: copy this board's configured tiles into the clan's task library so later boards can
+   * draw from them. Placeholder tiles ("Tile 7") are skipped — they carry no task. Deliberately
+   * additive and not deduped against what's already in the library: two boards can want the same
+   * chase at different point values, and the library page is where duplicates get pruned.
+   */
+  async function addBoardToLibrary() {
+    const usable = localTiles.filter((t) => t.label && !/^Tile \d+$/.test(t.label));
+    if (usable.length === 0) {
+      setImportMsg({ type: 'error', text: 'Nothing to add yet — this board only has placeholder tiles.' });
+      return;
+    }
+    if (!confirm(`Add ${usable.length} tile${usable.length === 1 ? '' : 's'} from this board to the task library?`)) return;
+    setSavingToLibrary(true);
+    try {
+      const res = await fetch('/api/admin/tile-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          sourceEventId: event.id,
+          tasks: usable.map((t) => ({
+            label: t.label,
+            points: t.points ?? 0,
+            category: t.category ?? null,
+            description: t.description ?? null,
+            tileType: t.tileType ?? 'standard',
+            config: csvRowFromTile(t),
+          })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not add these tiles to the library.' });
+        return;
+      }
+      setImportMsg({
+        type: 'success',
+        text: `Added ${data.added ?? usable.length} task${(data.added ?? usable.length) === 1 ? '' : 's'} to the library.`,
+      });
+    } catch {
+      setImportMsg({ type: 'error', text: 'Could not add these tiles to the library.' });
+    } finally {
+      setSavingToLibrary(false);
+    }
   }
 
   return (
@@ -641,6 +701,31 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             onCreated={handleSkillsCreated}
             onError={(text) => setImportMsg({ type: 'error', text })}
           />
+          <LibraryTileGenerator
+            eventId={event.id}
+            canGrow={canEditTileSet}
+            onCreated={handleSkillsCreated}
+            onError={(text) => setImportMsg({ type: 'error', text })}
+          />
+          {/* The reverse direction: this board feeding the library, and the library (or this board)
+              leaving as a shareable seed pack. */}
+          <span className="w-px h-4 bg-card-border" aria-hidden />
+          <button
+            type="button"
+            onClick={addBoardToLibrary}
+            disabled={savingToLibrary}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+            title="Copy every configured tile on this board into the clan's task library, so future boards can draw from them"
+          >
+            {savingToLibrary ? 'Adding…' : '＋ Add board to library'}
+          </button>
+          <a
+            href={`/api/admin/tile-library/export?eventId=${event.id}`}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+            title="Download this board as a seed pack — commit it as the default starter list, or hand it to another Anvil site"
+          >
+            ⬇ Export seed pack
+          </a>
         </div>
         <p className="text-xs text-text-muted leading-relaxed">
           Configure many tiles at once — ideal for Leagues-style boards. Rows map onto tiles by order
