@@ -19,6 +19,7 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { eventTileCount, eventShapeBadge, tileWeight, isPointsMode } from '@/lib/utils';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { signupWindowState } from '@/lib/signup';
+import { getClanDisplayName } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,9 +29,9 @@ function metricLabel(comp: { type: string; metric: string }): string {
 }
 
 export default async function HomePage() {
-  // Clan name from settings (admin-configured, falls back to env or "Anvil")
-  const clanNameRow = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-  const clanName = clanNameRow?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+  // Clan DISPLAY name (admin-configured, falls back to env or "Anvil"). Distinct from the in-game
+  // clan name, which only gates the plugin's roster sync.
+  const clanName = await getClanDisplayName();
 
   // Clan-specific Discord invite — admin-configurable with an env fallback; the quick link is
   // omitted entirely when neither is set.

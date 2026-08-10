@@ -1,23 +1,25 @@
 import Link from 'next/link';
 import { db } from '@/db';
-import { eventPresets, events, settings } from '@/db/schema';
-import { count, desc, eq } from 'drizzle-orm';
+import { eventPresets, events } from '@/db/schema';
+import { count, desc } from 'drizzle-orm';
 import EventForm from '@/components/EventForm';
 import { BUILTIN_PRESETS, suggestEventName, type EventPreset } from '@/lib/eventPresets';
 import { modeKeyFor } from '@/lib/eventModes';
 import { parseTileCsv } from '@/lib/csvTiles';
+import { getClanDisplayName } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewEventPage() {
   // Auto-name: "{Clan} Bingo #N" so the name field is never blank. Pull the clan name +
   // how many events exist so we can suggest the next number.
-  const [clanRow, [ec], savedRows] = await Promise.all([
-    db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') }),
+  const [clanName, [ec], savedRows] = await Promise.all([
+    // Display name — the suggestion is prose ("{Clan} Bingo #3"), not an in-game match.
+    getClanDisplayName(''),
     db.select({ c: count() }).from(events),
     db.select().from(eventPresets).orderBy(desc(eventPresets.createdAt)),
   ]);
-  const suggestedName = suggestEventName(clanRow?.value || '', ec?.c ?? 0);
+  const suggestedName = suggestEventName(clanName, ec?.c ?? 0);
 
   // Turn saved templates into gallery presets. Their captured tile CSV is parsed back into
   // rows/labels here so applying one seeds the board through the same import pipeline a

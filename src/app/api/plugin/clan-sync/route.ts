@@ -8,6 +8,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { rosterCapStatus } from '@/lib/member-cap';
+import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
 
 interface IncomingMember {
@@ -25,14 +26,6 @@ interface ChangeRecord {
   oldRank?: string | null;
   newRank?: string | null;
   memberId: number;
-}
-
-async function getConfiguredClanName(): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-  const fromDb = row?.value?.trim();
-  if (fromDb) return fromDb;
-  const fromEnv = process.env.CLAN_NAME?.trim();
-  return fromEnv || null;
 }
 
 // POST — admin plugin pushes the current in-game clan roster.
@@ -67,7 +60,9 @@ export async function POST(request: Request) {
   const members = Array.isArray(body.members) ? body.members : null;
   if (!members) return NextResponse.json({ error: 'members[] required' }, { status: 400 });
 
-  const expectedClanName = await getConfiguredClanName();
+  // Gate on the IN-GAME clan name (settings.clan_ingame_name), never the display name — those two
+  // are allowed to differ, and a site rename must not start rejecting the roster sync.
+  const expectedClanName = await getInGameClanName();
   if (expectedClanName && clanName.toLowerCase() !== expectedClanName.toLowerCase()) {
     return NextResponse.json(
       { error: 'clanMismatch', serverClanName: expectedClanName, reportedClanName: clanName },

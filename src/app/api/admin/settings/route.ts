@@ -13,7 +13,10 @@ const EXPOSED_KEYS = [
   'discord_webhook_bingo',
   'discord_webhook_weekly',
   'discord_webhook_signups',
+  // Display name (site, plugin, Discord posts, federation directory) vs the exact in-game clan
+  // name the roster sync must report. Independent on purpose — see lib/pluginConfig.ts.
   'clan_name',
+  'clan_ingame_name',
   // Public Discord invite shown in the nav + home quick links. Hidden when blank.
   'discord_invite_url',
   // Role pinged on bingo event start/finish posts. Blank = no ping.

@@ -7,7 +7,6 @@ import {
   events,
   eventSignups,
   players,
-  settings,
   teams,
   users,
   weeklyCompetitions,
@@ -20,7 +19,7 @@ import { signupWindowState } from '@/lib/signup';
 import LinkAccountClient from './LinkAccountClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import ConnectedPluginsClient from './ConnectedPluginsClient';
-import { getFederationEnabled } from '@/lib/pluginConfig';
+import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
 import LinkedAccountsClient from './LinkedAccountsClient';
@@ -126,8 +125,7 @@ export default async function ProfilePage({
   const hasVerifiedAccount = linkedAccounts.some((m) => m.verifiedAt);
   let gettingStarted: GettingStartedProps | null = null;
   if (welcomeParam || !hasVerifiedAccount) {
-    const clanNameRow = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-    const clanName = clanNameRow?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+    const clanName = await getClanDisplayName();
 
     // Weekly: roster members are enrolled automatically by the cron, so this step is
     // informational — "you're tracked" / "you will be once you're on the roster".
