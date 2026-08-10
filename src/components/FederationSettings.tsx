@@ -174,25 +174,26 @@ export default function FederationSettings() {
     );
   }
 
-  // Friendly summary of the trusted-servers JSON for the collapsed advanced section — hostnames
-  // only; the raw editor stays available for self-hosters pointing at a different broker.
-  let trustedHosts: string[] = [];
-  try {
-    const parsed = JSON.parse(brokerTrust || '[]');
-    if (Array.isArray(parsed)) {
-      trustedHosts = parsed
-        .map((b) => {
-          try {
-            return new URL(b?.iss).hostname;
-          } catch {
-            return null;
-          }
-        })
-        .filter((h): h is string => !!h);
-    }
-  } catch {
-    // Unparseable while the admin is mid-edit — the summary just goes quiet.
-  }
+  // Friendly summary of the trusted servers — hostnames only; the raw editor stays available for
+  // self-hosters pointing at a different broker.
+  //
+  // `brokerTrust` holds the LINE form ("<iss> [jwksUrl]" per line, via jsonToTrustLines), not the
+  // stored JSON. Parsing it as JSON threw on every valid value, leaving trustedHosts empty — which
+  // made a correctly-connected clan permanently display "Not finished connecting — no identity
+  // server is trusted yet" while the right URL sat in the box underneath it. Read the same shape the
+  // textarea holds and the save path consumes.
+  const trustedHosts: string[] = brokerTrust
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/).filter(Boolean)[0])
+    .filter((token): token is string => !!token)
+    .map((token) => {
+      try {
+        return new URL(token).hostname;
+      } catch {
+        return null; // mid-edit, or junk the save will reject with a clearer message
+      }
+    })
+    .filter((h): h is string => !!h);
 
   return (
     <div className="space-y-5">
