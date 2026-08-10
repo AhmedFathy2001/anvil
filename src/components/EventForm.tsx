@@ -9,6 +9,8 @@ import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
+import TileLibraryDraw from '@/components/TileLibraryDraw';
+import type { LibraryTask } from '@/lib/tileLibrary';
 
 interface EventFormProps {
   presets?: EventPreset[];
@@ -61,11 +63,19 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [presetCsv, setPresetCsv] = useState<{ rows: TileCsvRow[]; labels: string[]; source: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
+  // a random draw from the clan's task library.
+  const [startFrom, setStartFrom] = useState<'blank' | 'template' | 'generate'>('blank');
+  const [drawn, setDrawn] = useState<LibraryTask[] | null>(null);
 
   const meta = MODES.find((m) => m.key === mode)!;
   // The reveal policy actually in effect: a ladder uses its rotation sub-choice; every other mode
   // uses its fixed preset policy. Drives the config UI + the create payload.
   const effectivePolicy = mode === 'ladder' ? ladderRotation : meta.revealPolicy;
+
+  // How many tiles this board will actually have — N² for a square grid, N otherwise. The generator
+  // draws against this number, and the create API rejects a mismatch.
+  const expectedTiles = meta.square ? size * size : size;
 
   function changeMode(next: Mode) {
     const m = MODES.find((x) => x.key === next)!;
@@ -74,10 +84,13 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     setPresetCsv(null);
     setActivePreset(null);
     setPresetLabels(null);
+    setDrawn(null);
     setError('');
   }
 
   function applyPreset(preset: EventPreset) {
+    setStartFrom('template');
+    setDrawn(null);
     setMode(preset.mode);
     setSize(preset.size);
     setActivePreset(preset.key);
@@ -105,6 +118,18 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    // A generated board must line up with the board's tile count before we create anything —
+    // the create API rejects a mismatch, and failing here says why in the user's own terms.
+    if (startFrom === 'generate') {
+      if (!drawn || drawn.length === 0) {
+        setError('Draw some tasks from the library first, or switch to a blank board.');
+        return;
+      }
+      if (drawn.length !== expectedTiles) {
+        setError(`Drew ${drawn.length} tasks but this board needs ${expectedTiles}. Adjust the counts or the board size.`);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/events', {
@@ -132,7 +157,13 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 },
               }
             : {}),
-          ...(presetCsv ? { tileLabels: presetCsv.labels } : presetLabels ? { tileLabels: presetLabels } : {}),
+          ...(startFrom === 'generate' && drawn
+            ? { tileLabels: drawn.map((t) => t.label) }
+            : presetCsv
+              ? { tileLabels: presetCsv.labels }
+              : presetLabels
+                ? { tileLabels: presetLabels }
+                : {}),
         }),
       });
       const data: { id?: number; error?: string } = await res.json().catch(() => ({}));
@@ -142,13 +173,18 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         return;
       }
 
-      // A saved template also carries rich per-tile config — apply it via the shared importer.
-      // The event already exists with the right labels, so a failed import is non-fatal.
-      if (presetCsv) {
+      // Rich per-tile config (a saved template's, or the library tasks just drawn) rides in through
+      // the shared importer rather than the create API, which only speaks labels. The event already
+      // exists with the right labels either way, so a failed import degrades to a named-but-blank
+      // board instead of losing the event.
+      const richRows = startFrom === 'generate' && drawn
+        ? drawn.map((t) => ({ ...t.config, label: t.label, points: t.points, category: t.category ?? undefined }))
+        : presetCsv?.rows;
+      if (richRows && richRows.length > 0) {
         await fetch(`/api/events/${data.id}/tiles/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: presetCsv.rows }),
+          body: JSON.stringify({ rows: richRows }),
         }).catch(() => {});
       }
 
@@ -164,8 +200,49 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
         <div className="space-y-5 min-w-0">
-      {/* Template gallery â one click pre-fills mode + size (+ any saved tiles). */}
-        {presets.length > 0 && (
+          {/* Where the tiles come from. Blank stays the default — most boards are authored by hand
+              on the Tiles tab, and the other two are opt-in. */}
+          <div>
+            <label className="block text-sm font-medium text-foreground/70 mb-1.5">Start from</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['blank', 'Blank board'],
+                ['template', 'A template'],
+                ['generate', 'Draw from library'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    setStartFrom(key);
+                    if (key !== 'generate') setDrawn(null);
+                    if (key !== 'template') {
+                      setActivePreset(null);
+                      setPresetCsv(null);
+                      setPresetLabels(null);
+                    }
+                  }}
+                  aria-pressed={startFrom === key}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    startFrom === key
+                      ? 'bg-gold/15 border-gold text-gold'
+                      : 'border-card-border text-text-muted hover:border-gold/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {startFrom === 'generate' && (
+            <Section title="Draw from the task library">
+              <TileLibraryDraw target={expectedTiles} drawn={drawn} onDrawn={setDrawn} />
+            </Section>
+          )}
+
+          {/* Template gallery — one click pre-fills mode + size (+ any saved tiles). */}
+          {startFrom === 'template' && presets.length > 0 && (
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Start from a template</label>
             <div className="grid sm:grid-cols-2 gap-2">
@@ -223,7 +300,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             />
           </div>
 
-          {/* Format â one choice drives format + scoring + reveal policy. Each card carries a
+          {/* Format — one choice drives format + scoring + reveal policy. Each card carries a
               diagram of the board it produces, because the names alone never said enough. */}
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
@@ -283,7 +360,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             </div>
           </Section>
 
-          {/* Reveal-policy config â modes that hide tiles (showdown / lucky draw / bounty) and the
+          {/* Reveal-policy config — modes that hide tiles (showdown / lucky draw / bounty) and the
               ladder's rotation sub-choice. */}
           {effectivePolicy && (
             <Section title="Reveal & scoring">
@@ -384,7 +461,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </div>
               </div>
 
-              {/* Point value over time â a tile's points slide from 100% toward a target as it ages.
+              {/* Point value over time — a tile's points slide from 100% toward a target as it ages.
                   Decay (target < 100) rewards racing; growth (target > 100) rewards clearing older tasks. */}
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
@@ -449,7 +526,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 )}
               </div>
 
-              {/* Lockout â bounty is single-claim by definition, so only offer it on the other modes. */}
+              {/* Lockout — bounty is single-claim by definition, so only offer it on the other modes. */}
               {effectivePolicy !== 'bounty' && (
                 <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
                   <input
@@ -515,7 +592,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           </Section>
         </div>
 
-        {/* Live preview â what the choices above actually produce. Sticky on wide screens so it
+        {/* Live preview — what the choices above actually produce. Sticky on wide screens so it
             stays in view while the config scrolls past it. */}
         <aside className="lg:sticky lg:top-4">
           <div className="border border-gold/25 rounded-xl bg-gold/5 p-4">
