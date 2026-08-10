@@ -9,9 +9,17 @@
 // into their "gained". There is no way to separate pre- vs in-window XP from
 // hiscores data alone (Wise Old Man has the same limitation for non-plugin users).
 //
-// So instead of trying to *prevent* it, we *detect* it: if the gained amount could
-// not physically have been earned in the elapsed competition time, flag the row so
+// So instead of trying to *prevent* it, we *detect* it: if the CUMULATIVE gained amount
+// could not physically have been earned in the elapsed competition time, flag the row so
 // an admin can correct the baseline by hand.
+//
+// IMPORTANT: measure over the whole competition, NOT the 15-min sweep interval. Because
+// hiscores only move on logout, a legit multi-hour grind lands in a SINGLE sweep — so
+// `delta / sweep-interval` looks impossibly fast (e.g. 542K fishing in one 15-min tick =
+// 2.1M xp/hr) and false-flags honest play. `totalGain / hours-since-comp-start` is the
+// real rate: 542K over two days is ~11K xp/hr — trivially plausible. Only a total that
+// exceeds the metric's max sustained rate for the ELAPSED comp time is physically
+// impossible, which is the genuine stale-baseline tell.
 //
 // This module is pure (no server/db imports) so it can run in the admin client too.
 
@@ -87,19 +95,17 @@ export function getMaxRatePerHour(type: string, metric: string): number {
   return SKILL_MAX_XP_PER_HOUR[metric] ?? 1_500_000;
 }
 
-// Below these absolute single-fetch jumps we never flag, regardless of rate — keeps
-// small honest catch-up flushes from lighting up the board. KPX's 103.9K fishing and
-// BBoys' 60.8K both clear the skill floor; a player whose 5K pre-event grind flushed
-// in would not (not worth an admin's attention).
+// Below these absolute cumulative gains we never flag, regardless of rate — keeps small
+// honest totals from lighting up the board while a comp is only minutes old.
 const SKILL_GAIN_FLOOR = 50_000;
 const BOSS_GAIN_FLOOR = 30;
 
 export interface RateCheckInput {
   type: string; // 'skill' | 'boss'
   metric: string;
-  delta: number; // value gained between the two fetches (xp for skills, KC for bosses)
-  fromIso: string | null; // timestamp of the previous fetch
-  toIso: string; // timestamp of this fetch
+  gained: number; // CUMULATIVE gain so far (current - baseline): xp for skills, KC for bosses
+  sinceIso: string | null; // elapsed-time anchor — the competition start (baseline-capture proxy)
+  toIso: string; // "now" for this check
   now?: number; // injectable for tests / fallback when toIso is unparseable
 }
 
@@ -118,24 +124,21 @@ const NOT_FLAGGED: RateCheckResult = {
 };
 
 /**
- * Decide whether the jump between two consecutive stat fetches is physically
- * impossible. This runs at write time (cron / admin refresh) on the INCREMENT — not
- * on cumulative gains — so it catches the logout flush at the moment it lands and the
- * verdict can be persisted. A cumulative rate would wash out as the comp runs and stop
- * flagging within the hour, which is why detection happens per-fetch instead.
- *
- * `delta / hours` is the realised rate for this interval; if it beats the max plausible
- * rate for the metric, the jump could not have been earned in the elapsed real time.
+ * Decide whether a participant's CUMULATIVE gain is physically impossible for the elapsed
+ * competition time. Rate = totalGain / hours-since-comp-start; if it beats the metric's max
+ * sustained rate, the total couldn't have been earned since the comp began — the stale-baseline
+ * tell. Measuring over the whole comp (not the sweep interval) is what stops honest logout
+ * flushes from false-flagging: the XP lands in one tick but was earned over hours.
  */
 export function checkRateSpike(input: RateCheckInput): RateCheckResult {
-  const { type, metric, delta } = input;
-  if (!(delta > 0)) return NOT_FLAGGED;
+  const { type, metric, gained } = input;
+  if (!(gained > 0)) return NOT_FLAGGED;
 
   const floor = type === 'boss' ? BOSS_GAIN_FLOOR : SKILL_GAIN_FLOOR;
-  if (delta < floor) return NOT_FLAGGED;
+  if (gained < floor) return NOT_FLAGGED;
 
-  if (!input.fromIso) return NOT_FLAGGED; // no prior fetch to measure against
-  const fromMs = Date.parse(input.fromIso);
+  if (!input.sinceIso) return NOT_FLAGGED; // no comp-start anchor to measure against
+  const fromMs = Date.parse(input.sinceIso);
   const toMs = Number.isNaN(Date.parse(input.toIso)) ? (input.now ?? Date.now()) : Date.parse(input.toIso);
   if (Number.isNaN(fromMs)) return NOT_FLAGGED;
 
@@ -143,7 +146,7 @@ export function checkRateSpike(input: RateCheckInput): RateCheckResult {
   if (!(hours > 0)) return NOT_FLAGGED;
 
   const maxRatePerHour = getMaxRatePerHour(type, metric);
-  const ratePerHour = delta / hours;
+  const ratePerHour = gained / hours;
 
   return {
     flagged: ratePerHour > maxRatePerHour,
@@ -159,6 +162,6 @@ export function checkRateSpike(input: RateCheckInput): RateCheckResult {
  */
 export function describeRateSpike(type: string, result: RateCheckResult): string {
   const unit = type === 'boss' ? 'KC/hr' : 'xp/hr';
-  const mins = Math.round(result.hours * 60);
-  return `~${Math.round(result.ratePerHour).toLocaleString()} ${unit} in ${mins}m (max ~${result.maxRatePerHour.toLocaleString()} ${unit}) — likely pre-event progress flushed in by a stale baseline`;
+  const elapsed = result.hours >= 1 ? `${Math.round(result.hours)}h` : `${Math.round(result.hours * 60)}m`;
+  return `~${Math.round(result.ratePerHour).toLocaleString()} ${unit} averaged over ${elapsed} (max ~${result.maxRatePerHour.toLocaleString()} ${unit}) — more than the metric allows for the elapsed comp time; likely a stale baseline swept in pre-event progress`;
 }

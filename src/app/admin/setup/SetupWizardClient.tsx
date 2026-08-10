@@ -19,6 +19,9 @@ interface Props {
   // then falls back to paste-only.
   channels: BroadcastChannel[];
   botEnabled: boolean;
+  // Managed clan: identity fields were collected at sign-up (provisioner env → seeded settings),
+  // not typed here — flavors the "already filled in" notice on skipped-into steps.
+  provisioned: boolean;
 }
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
@@ -27,9 +30,25 @@ type Msg = { type: 'success' | 'error'; text: string } | null;
 // which creates/pastes and saves each webhook immediately, so those steps just advance.
 const TOTAL_STEPS = 3;
 
-export default function SetupWizardClient({ initial, channels, botEnabled }: Props) {
+// A step whose fields are already satisfied is skipped at open (Back still reaches it, prefilled).
+// Step 1's invite is optional — a set clan name alone satisfies it (managed sign-up asked for the
+// invite already; leaving it blank there was a choice). Step 3 is all-optional, so it only counts
+// as done when BOTH webhooks exist — otherwise it must still be offered.
+function firstIncompleteStep(initial: Props['initial']): number {
+  const done = [
+    !!initial.clanName.trim(),
+    !!initial.webhookUrl.trim(),
+    !!(initial.rareDrops.trim() && initial.deaths.trim()),
+  ];
+  const first = done.indexOf(false);
+  return first === -1 ? TOTAL_STEPS : first; // everything done → straight to the Done screen
+}
+
+export default function SetupWizardClient({ initial, channels, botEnabled, provisioned }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  // Open at the first step with anything left to do; already-satisfied steps are skipped.
+  const [initialStep] = useState(() => firstIncompleteStep(initial));
+  const [step, setStep] = useState(initialStep);
 
   const [clanName, setClanName] = useState(initial.clanName);
   const [inviteUrl, setInviteUrl] = useState(initial.inviteUrl);
@@ -105,6 +124,30 @@ export default function SetupWizardClient({ initial, channels, botEnabled }: Pro
       {!isDone && <StepDots current={step} total={TOTAL_STEPS} />}
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 mt-5">
+        {/* Skipped-ahead notice: shown on the step we opened at when earlier steps were auto-
+            skipped, saying where the prefilled values came from and where to change them. */}
+        {initialStep > 0 && step === initialStep && !isDone && (
+          <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3">
+            <span className="text-gold text-sm leading-5" aria-hidden>
+              ✓
+            </span>
+            <p className="text-sm text-text-muted leading-relaxed">
+              {provisioned
+                ? 'Your clan name and Discord details from sign-up are already filled in, so we skipped what’s done. '
+                : 'Steps you’ve already completed were skipped. '}
+              Change any of it later in the{' '}
+              <Link href="/admin/clan" className="text-gold hover:underline">
+                Clan hub
+              </Link>{' '}
+              or{' '}
+              <Link href="/admin/integrations" className="text-gold hover:underline">
+                Advanced settings
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
         {/* Step 1 — Your clan */}
         {step === 0 && (
           <StepShell

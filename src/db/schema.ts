@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const events = sqliteTable('events', {
@@ -92,6 +92,11 @@ export const events = sqliteTable('events', {
   //   plus firstBonus / decay / lockout scoring modifiers.
   // NULL = classic behaviour everywhere; parseEventRules(null) returns the defaults.
   rules: text('rules'),
+  // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
+  // event-content mutation (teams, players, draft, tiles, completions, submissions — see
+  // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
+  // again. NULL = locked once finished (the default for every event).
+  editUnlockedAt: text('edit_unlocked_at'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -180,6 +185,16 @@ export const tiles = sqliteTable('tiles', {
   revealAt: text('reveal_at'),
   revealedAt: text('revealed_at'),
   closedAt: text('closed_at'),
+  // MISSION tiles (DMM-All-Stars-style objectives dropped mid-event). A mission is hidden until
+  // ANNOUNCED (which stamps revealedAt, the decay anchor) — independent of the board's revealPolicy,
+  // so a classic bingo can still drop missions while its normal tiles stay visible. Announced from
+  // their own pool (event rules.mission: manual / interval / scheduled, random or in order); each
+  // mission carries its own scoring in `rules` and can auto-expire.
+  mission: integer('mission').default(0).notNull(),
+  // Per-MISSION scoring JSON (null on normal tiles): { lockout?, firstBonus?, decay?:{targetPct,hours},
+  // expiryHours? } — parsed by lib/eventRules.parseTileMissionRules and merged over the event rules in
+  // the completion gate. Decay/first-bonus only bite in a points-scoring event; lockout works anywhere.
+  rules: text('rules'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
 ]);
@@ -307,10 +322,13 @@ export const players = sqliteTable('players', {
   frozenStats: text('frozen_stats'),
   // Fun end-of-event "recap" counters, pushed by the plugin as ABSOLUTE per-event totals and max-merged
   // (idempotent — a retry / client restart can't double-count). `deaths` = the player's own deaths this
-  // event; `lootGpGained` = GE value of ALL loot the plugin saw this event (not just value-tile hauls).
-  // Purely cosmetic (superlatives — "Most Deaths", "Loot Lord"); never feeds scoring. See lib/eventRecap.
+  // event; `lootGpGained` = GE value of ALL loot the plugin saw this event (not just value-tile hauls);
+  // `pvpKills` = every "You have defeated" the plugin saw this event, so the PKer superlative works
+  // even when the board has no pvp tile. Purely cosmetic (superlatives — "Most Deaths", "Loot Lord",
+  // "PKer"); never feeds scoring. See lib/eventRecap.
   deaths: integer('deaths').default(0),
   lootGpGained: integer('loot_gp_gained').default(0),
+  pvpKills: integer('pvp_kills').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -406,6 +424,14 @@ export const users = sqliteTable('users', {
   // mod-tier roles with one extra capability each (fee collection / tile authoring).
   //   admin > {treasurer, editor} > moderator > member.
   role: text('role').notNull().default('member'),
+  // Editor reach. Only meaningful for role 'editor':
+  //   'all'      — global editor: can author tiles on EVERY event (the classic editor behavior).
+  //   'assigned' — board-scoped editor: can author tiles only on events they hold an event_editors
+  //                grant for, and only sees those events in the admin list.
+  // Defaults to 'all' so every pre-existing editor keeps global reach. Non-editor roles ignore it.
+  // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
+  // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
+  editorScope: text('editor_scope').notNull().default('all'),
   // The clan owner — the person who provisioned this instance. Exactly one user has this set.
   // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
   // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can
@@ -447,6 +473,22 @@ export const users = sqliteTable('users', {
   federationSyncedAt: text('federation_synced_at'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
+]);
+
+// Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though
+// they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
+// by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
+// the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
+export const eventEditors = sqliteTable('event_editors', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  // The admin who granted this (audit only; nullable for system/backfill rows).
+  grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('event_editors_event_user_unique').on(table.eventId, table.userId),
+  index('event_editors_user_idx').on(table.userId),
 ]);
 
 export const weeklyCompetitions = sqliteTable('weekly_competitions', {
@@ -800,6 +842,50 @@ export const playerSnapshots = sqliteTable('player_snapshots', {
   uniqueIndex('player_snapshots_member_comp_kind_idx').on(table.clanMemberId, table.weeklyCompetitionId, table.kind),
 ]);
 
+// One materialized row per PERSON per finished event — the longitudinal evidence the player
+// profile folds over (balance-engine plan). Written once at event end (idempotent re-write on
+// demand), backfillable for past events. A person = linked user ('u<id>') > clan member
+// ('m<id>') > bare RSN ('n<rsn>') — durable across events, unlike per-event player ids.
+export const playerEventFacts = sqliteTable('player_event_facts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  personKey: text('person_key').notNull(),
+  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(), // lead-account display name at event time
+  accounts: integer('accounts').default(1).notNull(),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  // Outcome facts (points via the same split the scoreboard/MVP math uses).
+  points: real('points').default(0).notNull(),
+  tilesContributed: integer('tiles_contributed').default(0).notNull(),
+  tilesFinished: integer('tiles_finished').default(0).notNull(),
+  submissions: integer('submissions').default(0).notNull(),
+  xpGained: integer('xp_gained').default(0).notNull(),
+  kcGained: integer('kc_gained').default(0).notNull(),
+  deaths: integer('deaths').default(0).notNull(),
+  lootGpGained: integer('loot_gp_gained').default(0).notNull(),
+  pvpKills: integer('pvp_kills').default(0).notNull(),
+  // Timeline / reliability. Days are 1-based from event start; lastActiveDay NULL = never active.
+  // July lesson: WHEN someone went dark matters as much as whether — a mid-event drop-off on a
+  // collapsed team is environmental, not personal.
+  activeDays: integer('active_days').default(0).notNull(),
+  lastActiveDay: integer('last_active_day'),
+  eventDays: integer('event_days'),
+  subbedOut: integer('subbed_out').default(0).notNull(),
+  // Team context, so the profile fold can discount demoralized-team events: the team's final
+  // rank/points next to the winner's lets "gave up once buried" read differently from "no-show".
+  teamRank: integer('team_rank'),
+  teamsTotal: integer('teams_total'),
+  teamPoints: real('team_points'),
+  topTeamPoints: real('top_team_points'),
+  // Extensible extras (timed PBs, per-domain rates) as JSON — additive without migrations.
+  detail: text('detail'),
+  computedAt: text('computed_at').notNull(),
+}, (table) => [
+  uniqueIndex('player_event_facts_event_person_idx').on(table.eventId, table.personKey),
+  index('player_event_facts_person_idx').on(table.personKey),
+]);
+
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.
 // Plugin exchanges {code, rsn} for a pluginLinks row.
 export const pluginLinkCodes = sqliteTable('plugin_link_codes', {
@@ -1004,6 +1090,11 @@ export const federationConnections = sqliteTable('federation_connections', {
   // The federation token the REMOTE clan minted at its /exchange (a secret we hold to act as this
   // member there). Raw, not hashed — we must replay it as a Bearer. See note above.
   token: text('token').notNull(),
+  // What the remote said this member IS to them at /exchange (WIRE §7): 1 = an auto-created federation
+  // guest, 0 = a real member of that clan. Re-stamped on every re-sync, so a guest promoted to member
+  // there flips here within the sync window. The plugin uses it to land the sidebar on the clan the
+  // player actually belongs to instead of always the configured home.
+  isGuest: integer('is_guest').default(0).notNull(),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   lastUsedAt: text('last_used_at'),
 }, (table) => [

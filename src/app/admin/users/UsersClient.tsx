@@ -68,6 +68,72 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Board-editor assignment modal — which events a person may edit tiles on (the per-user side of
+  // the per-event Board editors panel). Backed by /api/admin/users/[id]/editor-events.
+  const [boardsUser, setBoardsUser] = useState<User | null>(null);
+  const [boardsEvents, setBoardsEvents] = useState<{ id: number; name: string }[]>([]);
+  const [boardsSel, setBoardsSel] = useState<Set<number>>(new Set());
+  const [boardsEditsAll, setBoardsEditsAll] = useState(false);
+  const [boardsLoading, setBoardsLoading] = useState(false);
+  const [boardsSaving, setBoardsSaving] = useState(false);
+  const [boardsError, setBoardsError] = useState('');
+
+  async function openBoards(user: User) {
+    setBoardsUser(user);
+    setBoardsLoading(true);
+    setBoardsError('');
+    setBoardsEvents([]);
+    setBoardsSel(new Set());
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/editor-events`);
+      if (res.ok) {
+        const d = await res.json();
+        setBoardsEvents(d.events ?? []);
+        setBoardsSel(new Set<number>(d.assignedEventIds ?? []));
+        setBoardsEditsAll(!!d.editsAllBoards);
+      } else {
+        setBoardsError('Could not load boards.');
+      }
+    } catch {
+      setBoardsError('Could not load boards.');
+    } finally {
+      setBoardsLoading(false);
+    }
+  }
+
+  function toggleBoard(eventId: number) {
+    setBoardsSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+  }
+
+  async function saveBoards() {
+    if (!boardsUser) return;
+    setBoardsSaving(true);
+    setBoardsError('');
+    try {
+      const res = await fetch(`/api/admin/users/${boardsUser.id}/editor-events`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventIds: Array.from(boardsSel) }),
+      });
+      if (res.ok) {
+        setBoardsUser(null);
+        await fetchUsers();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setBoardsError(d.error || 'Could not save boards.');
+      }
+    } catch {
+      setBoardsError('Could not save boards.');
+    } finally {
+      setBoardsSaving(false);
+    }
+  }
+
   async function fetchUsers() {
     const res = await fetch('/api/admin/users');
     if (res.ok) {
@@ -242,6 +308,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
       });
     }
     items.push({ label: 'Rename', onClick: () => startEdit(user) });
+    // Board editing is a per-event grant; admins already edit every board, so skip it for them.
+    if (user.role !== 'admin') {
+      items.push({ label: 'Boards…', onClick: () => openBoards(user), title: 'Choose which event boards this person can edit' });
+    }
     items.push({
       label: user.banned ? 'Unban' : 'Ban',
       onClick: () => banUser(user),
@@ -451,6 +521,61 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {boardsUser && (
+        <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
+          <h3 className="font-semibold mb-1">Board editing: {boardsUser.displayName}</h3>
+          <p className="text-sm text-text-muted mb-4">
+            Tick the boards this person may build and edit tiles on. Granting a board to a regular
+            member gives them just enough access to reach that board&apos;s Tiles tab.
+          </p>
+          {boardsLoading ? (
+            <p className="text-sm text-text-muted">Loading…</p>
+          ) : boardsEditsAll ? (
+            <p className="text-sm rounded-lg border border-accent-green/30 bg-accent-green/10 text-accent-green-light px-3 py-2 mb-4">
+              This person already edits <span className="font-semibold">every board</span> (
+              {boardsUser.role === 'admin' ? 'admin' : 'global Editor role'}). To scope them to specific
+              boards, first set their role to Member, then grant boards here.
+            </p>
+          ) : boardsEvents.length === 0 ? (
+            <p className="text-sm text-text-muted mb-4">No events exist yet.</p>
+          ) : (
+            <ul className="mb-4 max-h-72 overflow-y-auto divide-y divide-card-border/50 border border-card-border rounded-lg">
+              {boardsEvents.map((ev) => (
+                <li key={ev.id}>
+                  <label className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-card-bg-hover transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={boardsSel.has(ev.id)}
+                      onChange={() => toggleBoard(ev.id)}
+                      className="accent-gold w-4 h-4"
+                    />
+                    <span className="text-sm text-foreground truncate">{ev.name}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          {boardsError && <p className="text-red-400 text-sm mb-3">{boardsError}</p>}
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setBoardsUser(null)}
+              className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveBoards}
+              disabled={boardsSaving || boardsLoading || boardsEditsAll}
+              className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+            >
+              {boardsSaving ? 'Saving…' : 'Save boards'}
+            </button>
+          </div>
         </div>
       )}
 

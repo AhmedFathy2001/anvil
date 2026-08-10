@@ -70,6 +70,8 @@ interface PersonStat {
   kills: number;
   drops: number;
   pvpKills: number;
+  /** Plugin-pushed per-event "You have defeated" total — covers PKs with no pvp tile on the board. */
+  pvpKillCounter: number;
   deathlessClears: number;
   submissions: number;
   tilesFinished: number;
@@ -94,6 +96,7 @@ function emptyStat(personKey: string): PersonStat {
     kills: 0,
     drops: 0,
     pvpKills: 0,
+    pvpKillCounter: 0,
     deathlessClears: 0,
     submissions: 0,
     tilesFinished: 0,
@@ -202,6 +205,7 @@ async function computeRecap(eventId: number): Promise<{
       // Plugin-pushed per-event counters live on the player row — sum them across a person's accounts.
       s.deaths += p.deaths ?? 0;
       s.lootGpTotal += p.lootGpGained ?? 0;
+      s.pvpKillCounter += p.pvpKills ?? 0;
     }
     if (!s.name) {
       s.name = p.name;
@@ -213,13 +217,30 @@ async function computeRecap(eventId: number): Promise<{
   }
 
   // Fold submissions into per-person tallies.
+  //
+  // "Submissions" counting: auto-detected tile types write ~one row per game action (a kill ping
+  // every kill, a gain tick, …), while hiscores-KC tiles write no rows at all — so raw row counts
+  // just measure who ground chat-line tiles (memberBreakdown already treats them as noise). For
+  // Busy Bee / the personal card, an auto-ping type counts once per DISTINCT tile the person fed;
+  // discrete turn-ins (drops, timed clears, diaries, CAs, value hauls) stay one each. The
+  // event-wide totals.submissions stays the raw row count on purpose (fun activity number).
+  const AUTO_PING_TYPES = new Set(['kill', 'pvp', 'gain', 'deathless', 'lms']);
+  const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {
     const s = stat(sub.creditPlayerId);
     if (!s) continue;
     const tile = tileById.get(sub.tileId);
     const type = tile?.tileType ?? null;
-    s.submissions += 1;
+    if (type != null && AUTO_PING_TYPES.has(type)) {
+      const seenKey = `${s.personKey}:${sub.tileId}`;
+      if (!autoPingTilesSeen.has(seenKey)) {
+        autoPingTilesSeen.add(seenKey);
+        s.submissions += 1;
+      }
+    } else {
+      s.submissions += 1;
+    }
     const amt = Math.max(0, sub.amount);
     if (type === 'kill') s.kills += amt;
     else if (type === 'pvp') s.pvpKills += amt;
@@ -371,9 +392,12 @@ async function computeRecap(eventId: number): Promise<{
     ),
   );
   pushAward(
-    award('pker', '🗡️', 'PKer', 'Most PvP kills', (s) =>
-      s.pvpKills > 0 ? toEntry(s, s.pvpKills, `${s.pvpKills.toLocaleString()} PvP kills`) : null,
-    ),
+    // Two sources for the same fact: pvp-tile submissions and the plugin's event-wide defeat
+    // counter. Take the max, never the sum — on a board WITH pvp tiles both see the same kills.
+    award('pker', '🗡️', 'PKer', 'Most PvP kills', (s) => {
+      const pks = Math.max(s.pvpKills, s.pvpKillCounter);
+      return pks > 0 ? toEntry(s, pks, `${pks.toLocaleString()} PvP kills`) : null;
+    }),
   );
   pushAward(
     award('untouchable', '🛡️', 'Untouchable', 'Most deathless clears', (s) =>
@@ -457,7 +481,8 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
     if (s.bestHaul > 0) stats.push({ key: 'haul', label: 'Biggest drop', value: `${s.bestHaul.toLocaleString()} gp` });
     if (s.xpGained > 0) stats.push({ key: 'xp', label: 'XP gained', value: s.xpGained.toLocaleString() });
     if (s.kcGained > 0) stats.push({ key: 'kc', label: 'Boss KC gained', value: s.kcGained.toLocaleString() });
-    if (s.pvpKills > 0) stats.push({ key: 'pvp', label: 'PvP kills', value: s.pvpKills.toLocaleString() });
+    const pks = Math.max(s.pvpKills, s.pvpKillCounter);
+    if (pks > 0) stats.push({ key: 'pvp', label: 'PvP kills', value: pks.toLocaleString() });
     if (s.lootGpTotal > 0) stats.push({ key: 'loot', label: 'Loot value', value: `${s.lootGpTotal.toLocaleString()} gp` });
     if (s.deaths > 0) stats.push({ key: 'deaths', label: 'Deaths', value: s.deaths.toLocaleString() });
     if (s.submissions > 0) stats.push({ key: 'subs', label: 'Submissions', value: s.submissions.toLocaleString() });

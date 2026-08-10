@@ -1,3 +1,5 @@
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanMembers, users } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
@@ -35,6 +37,37 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .then((r) => r[0]?.c ?? 0);
 
   const isAdmin = session.role === 'admin';
+  // Board-scoped editors (role 'editor' + scope 'assigned') aren't mod-tier — their whole world is
+  // the boards they're granted. Give them ONLY "All events" (filtered to their boards server-side);
+  // no dashboard/weekly/clan/schedule. Global editors + all other staff keep the full shell below.
+  const isScopedEditor = session.role === 'editor' && session.editorScope === 'assigned';
+  if (isScopedEditor) {
+    // Server-side backstop for the middleware gate: a board editor may only be on /admin/events*.
+    // This reads the LIVE editorScope (verifyUser → DB), so it holds even when the session token
+    // predates editorScope (middleware would otherwise wave a stale-token scoped editor through).
+    const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+    if (pathname && !pathname.startsWith('/admin/events')) {
+      redirect('/admin/events');
+    }
+    const scopedGroups: SidebarGroup[] = [
+      {
+        label: 'Events',
+        items: [{ href: '/admin/events', label: 'My boards', icon: '🎯', matchPrefix: true }],
+      },
+    ];
+    const scopedUser = {
+      displayName: userRow?.displayName ?? session.username ?? 'Editor',
+      role: 'board editor',
+      avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
+    };
+    return (
+      <div className="lg:flex lg:gap-6">
+        <AdminSidebar groups={scopedGroups} user={scopedUser} />
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    );
+  }
+
   // Who can open the event pages (/admin/events) — admins manage everything, editors open a
   // board's Tiles tab. Mirrors the middleware gate; mods/treasurers are blocked there, so we don't
   // show them an "All events" item that would just bounce back to the dashboard.

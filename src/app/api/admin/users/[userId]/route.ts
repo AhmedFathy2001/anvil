@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanAuditLog, users } from '@/db/schema';
+import { clanAuditLog, eventEditors, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 const VALID_ROLES = new Set(['admin', 'treasurer', 'editor', 'moderator', 'member']);
@@ -47,13 +47,26 @@ export async function PUT(
 
   const updates: Record<string, unknown> = {};
   if (displayName !== undefined) updates.displayName = displayName;
-  if (role !== undefined) updates.role = role;
+  // A manual role pick is a coarse decision that supersedes any board-scoped-editor state:
+  // reset editorScope to 'all' so picking 'editor' here always means a GLOBAL editor. Board
+  // scoping is established only via the Boards control (grantEventEditor sets scope 'assigned').
+  if (role !== undefined) {
+    updates.role = role;
+    updates.editorScope = 'all';
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
   await db.update(users).set(updates).where(eq(users.id, targetId));
+
+  // Board grants are purged on any role change: they only make sense for a scoped editor, and a
+  // leftover grant on a demoted member would still pass verifyTileEditorForEvent (the tile APIs
+  // aren't behind middleware). Board editing must be re-granted via the Boards control afterwards.
+  if (role !== undefined && before && before.role !== role) {
+    await db.delete(eventEditors).where(eq(eventEditors.userId, targetId));
+  }
 
   // Log promotion/demotion so the clan audit log shows the role change.
   if (before && role && before.role !== role) {

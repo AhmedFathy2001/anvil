@@ -2,15 +2,27 @@ import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { count, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { assignedEventIdsForUser } from '@/lib/eventEditors';
 import EventsClient, { type ListItem } from './EventsClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminEventsPage() {
-  const [allEvents, allWeekly] = await Promise.all([
+  const session = await verifyUser();
+  // Board-scoped editors only ever see the events they're granted — and never the weekly
+  // competitions surface (that stays a broader-staff tool). Everyone else sees everything.
+  const isScopedEditor = session?.role === 'editor' && session.editorScope === 'assigned';
+  const assignedIds = isScopedEditor ? new Set(await assignedEventIdsForUser(session!.userId)) : null;
+
+  const [allEventsRaw, allWeeklyRaw] = await Promise.all([
     db.select().from(events).orderBy(desc(events.createdAt)),
-    db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate)),
+    isScopedEditor
+      ? Promise.resolve([])
+      : db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate)),
   ]);
+
+  const allEvents = assignedIds ? allEventsRaw.filter((e) => assignedIds.has(e.id)) : allEventsRaw;
+  const allWeekly = allWeeklyRaw;
 
   const teamCounts: Record<number, number> = {};
   const participantCounts: Record<number, number> = {};
@@ -80,7 +92,6 @@ export default async function AdminEventsPage() {
   const active = all.filter((i) => !isPast(i)).sort(byDateDesc);
   const past = all.filter(isPast).sort(byDateDesc);
 
-  const session = await verifyUser();
   const canManage = session?.role === 'admin';
 
   return <EventsClient active={active} past={past} canManage={canManage} />;

@@ -249,6 +249,7 @@ export async function POST(request: Request) {
         currentValue: participant.currentValue,
         lastUpdated: participant.lastUpdated,
         allowFirstCapture: false,
+        competitionStartIso: comp.startDate,
         now: nowIso,
       });
     }

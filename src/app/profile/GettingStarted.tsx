@@ -101,12 +101,20 @@ export default function GettingStarted(props: GettingStartedProps) {
                   just play — the accounts you play link to your profile automatically. On mobile or
                   the official client, use the manual options at the bottom of this page.
                 </p>
-                <a
-                  href="#plugin-token"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/25 transition-colors"
-                >
-                  Get your plugin token ↓
-                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href="#plugin-token"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/25 transition-colors"
+                  >
+                    Get your plugin token ↓
+                  </a>
+                  <Link
+                    href="/guide/plugin"
+                    className="inline-flex items-center gap-1.5 text-sm border border-card-border px-3 py-1.5 rounded-lg hover:text-foreground transition-colors"
+                  >
+                    Setup guide →
+                  </Link>
+                </div>
               </div>
             )}
           </div>

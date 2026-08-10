@@ -23,6 +23,10 @@ RUN npm run build
 # ─── runner: minimal runtime image ────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+# The exact commit this image was built from — surfaced at /api/version, in the footer, and in the
+# plugin handshake. CI passes it; local builds fall back to 'dev'.
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \

@@ -23,8 +23,14 @@ export interface SetupStatus {
   allDone: boolean;
   /** The owner finished or dismissed the wizard at least once. */
   dismissed: boolean;
-  /** Brand-new clan: no clan name, no webhook, never dismissed — safe to auto-open once. */
+  /** Brand-new clan: nothing meaningful configured, never dismissed — safe to auto-open once. */
   isFresh: boolean;
+  /**
+   * Managed clan: the control-plane provisioner handed us CLAN_NAME (seeded into settings by
+   * migrate.mjs), so identity fields were collected at sign-up rather than typed here. The wizard
+   * uses this to word its "already filled in for you" notice.
+   */
+  provisioned: boolean;
   /** Prefill values for the wizard, so it opens showing whatever is already set. */
   values: {
     clanName: string;
@@ -93,13 +99,20 @@ export async function getSetupStatus(): Promise<SetupStatus> {
 
   const completedCount = steps.filter((s) => s.done).length;
 
+  // Provisioner-managed clans arrive with clan_name (and often the invite) pre-seeded, so the old
+  // "no clan name" freshness test never fired for them and they missed the guided wizard entirely.
+  // For those, "no webhook yet + never dismissed" is the freshness signal — the wizard then opens
+  // past the already-done steps (see SetupWizardClient).
+  const provisioned = !!process.env.CLAN_NAME?.trim();
+
   return {
     steps,
     completedCount,
     totalCount: steps.length,
     allDone: completedCount === steps.length,
     dismissed,
-    isFresh: !clanName && !webhookUrl && !dismissed,
+    isFresh: !dismissed && !webhookUrl && (!clanName || provisioned),
+    provisioned,
     values: {
       clanName,
       inviteUrl: get('discord_invite_url'),

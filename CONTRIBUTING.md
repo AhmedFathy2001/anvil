@@ -1,6 +1,6 @@
 # Contributing to Anvil
 
-Thanks for your interest in improving Anvil — the open-source clan-operations
+Thanks for your interest in improving Anvil — the source-available clan-operations
 platform for Old School RuneScape clans. Contributions of all sizes are welcome:
 bug fixes, features, docs, and plugin improvements.
 

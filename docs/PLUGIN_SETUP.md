@@ -11,6 +11,12 @@ This guide is for **members** (getting linked) and **clan admins** (helping memb
 and syncing the roster). It applies to both hosted (`yourclan.anvilosrs.com`) and
 self-hosted instances.
 
+> **Members should read the in-app guide instead.** Every instance serves a
+> screenshot-annotated, instance-aware version at **`/guide/plugin`** (and a staff
+> guide at `/guide/admin`) — it fills in your actual Site URL, and it covers OBS clip
+> capture, which this document does not. Source: `src/app/guide/`. Keep both in step
+> when plugin behaviour changes.
+
 ---
 
 ## 1. Install
@@ -25,9 +31,29 @@ Open **Configuration → Anvil**. Only the **Setup** section matters to get goin
 | Field | What to enter |
 | --- | --- |
 | **Site URL** | Your clan's Anvil address, e.g. `https://yourclan.anvilosrs.com` (no trailing slash; `https://` is added if you omit it). **Required** — this field ships empty, so you must set it. Ask your clan admin if unsure. |
-| **Account Token** | Your personal token from the site: **Profile → Plugin → Reveal → Copy**, then paste here. One token works across every event you're signed up for. It's a secret — don't share it. |
+| **Account Token** | Your personal token. Easiest: leave it blank and use **Sign in with Discord** (below). Otherwise paste it from **Profile → RuneLite plugin → Reveal → Copy**. One token works across every event you're signed up for. It's a secret — don't share it. |
 
 That's the whole setup. A side panel appears once connected.
+
+### Sign in from the plugin (no copy/paste)
+
+With a Site URL set and the token still empty, the side panel offers **Sign in with
+Discord** — a device-code flow (RFC 8628 shape) that fills the token in for you:
+
+1. The plugin `POST`s `/api/plugin/auth/start` **on the configured Site URL** and shows
+   the returned user code.
+2. It opens `<Site URL>/link-device?code=…` in the browser. The URL is pinned to the
+   configured home origin — a response steering the browser anywhere else is refused,
+   which is what makes this safe for hosted, self-hosted and standalone instances alike.
+3. You confirm the code matches and press **Approve** (a live web session is required —
+   only ever approve a code *your own* client is displaying).
+4. The plugin polls `/api/plugin/auth/poll` and stores the token. Codes are single-use
+   and expire in 10 minutes.
+
+The broker is never involved — see `src/lib/pluginDeviceAuth.ts`. On a **managed**
+instance the *website login* itself is brokered through the shared Anvil app, so members
+who aren't signed in yet will pass through `anvilosrs.com` at step 3; a BYO-Discord-app
+instance (`DISCORD_CLIENT_ID` + secret + redirect URI set) never leaves your domain.
 
 > **Where's the token?** On your clan's site, log in with Discord, open **Profile**,
 > scroll to the **RuneLite plugin** card (`recommended` badge). Use **Reveal** →
@@ -68,10 +94,12 @@ When the plugin is linked and an event is live:
   live: …` / `Boss of the Week…` when a weekly is active). If you're not yet a
   member you'll see `Tracked as a guest — a clan admin can promote you to member on
   the site.`
-- **Side panel** populates with your event, team, the daily **codeword**, your
-  tracked tile progress, and upcoming events.
-- **Screenshots** get the day's **codeword + UTC timestamp** burned in (that's the
-  tamper-evidence — proofs can't be back-dated or faked).
+- **Side panel** populates with your event, team, your tracked tile progress, weekly
+  competitions and upcoming events.
+- **Screenshots** carry the plugin's overlay — `Anvil`, your **team** and the **UTC
+  date** — rendered into the frame (that's the tamper-evidence: proofs can't be
+  back-dated or attributed to another team). Requires **Show Overlay** to be on; the
+  old per-day codeword was dropped since the server never validated it.
 - **Per-tile chat confirmations** as things happen, e.g. `Tracked drop detected:
   <label> (n/req)`, `Tracked kill: …`, `Tracked timed clear: … in m:ss`.
 
@@ -97,9 +125,42 @@ Under **Configuration → Anvil**, the Bingo and notification sections let each 
 control what posts to the clan's Discord channels (channels are configured on the
 site, not the plugin). Defaults: rare-drop alerts on (≥ 5M or 1-in-5000), pets on,
 deaths on, PvP-kill posts **off**, Combat Achievements on (Master+), level-99s and
-diaries on. OBS clip capture is off by default.
+diaries on, quests at Master & up. OBS clip capture is off by default.
 
-## 7. For clan admins
+## 7. Clips with OBS (optional)
+
+The **Clips** section captures the last N seconds from OBS's replay buffer on a
+hotkey and posts the file to a Discord webhook. Off by default. Unlike every other
+notification, **clips never pass through the site**: the plugin uploads straight from
+the member's machine to a webhook *they* paste in (multi-MB video would blow the
+server's body limit, and the plugin hub forbids calling URLs handed out by a server
+response). Admins therefore create the clips-channel webhook on the site and hand the
+URL to members — see `webhook_clips` in **Advanced settings → Webhooks**.
+
+**OBS side (once):** OBS Studio 28+ (WebSocket server is built in) → **Settings →
+Output → Enable Replay Buffer** → **Tools → WebSocket Server Settings → Enable
+WebSocket server**, then **Show Connect Info** for port (4455) and password. Nobody
+has to start the buffer by hand: on connect the plugin checks `GetReplayBufferStatus`
+and starts it if it's stopped.
+
+**Plugin side:** `Enable clip capture`, a `Capture clip hotkey`, OBS host/port/password
+(`localhost` unless OBS runs on another machine), `Max auto-post size (MB)` (default
+25 — anything larger is kept local), `Clip length (seconds)` (written into the OBS
+profile as `RecRBTime`; the buffer restarts to adopt it), `Save clips as MP4` (sets
+OBS's recording format globally so Discord can preview inline), the webhook URL, and
+`Post OBS-triggered clips too` (also handle saves fired by OBS or the "Save Replay
+Buffer for OBS" plugin — leave off when two RuneLite clients share one OBS, or every
+clip posts twice).
+
+| You see | Meaning |
+| --- | --- |
+| `Clip capture: OBS isn't connected.` | OBS closed, WebSocket off, or wrong host/port/password. The plugin retries every 30s. |
+| `OBS could not save the clip — is the Replay Buffer started?` | Buffer isn't running; check **Enable Replay Buffer**. |
+| `Clip saved locally — paste a Clips Discord webhook URL…` | No webhook set (working as intended). |
+| `Clip saved locally (NMB) — too big to auto-post to Discord.` | Over **Max auto-post size**, or over what the server accepts. |
+| `Clip saved locally, but Discord didn't accept the upload.` | Too big, rate-limited, or timed out — the file is still on disk. |
+
+## 8. For clan admins
 
 - Once your token belongs to a site **admin**, a **Sync clan roster** button appears
   in the Collection Log **Bingo** tab — one click pushes your in-game clan roster to
@@ -108,7 +169,7 @@ diaries on. OBS clip capture is off by default.
 - Members who join mid-event just install, set Site URL + token, and play — no
   per-event setup.
 
-## 8. Self-hosting note
+## 9. Self-hosting note
 
 If you run your own instance, everything above is identical — members simply set
 **Site URL** to your domain. If you want to spare them typing it, you can ship a

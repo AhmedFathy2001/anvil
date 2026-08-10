@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { parseContributionSnapshot } from '@/lib/statTracking';
+import { eventEditLocked } from '@/lib/eventLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,7 @@ export default async function EventTeamsPage({
       teams={safeTeams}
       players={eventPlayers}
       completions={eventCompletions}
+      editLocked={eventEditLocked(event)}
     />
   );
 }

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import TilesClient from './TilesClient';
 import { getTierBands } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
+import { eventEditLocked } from '@/lib/eventLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function EventTilesPage({
       tiles={eventTiles}
       tierBands={tierBands}
       isAdmin={user?.role === 'admin'}
+      editLocked={eventEditLocked(event)}
     />
   );
 }

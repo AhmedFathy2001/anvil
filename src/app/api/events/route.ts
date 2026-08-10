@@ -23,18 +23,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
   }
 
-  if (format !== undefined && format !== 'bingo' && format !== 'tilerace') {
-    return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+  if (format !== undefined && format !== 'bingo' && format !== 'tilerace' && format !== 'ladder') {
+    return NextResponse.json({ error: "format must be 'bingo', 'tilerace' or 'ladder'" }, { status: 400 });
   }
-  const resolvedFormat = format === 'tilerace' ? 'tilerace' : 'bingo';
+  const resolvedFormat = format === 'tilerace' ? 'tilerace' : format === 'ladder' ? 'ladder' : 'bingo';
 
   if (scoringMode !== undefined && scoringMode !== 'tiles' && scoringMode !== 'points') {
     return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
   }
-  // A tile race is always scored by furthest tile reached; point-weighting only
-  // applies to the bingo format, so force 'tiles' for a race.
+  // A tile race is always scored by furthest tile reached; a ladder is always a points-scored task
+  // list. Point-weighting otherwise applies to the bingo format only, so force accordingly.
   const resolvedScoringMode =
-    resolvedFormat === 'tilerace' ? 'tiles' : scoringMode === 'points' ? 'points' : 'tiles';
+    resolvedFormat === 'tilerace' ? 'tiles' : resolvedFormat === 'ladder' ? 'points' : scoringMode === 'points' ? 'points' : 'tiles';
 
   // Multi-account enrollment knobs — all optional; the defaults reproduce one-account-per-person.
   const MAX_ACCOUNTS_CAP = 10;
@@ -63,9 +63,12 @@ export async function POST(request: Request) {
   }
   const resolvedRules = rulesResult.rules;
   if (resolvedRules && JSON.parse(resolvedRules).revealPolicy !== 'all') {
-    if (resolvedFormat !== 'bingo' || resolvedScoringMode !== 'points') {
+    // Reveal policies (incl. the ladder's rotation) ride the points-scored task-list shape — the
+    // points bingo board or the ladder. Not the fixed N×N grid or the sequential race.
+    const allowsReveal = (resolvedFormat === 'bingo' && resolvedScoringMode === 'points') || resolvedFormat === 'ladder';
+    if (!allowsReveal) {
       return NextResponse.json(
-        { error: 'Reveal policies (showdown / lucky draw / bounty) require the points-scored bingo format.' },
+        { error: 'Reveal policies require the points-scored bingo or ladder format.' },
         { status: 400 },
       );
     }

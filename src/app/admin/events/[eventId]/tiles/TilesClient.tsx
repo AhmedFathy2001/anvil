@@ -14,7 +14,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
 import { statLabel } from '@/lib/tileKinds';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -47,8 +47,24 @@ function tileToTrackingInitial(tile: Tile) {
     // timeThresholdSeconds). Without this the editor reloaded blank and the next save nulled it.
     partySize: tile.partySize ?? null,
     pvpMinLootValue: tile.pvpMinLootValue ?? null,
+    mission: !!tile.mission,
+    missionRules: tile.rules ? parseTileMissionRules(tile.rules) : null,
     updatedAt: tile.updatedAt ?? null,
   };
+}
+
+// Text match for the tile search box — label, category, stat, description, or exact #position.
+// Shared by the Cards filter and the Quick Build left-pane search so both behave identically.
+// `q` is expected already trimmed + lowercased by the caller.
+function tileMatchesQuery(t: Tile, q: string): boolean {
+  if (!q) return true;
+  return (
+    !!t.label?.toLowerCase().includes(q) ||
+    !!t.category?.toLowerCase().includes(q) ||
+    !!t.trackedStat?.toLowerCase().includes(q) ||
+    !!t.description?.toLowerCase().includes(q) ||
+    String(t.position + 1) === q.replace(/^#/, '')
+  );
 }
 
 interface Props {
@@ -57,9 +73,12 @@ interface Props {
   tierBands?: TierBand[];
   /** Current user is an admin — gates the admin-only live-event tile override. */
   isAdmin?: boolean;
+  // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
+  // authoring surface renders disabled.
+  editLocked?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
@@ -231,6 +250,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (created.length) {
         setLocalTiles((prev) => [...prev, ...created]);
         setEditingTileId(created[0].id);
+        // Freshly added "Tile N" rows won't match an active search — clear it so they show up.
+        setSearch('');
       }
       router.refresh();
     } finally {
@@ -319,17 +340,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
-      if (!q) return true;
-      return (
-        t.label?.toLowerCase().includes(q) ||
-        t.category?.toLowerCase().includes(q) ||
-        t.trackedStat?.toLowerCase().includes(q) ||
-        t.description?.toLowerCase().includes(q) ||
-        String(t.position + 1) === q.replace(/^#/, '') ||
-        false
-      );
+      return tileMatchesQuery(t, q);
     });
   }, [localTiles, search, kindFilter, categoryFilter, tierFilter, tierBands]);
+
+  // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
+  // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
+  // keeps the query alive across the Cards ⇄ Quick build toggle.
+  const gridFiltering = search.trim().length > 0;
+  const gridTiles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? localTiles.filter((t) => tileMatchesQuery(t, q)) : localTiles;
+  }, [localTiles, search]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -561,7 +583,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   return (
-    <div className="space-y-8">
+    // Disabled fieldset natively disables every control inside — the locked (finished) event's
+    // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
+    <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
       {/* CSV import */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
@@ -727,11 +751,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 )}
                 {adding && <span className="text-[11px] text-text-muted">working…</span>}
               </div>
+              {localTiles.length > 0 && (
+                <div className="p-2.5 border-b border-card-border">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search tiles…"
+                      className="w-full pl-3 pr-8 py-1.5 text-sm"
+                    />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        aria-label="Clear search"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <ul className="overflow-y-auto max-h-[72vh]">
-                {localTiles.map((t) => {
+                {gridTiles.map((t) => {
                   const k = tileKind(t);
                   const sel = editingTileId === t.id;
-                  const draggable = !eventStarted && !reordering;
+                  // Reordering a filtered list would move tiles by absolute slot while showing a
+                  // non-contiguous subset — confusing. Disable drag while a search is active.
+                  const draggable = !eventStarted && !reordering && !gridFiltering;
                   const isDragging = dragTileId === t.id;
                   const isDragOver = dragOverTileId === t.id && dragTileId !== t.id;
                   return (
@@ -779,13 +827,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                           ) : null;
                         })()}
                         {isManualOnlyDropTile(t) && <ManualOnlyBadge compact className="shrink-0" />}
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
+                        <span title={k.blurb} className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
                       </button>
                     </li>
                   );
                 })}
                 {localTiles.length === 0 && (
                   <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
+                )}
+                {localTiles.length > 0 && gridTiles.length === 0 && (
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles match your search.</li>
                 )}
               </ul>
             </div>
@@ -978,7 +1029,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       ) : null;
                     })()}
                     {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
+                    <span title={k.blurb} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>{tile.label}</span>
@@ -1056,7 +1107,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }
 
@@ -1087,21 +1138,23 @@ function tileKindKey(tile: Tile): TileKindKey {
   return 'standard';
 }
 
-const KIND_META: Record<TileKindKey, { label: string; cls: string }> = {
-  standard: { label: 'Standard', cls: 'bg-gold/15 text-gold' },
-  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300' },
-  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300' },
-  drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light' },
-  collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light' },
-  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300' },
-  pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200' },
-  gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300' },
-  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300' },
-  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300' },
-  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300' },
-  value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200' },
-  diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300' },
-  ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300' },
+// `blurb` is the hover explanation shown on each tile's kind badge — a one-liner on what the kind
+// tracks and how it credits. Mirrors the pickers' blurbs in TileTrackingConfig.
+const KIND_META: Record<TileKindKey, { label: string; cls: string; blurb: string }> = {
+  standard: { label: 'Standard', cls: 'bg-gold/15 text-gold', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
+  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
+  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
+  drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
+  collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
+  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of an NPC — even ones off the hiscores (chickens, cows). Plugin-detected.' },
+  pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
+  gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
+  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
+  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
+  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
+  value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
+  diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
+  ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
 };
 
 const tileKind = (tile: Tile) => KIND_META[tileKindKey(tile)];

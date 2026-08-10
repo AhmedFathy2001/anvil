@@ -199,7 +199,7 @@ export async function completeDiscordLogin(
     return banned;
   }
 
-  const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role);
+  const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role, user.editorScope ?? 'all');
 
   // First-ever login lands on the getting-started checklist unless a deep link was requested.
   const destination = isNewUser && returnTo === '/' ? '/profile?welcome=1' : returnTo;

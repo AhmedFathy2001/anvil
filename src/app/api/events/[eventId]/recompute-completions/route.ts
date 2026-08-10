@@ -4,6 +4,7 @@ import { tiles, teams, completions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,9 @@ export const dynamic = 'force-dynamic';
 export async function POST(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

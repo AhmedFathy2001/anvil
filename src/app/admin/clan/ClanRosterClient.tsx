@@ -19,14 +19,22 @@ interface ClanMember {
   lastSeenInClan: string | null;
   notes: string | null;
   userId: number | null;
+  // 1 = this account is the person's primary (main). Only meaningful when userId is set (a person
+  // with one or more linked accounts).
+  isPrimary: number;
   userBanned?: boolean;
   // Federation (WIRE §4): the authoritative Discord id + whether it's on the sticky federation
   // denylist. federationBanned members are blocked from re-joining via a broker /exchange (L2).
   effectiveDiscordId?: string | null;
   federationBanned?: boolean;
   provisional: number;
-  pendingRole: 'admin' | 'moderator' | null;
+  pendingRole: PendingRole | null;
 }
+
+// Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
+// Users page staff roles so both "Set role" surfaces offer the same tiers. 'none' clears it.
+type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
+type PendingRoleValue = PendingRole | 'none';
 
 type FilterMode = 'active' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
 
@@ -115,7 +123,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [adding, setAdding] = useState(false);
 
   const [roleTarget, setRoleTarget] = useState<ClanMember | null>(null);
-  const [roleValue, setRoleValue] = useState<'admin' | 'moderator' | 'none'>('none');
+  const [roleValue, setRoleValue] = useState<PendingRoleValue>('none');
   const [roleSaving, setRoleSaving] = useState(false);
   const [roleError, setRoleError] = useState('');
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
@@ -242,6 +250,17 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rejoin: true }),
+    });
+    if (res.ok) fetchAll();
+  }
+
+  // Make this account the person's primary (main) — the default representative for per-person events
+  // and the name their team takes. Demotes their other accounts server-side.
+  async function setPrimary(member: ClanMember) {
+    const res = await fetch(`/api/admin/clan/${member.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ setPrimary: true }),
     });
     if (res.ok) fetchAll();
   }
@@ -391,6 +410,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       label: m.isGuest ? 'Promote to member' : 'Demote to guest',
       onClick: () => togglePromote(m),
     });
+    // Set-primary only matters for a linked person, and only when this isn't already their main.
+    if (m.userId && m.isPrimary !== 1) {
+      items.push({
+        label: 'Set as main account',
+        onClick: () => setPrimary(m),
+        title: 'Make this the person’s primary account — the default entry for per-person events',
+      });
+    }
     items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
     if (isAdmin && m.userId) {
       items.push({
@@ -755,12 +782,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               <label className="block text-xs text-text-muted mb-1">Role</label>
               <Select
                 value={roleValue}
-                onChange={(v) => setRoleValue(v as 'admin' | 'moderator' | 'none')}
+                onChange={(v) => setRoleValue(v as PendingRoleValue)}
                 ariaLabel="Role"
                 options={[
                   { value: 'none', label: 'None (clear)' },
-                  { value: 'moderator', label: 'Moderator' },
-                  { value: 'admin', label: 'Admin' },
+                  { value: 'moderator', label: 'Moderator — clan + verifications' },
+                  { value: 'editor', label: 'Editor — edit event tiles' },
+                  { value: 'treasurer', label: 'Treasurer — moderator + collect fees' },
+                  { value: 'admin', label: 'Admin — full access' },
                 ]}
               />
             </div>

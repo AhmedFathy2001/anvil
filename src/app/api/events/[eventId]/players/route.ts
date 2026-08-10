@@ -6,7 +6,8 @@ import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';
-import { upsertPlayers, backfillApprovedSignups, type MemberInput } from '@/lib/enroll';
+import { upsertPlayers, backfillApprovedSignups, accountCapError, type MemberInput } from '@/lib/enroll';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -46,6 +47,9 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   const body = await request.json();
 
   // Optional ?teamId= — drop the new player(s) straight onto a team (admin adding someone after
@@ -96,6 +100,9 @@ export async function POST(
     if (members.length === 0) {
       return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
     }
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, members.map((m) => m.clanMemberId));
+    if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
     const result = await upsertPlayers(id, members, assignTeamId);
     await backfillApprovedSignups(id, members.map((m) => m.clanMemberId));
     return NextResponse.json(result, { status: 201 });
@@ -111,6 +118,9 @@ export async function POST(
   const clanMemberId = await findOrCreateClanMember(trimmedName, { discordId: trimmedDiscord });
   members.push({ clanMemberId, name: trimmedName, discord: trimmedDiscord, timezone: timezone?.trim() || null });
 
+  const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, [clanMemberId]);
+  if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
   const result = await upsertPlayers(id, members, assignTeamId);
   await backfillApprovedSignups(id, [clanMemberId]);
   return NextResponse.json(result[0], { status: 201 });
@@ -127,6 +137,9 @@ export async function DELETE(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { searchParams } = new URL(request.url);
   const playerId = searchParams.get('playerId');
 
@@ -165,6 +178,9 @@ export async function PATCH(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { playerId, name, discord, timezone, teamId, clanMemberId, frozen } = await request.json();
 
   if (!playerId) {

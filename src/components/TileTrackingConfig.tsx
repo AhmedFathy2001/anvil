@@ -10,7 +10,8 @@ import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
-import type { TileConfig } from '@/lib/types';
+import type { TileConfig, TileMissionRules } from '@/lib/types';
+import { parseTileMissionRules } from '@/lib/eventRules';
 
 interface Props {
   tileId: number;
@@ -328,6 +329,41 @@ export default function TileTrackingConfig({
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
+  // Mission config — a mission is hidden until announced mid-event and carries its own scoring.
+  const initMissionDecay = initial.missionRules?.decay ?? null;
+  const [mission, setMission] = useState<boolean>(!!initial.mission);
+  const [missionLockout, setMissionLockout] = useState<boolean>(!!initial.missionRules?.lockout);
+  const [missionFirstBonus, setMissionFirstBonus] = useState<string>(
+    initial.missionRules?.firstBonus ? String(initial.missionRules.firstBonus) : "",
+  );
+  const [missionDecayMode, setMissionDecayMode] = useState<'off' | 'decay' | 'grow'>(
+    initMissionDecay ? (initMissionDecay.targetPct > 100 ? 'grow' : 'decay') : 'off',
+  );
+  const [missionDecayTargetPct, setMissionDecayTargetPct] = useState<string>(
+    initMissionDecay ? String(initMissionDecay.targetPct) : "",
+  );
+  const [missionDecayHours, setMissionDecayHours] = useState<string>(
+    initMissionDecay ? String(initMissionDecay.hours) : "6",
+  );
+  const [missionExpiryHours, setMissionExpiryHours] = useState<string>(
+    initial.missionRules?.expiryHours != null ? String(initial.missionRules.expiryHours) : "",
+  );
+  // Assemble the per-mission scoring the save sends (null when this tile isn't a mission).
+  const buildMissionRules = (): TileMissionRules | null => {
+    if (!mission) return null;
+    let decay: TileMissionRules['decay'] = null;
+    if (missionDecayMode !== 'off') {
+      const fallback = missionDecayMode === 'grow' ? 200 : 50;
+      const targetPct = missionDecayTargetPct ? Math.max(0, parseInt(missionDecayTargetPct, 10) || fallback) : fallback;
+      decay = { targetPct, hours: Math.max(1, parseInt(missionDecayHours, 10) || 6) };
+    }
+    return {
+      lockout: missionLockout,
+      firstBonus: missionFirstBonus ? Math.max(0, parseInt(missionFirstBonus, 10) || 0) : 0,
+      decay,
+      expiryHours: missionExpiryHours ? Math.max(1, parseInt(missionExpiryHours, 10) || 6) : null,
+    };
+  };
   // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
   const [sourceNpcsText, setSourceNpcsText] = useState<string>((initial.sourceNpcs || []).join(", "));
   // Kill-tile target NPC names — a multi-pick set (any listed name counts). Variants like
@@ -341,11 +377,15 @@ export default function TileTrackingConfig({
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
     initial.tileType === 'diary' ? initial.targetNpcs || [] : [],
   );
-  // PvP-kill selectors ride the targetNpcs column too — 'team:other' (any rival team
-  // member) or 'rsn:<name>' bounty entries. Split back into mode + RSN text for the form.
-  const [pvpTargetMode, setPvpTargetMode] = useState<'other-team' | 'rsn'>(
-    initial.tileType === 'pvp' && (initial.targetNpcs || []).some((s) => s.startsWith('rsn:')) ? 'rsn' : 'other-team',
-  );
+  // PvP-kill selectors ride the targetNpcs column too — 'any' (any player at all), 'team:other'
+  // (any rival team member), or 'rsn:<name>' bounty entries. Split back into mode + RSN text.
+  const [pvpTargetMode, setPvpTargetMode] = useState<'anyone' | 'other-team' | 'rsn'>(() => {
+    if (initial.tileType !== 'pvp') return 'other-team';
+    const t = initial.targetNpcs || [];
+    if (t.includes('any')) return 'anyone';
+    if (t.some((s) => s.startsWith('rsn:'))) return 'rsn';
+    return 'other-team';
+  });
   const [pvpRsnsText, setPvpRsnsText] = useState<string>(
     initial.tileType === 'pvp'
       ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
@@ -828,6 +868,9 @@ export default function TileTrackingConfig({
         autoTrackDisabled,
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         category: category.trim() || null,
+        // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
+        mission,
+        missionRules: buildMissionRules(),
         // defaults — overridden per kind below
         tileType: isDrop ? 'drop' : isKill ? 'kill' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
         trackedStat: null,
@@ -866,11 +909,15 @@ export default function TileTrackingConfig({
         payload.targetNpcs = targetNpcNames;
         payload.trackingMode = trackingMode;
       } else if (kind === 'pvp') {
-        // PvP selectors ride the targetNpcs column — 'team:other' or 'rsn:<name>' entries.
+        // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
+        // 'rsn:<name>' entries.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = pvpTargetMode === 'rsn'
-          ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
-          : ['team:other'];
+        payload.targetNpcs =
+          pvpTargetMode === 'rsn'
+            ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
+            : pvpTargetMode === 'anyone'
+              ? ['any']
+              : ['team:other'];
         payload.trackingMode = trackingMode;
         // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
         payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
@@ -951,6 +998,8 @@ export default function TileTrackingConfig({
           timedActivity: updated.timedActivity ?? null,
           timeThresholdSeconds: updated.timeThresholdSeconds ?? null,
           partySize: updated.partySize ?? null,
+          mission: !!updated.mission,
+          missionRules: updated.rules ? parseTileMissionRules(updated.rules) : null,
           updatedAt: updated.updatedAt ?? null,
         });
       } else {
@@ -1020,6 +1069,8 @@ export default function TileTrackingConfig({
               type="button"
               onClick={() => changeKind(k.key)}
               disabled={locked}
+              // Hover any kind (not just the selected one) to read what it does + how it's tracked.
+              title={k.blurb}
               className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
@@ -1693,26 +1744,41 @@ export default function TileTrackingConfig({
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">Who counts as a target?</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setPvpTargetMode('anyone')}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                  pvpTargetMode === 'anyone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                }`}
+              >
+                Anyone
+              </button>
               <button
                 type="button"
                 onClick={() => setPvpTargetMode('other-team')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                   pvpTargetMode === 'other-team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
                 }`}
               >
-                Any rival team member
+                Rival team
               </button>
               <button
                 type="button"
                 onClick={() => setPvpTargetMode('rsn')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                   pvpTargetMode === 'rsn' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
                 }`}
               >
                 Specific player(s)
               </button>
             </div>
+            {pvpTargetMode === 'anyone' && (
+              <p className="text-[10px] text-text-muted mt-2">
+                <span className="text-foreground/70">Any</span> player kill counts — no team or bounty list. The
+                victim doesn&rsquo;t need to be in the event. (Still dangerous-PvP only; safe minigames never count.)
+              </p>
+            )}
             {pvpTargetMode === 'rsn' && (
               <div className="mt-2">
                 <Input
@@ -2293,6 +2359,121 @@ export default function TileTrackingConfig({
           />
         </button>
         <span className="text-xs text-text-muted">Optional tile (doesn&apos;t count towards total)</span>
+      </div>
+
+      {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ---- */}
+      <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMission(!mission)}
+            aria-pressed={mission}
+            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mission ? 'translate-x-5' : ''}`} />
+          </button>
+          <span className="text-xs text-foreground font-medium">⚡ Mission (hidden until announced mid-event)</span>
+        </div>
+        {mission && (
+          <div className="space-y-3 pl-1">
+            <p className="text-[10px] text-text-muted leading-relaxed">
+              This tile stays hidden until you announce it — manually, or on the cadence set in the event&apos;s
+              Mission settings — then drops live with the scoring below.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMissionLockout(!missionLockout)}
+                aria-pressed={missionLockout}
+                className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${missionLockout ? 'bg-gold' : 'bg-card-border'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${missionLockout ? 'translate-x-5' : ''}`} />
+              </button>
+              <span className="text-xs text-text-muted">First team to clear locks it (others can&apos;t score it)</span>
+            </div>
+            {!pointsMode && (
+              <p className="text-[10px] text-amber-300/80">
+                Bonus &amp; decay only change points — switch the event to points scoring to use them. Lockout &amp; expiry still work.
+              </p>
+            )}
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                First-clear bonus <span className="text-text-muted/60">(extra points for the first team)</span>
+              </label>
+              <Input
+                type="number"
+                value={missionFirstBonus}
+                onChange={(e) => setMissionFirstBonus(e.target.value)}
+                min="0"
+                placeholder="e.g. 500"
+                disabled={!pointsMode}
+                className="w-32"
+                aria-label="First-clear bonus"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Value over time</label>
+              <div className="flex gap-1.5 mb-1.5">
+                {(['off', 'decay', 'grow'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMissionDecayMode(m)}
+                    disabled={!pointsMode}
+                    className={`px-2.5 py-1 rounded-md text-xs transition-colors disabled:opacity-40 ${missionDecayMode === m ? 'bg-gold text-brown-dark' : 'bg-card-border/40 text-text-muted'}`}
+                  >
+                    {m === 'off' ? 'Flat' : m === 'decay' ? 'Decays' : 'Grows'}
+                  </button>
+                ))}
+              </div>
+              {missionDecayMode !== 'off' && (
+                <div className="flex items-center gap-2 text-xs text-text-muted">
+                  <span>{missionDecayMode === 'grow' ? 'up to' : 'down to'}</span>
+                  <Input
+                    type="number"
+                    value={missionDecayTargetPct}
+                    onChange={(e) => setMissionDecayTargetPct(e.target.value)}
+                    min="0"
+                    placeholder={missionDecayMode === 'grow' ? '200' : '50'}
+                    disabled={!pointsMode}
+                    className="w-20"
+                    aria-label="Value target percent"
+                  />
+                  <span>% over</span>
+                  <Input
+                    type="number"
+                    value={missionDecayHours}
+                    onChange={(e) => setMissionDecayHours(e.target.value)}
+                    min="1"
+                    placeholder="6"
+                    disabled={!pointsMode}
+                    className="w-16"
+                    aria-label="Value ramp hours"
+                  />
+                  <span>h</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Auto-expire <span className="text-text-muted/60">(closes if unclaimed; blank = stays open)</span>
+              </label>
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <span>after</span>
+                <Input
+                  type="number"
+                  value={missionExpiryHours}
+                  onChange={(e) => setMissionExpiryHours(e.target.value)}
+                  min="1"
+                  placeholder="none"
+                  className="w-20"
+                  aria-label="Auto-expire hours"
+                />
+                <span>hours</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Auto-tracking kill-switch — only meaningful for kinds the site would otherwise

@@ -26,7 +26,10 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
-import { parseEventRules, hasRevealPolicy, nextRevealAt } from '@/lib/eventRules';
+import { serverInfo } from '@/lib/serverInfo';
+import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
+import { isLadderFormat } from '@/lib/utils';
+import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -203,6 +206,9 @@ export async function GET(request: Request) {
           homeBoardForUser(userOnly.userId),
         ]);
       return jsonWithEtag(request, {
+        // Version + capability handshake — present on every /config shape (enrolled or not) so the
+        // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
+        server: serverInfo(),
         event: null,
         team: null,
         player: null,
@@ -276,9 +282,13 @@ export async function GET(request: Request) {
     : [];
   const rules = parseEventRules(event.rules);
   const revealMode = hasRevealPolicy(rules);
-  const allEventTiles = revealMode
-    ? fullEventTiles.filter((t) => t.revealedAt != null && t.closedAt == null)
-    : fullEventTiles;
+  // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
+  // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
+  // into the tracked lists even on a classic board.
+  const allEventTiles = fullEventTiles.filter((t) => {
+    if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
+    return !revealMode || (t.revealedAt != null && t.closedAt == null);
+  });
 
   // Get drop tiles with tracked item IDs
   const dropTiles = allEventTiles.filter((t) => t.tileType === 'drop');
@@ -517,6 +527,66 @@ export async function GET(request: Request) {
     };
   });
 
+  // Lock-out claims (bounty / lockout modifier): the most recent missions someone locked in,
+  // EVENT-WIDE (not just this team), so the plugin can announce "X claimed <mission>" to the other
+  // players. Only shipped on lockout events; the plugin diffs it across polls and skips its own.
+  let recentClaims:
+    | { tileId: number; label: string; points: number; rsn: string | null; at: string }[]
+    | undefined;
+  // Lockout can come from the event rules OR from an individual mission's own rules.
+  const hasLockoutMissions = fullEventTiles.some((t) => isMissionTile(t) && parseTileMissionRules(t.rules).lockout);
+  if ((rules.lockout || hasLockoutMissions) && tilesRevealed) {
+    const claimRows = await db
+      .select({
+        tileId: completions.tileId,
+        teamId: completions.teamId,
+        creditPlayerId: completions.creditPlayerId,
+        awardedPoints: completions.awardedPoints,
+        at: completions.completedAt,
+      })
+      .from(completions)
+      .innerJoin(tiles, eq(completions.tileId, tiles.id))
+      .where(eq(tiles.eventId, auth.eventId))
+      .orderBy(sql`${completions.completedAt} desc`)
+      .limit(12);
+    // Finisher name: the completion's crediting player, else the latest submission credit on the tile.
+    const claimCreditIds = Array.from(
+      new Set(claimRows.map((c) => c.creditPlayerId).filter((x): x is number => x != null)),
+    );
+    const claimNameById = new Map<number, string>();
+    if (claimCreditIds.length > 0) {
+      const rows = await db.select({ id: players.id, name: players.name }).from(players).where(inArray(players.id, claimCreditIds));
+      for (const r of rows) claimNameById.set(r.id, r.name);
+    }
+    const subTileIds = Array.from(new Set(claimRows.filter((c) => c.creditPlayerId == null).map((c) => c.tileId)));
+    const subNameByTileTeam = new Map<string, string>();
+    if (subTileIds.length > 0) {
+      const subRows = await db
+        .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: players.name })
+        .from(submissions)
+        .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+        .where(inArray(submissions.tileId, subTileIds))
+        .orderBy(submissions.createdAt); // ascending → last write per (tile,team) wins
+      for (const r of subRows) {
+        if (r.name) subNameByTileTeam.set(`${r.tileId}:${r.teamId}`, r.name);
+      }
+    }
+    recentClaims = claimRows.map((c) => {
+      const tile = tileById.get(c.tileId);
+      const rsn =
+        c.creditPlayerId != null
+          ? claimNameById.get(c.creditPlayerId) ?? null
+          : subNameByTileTeam.get(`${c.tileId}:${c.teamId}`) ?? null;
+      return {
+        tileId: c.tileId,
+        label: tile?.label ?? `Tile #${c.tileId}`,
+        points: c.awardedPoints ?? tile?.points ?? 0,
+        rsn,
+        at: c.at,
+      };
+    });
+  }
+
   // PvP-kill tiles need the event roster so the plugin can tell whether a victim is on a
   // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
   // exists — otherwise it's payload (and roster) for nothing.
@@ -530,7 +600,44 @@ export async function GET(request: Request) {
       ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
     : [];
 
+  // Ladder events (in-game "missions board"): the individual leaderboard both all-time and for the
+  // current UTC month, plus the caller's live rank — so the plugin renders a DMM-All-Stars-style board
+  // straight from /config (no extra endpoint). Gated to format='ladder' so other events pay nothing.
+  let ladderStandings: PluginStandings | null = null;
+  let ladderMonthly: PluginStandings | null = null;
+  if (isLadderFormat(event.format)) {
+    const boards = await getLadderBoards(event);
+    ladderStandings = toPluginStandings(boards.allTime, auth.playerId, boards.ownerByPlayerId, boards.perPerson);
+    ladderMonthly = toPluginStandings(boards.monthly, auth.playerId, boards.ownerByPlayerId, boards.perPerson);
+  }
+
+  // The plugin's "missions board": the announced, still-open objectives with their face points, reveal
+  // time, and per-mission decay/lockout, so it can show a live grow/decay value + a countdown. On a
+  // reveal-policy board every open tile is a mission (ladder/rotating); on a classic board only the
+  // announced MISSION-flagged tiles are. Each carries its own decay (mission tiles) or the event's.
+  const missionSource = revealMode ? allEventTiles : allEventTiles.filter((t) => isMissionTile(t));
+  const missions =
+    missionSource.length > 0
+      ? missionSource.map((t) => {
+          const m = isMissionTile(t) ? parseTileMissionRules(t.rules) : null;
+          return {
+            tileId: t.id,
+            label: t.label,
+            points: t.points ?? 0,
+            revealedAt: t.revealedAt ?? null,
+            category: t.category ?? null,
+            decay: m ? m.decay : rules.decay,
+            lockout: m ? m.lockout : rules.lockout,
+          };
+        })
+      : undefined;
+  // Countdown target: the board's next reveal, else the next mission drop (classic-with-missions).
+  const effectiveNextRevealAt = revealMode
+    ? nextRevealAt(event, rules, fullEventTiles)
+    : nextMissionAt(event, rules, fullEventTiles);
+
   return jsonWithEtag(request, {
+    server: serverInfo(),
     clanName: await getClanDisplayName(),
     event: {
       id: event.id,
@@ -538,19 +645,27 @@ export async function GET(request: Request) {
       startDate: event.startDate,
       endDate: event.endDate,
       forceEndedAt: event.forceEndedAt ?? null,
-      // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race)
+      // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race / ladder)
       // for the player's own active event straight from these two fields.
       format: event.format,
       scoringMode: event.scoringMode,
-      // Reveal-policy extras (absent on classic events): lets the sidebar show "next tile in
-      // 42m" and "N tiles still hidden". Old plugins ignore unknown fields.
+      // Reveal-policy board extras (absent on classic events). Old plugins ignore unknown fields.
       ...(revealMode
         ? {
             revealPolicy: rules.revealPolicy,
             hiddenTileCount: fullEventTiles.length - visibleEventTiles.length,
-            nextRevealAt: nextRevealAt(event, rules, fullEventTiles),
           }
         : {}),
+      // The missions board: the announced objectives + the countdown/decay they need. Present for a
+      // reveal board (its open tiles) OR a classic board that has announced mission tiles.
+      ...(revealMode || missions
+        ? { nextRevealAt: effectiveNextRevealAt, decay: rules.decay }
+        : {}),
+      ...(missions ? { missions } : {}),
+      // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.
+      ...(ladderStandings ? { standings: ladderStandings, monthlyStandings: ladderMonthly } : {}),
+      // Lock-out claims (event-wide) so the plugin can announce another player's claim.
+      ...(recentClaims ? { recentClaims } : {}),
     },
     team: {
       id: team.id,

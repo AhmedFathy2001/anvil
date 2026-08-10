@@ -1,11 +1,15 @@
 import { db } from '@/db';
 import { events, tiles, teams } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
+import { isEventEditor } from '@/lib/eventEditors';
 import EventTabNav from './EventTabNav';
+import EventTitle from './EventTitle';
+import EventLockBanner from './EventLockBanner';
+import { isEventOver, eventEditLocked } from '@/lib/eventLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +28,12 @@ export default async function EventLayout({
 
   const session = await verifyUser();
   const isEditor = session?.role === 'editor';
+  // Board-scoped editors may only open events they hold a grant for. A non-granted event bounces
+  // back to their (already-filtered) events list — the coarse middleware gate lets any editor reach
+  // the tiles route, so this server-side check is what actually enforces per-board scoping.
+  if (session?.role === 'editor' && session.editorScope === 'assigned') {
+    if (!(await isEventEditor(session.userId, id))) redirect('/admin/events');
+  }
 
   const [[tileCount], [teamCount]] = await Promise.all([
     db.select({ c: count() }).from(tiles).where(eq(tiles.eventId, id)),
@@ -59,7 +69,7 @@ export default async function EventLayout({
       </Link>
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold">{event.name}</h1>
+        <EventTitle eventId={id} initialName={event.name} canEdit={session?.role === 'admin'} />
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${status.cls}`}>
           {status.label}
         </span>
@@ -85,6 +95,12 @@ export default async function EventLayout({
       </div>
 
       <EventTabNav eventId={id} tilesOnly={isEditor} />
+
+      {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
+          give admins the explicit unlock/re-lock control. */}
+      {isEventOver(event) && (
+        <EventLockBanner eventId={id} locked={eventEditLocked(event)} canToggle={session?.role === 'admin'} />
+      )}
 
       {children}
     </div>

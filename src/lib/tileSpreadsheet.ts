@@ -118,7 +118,7 @@ export async function buildTileSpreadsheet(opts: {
   example({ label: 'Any Master combat task', type: 'ca', points: 20, category: 'PvM', requiredAmount: 1, targetNpcs: 'Any Master' },
     'Combat Achievement: task names or "Any <Tier>" wildcards, PIPE-separated only (names contain commas).');
   example({ label: 'Kill 3 rival team members', type: 'pvp', points: 15, category: 'Wilderness', requiredAmount: 3, targetNpcs: 'team:other' },
-    'PvP kill: "team:other" = any rival team member, or "rsn:<name>" bounties. Wilderness/PvP worlds only.');
+    'PvP kill: "any" = any player, "team:other" = any rival team member, or "rsn:<name>" bounties. Wilderness/PvP worlds only.');
 
   // -- Item list (full, filterable; copy exact names into the items cell) --------------------
   const il = wb.addWorksheet(SHEET_ITEMS);
@@ -170,7 +170,7 @@ export async function buildTileSpreadsheet(opts: {
     '  • targetNpcs — kill tiles: NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
     '    diary tiles: "<Area> <Tier>" selectors ("Any Elite"). ca tiles: Combat Achievement task',
     '    names or "Any <Tier>" wildcards, PIPE-separated ONLY (task names can contain commas).',
-    '    pvp tiles: team:other (any rival team member) or rsn:<name> bounty entries.',
+    '    pvp tiles: any (any player), team:other (any rival team member), or rsn:<name> bounty entries.',
     '  • timedActivity / timeThresholdSeconds — timed tiles only; time as mm:ss (30:00), seconds (1800), or 30m.',
     '  • revealAt — Showdown boards only (scheduled reveals): when this tile goes live, e.g. 2026-08-01 19:00',
     '    (your local time; stored as UTC). Blank = stays hidden until you set a time. Other boards ignore it.',

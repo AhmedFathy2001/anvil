@@ -8,6 +8,7 @@ import {
   listEligiblePluginMembers,
   type EnrollPlacement,
 } from '@/lib/enroll';
+import { assertEventEditable } from '@/lib/eventLock';
 
 const PLACEMENTS: EnrollPlacement[] = ['one_team', 'draft_pool', 'individual'];
 
@@ -41,6 +42,9 @@ export async function POST(
   }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
@@ -74,6 +78,8 @@ export async function POST(
     );
   }
 
-  const result = await autoEnrollActivePluginMembers(id, placement);
+  // 'individual' honors the event's slot mode: per-person groups a person's alts onto one team.
+  const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
+  const result = await autoEnrollActivePluginMembers(id, placement, slotMode);
   return NextResponse.json(result);
 }

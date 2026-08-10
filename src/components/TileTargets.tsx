@@ -134,11 +134,12 @@ export default function TileTargets({ tile, hideItems }: Props) {
     rows.push(<Row key="npcs" label="Counts kills of"><NameChips names={targetNpcs} /></Row>);
   }
   if (kind === 'pvp' && targetNpcs.length > 0) {
-    // Selectors: 'team:other' = any rival team member, 'rsn:<name>' = named bounty.
+    // Selectors: 'any' = any player, 'team:other' = any rival team member, 'rsn:<name>' = named bounty.
     const bounties = targetNpcs.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
+    const anyone = targetNpcs.includes('any');
     rows.push(
       <Row key="pvp" label="Counts kills of">
-        {bounties.length > 0 ? <NameChips names={bounties} /> : 'any rival team member'}
+        {anyone ? 'any player' : bounties.length > 0 ? <NameChips names={bounties} /> : 'any rival team member'}
       </Row>,
     );
   }

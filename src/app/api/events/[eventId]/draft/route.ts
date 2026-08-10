@@ -4,9 +4,12 @@ import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
+import { parseEventRules } from '@/lib/eventRules';
+import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam } from '@/lib/draftBalance';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -78,11 +81,23 @@ export async function GET(
   const currentPickNumber = countPicksTaken(eventPlayers);
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
 
+  const balanceMode = parseEventRules(event.rules).balanceMode;
   let currentTeamId: number | null = null;
   let round = 0;
   let pickInRound = 0;
   if (event.draftStatus === 'active' && teamOrder.length > 0 && poolPlayers.length > 0) {
-    currentTeamId = getTeamForPick(teamOrder, currentPickNumber);
+    // Dynamic-order mode: whoever's projected weakest (among the fewest-picks teams) is on the
+    // clock — must mirror the pick route exactly or the UI shows the wrong team.
+    if (balanceMode === 'dynamic-order') {
+      try {
+        const balance = await buildDraftBalance(id);
+        currentTeamId = dynamicNextTeam(balance, teamOrder, picksTakenByTeam(eventPlayers));
+      } catch {
+        currentTeamId = getTeamForPick(teamOrder, currentPickNumber);
+      }
+    } else {
+      currentTeamId = getTeamForPick(teamOrder, currentPickNumber);
+    }
     round = getRoundForPick(teamOrder.length, currentPickNumber);
     pickInRound = getPickInRound(teamOrder.length, currentPickNumber);
   }
@@ -98,6 +113,7 @@ export async function GET(
     pickInRound,
     totalPicked: pickedPlayers.length,
     poolRemaining: poolPlayers.length,
+    balanceMode,
   });
 }
 
@@ -112,6 +128,9 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(id);
+  if (lockedResponse) return lockedResponse;
   const body = await request.json();
   const { action } = body;
 

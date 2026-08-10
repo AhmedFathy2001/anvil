@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles as tilesTable, events } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 import { getItemMapping } from '@/lib/osrsItems';
 import { buildTileSpreadsheet } from '@/lib/tileSpreadsheet';
 import type { Tile } from '@/lib/types';
@@ -13,13 +13,13 @@ import type { Tile } from '@/lib/types';
 // Sheets, then upload the workbook (or a CSV of its Tiles tab) back on the Tiles tab — the round
 // trip is 1:1, so an unchanged re-upload is a no-op. Admin-only.
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  if (!(await verifyTileEditor())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  if (!(await verifyTileEditorForEvent(id))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const event = (await db.select().from(events).where(eq(events.id, id)).limit(1))[0];

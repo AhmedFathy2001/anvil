@@ -342,7 +342,7 @@ export default async function HomePage() {
                 </ol>
               )}
               <Link
-                href="/weekly"
+                href={`/weekly/${activeWeekly.id}`}
                 className="mt-4 inline-flex text-sm text-gold hover:text-gold-light underline-offset-2 hover:underline"
               >
                 Full leaderboard →

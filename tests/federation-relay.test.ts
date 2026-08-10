@@ -22,6 +22,7 @@ import {
   brokerMeInstances,
   brokerRegister,
   connectViaBrokerToken,
+  aggregateClans,
   fanOutCredit,
   computeServerFanout,
   dedupeConnectionsByInstanceId,
@@ -54,6 +55,7 @@ import {
   guestConflictExhausted,
   gateReplayThenBudget,
   planGuestConflict,
+  anchorRenamable,
   classifySharedRsnClaim,
   exchangeRateLimitKey,
   guestRateLimitKey,
@@ -253,6 +255,20 @@ test('self-host device path → login (pending) → poll complete → connected'
   assert.equal(connections.length, 1);
   assert.equal(connections[0].instanceId, CLANB_ID);
   assert.equal(connections[0].token, `B-token-assert-${CLANB_ID}-device`);
+  // Clan B answered the exchange with guest:false — we cache its verdict so /state can tell the
+  // plugin the player is a REAL member there (it opens the sidebar on that clan, not the home).
+  assert.equal(connections[0].guest, false);
+});
+
+test('aggregated clans[] carries the member flag from the cached exchange verdict', async () => {
+  _clearRelayReadCache();
+  const conns: FederationConnection[] = [
+    { instanceId: CLANB_ID, name: 'Clan B', baseUrl: clanBBase, token: 'B-token-x' },
+    { instanceId: 'clan-c', name: 'Clan C', baseUrl: clanBBase, token: 'B-token-y', guest: true },
+  ];
+  const clans = await aggregateClans(conns, federationFetch);
+  assert.equal(clans.find((c) => c.id === CLANB_ID)?.member, true);   // no guest flag → a member
+  assert.equal(clans.find((c) => c.id === 'clan-c')?.member, false);  // an auto-created guest there
 });
 
 test('fan-out relay → 2nd clan credited with the declared target', async () => {
@@ -700,6 +716,18 @@ test('classifySharedRsnClaim — own federation guest reusable, own stronger row
   assert.equal(classifySharedRsnClaim(ownByDiscord, 'me', null), 'satisfied'); // discord-id match, no site user
   assert.equal(classifySharedRsnClaim(stranger, 'me', 5), 'conflict'); // anyone else's row — hard refuse
   assert.equal(classifySharedRsnClaim(ownLinked, 'me', null), 'conflict'); // no owner identity → can't be "yours"
+});
+
+// Only a disposable federation PLACEHOLDER may be renamed by a shared-RSN claim. The promoted-guest
+// case is the one that bites: "Promote to member" clears isGuest but leaves source='federation', so
+// a source-only check would rename a real member's row out from under them on the next relay.
+test('anchorRenamable — placeholder only; real, adopted and promoted rows are never renamed', () => {
+  assert.equal(anchorRenamable({ source: 'federation', isGuest: 1 }), true); // the disposable placeholder
+  assert.equal(anchorRenamable({ source: 'federation', isGuest: 0 }), false); // promoted to member — hands off
+  assert.equal(anchorRenamable({ source: 'plugin-roster', isGuest: 0 }), false); // adopted real row
+  assert.equal(anchorRenamable({ source: 'manual', isGuest: 1 }), false); // admin-added guest, not ours to rename
+  assert.equal(anchorRenamable(null), false);
+  assert.equal(anchorRenamable(undefined), false);
 });
 
 // ── #14: exchange + guest-creation rate limits are keyed per MEMBER (sub), not per home-clan IP ──

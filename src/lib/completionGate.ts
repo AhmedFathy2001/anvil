@@ -4,7 +4,9 @@ import { eq } from 'drizzle-orm';
 import {
   completionAward,
   hasRevealPolicy,
+  isMissionTile,
   parseEventRules,
+  parseTileMissionRules,
   type EventRules,
 } from '@/lib/eventRules';
 
@@ -30,21 +32,43 @@ export interface CompletionGateResult {
 type EventRow = typeof events.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
 
+// The scoring fields a mission overrides on the event rules (lockout / first-clear bonus / decay).
+// expiryHours is engine-only (auto-close), not a gate concern.
+function pickMissionScoring(tileRules: string | null): Pick<EventRules, 'lockout' | 'firstBonus' | 'decay'> {
+  const m = parseTileMissionRules(tileRules);
+  return { lockout: m.lockout, firstBonus: m.firstBonus, decay: m.decay };
+}
+
 export async function evaluateCompletionGate(args: {
   event: EventRow;
   tile: TileRow;
   teamId: number;
 }): Promise<CompletionGateResult> {
   const { event, tile, teamId } = args;
-  const rules = parseEventRules(event.rules);
-  const revealMode = hasRevealPolicy(rules);
-  const bounty = rules.revealPolicy === 'bounty';
+  const eventRules = parseEventRules(event.rules);
+  const isMission = isMissionTile(tile);
+  // A mission carries its OWN scoring (lockout/firstBonus/decay), merged over the event rules; a normal
+  // tile just uses the event rules. Everything below keys off this one merged object.
+  const rules: EventRules = isMission
+    ? { ...eventRules, ...pickMissionScoring(tile.rules) }
+    : eventRules;
+  // A mission is reveal-gated even on a classic board (hidden until announced); the base board follows
+  // its own policy. Bounty stays BOARD-only so a mission claim never triggers board rotation.
+  const tileRevealGated = hasRevealPolicy(eventRules) || isMission;
+  const bounty = eventRules.revealPolicy === 'bounty';
 
-  if (revealMode && tile.revealedAt == null) {
-    return { allowed: false, reason: 'This tile has not been revealed yet.', awardedPoints: null, bounty, rules };
+  if (tileRevealGated && tile.revealedAt == null) {
+    const reason = isMission ? 'This mission has not been announced yet.' : 'This tile has not been revealed yet.';
+    return { allowed: false, reason, awardedPoints: null, bounty, rules };
   }
-  if (revealMode && tile.closedAt != null) {
-    return { allowed: false, reason: 'This tile has already been claimed.', awardedPoints: null, bounty, rules };
+  if (tileRevealGated && tile.closedAt != null) {
+    // Rotating tasks / expired missions close on time; bounties + lockout missions close on first claim.
+    const reason = isMission
+      ? 'This mission is over.'
+      : rules.revealPolicy === 'rotating'
+        ? 'This task has expired.'
+        : 'This tile has already been claimed.';
+    return { allowed: false, reason, awardedPoints: null, bounty, rules };
   }
 
   // Only hit the DB when a rule actually cares who completed the tile before.

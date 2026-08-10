@@ -20,7 +20,7 @@
 //                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard");
 //                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
 //                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks");
-//                       pvp tiles — "team:other" (any rival team member) or "rsn:<name>" bounties
+//                       pvp tiles — "any" (any player), "team:other" (any rival team member) or "rsn:<name>" bounties
 //   timedActivity       timed tiles — activity to time (e.g. "Inferno")
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)

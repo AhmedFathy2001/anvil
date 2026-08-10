@@ -61,6 +61,7 @@ export async function getConnectionsForUser(userId: number): Promise<FederationC
       name: federationConnections.name,
       baseUrl: federationConnections.baseUrl,
       token: federationConnections.token,
+      isGuest: federationConnections.isGuest,
     })
     .from(federationConnections)
     .where(eq(federationConnections.userId, userId));
@@ -81,6 +82,7 @@ export async function getConnectionsForUser(userId: number): Promise<FederationC
       name: r.name ?? r.instanceId,
       baseUrl: r.baseUrl,
       token,
+      guest: r.isGuest === 1,
     });
   }
   return out;
@@ -109,6 +111,9 @@ export async function replaceConnectionsForUser(
         baseUrl: c.baseUrl,
         name: c.name,
         token: encryptSecret(c.token, key), // §4 encrypt the cached remote-clan token at rest
+        // The remote's own member-vs-guest verdict, re-stamped on every re-sync (this is a
+        // delete-then-insert), so a promotion over there reaches the sidebar within a sync window.
+        isGuest: c.guest ? 1 : 0,
         lastUsedAt: nowIso,
       })),
     );

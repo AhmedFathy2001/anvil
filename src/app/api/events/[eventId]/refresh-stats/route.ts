@@ -4,6 +4,7 @@ import { players, teams, events, settings } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Manual stat refresh is a STAFF override, not a per-member button: admins refresh the whole event,
 // captains refresh their own team. Regular members rely on the periodic stats cron for freshness
@@ -60,6 +61,9 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { playerId, teamId } = await request.json();
 
   const isAdmin = await verifyAdmin();

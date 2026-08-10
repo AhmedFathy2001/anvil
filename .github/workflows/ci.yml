@@ -1,0 +1,48 @@
+name: CI
+
+# PR gate: typecheck, lint, unit tests, and a production build. Branch protection on main requires
+# the `checks` job to be green before a PR can merge. Direct pushes by admins (the beta → main
+# promote fast-forward) bypass this by design — build-image.yml already builds every branch push,
+# and the promoted commit was tested when its PR landed on beta.
+#
+# The build needs no real credentials: requireSecret()/env.ts fall back to dev defaults during
+# `next build` (NEXT_PHASE=phase-production-build), same as the Docker builder stage.
+
+on:
+  pull_request:
+    branches: [main, beta]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: |
+          npm run test:events
+          npm run test:federation
+
+      - name: Build
+        run: npm run build

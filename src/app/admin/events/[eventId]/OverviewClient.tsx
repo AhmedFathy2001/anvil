@@ -8,10 +8,12 @@ import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { isTileRaceFormat, isPointsMode } from '@/lib/utils';
+import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel } from '@/lib/utils';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
+import MissionAdminPanel from '@/components/MissionAdminPanel';
+import EventEditorsPanel from './EventEditorsPanel';
 
 interface Props {
   event: Event;
@@ -19,9 +21,11 @@ interface Props {
   teams: Team[];
   completions: Completion[];
   tierBands?: TierBand[];
+  /** Current user is an admin — gates the board-editor management panel. */
+  canManageEditors?: boolean;
 }
 
-export default function OverviewClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS }: Props) {
+export default function OverviewClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, canManageEditors = false }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
   const [startDate, setStartDate] = useState(() => event.startDate ?? '');
@@ -31,6 +35,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const [forceEnding, setForceEnding] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const [savingReveal, setSavingReveal] = useState(false);
   const [startingBingo, setStartingBingo] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
@@ -72,6 +77,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const eventEnded = currentEvent.endDate ? new Date(currentEvent.endDate) <= now : false;
   const isActive = eventStarted && !eventEnded;
   const raceFormat = isTileRaceFormat(currentEvent.format);
+  const ladderFormat = isLadderFormat(currentEvent.format);
   const pointsMode = isPointsMode(currentEvent.scoringMode);
   // Type can only change before the event goes live; delete is allowed before start or
   // once it's over — i.e. any time it isn't actively running. Mirrors the API gates.
@@ -214,6 +220,28 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
     }
   }
 
+  async function cloneEvent() {
+    if (!confirm(
+      `Clone "${currentEvent.name}"? A new event is created with the same settings, tiles and survey questions — no teams, players or dates. You'll be taken to the copy.`,
+    )) return;
+    setCloning(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      if (res.ok) {
+        const { id } = await res.json();
+        router.push(`/admin/events/${id}`);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Could not clone event');
+        setCloning(false);
+      }
+    } catch {
+      alert('Could not clone event');
+      setCloning(false);
+    }
+  }
+
   async function deleteEvent() {
     if (!confirm(
       `Permanently delete "${currentEvent.name}"? This wipes its tiles, teams, completions and signups. This cannot be undone.`,
@@ -314,8 +342,11 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] items-start">
+      {/* Left column: event details + (admin) board-editor management, so both sit near the top
+          instead of below the whole board. */}
+      <div className="min-w-0 space-y-8">
       {/* Event Details */}
-      <div className="min-w-0 border border-card-border rounded-xl p-5 bg-card-bg">
+      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
@@ -366,15 +397,15 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Type</label>
               <p className="text-sm font-medium">
-                {raceFormat ? 'Tile race' : pointsMode ? 'Leagues bingo' : 'Classic bingo'}
+                {eventModeLabel(currentEvent.format, currentEvent.scoringMode, currentEvent.rules)}
               </p>
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
-                {raceFormat ? 'Track Length' : pointsMode ? 'Tiles' : 'Board Size'}
+                {raceFormat ? 'Track Length' : ladderFormat ? 'Tasks' : pointsMode ? 'Tiles' : 'Board Size'}
               </label>
               <p className="text-sm font-medium">
-                {raceFormat || pointsMode
+                {raceFormat || ladderFormat || pointsMode
                   ? `${currentEvent.boardSize} tiles`
                   : `${currentEvent.boardSize}×${currentEvent.boardSize}`}
               </p>
@@ -542,6 +573,16 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
               </button>
             )
           )}
+          {!editMode && !editType && (
+            <button
+              onClick={cloneEvent}
+              disabled={cloning}
+              title="Create a new event with the same settings, tiles and survey questions — no teams, players or dates. Handy for running the same board again."
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {cloning ? 'Cloning...' : 'Clone Event'}
+            </button>
+          )}
           {canDelete && !editMode && !editType && (
             <button
               onClick={deleteEvent}
@@ -553,6 +594,12 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           )}
         </div>
       </div>
+
+        {canManageEditors && <EventEditorsPanel eventId={event.id} />}
+      </div>
+
+      {/* Missions — mid-event hidden-objective controls (only shows when the board has mission tiles). */}
+      <MissionAdminPanel event={currentEvent} tiles={localTiles} />
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">

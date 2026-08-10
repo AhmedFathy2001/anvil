@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, tileLocks } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 
 // Advisory per-tile edit lock. Opening the tile editor POSTs here (and re-POSTs as a
 // heartbeat while it stays open); closing DELETEs. Held-by-someone-else is NOT an error —
@@ -16,11 +16,11 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId, tileId } = await params;
+  const editor = await verifyTileEditorForEvent(parseInt(eventId, 10));
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const { eventId, tileId } = await params;
   const tId = parseInt(tileId, 10);
 
   const tile = await db.query.tiles.findFirst({
@@ -71,11 +71,11 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId, tileId } = await params;
+  const editor = await verifyTileEditorForEvent(parseInt(eventId, 10));
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const { tileId } = await params;
   const tId = parseInt(tileId, 10);
   // Only release our own lock — a stale DELETE from a closed tab must not evict the
   // colleague who took over after our TTL lapsed.

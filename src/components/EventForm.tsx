@@ -21,10 +21,16 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   // when the chosen mode carries a revealPolicy; the values mirror EventRules' clamps.
   const [intervalMinutes, setIntervalMinutes] = useState(60);
   const [batchSize, setBatchSize] = useState(1);
+  // Ladder rotation is a sub-choice within the one 'ladder' mode: progressive (interval),
+  // one-at-a-time (bounty) or a rotating window (rotating). Other reveal modes fix their policy.
+  const [ladderRotation, setLadderRotation] = useState<'interval' | 'bounty' | 'rotating'>('interval');
+  const [windowSize, setWindowSize] = useState(3);
   const [revealOrder, setRevealOrder] = useState<'random' | 'sequential'>('random');
   const [firstBonus, setFirstBonus] = useState(0);
   const [decayEnabled, setDecayEnabled] = useState(false);
-  const [decayFloorPct, setDecayFloorPct] = useState(50);
+  // Time-scaling of a tile's points: 'decay' falls to a floor (<100%), 'grow' rises to a cap (>100%).
+  const [decayMode, setDecayMode] = useState<'decay' | 'grow'>('decay');
+  const [decayTargetPct, setDecayTargetPct] = useState(50);
   const [decayHours, setDecayHours] = useState(24);
   const [lockout, setLockout] = useState(false);
   // Multi-account enrollment (per event). maxAccounts=1 keeps classic one-account-per-person and
@@ -44,6 +50,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [loading, setLoading] = useState(false);
 
   const meta = MODES.find((m) => m.key === mode)!;
+  // The reveal policy actually in effect: a ladder uses its rotation sub-choice; every other mode
+  // uses its fixed preset policy. Drives the config UI + the create payload.
+  const effectivePolicy = mode === 'ladder' ? ladderRotation : meta.revealPolicy;
 
   function changeMode(next: Mode) {
     const m = MODES.find((x) => x.key === next)!;
@@ -96,15 +105,16 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           maxAccountsPerPerson: maxAccounts,
           accountSlotMode,
           feeMode,
-          ...(meta.revealPolicy
+          ...(effectivePolicy
             ? {
                 rules: {
-                  revealPolicy: meta.revealPolicy,
+                  revealPolicy: effectivePolicy,
                   revealIntervalMinutes: intervalMinutes,
                   revealBatchSize: batchSize,
+                  revealWindowSize: windowSize,
                   revealOrder,
                   firstBonus,
-                  decay: decayEnabled ? { floorPct: decayFloorPct, hours: decayHours } : null,
+                  decay: decayEnabled ? { targetPct: decayTargetPct, hours: decayHours } : null,
                   lockout,
                 },
               }
@@ -243,18 +253,49 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         </div>
       </div>
 
-      {/* Reveal-policy config — only for modes that hide tiles (showdown / lucky draw / bounty). */}
-      {meta.revealPolicy && (
+      {/* Reveal-policy config — for modes that hide tiles (showdown / lucky draw / bounty) and for the
+          ladder's rotation sub-choice. */}
+      {effectivePolicy && (
         <div className="rounded-lg border border-gold/20 bg-gold/5 p-3 space-y-3">
+          {/* Ladder rotation picker — the one place a ladder's reveal policy is chosen. */}
+          {mode === 'ladder' && (
+            <div>
+              <label className="block text-sm font-medium text-foreground/70 mb-1.5">Task rotation</label>
+              <select
+                value={ladderRotation}
+                onChange={(e) => setLadderRotation(e.target.value as 'interval' | 'bounty' | 'rotating')}
+                className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+              >
+                <option value="interval">Progressive — new tasks appear on a timer and stay open</option>
+                <option value="rotating">Rotating window — a few open at once; new draws expire the oldest</option>
+                <option value="bounty">One at a time — first to finish claims it, next is drawn</option>
+              </select>
+            </div>
+          )}
           <p className="text-xs text-text-muted leading-relaxed">
-            {meta.revealPolicy === 'scheduled' &&
+            {effectivePolicy === 'scheduled' &&
               'Tiles stay hidden until their scheduled time. Set each tile’s reveal moment on the Tiles tab after creating the event.'}
-            {meta.revealPolicy === 'interval' &&
-              'Hidden tiles go live automatically on the interval below, starting the moment the event begins.'}
-            {meta.revealPolicy === 'bounty' &&
+            {effectivePolicy === 'interval' &&
+              'Hidden tasks go live automatically on the interval below, starting the moment the event begins, and stay open.'}
+            {effectivePolicy === 'rotating' &&
+              'A rolling window of open tasks: each draw opens new random tasks and expires the oldest so only the window size stays live.'}
+            {effectivePolicy === 'bounty' &&
               'One tile is open at a time. The first team to complete it claims the points and the next bounty is drawn immediately.'}
           </p>
-          {meta.revealPolicy === 'interval' && (
+          {effectivePolicy === 'rotating' && (
+            <div>
+              <label className="block text-sm font-medium text-foreground/70 mb-1.5">Open tasks at once (window)</label>
+              <Input
+                type="number"
+                value={windowSize}
+                onChange={(e) => setWindowSize(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 3)))}
+                min={1}
+                max={50}
+                className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+              />
+            </div>
+          )}
+          {(effectivePolicy === 'interval' || effectivePolicy === 'rotating') && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">Minutes between draws</label>
@@ -280,7 +321,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               </div>
             </div>
           )}
-          {(meta.revealPolicy === 'interval' || meta.revealPolicy === 'bounty') && (
+          {(effectivePolicy === 'interval' || effectivePolicy === 'bounty' || effectivePolicy === 'rotating') && (
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">Draw order</label>
               <select
@@ -312,7 +353,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             </div>
           </div>
 
-          {/* Point decay — a tile is worth less the longer it's been revealed (rewards racing). */}
+          {/* Point value over time — a tile's points slide from 100% toward a target as it ages.
+              Decay (target < 100) rewards racing; growth (target > 100) rewards clearing older tasks. */}
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
               <input
@@ -321,23 +363,44 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 onChange={(e) => setDecayEnabled(e.target.checked)}
                 className="accent-[var(--gold,#d4af37)]"
               />
-              Point decay — tiles are worth less the longer they&apos;ve been out
+              Point value changes over time
             </label>
             {decayEnabled && (
               <div className="mt-2 grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs text-text-muted mb-1">Direction</label>
+                  <select
+                    value={decayMode}
+                    onChange={(e) => {
+                      const m = e.target.value as 'decay' | 'grow';
+                      setDecayMode(m);
+                      // Snap the target into the sensible range for the new direction.
+                      setDecayTargetPct(m === 'grow' ? Math.max(101, decayTargetPct) : Math.min(99, decayTargetPct));
+                    }}
+                    className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+                  >
+                    <option value="decay">Decay — worth less the longer it&apos;s out</option>
+                    <option value="grow">Grow — worth more the longer it&apos;s out</option>
+                  </select>
+                </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Floor (% of full points)</label>
+                  <label className="block text-xs text-text-muted mb-1">
+                    {decayMode === 'grow' ? 'Cap (% of full points)' : 'Floor (% of full points)'}
+                  </label>
                   <Input
                     type="number"
-                    value={decayFloorPct}
-                    onChange={(e) => setDecayFloorPct(Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
-                    min={0}
-                    max={100}
+                    value={decayTargetPct}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10) || 0;
+                      setDecayTargetPct(decayMode === 'grow' ? Math.max(101, Math.min(1000, v)) : Math.max(0, Math.min(100, v)));
+                    }}
+                    min={decayMode === 'grow' ? 101 : 0}
+                    max={decayMode === 'grow' ? 1000 : 100}
                     className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Hours to reach the floor</label>
+                  <label className="block text-xs text-text-muted mb-1">Hours to reach it</label>
                   <Input
                     type="number"
                     value={decayHours}
@@ -348,15 +411,17 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                   />
                 </div>
                 <p className="col-span-2 text-[11px] text-text-muted leading-relaxed">
-                  A tile completed the moment it&apos;s revealed pays full points, sliding linearly to {decayFloorPct}%
-                  after {decayHours}h. Earned points freeze at completion time.
+                  A tile completed the moment it&apos;s revealed pays full points, sliding linearly to{' '}
+                  {decayTargetPct}% after {decayHours}h{decayMode === 'decay' && decayTargetPct === 0 ? ' (down to nothing)' : ''}.
+                  Earned points freeze at completion time. Pair with the rotating-window rotation to also
+                  close the task when it ages out.
                 </p>
               </div>
             )}
           </div>
 
           {/* Lockout — bounty is single-claim by definition, so only offer it on the other modes. */}
-          {meta.revealPolicy !== 'bounty' && (
+          {effectivePolicy !== 'bounty' && (
             <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
               <input
                 type="checkbox"

@@ -22,7 +22,7 @@ being down never takes your instance down — it only pauses *new* cross-clan
 connects. This is a hard invariant, not a nicety (see `FEDERATION.md` § Invariants).
 
 > If you were expecting a shared "data feed" of clog/tile/boss definitions: that
-> isn't the broker. Those reference datasets are **bundled in the open-source repo**
+> isn't the broker. Those reference datasets are **bundled in the source-available repo**
 > and refreshed with `npm run data:clog` / `data:ca` etc. The only shared *service*
 > is the one **Anvil** plugin on the RuneLite Hub, which every instance uses by
 > pointing its **Site URL** at their own domain.

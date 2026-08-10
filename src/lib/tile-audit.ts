@@ -4,7 +4,7 @@
  * renders these as a timeline.
  *
  * Writes are fire-and-forget (`.catch(() => {})`) like clan_audit_log — an audit failure must
- * never break the actual tile mutation. Callers pass the acting user from verifyTileEditor().
+ * never break the actual tile mutation. Callers pass the acting user from verifyTileEditorForEvent().
  */
 import { db } from '@/db';
 import { tileAuditLog, type tiles } from '@/db/schema';

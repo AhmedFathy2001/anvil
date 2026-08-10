@@ -10,6 +10,9 @@ type UpdatableFields = Partial<{
   isGuest: boolean;
   notes: string | null;
   rejoin: boolean;
+  // Promote this account to the person's primary (main), demoting their other accounts. Drives the
+  // default "which account represents this person" for per-person events + team naming.
+  setPrimary: boolean;
 }>;
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +34,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const existing = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Set-primary: demote the person's other accounts, promote this one. Only meaningful for a linked
+  // account (a person is a users row) — a ghost/unlinked account has no siblings to be primary among.
+  if (body.setPrimary) {
+    if (existing.userId == null) {
+      return NextResponse.json({ error: 'Only a linked account can be set as the main.' }, { status: 400 });
+    }
+    await db.update(clanMembers).set({ isPrimary: 0 }).where(eq(clanMembers.userId, existing.userId));
+    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, memberId));
+    return NextResponse.json({ ok: true });
+  }
 
   const update: Record<string, unknown> = {};
   if (body.rank !== undefined) update.rank = body.rank;

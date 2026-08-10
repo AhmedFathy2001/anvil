@@ -5,12 +5,14 @@ name: Build & deploy
 # The box never builds — it pulls this pre-built image.
 #   main  → tags :stable (+ :latest) → rolls the STABLE fleet
 #   beta  → tags :beta               → rolls only the BETA canary clans
+#   v* tag → tags :1.2.3 + :1.2      → publishes pinned release images for self-hosters, NO rollout
 # Every push also gets an immutable :sha-<full> tag; the control plane pins each channel to that exact
 # ref, which is what makes "promote beta → stable" a pointer copy (same tested artifact, no rebuild).
 
 on:
   push:
     branches: [main, beta]
+    tags: ['v*']
   workflow_dispatch: {}
 
 permissions:
@@ -41,6 +43,8 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=beta,enable=${{ github.ref == 'refs/heads/beta' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
 
       - name: Build & push (linux/amd64 — the box is an Intel i7)
@@ -48,6 +52,8 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -56,6 +62,9 @@ jobs:
 
   deploy:
     needs: build
+    # Branch pushes only: a v* tag publishes pinned images for self-hosters but must not re-roll the
+    # fleet (the commit it points at already deployed when its branch was pushed).
+    if: startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
     # One-time setup — add this repo secret (Settings → Secrets and variables → Actions):
     #   ROLLOUT_SECRET — must match ROLLOUT_SECRET in admin.env on the box
@@ -96,7 +105,9 @@ jobs:
           else
             NOTES="$(git log --no-merges --format='- %s' "$BEFORE..$AFTER")"
           fi
-          VERSION="$(git rev-parse --short HEAD)"
+          # "v1.0.0" exactly on a release tag, "v1.0.0-12-gabc1234" past it, short SHA before any
+          # tag exists — human-readable version headers for the deploy/patch-note posts.
+          VERSION="$(git describe --tags --always)"
           BODY="$(jq -n --arg v "$VERSION" --arg n "$NOTES" --arg c "$CHANNEL" --arg i "$IMAGE_TAG" \
             '{version:$v, notes:$n, channel:$c, imageTag:$i}')"
           report=$(mktemp)

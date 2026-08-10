@@ -132,6 +132,7 @@ export interface ActiveWeeklyMetric {
   id: number;
   type: 'skill' | 'boss';
   metric: string;
+  startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
 }
 
 // EVERY live weekly competition's tracked metric — a SOTW and a BOTW can run at once, so this returns
@@ -142,7 +143,7 @@ export async function getActiveWeeklyMetrics(): Promise<ActiveWeeklyMetric[]> {
   const rows = await db.query.weeklyCompetitions.findMany({
     where: eq(weeklyCompetitions.status, 'active'),
   });
-  return rows.map((c) => ({ id: c.id, type: c.type as 'skill' | 'boss', metric: c.metric }));
+  return rows.map((c) => ({ id: c.id, type: c.type as 'skill' | 'boss', metric: c.metric, startDate: c.startDate }));
 }
 
 export interface PluginWebhooks {

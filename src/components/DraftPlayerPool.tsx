@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { SignupProfile } from '@/lib/signup';
 import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
+import PlayerRatingBadge from '@/components/PlayerRatingBadge';
+import type { PlayerRatings } from '@/hooks/usePlayerRatings';
 
 interface Player {
   id: number;
@@ -31,9 +33,11 @@ interface Props {
   onPick?: (playerId: number) => void;
   onPlayerClick?: (rsn: string) => void;
   picking?: boolean;
+  /** Staff-only pool ratings. Omitted on the public spectator board — no badges render there. */
+  ratings?: PlayerRatings | null;
 }
 
-export default function DraftPlayerPool({ players, teams, interactive, onPick, onPlayerClick, picking }: Props) {
+export default function DraftPlayerPool({ players, teams, interactive, onPick, onPlayerClick, picking, ratings }: Props) {
   const poolPlayers = players.filter((p) => p.teamId === null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -106,6 +110,15 @@ export default function DraftPlayerPool({ players, teams, interactive, onPick, o
                   </div>
                 ))}
               </div>
+              {/* One rating per PERSON — a multi-account card shows the single shared rating. */}
+              {ratings && (
+                <div className="mt-1 flex justify-center">
+                  <PlayerRatingBadge
+                    ratings={ratings}
+                    playerId={group.members.find((m) => ratings.ratingFor(m.id))?.id ?? rep.id}
+                  />
+                </div>
+              )}
               {multi && (
                 <div className="mt-0.5 text-[10px] text-text-muted">{group.members.length} accounts · drafted together</div>
               )}

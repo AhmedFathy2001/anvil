@@ -92,7 +92,7 @@ interface EventCtx {
 
 interface BingoTask { ctx: EventCtx; player: PlayerRow; needsSnapshot: boolean; }
 interface WeeklyTask {
-  comp: { id: number; type: 'skill' | 'boss'; metric: string };
+  comp: { id: number; type: 'skill' | 'boss'; metric: string; startDate: string };
   participant: { id: number; baselineValue: number | null; currentValue: number | null; lastUpdated: string | null; clanMemberId: number | null };
 }
 
@@ -234,7 +234,7 @@ export async function GET(request: Request) {
 
     for (const p of participants) {
       const entry = ensureEntry(p.clanMemberId, p.rsn);
-      entry.weekly.push({ comp: { id: comp.id, type: comp.type as 'skill' | 'boss', metric: comp.metric }, participant: p });
+      entry.weekly.push({ comp: { id: comp.id, type: comp.type as 'skill' | 'boss', metric: comp.metric, startDate: comp.startDate }, participant: p });
       entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
     }
   }
@@ -360,6 +360,7 @@ export async function GET(request: Request) {
           currentValue: w.participant.currentValue,
           lastUpdated: w.participant.lastUpdated,
           allowFirstCapture: true,
+          competitionStartIso: w.comp.startDate,
           now: ts,
         });
         if (outcome.outcome === 'updated' || outcome.outcome === 'first-captured') weeklyUpdated++;

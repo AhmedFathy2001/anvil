@@ -2,7 +2,11 @@ import { db } from '@/db';
 import { clanAuditLog, clanMembers, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-const ROLE_RANK: Record<string, number> = { member: 0, moderator: 1, admin: 2 };
+// Rank for the "never downgrade on apply" guard. Editor and treasurer are both moderator-tier +
+// one capability, so they share rank 2 (a pending sibling won't replace the other — use the Users
+// page for a direct swap). member < moderator < {editor, treasurer} < admin.
+const ROLE_RANK: Record<string, number> = { member: 0, moderator: 1, editor: 2, treasurer: 2, admin: 3 };
+const PENDING_ROLES = new Set(['admin', 'moderator', 'editor', 'treasurer']);
 
 /**
  * Applies a pre-assigned `pending_role` from a clan_member onto its linked user.
@@ -25,7 +29,7 @@ export async function applyPendingRole(
   const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
   if (!member?.pendingRole) return false;
   const pending = member.pendingRole;
-  if (pending !== 'admin' && pending !== 'moderator') {
+  if (!PENDING_ROLES.has(pending)) {
     // Unknown value — clear it so it doesn't keep re-firing on repeat calls.
     await db.update(clanMembers).set({ pendingRole: null }).where(eq(clanMembers.id, clanMemberId));
     return false;

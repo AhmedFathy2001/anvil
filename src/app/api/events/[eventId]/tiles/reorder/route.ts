@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyTileEditor } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Rewrites the whole board order in one shot: `order` is a permutation of ALL the event's
 // tile ids, and the tile at order[i] gets position i. Pre-start only — positions define the
@@ -15,13 +16,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { eventId } = await params;
-  const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) {

@@ -82,6 +82,7 @@ export default async function EventOverviewPage({
         tiles={eventTiles}
         teams={eventTeams}
         completions={eventCompletions}
+        canManageEditors={isAdmin}
       />
       {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}
     </>

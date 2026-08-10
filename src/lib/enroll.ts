@@ -152,12 +152,130 @@ export interface AutoEnrollResult {
   teamsCreated: number;
 }
 
+// How the 'individual' (one-team-each) format maps a person's accounts to teams. Mirrors the event's
+// accountSlotMode: 'per-person' = one team per PERSON (their alts share it, contributions aggregate
+// via rollupByOwner); 'per-account' = each account its own team (alts as separate teams).
+export type SlotMode = 'per-person' | 'per-account';
+
+interface PlaceableAccount {
+  clanMemberId: number | null;
+  rsn: string;
+  playerId?: number; // present when the account is already a pool player row (placeUnassignedPlayers)
+}
+
+// owner userId + primary flag per clan-member account, for per-person grouping.
+async function loadMemberMeta(
+  clanMemberIds: (number | null)[],
+): Promise<Map<number, { userId: number | null; isPrimary: boolean }>> {
+  const ids = [...new Set(clanMemberIds.filter((x): x is number => x != null))];
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ id: clanMembers.id, userId: clanMembers.userId, isPrimary: clanMembers.isPrimary })
+    .from(clanMembers)
+    .where(inArray(clanMembers.id, ids));
+  return new Map(rows.map((r) => [r.id, { userId: r.userId, isPrimary: r.isPrimary === 1 }]));
+}
+
+// Reject an admin add that would put more than the event's cap of ONE person's accounts into the
+// event. Owned accounts (same clanMembers.userId) count together; guests / unlinked accounts are each
+// their own person and so are never capped here. Returns an error string, or null when within cap.
+// Mirrors the self-service signup cap (api/events/[eventId]/signup) for the admin add path.
+export async function accountCapError(
+  eventId: number,
+  maxAccounts: number,
+  addingClanMemberIds: number[],
+): Promise<string | null> {
+  if (addingClanMemberIds.length === 0) return null;
+  const meta = await loadMemberMeta(addingClanMemberIds);
+  const addingByOwner = new Map<number, Set<number>>();
+  for (const cmId of addingClanMemberIds) {
+    const userId = meta.get(cmId)?.userId;
+    if (userId == null) continue; // guests aren't grouped into a person
+    (addingByOwner.get(userId) ?? addingByOwner.set(userId, new Set()).get(userId)!).add(cmId);
+  }
+  if (addingByOwner.size === 0) return null;
+
+  const ownerIds = [...addingByOwner.keys()];
+  const existingRows = await db
+    .select({ clanMemberId: players.clanMemberId, userId: clanMembers.userId })
+    .from(players)
+    .innerJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
+    .where(and(eq(players.eventId, eventId), inArray(clanMembers.userId, ownerIds)));
+  const existingByOwner = new Map<number, Set<number>>();
+  for (const r of existingRows) {
+    if (r.userId == null || r.clanMemberId == null) continue;
+    (existingByOwner.get(r.userId) ?? existingByOwner.set(r.userId, new Set()).get(r.userId)!).add(r.clanMemberId);
+  }
+  for (const [userId, adding] of addingByOwner) {
+    const union = new Set([...(existingByOwner.get(userId) ?? []), ...adding]);
+    if (union.size > maxAccounts) {
+      return `This event allows at most ${maxAccounts} account${maxAccounts === 1 ? '' : 's'} per person.`;
+    }
+  }
+  return null;
+}
+
+// Stable person key: owned accounts (same clanMembers.userId) collapse to one person; guests /
+// unlinked accounts stand alone (keyed by their clanMemberId, else the player row). Kept consistent
+// between grouping and existing-team resolution so a re-run routes an alt to the person's own team.
+function personKeyOf(clanMemberId: number | null, userId: number | null | undefined, playerId?: number): string {
+  if (userId != null) return `u${userId}`;
+  if (clanMemberId != null) return `s${clanMemberId}`;
+  return `p${playerId ?? 'x'}`;
+}
+
+// The team each person already has an account on, for this event (personKey → teamId). Lets the
+// per-person placement route a newly-pooled alt onto the person's existing team instead of spawning
+// a second team for them on a re-run.
+async function existingTeamByPerson(eventId: number): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ playerId: players.id, teamId: players.teamId, clanMemberId: players.clanMemberId, userId: clanMembers.userId })
+    .from(players)
+    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
+    .where(and(eq(players.eventId, eventId), isNotNull(players.teamId)));
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (r.teamId == null) continue;
+    const key = personKeyOf(r.clanMemberId, r.userId, r.playerId);
+    if (!map.has(key)) map.set(key, r.teamId); // first team wins (a person shouldn't span teams)
+  }
+  return map;
+}
+
+// Group accounts into one bucket per PERSON. Owned accounts (clanMembers.userId) share a person key;
+// guests / unlinked accounts are each their own person. Each group is named after the person's
+// primary account RSN (else the first account seen), and carries its personKey for existing-team reuse.
+async function groupAccountsByPerson(
+  accounts: PlaceableAccount[],
+): Promise<{ personKey: string; teamName: string; accounts: PlaceableAccount[] }[]> {
+  const meta = await loadMemberMeta(accounts.map((a) => a.clanMemberId));
+  const groups = new Map<string, { personKey: string; teamName: string; accounts: PlaceableAccount[]; hasPrimary: boolean }>();
+  accounts.forEach((a) => {
+    const m = a.clanMemberId != null ? meta.get(a.clanMemberId) : undefined;
+    const key = personKeyOf(a.clanMemberId, m?.userId, a.playerId);
+    let g = groups.get(key);
+    if (!g) {
+      g = { personKey: key, teamName: a.rsn, accounts: [], hasPrimary: false };
+      groups.set(key, g);
+    }
+    g.accounts.push(a);
+    // Name the team after the person's primary account when one is in the group.
+    if (m?.isPrimary && !g.hasPrimary) {
+      g.teamName = a.rsn;
+      g.hasPrimary = true;
+    }
+  });
+  return [...groups.values()].map(({ personKey, teamName, accounts }) => ({ personKey, teamName, accounts }));
+}
+
 // Enroll every plugin-active clan member into the event, idempotently. `one_team` puts everyone on a
-// single shared team; `individual` gives each member their own team; `draft_pool` leaves them
-// unassigned for a later draft. Re-running only fills gaps (existing players/teams are reused).
+// single shared team; `individual` gives each member their own team (or one team per person when
+// slotMode is 'per-person'); `draft_pool` leaves them unassigned for a later draft. Re-running only
+// fills gaps (existing players/teams are reused).
 export async function autoEnrollActivePluginMembers(
   eventId: number,
   placement: EnrollPlacement,
+  slotMode: SlotMode = 'per-person',
 ): Promise<AutoEnrollResult> {
   const eligible = await listEligiblePluginMembers(eventId);
   const newlyEnrolled = eligible.filter((m) => m.enrolledPlayerId == null).length;
@@ -178,26 +296,100 @@ export async function autoEnrollActivePluginMembers(
     });
     await upsertPlayers(eventId, eligible.map(toMember), teamId);
   } else {
-    // individual — one team per member, skipping anyone already placed on a team.
+    // individual — skip anyone already on a team; the rest become teams per the slot mode.
+    const toPlace = eligible.filter((m) => m.enrolledTeamId == null);
     const existingTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
     const teamByName = new Map(existingTeams.map((t) => [t.name.trim().toLowerCase(), t.id]));
     let colorIdx = existingTeams.length;
-    for (const m of eligible) {
-      if (m.enrolledTeamId != null) continue; // already on a team — leave them there
-      const key = m.rsn.trim().toLowerCase();
-      let teamId = teamByName.get(key);
+    const groups =
+      slotMode === 'per-person'
+        ? await groupAccountsByPerson(toPlace.map((m) => ({ clanMemberId: m.id, rsn: m.rsn })))
+        : toPlace.map((m) => ({ personKey: `s${m.id}`, teamName: m.rsn, accounts: [{ clanMemberId: m.id, rsn: m.rsn }] }));
+    // Re-run safety: route a person's newly-added account to the team they already sit on.
+    const personTeam = slotMode === 'per-person' ? await existingTeamByPerson(eventId) : new Map<string, number>();
+    for (const g of groups) {
+      const key = g.teamName.trim().toLowerCase();
+      let teamId = personTeam.get(g.personKey) ?? teamByName.get(key);
       if (teamId == null) {
-        teamId = await insertTeam(eventId, m.rsn, teamColorForIndex(colorIdx++));
+        teamId = await insertTeam(eventId, g.teamName, teamColorForIndex(colorIdx++));
         teamByName.set(key, teamId);
         teamsCreated++;
       }
-      await upsertPlayers(eventId, [toMember(m)], teamId);
+      personTeam.set(g.personKey, teamId);
+      await upsertPlayers(
+        eventId,
+        g.accounts.map((a) => ({ clanMemberId: a.clanMemberId!, name: a.rsn, discord: null, timezone: null })),
+        teamId,
+      );
     }
   }
 
   await backfillApprovedSignups(eventId, eligible.map((m) => m.id));
 
   return { placement, eligible: eligible.length, added: newlyEnrolled, teamsCreated };
+}
+
+// Give every player already in the event's pool (teamId null) a team, per the chosen non-draft
+// format: 'individual' = a solo team named after each player, 'one_team' = everyone onto one shared
+// "Clan" team. Complements autoEnrollActivePluginMembers (which only covers plugin-active clan
+// members) by teaming up sign-up-form players and manually-added guests too — this is what lets the
+// format-first Teams flow skip manual team creation entirely. Idempotent: players already on a team
+// are untouched, same-named teams are reused.
+export async function placeUnassignedPlayers(
+  eventId: number,
+  placement: 'one_team' | 'individual',
+  slotMode: SlotMode = 'per-person',
+): Promise<{ placed: number; teamsCreated: number }> {
+  const pool = await db
+    .select()
+    .from(players)
+    .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+  if (pool.length === 0) return { placed: 0, teamsCreated: 0 };
+
+  let teamsCreated = 0;
+  const pickedAt = new Date().toISOString();
+
+  if (placement === 'one_team') {
+    const teamId = await findOrCreateTeam(eventId, 'Clan', teamColorForIndex(0), (created) => {
+      if (created) teamsCreated++;
+    });
+    await db
+      .update(players)
+      .set({ teamId, pickedAt })
+      .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+    return { placed: pool.length, teamsCreated };
+  }
+
+  // individual — a team per person ('per-person', alts share it) or per account ('per-account'),
+  // named after the person's primary account. Reuse a same-named team so re-runs / mixed
+  // auto-enroll+pool flows never spawn "Nisbro (2)" duplicates.
+  const existingTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const teamByName = new Map(existingTeams.map((t) => [t.name.trim().toLowerCase(), t.id]));
+  let colorIdx = existingTeams.length;
+  const groups =
+    slotMode === 'per-person'
+      ? await groupAccountsByPerson(pool.map((p) => ({ clanMemberId: p.clanMemberId, rsn: p.name, playerId: p.id })))
+      : pool.map((p) => ({
+          personKey: personKeyOf(p.clanMemberId, null, p.id),
+          teamName: p.name,
+          accounts: [{ clanMemberId: p.clanMemberId, rsn: p.name, playerId: p.id }],
+        }));
+  // Re-run safety: a person's newly-pooled alt joins the team they already sit on.
+  const personTeam = slotMode === 'per-person' ? await existingTeamByPerson(eventId) : new Map<string, number>();
+  for (const g of groups) {
+    const key = g.teamName.trim().toLowerCase();
+    let teamId = personTeam.get(g.personKey) ?? teamByName.get(key);
+    if (teamId == null) {
+      teamId = await insertTeam(eventId, g.teamName, teamColorForIndex(colorIdx++));
+      teamByName.set(key, teamId);
+      teamsCreated++;
+    }
+    personTeam.set(g.personKey, teamId);
+    for (const a of g.accounts) {
+      if (a.playerId != null) await db.update(players).set({ teamId, pickedAt }).where(eq(players.id, a.playerId));
+    }
+  }
+  return { placed: pool.length, teamsCreated };
 }
 
 // captain_password is a legacy NOT NULL column on older live DBs (retired in schema, dropped by

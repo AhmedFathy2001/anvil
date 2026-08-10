@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { Tile as FullTile } from '@/lib/types';
-import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
+import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
+import LadderStandings from '@/components/LadderStandings';
 
 interface Tile {
   id: number;
@@ -86,6 +89,11 @@ interface Props {
   // Reveal-policy events (lib/eventRules): tiles the viewer can't see yet + when the next lands.
   hiddenTileCount?: number;
   nextRevealAt?: string | null;
+  // Ladder events: the event-wide individual leaderboard (primary standings). `ladderHasTeams` = the
+  // event runs real multi-person teams, so rows carry a team label and the team board also shows.
+  individualStandings?: IndividualStanding[];
+  individualStandingsMonthly?: IndividualStanding[];
+  ladderHasTeams?: boolean;
 }
 
 interface TeamGains {
@@ -94,7 +102,8 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
+  const ladder = isLadderFormat(event.format);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -108,28 +117,26 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
 
-  useEffect(() => {
+  const router = useRouter();
+
+  const refetchSubmissions = useCallback(() => {
     fetch(`/api/events/${event.id}/submissions`)
       .then((r) => r.ok ? r.json() : [])
-      .then(setSubmissions);
+      .then(setSubmissions)
+      .catch(() => {});
   }, [event.id]);
 
-  // Fetch gains data for all teams (for stat tiles)
-  useEffect(() => {
+  const refetchGains = useCallback(() => {
     const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
     if (statTiles.length === 0) return;
-
-    // Fetch gains for all teams in parallel
+    // Fetch gains for all teams in parallel, aggregate by tile.
     Promise.all(
       teams.map(async (team) => {
         const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
         if (!res.ok) return null;
         const data = await res.json();
-
-        // Aggregate gains by tile
         const tileGains: Record<number, number> = {};
         let totalGained = 0;
-
         for (const tile of statTiles) {
           let tileTotal = 0;
           for (const player of data) {
@@ -139,13 +146,25 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           tileGains[tile.id] = tileTotal;
           totalGained += tileTotal;
         }
-
         return { teamId: team.id, totalGained, tileGains };
       })
     ).then((results) => {
       setTeamGains(results.filter((r): r is TeamGains => r !== null));
-    });
+    }).catch(() => {});
   }, [event.id, teams, tiles]);
+
+  useEffect(() => { refetchSubmissions(); }, [refetchSubmissions]);
+  useEffect(() => { refetchGains(); }, [refetchGains]);
+
+  // Semi-realtime: on tab-focus (throttled) poll a tiny pulse endpoint; only when the board actually
+  // changes do we pull fresh data — router.refresh() for the server-rendered standings/completions,
+  // plus the client-side submissions/gains. An unchanged board is a 304 (no body), so it's cheap.
+  const onBoardChange = useCallback(() => {
+    router.refresh();
+    refetchSubmissions();
+    refetchGains();
+  }, [router, refetchSubmissions, refetchGains]);
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
 
   // Exclude optional tiles from completion counts
   const pointsMode = isPointsMode(event.scoringMode);
@@ -268,17 +287,40 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           <div className="min-w-0">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
-              Standings
+              {ladder ? 'Leaderboard' : 'Standings'}
             </h2>
-            <Scoreboard
-              teams={teams}
-              totalTiles={pointsMode ? totalWeight : requiredTiles.length}
-              completionCounts={completionCounts}
-              eventId={event.id}
-              dropProgressByTeam={dropProgressByTeam}
-              pointsMode={pointsMode}
-              teamMvps={teamMvps}
-            />
+            {ladder ? (
+              <>
+                <LadderStandings standings={individualStandings} monthly={individualStandingsMonthly} showTeam={ladderHasTeams} />
+                {ladderHasTeams && (
+                  <div className="mt-6">
+                    <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
+                      <span className="w-1 h-4 bg-gold/60 rounded-full" />
+                      Teams
+                    </h3>
+                    <Scoreboard
+                      teams={teams}
+                      totalTiles={totalWeight}
+                      completionCounts={completionCounts}
+                      eventId={event.id}
+                      dropProgressByTeam={dropProgressByTeam}
+                      pointsMode
+                      teamMvps={teamMvps}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <Scoreboard
+                teams={teams}
+                totalTiles={pointsMode ? totalWeight : requiredTiles.length}
+                completionCounts={completionCounts}
+                eventId={event.id}
+                dropProgressByTeam={dropProgressByTeam}
+                pointsMode={pointsMode}
+                teamMvps={teamMvps}
+              />
+            )}
 
             {/* XP/Stat Gains */}
             {statTiles.length > 0 && teamGains.length > 0 && (

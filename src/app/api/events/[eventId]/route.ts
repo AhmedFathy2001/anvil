@@ -8,7 +8,10 @@ import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { getEventStartReadiness } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
+import { writePlayerEventFacts } from '@/lib/playerEventFacts';
+import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
+import { announceNextMission } from '@/lib/revealEngine';
 
 export async function GET(
   _request: Request,
@@ -149,6 +152,42 @@ export async function PATCH(
     // structure or payouts already exist). Fire-and-forget — a payout hiccup mustn't fail the end.
     autoGeneratePayoutsOnEnd(event.id).catch(() => {});
 
+    // Materialize player_event_facts (longitudinal profile evidence). Fire-and-forget like payouts.
+    writePlayerEventFacts(event.id).catch(() => {});
+
+    return NextResponse.json(updated);
+  }
+
+  // Manually announce the next hidden mission (drops one from the mission pool, by the configured
+  // order, and stamps it live + posts to Discord). The interval/scheduled modes do this on the cron.
+  if (body.action === 'announce-mission') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    if (!event.tilesRevealed) {
+      return NextResponse.json({ error: 'Arm the board (reveal tiles) before announcing missions.' }, { status: 400 });
+    }
+    const { announced } = await announceNextMission(id);
+    if (announced === 0) {
+      return NextResponse.json({ error: 'No hidden missions left to announce.' }, { status: 400 });
+    }
+    return NextResponse.json({ announced });
+  }
+
+  // Post-finish edit lock: 'unlock-editing' re-opens a finished event's content for corrections
+  // (teams/players/tiles/completions/submissions mutations start passing lib/eventLock's guard
+  // again); 'lock-editing' clears the override so the finished event is read-only once more.
+  if (body.action === 'unlock-editing' || body.action === 'lock-editing') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    const [updated] = await db
+      .update(events)
+      .set({ editUnlockedAt: body.action === 'unlock-editing' ? new Date().toISOString() : null })
+      .where(eq(events.id, id))
+      .returning();
     return NextResponse.json(updated);
   }
 
@@ -241,7 +280,34 @@ export async function PATCH(
       }).catch(() => {});
     }
 
-    return NextResponse.json(updated);
+    // Balance advisory (never a blocker — lopsided teams can be a deliberate social choice): if
+    // the projected strength spread is wide, say so and hand back the single swap that would
+    // shrink it most. Best-effort; a profile hiccup never delays the start we just performed.
+    let balanceWarning: { spreadPct: number; message: string; suggestedSwap: unknown } | null = null;
+    try {
+      const eventTeams = await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, id));
+      if (eventTeams.length >= 2) {
+        const balance = await buildDraftBalance(id);
+        const teamIds = eventTeams.map((t) => t.id);
+        const spreadPct = projectedSpreadPct(balance, teamIds);
+        if (spreadPct >= 25) {
+          const swap = bestBalancingSwap(balance, teamIds);
+          balanceWarning = {
+            spreadPct,
+            message:
+              `Projected team strength is ${spreadPct}% apart top-to-bottom.` +
+              (swap
+                ? ` Swapping ${swap.give} and ${swap.take} would bring it to ~${swap.spreadAfterPct}%.`
+                : ''),
+            suggestedSwap: swap,
+          };
+        }
+      }
+    } catch {
+      /* advisory only */
+    }
+
+    return NextResponse.json({ ...updated, balanceWarning });
   }
 
   // Handle change-mode action — switch the event's base type (classic / leagues / race)
@@ -265,25 +331,26 @@ export async function PATCH(
     }
 
     const { format, scoringMode, boardSize } = body;
-    if (format !== 'bingo' && format !== 'tilerace') {
-      return NextResponse.json({ error: "format must be 'bingo' or 'tilerace'" }, { status: 400 });
+    if (format !== 'bingo' && format !== 'tilerace' && format !== 'ladder') {
+      return NextResponse.json({ error: "format must be 'bingo', 'tilerace' or 'ladder'" }, { status: 400 });
     }
     if (scoringMode !== 'tiles' && scoringMode !== 'points') {
       return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
     }
-    // A tile race is always scored by furthest tile reached; force 'tiles' there.
-    const resolvedScoringMode = format === 'tilerace' ? 'tiles' : scoringMode;
+    // A tile race is always scored by furthest tile reached; a ladder is always points-scored.
+    const resolvedScoringMode = format === 'tilerace' ? 'tiles' : format === 'ladder' ? 'points' : scoringMode;
 
-    // Rules preset travels with the type change (showdown/luckydraw/bounty carry a reveal
-    // policy; the three classic types clear it). Same validation + shape constraint as create.
+    // Rules preset travels with the type change (reveal policies carry over; classic types clear it).
+    // Same validation + shape constraint as create — reveal policies ride points-bingo or ladder.
     const rulesResult = validateEventRules(body.rules);
     if ('error' in rulesResult) {
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
     }
     const resolvedRules = rulesResult.rules;
-    if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && (format !== 'bingo' || resolvedScoringMode !== 'points')) {
+    const allowsReveal = (format === 'bingo' && resolvedScoringMode === 'points') || format === 'ladder';
+    if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && !allowsReveal) {
       return NextResponse.json(
-        { error: 'Reveal policies (showdown / lucky draw / bounty) require the points-scored bingo format.' },
+        { error: 'Reveal policies require the points-scored bingo or ladder format.' },
         { status: 400 },
       );
     }
@@ -326,6 +393,18 @@ export async function PATCH(
 
   // Default: update dates and/or sign-up config
   const updates: Record<string, unknown> = {};
+  // Rename the event in place. Trim and require a non-empty name (mirrors create); cap length so an
+  // overlong title can't break Discord embeds / board headers. Editable at any point in the lifecycle.
+  if ('name' in body) {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) {
+      return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 });
+    }
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'name must be 100 characters or fewer' }, { status: 400 });
+    }
+    updates.name = name;
+  }
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
   // Per-event game rules (lib/eventRules) — lets admins tune interval/bonus settings in place.
@@ -360,6 +439,22 @@ export async function PATCH(
     }
     updates.addedPrizePool = body.addedPrizePool;
   }
+  // Multi-account config — same validation as event create (api/events/route.ts). Editable in place so
+  // the "One team each" setup can tune it; the pre-start gate below refuses changes once live so a
+  // slot-mode flip can't retroactively scramble MVP / recap aggregation.
+  const MAX_ACCOUNTS_CAP = 10;
+  if ('maxAccountsPerPerson' in body) {
+    if (!Number.isInteger(body.maxAccountsPerPerson) || body.maxAccountsPerPerson < 1 || body.maxAccountsPerPerson > MAX_ACCOUNTS_CAP) {
+      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}` }, { status: 400 });
+    }
+    updates.maxAccountsPerPerson = body.maxAccountsPerPerson;
+  }
+  if ('accountSlotMode' in body) {
+    if (body.accountSlotMode !== 'per-person' && body.accountSlotMode !== 'per-account') {
+      return NextResponse.json({ error: "accountSlotMode must be 'per-person' or 'per-account'" }, { status: 400 });
+    }
+    updates.accountSlotMode = body.accountSlotMode;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -378,6 +473,18 @@ export async function PATCH(
   const existing = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!existing) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+  // Multi-account config is a pre-start decision — it drives team formation and scoring rollups, so
+  // block edits once the event has started or force-ended (mirrors change-mode's pre-start gate).
+  if ('accountSlotMode' in body || 'maxAccountsPerPerson' in body) {
+    const now = new Date().toISOString();
+    const started = !!existing.startDate && existing.startDate <= now;
+    if (started || existing.forceEndedAt) {
+      return NextResponse.json(
+        { error: 'Account settings can only change before the event starts.' },
+        { status: 409 },
+      );
+    }
   }
   const finalStart = 'startDate' in body ? (body.startDate as string | null) : existing.startDate;
   const finalEnd = 'endDate' in body ? (body.endDate as string | null) : existing.endDate;

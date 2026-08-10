@@ -4,6 +4,7 @@ import { players, tiles, clanMembers } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // GET player's snapshot data for editing
 export async function GET(
@@ -94,6 +95,9 @@ export async function PATCH(
 
   const { eventId, playerId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const pId = parseInt(playerId, 10);
 
   const player = await db.query.players.findFirst({

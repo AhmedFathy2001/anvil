@@ -274,6 +274,48 @@
       "when": 1785017371053,
       "tag": "0038_mixed_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1785137513619,
+      "tag": "0039_players-pvp-kills",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1785143412878,
+      "tag": "0040_player-event-facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1785144112762,
+      "tag": "0041_event-edit-lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1785613158614,
+      "tag": "0042_federation-connection-guest",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1785740906441,
+      "tag": "0043_nappy_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1786120384613,
+      "tag": "0044_chubby_rogue",
+      "breakpoints": true
     }
   ]
 }

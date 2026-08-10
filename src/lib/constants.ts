@@ -117,6 +117,7 @@ export const BOSSES: BossOption[] = [
   { key: "kreeArra", label: "Kree'Arra", aliases: ["kree", "arma", "armadyl", "gwd"] },
   { key: "krilTsutsaroth", label: "K'ril Tsutsaroth", aliases: ["kril", "zammy", "zamorak", "gwd"] },
   { key: "lunarChests", label: "Lunar Chests", aliases: ["moons", "moons of peril", "perilous moons"] },
+  { key: "madAngel", label: "Mad Angel" },
   { key: "maggotKing", label: "Maggot King" },
   { key: "mimic", label: "Mimic" },
   { key: "nex", label: "Nex" },

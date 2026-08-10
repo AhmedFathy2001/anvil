@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyTileEditor, verifyAdminOrModerator } from '@/lib/auth';
+import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
-import { parseEventRules, hasRevealPolicy, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -20,7 +21,10 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   const rules = parseEventRules(event?.rules);
   if (event && (!event.tilesRevealed || hasRevealPolicy(rules))) {
-    const staff = await verifyAdminOrModerator();
+    // Board-scoped editors aren't mod-tier (verifyAdminOrModerator excludes them), but they still
+    // need the FULL board for the event they're granted — so treat this event's tile editors as
+    // staff here too.
+    const staff = (await verifyAdminOrModerator()) || (await verifyTileEditorForEvent(eId));
     if (!staff && !event.tilesRevealed) return NextResponse.json([]);
     if (!staff) {
       const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
@@ -39,14 +43,17 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { eventId } = await params;
-  const eId = parseInt(eventId, 10);
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, baseUpdatedAt, liveOverride } = await request.json();
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -266,6 +273,14 @@ export async function PUT(
     ...(pvpMinLootValueValue !== undefined ? { pvpMinLootValue: pvpMinLootValueValue } : {}),
     // Scheduled reveal time — always editable (see validation above).
     ...(revealAtValue !== undefined ? { revealAt: revealAtValue } : {}),
+    // Mission flag + per-mission scoring (lockout/bonus/decay/expiry). Always editable so a host can
+    // designate/adjust a mission on a live board. Clearing the flag drops its rules.
+    ...(mission !== undefined ? { mission: mission ? 1 : 0 } : {}),
+    ...(mission === false
+      ? { rules: null }
+      : missionRules !== undefined
+        ? { rules: serializeTileMissionRules(missionRules as Partial<MissionRules>) }
+        : {}),
   };
 
   // trackedItemIds is always editable (admin can update plugin mappings anytime)
@@ -433,13 +448,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const editor = await verifyTileEditor();
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { eventId } = await params;
-  const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) {

@@ -8,6 +8,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
 import type { Completion } from '@/lib/types';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   _request: Request,
@@ -46,6 +47,9 @@ export async function POST(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { teamId, tileId } = await request.json();
 
   if (!teamId || !tileId) {

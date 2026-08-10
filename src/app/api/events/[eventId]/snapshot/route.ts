@@ -4,6 +4,7 @@ import { players, events, settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
+import { assertEventEditable } from '@/lib/eventLock';
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,6 +28,9 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
 
   // Check for force reset flag
   const { searchParams } = new URL(request.url);

@@ -9,6 +9,7 @@ import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { isDraftInProgress } from '@/lib/eventReadiness';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   request: Request,
@@ -68,6 +69,9 @@ export async function POST(
   if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
   const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
@@ -376,6 +380,9 @@ export async function DELETE(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Finished events are read-only unless explicitly unlocked (lib/eventLock).
+  const lockedResponse = await assertEventEditable(eId);
+  if (lockedResponse) return lockedResponse;
 
   const { searchParams } = new URL(request.url);
   const submissionId = searchParams.get('submissionId');

@@ -152,6 +152,9 @@ export interface WeeklyValueUpdate {
    * must NOT become the baseline (it would zero out the whole session), so the sweep sets it instead.
    */
   allowFirstCapture: boolean;
+  /** Competition start — the elapsed-time anchor for the implausible-gain check (cumulative gain
+   *  over comp time, not the sweep interval). Null skips the check. */
+  competitionStartIso?: string | null;
   now?: string;
 }
 
@@ -196,15 +199,17 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
     lastUpdated: nowIso,
   };
 
-  // Flag an implausible single-interval jump (a logout flush of a pre-event grind sweeping into the
-  // gain). Flag — never clamp — so an admin corrects the baseline by hand. Only set, never clear here.
+  // Flag an implausible CUMULATIVE gain — one that couldn't be earned in the elapsed comp time (a
+  // stale baseline that swept pre-event XP into the gain). Measured over the comp, NOT the sweep
+  // interval, so an honest logout flush isn't false-flagged. Flag — never clamp — so an admin
+  // corrects the baseline by hand. Only set, never clear here.
   let flagged = false;
-  if (u.currentValue !== null) {
+  if (u.baselineValue !== null) {
     const spike = checkRateSpike({
       type: u.type,
       metric: u.metric,
-      delta: u.value - u.currentValue,
-      fromIso: u.lastUpdated,
+      gained: u.value - u.baselineValue,
+      sinceIso: u.competitionStartIso ?? null,
       toIso: nowIso,
     });
     if (spike.flagged) {

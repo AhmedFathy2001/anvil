@@ -1,6 +1,6 @@
 # Anvil Federation — Instance Contract (v1)
 
-**This is the open-source, versioned public API that every Anvil instance (hosted or
+**This is the source-available, versioned public API that every Anvil instance (hosted or
 self-hosted) exposes.** Self-hosters implement exactly this. The broker (Anvil.Admin) is
 proprietary; only its *client-facing* endpoint shapes are documented here, under "Talking to
 the broker."

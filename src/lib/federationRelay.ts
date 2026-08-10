@@ -37,6 +37,10 @@ export interface FederationConnection {
   name: string;
   baseUrl: string;
   token: string; // the remote clan minted this at its /exchange; a secret we hold and replay.
+  /** What that clan said we are to them at /exchange: true = an auto-created federation guest,
+   *  false/absent = a real member there. Cached so /state can tell the plugin where the player
+   *  actually belongs (it lands the sidebar there instead of always the configured home). */
+  guest?: boolean;
 }
 
 // finding #4: collapse a connection list to at most one entry per instanceId (KEEP LAST — a re-connect
@@ -395,7 +399,13 @@ async function exchangeAll(
       const accounts = accountsFor ? await accountsFor(inst.instanceId).catch(() => []) : undefined;
       const res = await exchangeAssertion(inst.baseUrl, a.assertion, fetchImpl, accounts);
       if (res?.token) {
-        out.push({ instanceId: inst.instanceId, name: inst.name, baseUrl: inst.baseUrl, token: res.token });
+        out.push({
+          instanceId: inst.instanceId,
+          name: inst.name,
+          baseUrl: inst.baseUrl,
+          token: res.token,
+          guest: res.guest === true,
+        });
       }
     } catch {
       // isolated: one clan being down/rejecting must not sink the rest.
@@ -426,6 +436,10 @@ export interface AggregatedClan {
   name: string;
   board: SafeBoard;
   activity: SafeActivity;
+  /** True when the player is a REAL member of this clan (not an auto-created federation guest) —
+   *  the plugin picks which clan the sidebar opens on from this. Our own truth, not the remote's
+   *  latest word: it's the cached `/exchange` verdict, re-stamped on each re-sync. */
+  member: boolean;
 }
 
 // Build the plugin-facing `clans[]` for /state: fetch each connected clan's board + activity
@@ -448,6 +462,7 @@ export async function aggregateClans(
         name: conn.name,
         board: sanitizeFederatedBoard(board),
         activity: sanitizeFederatedActivity(activity),
+        member: conn.guest !== true,
       };
     }),
   );
