@@ -84,6 +84,8 @@ interface Props {
 export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The board itself, so the header's Quick build shortcut can jump straight to it.
+  const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
@@ -648,6 +650,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             Add tiles
           </h2>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
+              title="Build the board here — a searchable tile list beside a live editor"
+            >
+              ⚡ Quick build
+            </button>
             <ClogGenerator
               eventId={event.id}
               canGrow={canEditTileSet}
@@ -710,10 +723,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         </div>
         <p className="text-xs text-text-muted leading-relaxed">
-          Tile editing on this page is collaborative — live edits with per-tile locks, so nobody
-          overwrites anyone. Draw a board from your{' '}
-          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>,
-          generate from the collection log or skills, or draft the whole thing in a spreadsheet.
+          <span className="text-gold">Quick build</span> is the fastest way in — the tile list beside
+          a live editor, with per-tile locks so a whole team can draft at once without overwriting
+          each other. Fill the board first by drawing from your{' '}
+          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>{' '}
+          or generating from the collection log or skills.
         </p>
         <details className="mt-2 group">
           <summary className="text-xs text-gold cursor-pointer hover:text-gold-light select-none">
@@ -757,7 +771,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       <TileHistoryPanel eventId={event.id} />
 
       {/* Per-tile configuration */}
-      <div>
+      <div ref={boardRef}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
