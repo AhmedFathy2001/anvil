@@ -100,7 +100,8 @@ Settings → Environment Variables** (production). Every variable is documented 
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | Yes | Discord login |
 | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` | Optional | Role/nickname/channel sync |
 | `ADMIN_DISCORD_ID` | First run | Seeds your first admin (see below) |
-| `CLAN_NAME` | Optional | Fallback clan name (prefer the admin UI) |
+| `CLAN_NAME` | Optional | Fallback clan *display* name (prefer the admin UI) |
+| `CLAN_INGAME_NAME` | Optional | Fallback exact in-game clan name; gates the plugin roster sync. Blank = accept any clan |
 | `DISCORD_INVITE_URL` | Optional | Fallback Discord invite (prefer the admin UI) |
 | `DISCORD_MEMBER_ROLE_ID` | Optional | Fallback member-ping role (prefer the admin UI) |
 | `SENTRY_DSN` | Optional | Error reporting (requires `npm i @sentry/nextjs`) |
@@ -173,9 +174,12 @@ nothing here.
 
 ## 7. Configure your instance in the admin UI
 
-- `/admin/clan` → **Clan Settings**: set your **Clan Name** (the plugin's
-  clan-sync rejects roster pushes whose in-game clan name doesn't match; leave
-  blank to accept any clan).
+- `/admin/clan` → **Clan Settings**: two independent names.
+  - **Display name** — what the site, the plugin sidebar and Discord posts call
+    your clan. Rename it whenever you like.
+  - **In-game clan name** — the exact OSRS clan name. The plugin's clan-sync
+    rejects roster pushes whose reported clan name doesn't match it; leave blank
+    to accept a sync from any clan.
 - `/admin/integrations`:
   - **Clan identity**: your **Discord invite URL** and **member-ping role ID**.
   - **Webhooks**: paste channel webhook URLs for clan updates, bingo, weekly,

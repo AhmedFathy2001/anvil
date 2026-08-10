@@ -16,6 +16,7 @@ import { settings, federationTokens, federationJti, users, clanMembers } from '@
 import { and, desc, eq, isNull, lt, notInArray, or } from 'drizzle-orm';
 import {
   getAssociationPush,
+  getClanDisplayName,
   getBrokerBaseUrl,
   getBrokerTrust,
   getFederationEnabled,
@@ -116,8 +117,7 @@ export async function getVerificationToken(): Promise<string | null> {
 
 // Human-readable instance name for /meta — mirrors how the profile page resolves the clan name.
 export async function getInstanceName(): Promise<string> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-  return row?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+  return getClanDisplayName();
 }
 
 // hosted vs self-hosted (WIRE §7). Managed instances are provisioned by Anvil.Admin, which sets this

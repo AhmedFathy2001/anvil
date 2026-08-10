@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { EVENT_MODES } from '@/lib/eventModes';
-import { getFederationEnabled } from '@/lib/pluginConfig';
+import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
+import { isSharedLoginAvailable } from '@/lib/discord-oauth';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { BotConsentDiagram, ProvisioningStatesDiagram, SetupStepsDiagram } from '../_components/Diagrams';
 
 export const metadata: Metadata = {
   title: 'Running your first event — Anvil admin guide',
@@ -29,9 +28,12 @@ const SECTIONS = [
 ];
 
 export default async function AdminGuidePage() {
-  const clanRow = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-  const clanName = clanRow?.value?.trim() || process.env.CLAN_NAME?.trim() || 'your clan';
+  const clanName = await getClanDisplayName('your clan');
   const federationEnabled = await getFederationEnabled();
+  // Hosted instances are marked by the provisioner (ANVIL_SHARED_LOGIN + a broker URL); a self-host
+  // can't declare it. Only they went through the purchase → setup → build path, so only they get the
+  // paragraph about it.
+  const hosted = isSharedLoginAvailable();
 
   return (
     <GuideShell
@@ -108,6 +110,7 @@ export default async function AdminGuidePage() {
           connect Discord, create an event, add tiles. Status is computed from real data, so a step
           only ticks when it&rsquo;s genuinely finished.
         </p>
+        <SetupStepsDiagram />
         <p className="text-text-muted">
           For Discord you have two routes, and they compose: give Anvil a{' '}
           <span className="text-foreground font-medium">bot</span> and it can create webhooks, sync
@@ -116,6 +119,7 @@ export default async function AdminGuidePage() {
           announcements and nothing else. Start with the webhook if you want to be live in two minutes,
           add the bot when you want the automation.
         </p>
+        <BotConsentDiagram />
         <Note tag="Bot permissions">
           <p>
             The bot needs <em>Manage Webhooks</em>, <em>Manage Roles</em>, <em>Manage Channels</em> and{' '}
@@ -123,6 +127,16 @@ export default async function AdminGuidePage() {
             server&rsquo;s role list. Discord silently refuses otherwise.
           </p>
         </Note>
+        {hosted && (
+          <>
+            <p className="text-text-muted">
+              On a hosted plan you met that screen once already: adding the bot during setup is how
+              Anvil learned which server is yours, so there was never a server ID to copy. The same
+              link is here whenever you want to move the bot to a different server.
+            </p>
+            <ProvisioningStatesDiagram />
+          </>
+        )}
       </Section>
 
       {/* ------------------------------------------------------------------ 3 */}

@@ -277,11 +277,36 @@ export async function getShowKillCount(): Promise<boolean> {
   return row?.value !== 'off';
 }
 
-// The clan's display name for the plugin sidebar (clan filter label + logged-out home card). Same
-// resolution as the web header: settings row, provisioner env, generic fallback.
-export async function getClanDisplayName(): Promise<string> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'clan_name') });
-  return row?.value?.trim() || process.env.CLAN_NAME?.trim() || 'Anvil';
+// --- Clan naming ----------------------------------------------------------------------------
+// Two independent names, because the two jobs are different:
+//   clan_name        — the DISPLAY name. What the site, the plugin sidebar, Discord posts and the
+//                      federation directory call this clan. Free-form; rename at will.
+//   clan_ingame_name — the EXACT in-game clan name, used only to gate the plugin's roster sync
+//                      (/api/plugin/clan-sync). Blank = accept a sync from any clan.
+// A clan whose OSRS clan is "Anvl CC" can therefore present itself as "The Anvil" everywhere.
+export const CLAN_NAME_SETTING_KEY = 'clan_name';
+export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
+
+// The clan's display name — plugin sidebar (clan filter label + logged-out home card), the web
+// home hero, guides, Discord posts, the federation directory. Resolution: settings row, provisioner
+// env, caller-supplied fallback (pages use softer prose fallbacks like "your clan").
+export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, CLAN_NAME_SETTING_KEY) });
+  return row?.value?.trim() || process.env.CLAN_NAME?.trim() || fallback;
+}
+
+// The exact in-game clan name the plugin's roster-sync payload must report. Null = unset, which
+// means "accept a roster sync from whatever clan the admin is in".
+//
+// Deliberately does NOT fall back to clan_name: once the display name is free to drift from the
+// in-game one, silently gating on it would reject every sync after a rename. Existing installs are
+// backfilled from clan_name at boot (scripts/migrate.mjs) so their gate survives this split, and an
+// admin who clears the field is opting into "any clan" on purpose.
+export async function getInGameClanName(): Promise<string | null> {
+  const row = await db.query.settings.findFirst({
+    where: eq(settings.key, CLAN_INGAME_NAME_SETTING_KEY),
+  });
+  return row?.value?.trim() || process.env.CLAN_INGAME_NAME?.trim() || null;
 }
 
 // Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so

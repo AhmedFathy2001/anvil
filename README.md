@@ -96,7 +96,9 @@ It's populated three ways:
      **Sync clan** in the plugin side panel. The plugin POSTs the full roster
      to `/api/plugin/clan-sync`.
    - The site rejects the sync if the reported clan name doesn't match
-     `Clan Settings → Clan Name` on `/admin/clan` (or `CLAN_NAME` env fallback).
+     `Clan Settings` on `/admin/clan` — a display name plus, optionally, the exact
+     in-game clan name the plugin's roster sync must match (or the `CLAN_NAME` /
+     `CLAN_INGAME_NAME` env fallbacks).
      Leave the clan name blank to accept any clan.
 
 ### Bingo events

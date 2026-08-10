@@ -156,6 +156,7 @@ async function snapshotBeforeMigrate() {
 async function seedSettingsFromEnv() {
   const seeds = [
     ['clan_name', process.env.CLAN_NAME],
+    ['clan_ingame_name', process.env.CLAN_INGAME_NAME],
     ['discord_invite_url', process.env.DISCORD_INVITE_URL],
   ];
   for (const [key, raw] of seeds) {
@@ -178,11 +179,40 @@ async function seedSettingsFromEnv() {
   }
 }
 
+// One-time backfill for the clan_name split (display name vs in-game clan name). Before the split
+// a single `clan_name` did both jobs, including gating the plugin's roster sync. Copy it into the
+// new `clan_ingame_name` key so an existing clan's sync gate keeps matching after the upgrade.
+//
+// Keyed on ROW EXISTENCE, not emptiness: once the row exists (even as NULL, which the settings API
+// writes when an admin clears the field) this never fires again, so "accept any clan" stays a
+// choice the admin can make. Runs after seedSettingsFromEnv so a freshly provisioned clan has its
+// clan_name row already in place.
+async function backfillInGameClanName() {
+  try {
+    const existing = await client.execute({
+      sql: 'SELECT 1 FROM settings WHERE key = ?',
+      args: ['clan_ingame_name'],
+    });
+    if (existing.rows.length > 0) return;
+    const display = await client.execute({ sql: 'SELECT value FROM settings WHERE key = ?', args: ['clan_name'] });
+    const value = display.rows[0]?.value == null ? '' : String(display.rows[0].value).trim();
+    if (!value) return;
+    await client.execute({
+      sql: 'INSERT INTO settings (key, value) VALUES (?, ?)',
+      args: ['clan_ingame_name', value],
+    });
+    console.log('[migrate] backfilled settings.clan_ingame_name from clan_name');
+  } catch (e) {
+    console.warn(`[migrate] WARNING: clan_ingame_name backfill failed (continuing): ${e?.message || e}`);
+  }
+}
+
 try {
   await snapshotBeforeMigrate();
   await migrate(db, { migrationsFolder: './drizzle' });
   await reconcileBaselineDrift();
   await seedSettingsFromEnv();
+  await backfillInGameClanName();
   console.log('[migrate] up to date');
   process.exit(0);
 } catch (err) {
