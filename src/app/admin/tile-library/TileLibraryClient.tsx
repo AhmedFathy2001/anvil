@@ -335,8 +335,8 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
           aria-label={editing === 'new' ? 'New task' : `Edit ${editing.label}`}
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
         >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeEditor} />
-          <div className="relative w-full max-w-2xl my-auto border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={closeEditor} />
+          <div className="relative w-full max-w-2xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-1 h-5 bg-gold rounded-full shrink-0" />

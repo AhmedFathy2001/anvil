@@ -46,10 +46,10 @@ export default function CreateEventToggle() {
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
         >
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <div className="relative w-full max-w-4xl my-auto border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
+          <div className="relative w-full max-w-4xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-card-border">
               <div className="flex items-center gap-2">
                 <span className="w-1 h-5 bg-gold rounded-full" />
