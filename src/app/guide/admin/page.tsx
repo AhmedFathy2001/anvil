@@ -38,6 +38,7 @@ export default async function AdminGuidePage() {
       eyebrow="Anvil · for clan staff"
       title="Running your first event"
       sections={SECTIONS}
+      minutes={8}
       dek={
         <>
           The whole path, in the order you&rsquo;ll actually walk it: get {clanName} configured, get the

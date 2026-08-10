@@ -149,6 +149,7 @@ export function Rows({ rows }: { rows: { term: React.ReactNode; body: React.Reac
 /** Sticky contents rail + the guide's masthead, shared so both guides frame identically. */
 export function GuideShell({
   eyebrow,
+  minutes,
   title,
   dek,
   facts,
@@ -157,6 +158,9 @@ export function GuideShell({
   footnote,
 }: {
   eyebrow: string;
+  /** Approximate reading time. Declared per page: these are JSX, so there's no body text to count
+   *  at render without shipping a parser for a two-word label. */
+  minutes?: number;
   title: string;
   dek: React.ReactNode;
   facts?: { strong: string; rest: string }[];
@@ -187,7 +191,15 @@ export function GuideShell({
 
       <article className="max-w-3xl">
         <header className="mb-10">
-          <div className="text-[11px] uppercase tracking-widest text-gold mb-2">{eyebrow}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+            <span className="text-[11px] uppercase tracking-widest text-gold">{eyebrow}</span>
+            {minutes !== undefined && (
+              <>
+                <span className="text-[11px] text-text-muted/50" aria-hidden>·</span>
+                <span className="text-[11px] uppercase tracking-widest text-text-muted">{minutes} min read</span>
+              </>
+            )}
+          </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-3">{title}</h1>
           <p className="text-text-muted">{dek}</p>
           {facts && facts.length > 0 && (

@@ -70,6 +70,7 @@ export default async function PluginGuidePage() {
       eyebrow="Anvil · RuneLite plugin"
       title="Player setup guide"
       sections={SECTIONS}
+      minutes={7}
       dek={
         <>
           Install it, point it at {clanName}, and play. The plugin submits your bingo drops, posts your
