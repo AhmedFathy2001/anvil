@@ -5,6 +5,11 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 
 interface Props {
+  /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger button when something else opens it. */
+  hideTrigger?: boolean;
   eventId: number;
   canGrow: boolean;
   onCreated: (summary: { created: number; ignored: number; label: string }) => void;
@@ -15,8 +20,12 @@ interface Props {
 // Same engine as the create form's generator, but appending rather than sizing a new board, so any
 // number is valid. Stays open after adding: drawing 5 medium, then 3 hard, then 2 ultra is the
 // normal way a board gets filled.
-export default function LibraryTileGenerator({ eventId, canGrow, onCreated, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export default function LibraryTileGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, onCreated, onError }: Props) {
+  // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
+  // otherwise, so the component still works as a standalone button.
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v));
   const [drawn, setDrawn] = useState<LibraryTask[] | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -57,6 +66,7 @@ export default function LibraryTileGenerator({ eventId, canGrow, onCreated, onEr
 
   return (
     <>
+      {!hideTrigger && (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -65,6 +75,7 @@ export default function LibraryTileGenerator({ eventId, canGrow, onCreated, onEr
       >
         📚 From library
       </button>
+      )}
 
       {open && (
         <div

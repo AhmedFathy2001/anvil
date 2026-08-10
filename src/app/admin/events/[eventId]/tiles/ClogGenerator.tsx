@@ -16,6 +16,11 @@ interface ActivityMeta {
 }
 
 interface Props {
+  /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger button when something else opens it. */
+  hideTrigger?: boolean;
   eventId: number;
   // Append needs a growable board (Leagues/Tile-race, pre-start). When false the button explains why.
   canGrow: boolean;
@@ -54,8 +59,12 @@ const MODES: { key: GenMode; label: string; blurb: string }[] = [
 // /api/admin/clog (bundled OSRS Wiki dataset). Loot-fired items auto-detect via the plugin's drop
 // pipeline, and clog-only rewards (Barbarian Assault torso, gamble pets) auto-detect via the
 // plugin's collection-log-unlock crediting.
-export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export default function ClogGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, pointsMode, onCreated, onError }: Props) {
+  // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
+  // otherwise, so the component still works as a standalone button.
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v));
   const [activities, setActivities] = useState<ActivityMeta[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -223,6 +232,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
 
   return (
     <>
+      {!hideTrigger && (
       <button
         onClick={openModal}
         disabled={!canGrow}
@@ -235,6 +245,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
       >
         Generate from clog…
       </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>

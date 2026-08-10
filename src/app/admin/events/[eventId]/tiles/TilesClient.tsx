@@ -90,6 +90,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
+  // Which generator dialog the Add tiles menu has open, if any.
+  const [generator, setGenerator] = useState<'clog' | 'skill' | 'library' | null>(null);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
@@ -661,26 +663,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             >
               ⚡ Quick build
             </button>
-            <ClogGenerator
-              eventId={event.id}
-              canGrow={canEditTileSet}
-              pointsMode={pointsMode}
-              onCreated={handleClogCreated}
-              onError={(text) => setImportMsg({ type: 'error', text })}
-            />
-            <SkillTileGenerator
-              eventId={event.id}
-              canGrow={canEditTileSet}
-              pointsMode={pointsMode}
-              onCreated={handleSkillsCreated}
-              onError={(text) => setImportMsg({ type: 'error', text })}
-            />
-            <LibraryTileGenerator
-              eventId={event.id}
-              canGrow={canEditTileSet}
-              onCreated={handleSkillsCreated}
-              onError={(text) => setImportMsg({ type: 'error', text })}
-            />
             <input
               ref={fileInputRef}
               type="file"
@@ -688,14 +670,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               onChange={handleImportFile}
               className="hidden"
             />
+            {/* Everything that isn't Quick build lives in one menu: generators first (what people
+                reach for), then the file and library round-trips. */}
             <ActionMenu
-              label="Spreadsheet"
+              label="＋ Add tiles"
               items={[
+                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
+                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
+                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canEditTileSet },
                 {
-                  label: importing ? 'Importing…' : 'Upload CSV / Excel',
+                  label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
                   disabled: importing,
-                  variant: 'gold',
                 },
                 {
                   label: 'Download spreadsheet',
@@ -703,11 +689,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
                 },
                 { label: 'Template CSV', onClick: downloadTemplate },
-              ]}
-            />
-            <ActionMenu
-              label="Library"
-              items={[
                 {
                   label: savingToLibrary ? 'Adding…' : 'Add this board to the library',
                   onClick: addBoardToLibrary,
@@ -716,9 +697,38 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 {
                   label: 'Export as seed pack',
                   onClick: () => { window.location.href = `/api/admin/tile-library/export?eventId=${event.id}`; },
-                  title: 'Share this board with another Anvil site, or commit it as the default starter list',
                 },
               ]}
+            />
+            {/* Dialogs only — the menu is their trigger. */}
+            <ClogGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleClogCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'clog'}
+              onOpenChange={(v) => setGenerator(v ? 'clog' : null)}
+            />
+            <SkillTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'skill'}
+              onOpenChange={(v) => setGenerator(v ? 'skill' : null)}
+            />
+            <LibraryTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'library'}
+              onOpenChange={(v) => setGenerator(v ? 'library' : null)}
             />
           </div>
         </div>

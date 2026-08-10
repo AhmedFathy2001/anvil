@@ -42,6 +42,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* The top nav is `sticky top-0`, so every scroll-to-a-section — hash links, scrollIntoView, focus
+   moves — has to stop short of it or the thing you jumped to hides underneath. scroll-padding-top on
+   the scroll container does that once, for the whole app, instead of per-element scroll-mt guesses
+   that drift as the nav changes. */
+:root {
+  --nav-height: 3.5rem;
+}
+
+html {
+  scroll-padding-top: calc(var(--nav-height) + 1rem);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

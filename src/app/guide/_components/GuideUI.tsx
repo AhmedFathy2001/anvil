@@ -23,7 +23,7 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24">
+    <section id={id}>
       <div className="text-[11px] uppercase tracking-widest text-text-muted mb-2">
         Step {n}
         {optional && ' · optional'}
