@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
-import { linkSignupsToOwner } from '@/lib/identity';
+import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 const MAX_NOTE_LEN = 500;
@@ -98,8 +98,8 @@ export async function POST(request: Request) {
     clanMemberId = inserted[0].id;
   }
 
-  // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
-  await linkSignupsToOwner(clanMemberId, session.userId);
+  // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+  await onCharacterLinked(clanMemberId, session.userId);
 
   db.insert(clanAuditLog)
     .values({
