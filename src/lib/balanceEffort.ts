@@ -590,10 +590,14 @@ export function analyzeEffort(
 
   const checks: BalanceCheck[] = [];
   const pct = (x: number) => `${Math.round(x * 100)}%`;
+  // A tile can honestly land in both the underpaid and the doesn't-fit lists — that pairing is the
+  // clearest possible signal, so the copy names it instead of leaving two warnings looking redundant.
+  const unreachableIds = new Set(perTile.filter((t) => t.pClass === 'unreachable').map((t) => t.tileId));
 
   if (medianPph && opts.pointsMode && graded.length >= 5) {
     const over = graded.filter((t) => t.ptsPerHour! > medianPph * 3);
     const under = graded.filter((t) => t.ptsPerHour! < medianPph / 3);
+    const underAlsoUnreachable = under.filter((t) => unreachableIds.has(t.tileId)).length;
     if (over.length) {
       checks.push({
         id: 'pph-overpaid',
@@ -608,7 +612,12 @@ export function analyzeEffort(
         id: 'pph-underpaid',
         level: 'warn',
         title: `${under.length} tile${under.length === 1 ? ' pays' : 's pay'} <⅓ of the board's points-per-effort-hour`,
-        detail: `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — too grindy for the points. Raise their points or shrink the requirement.`,
+        detail:
+          `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — too grindy for ` +
+          `the points. Raise their points or shrink the requirement.` +
+          (underAlsoUnreachable
+            ? ` ${underAlsoUnreachable} of these also don't fit inside the event — shrinking those is the fix that solves both.`
+            : ''),
         tileIds: under.map((t) => t.tileId),
       });
     }
@@ -636,8 +645,9 @@ export function analyzeEffort(
       level: 'info',
       title: `${lotteries.length} lottery tile${lotteries.length === 1 ? '' : 's'} — jackpots, not plans`,
       detail:
-        `${lotteries.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${lotteries.length > 4 ? '…' : ''} are drop-RNG ` +
-        `tiles that land within the event with <${Math.round(LOTTERY_P * 100)}% odds even at a serious camp ` +
+        `${lotteries.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${lotteries.length > 4 ? '…' : ''} ` +
+        `${lotteries.length === 1 ? 'is a drop-RNG tile that lands' : 'are drop-RNG tiles that land'} within the event ` +
+        `with <${Math.round(LOTTERY_P * 100)}% odds even at a serious camp ` +
         `(~${CAMP_HOURS_PER_DAY}h/day × ${CAMPERS_PER_TILE} players). Their ${Math.round(face)} face points are ` +
         `≈${Math.round(expected)} expected — the points can stand (jackpots are fun), but nobody should be ` +
         `assigned to camp these, and board balance should count the expected value, not the face value.`,
@@ -655,7 +665,7 @@ export function analyzeEffort(
     checks.push({
       id: 'unreachable-tiles',
       level: 'warn',
-      title: `${unreachable.length} tile${unreachable.length === 1 ? " doesn't" : " don't"} fit inside the event`,
+      title: `${unreachable.length} tile${unreachable.length === 1 ? " doesn't" : "s don't"} fit inside the event`,
       detail:
         `${worst.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${unreachable.length > 4 ? '…' : ''} need more ` +
         `hours than the event has — about ${Math.round(worst[0].hours?.[1] ?? 0)}h for the biggest, against ` +
@@ -703,6 +713,19 @@ export function analyzeEffort(
       detail: 'Their fast-player time is 4×+ better than the slow estimate — teams with stacked rosters gain compounding advantage. Not wrong, just know the board rewards it.',
     });
   }
+
+  // Order matters more than it looks: the generic-time caveat qualifies every points-per-hour
+  // claim below it, so it leads. Warnings then info, and within each the ones naming specific tiles
+  // before the board-shape observations — an author reads top-down and should hit the caveat before
+  // the numbers it applies to.
+  const RANK: Record<string, number> = {
+    'rate-fallback': 0,
+    'pph-underpaid': 1,
+    'unreachable-tiles': 2,
+    'pph-overpaid': 3,
+    'inaccessible-average': 4,
+  };
+  checks.sort((a, b) => (RANK[a.id] ?? 50) - (RANK[b.id] ?? 50));
 
   return {
     perTile,
