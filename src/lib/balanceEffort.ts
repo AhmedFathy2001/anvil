@@ -41,13 +41,32 @@ const ONE_OFF_TINY_HOURS = 0.08;
 // EV-priced 800pt 3rd-age tile is STILL a lottery, because P(it lands inside one event) is a few
 // percent — face value isn't realizable value, and deliberately camping it is throwing hours away.
 // So we classify instead of repricing: expected successes in the window follow a Poisson process
-// at the tile's modelled rate, P(≥needed) decides grind / long-shot / lottery, and lottery tiles
-// are excluded from the over/underpaid flags + median (their suggested points stay untouched).
-// Board-level balance should read EXPECTED points (face × P), not face.
+// at the tile's modelled rate, and P(≥needed) grades the tile.
+//
+// The low-probability end splits by WHAT is uncertain, because the two cases need opposite advice:
+//   - RNG-driven (drops, item sets, single-haul value) → 'lottery'. Leave the points; the fun is the
+//     jackpot. Excluded from the over/underpaid flags + median, and board balance should read
+//     EXPECTED points (face × P) rather than face.
+//   - Throughput-driven (kill counts, XP goals, gains) → 'unreachable'. Nothing lucky about it:
+//     "Kill 500 Bloodvelds" is a fixed rate that simply doesn't fit the window. These STAY in the
+//     pts/hour analysis, because "too grindy for the points" is exactly the flag they deserve —
+//     calling them lotteries used to exempt them from it.
+// Poisson also flatters throughput tiles: it assumes variance = mean, when a kill count's real
+// spread comes from hours played, not from the rate. Another reason not to price off it.
 const CAMP_HOURS_PER_DAY = 4; // assumed serious-camp commitment per camper
 const CAMPERS_PER_TILE = 2;
 const DEFAULT_EVENT_DAYS = 10; // when the caller doesn't know the event window
 const LOTTERY_P = 0.15;
+
+/**
+ * Is this tile's completion decided by a ROLL, or by hours? Mirrors boardBalance's 'RNG drops'
+ * family so the two audits agree on what luck means: drops and value hauls ride the drop table;
+ * kill counts, XP goals, gains and timed clears are throughput, however long they take.
+ */
+function isRngDriven(tile: Tile): boolean {
+  const type = tile.tileType ?? 'standard';
+  return type === 'drop' || type === 'value' || type === 'collection';
+}
 const LONG_SHOT_P = 0.5;
 
 interface ActivityRate {
@@ -93,8 +112,13 @@ export interface TileEffort {
   oneOff: boolean;
   /** P(the tile completes within the event window) at an assumed serious camp; null = unmodelled. */
   hitProbability: number | null;
-  /** Realizability class from hitProbability: grind ≥ 0.5 > long-shot ≥ 0.15 > lottery. */
-  pClass: 'grind' | 'long-shot' | 'lottery' | null;
+  /**
+   * Realizability class from hitProbability. Which low-probability class a tile lands in depends on
+   * WHAT the uncertainty is: a rare drop is a 'lottery' (camp it all event and you may still get
+   * nothing), while a kill/XP count that doesn't fit the window is 'unreachable' (perfectly
+   * predictable, just too big). Opposite advice, so they can't share a label.
+   */
+  pClass: 'grind' | 'long-shot' | 'lottery' | 'unreachable' | null;
   /** Face points × hitProbability — what the tile is worth to a team plan. Null when unmodelled. */
   expectedPoints: number | null;
   suggestedPoints: number | null;
@@ -503,7 +527,14 @@ export function analyzeEffort(
     if (pricingHours != null) {
       const needed = Math.max(1, count ?? 1);
       hitProbability = poissonTail(needed, needed * (windowHours / pricingHours));
-      pClass = hitProbability < LOTTERY_P ? 'lottery' : hitProbability < LONG_SHOT_P ? 'long-shot' : 'grind';
+      pClass =
+        hitProbability < LOTTERY_P
+          ? isRngDriven(t)
+            ? 'lottery'
+            : 'unreachable'
+          : hitProbability < LONG_SHOT_P
+            ? 'long-shot'
+            : 'grind';
     }
     return {
       tileId: t.id,
@@ -559,10 +590,14 @@ export function analyzeEffort(
 
   const checks: BalanceCheck[] = [];
   const pct = (x: number) => `${Math.round(x * 100)}%`;
+  // A tile can honestly land in both the underpaid and the doesn't-fit lists — that pairing is the
+  // clearest possible signal, so the copy names it instead of leaving two warnings looking redundant.
+  const unreachableIds = new Set(perTile.filter((t) => t.pClass === 'unreachable').map((t) => t.tileId));
 
   if (medianPph && opts.pointsMode && graded.length >= 5) {
     const over = graded.filter((t) => t.ptsPerHour! > medianPph * 3);
     const under = graded.filter((t) => t.ptsPerHour! < medianPph / 3);
+    const underAlsoUnreachable = under.filter((t) => unreachableIds.has(t.tileId)).length;
     if (over.length) {
       checks.push({
         id: 'pph-overpaid',
@@ -577,7 +612,12 @@ export function analyzeEffort(
         id: 'pph-underpaid',
         level: 'warn',
         title: `${under.length} tile${under.length === 1 ? ' pays' : 's pay'} <⅓ of the board's points-per-effort-hour`,
-        detail: `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — too grindy for the points. Raise their points or shrink the requirement.`,
+        detail:
+          `${under.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${under.length > 4 ? '…' : ''} — too grindy for ` +
+          `the points. Raise their points or shrink the requirement.` +
+          (underAlsoUnreachable
+            ? ` ${underAlsoUnreachable} of these also don't fit inside the event — shrinking those is the fix that solves both.`
+            : ''),
         tileIds: under.map((t) => t.tileId),
       });
     }
@@ -605,12 +645,33 @@ export function analyzeEffort(
       level: 'info',
       title: `${lotteries.length} lottery tile${lotteries.length === 1 ? '' : 's'} — jackpots, not plans`,
       detail:
-        `${lotteries.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${lotteries.length > 4 ? '…' : ''} land ` +
-        `within the event with <${Math.round(LOTTERY_P * 100)}% odds even at a serious camp ` +
+        `${lotteries.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${lotteries.length > 4 ? '…' : ''} ` +
+        `${lotteries.length === 1 ? 'is a drop-RNG tile that lands' : 'are drop-RNG tiles that land'} within the event ` +
+        `with <${Math.round(LOTTERY_P * 100)}% odds even at a serious camp ` +
         `(~${CAMP_HOURS_PER_DAY}h/day × ${CAMPERS_PER_TILE} players). Their ${Math.round(face)} face points are ` +
         `≈${Math.round(expected)} expected — the points can stand (jackpots are fun), but nobody should be ` +
         `assigned to camp these, and board balance should count the expected value, not the face value.`,
       tileIds: lotteries.map((t) => t.tileId),
+    });
+  }
+
+  // Throughput tiles that don't fit the window. Unlike lotteries these stay in the pts/hour
+  // analysis, so a tile can legitimately appear here AND under "pays too little" — that pairing is
+  // the useful signal: too big to finish, and underpaid for its size.
+  const unreachable = perTile.filter((t) => t.pClass === 'unreachable');
+  if (unreachable.length) {
+    const worst = [...unreachable].sort((a, b) => (b.hours?.[1] ?? 0) - (a.hours?.[1] ?? 0));
+    const windowHours = CAMP_HOURS_PER_DAY * CAMPERS_PER_TILE * Math.max(1, opts.eventDays ?? DEFAULT_EVENT_DAYS);
+    checks.push({
+      id: 'unreachable-tiles',
+      level: 'warn',
+      title: `${unreachable.length} tile${unreachable.length === 1 ? " doesn't" : "s don't"} fit inside the event`,
+      detail:
+        `${worst.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${unreachable.length > 4 ? '…' : ''} need more ` +
+        `hours than the event has — about ${Math.round(worst[0].hours?.[1] ?? 0)}h for the biggest, against ` +
+        `~${Math.round(windowHours)}h of serious camping (${CAMP_HOURS_PER_DAY}h/day × ${CAMPERS_PER_TILE} players). ` +
+        `Nothing lucky about these: shrink the requirement or raise the points, because as they stand nobody finishes them.`,
+      tileIds: unreachable.map((t) => t.tileId),
     });
   }
 
@@ -652,6 +713,19 @@ export function analyzeEffort(
       detail: 'Their fast-player time is 4×+ better than the slow estimate — teams with stacked rosters gain compounding advantage. Not wrong, just know the board rewards it.',
     });
   }
+
+  // Order matters more than it looks: the generic-time caveat qualifies every points-per-hour
+  // claim below it, so it leads. Warnings then info, and within each the ones naming specific tiles
+  // before the board-shape observations — an author reads top-down and should hit the caveat before
+  // the numbers it applies to.
+  const RANK: Record<string, number> = {
+    'rate-fallback': 0,
+    'pph-underpaid': 1,
+    'unreachable-tiles': 2,
+    'pph-overpaid': 3,
+    'inaccessible-average': 4,
+  };
+  checks.sort((a, b) => (RANK[a.id] ?? 50) - (RANK[b.id] ?? 50));
 
   return {
     perTile,

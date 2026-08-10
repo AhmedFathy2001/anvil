@@ -947,6 +947,42 @@ export const eventPresets = sqliteTable('event_presets', {
   index('event_presets_created_at_idx').on(table.createdAt),
 ]);
 
+// The clan's reusable task catalogue — individual tiles rather than whole boards (that's
+// event_presets above). A board can be GENERATED from it: "8 easy, 10 medium, 5 hard" draws that
+// many at random and the create form hands them to the existing tile importer.
+//
+// Rows arrive two ways and the clan owns both: seeded once from the curated starter pool shipped in
+// the repo (data/tile-library.seed.json — `seedKey` records which entry a row came from, so a later
+// release can offer the tasks a clan hasn't seen without touching what they edited), or harvested
+// off a past board with "Add to library".
+//
+// `config` is a canonical tile CSV row (lib/csvTiles TileCsvRow) — the same shape the bulk importer
+// and templates already speak, so a drawn tile keeps its drop targets, thresholds and item lists
+// instead of degrading to a bare label. Tier is NOT stored: it's derived from `points` through the
+// clan's own tier_bands at draw time, so retuning the bands re-tiers the catalogue with it.
+export const tileLibrary = sqliteTable('tile_library', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  label: text('label').notNull(),
+  description: text('description'),
+  tileType: text('tile_type').default('standard').notNull(),
+  points: integer('points').default(0).notNull(),
+  category: text('category'),
+  /** Full TileCsvRow JSON — everything the importer needs to rebuild the tile. */
+  config: text('config').notNull(),
+  /** Stable id of the seed entry this row came from; NULL for clan-authored / harvested rows. */
+  seedKey: text('seed_key'),
+  /** Which board it was harvested from, when it was. Kept for provenance, not enforced. */
+  sourceEventId: integer('source_event_id').references(() => events.id, { onDelete: 'set null' }),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  index('tile_library_points_idx').on(table.points),
+  index('tile_library_category_idx').on(table.category),
+  // One row per seed entry — makes "import the starter tasks" idempotent and lets a later release
+  // diff what's new without duplicating anything the clan already has.
+  uniqueIndex('tile_library_seed_key_idx').on(table.seedKey),
+]);
+
 // User-submitted bug reports & feedback. Lives in EACH clan instance; the clan's admins triage it
 // here. An admin can ELEVATE a report to the central Anvil.Admin so the operator sees it across
 // clans — available on managed hosting only (elevation is disabled on self-hosted instances, which

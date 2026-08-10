@@ -8,6 +8,9 @@ import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
+import LibraryTileGenerator from './LibraryTileGenerator';
+import ActionMenu from '@/components/ActionMenu';
+import Link from 'next/link';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
@@ -16,7 +19,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
 import { statLabel } from '@/lib/tileKinds';
-import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
@@ -81,9 +84,14 @@ interface Props {
 export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The board itself, so the header's Quick build shortcut can jump straight to it.
+  const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
+  // Which generator dialog the Add tiles menu has open, if any.
+  const [generator, setGenerator] = useState<'clog' | 'skill' | 'library' | null>(null);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
@@ -577,35 +585,83 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   async function handleSkillsCreated(summary: { created: number; ignored: number; label: string }) {
     setImportMsg({
       type: 'success',
-      text: `Added ${summary.created} skill tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
     });
     await syncTilesFromServer();
+  }
+
+  /**
+   * Harvest: copy this board's configured tiles into the clan's task library so later boards can
+   * draw from them. Placeholder tiles ("Tile 7") are skipped — they carry no task. Deliberately
+   * additive and not deduped against what's already in the library: two boards can want the same
+   * chase at different point values, and the library page is where duplicates get pruned.
+   */
+  async function addBoardToLibrary() {
+    const usable = localTiles.filter((t) => t.label && !/^Tile \d+$/.test(t.label));
+    if (usable.length === 0) {
+      setImportMsg({ type: 'error', text: 'Nothing to add yet — this board only has placeholder tiles.' });
+      return;
+    }
+    if (!confirm(`Add ${usable.length} tile${usable.length === 1 ? '' : 's'} from this board to the task library?`)) return;
+    setSavingToLibrary(true);
+    try {
+      const res = await fetch('/api/admin/tile-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          sourceEventId: event.id,
+          tasks: usable.map((t) => ({
+            label: t.label,
+            points: t.points ?? 0,
+            category: t.category ?? null,
+            description: t.description ?? null,
+            tileType: t.tileType ?? 'standard',
+            config: tileToCsvRow(t),
+          })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not add these tiles to the library.' });
+        return;
+      }
+      setImportMsg({
+        type: 'success',
+        text: `Added ${data.added ?? usable.length} task${(data.added ?? usable.length) === 1 ? '' : 's'} to the library.`,
+      });
+    } catch {
+      setImportMsg({ type: 'error', text: 'Could not add these tiles to the library.' });
+    } finally {
+      setSavingToLibrary(false);
+    }
   }
 
   return (
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
     <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
-      {/* CSV import */}
+      {/* Adding tiles: the three ways in, plus the file round-trip and library round-trip tucked
+          into menus. This header had grown to eight competing buttons and two paragraphs of prose
+          before you could see a single tile — the generators are what people reach for, everything
+          else is occasional. */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            Bulk Import
+            Add tiles
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={`/api/events/${event.id}/tiles/spreadsheet`}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 bg-gold/10 text-gold hover:bg-gold/20 transition-colors"
-              title="Download an Excel workbook (current tiles + dropdowns, item list, examples, instructions) — draft in Excel or Google Sheets, then upload the same file straight back"
-            >
-              Download spreadsheet
-            </a>
             <button
-              onClick={downloadTemplate}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
+              title="Build the board here — a searchable tile list beside a live editor"
             >
-              Template CSV
+              ⚡ Quick build
             </button>
             <input
               ref={fileInputRef}
@@ -614,49 +670,98 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               onChange={handleImportFile}
               className="hidden"
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
-            >
-              {importing ? 'Importing…' : 'Upload CSV / Excel'}
-            </button>
+            {/* Everything that isn't Quick build lives in one menu: generators first (what people
+                reach for), then the file and library round-trips. */}
+            <ActionMenu
+              label="＋ Add tiles"
+              items={[
+                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
+                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
+                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canEditTileSet },
+                {
+                  label: importing ? 'Importing…' : 'Upload CSV / Excel…',
+                  onClick: () => fileInputRef.current?.click(),
+                  disabled: importing,
+                  separatorBefore: true,
+                },
+                {
+                  label: 'Download spreadsheet',
+                  onClick: () => { window.location.href = `/api/events/${event.id}/tiles/spreadsheet`; },
+                  title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
+                },
+                { label: 'Template CSV', onClick: downloadTemplate },
+                {
+                  label: savingToLibrary ? 'Adding…' : 'Add this board to the library',
+                  onClick: addBoardToLibrary,
+                  disabled: savingToLibrary,
+                  separatorBefore: true,
+                },
+                {
+                  label: 'Export as seed pack',
+                  onClick: () => { window.location.href = `/api/admin/tile-library/export?eventId=${event.id}`; },
+                },
+              ]}
+            />
+            {/* Dialogs only — the menu is their trigger. */}
+            <ClogGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleClogCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'clog'}
+              onOpenChange={(v) => setGenerator(v ? 'clog' : null)}
+            />
+            <SkillTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'skill'}
+              onOpenChange={(v) => setGenerator(v ? 'skill' : null)}
+            />
+            <LibraryTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'library'}
+              onOpenChange={(v) => setGenerator(v ? 'library' : null)}
+            />
           </div>
         </div>
-        {/* Generators — bulk tile builders, separated from the CSV import/export cluster so the
-            header row doesn't turn into a button soup as more of them land. */}
-        <div className="flex items-center gap-2 flex-wrap mb-3">
-          <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Generate</span>
-          <ClogGenerator
-            eventId={event.id}
-            canGrow={canEditTileSet}
-            pointsMode={pointsMode}
-            onCreated={handleClogCreated}
-            onError={(text) => setImportMsg({ type: 'error', text })}
-          />
-          <SkillTileGenerator
-            eventId={event.id}
-            canGrow={canEditTileSet}
-            pointsMode={pointsMode}
-            onCreated={handleSkillsCreated}
-            onError={(text) => setImportMsg({ type: 'error', text })}
-          />
-        </div>
         <p className="text-xs text-text-muted leading-relaxed">
-          Configure many tiles at once — ideal for Leagues-style boards. Rows map onto tiles by order
-          (row 1 → tile #1). Columns: <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
-          {dynamicBoard && !eventStarted
-            ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
-            : ' Extra rows beyond the board size are ignored.'}
-          {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+          <span className="text-gold">Quick build</span> is the fastest way in — the tile list beside
+          a live editor, with per-tile locks so a whole team can draft at once without overwriting
+          each other. Fill the board first by drawing from your{' '}
+          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>{' '}
+          or generating from the collection log or skills.
         </p>
-        <p className="text-xs text-text-muted leading-relaxed mt-2">
-          <span className="text-gold">Drafting with your team?</span> The easiest way is right here — tile editing on this page is
-          collaborative (live edits with per-tile locks, so nobody overwrites anyone). Prefer to seed the board from a spreadsheet
-          first? <span className="text-gold">Download spreadsheet</span> gives an Excel file with the current tiles, dropdowns, the
-          full item list and instructions baked in — draft in Excel or Google Sheets, then upload the same file (or a CSV of the{' '}
-          <em>Tiles</em> tab) straight back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
-        </p>
+        <details className="mt-2 group">
+          <summary className="text-xs text-gold cursor-pointer hover:text-gold-light select-none">
+            How the spreadsheet round-trip works
+          </summary>
+          <div className="text-xs text-text-muted leading-relaxed mt-2 space-y-2">
+            <p>
+              Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
+              <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
+              {dynamicBoard && !eventStarted
+                ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
+                : ' Extra rows beyond the board size are ignored.'}
+              {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+            </p>
+            <p>
+              <span className="text-gold">Download spreadsheet</span> gives an Excel file with the
+              current tiles, dropdowns, the full item list and instructions baked in — draft in Excel
+              or Google Sheets, then upload the same file (or a CSV of the <em>Tiles</em> tab) straight
+              back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
+            </p>
+          </div>
+        </details>
         {importMsg && (
           <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
@@ -678,7 +783,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       <TileHistoryPanel eventId={event.id} />
 
       {/* Per-tile configuration */}
-      <div>
+      <div ref={boardRef}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />

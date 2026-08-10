@@ -93,6 +93,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ? [{ href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true }]
         : []),
       { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
+      // The task catalogue boards are generated from — same authority as tile authoring, so every
+      // editor (scoped ones included) gets it.
+      ...(canManageEvents ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚' }] : []),
     ],
   });
 

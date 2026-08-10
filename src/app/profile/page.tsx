@@ -384,7 +384,7 @@ export default async function ProfilePage({
       <IgnoredAccountsClient initial={ignoredForClient} />
 
       {/* PRIMARY path: RuneLite plugin token */}
-      <section id="plugin-token" className="scroll-mt-24 border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
+      <section id="plugin-token" className="border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-1 h-5 bg-gold rounded-full" />
           <h2 className="text-lg font-semibold">RuneLite plugin</h2>

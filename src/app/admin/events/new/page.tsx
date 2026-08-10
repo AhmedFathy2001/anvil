@@ -56,7 +56,7 @@ export default async function NewEventPage() {
         </p>
       </header>
 
-      <div className="border border-card-border rounded-xl bg-card-bg p-6 shadow-lg shadow-black/20 max-w-2xl">
+      <div className="border border-card-border rounded-xl bg-card-bg p-6 shadow-lg shadow-black/20 max-w-4xl">
         <EventForm presets={presets} suggestedName={suggestedName} />
         <p className="text-xs text-text-muted/70 mt-4 pt-4 border-t border-card-border">
           Looking to start a Skill/Boss of the Week instead?{' '}

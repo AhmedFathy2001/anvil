@@ -5,6 +5,11 @@ import { SKILLS, SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
 
 interface Props {
+  /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger button when something else opens it. */
+  hideTrigger?: boolean;
   eventId: number;
   canGrow: boolean;
   pointsMode: boolean;
@@ -36,8 +41,12 @@ function shortXp(n: number): string {
 // @ 400 pts, then 500K others @ 200 pts, …): after each Create the picks clear but the dialog
 // stays open for the next round. Tiles are tagged "Skilling, <Skill>" so they land under both
 // category filters.
-export default function SkillTileGenerator({ eventId, canGrow, pointsMode, onCreated, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export default function SkillTileGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, pointsMode, onCreated, onError }: Props) {
+  // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
+  // otherwise, so the component still works as a standalone button.
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [xpText, setXpText] = useState('');
   const [points, setPoints] = useState('');
@@ -112,6 +121,7 @@ export default function SkillTileGenerator({ eventId, canGrow, pointsMode, onCre
 
   return (
     <>
+      {!hideTrigger && (
       <button
         onClick={() => setOpen(true)}
         disabled={!canGrow}
@@ -124,6 +134,7 @@ export default function SkillTileGenerator({ eventId, canGrow, pointsMode, onCre
       >
         Generate skill tiles…
       </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>

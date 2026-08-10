@@ -393,6 +393,22 @@ function tileItemsCell(t: Tile): string {
  * uses the raw values directly). Shared by the client "Download template CSV" and the
  * server-side spreadsheet generator so a round-trip preserves kill/timed/collection config.
  */
+/**
+ * A tile as a canonical TileCsvRow — the object form of {@link tileToCsvCells}, keyed by column.
+ * This is the shape the task library stores and the importer consumes, so anything that captures a
+ * tile for reuse (library harvest, seed-pack export, the library's own editor) goes through here
+ * rather than hand-rolling the mapping and drifting from the CSV contract.
+ */
+export function tileToCsvRow(t: Tile): TileCsvRow {
+  const cells = tileToCsvCells(t);
+  const row: Record<string, unknown> = {};
+  TILE_CSV_COLUMNS.forEach((col, i) => {
+    const v = cells[i];
+    if (v !== undefined && v !== null && v !== '') row[col] = v;
+  });
+  return row as TileCsvRow;
+}
+
 export function tileToCsvCells(t: Tile): string[] {
   // Collection tiles must NOT emit their stored requiredAmount: it's the derived completion
   // total (recomputed from the items on import), and "items + requiredAmount" is the documented

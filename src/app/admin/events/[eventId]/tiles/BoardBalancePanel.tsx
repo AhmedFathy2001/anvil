@@ -67,8 +67,10 @@ export default function BoardBalancePanel({
       ? `${warns} warning${warns === 1 ? '' : 's'} · ${Math.round(report.luckShare * 100)}% drop RNG`
       : `No warnings · ${Math.round(report.luckShare * 100)}% drop RNG`;
 
+  // Collapsed by default: the summary line already says how many warnings there are, and
+  // auto-expanding six of them pushed the actual tiles below the fold.
   return (
-    <CollapsibleSection title="Board balance" summary={summary} defaultOpen={warns > 0}>
+    <CollapsibleSection title="Board balance" summary={summary} defaultOpen={false}>
       <div className="px-5 pb-5 space-y-4">
         {/* Checks */}
         <div className="space-y-1.5">

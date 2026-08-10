@@ -12,10 +12,19 @@ import { statKeys } from '@/lib/tileKinds';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
+import NumberInput from '@/components/NumberInput';
 
 interface Props {
-  tileId: number;
-  eventId: number;
+  /** Board editing: the tile row being edited. Omit when `onSave` takes over the write. */
+  tileId?: number;
+  /** Board editing: the event that owns the tile. Omit when `onSave` takes over the write. */
+  eventId?: number;
+  /**
+   * Detached editing (the task library): handle the write yourself instead of PUTting to the
+   * board's tiles endpoint. Receives the same payload the board API would get and returns the
+   * saved TileConfig, or null if the save failed (the component then shows its error state).
+   */
+  onSave?: (payload: Record<string, unknown>) => Promise<TileConfig | null>;
   initial: TileConfig;
   onSaved: (updated: TileConfig) => void;
   eventStarted?: boolean;
@@ -295,6 +304,7 @@ function extractCountLikeNumbers(text: string): number[] {
 export default function TileTrackingConfig({
   tileId,
   eventId,
+  onSave,
   initial,
   onSaved,
   eventStarted,
@@ -970,6 +980,18 @@ export default function TileTrackingConfig({
           : null;
       }
 
+      // Detached mode: the caller owns the write (library tasks have no event or tile row).
+      if (onSave) {
+        const saved = await onSave(payload);
+        if (saved) {
+          setBaseStamp(saved.updatedAt ?? null);
+          onSaved(saved);
+        } else {
+          setError('Could not save — try again.');
+        }
+        return; // the finally below clears `saving`
+      }
+
       const res = await fetch(`/api/events/${eventId}/tiles`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1350,16 +1372,15 @@ export default function TileTrackingConfig({
                           className="w-24 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground"
                           title='Set name for "any full set" tiles — items sharing a set complete together; one whole set finishes the tile. Blank = always required.'
                         />
-                        <Input
-                          type="number"
+                        <NumberInput
                           value={item.perItemAmount}
-                          onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                          onChange={(val) => {
                             setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, perItemAmount: val } : i)));
                           }}
-                          min="1"
+                          min={1}
+                          fallback={1}
                           className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
-                          title="Required amount for this item"
+                          aria-label="Required amount for this item"
                         />
                       </>
                     )}

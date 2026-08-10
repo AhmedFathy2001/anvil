@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
 
@@ -16,6 +16,11 @@ interface ActivityMeta {
 }
 
 interface Props {
+  /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in trigger button when something else opens it. */
+  hideTrigger?: boolean;
   eventId: number;
   // Append needs a growable board (Leagues/Tile-race, pre-start). When false the button explains why.
   canGrow: boolean;
@@ -40,12 +45,69 @@ function isPvmActivity(activity: string): boolean {
 // How the kept items become tiles. All three shapes are native to the import route:
 // per-item rows, a row with items + no requiredAmount (collection — each item needs its own
 // drop), and a row with items + requiredAmount (pool — any N drops from the set count).
-type GenMode = 'perItem' | 'allOf' | 'anyOf';
+type GenMode = 'perItem' | 'allOf' | 'anyOf' | 'sets';
+
+/**
+ * Split a page into SETS. Most clog pages are really several armour/weapon families sitting in one
+ * list — Barrows is six sets, not 24 loose items — and a tile per family reads far better on a board
+ * than 24 tiles or one impossible all-of.
+ *
+ * 'auto' groups by name family: a possessive prefix ("Dharok's greataxe" → Dharok's) or a shared
+ * first word ("Masori body" → Masori). A family needs at least two items to count; whatever's left
+ * over stays a tile of its own rather than being forced into a bucket it doesn't belong in.
+ * 'chunk' just cuts the list into equal groups, for pages with no natural families.
+ */
+function familyKey(name: string): string | null {
+  const possessive = name.match(/^([A-Z][\w'-]*'s)\s/);
+  if (possessive) return possessive[1];
+  const first = name.split(/\s+/)[0].replace(/[^\w'-]/g, '');
+  return first.length > 2 ? first : null;
+}
+
+export interface ItemSet {
+  name: string;
+  items: { id: number; name: string }[];
+}
+
+function groupIntoSets(
+  items: { id: number; name: string }[],
+  strategy: 'auto' | 'chunk',
+  chunkSize: number,
+): ItemSet[] {
+  if (strategy === 'chunk') {
+    const size = Math.max(2, chunkSize);
+    const out: ItemSet[] = [];
+    for (let i = 0; i < items.length; i += size) {
+      out.push({ name: `Set ${out.length + 1}`, items: items.slice(i, i + size) });
+    }
+    return out;
+  }
+  const byFamily = new Map<string, { id: number; name: string }[]>();
+  const loose: { id: number; name: string }[] = [];
+  for (const it of items) {
+    const key = familyKey(it.name);
+    if (!key) {
+      loose.push(it);
+      continue;
+    }
+    byFamily.set(key, [...(byFamily.get(key) ?? []), it]);
+  }
+  const sets: ItemSet[] = [];
+  for (const [name, group] of byFamily) {
+    if (group.length >= 2) sets.push({ name, items: group });
+    else loose.push(...group);
+  }
+  sets.sort((a, b) => b.items.length - a.items.length);
+  // Leftovers keep their own identity — a one-item "set" is just that item's tile.
+  loose.forEach((it) => sets.push({ name: it.name, items: [it] }));
+  return sets;
+}
 
 const MODES: { key: GenMode; label: string; blurb: string }[] = [
   { key: 'perItem', label: 'Tile per item', blurb: 'One 1× drop tile for every kept item.' },
   { key: 'allOf', label: 'One tile: all of', blurb: 'A single collection tile — every kept item must drop (1× each).' },
   { key: 'anyOf', label: 'One tile: any of', blurb: 'A single drop tile — any N drops from the kept items complete it.' },
+  { key: 'sets', label: 'Split into sets', blurb: 'Group the items into sets (Dharok\u2019s, Ahrim\u2019s\u2026) — a tile each, or one tile any full set completes.' },
 ];
 
 // "Generate tiles from a collection log page" — pick any clog activity (boss, raid, minigame, clue
@@ -54,8 +116,12 @@ const MODES: { key: GenMode; label: string; blurb: string }[] = [
 // /api/admin/clog (bundled OSRS Wiki dataset). Loot-fired items auto-detect via the plugin's drop
 // pipeline, and clog-only rewards (Barbarian Assault torso, gamble pets) auto-detect via the
 // plugin's collection-log-unlock crediting.
-export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export default function ClogGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, pointsMode, onCreated, onError }: Props) {
+  // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
+  // otherwise, so the component still works as a standalone button.
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v));
   const [activities, setActivities] = useState<ActivityMeta[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -65,30 +131,45 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
   const [mode, setMode] = useState<GenMode>('perItem');
   const [tileLabel, setTileLabel] = useState('');
   const [anyOfAmount, setAnyOfAmount] = useState('1');
+  // Sets mode: how to group, and whether each set becomes its own tile or they all ride on one tile
+  // that any single full set completes (the Barrows shape).
+  const [setStrategy, setSetStrategy] = useState<'auto' | 'chunk'>('auto');
+  const [chunkSize, setChunkSize] = useState('4');
+  const [setsOutput, setSetsOutput] = useState<'perSet' | 'anyFullSet'>('perSet');
   const [points, setPoints] = useState('');
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   // Success note shown on the page picker after a batch — the dialog stays open for the next page.
   const [lastBatch, setLastBatch] = useState<string | null>(null);
 
-  async function openModal() {
-    setOpen(true);
-    if (activities) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/clog');
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        onError(data.error || 'Could not load the collection log dataset.');
-        setOpen(false);
-        return;
+  // Load the dataset whenever the dialog opens, not when a particular button is clicked — the
+  // Add tiles menu opens this from outside, and hanging the fetch off the trigger meant the menu
+  // route showed an empty activity list.
+  useEffect(() => {
+    if (!open || activities) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/admin/clog');
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          onError(data.error || 'Could not load the collection log dataset.');
+          setOpen(false);
+          return;
+        }
+        setActivities(data.activities as ActivityMeta[]);
+        setGeneratedAt(data.generatedAt ?? null);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setActivities(data.activities as ActivityMeta[]);
-      setGeneratedAt(data.generatedAt ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activities]);
 
   async function pickActivity(name: string) {
     setActivity(name);
@@ -159,8 +240,36 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
       const allKept = excluded.size === 0;
       const anyPhrase = anyN > 1 ? `any ${anyN}` : 'any';
       const tileCategory = isPvmActivity(activity) ? `PvM, ${activity}` : activity;
+      const sets = mode === 'sets' ? groupIntoSets(kept, setStrategy, Math.max(2, parseInt(chunkSize, 10) || 4)) : [];
       const rows =
-        mode === 'perItem'
+        mode === 'sets'
+          ? setsOutput === 'perSet'
+            ? // A collection tile per set: every item in it, 1x each.
+              sets.map((set) => ({
+                label: `${activity}: ${set.name}`,
+                tileType: 'drop',
+                category: tileCategory,
+                description:
+                  set.items.length === 1
+                    ? `Get 1\u00d7 ${set.items[0].name}.`
+                    : `Complete the ${set.name} set (1\u00d7 each): ${nameList(set.items.map((i) => i.name))}.`,
+                ...(pts !== undefined ? { points: pts } : {}),
+                items: set.items.map((i) => ({ id: i.id, name: i.name, count: 1 })),
+              }))
+            : // One tile, several named sets: `group` is what makes ANY ONE full set complete it.
+              [
+                {
+                  label: tileLabel.trim() || `${activity}: any full set`,
+                  tileType: 'drop',
+                  category: tileCategory,
+                  description: `Complete any ONE full set: ${sets.map((s) => s.name).join(', ')}.`,
+                  ...(pts !== undefined ? { points: pts } : {}),
+                  items: sets.flatMap((set) =>
+                    set.items.map((i) => ({ id: i.id, name: i.name, count: 1, group: set.name })),
+                  ),
+                },
+              ]
+          : mode === 'perItem'
           ? kept.map((it) => ({
               label: it.name,
               tileType: 'drop',
@@ -215,6 +324,13 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
     }
   }
 
+  // Recomputed as items are excluded, so the preview always matches what Create would produce.
+  const detectedSets = useMemo(() => {
+    if (mode !== 'sets' || !items) return [];
+    const kept = items.filter((it) => !excluded.has(it.id));
+    return groupIntoSets(kept, setStrategy, Math.max(2, parseInt(chunkSize, 10) || 4));
+  }, [mode, items, excluded, setStrategy, chunkSize]);
+
   const filteredActivities = (activities ?? []).filter((a) =>
     a.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
@@ -223,8 +339,9 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
 
   return (
     <>
+      {!hideTrigger && (
       <button
-        onClick={openModal}
+        onClick={() => setOpen(true)}
         disabled={!canGrow}
         title={
           canGrow
@@ -235,6 +352,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
       >
         Generate from clog…
       </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>
@@ -331,7 +449,7 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
                 </div>
                 {/* How the kept items become tiles + per-run config */}
                 <div className="mt-3 pt-3 border-t border-card-border space-y-2">
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {MODES.map((m) => (
                       <button
                         key={m.key}
@@ -349,16 +467,93 @@ export default function ClogGenerator({ eventId, canGrow, pointsMode, onCreated,
                   </div>
                   <p className="text-[10px] text-text-muted leading-relaxed">{MODES.find((m) => m.key === mode)?.blurb}</p>
 
+                  {mode === 'sets' && (
+                    <div className="rounded-lg border border-card-border bg-background/40 p-2.5 space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {([
+                          ['auto', 'By name family'],
+                          ['chunk', 'Equal groups'],
+                        ] as const).map(([key, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSetStrategy(key)}
+                            className={`px-2 py-1 text-[11px] rounded border transition-colors ${
+                              setStrategy === key
+                                ? 'bg-gold/20 border-gold text-gold'
+                                : 'border-card-border text-text-muted hover:border-gold/50'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        {setStrategy === 'chunk' && (
+                          <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                            of
+                            <input
+                              type="number"
+                              min="2"
+                              value={chunkSize}
+                              onChange={(e) => setChunkSize(e.target.value)}
+                              className="w-14 text-xs rounded border border-card-border bg-background px-2 py-1 focus:border-gold/50 focus:outline-none"
+                            />
+                            items
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {([
+                          ['perSet', 'A tile per set'],
+                          ['anyFullSet', 'One tile — any full set'],
+                        ] as const).map(([key, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSetsOutput(key)}
+                            className={`px-2 py-1 text-[11px] rounded border transition-colors ${
+                              setsOutput === key
+                                ? 'bg-gold/20 border-gold text-gold'
+                                : 'border-card-border text-text-muted hover:border-gold/50'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {detectedSets.length > 0 && (
+                        <div className="max-h-28 overflow-y-auto text-[11px] text-text-muted space-y-0.5">
+                          {detectedSets.map((set) => (
+                            <div key={set.name} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{set.name}</span>
+                              <span className="shrink-0 tabular-nums">
+                                {set.items.length} item{set.items.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-text-muted leading-relaxed">
+                        {setsOutput === 'perSet'
+                          ? `${detectedSets.length} tile${detectedSets.length === 1 ? '' : 's'} — each needs its whole set, 1\u00d7 per item.`
+                          : `One tile completed by ANY of these ${detectedSets.length} set${detectedSets.length === 1 ? '' : 's'} in full.`}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
-                    {mode !== 'perItem' && (
+                    {(mode === 'allOf' || mode === 'anyOf' || (mode === 'sets' && setsOutput === 'anyFullSet')) && (
                       <input
                         value={tileLabel}
                         onChange={(e) => setTileLabel(e.target.value)}
                         maxLength={200}
                         placeholder={
-                          mode === 'allOf'
-                            ? `${activity}: all ${keptCount} items`
-                            : `${activity}: any ${Math.max(1, parseInt(anyOfAmount, 10) || 1)} of ${keptCount}`
+                          mode === 'sets'
+                            ? `${activity}: any full set`
+                            : mode === 'allOf'
+                              ? `${activity}: all ${keptCount} items`
+                              : `${activity}: any ${Math.max(1, parseInt(anyOfAmount, 10) || 1)} of ${keptCount}`
                         }
                         aria-label="Tile label"
                         className="flex-1 min-w-0 text-sm rounded-lg border border-card-border bg-background px-3 py-1.5 focus:border-gold/50 focus:outline-none"
