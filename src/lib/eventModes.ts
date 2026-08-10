@@ -28,6 +28,10 @@ export interface EventModeMeta {
   max: number;
   default: number;
   square: boolean;
+  /** Attribute chips for the create-form picker: who competes / how it scores / how tiles open. */
+  chips: [string, string, string];
+  /** "How it plays" bullets shown once the format is selected. Keep to three, plainly worded. */
+  how: [string, string, string];
 }
 
 export const EVENT_MODES: EventModeMeta[] = [
@@ -43,6 +47,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 12,
     default: 5,
     square: true,
+    chips: ['teams', 'tile-scored', 'all visible'],
+    how: [
+      'Every tile is open from the start — teams pick their own order.',
+      'Each tile is worth 1; the most tiles wins, lines and blackout are yours to reward.',
+      'The board is a true square, so N of 5 means 25 tiles.',
+    ],
   },
   {
     key: 'leagues',
@@ -56,6 +66,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 200,
     default: 20,
     square: false,
+    chips: ['teams', 'points', 'all visible'],
+    how: [
+      'A flat task list rather than a grid — any number of tiles.',
+      'Each tile carries its own point value, so hard tasks can be worth more.',
+      'Highest total points wins; no lines, no order.',
+    ],
   },
   {
     key: 'race',
@@ -69,6 +85,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 100,
     default: 10,
     square: false,
+    chips: ['teams', 'tile-scored', 'in sequence'],
+    how: [
+      'Tiles unlock in order — a team must finish tile 3 before tile 4 counts.',
+      'Whoever gets furthest down the track wins.',
+      'Put the tiles in the order you want them chased on the Tiles tab.',
+    ],
   },
   {
     key: 'showdown',
@@ -83,6 +105,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 200,
     default: 12,
     square: false,
+    chips: ['teams', 'points', 'timed reveal'],
+    how: [
+      'Tiles stay hidden until the moment you schedule for each one.',
+      'Points-scored, so a late reveal can still swing the standings.',
+      'Set each reveal time on the Tiles tab once the event exists.',
+    ],
   },
   {
     key: 'luckydraw',
@@ -97,6 +125,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 200,
     default: 24,
     square: false,
+    chips: ['teams', 'points', 'random draws'],
+    how: [
+      'Hidden tiles go live in random draws on a fixed interval.',
+      'Everything drawn stays open, so the board grows through the event.',
+      'The first draw fires the moment the event starts.',
+    ],
   },
   {
     key: 'bounty',
@@ -111,6 +145,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 200,
     default: 15,
     square: false,
+    chips: ['teams', 'points', 'one at a time'],
+    how: [
+      'Exactly one tile is open at any moment.',
+      'The first team to finish it claims the points and the next bounty is drawn instantly.',
+      'Nobody else can score that tile — it is a straight race, every time.',
+    ],
   },
   {
     key: 'ladder',
@@ -126,6 +166,12 @@ export const EVENT_MODES: EventModeMeta[] = [
     max: 200,
     default: 30,
     square: false,
+    chips: ['individual', 'points', 'rotating'],
+    how: [
+      'Ranked as a personal leaderboard; teams are optional.',
+      'Tasks rotate — progressive, one-at-a-time, or a window that expires the oldest.',
+      'Point values can decay or grow with age, so timing matters.',
+    ],
   },
 ];
 
