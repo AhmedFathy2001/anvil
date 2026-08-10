@@ -11,7 +11,7 @@ import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/federationSecurity';
-import { getBrokerTrust, getExchangePolicy, getFederationEnabled } from '@/lib/pluginConfig';
+import { getBrokerBaseUrl, getBrokerTrust, getExchangePolicy, getFederationEnabled } from '@/lib/pluginConfig';
 import { createGuardedRemoteJWKSet, verifyBrokerAssertion } from '@/lib/federationJwks';
 import {
   anchorRenamable,
@@ -24,6 +24,7 @@ import {
 } from '@/lib/federationDecisions';
 import {
   EXCHANGE_TOKEN_LABEL,
+  ensureBrokerTrusted,
   getInstanceId,
   mintFederationToken,
   pruneExchangeTokens,
@@ -375,7 +376,24 @@ export async function POST(request: Request) {
   const iss = typeof unverified.iss === 'string' ? unverified.iss : '';
 
   // ── WIRE §2 step 4 (also the key-selection gate): iss ∈ brokerTrust[]. ──────────────────────────
-  const broker = (await getBrokerTrust()).find((b) => b.iss === iss);
+  let trust = await getBrokerTrust();
+  // Self-heal an EMPTY trust list. Trust is normally seeded when the admin joins the network, but a
+  // register call that failed then (broker down / no FEDERATION_BROKER_URL yet) left federation "on"
+  // with nothing trusted — and this exact 403 is how that presents: no other clan can ever connect,
+  // and nothing on the receiving side ever retried. Re-assert the CONFIGURED broker before deciding.
+  //
+  // This cannot be steered: the value added comes from server config (env / admin setting) and is
+  // never taken from the request, so an assertion from an untrusted issuer still fails below. Only
+  // fires when the list is empty, so a clan that deliberately curates its trust set is untouched.
+  if (trust.length === 0) {
+    const configuredBroker = await getBrokerBaseUrl();
+    if (configuredBroker) {
+      await ensureBrokerTrusted(configuredBroker).catch(() => {});
+      trust = await getBrokerTrust();
+      log.info('federation.exchange.trust-repaired', { iss: configuredBroker });
+    }
+  }
+  const broker = trust.find((b) => b.iss === iss);
   if (!broker) {
     return NextResponse.json({ error: 'Assertion issuer is not a trusted broker' }, { status: 403 });
   }

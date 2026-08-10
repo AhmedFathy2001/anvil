@@ -4,7 +4,7 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
-import { getFederationEnabled } from '@/lib/pluginConfig';
+import { getAssociationPush, getFederationEnabled } from '@/lib/pluginConfig';
 import { ensureRegisteredWithBroker, pushAllMemberAssociations } from '@/lib/federation';
 import { publicOrigin } from '@/lib/request-origin';
 
@@ -95,8 +95,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Snapshot the prior federation state so we can detect an off→on transition below.
+  // Snapshot the prior federation state so we can detect the transitions that need broker work.
   const wasFederationEnabled = await getFederationEnabled();
+  const wasAssociationPush = await getAssociationPush();
 
   const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
   for (const key of EXPOSED_KEYS) {
@@ -106,33 +107,39 @@ export async function PUT(request: Request) {
     await upsertSetting(key, value ? value : null);
   }
 
-  // Register-on-enable (WIRE §10.1): the first time an admin flips federation on, register this
-  // instance with the broker (domain-verified) so other clan sites' relayed /exchange calls are
-  // accepted, and add the broker to brokerTrust. Best-effort + fire-and-forget: a broker hiccup must
-  // never fail saving settings, and the plugin retries via /connect regardless.
-  let reRegistered = false;
-  if (body.federation_enabled !== undefined) {
-    const nowEnabled = await getFederationEnabled();
-    if (nowEnabled && !wasFederationEnabled) {
+  // Broker reconcile (WIRE §10.1). Registering tells the broker we're here and — the part that
+  // silently matters — adds it to brokerTrust[], which is what lets other clans' relayed /exchange
+  // calls be accepted at all.
+  //
+  // This used to fire ONLY on the off→on edge, which made a failed enable permanent: an instance
+  // whose one register attempt failed (broker down, or FEDERATION_BROKER_URL missing from the
+  // container at the time) was left federation-on with an empty trust list, 403ing every inbound
+  // exchange, with no way for an admin to retry. The whole call is idempotent — the broker upserts
+  // and the trust entry dedupes — so ANY save that leaves federation on now re-asserts it, and
+  // re-saving the Federation tab is a real repair. Best-effort + fire-and-forget throughout: a broker
+  // hiccup must never fail saving settings.
+  const touchedFederation =
+    body.clan_name !== undefined || EXPOSED_KEYS.some((k) => k.startsWith('federation_') && body[k] !== undefined);
+  const nowEnabled = await getFederationEnabled();
+
+  if (nowEnabled) {
+    if (touchedFederation) {
       void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
-      // (Re-)joining advertises the whole existing roster — leaving retracted the associations, and
-      // nobody should have to re-log-in just because the clan toggled the network off and on.
-      void pushAllMemberAssociations().catch(() => {});
-      reRegistered = true;
-    } else if (!nowEnabled) {
-      // Leaving the network: tell the broker to stop advertising us and retract our member
-      // associations. Fires on EVERY off-save (not just the transition) so a re-save can repair a
-      // missed/failed notify; idempotent + fire-and-forget broker-side. The inbound federation
-      // routes also refuse while disabled, so other homes drop us even before the broker syncs.
-      void ensureRegisteredWithBroker(publicOrigin(request), 'off').catch(() => {});
-      reRegistered = true;
     }
-  }
-  // Name sync: a clan rename must reach the broker directory too, or every OTHER clan's sidebar
-  // keeps labeling this instance with its provisioning-time name forever. Same idempotent reconcile
-  // (the broker updates `name` in place); homes pick the new label up on their next relay refresh.
-  if (!reRegistered && body.clan_name !== undefined && (await getFederationEnabled())) {
-    void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
+    // Advertise the whole roster when the clan (re-)joins the network, and equally when it turns
+    // "make this clan easy to find" on while already federated — that consent is what association
+    // push waits for, and without a backfill here nobody is advertised until their next login.
+    const joined = !wasFederationEnabled;
+    const startedSharing = (await getAssociationPush()) && !wasAssociationPush;
+    if (joined || startedSharing) {
+      void pushAllMemberAssociations().catch(() => {});
+    }
+  } else if (body.federation_enabled !== undefined) {
+    // Leaving the network: tell the broker to stop advertising us and retract our member
+    // associations. Fires on EVERY off-save (not just the transition) so a re-save can repair a
+    // missed/failed notify; idempotent + fire-and-forget broker-side. The inbound federation
+    // routes also refuse while disabled, so other homes drop us even before the broker syncs.
+    void ensureRegisteredWithBroker(publicOrigin(request), 'off').catch(() => {});
   }
 
   return NextResponse.json({ success: true });
