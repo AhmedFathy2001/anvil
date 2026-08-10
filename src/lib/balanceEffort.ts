@@ -13,6 +13,7 @@ import type { Tile } from '@/lib/types';
 import { tileWeight } from '@/lib/utils';
 import { BOSSES } from '@/lib/constants';
 import defaultRates from '@/data/balanceRates.json';
+import sourcedRates from '@/data/activityRates.json';
 import npcDrops from '@/data/npcDrops.json';
 import type { BalanceCheck } from '@/lib/boardBalance';
 
@@ -138,9 +139,38 @@ export interface EffortReport {
 
 // ---- Rates access -------------------------------------------------------------------
 
-/** Shallow-merge admin overrides (settings `balance_rates`) over the curated defaults. */
+/**
+ * Kill times, sourced. `npm run data:rates` derives these from Wise Old Man's EHB table (efficient
+ * play → the fast band) and the wiki's money-making guides (a documented realistic method → the
+ * slow band); see scripts/build-rates-dataset.mjs.
+ *
+ * They replace ONLY `killSeconds`, and only where the curated entry was that shape to begin with.
+ * Accessibility floors stay curated because neither source has a notion of "can an average clan
+ * member get here", and Gauntlet/raid entries keep their attempt-and-success-rate model, which
+ * carries more than a kills-per-hour figure can.
+ *
+ * The precedence is: curated defaults ← sourced rates ← admin `balance_rates` override. An operator
+ * who has tuned a rate for their own clan still wins, which is the whole point of the override.
+ */
+const SOURCED_ACTIVITIES: Record<string, ActivityRate> = (() => {
+  const curated = (defaultRates as unknown as BalanceRates).activities;
+  const sourced = (sourcedRates as { activities: Record<string, { killSeconds: number[] }> }).activities;
+  const out: Record<string, ActivityRate> = {};
+  for (const [key, entry] of Object.entries(sourced)) {
+    const base = curated[key];
+    if (!base || !Array.isArray(base.killSeconds) || entry.killSeconds?.length !== 3) continue;
+    out[key] = { ...base, killSeconds: entry.killSeconds as Triplet };
+  }
+  return out;
+})();
+
+/** Shallow-merge admin overrides (settings `balance_rates`) over the sourced + curated defaults. */
 export function mergeRates(overrides: unknown): BalanceRates {
-  const base = defaultRates as unknown as BalanceRates;
+  const curatedBase = defaultRates as unknown as BalanceRates;
+  const base: BalanceRates = {
+    ...curatedBase,
+    activities: { ...curatedBase.activities, ...SOURCED_ACTIVITIES },
+  };
   if (!overrides || typeof overrides !== 'object') return base;
   const o = overrides as Partial<Record<keyof BalanceRates, Record<string, unknown>>>;
   return {

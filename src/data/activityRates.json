@@ -1,0 +1,661 @@
+{
+  "source": "Wise Old Man EHB rates (MIT, https://github.com/wise-old-man/wise-old-man) for the fast band; OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band.",
+  "generatedAt": "2026-08-10T20:15:20.556Z",
+  "note": "Kill-rate triplets [fast, average, slow] in seconds per kill. Layered UNDER the admin `balance_rates` override and OVER the curated defaults in balanceRates.json, which still owns accessibility floors, success rates, party sizes and the superior-slayer cost.",
+  "spread": {
+    "assumed": 2,
+    "maxSpread": 3
+  },
+  "activityCount": 62,
+  "activities": {
+    "zulrah": {
+      "killSeconds": [
+        78.3,
+        118.7,
+        180
+      ],
+      "source": "wom+wiki",
+      "womKph": 46,
+      "wikiKph": 20
+    },
+    "vorkath": {
+      "killSeconds": [
+        105.9,
+        149.7,
+        211.8
+      ],
+      "source": "wom",
+      "womKph": 34,
+      "wikiKph": null
+    },
+    "alchemical hydra": {
+      "killSeconds": [
+        120,
+        131.5,
+        144
+      ],
+      "source": "wom+wiki",
+      "womKph": 30,
+      "wikiKph": 25
+    },
+    "abyssal sire": {
+      "killSeconds": [
+        72,
+        81.5,
+        92.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 50,
+      "wikiKph": 39
+    },
+    "cerberus": {
+      "killSeconds": [
+        55.4,
+        63.1,
+        72
+      ],
+      "source": "wom+wiki",
+      "womKph": 65,
+      "wikiKph": 50
+    },
+    "kraken": {
+      "killSeconds": [
+        36,
+        50.9,
+        72
+      ],
+      "source": "wom",
+      "womKph": 100,
+      "wikiKph": null
+    },
+    "thermonuclear smoke devil": {
+      "killSeconds": [
+        24,
+        32.9,
+        45
+      ],
+      "source": "wom+wiki",
+      "womKph": 150,
+      "wikiKph": 80
+    },
+    "grotesque guardians": {
+      "killSeconds": [
+        97.3,
+        120.8,
+        150
+      ],
+      "source": "wom+wiki",
+      "womKph": 37,
+      "wikiKph": 24
+    },
+    "sarachnis": {
+      "killSeconds": [
+        32.7,
+        56.7,
+        98.2
+      ],
+      "source": "wom+wiki",
+      "womKph": 110,
+      "wikiKph": 30,
+      "clamped": true
+    },
+    "scurrius": {
+      "killSeconds": [
+        51.4,
+        68,
+        90
+      ],
+      "source": "wom+wiki",
+      "womKph": 70,
+      "wikiKph": 40
+    },
+    "giant mole": {
+      "killSeconds": [
+        28.8,
+        45.5,
+        72
+      ],
+      "source": "wom+wiki",
+      "womKph": 125,
+      "wikiKph": 50
+    },
+    "kalphite queen": {
+      "killSeconds": [
+        65.5,
+        103.5,
+        163.6
+      ],
+      "source": "wom+wiki",
+      "womKph": 55,
+      "wikiKph": 22
+    },
+    "king black dragon": {
+      "killSeconds": [
+        27.7,
+        48,
+        83.1
+      ],
+      "source": "wom+wiki",
+      "womKph": 130,
+      "wikiKph": 30,
+      "clamped": true,
+      "curatedFastSeconds": 60,
+      "review": true
+    },
+    "corporeal beast": {
+      "killSeconds": [
+        60,
+        103.9,
+        180
+      ],
+      "source": "wom+wiki",
+      "womKph": 60,
+      "wikiKph": 10,
+      "clamped": true,
+      "curatedFastSeconds": 180,
+      "review": true
+    },
+    "dagannoth rex": {
+      "killSeconds": [
+        34.3,
+        48.5,
+        68.6
+      ],
+      "source": "wom",
+      "womKph": 105,
+      "wikiKph": null
+    },
+    "dagannoth prime": {
+      "killSeconds": [
+        34.3,
+        48.5,
+        68.6
+      ],
+      "source": "wom",
+      "womKph": 105,
+      "wikiKph": null
+    },
+    "dagannoth supreme": {
+      "killSeconds": [
+        34.3,
+        48.5,
+        68.6
+      ],
+      "source": "wom",
+      "womKph": 105,
+      "wikiKph": null
+    },
+    "general graardor": {
+      "killSeconds": [
+        62.1,
+        91,
+        133.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 58,
+      "wikiKph": 27
+    },
+    "commander zilyana": {
+      "killSeconds": [
+        60,
+        89.4,
+        133.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 60,
+      "wikiKph": 27
+    },
+    "kree'arra": {
+      "killSeconds": [
+        90,
+        109.5,
+        133.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 40,
+      "wikiKph": 27
+    },
+    "k'ril tsutsaroth": {
+      "killSeconds": [
+        55.4,
+        87.6,
+        138.5
+      ],
+      "source": "wom+wiki",
+      "womKph": 65,
+      "wikiKph": 26
+    },
+    "nex": {
+      "killSeconds": [
+        153.2,
+        234.8,
+        360
+      ],
+      "source": "wom+wiki",
+      "womKph": 23.5,
+      "wikiKph": 10
+    },
+    "phantom muspah": {
+      "killSeconds": [
+        120,
+        169.7,
+        240
+      ],
+      "source": "wom",
+      "womKph": 30,
+      "wikiKph": null
+    },
+    "duke sucellus": {
+      "killSeconds": [
+        92.3,
+        98.9,
+        105.9
+      ],
+      "source": "wom+wiki",
+      "womKph": 39,
+      "wikiKph": 34
+    },
+    "vardorvis": {
+      "killSeconds": [
+        92.3,
+        101.9,
+        112.5
+      ],
+      "source": "wom+wiki",
+      "womKph": 39,
+      "wikiKph": 32
+    },
+    "leviathan": {
+      "killSeconds": [
+        116.1,
+        132,
+        150
+      ],
+      "source": "wom+wiki",
+      "womKph": 31,
+      "wikiKph": 24
+    },
+    "the leviathan": {
+      "killSeconds": [
+        116.1,
+        132,
+        150
+      ],
+      "source": "wom+wiki",
+      "womKph": 31,
+      "wikiKph": 24
+    },
+    "whisperer": {
+      "killSeconds": [
+        163.6,
+        171.6,
+        180
+      ],
+      "source": "wom+wiki",
+      "womKph": 22,
+      "wikiKph": 20
+    },
+    "the whisperer": {
+      "killSeconds": [
+        163.6,
+        171.6,
+        180
+      ],
+      "source": "wom+wiki",
+      "womKph": 22,
+      "wikiKph": 20
+    },
+    "araxxor": {
+      "killSeconds": [
+        90,
+        96.2,
+        102.9
+      ],
+      "source": "wom+wiki",
+      "womKph": 40,
+      "wikiKph": 35
+    },
+    "amoxliatl": {
+      "killSeconds": [
+        42.4,
+        61.7,
+        90
+      ],
+      "source": "wom+wiki",
+      "womKph": 85,
+      "wikiKph": 40
+    },
+    "hueycoatl": {
+      "killSeconds": [
+        180,
+        304.3,
+        514.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 20,
+      "wikiKph": 7
+    },
+    "the hueycoatl": {
+      "killSeconds": [
+        180,
+        304.3,
+        514.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 20,
+      "wikiKph": 7
+    },
+    "royal titans": {
+      "killSeconds": [
+        65.5,
+        92.6,
+        130.9
+      ],
+      "source": "wom",
+      "womKph": 55,
+      "wikiKph": null
+    },
+    "the royal titans": {
+      "killSeconds": [
+        65.5,
+        92.6,
+        130.9
+      ],
+      "source": "wom",
+      "womKph": 55,
+      "wikiKph": null
+    },
+    "yama": {
+      "killSeconds": [
+        200,
+        282.8,
+        400
+      ],
+      "source": "wom",
+      "womKph": 18,
+      "wikiKph": null
+    },
+    "doom of mokhaiotl": {
+      "killSeconds": [
+        180,
+        254.6,
+        360
+      ],
+      "source": "wom",
+      "womKph": 20,
+      "wikiKph": null,
+      "curatedFastSeconds": 450,
+      "review": true
+    },
+    "maggot king": {
+      "killSeconds": [
+        120,
+        131.5,
+        144
+      ],
+      "source": "wom+wiki",
+      "womKph": 30,
+      "wikiKph": 25
+    },
+    "brutus": {
+      "killSeconds": [
+        14.4,
+        20.4,
+        28.8
+      ],
+      "source": "wom",
+      "womKph": 250,
+      "wikiKph": null,
+      "curatedFastSeconds": 60,
+      "review": true
+    },
+    "hespori": {
+      "killSeconds": [
+        60,
+        84.9,
+        120
+      ],
+      "source": "wom",
+      "womKph": 60,
+      "wikiKph": null
+    },
+    "skotizo": {
+      "killSeconds": [
+        80,
+        113.1,
+        160
+      ],
+      "source": "wom",
+      "womKph": 45,
+      "wikiKph": null
+    },
+    "bryophyta": {
+      "killSeconds": [
+        400,
+        565.7,
+        800
+      ],
+      "source": "wom",
+      "womKph": 9,
+      "wikiKph": null,
+      "curatedFastSeconds": 45,
+      "review": true
+    },
+    "obor": {
+      "killSeconds": [
+        300,
+        424.3,
+        600
+      ],
+      "source": "wom",
+      "womKph": 12,
+      "wikiKph": null,
+      "curatedFastSeconds": 45,
+      "review": true
+    },
+    "deranged archaeologist": {
+      "killSeconds": [
+        45,
+        63.6,
+        90
+      ],
+      "source": "wom",
+      "womKph": 80,
+      "wikiKph": null
+    },
+    "chaos fanatic": {
+      "killSeconds": [
+        36,
+        46.5,
+        60
+      ],
+      "source": "wom+wiki",
+      "womKph": 100,
+      "wikiKph": 60
+    },
+    "crazy archaeologist": {
+      "killSeconds": [
+        48,
+        80,
+        133.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 75,
+      "wikiKph": 27
+    },
+    "mimic": {
+      "killSeconds": [
+        60,
+        84.9,
+        120
+      ],
+      "source": "wom",
+      "womKph": 60,
+      "wikiKph": null
+    },
+    "the nightmare": {
+      "killSeconds": [
+        257.1,
+        363.7,
+        514.3
+      ],
+      "source": "wom",
+      "womKph": 14,
+      "wikiKph": null,
+      "curatedFastSeconds": 900,
+      "review": true
+    },
+    "nightmare": {
+      "killSeconds": [
+        257.1,
+        363.7,
+        514.3
+      ],
+      "source": "wom",
+      "womKph": 14,
+      "wikiKph": null,
+      "curatedFastSeconds": 900,
+      "review": true
+    },
+    "phosani's nightmare": {
+      "killSeconds": [
+        375,
+        377,
+        378.9
+      ],
+      "source": "wom+wiki",
+      "womKph": 9.6,
+      "wikiKph": 9.5
+    },
+    "callisto": {
+      "killSeconds": [
+        25.4,
+        43.9,
+        76.1
+      ],
+      "source": "wom+wiki",
+      "womKph": 142,
+      "wikiKph": 25,
+      "clamped": true,
+      "curatedFastSeconds": 80,
+      "review": true
+    },
+    "vet'ion": {
+      "killSeconds": [
+        72,
+        83.7,
+        97.3
+      ],
+      "source": "wom+wiki",
+      "womKph": 50,
+      "wikiKph": 37
+    },
+    "venenatis": {
+      "killSeconds": [
+        45,
+        77.9,
+        135
+      ],
+      "source": "wom+wiki",
+      "womKph": 80,
+      "wikiKph": 26,
+      "clamped": true
+    },
+    "artio": {
+      "killSeconds": [
+        60,
+        64.5,
+        69.2
+      ],
+      "source": "wom+wiki",
+      "womKph": 60,
+      "wikiKph": 52
+    },
+    "calvar'ion": {
+      "killSeconds": [
+        65.5,
+        65.5,
+        65.5
+      ],
+      "source": "wom+wiki",
+      "womKph": 55,
+      "wikiKph": 55
+    },
+    "spindel": {
+      "killSeconds": [
+        65.5,
+        62.7,
+        60
+      ],
+      "source": "wom+wiki",
+      "womKph": 55,
+      "wikiKph": 60
+    },
+    "scorpia": {
+      "killSeconds": [
+        27.7,
+        37.2,
+        50
+      ],
+      "source": "wom+wiki",
+      "womKph": 130,
+      "wikiKph": 72,
+      "curatedFastSeconds": 60,
+      "review": true
+    },
+    "chaos elemental": {
+      "killSeconds": [
+        30,
+        42.4,
+        60
+      ],
+      "source": "wom+wiki",
+      "womKph": 120,
+      "wikiKph": 60,
+      "curatedFastSeconds": 70,
+      "review": true
+    },
+    "zalcano": {
+      "killSeconds": [
+        37.5,
+        53,
+        75
+      ],
+      "source": "wiki",
+      "womKph": null,
+      "wikiKph": 48,
+      "curatedFastSeconds": 180,
+      "review": true
+    },
+    "barrows": {
+      "killSeconds": [
+        163.6,
+        221.6,
+        300
+      ],
+      "source": "wom+wiki",
+      "womKph": 22,
+      "wikiKph": 12
+    },
+    "lunar chest": {
+      "killSeconds": [
+        200,
+        282.8,
+        400
+      ],
+      "source": "wom",
+      "womKph": 18,
+      "wikiKph": null
+    },
+    "moons of peril": {
+      "killSeconds": [
+        180,
+        254.6,
+        360
+      ],
+      "source": "wiki",
+      "womKph": null,
+      "wikiKph": 10
+    }
+  }
+}

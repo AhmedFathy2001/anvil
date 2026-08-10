@@ -47,10 +47,17 @@ export default async function ProfilePage({
   // plugin connects to one clan via its Account Token — so don't show a multi-clan token UI at all.
   const federationEnabled = await getFederationEnabled();
 
-  const linkedAccounts = await db.query.clanMembers.findMany({
+  const linkedRows = await db.query.clanMembers.findMany({
     where: and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)),
     orderBy: (m, { desc }) => [desc(m.isPrimary), desc(m.verifiedAt)],
   });
+  // Federation anchors are not accounts. An inbound /exchange creates a placeholder row named
+  // `guest:<discordId>` (see api/federation/v1/exchange — rsn is NOT NULL, and an assertion carries
+  // no RSN, so the discord_id keys the row). It exists to hang a visiting member's relationship on,
+  // and it was rendering here as a linked RuneScape account: unverified, undeletable-looking, and
+  // named after a number the member has never seen. Colons can't occur in an OSRS name, so the
+  // prefix is an unambiguous test.
+  const linkedAccounts = linkedRows.filter((m) => !m.rsn.startsWith('guest:'));
 
   // Plugin-detected accounts awaiting an opt-in decision. Filter out any that are already
   // linked (owned by this user) so we never suggest an account that's on the list above.
