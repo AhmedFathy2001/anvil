@@ -5,6 +5,7 @@ import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import NumberInput from '@/components/NumberInput';
 import Textarea from '@/components/Textarea';
 import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
@@ -906,15 +907,12 @@ export default function TileDetailModal({
                   <label className="block text-xs text-text-muted mb-1">
                     Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
                   </label>
-                  <Input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10) || 1;
-                      setAmount(String(Math.min(val, maxAmount)));
-                    }}
-                    min="1"
+                  <NumberInput
+                    value={Number(amount) || 1}
+                    onChange={(n) => setAmount(String(n))}
+                    min={1}
                     max={maxAmount}
+                    fallback={1}
                     className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
                   />
                 </div>

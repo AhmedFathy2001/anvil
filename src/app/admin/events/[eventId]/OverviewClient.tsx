@@ -14,6 +14,7 @@ import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
 import MissionAdminPanel from '@/components/MissionAdminPanel';
 import EventEditorsPanel from './EventEditorsPanel';
+import NumberInput from '@/components/NumberInput';
 
 interface Props {
   event: Event;
@@ -379,12 +380,12 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             </div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">{typeMeta.sizeLabel}</label>
             <div className="flex items-center gap-2 mb-1">
-              <Input
-                type="number"
+              <NumberInput
                 value={typeSize}
-                onChange={(e) => setTypeSize(parseInt(e.target.value, 10) || typeMeta.default)}
+                onChange={(n) => setTypeSize(n)}
                 min={typeMeta.min}
                 max={typeMeta.max}
+                fallback={typeMeta.default}
                 className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold"
               />
               <span className="text-xs text-text-muted">{typeMeta.sizeHelp(typeSize)}</span>

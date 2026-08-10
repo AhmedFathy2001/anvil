@@ -6,6 +6,7 @@ import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
+import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
 
@@ -260,17 +261,17 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">{meta.sizeLabel}</label>
               <div className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   value={size}
-                  onChange={(e) => {
-                    setSize(parseInt(e.target.value, 10) || meta.default);
+                  onChange={(n) => {
+                    setSize(n);
                     setPresetCsv(null);
                     setActivePreset(null);
                     setPresetLabels(null);
                   }}
                   min={meta.min}
                   max={meta.max}
+                  fallback={meta.default}
                   required
                   disabled={!!presetCsv}
                   className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold disabled:opacity-60"
@@ -314,12 +315,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               {effectivePolicy === 'rotating' && (
                 <div>
                   <label className="block text-sm font-medium text-foreground/70 mb-1.5">Open tasks at once (window)</label>
-                  <Input
-                    type="number"
+                  <NumberInput
                     value={windowSize}
-                    onChange={(e) => setWindowSize(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 3)))}
+                    onChange={setWindowSize}
                     min={1}
                     max={50}
+                    fallback={3}
                     className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                   />
                 </div>
@@ -328,23 +329,23 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-foreground/70 mb-1.5">Minutes between draws</label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       value={intervalMinutes}
-                      onChange={(e) => setIntervalMinutes(Math.max(5, Math.min(10080, parseInt(e.target.value, 10) || 60)))}
+                      onChange={setIntervalMinutes}
                       min={5}
                       max={10080}
+                      fallback={60}
                       className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground/70 mb-1.5">Tiles per draw</label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       value={batchSize}
-                      onChange={(e) => setBatchSize(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 1)))}
+                      onChange={setBatchSize}
                       min={1}
                       max={50}
+                      fallback={1}
                       className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                     />
                   </div>
@@ -367,12 +368,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               <div>
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">First-team bonus points</label>
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
+                  <NumberInput
                     value={firstBonus}
-                    onChange={(e) => setFirstBonus(Math.max(0, Math.min(100000, parseInt(e.target.value, 10) || 0)))}
+                    onChange={setFirstBonus}
                     min={0}
                     max={100000}
+                    fallback={0}
                     className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                   />
                   <span className="text-sm text-text-muted">
@@ -418,26 +419,23 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                       <label className="block text-xs text-text-muted mb-1">
                         {decayMode === 'grow' ? 'Cap (% of full points)' : 'Floor (% of full points)'}
                       </label>
-                      <Input
-                        type="number"
+                      <NumberInput
                         value={decayTargetPct}
-                        onChange={(e) => {
-                          const v = parseInt(e.target.value, 10) || 0;
-                          setDecayTargetPct(decayMode === 'grow' ? Math.max(101, Math.min(1000, v)) : Math.max(0, Math.min(100, v)));
-                        }}
+                        onChange={setDecayTargetPct}
                         min={decayMode === 'grow' ? 101 : 0}
                         max={decayMode === 'grow' ? 1000 : 100}
+                        fallback={decayMode === 'grow' ? 150 : 50}
                         className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                       />
                     </div>
                     <div>
                       <label className="block text-xs text-text-muted mb-1">Hours to reach it</label>
-                      <Input
-                        type="number"
+                      <NumberInput
                         value={decayHours}
-                        onChange={(e) => setDecayHours(Math.max(1, Math.min(720, parseInt(e.target.value, 10) || 24)))}
+                        onChange={setDecayHours}
                         min={1}
                         max={720}
+                        fallback={24}
                         className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                       />
                     </div>
@@ -470,12 +468,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">Accounts per person</label>
               <div className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   value={maxAccounts}
-                  onChange={(e) => setMaxAccounts(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+                  onChange={setMaxAccounts}
                   min={1}
                   max={10}
+                  fallback={1}
                   className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                 />
                 <span className="text-sm text-text-muted">

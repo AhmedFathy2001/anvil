@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DateTimePicker from './DateTimePicker';
 import { formatUtcHint } from '@/lib/eventTime';
+import NumberInput from '@/components/NumberInput';
 
 // Date-range picker with two modes:
 //   - "range":  pick a start datetime + an end datetime explicitly
@@ -190,15 +191,14 @@ export default function DateRangeField({ startIso, endIso, onChange, required }:
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Custom:</span>
-            <input
-              type="number"
+            <NumberInput
+              value={customDays ?? computedDays ?? 0}
+              onChange={(n) => {
+                if (n > 0) applyDuration(n);
+              }}
               min={1}
               max={365}
-              value={customDays ?? computedDays ?? ''}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                if (Number.isFinite(n) && n > 0) applyDuration(n);
-              }}
+              fallback={7}
               className="w-20 px-2 py-1 bg-brown-dark border border-card-border rounded text-sm focus:outline-none focus:border-gold"
               placeholder="7"
             />

@@ -22,6 +22,7 @@ import { usePlayerRatings } from '@/hooks/usePlayerRatings';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { countPicksTaken } from '@/lib/draft';
+import NumberInput from '@/components/NumberInput';
 
 interface DraftState {
   status: string;
@@ -1051,13 +1052,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   Max accounts per person
                   <span className="block text-text-muted font-normal">How many of a person&apos;s accounts (alts) may enter.</span>
                 </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
+                <NumberInput
                   value={maxAccounts}
                   disabled={savingAccountCfg || eventStarted || editLocked}
-                  onChange={(e) => setMaxAccounts(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+                  onChange={setMaxAccounts}
+                  min={1}
+                  max={10}
+                  fallback={1}
                   onBlur={() => maxAccounts !== (event.maxAccountsPerPerson ?? 1) && saveAccountConfig({ maxAccounts })}
                   className="w-16 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:border-gold/50 disabled:opacity-50"
                 />

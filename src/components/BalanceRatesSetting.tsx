@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
+import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 
 // Admin editor for the board-balance effort rates (backed by /api/admin/balance-rates).
@@ -40,16 +41,15 @@ function TripletInputs({
     <span className="flex gap-1 w-full sm:w-auto">
       {[0, 1, 2].map((i) => (
         <span key={i} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 sm:flex-none">
-          <Input
-            type="number"
+          <NumberInput
             value={Math.round(value[i] * scale * 100) / 100}
-            onChange={(e) => {
-              const n = parseFloat(e.target.value);
-              if (!Number.isFinite(n) || n < 0) return;
+            onChange={(n) => {
               const next = [...value] as Triplet;
               next[i] = n / scale;
               onChange(next);
             }}
+            min={0}
+            fallback={0}
             className="w-full sm:w-16 px-1.5 py-1 text-xs text-center"
             aria-label={['fast', 'average', 'slow'][i]}
           />

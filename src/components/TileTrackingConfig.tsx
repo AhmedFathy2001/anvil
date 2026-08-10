@@ -12,6 +12,7 @@ import { statKeys } from '@/lib/tileKinds';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
+import NumberInput from '@/components/NumberInput';
 
 interface Props {
   tileId: number;
@@ -1350,16 +1351,15 @@ export default function TileTrackingConfig({
                           className="w-24 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground"
                           title='Set name for "any full set" tiles — items sharing a set complete together; one whole set finishes the tile. Blank = always required.'
                         />
-                        <Input
-                          type="number"
+                        <NumberInput
                           value={item.perItemAmount}
-                          onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                          onChange={(val) => {
                             setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, perItemAmount: val } : i)));
                           }}
-                          min="1"
+                          min={1}
+                          fallback={1}
                           className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
-                          title="Required amount for this item"
+                          aria-label="Required amount for this item"
                         />
                       </>
                     )}
