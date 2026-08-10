@@ -328,6 +328,16 @@ export default function WebhookField({
         </p>
       )}
 
+      {/* A configured bot with zero listable channels almost always means it was never invited to
+          the server (or can't see any channel there) — say so instead of showing an empty picker. */}
+      {botEnabled && channels.length === 0 && (
+        <p className="text-[11px] text-yellow-400">
+          A bot is configured but Anvil can&apos;t see any channels in your server — it probably hasn&apos;t been
+          invited yet. Open <span className="text-foreground/70">Advanced settings → Discord bot</span>, where you
+          can add it in one click.
+        </p>
+      )}
+
       {message && (
         <div
           className={`text-sm px-3 py-2 rounded-lg ${

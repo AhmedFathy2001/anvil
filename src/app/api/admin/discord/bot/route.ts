@@ -5,10 +5,11 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import {
   discordRest,
-  getBotCredentials,
+  getBotTokenOnly,
   getBotTokenSource,
   isSharedBotAvailable,
 } from '@/lib/discord-roles';
+import { botGuildStatus } from '@/lib/discord-permissions';
 
 // The bot connection surface. The bot TOKEN is a secret: it's stored in the settings table under
 // `discord_bot_token` when an admin brings their own, but is deliberately NOT in the settings API's
@@ -30,29 +31,65 @@ async function readGuildId(): Promise<string> {
   return row?.value || process.env.DISCORD_GUILD_ID || '';
 }
 
-// Validate a token by asking Discord who it is. Returns the bot's display name, or null if the
-// token is missing/invalid.
-async function fetchBotUser(token: string): Promise<string | null> {
+// Validate a token by asking Discord who it is. Returns the bot's id + display name, or null if the
+// token is missing/invalid. The id doubles as the OAuth client_id in the invite link below (for a
+// bot, application id == bot user id).
+async function fetchBotUser(token: string): Promise<{ id: string; name: string } | null> {
   const res = await discordRest(token, '/users/@me');
   if (!res.ok) return null;
   const user = (await res.json()) as { id?: string; username?: string; global_name?: string };
   if (!user?.id) return null;
-  return user.global_name || user.username || 'bot';
+  return { id: user.id, name: user.global_name || user.username || 'bot' };
+}
+
+// Permissions requested by the invite link: Manage Channels + Manage Roles + Manage Nicknames +
+// Manage Webhooks (the four the features need), plus the basics to post: View Channel, Send
+// Messages, Embed Links, Attach Files, Read Message History.
+const INVITE_PERMISSIONS = '939641872';
+
+// Ready-made "add the bot to my server" link. guild_id pre-selects the configured server so the
+// admin can't add it to the wrong one; without a server ID yet, Discord asks them to pick.
+function buildInviteUrl(clientId: string, guildId: string): string {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    scope: 'bot',
+    permissions: INVITE_PERMISSIONS,
+  });
+  if (guildId) {
+    params.set('guild_id', guildId);
+    params.set('disable_guild_select', 'true');
+  }
+  return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
 
 // Assemble the status the UI renders — resolved token source + a live "connected as" check, never
 // the token itself.
 async function buildStatus() {
   const source = await getBotTokenSource();
-  const creds = await getBotCredentials();
-  const botUser = creds ? await fetchBotUser(creds.botToken) : null;
+  // Token-only resolution: the bot must be identifiable (and invitable) BEFORE a server ID is set.
+  const resolved = await getBotTokenOnly();
+  const bot = resolved ? await fetchBotUser(resolved.token) : null;
+  const guildId = await readGuildId();
+
+  // A working token says nothing about whether the bot was ever invited to THIS clan's server —
+  // with a shared bot the token is always valid, so membership is the only honest signal.
+  const guild =
+    resolved && bot && guildId
+      ? await botGuildStatus(resolved.token, bot.id, guildId)
+      : { inGuild: null, guildName: null, missingPermissions: [] as string[] };
+
   return {
     source,
     configured: source !== 'none',
     // null when there's no token to check; true/false when there is.
-    tokenValid: creds ? botUser !== null : null,
-    botUser,
-    guildId: await readGuildId(),
+    tokenValid: resolved ? bot !== null : null,
+    botUser: bot?.name ?? null,
+    guildId,
+    // null = unknown (no token / no server ID / Discord unreachable), false = not invited.
+    inGuild: guild.inGuild,
+    guildName: guild.guildName,
+    missingPermissions: guild.missingPermissions,
+    inviteUrl: bot ? buildInviteUrl(bot.id, guildId) : null,
     sharedAvailable: isSharedBotAvailable(),
   };
 }
