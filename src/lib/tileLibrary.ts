@@ -206,6 +206,43 @@ export async function libraryTierCounts(): Promise<Record<string, number>> {
   return out;
 }
 
+/**
+ * Edit a task in place. Only the fields the library page exposes — the rich per-kind config keeps
+ * living in `config` and is replaced wholesale when it changes, so this can never half-write a
+ * tile kind (a 10M-XP goal stranded on a drop task, say).
+ */
+export async function updateTask(
+  id: number,
+  patch: { label?: string; description?: string | null; points?: number; category?: string | null; config?: TileCsvRow },
+): Promise<void> {
+  const set: Record<string, unknown> = {};
+  if (patch.label !== undefined) set.label = patch.label.trim().slice(0, 200);
+  if (patch.description !== undefined) set.description = patch.description || null;
+  if (patch.points !== undefined) set.points = Math.max(0, Math.round(patch.points));
+  if (patch.category !== undefined) set.category = patch.category || null;
+  if (patch.config !== undefined) {
+    set.config = JSON.stringify(patch.config);
+    if (patch.config.tileType) set.tileType = patch.config.tileType;
+  }
+  // Keep the stored mirror of label/points/category inside `config` honest — the importer reads
+  // those from the row it's handed, so a drifted copy would resurrect the old values on a draw.
+  if (Object.keys(set).length === 0) return;
+  const existing = await db.query.tileLibrary.findFirst({ where: eq(tileLibrary.id, id) });
+  if (!existing) return;
+  if (patch.config === undefined) {
+    const cfg = parseConfig(existing.config);
+    const merged: TileCsvRow = {
+      ...cfg,
+      ...(patch.label !== undefined ? { label: (set.label as string) } : {}),
+      ...(patch.points !== undefined ? { points: (set.points as number) } : {}),
+      ...(patch.category !== undefined ? { category: (set.category as string | null) } : {}),
+      ...(patch.description !== undefined ? { description: (set.description as string | null) } : {}),
+    };
+    set.config = JSON.stringify(merged);
+  }
+  await db.update(tileLibrary).set(set).where(eq(tileLibrary.id, id));
+}
+
 // Re-exported so routes can delete/update without importing the table directly.
 export async function deleteTask(id: number): Promise<void> {
   await db.delete(tileLibrary).where(eq(tileLibrary.id, id));

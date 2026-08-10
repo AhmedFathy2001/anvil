@@ -109,8 +109,10 @@ export async function middleware(request: NextRequest) {
       if (role === 'editor') {
         const scoped = data.editorScope === 'assigned';
         // Global editors keep the moderator surfaces; scoped editors get NONE of them.
+        // The task library is authoring, not administration — every editor reaches it, scoped ones
+        // included, matching the page's own verifyTileEditorAnywhere gate.
         const allowed = scoped
-          ? []
+          ? ['/admin/tile-library']
           : [
               '/admin/dashboard',
               '/admin/weekly',
@@ -118,6 +120,7 @@ export async function middleware(request: NextRequest) {
               '/admin/schedule',
               '/admin/verifications',
               '/admin/feedback',
+              '/admin/tile-library',
             ];
         const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
         if (!canEvents && !allowed.some((p) => pathname.startsWith(p))) {

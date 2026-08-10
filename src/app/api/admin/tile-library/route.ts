@@ -8,6 +8,7 @@ import {
   libraryTierCounts,
   listLibrary,
   pendingSeedTasks,
+  updateTask,
 } from '@/lib/tileLibrary';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,7 @@ export async function GET() {
  * POST — three curation actions on one route, chosen by `action`:
  *   { action: 'seed' }                     copy the pending starter tasks in
  *   { action: 'add', tasks: [...] }        harvest tiles from a board (or hand-write one)
+ *   { action: 'update', id, ...fields }    edit one task in place
  *   { action: 'delete', ids: [...] }       drop tasks the clan doesn't want
  */
 export async function POST(request: Request) {
@@ -67,6 +69,18 @@ export async function POST(request: Request) {
       userId: editor.userId,
     });
     return NextResponse.json({ ok: true, added });
+  }
+
+  if (action === 'update') {
+    if (!Number.isInteger(body.id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    await updateTask(body.id, {
+      label: typeof body.label === 'string' ? body.label : undefined,
+      description: body.description === undefined ? undefined : (body.description || null),
+      points: typeof body.points === 'number' ? body.points : undefined,
+      category: body.category === undefined ? undefined : (body.category || null),
+      config: body.config && typeof body.config === 'object' ? body.config : undefined,
+    });
+    return NextResponse.json({ ok: true });
   }
 
   if (action === 'delete') {
