@@ -451,12 +451,27 @@ export async function pushAllMemberAssociations(): Promise<void> {
   }
 }
 
-// Login-time association push: a rostered member's Discord login is a "member here" signal, so the
-// whole roster becomes discoverable in /me/instances as people log in — not only the few who mint a
-// federation token or complete a device connect. Pushes to every trusted broker plus the configured
-// relay broker (deduped). Gated on the federation master switch here and on the associationPush
-// consent + provisioned secret inside pushAssociation; only fires for users with a linked, active
-// clan_members row (a bare login on a public site is NOT a membership signal). Fire-and-forget.
+// Login-time association push: signing into this site with Discord is a "I have a presence here"
+// signal, so the clan becomes discoverable in /me/instances for that person's plugin.
+//
+// This deliberately does NOT require a linked clan_members row. Requiring one created a dead end:
+// a clan only advertised people it already knew by Discord, and a site only knows your Discord once
+// you've authenticated there — so someone in two clans could never be discovered by the second one
+// without manually pasting a token or being added by an admin, which is precisely the setup that
+// federation exists to remove.
+//
+// Safe because of who can read it back: the broker's /me/instances resolves the caller's OWN session
+// to their own discord_id and returns only their own associations. There is no "who is in clan X"
+// read, so advertising a login exposes nothing to the clan's peers or to third parties — it only
+// populates that person's own clan list.
+//
+// Listing is NOT membership. Whether someone counts as a member of this clan is still decided by the
+// roster (clan_members), and a listed-but-unrostered person remains a guest here; all being listed
+// does is let them see the clan in their plugin and choose, per account, what to share with it.
+//
+// Pushes to every trusted broker plus the configured relay broker (deduped). Gated on the federation
+// master switch here and on the associationPush consent + provisioned secret inside pushAssociation.
+// Fire-and-forget.
 export async function pushMemberAssociations(userId: number): Promise<void> {
   try {
     if (!(await getFederationEnabled())) return;
@@ -465,11 +480,6 @@ export async function pushMemberAssociations(userId: number): Promise<void> {
       columns: { discordId: true },
     });
     if (!user?.discordId) return;
-    const member = await db.query.clanMembers.findFirst({
-      where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),
-      columns: { id: true },
-    });
-    if (!member) return;
     const targets = new Set((await getBrokerTrust()).map((b) => b.iss));
     const base = await getBrokerBaseUrl();
     if (base) targets.add(base);
