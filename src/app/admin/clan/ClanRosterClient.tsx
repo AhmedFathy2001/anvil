@@ -128,8 +128,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [roleError, setRoleError] = useState('');
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
 
+  // Clan naming — two independent values. `clanName` is the display name (site, plugin, Discord);
+  // `inGameClanName` is the exact OSRS clan name the roster sync must report (blank = accept any).
   const [clanName, setClanName] = useState('');
+  const [inGameClanName, setInGameClanName] = useState('');
   const [clanNameOriginal, setClanNameOriginal] = useState('');
+  const [inGameNameOriginal, setInGameNameOriginal] = useState('');
   const [clanNameSaving, setClanNameSaving] = useState(false);
   const [clanNameMessage, setClanNameMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -149,6 +153,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       const s = await sRes.json();
       setClanName(s.clan_name || '');
       setClanNameOriginal(s.clan_name || '');
+      setInGameClanName(s.clan_ingame_name || '');
+      setInGameNameOriginal(s.clan_ingame_name || '');
     }
     setLoading(false);
   }
@@ -164,10 +170,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const res = await fetch('/api/admin/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clan_name: clanName }),
+      body: JSON.stringify({ clan_name: clanName, clan_ingame_name: inGameClanName }),
     });
     if (res.ok) {
       setClanNameOriginal(clanName);
+      setInGameNameOriginal(inGameClanName);
       setClanNameMessage({ type: 'ok', text: 'Saved.' });
     } else {
       const data = await res.json().catch(() => ({}));
@@ -481,23 +488,52 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           <span className="w-1 h-5 bg-gold rounded-full" />
           Clan Settings
         </h2>
-        <p className="text-text-muted text-sm mb-3">
-          The plugin&apos;s roster-sync payload must match this clan name. Leave blank to accept any clan.
+        <p className="text-text-muted text-sm mb-4">
+          Your display name and your in-game clan name can differ — the site shows one, the plugin
+          matches the other.
         </p>
-        <div className="flex gap-2 items-start">
-          <Input
-            type="text"
-            value={clanName}
-            onChange={(e) => {
-              setClanName(e.target.value);
-              setClanNameMessage(null);
-            }}
-            placeholder="e.g. The Golden Arrows"
-            className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Display name</label>
+            <Input
+              type="text"
+              value={clanName}
+              onChange={(e) => {
+                setClanName(e.target.value);
+                setClanNameMessage(null);
+              }}
+              placeholder="e.g. The Golden Arrows"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+            />
+            <p className="text-[11px] text-text-muted mt-1">
+              What the site, the plugin and Discord posts call your clan.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted mb-1">In-game clan name</label>
+            <Input
+              type="text"
+              value={inGameClanName}
+              onChange={(e) => {
+                setInGameClanName(e.target.value);
+                setClanNameMessage(null);
+              }}
+              placeholder="e.g. Golden Arrows CC"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
+            />
+            <p className="text-[11px] text-text-muted mt-1">
+              The plugin&apos;s roster-sync payload must match this exactly. Leave blank to accept a
+              sync from any clan.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end mt-3">
           <button
             onClick={saveClanName}
-            disabled={clanNameSaving || clanName === clanNameOriginal}
+            disabled={
+              clanNameSaving ||
+              (clanName === clanNameOriginal && inGameClanName === inGameNameOriginal)
+            }
             className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors disabled:opacity-50"
           >
             {clanNameSaving ? 'Saving...' : 'Save'}
