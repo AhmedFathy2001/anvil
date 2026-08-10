@@ -267,6 +267,24 @@ export default function FederationSettings() {
             />
           </div>
 
+          {/* An empty trust list while connected means no other clan can reach this one: their
+              relayed /exchange is refused, so this clan never appears in anyone's plugin. It happens
+              when the one-shot registration at join time failed. Saying so plainly beats hiding it
+              behind "Advanced", and saving now re-runs the registration that repairs it. */}
+          {trustedHosts.length === 0 && (
+            <div className="border-t border-card-border pt-4">
+              <p className="text-sm text-yellow-400">
+                Not finished connecting — no identity server is trusted yet.
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                Until this completes, other clans can&apos;t connect to yours and this clan won&apos;t show up
+                in members&apos; plugins. Press <span className="text-foreground/80">Save</span> to try again. If
+                it keeps failing, the site can&apos;t reach the Anvil network — check the server logs for
+                <span className="font-mono"> federation.register</span>.
+              </p>
+            </div>
+          )}
+
           <div className="border-t border-card-border pt-4">
             <button
               type="button"

@@ -159,7 +159,15 @@ async function setSetting(key: string, value: string): Promise<void> {
 // Add the configured broker to brokerTrust[] if absent (WIRE §7), so THIS instance accepts the
 // assertions other home sites relay to our /exchange. `jwksUrl` follows the broker's federation base
 // path. Idempotent.
-async function ensureBrokerTrusted(brokerBaseUrl: string): Promise<void> {
+//
+// Exported because this used to be seeded ONLY on the federation off→on edge: if that one register
+// call failed (broker down, or FEDERATION_BROKER_URL not yet in the container), the instance sat
+// with federation "on" and an empty trust list forever — every inbound /exchange 403s with "Assertion
+// issuer is not a trusted broker", so no other clan can connect and no member's sidebar can list it.
+// Callers on the live paths re-assert it so a missed seed heals itself. SAFE by construction: the
+// only value ever trusted is the SERVER-configured broker URL (env / admin setting) — never anything
+// read off an inbound request — so this can't be steered into trusting an attacker's issuer.
+export async function ensureBrokerTrusted(brokerBaseUrl: string): Promise<void> {
   const iss = brokerBaseUrl.replace(/\/+$/, '');
   const jwksUrl = `${iss}/api/federation/v1/jwks.json`;
   const current = await getBrokerTrust();
