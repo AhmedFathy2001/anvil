@@ -16,6 +16,14 @@ interface BotStatus {
   tokenValid: boolean | null;
   botUser: string | null;
   guildId: string;
+  // Whether the bot is actually a member of THIS clan's server. null = unknown (no token, no server
+  // ID, or Discord unreachable). A valid token alone proves nothing — with the shared bot it's valid
+  // for every clan, including ones that never invited it.
+  inGuild: boolean | null;
+  guildName: string | null;
+  missingPermissions: string[];
+  // Ready-made Discord "add to server" link (pre-selects the configured server when set).
+  inviteUrl: string | null;
   sharedAvailable: boolean;
 }
 
@@ -114,17 +122,35 @@ export default function DiscordBotSettings() {
 
   const hasChanges = guildId.trim() !== status.guildId || tokenInput.trim() !== '';
   const badTokenSet = status.configured && status.tokenValid === false;
+  // "Ready" means the bot can actually do something HERE: a valid token AND membership of this
+  // clan's server. Anything less is reported as work still to do, never as a green tick.
+  const needsInvite = status.configured && !badTokenSet && status.inGuild === false;
+  const needsGuildId = status.configured && !badTokenSet && !status.guildId;
+  const ready = status.configured && !badTokenSet && status.inGuild === true;
+  const inviteButton = status.inviteUrl && (
+    <a
+      href={status.inviteUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-xs hover:bg-gold/90 transition-colors"
+    >
+      Add the bot to your server ↗
+    </a>
+  );
 
   return (
     <div className="space-y-4">
-      {/* Effective source */}
+      {/* Effective source + whether the bot is actually in this clan's server */}
       <div className="rounded-lg border border-card-border bg-bg/40 p-3">
         <p className="text-sm">
-          <span className={status.source === 'none' || badTokenSet ? 'text-yellow-400' : 'text-green-400'}>
-            {status.source === 'none' || badTokenSet ? '•' : '✓'} {SOURCE_LABEL[status.source]}
+          <span className={ready ? 'text-green-400' : 'text-yellow-400'}>
+            {ready ? '✓' : '•'} {SOURCE_LABEL[status.source]}
           </span>
           {status.configured && status.botUser && (
             <span className="text-text-muted"> — connected as <span className="text-foreground/80">{status.botUser}</span></span>
+          )}
+          {ready && status.guildName && (
+            <span className="text-text-muted"> in <span className="text-foreground/80">{status.guildName}</span></span>
           )}
         </p>
         {badTokenSet && (
@@ -132,16 +158,58 @@ export default function DiscordBotSettings() {
             The current bot token was rejected by Discord — replace it below or clear it.
           </p>
         )}
-        {status.source === 'shared' && (
+        {needsInvite && (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-yellow-400">
+              The bot isn&apos;t in your Discord server yet{status.guildId ? ` (${status.guildId})` : ''}. Webhook
+              creation, role sync, nickname sync and team channels will all fail until you add it — or the server
+              ID below is wrong.
+            </p>
+            {inviteButton}
+          </div>
+        )}
+        {needsGuildId && (
+          <p className="text-xs text-yellow-400 mt-1">
+            Add your Discord server ID below so Anvil knows which server to work in.
+          </p>
+        )}
+        {ready && status.missingPermissions.length > 0 && (
+          <p className="text-xs text-yellow-400 mt-1">
+            The bot is in your server but is missing {status.missingPermissions.join(', ')}. Grant those under
+            Server Settings → Roles (and drag its role above the ones it manages), or re-run the invite link below.
+          </p>
+        )}
+        {status.inGuild === null && status.configured && status.guildId && !badTokenSet && (
           <p className="text-xs text-text-muted mt-1">
-            Managed for you — nothing to set up. Invite scope aside, you only need to keep the Anvil bot in your
-            server. Paste your own token below to use a different bot instead.
+            Couldn&apos;t reach Discord to check whether the bot is in your server — retry in a moment.
+          </p>
+        )}
+        {status.source === 'shared' && !needsInvite && (
+          <p className="text-xs text-text-muted mt-1">
+            Managed for you — you only need to keep the Anvil bot in your server. Paste your own token below to use
+            a different bot instead.
           </p>
         )}
         {status.source === 'none' && (
           <p className="text-xs text-text-muted mt-1">
             Webhook creation, role sync and team channels stay off until a bot is connected. Paste a bot token
             below{status.sharedAvailable ? ', or nothing — the shared Anvil bot will be used' : ''}.
+          </p>
+        )}
+        {/* Always reachable once we know which bot it is: re-invite to fix permissions, or add it
+            to a second server after changing the server ID. */}
+        {status.inviteUrl && !needsInvite && (
+          <p className="text-xs text-text-muted mt-2">
+            <a
+              href={status.inviteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gold hover:underline"
+            >
+              Invite / re-invite the bot ↗
+            </a>{' '}
+            — re-running this also repairs missing permissions.
+            {status.source !== 'shared' && ' Your own bot needs “Public Bot” enabled in its Discord app for this link to work.'}
           </p>
         )}
       </div>

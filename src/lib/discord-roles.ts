@@ -183,6 +183,15 @@ export async function getBotTokenSource(): Promise<BotTokenSource> {
   return (await resolveBotToken())?.source ?? 'none';
 }
 
+/**
+ * The effective bot token WITHOUT requiring a guild ID — for the admin bot-status surface, which
+ * must still identify the bot (and build an invite link) before a server has been picked.
+ * Feature code should use getBotCredentials() instead: no guild means nothing to act on.
+ */
+export async function getBotTokenOnly(): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
+  return resolveBotToken();
+}
+
 /** True when a shared managed bot is available to fall back to (provisioner-injected env). */
 export function isSharedBotAvailable(): boolean {
   return !!process.env.ANVIL_SHARED_BOT_TOKEN;
