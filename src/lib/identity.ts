@@ -108,11 +108,33 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
 // Safe against the only unique index on event_signups — (event_id, clan_member_id): there is at most
 // one sign-up per (event, character), so adopting its owner can never collide with a sibling row.
 // Call this at every place that links a clan_member to a user.
-export async function linkSignupsToOwner(clanMemberId: number, userId: number): Promise<void> {
+async function linkSignupsToOwner(clanMemberId: number, userId: number): Promise<void> {
   await db
     .update(eventSignups)
     .set({ userId })
     .where(and(eq(eventSignups.clanMemberId, clanMemberId), isNull(eventSignups.userId)));
+}
+
+/**
+ * The single "this character now belongs to this person" hook. Call it from EVERY place that links a
+ * clan_member to a user — plugin auto-link, account-token claim, manual review, admin assignment,
+ * Discord link-member. Consolidating the side effects here is what keeps them from drifting apart as
+ * new link paths appear.
+ *
+ * Today that means: adopt the character's guest sign-ups, and (federation) advertise the membership
+ * to the broker. The association push used to happen only during Discord login, which reads the
+ * membership BEFORE these paths create it — so someone joining a new clan wasn't advertised until
+ * their SECOND login there, and until then the clan couldn't appear in their plugin sidebar.
+ *
+ * Both effects are best-effort: linking a character must never fail because a broker is down.
+ */
+export async function onCharacterLinked(clanMemberId: number, userId: number): Promise<void> {
+  await linkSignupsToOwner(clanMemberId, userId).catch(() => {});
+  // Dynamic import: lib/federation pulls in the relay/crypto stack, and this module is imported by
+  // lib/auth — the same static-cycle dodge used for discord-roles in lib/auth.ts.
+  import('@/lib/federation')
+    .then((m) => m.pushMemberAssociations(userId))
+    .catch(() => {});
 }
 
 // Unowned game accounts (roster members + guests not yet attached to a person, still in the clan).

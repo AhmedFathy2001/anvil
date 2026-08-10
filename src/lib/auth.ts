@@ -5,7 +5,7 @@ import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, play
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
-import { linkSignupsToOwner } from '@/lib/identity';
+import { onCharacterLinked } from '@/lib/identity';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -494,8 +494,8 @@ async function autoLinkOrSuggestOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
-    // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
-    await linkSignupsToOwner(clanMemberId, userId);
+    // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+    await onCharacterLinked(clanMemberId, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
   }
@@ -551,8 +551,8 @@ async function maybeAutoClaimEstablishedOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
-    // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
-    await linkSignupsToOwner(existing.id, userId);
+    // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+    await onCharacterLinked(existing.id, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
   }
@@ -684,8 +684,8 @@ export async function claimAccountForUser(
   import('@/lib/discord-roles')
     .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
     .catch(() => {});
-  // Adopt any pre-existing guest sign-ups for this character now that it has an owner.
-  linkSignupsToOwner(clanMemberId, userId).catch(() => {});
+  // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+  onCharacterLinked(clanMemberId, userId).catch(() => {});
 
   return { ok: true, clanMemberId };
 }
