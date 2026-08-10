@@ -10,6 +10,7 @@ import type { BroadcastChannel } from '@/lib/discord-broadcast';
 interface Props {
   initial: {
     clanName: string;
+    inGameClanName: string;
     inviteUrl: string;
     webhookUrl: string;
     rareDrops: string;
@@ -51,6 +52,10 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
   const [step, setStep] = useState(initialStep);
 
   const [clanName, setClanName] = useState(initial.clanName);
+  // The exact in-game clan name gates the plugin's roster sync. Most clans use the same string for
+  // both, so it mirrors the display name until the admin types in it — then it stays independent.
+  const [inGameClanName, setInGameClanName] = useState(initial.inGameClanName);
+  const [inGameTouched, setInGameTouched] = useState(!!initial.inGameClanName.trim());
   const [inviteUrl, setInviteUrl] = useState(initial.inviteUrl);
 
   const [saving, setSaving] = useState(false);
@@ -154,12 +159,28 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
             title="Your clan"
             subtitle="What should we call your clan across the site and in Discord posts?"
           >
-            <Field label="Clan name">
+            <Field label="Display name" hint="Shown on the site, in the plugin and in Discord posts.">
               <Input
                 value={clanName}
-                onChange={(e) => setClanName(e.target.value)}
+                onChange={(e) => {
+                  setClanName(e.target.value);
+                  if (!inGameTouched) setInGameClanName(e.target.value);
+                }}
                 placeholder="e.g. Iron Anvils"
                 autoFocus
+              />
+            </Field>
+            <Field
+              label="In-game clan name"
+              hint="Optional — the exact OSRS clan name. The plugin's roster sync must report this name; leave blank to accept a sync from any clan."
+            >
+              <Input
+                value={inGameClanName}
+                onChange={(e) => {
+                  setInGameTouched(true);
+                  setInGameClanName(e.target.value);
+                }}
+                placeholder="e.g. Iron Anvils CC"
               />
             </Field>
             <Field
@@ -278,7 +299,13 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
               {step === 0 && (
                 <PrimaryBtn
                   disabled={saving}
-                  onClick={() => next({ clan_name: clanName.trim(), discord_invite_url: inviteUrl.trim() })}
+                  onClick={() =>
+                    next({
+                      clan_name: clanName.trim(),
+                      clan_ingame_name: inGameClanName.trim(),
+                      discord_invite_url: inviteUrl.trim(),
+                    })
+                  }
                 >
                   {saving ? 'Saving…' : 'Continue'}
                 </PrimaryBtn>

@@ -34,6 +34,7 @@ export interface SetupStatus {
   /** Prefill values for the wizard, so it opens showing whatever is already set. */
   values: {
     clanName: string;
+    inGameClanName: string;
     inviteUrl: string;
     webhookUrl: string;
     rareDrops: string;
@@ -43,6 +44,7 @@ export interface SetupStatus {
 
 const WANTED_KEYS = [
   'clan_name',
+  'clan_ingame_name',
   'discord_webhook_url',
   'discord_invite_url',
   'webhook_rare_drops',
@@ -70,7 +72,7 @@ export async function getSetupStatus(): Promise<SetupStatus> {
     {
       key: 'clan',
       label: 'Name your clan',
-      hint: 'What shows up across the site and in Discord posts.',
+      hint: 'The display name shown across the site and in Discord posts.',
       done: !!clanName,
       href: '/admin/setup',
     },
@@ -115,6 +117,7 @@ export async function getSetupStatus(): Promise<SetupStatus> {
     provisioned,
     values: {
       clanName,
+      inGameClanName: get('clan_ingame_name'),
       inviteUrl: get('discord_invite_url'),
       webhookUrl,
       rareDrops: get('webhook_rare_drops'),
