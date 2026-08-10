@@ -9,6 +9,8 @@ import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
 import LibraryTileGenerator from './LibraryTileGenerator';
+import ActionMenu from '@/components/ActionMenu';
+import Link from 'next/link';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
@@ -635,27 +637,37 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
     <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
-      {/* CSV import */}
+      {/* Adding tiles: the three ways in, plus the file round-trip and library round-trip tucked
+          into menus. This header had grown to eight competing buttons and two paragraphs of prose
+          before you could see a single tile — the generators are what people reach for, everything
+          else is occasional. */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            Bulk Import
+            Add tiles
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={`/api/events/${event.id}/tiles/spreadsheet`}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 bg-gold/10 text-gold hover:bg-gold/20 transition-colors"
-              title="Download an Excel workbook (current tiles + dropdowns, item list, examples, instructions) — draft in Excel or Google Sheets, then upload the same file straight back"
-            >
-              Download spreadsheet
-            </a>
-            <button
-              onClick={downloadTemplate}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-            >
-              Template CSV
-            </button>
+            <ClogGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleClogCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+            />
+            <SkillTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+            />
+            <LibraryTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -663,74 +675,67 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               onChange={handleImportFile}
               className="hidden"
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
-            >
-              {importing ? 'Importing…' : 'Upload CSV / Excel'}
-            </button>
+            <ActionMenu
+              label="Spreadsheet"
+              items={[
+                {
+                  label: importing ? 'Importing…' : 'Upload CSV / Excel',
+                  onClick: () => fileInputRef.current?.click(),
+                  disabled: importing,
+                  variant: 'gold',
+                },
+                {
+                  label: 'Download spreadsheet',
+                  onClick: () => { window.location.href = `/api/events/${event.id}/tiles/spreadsheet`; },
+                  title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
+                },
+                { label: 'Template CSV', onClick: downloadTemplate },
+              ]}
+            />
+            <ActionMenu
+              label="Library"
+              items={[
+                {
+                  label: savingToLibrary ? 'Adding…' : 'Add this board to the library',
+                  onClick: addBoardToLibrary,
+                  disabled: savingToLibrary,
+                },
+                {
+                  label: 'Export as seed pack',
+                  onClick: () => { window.location.href = `/api/admin/tile-library/export?eventId=${event.id}`; },
+                  title: 'Share this board with another Anvil site, or commit it as the default starter list',
+                },
+              ]}
+            />
           </div>
         </div>
-        {/* Generators — bulk tile builders, separated from the CSV import/export cluster so the
-            header row doesn't turn into a button soup as more of them land. */}
-        <div className="flex items-center gap-2 flex-wrap mb-3">
-          <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Generate</span>
-          <ClogGenerator
-            eventId={event.id}
-            canGrow={canEditTileSet}
-            pointsMode={pointsMode}
-            onCreated={handleClogCreated}
-            onError={(text) => setImportMsg({ type: 'error', text })}
-          />
-          <SkillTileGenerator
-            eventId={event.id}
-            canGrow={canEditTileSet}
-            pointsMode={pointsMode}
-            onCreated={handleSkillsCreated}
-            onError={(text) => setImportMsg({ type: 'error', text })}
-          />
-          <LibraryTileGenerator
-            eventId={event.id}
-            canGrow={canEditTileSet}
-            onCreated={handleSkillsCreated}
-            onError={(text) => setImportMsg({ type: 'error', text })}
-          />
-          {/* The reverse direction: this board feeding the library, and the library (or this board)
-              leaving as a shareable seed pack. */}
-          <span className="w-px h-4 bg-card-border" aria-hidden />
-          <button
-            type="button"
-            onClick={addBoardToLibrary}
-            disabled={savingToLibrary}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
-            title="Copy every configured tile on this board into the clan's task library, so future boards can draw from them"
-          >
-            {savingToLibrary ? 'Adding…' : '＋ Add board to library'}
-          </button>
-          <a
-            href={`/api/admin/tile-library/export?eventId=${event.id}`}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-            title="Download this board as a seed pack — commit it as the default starter list, or hand it to another Anvil site"
-          >
-            ⬇ Export seed pack
-          </a>
-        </div>
         <p className="text-xs text-text-muted leading-relaxed">
-          Configure many tiles at once — ideal for Leagues-style boards. Rows map onto tiles by order
-          (row 1 → tile #1). Columns: <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
-          {dynamicBoard && !eventStarted
-            ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
-            : ' Extra rows beyond the board size are ignored.'}
-          {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+          Tile editing on this page is collaborative — live edits with per-tile locks, so nobody
+          overwrites anyone. Draw a board from your{' '}
+          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>,
+          generate from the collection log or skills, or draft the whole thing in a spreadsheet.
         </p>
-        <p className="text-xs text-text-muted leading-relaxed mt-2">
-          <span className="text-gold">Drafting with your team?</span> The easiest way is right here — tile editing on this page is
-          collaborative (live edits with per-tile locks, so nobody overwrites anyone). Prefer to seed the board from a spreadsheet
-          first? <span className="text-gold">Download spreadsheet</span> gives an Excel file with the current tiles, dropdowns, the
-          full item list and instructions baked in — draft in Excel or Google Sheets, then upload the same file (or a CSV of the{' '}
-          <em>Tiles</em> tab) straight back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
-        </p>
+        <details className="mt-2 group">
+          <summary className="text-xs text-gold cursor-pointer hover:text-gold-light select-none">
+            How the spreadsheet round-trip works
+          </summary>
+          <div className="text-xs text-text-muted leading-relaxed mt-2 space-y-2">
+            <p>
+              Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
+              <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
+              {dynamicBoard && !eventStarted
+                ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
+                : ' Extra rows beyond the board size are ignored.'}
+              {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+            </p>
+            <p>
+              <span className="text-gold">Download spreadsheet</span> gives an Excel file with the
+              current tiles, dropdowns, the full item list and instructions baked in — draft in Excel
+              or Google Sheets, then upload the same file (or a CSV of the <em>Tiles</em> tab) straight
+              back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
+            </p>
+          </div>
+        </details>
         {importMsg && (
           <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
