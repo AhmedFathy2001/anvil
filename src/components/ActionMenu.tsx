@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 
 export interface ActionItem {
   label: string;
+  /** Draw a divider above this item — groups a long menu without a heading row. */
+  separatorBefore?: boolean;
   onClick: () => void;
   variant?: 'default' | 'gold' | 'danger';
   disabled?: boolean;
@@ -118,12 +120,19 @@ export default function ActionMenu({
           <div
             ref={menuRef}
             role="menu"
-            style={{ position: 'fixed', top: coords.top, left: coords.left, right: coords.right }}
-            className="z-50 min-w-[10rem] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 py-1"
+            // Only ever ONE of left/right is anchored; leaving the other as `auto` explicitly keeps
+            // the panel shrink-to-fit instead of letting it stretch toward the opposite edge.
+            style={{
+              position: 'fixed',
+              top: coords.top,
+              left: coords.left ?? 'auto',
+              right: coords.right ?? 'auto',
+            }}
+            className="z-50 w-max min-w-[10rem] max-w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 py-1"
           >
             {items.map((it, i) => (
+              <div key={i} className={it.separatorBefore && i > 0 ? 'border-t border-card-border mt-1 pt-1' : undefined}>
               <button
-                key={i}
                 type="button"
                 role="menuitem"
                 disabled={it.disabled}
@@ -143,6 +152,7 @@ export default function ActionMenu({
               >
                 {it.label}
               </button>
+              </div>
             ))}
           </div>,
           document.body,

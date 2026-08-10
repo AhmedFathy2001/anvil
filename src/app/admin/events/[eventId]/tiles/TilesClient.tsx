@@ -682,6 +682,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
                   disabled: importing,
+                  separatorBefore: true,
                 },
                 {
                   label: 'Download spreadsheet',
@@ -693,6 +694,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   label: savingToLibrary ? 'Adding…' : 'Add this board to the library',
                   onClick: addBoardToLibrary,
                   disabled: savingToLibrary,
+                  separatorBefore: true,
                 },
                 {
                   label: 'Export as seed pack',
