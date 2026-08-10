@@ -187,9 +187,11 @@ export async function completeDiscordLogin(
 
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Federation: a rostered member logging in is a "member here" signal — advertise the association
-  // to the trusted broker(s) so this clan can auto-populate in the member's plugin at their other
-  // homes. Gated (enabled + associationPush + linked membership) and fire-and-forget inside.
+  // Federation: signing in here is a "presence" signal — advertise the association to the trusted
+  // broker(s) so this clan auto-populates in this person's plugin, wherever their home is. No roster
+  // membership required (that's the dead end this removes); being listed lets them see the clan and
+  // choose what to share, while membership here is still decided by the roster. Gated (enabled +
+  // associationPush) and fire-and-forget inside.
   void pushMemberAssociations(user.id);
 
   // Banned users complete the identity step but get no session cookie — refused at the door.
