@@ -144,27 +144,34 @@ export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaL
     'bg-gold border-gold',
   ];
 
-  // Group into calendar weeks, one column each. The first column is padded to the weekday the range
-  // starts on — without that, every row would be a different weekday and the grid would say nothing
-  // about when in the week somebody plays.
-  const lead = new Date(`${days[0].day}T00:00:00Z`).getUTCDay();
-  const cells: (HeatmapDay | null)[] = [...Array<null>(lead).fill(null), ...days];
-  const weeks: (HeatmapDay | null)[][] = [];
-  for (let i = 0; i < cells.length; i += 7) {
-    const week = cells.slice(i, i + 7);
-    while (week.length < 7) week.push(null); // trailing pad, so the last column is a full column
+  // Snap the range to whole weeks at both ends, so every column has seven cells and the grid is a
+  // rectangle. Without it the first and last columns are stubs — correct (a year doesn't start on a
+  // Sunday) but it reads as a rendering fault. Days outside the supplied range render as empty, the
+  // same as a day with nothing on it, which is what a contribution graph does with the rest of the
+  // current week.
+  const valueByDay = new Map(days.map((d) => [d.day, d.value]));
+  const dayMs = 86_400_000;
+  const firstGiven = new Date(`${days[0].day}T00:00:00Z`);
+  const lastGiven = new Date(`${days[days.length - 1].day}T00:00:00Z`);
+  const gridStart = new Date(firstGiven.getTime() - firstGiven.getUTCDay() * dayMs);
+  const gridEnd = new Date(lastGiven.getTime() + (6 - lastGiven.getUTCDay()) * dayMs);
+
+  const weeks: { day: string; value: number; inRange: boolean }[][] = [];
+  for (let t = gridStart.getTime(); t <= gridEnd.getTime(); t += 7 * dayMs) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(t + d * dayMs).toISOString().slice(0, 10);
+      week.push({ day, value: valueByDay.get(day) ?? 0, inRange: valueByDay.has(day) });
+    }
     weeks.push(week);
   }
 
-  // A month label sits above the first week that contains a day of that month.
+  // A month label sits above the first week containing a day of that month.
   const monthLabels = weeks.map((week, i) => {
-    const first = week.find((c): c is HeatmapDay => c !== null);
-    if (!first) return '';
-    const month = first.day.slice(0, 7);
+    const month = week[0].day.slice(0, 7);
     if (i === 0) return '';
-    const prev = weeks[i - 1].find((c): c is HeatmapDay => c !== null);
-    if (prev && prev.day.slice(0, 7) === month) return '';
-    return new Date(`${first.day}T00:00:00Z`).toLocaleString(undefined, { month: 'short' });
+    if (weeks[i - 1][0].day.slice(0, 7) === month) return '';
+    return new Date(`${week[0].day}T00:00:00Z`).toLocaleString(undefined, { month: 'short' });
   });
 
   const COL = '0.75rem';
@@ -194,11 +201,15 @@ export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaL
               ))}
             </div>
             <div className="grid grid-rows-7 grid-flow-col gap-[3px]" role="img" aria-label={ariaLabel}>
-              {weeks.flat().map((cell, i) => (
+              {weeks.flat().map((cell) => (
                 <span
-                  key={cell?.day ?? `pad-${i}`}
-                  title={cell ? `${cell.day} — ${cell.value > 0 ? `${cell.value.toFixed(2)}h` : 'nothing'}` : undefined}
-                  className={`w-3 h-3 rounded-[2px] border ${cell ? shades[level(cell.value)] : 'border-transparent'}`}
+                  key={cell.day}
+                  title={
+                    cell.inRange
+                      ? `${cell.day} — ${cell.value > 0 ? `${cell.value.toFixed(2)}h` : 'nothing'}`
+                      : cell.day
+                  }
+                  className={`w-3 h-3 rounded-[2px] border ${shades[level(cell.value)]}`}
                 />
               ))}
             </div>
