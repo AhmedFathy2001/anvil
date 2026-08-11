@@ -30,25 +30,27 @@ export function levelFromXp(xp: number): number {
 
 export interface LevelProgress {
   level: number;
-  /** 0-1 through the current level. 1 when already at the target. */
+  /** 0-1 of the whole climb to the target, by XP. 1 when already there. */
   progress: number;
   xpToNext: number;
 }
 
 /**
- * How far through the climb to `target` this XP is. Used for the "nearest 99s" rings, where the
- * honest measure is XP remaining rather than levels remaining — 98 to 99 is a seventh of the whole
- * skill, so counting levels would put someone at 98 and someone at 92 in the same neighbourhood.
+ * How far this XP is toward `target`, as a share of the WHOLE climb from zero — not of the current
+ * level band.
+ *
+ * The band version reads as almost-zero for anyone who just levelled: someone at 94 with 5M banked
+ * showed an empty ring, because they were at the start of the 94→99 stretch. Measuring against the
+ * total is what makes "86% of the way to 99 Farming" mean what a player expects, and it's the same
+ * basis every other OSRS tool uses.
  */
 export function progressToLevel(xp: number, target = 99): LevelProgress {
   const level = levelFromXp(xp);
-  if (level >= target) return { level, progress: 1, xpToNext: 0 };
-  const floorXp = XP_TABLE[level];
   const targetXp = XP_TABLE[target];
-  const span = targetXp - floorXp;
+  if (xp >= targetXp) return { level, progress: 1, xpToNext: 0 };
   return {
     level,
-    progress: span > 0 ? Math.min(1, Math.max(0, (xp - floorXp) / span)) : 0,
+    progress: targetXp > 0 ? Math.min(1, Math.max(0, xp / targetXp)) : 0,
     xpToNext: Math.max(0, targetXp - xp),
   };
 }

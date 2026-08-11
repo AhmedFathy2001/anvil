@@ -5,7 +5,17 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, memberDailyStats, memberMilestones, playerSnapshots } from '@/db/schema';
+import {
+  clanAuditLog,
+  clanMembers,
+  events,
+  memberDailyStats,
+  memberMilestones,
+  playerEventFacts,
+  playerSnapshots,
+  weeklyCompetitions,
+  weeklyParticipants,
+} from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
@@ -376,8 +386,15 @@ export interface RosterEvent {
   detail: string | null;
 }
 
-/** The join / leave / rank-change feed, newest first. */
+/**
+ * The roster feed: who came, who went, and a few of the rank moves.
+ *
+ * Rank changes are capped rather than shown in full. One roster sync after a reshuffle writes a dozen
+ * of them at the same timestamp, which buries the joins and leaves nobody wants to miss under a wall
+ * of "imp → helper". Comings and goings are the point; rank churn is texture.
+ */
 export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
+  const MAX_RANK_ROWS = 5;
   const rows = await db
     .select({
       eventType: clanAuditLog.eventType,
@@ -390,7 +407,8 @@ export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
     .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
     .where(inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']))
     .orderBy(desc(clanAuditLog.occurredAt))
-    .limit(limit);
+    // Over-fetch so the cap below still leaves a full feed of comings and goings.
+    .limit(limit * 4);
 
   const readRank = (raw: string | null): string | null => {
     if (!raw) return null;
@@ -402,8 +420,15 @@ export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
     }
   };
 
+  let rankRows = 0;
   return rows
     .filter((r) => r.rsn && isPlausibleRsn(r.rsn))
+    .filter((r) => {
+      if (r.eventType !== 'rank_changed') return true;
+      rankRows += 1;
+      return rankRows <= MAX_RANK_ROWS;
+    })
+    .slice(0, limit)
     .map((r) => ({
       type: r.eventType,
       rsn: r.rsn as string,
@@ -479,5 +504,147 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
     activity,
     topWeek,
     activeThisWeek: weekRows.filter((r) => r.hours > 0).length,
+  };
+}
+
+// ── Competition history ──────────────────────────────────────────────────────────────────────────
+
+export interface EventResult {
+  eventId: number;
+  name: string;
+  endedOn: string | null;
+  points: number;
+  tiles: number;
+  teamRank: number | null;
+  teamsTotal: number | null;
+}
+
+export interface WeeklyResult {
+  competitionId: number;
+  title: string;
+  metric: string;
+  type: string;
+  endedOn: string;
+  gained: number;
+  rank: number;
+  entrants: number;
+}
+
+export interface CompetitionHistory {
+  events: EventResult[];
+  weeklies: WeeklyResult[];
+  eventWins: number;
+  eventPodiums: number;
+  weeklyWins: number;
+  weeklyPodiums: number;
+  totalPoints: number;
+}
+
+/**
+ * Everything this member has actually competed in, and how it went.
+ *
+ * Bingo results come from player_event_facts, which is written once per person per finished event —
+ * so this is a read, not a re-derivation of scoring. Weekly placings are computed from the standings
+ * of the comps they entered, since a weekly's result isn't materialised anywhere: one grouped query
+ * over the participants of those comps, not a query per competition.
+ */
+export async function getCompetitionHistory(clanMemberId: number, rsn: string): Promise<CompetitionHistory> {
+  const factRows = await db
+    .select({
+      eventId: playerEventFacts.eventId,
+      points: playerEventFacts.points,
+      tiles: playerEventFacts.tilesContributed,
+      teamRank: playerEventFacts.teamRank,
+      teamsTotal: playerEventFacts.teamsTotal,
+      name: events.name,
+      endDate: events.endDate,
+    })
+    .from(playerEventFacts)
+    .innerJoin(events, eq(playerEventFacts.eventId, events.id))
+    .where(eq(playerEventFacts.clanMemberId, clanMemberId))
+    .orderBy(desc(events.endDate));
+
+  const eventResults: EventResult[] = factRows.map((r) => ({
+    eventId: r.eventId,
+    name: r.name,
+    endedOn: r.endDate,
+    points: r.points,
+    tiles: r.tiles,
+    teamRank: r.teamRank,
+    teamsTotal: r.teamsTotal,
+  }));
+
+  // Weeklies: find the finished comps this member took part in, then rank them within each.
+  const mine = await db
+    .select({
+      competitionId: weeklyParticipants.competitionId,
+      baselineValue: weeklyParticipants.baselineValue,
+      currentValue: weeklyParticipants.currentValue,
+      title: weeklyCompetitions.title,
+      metric: weeklyCompetitions.metric,
+      type: weeklyCompetitions.type,
+      endDate: weeklyCompetitions.endDate,
+      status: weeklyCompetitions.status,
+    })
+    .from(weeklyParticipants)
+    .innerJoin(weeklyCompetitions, eq(weeklyParticipants.competitionId, weeklyCompetitions.id))
+    .where(eq(weeklyParticipants.clanMemberId, clanMemberId));
+
+  const finished = mine.filter((m) => m.status === 'completed');
+  const weeklies: WeeklyResult[] = [];
+  if (finished.length > 0) {
+    const compIds = finished.map((m) => m.competitionId);
+    const allParticipants = await db
+      .select({
+        competitionId: weeklyParticipants.competitionId,
+        clanMemberId: weeklyParticipants.clanMemberId,
+        rsn: weeklyParticipants.rsn,
+        baselineValue: weeklyParticipants.baselineValue,
+        currentValue: weeklyParticipants.currentValue,
+      })
+      .from(weeklyParticipants)
+      .where(inArray(weeklyParticipants.competitionId, compIds));
+
+    const byComp = new Map<number, typeof allParticipants>();
+    for (const p of allParticipants) {
+      const list = byComp.get(p.competitionId) ?? [];
+      list.push(p);
+      byComp.set(p.competitionId, list);
+    }
+
+    for (const comp of finished) {
+      const field = (byComp.get(comp.competitionId) ?? [])
+        .map((p) => ({
+          ...p,
+          gained: (p.currentValue ?? 0) - (p.baselineValue ?? 0),
+        }))
+        // Only entrants who actually moved are ranked — a comp of 80 enrolled and 6 active shouldn't
+        // report "8th of 80" as if 74 people were beaten.
+        .filter((p) => p.gained > 0)
+        .sort((a, b) => b.gained - a.gained);
+      const index = field.findIndex((p) => p.clanMemberId === clanMemberId || normalizeRsn(p.rsn) === normalizeRsn(rsn));
+      if (index === -1) continue; // entered but never scored
+      weeklies.push({
+        competitionId: comp.competitionId,
+        title: comp.title,
+        metric: comp.metric,
+        type: comp.type,
+        endedOn: comp.endDate,
+        gained: field[index].gained,
+        rank: index + 1,
+        entrants: field.length,
+      });
+    }
+    weeklies.sort((a, b) => b.endedOn.localeCompare(a.endedOn));
+  }
+
+  return {
+    events: eventResults,
+    weeklies,
+    eventWins: eventResults.filter((e) => e.teamRank === 1).length,
+    eventPodiums: eventResults.filter((e) => e.teamRank !== null && e.teamRank <= 3).length,
+    weeklyWins: weeklies.filter((w) => w.rank === 1).length,
+    weeklyPodiums: weeklies.filter((w) => w.rank <= 3).length,
+    totalPoints: eventResults.reduce((sum, e) => sum + e.points, 0),
   };
 }
