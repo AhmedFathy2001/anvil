@@ -21,6 +21,9 @@ type Tab = 'stats' | 'progress' | 'trophies' | 'bests' | 'milestones';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
+/** Days in the activity grid — a year, the way a contribution graph is normally read. */
+const HEATMAP_DAYS = 365;
+
 const TABS: { key: Tab; label: string }[] = [
   { key: 'stats', label: 'Stats' },
   { key: 'progress', label: 'Progress' },
@@ -118,9 +121,11 @@ export default function ProfileTabs({
   // The line chart deliberately does NOT do this: a flat zero line claims they were inactive, and for
   // days before tracking began we simply weren't looking. Empty grid, honest chart.
   const heatDays = useMemo(() => {
+    // A year, not a quarter: 90 columns of 12px squares occupy a third of the card and read as a
+    // fragment. Twelve months is also the window that makes a break in play visible.
     const byDay = new Map(series.map((p) => [p.day, p.ehpGained + p.ehbGained]));
     const out: { day: string; value: number }[] = [];
-    for (let i = 89; i >= 0; i--) {
+    for (let i = HEATMAP_DAYS - 1; i >= 0; i--) {
       const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
       out.push({ day, value: byDay.get(day) ?? 0 });
     }
@@ -186,7 +191,7 @@ export default function ProfileTabs({
             </Section>
           )}
 
-          <Section title="Activity" aside="efficient hours gained, last 90 days">
+          <Section title="Activity" aside="efficient hours gained, last 12 months">
             <div className="border border-card-border rounded-xl bg-card-bg p-4">
               <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
               {trackedFor <= 14 && (

@@ -448,7 +448,7 @@ export interface ClanAnalytics {
   guestCount: number;
   totalEhp: number;
   totalEhb: number;
-  /** Clan-wide gains per day for the last 90 days — the activity pulse. */
+  /** Clan-wide gains per day for the last year — the activity pulse. */
   activity: { day: string; value: number }[];
   /** Who gained the most efficient hours over the last 7 days. */
   topWeek: { rsn: string; hours: number }[];
@@ -460,7 +460,7 @@ export interface ClanAnalytics {
  * costs the same for a 40-member clan and a 400-member one.
  */
 export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAnalytics> {
-  const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+  const sinceYear = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
   const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
   const activityRows = await db
@@ -470,7 +470,7 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
       ehb: sql<number>`SUM(${memberDailyStats.ehbMilliGained})`,
     })
     .from(memberDailyStats)
-    .where(gte(memberDailyStats.day, since90))
+    .where(gte(memberDailyStats.day, sinceYear))
     .groupBy(memberDailyStats.day)
     .orderBy(memberDailyStats.day);
 
@@ -494,7 +494,7 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
   // it would compress quiet weeks out of existence.
   const byDay = new Map(activityRows.map((r) => [r.day, (Number(r.ehp) + Number(r.ehb)) / EFFICIENCY_SCALE]));
   const activity: { day: string; value: number }[] = [];
-  for (let i = 89; i >= 0; i--) {
+  for (let i = 364; i >= 0; i--) {
     const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
     activity.push({ day, value: byDay.get(day) ?? 0 });
   }
