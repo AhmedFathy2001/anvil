@@ -18,6 +18,8 @@ export interface PersonWithCharacters {
   id: number;
   displayName: string;
   role: string;
+  /** Tile authoring, independent of role — see users.canEditTiles. */
+  canEditTiles: boolean;
   isOwner: boolean;
   banned: boolean;
   createdAt: string;
@@ -51,6 +53,7 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
       id: users.id,
       displayName: users.displayName,
       role: users.role,
+      canEditTiles: users.canEditTiles,
       isOwner: users.isOwner,
       banned: users.banned,
       createdAt: users.createdAt,

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyUser } from '@/lib/auth';
+import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -16,8 +16,12 @@ type UpdatableFields = Partial<{
 }>;
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await verifyUser();
-  if (!user || user.role !== 'admin') {
+  // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
+  // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
+  // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
+  // admin-only. So a moderator can never promote themselves or anyone else.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -63,8 +67,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 // DELETE — soft-delete (mark as left). Preserves historical references.
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await verifyUser();
-  if (!user || user.role !== 'admin') {
+  // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
+  // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
+  // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
+  // admin-only. So a moderator can never promote themselves or anyone else.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

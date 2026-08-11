@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, federationBans, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { verifyUser } from '@/lib/auth';
+import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 
 // POST /api/admin/clan/bulk — apply one roster action to many members in a single round-trip.
@@ -40,9 +40,15 @@ const ACTIONS = new Set<BulkAction>([
 // from turning into an unbounded write loop.
 const MAX_IDS = 500;
 
+// Actions a MODERATOR may run. Everything here is roster work — who is in the clan, who's banned
+// from it. What's deliberately absent is 'set-role', 'promote' and 'demote': those change what
+// someone can DO on the site, and a moderator handing out roles (including their own) is how a
+// moderation account becomes an admin account.
+const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin', 'ban', 'unban', 'fed-ban', 'fed-unban']);
+
 export async function POST(request: Request) {
-  const actor = await verifyUser();
-  if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  const actor = await verifyAdminOrModerator();
+  if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
   let body: { ids?: unknown; action?: unknown; role?: unknown; reason?: unknown };
   try {
@@ -61,6 +67,12 @@ export async function POST(request: Request) {
 
   const action = body.action as BulkAction;
   if (!ACTIONS.has(action)) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  if (actor.role !== 'admin' && !MODERATOR_ACTIONS.has(action)) {
+    return NextResponse.json(
+      { error: 'Only an admin can change site roles.' },
+      { status: 403 },
+    );
+  }
 
   const role = typeof body.role === 'string' ? body.role : null;
   if (action === 'set-role' && role !== null && !PENDING_ROLES.has(role)) {

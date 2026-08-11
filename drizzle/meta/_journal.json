@@ -344,6 +344,13 @@
       "when": 1786458294781,
       "tag": "0048_stat-history",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1786485785330,
+      "tag": "0049_tile-capability",
+      "breakpoints": true
     }
   ]
 }
