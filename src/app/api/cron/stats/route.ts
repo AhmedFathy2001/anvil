@@ -27,7 +27,7 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 // is a bogus/doubled push — drop it and trust hiscores. Slightly over 6h so a full-length session's
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
-import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
+import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -92,7 +92,7 @@ interface EventCtx {
 
 interface BingoTask { ctx: EventCtx; player: PlayerRow; needsSnapshot: boolean; }
 interface WeeklyTask {
-  comp: { id: number; type: 'skill' | 'boss'; metric: string; startDate: string };
+  comp: { id: number; type: CompetitionType; metric: string; startDate: string };
   participant: { id: number; baselineValue: number | null; currentValue: number | null; lastUpdated: string | null; clanMemberId: number | null };
 }
 
@@ -234,7 +234,7 @@ export async function GET(request: Request) {
 
     for (const p of participants) {
       const entry = ensureEntry(p.clanMemberId, p.rsn);
-      entry.weekly.push({ comp: { id: comp.id, type: comp.type as 'skill' | 'boss', metric: comp.metric, startDate: comp.startDate }, participant: p });
+      entry.weekly.push({ comp: { id: comp.id, type: comp.type as CompetitionType, metric: comp.metric, startDate: comp.startDate }, participant: p });
       entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
     }
   }
