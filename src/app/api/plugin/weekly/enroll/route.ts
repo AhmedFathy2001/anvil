@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
-import { fetchParticipantStat } from '@/lib/weekly';
+import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   // failures: still enroll, but the cron will skip them once we flag the clan_member
   // unranked elsewhere — leaving baseline null keeps them out of the leaderboard
   // until they reappear on hiscores.
-  const result = await fetchParticipantStat(rsn, active.type as 'skill' | 'boss', active.metric);
+  const result = await fetchParticipantStat(rsn, active.type as CompetitionType, active.metric);
   const baseline = result.kind === 'value' ? result.value : null;
 
   // onConflictDoNothing covers the check-then-insert race where two concurrent

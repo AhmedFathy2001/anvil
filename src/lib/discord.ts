@@ -3,6 +3,7 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
+import { formatEfficiencyHours } from '@/lib/constants';
 
 interface DiscordEmbed {
   title: string;
@@ -937,6 +938,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
 
 function weeklyKind(type: string): string {
+  if (type === 'efficiency') return 'Efficiency of the Week';
   return type === 'skill' ? 'Skill of the Week' : 'Boss of the Week';
 }
 
@@ -950,7 +952,7 @@ interface WeeklyStartParams {
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
   const { type, title, endDate } = params;
   const kind = weeklyKind(type);
-  const emoji = type === 'skill' ? '📈' : '⚔️';
+  const emoji = type === 'efficiency' ? '⏱️' : type === 'skill' ? '📈' : '⚔️';
 
   const embed: DiscordEmbed = {
     title: `${emoji} ${kind} has started!`,
@@ -980,20 +982,25 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   const { type, title, standings } = params;
   const kind = weeklyKind(type);
   const winner = standings[0];
-  const unit = type === 'skill' ? 'XP' : 'KC'; // human unit, not the raw metric key
+  // Human unit, not the raw metric key. Efficiency is stored in milli-hours, so its values are
+  // scaled back to hours where they're rendered below.
+  const unit = type === 'efficiency' ? 'hours' : type === 'skill' ? 'XP' : 'KC';
+
+  const fmt = (gained: number) =>
+    type === 'efficiency' ? formatEfficiencyHours(gained) : gained.toLocaleString();
 
   const standingsText = standings
     .slice(0, 10)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return `${medal} **${s.rsn}** — +${s.gained.toLocaleString()}`;
+      return `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
     })
     .join('\n');
 
   const embed: DiscordEmbed = {
     title: `🏁 ${kind} Results — ${title}`,
     description: winner
-      ? `🥇 **${winner.rsn}** wins with **+${winner.gained.toLocaleString()}** ${unit}!\n━━━━━━━━━━━━━━━━━━━━`
+      ? `🥇 **${winner.rsn}** wins with **+${fmt(winner.gained)}** ${unit}!\n━━━━━━━━━━━━━━━━━━━━`
       : `**${title}** has ended.\n━━━━━━━━━━━━━━━━━━━━`,
     color: 0xffd700, // Gold
     fields: [

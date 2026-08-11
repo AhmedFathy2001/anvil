@@ -2,12 +2,13 @@ import Link from 'next/link';
 import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { desc, count } from 'drizzle-orm';
-import { SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILL_LABELS, BOSSES, EFFICIENCY_LABELS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
 function getMetricLabel(type: string, metric: string): string {
   if (type === 'skill') return SKILL_LABELS[metric] || metric;
+  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
   const boss = BOSSES.find((b) => b.key === metric);
   return boss?.label || metric;
 }
@@ -90,7 +91,8 @@ export default async function WeeklyPage() {
                   </div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">
-                      {comp.type === 'skill' ? 'Skill' : 'Boss'}: {getMetricLabel(comp.type, comp.metric)}
+                      {comp.type === 'skill' ? 'Skill' : comp.type === 'boss' ? 'Boss' : 'Efficiency'}:{' '}
+                      {getMetricLabel(comp.type, comp.metric)}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted">

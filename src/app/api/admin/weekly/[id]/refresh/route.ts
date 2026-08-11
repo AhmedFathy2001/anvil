@@ -3,7 +3,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { fetchParticipantStat } from '@/lib/weekly';
+import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
 
@@ -50,7 +50,7 @@ export async function POST(
   let markedUnranked = 0;
   const errors: string[] = [];
   const unrankedMemberIds = new Set<number>();
-  const compType = comp[0].type as 'skill' | 'boss';
+  const compType = comp[0].type as CompetitionType;
 
   for (const p of participants) {
     try {

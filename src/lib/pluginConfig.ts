@@ -130,7 +130,7 @@ export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
 
 export interface ActiveWeeklyMetric {
   id: number;
-  type: 'skill' | 'boss';
+  type: 'skill' | 'boss' | 'efficiency';
   metric: string;
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
 }
@@ -143,7 +143,12 @@ export async function getActiveWeeklyMetrics(): Promise<ActiveWeeklyMetric[]> {
   const rows = await db.query.weeklyCompetitions.findMany({
     where: eq(weeklyCompetitions.status, 'active'),
   });
-  return rows.map((c) => ({ id: c.id, type: c.type as 'skill' | 'boss', metric: c.metric, startDate: c.startDate }));
+  return rows.map((c) => ({
+    id: c.id,
+    type: c.type as 'skill' | 'boss' | 'efficiency',
+    metric: c.metric,
+    startDate: c.startDate,
+  }));
 }
 
 export interface PluginWebhooks {
