@@ -226,6 +226,7 @@ export async function POST(
         notifyDraftStart({
           eventName: event.name,
           teamCount: draftTeamOrder.length,
+          eventId: id,
         }).catch(() => {}); // Silently ignore errors
       }
 
@@ -285,6 +286,7 @@ export async function POST(
         notifyDraftComplete({
           eventName: event.name,
           teams: teamsWithPlayers,
+          eventId: id,
         }).catch(() => {}); // Silently ignore errors
       }
 
@@ -330,6 +332,7 @@ export async function POST(
       const success = await notifyDraftComplete({
         eventName: event.name,
         teams: teamsWithPlayers,
+        eventId: id,
       });
 
       if (success) {

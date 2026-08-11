@@ -28,6 +28,8 @@ const EXPOSED_KEYS = [
   'webhook_clips',
   'always_notify_items',
   'show_kill_count',
+  // Clan-wide floor (1-in-N) on rarity-triggered drop posts; members can be stricter, not looser.
+  'drop_rarity_floor',
   'fun_death_messages',
   'death_taunts',
   'spoon_taunts',

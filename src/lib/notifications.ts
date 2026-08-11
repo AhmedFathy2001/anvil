@@ -130,6 +130,8 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
     note: row.latestNote,
     imageUrl: row.latestImageUrl,
     completed: row.completed === 1,
+    eventId: event.id,
+    tile,
   }).catch(() => {});
   return true;
 }

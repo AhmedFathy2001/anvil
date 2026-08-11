@@ -505,6 +505,8 @@ export async function POST(request: Request) {
               tileType: tile.tileType,
               durationSeconds: homeDuration,
               completed,
+              eventId,
+              tile,
             }).catch(() => {});
           } else {
             await queueSubmissionNotification({

@@ -171,6 +171,8 @@ export async function POST(
       tileType: tile.tileType,
       trackedStat: tile.trackedStat,
       statType: tile.statType,
+      eventId: eId,
+      tile,
     }).catch(() => {}); // Silently ignore errors
 
     // Check for blackout win
@@ -189,6 +191,7 @@ export async function POST(
         teamName: team.name,
         teamColor: team.color,
         totalTiles: eventTiles.length,
+        eventId: eId,
       }).catch(() => {}); // Silently ignore errors
     }
 
