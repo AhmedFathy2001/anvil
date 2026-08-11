@@ -124,7 +124,10 @@ export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaL
   if (days.length === 0) {
     return <div className="text-sm text-text-muted">No activity recorded yet.</div>;
   }
+
   const max = Math.max(...days.map((d) => d.value), 1);
+  // Buckets are relative to this person's own best day, not an absolute scale: the question is "when
+  // were they playing", and a fixed scale renders a casual player's whole year as blank.
   const level = (v: number) => {
     if (v <= 0) return 0;
     const ratio = v / max;
@@ -141,27 +144,74 @@ export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaL
     'bg-gold border-gold',
   ];
 
-  // Pad to a whole week so columns line up on weekday, the way a calendar reads.
-  const first = new Date(`${days[0].day}T00:00:00Z`).getUTCDay();
-  const cells: (HeatmapDay | null)[] = [...Array<null>(first).fill(null), ...days];
+  // Group into calendar weeks, one column each. The first column is padded to the weekday the range
+  // starts on — without that, every row would be a different weekday and the grid would say nothing
+  // about when in the week somebody plays.
+  const lead = new Date(`${days[0].day}T00:00:00Z`).getUTCDay();
+  const cells: (HeatmapDay | null)[] = [...Array<null>(lead).fill(null), ...days];
+  const weeks: (HeatmapDay | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    const week = cells.slice(i, i + 7);
+    while (week.length < 7) week.push(null); // trailing pad, so the last column is a full column
+    weeks.push(week);
+  }
+
+  // A month label sits above the first week that contains a day of that month.
+  const monthLabels = weeks.map((week, i) => {
+    const first = week.find((c): c is HeatmapDay => c !== null);
+    if (!first) return '';
+    const month = first.day.slice(0, 7);
+    if (i === 0) return '';
+    const prev = weeks[i - 1].find((c): c is HeatmapDay => c !== null);
+    if (prev && prev.day.slice(0, 7) === month) return '';
+    return new Date(`${first.day}T00:00:00Z`).toLocaleString(undefined, { month: 'short' });
+  });
+
+  const COL = '0.75rem';
+  const track = { gridTemplateColumns: `repeat(${weeks.length}, ${COL})` };
+  // Sunday-first, labelling alternate rows the way GitHub does — seven labels would be unreadable at
+  // this size, and three is enough to orient a column.
+  const weekdays = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
   return (
     <div>
-      <div className="grid grid-flow-col grid-rows-7 gap-[3px] overflow-x-auto pb-1" role="img" aria-label={ariaLabel}>
-        {cells.map((cell, i) => (
-          <span
-            key={cell?.day ?? `pad-${i}`}
-            title={cell ? `${cell.day} — ${cell.value > 0 ? cell.value.toLocaleString() : 'nothing'}` : undefined}
-            className={`w-3 h-3 rounded-[3px] border ${cell ? shades[level(cell.value)] : 'border-transparent'}`}
-          />
-        ))}
+      <div className="overflow-x-auto pb-1">
+        <div className="inline-flex gap-1.5">
+          <div className="grid grid-rows-7 gap-[3px] pt-[15px] text-[9px] leading-3 text-text-muted">
+            {weekdays.map((d, i) => (
+              <span key={i} className="h-3 flex items-center">
+                {d}
+              </span>
+            ))}
+          </div>
+
+          <div>
+            <div className="grid gap-[3px] mb-1 text-[9px] leading-3 text-text-muted" style={track}>
+              {monthLabels.map((label, i) => (
+                <span key={i} className="whitespace-nowrap">
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-rows-7 grid-flow-col gap-[3px]" role="img" aria-label={ariaLabel}>
+              {weeks.flat().map((cell, i) => (
+                <span
+                  key={cell?.day ?? `pad-${i}`}
+                  title={cell ? `${cell.day} — ${cell.value > 0 ? `${cell.value.toFixed(2)}h` : 'nothing'}` : undefined}
+                  className={`w-3 h-3 rounded-[2px] border ${cell ? shades[level(cell.value)] : 'border-transparent'}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="flex items-center gap-1.5 mt-2 text-[11px] text-text-muted">
-        <span>less</span>
-        {shades.map((s, i) => (
-          <span key={i} className={`w-3 h-3 rounded-[3px] border ${s}`} />
+
+      <div className="flex items-center justify-end gap-1.5 mt-2 text-[10px] text-text-muted">
+        <span>Less</span>
+        {shades.map((shade, i) => (
+          <span key={i} className={`w-3 h-3 rounded-[2px] border ${shade}`} />
         ))}
-        <span>more</span>
+        <span>More</span>
       </div>
     </div>
   );
