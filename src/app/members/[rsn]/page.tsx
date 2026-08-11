@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import Persona from './Persona';
 import {
   getCompetitionHistory,
+  getPersona,
+  getUpcomingMilestones,
   getDailySeries,
   getMemberProfile,
   getMilestones,
@@ -55,13 +58,15 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   if (!profile) notFound();
 
   // All four tabs' data in one round trip — every query is small and the tabs then switch instantly.
-  const [milestones, records, series, standings, history] = await Promise.all([
+  const [milestones, records, series, standings, history, persona] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
     getStandings(profile.id),
     getCompetitionHistory(profile.id, profile.rsn),
+    getPersona(profile.id),
   ]);
+  const upcoming = getUpcomingMilestones(profile);
 
   const eff = profile.efficiency;
 
@@ -102,6 +107,8 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         </div>
       </div>
 
+      {persona && <Persona persona={persona} currentMemberId={profile.id} />}
+
       {eff && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
           <Stat label="Combat" value={profile.combatLevel?.toString() ?? '—'} />
@@ -137,6 +144,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         records={records}
         milestones={milestones}
         history={history}
+        upcoming={upcoming}
       />
     </main>
   );

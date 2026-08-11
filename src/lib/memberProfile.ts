@@ -9,6 +9,8 @@ import {
   clanAuditLog,
   clanMembers,
   events,
+  players,
+  users,
   memberDailyStats,
   memberMilestones,
   playerEventFacts,
@@ -19,7 +21,8 @@ import {
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
-import { SKILLS, EFFICIENCY_SCALE } from '@/lib/constants';
+import { SKILLS, SKILL_LABELS, EFFICIENCY_SCALE } from '@/lib/constants';
+import { progressToLevel } from '@/lib/xp';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
@@ -513,10 +516,17 @@ export interface EventResult {
   eventId: number;
   name: string;
   endedOn: string | null;
-  points: number;
-  tiles: number;
+  /** Null when the format doesn't score points (a tile race is about order, not totals). */
+  points: number | null;
+  tiles: number | null;
   teamRank: number | null;
   teamsTotal: number | null;
+  format: string | null;
+}
+
+/** Formats where a points total is a meaningful thing to show. */
+function scoresPoints(format: string | null): boolean {
+  return format !== 'race';
 }
 
 export interface WeeklyResult {
@@ -549,30 +559,103 @@ export interface CompetitionHistory {
  * over the participants of those comps, not a query per competition.
  */
 export async function getCompetitionHistory(clanMemberId: number, rsn: string): Promise<CompetitionHistory> {
+  // Events come from ENROLLMENT, not from player_event_facts.
+  //
+  // Facts are computed when an event ends, so a bingo that finished before that machinery existed
+  // (or was never backfilled) has none — which reads as "0 events played" for someone with years of
+  // history. Enrollment always exists; facts then enrich the row with points and the team's finish
+  // where they're available.
+  //
+  // Matched by clan_member_id OR any name this member has been known by, because a rename mid-history
+  // leaves old `players` rows carrying the old RSN.
+  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  const aliases = new Set<string>([normalizeRsn(rsn)]);
+  if (member?.rsn) aliases.add(normalizeRsn(member.rsn));
+  try {
+    const prev = JSON.parse(member?.previousRsns ?? '[]');
+    if (Array.isArray(prev)) for (const p of prev) aliases.add(normalizeRsn(String(p)));
+  } catch {
+    /* a malformed alias list shouldn't cost someone their history */
+  }
+
+  const enrolled = await db
+    .select({
+      eventId: players.eventId,
+      playerName: players.name,
+      playerClanMemberId: players.clanMemberId,
+      name: events.name,
+      endDate: events.endDate,
+      format: events.format,
+    })
+    .from(players)
+    .innerJoin(events, eq(players.eventId, events.id))
+    .orderBy(desc(events.endDate));
+
+  const mineEvents = enrolled.filter(
+    (e) => e.playerClanMemberId === clanMemberId || aliases.has(normalizeRsn(e.playerName)),
+  );
+
+  // Facts for this member across ALL events, not just the enrolled ones: a player row can be dropped
+  // from an event afterwards (the admin "remove from event" path) while the fact of having played it
+  // survives. Enrollment ∪ facts is the set that can't lose an event either way.
   const factRows = await db
     .select({
       eventId: playerEventFacts.eventId,
+      rsn: playerEventFacts.rsn,
+      clanMemberId: playerEventFacts.clanMemberId,
       points: playerEventFacts.points,
-      tiles: playerEventFacts.tilesContributed,
+      tilesContributed: playerEventFacts.tilesContributed,
       teamRank: playerEventFacts.teamRank,
       teamsTotal: playerEventFacts.teamsTotal,
       name: events.name,
       endDate: events.endDate,
+      format: events.format,
     })
     .from(playerEventFacts)
-    .innerJoin(events, eq(playerEventFacts.eventId, events.id))
-    .where(eq(playerEventFacts.clanMemberId, clanMemberId))
-    .orderBy(desc(events.endDate));
+    .innerJoin(events, eq(playerEventFacts.eventId, events.id));
+  const factFor = new Map(
+    factRows
+      .filter((f) => f.clanMemberId === clanMemberId || aliases.has(normalizeRsn(f.rsn)))
+      .map((f) => [f.eventId, f]),
+  );
 
-  const eventResults: EventResult[] = factRows.map((r) => ({
-    eventId: r.eventId,
-    name: r.name,
-    endedOn: r.endDate,
-    points: r.points,
-    tiles: r.tiles,
-    teamRank: r.teamRank,
-    teamsTotal: r.teamsTotal,
-  }));
+  const seen = new Set<number>();
+  const eventResults: EventResult[] = [];
+  for (const e of mineEvents) {
+    if (seen.has(e.eventId)) continue; // an alt row for the same event mustn't double-count
+    seen.add(e.eventId);
+    const fact = factFor.get(e.eventId);
+    eventResults.push({
+      eventId: e.eventId,
+      name: e.name,
+      endedOn: e.endDate,
+      // Race and other non-scoring formats have no points — null renders as "—" rather than a zero
+      // that reads like they turned up and did nothing.
+      points: scoresPoints(e.format) ? (fact?.points ?? null) : null,
+      tiles: fact?.tilesContributed ?? null,
+      teamRank: fact?.teamRank ?? null,
+      teamsTotal: fact?.teamsTotal ?? null,
+      format: e.format,
+    });
+  }
+
+  for (const fact of factFor.values()) {
+    if (seen.has(fact.eventId)) continue;
+    seen.add(fact.eventId);
+    eventResults.push({
+      eventId: fact.eventId,
+      name: fact.name,
+      endedOn: fact.endDate,
+      points: scoresPoints(fact.format) ? fact.points : null,
+      tiles: fact.tilesContributed,
+      teamRank: fact.teamRank,
+      teamsTotal: fact.teamsTotal,
+      format: fact.format,
+    });
+  }
+  eventResults.sort((a, b) => (b.endedOn ?? '').localeCompare(a.endedOn ?? ''));
+
+
 
   // Weeklies: find the finished comps this member took part in, then rank them within each.
   const mine = await db
@@ -645,6 +728,135 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
     eventPodiums: eventResults.filter((e) => e.teamRank !== null && e.teamRank <= 3).length,
     weeklyWins: weeklies.filter((w) => w.rank === 1).length,
     weeklyPodiums: weeklies.filter((w) => w.rank <= 3).length,
-    totalPoints: eventResults.reduce((sum, e) => sum + e.points, 0),
+    totalPoints: eventResults.reduce((sum, e) => sum + (e.points ?? 0), 0),
   };
+}
+
+// ── Personas (one human, several accounts) ───────────────────────────────────────────────────────
+
+export interface PersonaAccount {
+  id: number;
+  rsn: string;
+  isPrimary: boolean;
+  ehp: number | null;
+  ehb: number | null;
+  overallXp: number | null;
+}
+
+export interface Persona {
+  userId: number;
+  discordId: string | null;
+  discordUsername: string | null;
+  discordAvatar: string | null;
+  accounts: PersonaAccount[];
+  totalEhp: number;
+  totalEhb: number;
+  totalXp: number;
+}
+
+/**
+ * The person behind an account, and every other account they've linked.
+ *
+ * Grouping is by users.id — i.e. by LINKED DISCORD — and nothing else. Guessing at alts from name
+ * similarity or shared play patterns would eventually merge two different people, which is the one
+ * mistake this feature can't make. Accounts that never linked stay separate, correctly.
+ *
+ * Returns null when the member has no linked account or is the only one on it: a "persona" of one is
+ * just the profile you're already looking at.
+ */
+export async function getPersona(clanMemberId: number): Promise<Persona | null> {
+  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  if (!member?.userId) return null;
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, member.userId) });
+  const rows = await listMembers();
+  const siblings = await db
+    .select({ id: clanMembers.id, rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
+    .from(clanMembers)
+    .where(and(eq(clanMembers.userId, member.userId), isNull(clanMembers.leftAt)));
+  if (siblings.length <= 1) return null;
+
+  const statsById = new Map(rows.map((r) => [r.id, r]));
+  const accounts: PersonaAccount[] = siblings
+    .map((sib) => {
+      const stats = statsById.get(sib.id);
+      return {
+        id: sib.id,
+        rsn: sib.rsn,
+        isPrimary: sib.isPrimary === 1,
+        ehp: stats?.ehp ?? null,
+        ehb: stats?.ehb ?? null,
+        overallXp: stats?.overallXp ?? null,
+      };
+    })
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || (b.ehp ?? 0) - (a.ehp ?? 0));
+
+  return {
+    userId: member.userId,
+    discordId: user?.discordId ?? null,
+    discordUsername: user?.discordUsername ?? null,
+    discordAvatar: user?.discordAvatar ?? null,
+    accounts,
+    // Summed, not averaged: hours spent on an alt are still hours this person played.
+    totalEhp: accounts.reduce((sum, a) => sum + (a.ehp ?? 0), 0),
+    totalEhb: accounts.reduce((sum, a) => sum + (a.ehb ?? 0), 0),
+    totalXp: accounts.reduce((sum, a) => sum + (a.overallXp ?? 0), 0),
+  };
+}
+
+// ── Milestones in reach ──────────────────────────────────────────────────────────────────────────
+
+export interface UpcomingMilestone {
+  label: string;
+  remaining: string;
+  progress: number;
+}
+
+/**
+ * What this member is closest to earning. The milestone log only ever looks backwards; the question
+ * a player actually asks is "what am I near?".
+ */
+export function getUpcomingMilestones(profile: MemberProfile, limit = 6): UpcomingMilestone[] {
+  const out: UpcomingMilestone[] = [];
+  const XP_STEPS = [10_000_000, 25_000_000, 50_000_000, 100_000_000, 200_000_000];
+  const KC_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000];
+
+  for (const skill of profile.skills) {
+    if (skill.xp <= 0) continue;
+    if (skill.level < 99) {
+      const p = progressToLevel(skill.xp, 99);
+      out.push({
+        label: `99 ${SKILL_LABELS[skill.key] ?? skill.key}`,
+        remaining: `${fmtCompact(p.xpToNext)} XP`,
+        progress: p.progress,
+      });
+    }
+    const nextXp = XP_STEPS.find((t) => skill.xp < t);
+    if (nextXp) {
+      out.push({
+        label: `${fmtCompact(nextXp)} ${SKILL_LABELS[skill.key] ?? skill.key} XP`,
+        remaining: `${fmtCompact(nextXp - skill.xp)} XP`,
+        progress: skill.xp / nextXp,
+      });
+    }
+  }
+
+  for (const boss of profile.bosses) {
+    const nextKc = KC_STEPS.find((t) => boss.kc < t);
+    if (!nextKc) continue;
+    out.push({
+      label: `${nextKc.toLocaleString()} ${boss.key}`,
+      remaining: `${(nextKc - boss.kc).toLocaleString()} kills`,
+      progress: boss.kc / nextKc,
+    });
+  }
+
+  return out.sort((a, b) => b.progress - a.progress).slice(0, limit);
+}
+
+/** Short number for a milestone label — 13.0M rather than 13,034,431. */
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toLocaleString();
 }
