@@ -9,6 +9,8 @@ automatically, so nobody screenshots a boss log at 3am.
 One instance serves **one clan**. Run it yourself on a small VPS
 ([`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md)), or [have it hosted](https://anvilosrs.com).
 
+Questions, bug reports or setup help: **[join the Anvil Discord](https://discord.gg/p9NkrTQmxN)**.
+
 ## What it does
 
 - **Events.** Classic N×N bingo, Leagues-style point boards, tile races, and hidden-tile
@@ -220,7 +222,7 @@ Don't want to run the infrastructure yourself? I **host and maintain Anvil for y
 your own instance on your own subdomain, provisioned automatically, no servers to touch.
 Plans start with a 30-day free trial at [anvilosrs.com](https://anvilosrs.com), and paying
 for hosting is what funds continued development. Questions?
-[Come say hi on Discord](https://discord.gg/nqTxCQAbv4).
+[Come say hi on Discord](https://discord.gg/p9NkrTQmxN).
 
 ## License
 

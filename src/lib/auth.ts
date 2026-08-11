@@ -954,6 +954,19 @@ export function sanitizeRsn(rsn: string): string {
   return rsn.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Could this string be an actual OSRS account name? Jagex allows 1-12 characters of letters, digits,
+ * space, underscore and hyphen — nothing else.
+ *
+ * This exists because RuneLite hands us placeholders for clan members it can't resolve a name for
+ * ("#Player1404"), and sanitizeRsn only collapses whitespace, so they were being stored as real
+ * members: guest, unranked, permanently statless, and cluttering every roster view. A name with a
+ * `#` in it can never be looked up on the hiscores, so there is nothing to gain by keeping it.
+ */
+export function isPlausibleRsn(rsn: string): boolean {
+  return /^[A-Za-z0-9 _-]{1,12}$/.test(rsn);
+}
+
 export async function verifyPlayer(): Promise<{ playerId: number; teamId: number } | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('player_session')?.value;

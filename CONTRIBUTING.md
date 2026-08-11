@@ -127,3 +127,9 @@ promote, deploy notifications) lives in the control plane, not this repo.
 Open a GitHub issue with clear reproduction steps (for bugs) or a description of
 the use case (for features). For plugin issues, mention your RuneLite version and
 which clan instance / Site URL you're pointing at.
+
+## Getting help
+
+Faster than an issue when you're stuck mid-setup, or unsure whether something is a
+bug at all: **[the Anvil Discord](https://discord.gg/p9NkrTQmxN)**. Self-hosters, managed clans and
+plugin users all land in the same place.

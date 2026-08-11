@@ -5,12 +5,12 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import { clanMembers, memberDailyStats, memberMilestones, playerSnapshots } from '@/db/schema';
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { clanAuditLog, clanMembers, memberDailyStats, memberMilestones, playerSnapshots } from '@/db/schema';
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
 import { SKILLS, EFFICIENCY_SCALE } from '@/lib/constants';
-import { normalizeRsn } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
   id: number;
@@ -65,17 +65,22 @@ export async function listMembers(): Promise<MemberListRow[]> {
     .where(isNull(clanMembers.leftAt))
     .orderBy(clanMembers.rsn);
 
-  return rows.map((r) => ({
-    id: r.id,
-    rsn: r.rsn,
-    rank: r.rank,
-    isGuest: r.isGuest === 1,
-    status: r.status,
-    lastSeenAt: r.lastSeenAt,
-    overallXp: r.overallXp ?? null,
-    ehp: r.ehpMilli != null ? r.ehpMilli / EFFICIENCY_SCALE : null,
-    ehb: r.ehbMilli != null ? r.ehbMilli / EFFICIENCY_SCALE : null,
-  }));
+  return rows
+    // Placeholder rows RuneLite handed us before the sync learned to reject them ("#Player1404"):
+    // never on the hiscores, never a stat, pure noise in a roster view. Filtered on read rather than
+    // deleted — removing member rows is the operator's call, not a side effect of listing them.
+    .filter((r) => isPlausibleRsn(r.rsn))
+    .map((r) => ({
+      id: r.id,
+      rsn: r.rsn,
+      rank: r.rank,
+      isGuest: r.isGuest === 1,
+      status: r.status,
+      lastSeenAt: r.lastSeenAt,
+      overallXp: r.overallXp ?? null,
+      ehp: r.ehpMilli != null ? r.ehpMilli / EFFICIENCY_SCALE : null,
+      ehb: r.ehbMilli != null ? r.ehbMilli / EFFICIENCY_SCALE : null,
+    }));
 }
 
 export interface SkillRow {
@@ -238,13 +243,26 @@ export async function getDailySeries(clanMemberId: number, days = 90): Promise<D
     .where(and(eq(memberDailyStats.clanMemberId, clanMemberId), gte(memberDailyStats.day, from)))
     .orderBy(memberDailyStats.day);
 
-  return rows.map((r) => ({
-    day: r.day,
-    xpGained: r.xpGained,
-    ehpGained: r.ehpMilliGained / EFFICIENCY_SCALE,
-    ehbGained: r.ehbMilliGained / EFFICIENCY_SCALE,
-    overallXp: r.overallXp,
-  }));
+  // Densify: a day nobody played has no row, but it's a real zero, not a gap. Handing the sparse rows
+  // straight to a chart would draw a fortnight of two good days as continuous activity, and would
+  // slide a heatmap's calendar out of alignment.
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  const start = rows.length > 0 && rows[0].day > from ? rows[0].day : from;
+  const out: DailyPoint[] = [];
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= Date.now(); t += 86_400_000) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    const row = byDay.get(day);
+    out.push({
+      day,
+      xpGained: row?.xpGained ?? 0,
+      ehpGained: (row?.ehpMilliGained ?? 0) / EFFICIENCY_SCALE,
+      ehbGained: (row?.ehbMilliGained ?? 0) / EFFICIENCY_SCALE,
+      // Totals carry forward across idle days — a chart of absolute XP shouldn't drop to zero
+      // because somebody took a Tuesday off.
+      overallXp: row?.overallXp ?? out[out.length - 1]?.overallXp ?? 0,
+    });
+  }
+  return out;
 }
 
 export interface MilestoneRow {
@@ -322,4 +340,144 @@ export async function getRecords(clanMemberId: number): Promise<PeriodRecord[]> 
     }
   }
   return out;
+}
+
+// ── Clan context ─────────────────────────────────────────────────────────────────────────────────
+
+export interface Standing {
+  rank: number;
+  outOf: number;
+}
+
+export interface MemberStandings {
+  ehp: Standing | null;
+  ehb: Standing | null;
+  xp: Standing | null;
+}
+
+/**
+ * Where this member sits in the clan on each headline metric. A number on its own ("366 EHB") says
+ * nothing to someone who doesn't already know what good looks like; "#3 of 47" does.
+ */
+export async function getStandings(clanMemberId: number): Promise<MemberStandings> {
+  const rows = await listMembers();
+  const rankIn = (pick: (r: MemberListRow) => number | null): Standing | null => {
+    const ranked = rows.filter((r) => pick(r) !== null).sort((a, b) => (pick(b) ?? 0) - (pick(a) ?? 0));
+    const index = ranked.findIndex((r) => r.id === clanMemberId);
+    return index === -1 ? null : { rank: index + 1, outOf: ranked.length };
+  };
+  return { ehp: rankIn((r) => r.ehp), ehb: rankIn((r) => r.ehb), xp: rankIn((r) => r.overallXp) };
+}
+
+export interface RosterEvent {
+  type: string;
+  rsn: string;
+  at: string;
+  detail: string | null;
+}
+
+/** The join / leave / rank-change feed, newest first. */
+export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
+  const rows = await db
+    .select({
+      eventType: clanAuditLog.eventType,
+      occurredAt: clanAuditLog.occurredAt,
+      oldValue: clanAuditLog.oldValue,
+      newValue: clanAuditLog.newValue,
+      rsn: clanMembers.rsn,
+    })
+    .from(clanAuditLog)
+    .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+    .where(inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']))
+    .orderBy(desc(clanAuditLog.occurredAt))
+    .limit(limit);
+
+  const readRank = (raw: string | null): string | null => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { rank?: string; rsn?: string };
+      return parsed.rank ?? parsed.rsn ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  return rows
+    .filter((r) => r.rsn && isPlausibleRsn(r.rsn))
+    .map((r) => ({
+      type: r.eventType,
+      rsn: r.rsn as string,
+      at: r.occurredAt,
+      detail:
+        r.eventType === 'rank_changed' || r.eventType === 'renamed'
+          ? [readRank(r.oldValue), readRank(r.newValue)].filter(Boolean).join(' → ') || null
+          : null,
+    }));
+}
+
+export interface ClanAnalytics {
+  memberCount: number;
+  guestCount: number;
+  totalEhp: number;
+  totalEhb: number;
+  /** Clan-wide gains per day for the last 90 days — the activity pulse. */
+  activity: { day: string; value: number }[];
+  /** Who gained the most efficient hours over the last 7 days. */
+  topWeek: { rsn: string; hours: number }[];
+  activeThisWeek: number;
+}
+
+/**
+ * The clan at a glance. Two grouped queries over the daily rows rather than per-member work, so this
+ * costs the same for a 40-member clan and a 400-member one.
+ */
+export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAnalytics> {
+  const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+  const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+
+  const activityRows = await db
+    .select({
+      day: memberDailyStats.day,
+      ehp: sql<number>`SUM(${memberDailyStats.ehpMilliGained})`,
+      ehb: sql<number>`SUM(${memberDailyStats.ehbMilliGained})`,
+    })
+    .from(memberDailyStats)
+    .where(gte(memberDailyStats.day, since90))
+    .groupBy(memberDailyStats.day)
+    .orderBy(memberDailyStats.day);
+
+  const weekRows = await db
+    .select({
+      clanMemberId: memberDailyStats.clanMemberId,
+      hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
+    })
+    .from(memberDailyStats)
+    .where(gte(memberDailyStats.day, since7))
+    .groupBy(memberDailyStats.clanMemberId);
+
+  const nameById = new Map(members.map((m) => [m.id, m.rsn]));
+  const topWeek = weekRows
+    .filter((r) => nameById.has(r.clanMemberId) && r.hours > 0)
+    .sort((a, b) => b.hours - a.hours)
+    .slice(0, 5)
+    .map((r) => ({ rsn: nameById.get(r.clanMemberId) as string, hours: r.hours / EFFICIENCY_SCALE }));
+
+  // Walk the calendar, not the rows: a day nobody played has no row, and a pulse chart that skipped
+  // it would compress quiet weeks out of existence.
+  const byDay = new Map(activityRows.map((r) => [r.day, (Number(r.ehp) + Number(r.ehb)) / EFFICIENCY_SCALE]));
+  const activity: { day: string; value: number }[] = [];
+  for (let i = 89; i >= 0; i--) {
+    const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+    activity.push({ day, value: byDay.get(day) ?? 0 });
+  }
+
+  return {
+    memberCount: members.filter((m) => !m.isGuest).length,
+    guestCount: members.filter((m) => m.isGuest).length,
+    totalEhp: members.reduce((sum, m) => sum + (m.ehp ?? 0), 0),
+    totalEhb: members.reduce((sum, m) => sum + (m.ehb ?? 0), 0),
+    activity,
+    topWeek,
+    activeThisWeek: weekRows.filter((r) => r.hours > 0).length,
+  };
 }
