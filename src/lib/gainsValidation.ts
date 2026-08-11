@@ -88,7 +88,14 @@ export const BOSS_MAX_KC_PER_HOUR: Record<string, number> = {
   corporealBeast: 20,
 };
 
+// Efficiency is the one metric whose ceiling isn't a guess: an efficient hour is DEFINED as an hour
+// of play at the best known rates, so nobody can gain more than 1.0 per hour elapsed. Stored in
+// milli-hours, that's 1000/hour. The headroom absorbs a rate table that lags a new method (a fresh
+// best-in-slot can briefly beat the published rate) rather than flagging honest play.
+export const EFFICIENCY_MAX_MILLI_PER_HOUR = 1200;
+
 export function getMaxRatePerHour(type: string, metric: string): number {
+  if (type === 'efficiency') return EFFICIENCY_MAX_MILLI_PER_HOUR;
   if (type === 'boss') {
     return BOSS_MAX_KC_PER_HOUR[metric] ?? DEFAULT_BOSS_MAX_KC_PER_HOUR;
   }
@@ -99,6 +106,9 @@ export function getMaxRatePerHour(type: string, metric: string): number {
 // honest totals from lighting up the board while a comp is only minutes old.
 const SKILL_GAIN_FLOOR = 50_000;
 const BOSS_GAIN_FLOOR = 30;
+// Half an efficient hour. Below that the elapsed-time divisor is doing all the work and every
+// early-comp reading looks like a spike.
+const EFFICIENCY_GAIN_FLOOR = 500;
 
 export interface RateCheckInput {
   type: string; // 'skill' | 'boss'
@@ -134,7 +144,8 @@ export function checkRateSpike(input: RateCheckInput): RateCheckResult {
   const { type, metric, gained } = input;
   if (!(gained > 0)) return NOT_FLAGGED;
 
-  const floor = type === 'boss' ? BOSS_GAIN_FLOOR : SKILL_GAIN_FLOOR;
+  const floor =
+    type === 'efficiency' ? EFFICIENCY_GAIN_FLOOR : type === 'boss' ? BOSS_GAIN_FLOOR : SKILL_GAIN_FLOOR;
   if (gained < floor) return NOT_FLAGGED;
 
   if (!input.sinceIso) return NOT_FLAGGED; // no comp-start anchor to measure against
@@ -161,7 +172,10 @@ export function checkRateSpike(input: RateCheckInput): RateCheckResult {
  * admin UI tooltip.
  */
 export function describeRateSpike(type: string, result: RateCheckResult): string {
-  const unit = type === 'boss' ? 'KC/hr' : 'xp/hr';
+  const unit = type === 'efficiency' ? 'EH/hr' : type === 'boss' ? 'KC/hr' : 'xp/hr';
   const elapsed = result.hours >= 1 ? `${Math.round(result.hours)}h` : `${Math.round(result.hours * 60)}m`;
-  return `~${Math.round(result.ratePerHour).toLocaleString()} ${unit} averaged over ${elapsed} (max ~${result.maxRatePerHour.toLocaleString()} ${unit}) — more than the metric allows for the elapsed comp time; likely a stale baseline swept in pre-event progress`;
+  // Efficiency rates are carried in milli-hours; nobody wants to read "1200 EH/hr".
+  const fmt = (n: number) =>
+    type === 'efficiency' ? (n / 1000).toFixed(2) : Math.round(n).toLocaleString();
+  return `~${fmt(result.ratePerHour)} ${unit} averaged over ${elapsed} (max ~${fmt(result.maxRatePerHour)} ${unit}) — more than the metric allows for the elapsed comp time; likely a stale baseline swept in pre-event progress`;
 }

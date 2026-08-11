@@ -249,6 +249,14 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             <div className="border-t border-card-border pt-4">
               <KillCountToggle />
             </div>
+            <div className="border-t border-card-border pt-4">
+              <PlainSetting
+                settingKey="drop_rarity_floor"
+                label="Rarity floor for drop posts (1 in N)"
+                placeholder="10000"
+                helpText="Only drops rarer than 1-in-this post on rarity alone. Applies to every member: their plugin can be stricter, never looser. Blank = 10,000 (a lower number means more posts — 1/2000 fills the channel with herb rolls)."
+              />
+            </div>
           </Card>
         </div>
       )}

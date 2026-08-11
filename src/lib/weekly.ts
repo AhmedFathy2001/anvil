@@ -4,6 +4,8 @@ import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
+import { computeEhpEhb } from '@/lib/efficiency';
+import { EFFICIENCY_SCALE } from '@/lib/constants';
 import { log } from '@/lib/logger';
 
 // Re-exported for callers that still reference the type via '@/lib/weekly'.
@@ -86,6 +88,9 @@ export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unr
  * `snapshot` is the full hiscores response — included on success so callers can
  * persist a player_snapshots row in the same trip (no second hiscores call needed).
  */
+/** What a weekly competition ranks by. 'efficiency' pairs with metric 'ehp' | 'ehb'. */
+export type CompetitionType = 'skill' | 'boss' | 'efficiency';
+
 export type FetchResult =
   | { kind: 'value'; value: number; snapshot: HiscoresSnapshot }
   | { kind: 'unranked' }            // 404 from hiscores OR validator rejected the RSN string outright
@@ -98,9 +103,19 @@ export type FetchResult =
  */
 export function readMetricFromSnapshot(
   snapshot: HiscoresSnapshot,
-  type: 'skill' | 'boss',
+  type: CompetitionType,
   metric: string,
 ): FetchResult {
+  // Efficiency comps read a DERIVED value: the whole snapshot condensed to hours by our own engine
+  // (lib/efficiency.ts), not a single field. Stored in milli-hours so the integer columns and the
+  // atomic-MAX update keep working — see EFFICIENCY_SCALE.
+  if (type === 'efficiency') {
+    if (!snapshot.skills || !snapshot.bosses) return { kind: 'transient' };
+    const { ehp, ehb } = computeEhpEhb(snapshot);
+    const hours = metric === 'ehb' ? ehb : ehp;
+    if (!Number.isFinite(hours)) return { kind: 'transient' };
+    return { kind: 'value', value: Math.round(hours * EFFICIENCY_SCALE), snapshot };
+  }
   if (type === 'skill') {
     const xp = snapshot.skills?.[metric]?.xp;
     if (typeof xp !== 'number') return { kind: 'transient' };
@@ -128,7 +143,7 @@ export function readMetricFromSnapshot(
  */
 export async function fetchParticipantStat(
   rsn: string,
-  type: 'skill' | 'boss',
+  type: CompetitionType,
   metric: string,
 ): Promise<FetchResult> {
   const result = await fetchSnapshotWithRetry(rsn);
@@ -138,7 +153,7 @@ export async function fetchParticipantStat(
 
 export interface WeeklyValueUpdate {
   participantId: number;
-  type: 'skill' | 'boss';
+  type: CompetitionType;
   metric: string;
   /** Freshly observed ABSOLUTE value: effective max(hiscores, live) from the sweep, or the pushed live value. */
   value: number;

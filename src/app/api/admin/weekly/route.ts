@@ -5,6 +5,7 @@ import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
 import { notifyWeeklyStart } from '@/lib/discord';
+import { EFFICIENCY_METRICS } from '@/lib/constants';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -42,8 +43,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  if (type !== 'skill' && type !== 'boss') {
-    return NextResponse.json({ error: 'Type must be skill or boss' }, { status: 400 });
+  if (type !== 'skill' && type !== 'boss' && type !== 'efficiency') {
+    return NextResponse.json({ error: 'Type must be skill, boss or efficiency' }, { status: 400 });
+  }
+  // Efficiency comps rank by a derived number, so the metric isn't a free-form hiscores key — only
+  // the two our engine computes. A typo here would otherwise create a comp that never scores.
+  if (type === 'efficiency' && !EFFICIENCY_METRICS.some((m) => m.key === metric)) {
+    return NextResponse.json({ error: 'Efficiency metric must be ehp or ehb' }, { status: 400 });
   }
 
   // Determine initial status based on dates

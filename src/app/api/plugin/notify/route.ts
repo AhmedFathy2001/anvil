@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
+import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { db } from '@/db';
+import { clanMembers } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -25,6 +29,31 @@ function webhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
   // A channel setting may hold multiple webhook URLs — cycle across them to spread load and dodge
   // Discord's per-webhook rate limit on busy clans.
   return pickWebhookUrl(webhooks[channel], `plugin:${channel}`);
+}
+
+// A player-facing RSN for the embed's author line. Every plugin request already carries the account
+// hash and current RSN (BingoApiClient.authedRequest sets them on every call), so the poster is
+// identifiable without any plugin change: the hash is the reliable anchor (survives renames), the
+// header is the fallback for accounts that never completed a handshake.
+//
+// Read-only on purpose — the auto-link/verify machinery belongs on the gameplay routes, not on a
+// fire-and-forget notification.
+async function posterRsn(request: Request, userId: number): Promise<string | null> {
+  const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
+  if (accountHash) {
+    const owned = await db.query.clanMembers.findFirst({
+      where: and(
+        eq(clanMembers.accountHash, accountHash),
+        eq(clanMembers.userId, userId),
+        isNull(clanMembers.leftAt),
+      ),
+    });
+    if (owned?.rsn) return owned.rsn;
+  }
+  // RSN header: self-reported, so it names the account the poster is logged into but proves
+  // nothing. Fine for a display line — the token already established who is posting.
+  const headerRsn = request.headers.get('X-RSN')?.trim();
+  return headerRsn ? headerRsn.slice(0, 12) : null;
 }
 
 export async function POST(request: Request) {
@@ -84,6 +113,20 @@ export async function POST(request: Request) {
     // No webhook configured for this channel — nothing to forward. Not an error; the plugin gates on
     // the notify flags from /api/plugin/config, but they can race a webhook being cleared on the site.
     return new NextResponse(null, { status: 204 });
+  }
+
+  // Deaths and PvP kills arrive as plain text + a screenshot; give them the same embed treatment as
+  // everything else. Skipped the moment the plugin sends its own embed for these channels.
+  if (!embed && content && (channel === 'deaths' || channel === 'pvpKills')) {
+    const built = playerEventEmbed({
+      kind: channel === 'deaths' ? 'death' : 'pvp_kill',
+      rsn: await posterRsn(request, auth.userId),
+      message: content,
+      imageFilename: image?.filename ?? null,
+    });
+    // The message moves into the embed's description, so don't also post it as content.
+    const ok = await forwardPluginNotification(url, { embed: built as unknown as Record<string, unknown>, image });
+    return NextResponse.json({ ok });
   }
 
   const ok = await forwardPluginNotification(url, { content, embed: embed ?? null, image });

@@ -130,7 +130,7 @@ export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
 
 export interface ActiveWeeklyMetric {
   id: number;
-  type: 'skill' | 'boss';
+  type: 'skill' | 'boss' | 'efficiency';
   metric: string;
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
 }
@@ -143,7 +143,12 @@ export async function getActiveWeeklyMetrics(): Promise<ActiveWeeklyMetric[]> {
   const rows = await db.query.weeklyCompetitions.findMany({
     where: eq(weeklyCompetitions.status, 'active'),
   });
-  return rows.map((c) => ({ id: c.id, type: c.type as 'skill' | 'boss', metric: c.metric, startDate: c.startDate }));
+  return rows.map((c) => ({
+    id: c.id,
+    type: c.type as 'skill' | 'boss' | 'efficiency',
+    metric: c.metric,
+    startDate: c.startDate,
+  }));
 }
 
 export interface PluginWebhooks {
@@ -275,6 +280,23 @@ export async function getShowKillCount(): Promise<boolean> {
     where: eq(settings.key, SHOW_KILL_COUNT_SETTING_KEY),
   });
   return row?.value !== 'off';
+}
+
+// Clan-wide floor on rarity-triggered drop posts, as 1-in-N. Members set their own threshold in the
+// plugin, but a single member on a loose setting is enough to fill the channel with herb rolls off
+// an ordinary slayer task — so the clan's floor wins where it's stricter (the plugin takes the max).
+// Unset means "no clan floor"; the plugin's own default (1/10,000) then applies.
+export const DROP_RARITY_FLOOR_SETTING_KEY = 'drop_rarity_floor';
+export const DEFAULT_DROP_RARITY_FLOOR = 10_000;
+
+export async function getDropRarityFloor(): Promise<number> {
+  const row = await db.query.settings.findFirst({
+    where: eq(settings.key, DROP_RARITY_FLOOR_SETTING_KEY),
+  });
+  const parsed = Number(row?.value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_DROP_RARITY_FLOOR;
+  // Never below the plugin's own hard minimum — a "floor" that loosens the gate would be a trap.
+  return Math.max(1000, Math.round(parsed));
 }
 
 // --- Clan naming ----------------------------------------------------------------------------

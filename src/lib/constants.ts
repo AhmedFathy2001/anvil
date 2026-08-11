@@ -210,3 +210,37 @@ export const SKILL_ALIASES: Record<string, string[]> = {
   firemaking: ["fm"],
   construction: ["con"],
 };
+
+// ── Efficiency metrics (EHP / EHB) ─────────────────────────────────────────────────────────────
+// A third kind of weekly competition, alongside skill (SOTW) and boss (BOTW): rank by efficient
+// hours gained rather than by one skill's XP or one boss's KC. It's the only metric that measures a
+// whole week of play in one number — an hour at Zulrah and an hour of Runecrafting both count.
+//
+// Values are computed by src/lib/efficiency.ts and stored as MILLI-hours: weeklyParticipants keeps
+// baseline/current in integer columns, and 12.4 EHB rounded to 12 would throw away most of a week's
+// gain. Everything that reads these for display divides by EFFICIENCY_SCALE.
+export const EFFICIENCY_SCALE = 1000;
+
+export const EFFICIENCY_METRICS: { key: string; label: string; blurb: string }[] = [
+  {
+    key: "ehp",
+    label: "EHP",
+    blurb: "Efficient hours played — XP converted to time at the best known rates, so a slow skill counts for more than a fast one.",
+  },
+  {
+    key: "ehb",
+    label: "EHB",
+    blurb: "Efficient hours bossed — boss kills converted to time, so 22 Barrows chests and 3.5 Chambers both read as an hour.",
+  },
+];
+
+export const EFFICIENCY_LABELS: Record<string, string> = Object.fromEntries(
+  EFFICIENCY_METRICS.map((m) => [m.key, m.label]),
+);
+
+/** Milli-hours → a display string. Two decimals: a week's honest gain is often under 10 hours. */
+export function formatEfficiencyHours(milli: number): string {
+  const hours = milli / EFFICIENCY_SCALE;
+  if (Math.abs(hours) >= 1000) return `${(hours / 1000).toFixed(1)}K`;
+  return hours.toFixed(2);
+}

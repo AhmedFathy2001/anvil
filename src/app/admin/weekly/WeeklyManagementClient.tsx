@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES } from '@/lib/constants';
+import {
+  SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES,
+  EFFICIENCY_METRICS, EFFICIENCY_LABELS, EFFICIENCY_SCALE, formatEfficiencyHours,
+} from '@/lib/constants';
 import DateRangeField from '@/components/DateRangeField';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -44,7 +47,7 @@ export default function WeeklyManagementClient() {
   const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   // Create form
-  const [type, setType] = useState<'skill' | 'boss'>('skill');
+  const [type, setType] = useState<'skill' | 'boss' | 'efficiency'>('skill');
   const [metric, setMetric] = useState('');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -179,11 +182,14 @@ export default function WeeklyManagementClient() {
     setRefreshing(null);
   }
 
-  function startFix(p: Participant) {
+  function startFix(p: Participant, type: string) {
     setFixingId(p.id);
     // Default to the current value: setting baseline = current zeroes the bogus
-    // pre-event gain and counts only progress from here on.
-    setFixValue(String(p.currentValue ?? p.baselineValue ?? 0));
+    // pre-event gain and counts only progress from here on. Efficiency comps are edited in HOURS,
+    // the unit the whole row is displayed in — asking an operator to type milli-hours would be a
+    // trap, since the number they'd copy off the screen would be 1000x wrong.
+    const current = p.currentValue ?? p.baselineValue ?? 0;
+    setFixValue(type === 'efficiency' ? (current / EFFICIENCY_SCALE).toFixed(2) : String(current));
   }
 
   // Re-include (or drop again) a participant whose clan_member left the CC mid-comp.
@@ -198,8 +204,10 @@ export default function WeeklyManagementClient() {
 
   async function handleSaveFix(compId: number) {
     if (fixingId === null) return;
-    const baselineValue = Number(fixValue);
-    if (!Number.isFinite(baselineValue) || baselineValue < 0) return;
+    const typed = Number(fixValue);
+    if (!Number.isFinite(typed) || typed < 0) return;
+    const compType = competitions.find((c) => c.id === compId)?.type;
+    const baselineValue = compType === 'efficiency' ? Math.round(typed * EFFICIENCY_SCALE) : typed;
     setSavingFix(true);
 
     const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
@@ -260,8 +268,15 @@ export default function WeeklyManagementClient() {
     setEditSaving(false);
   }
 
+  /** Stored value → what an operator should read. Efficiency is milli-hours; everything else is raw. */
+  function fmtStat(type: string, value: number | null): string {
+    if (value === null) return '-';
+    return type === 'efficiency' ? formatEfficiencyHours(value) : value.toLocaleString();
+  }
+
   function getMetricLabel(type: string, metric: string): string {
     if (type === 'skill') return SKILL_LABELS[metric] || metric;
+    if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
     const boss = BOSSES.find((b) => b.key === metric);
     return boss?.label || metric;
   }
@@ -391,25 +406,48 @@ export default function WeeklyManagementClient() {
                 >
                   Boss of the Week
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setType('efficiency'); setMetric('ehb'); }}
+                  className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                    type === 'efficiency' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                  }`}
+                >
+                  Efficiency
+                </button>
               </div>
+              {type === 'efficiency' && (
+                <p className="text-[11px] text-text-muted mt-2 leading-snug">
+                  Ranks by efficient hours gained across everything, so any way of playing counts —
+                  the only weekly that doesn&rsquo;t pick a winner before it starts. Updates on the
+                  15-minute hiscores sweep rather than live, since it&rsquo;s computed from a whole snapshot.
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                {type === 'skill' ? 'Skill' : 'Boss'}
+                {type === 'skill' ? 'Skill' : type === 'boss' ? 'Boss' : 'Metric'}
               </label>
               <Select
                 value={metric}
                 onChange={setMetric}
                 required
-                placeholder={`Select ${type === 'skill' ? 'a skill' : 'a boss'}...`}
-                ariaLabel={type === 'skill' ? 'Skill' : 'Boss'}
+                placeholder={`Select ${type === 'skill' ? 'a skill' : type === 'boss' ? 'a boss' : 'a metric'}...`}
+                ariaLabel={type === 'skill' ? 'Skill' : type === 'boss' ? 'Boss' : 'Metric'}
                 options={
                   type === 'skill'
                     ? SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))
-                    : BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))
+                    : type === 'boss'
+                      ? BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))
+                      : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label, keywords: [m.blurb] }))
                 }
               />
+              {type === 'efficiency' && metric && (
+                <p className="text-[11px] text-text-muted mt-1.5 leading-snug">
+                  {EFFICIENCY_METRICS.find((m) => m.key === metric)?.blurb}
+                </p>
+              )}
             </div>
 
             <div>
@@ -481,7 +519,8 @@ export default function WeeklyManagementClient() {
                         <span className="font-semibold">{comp.title}</span>
                         {getStatusBadge(comp.status)}
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">
-                          {comp.type === 'skill' ? 'Skill' : 'Boss'}: {getMetricLabel(comp.type, comp.metric)}
+                          {comp.type === 'skill' ? 'Skill' : comp.type === 'boss' ? 'Boss' : 'Efficiency'}:{' '}
+                          {getMetricLabel(comp.type, comp.metric)}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted mt-1">
@@ -624,13 +663,13 @@ export default function WeeklyManagementClient() {
                                         </div>
                                       </td>
                                       <td className="px-3 py-2 text-text-muted">
-                                        {p.baselineValue?.toLocaleString() ?? '-'}
+                                        {fmtStat(comp.type, p.baselineValue)}
                                       </td>
                                       <td className="px-3 py-2 text-text-muted">
-                                        {p.currentValue?.toLocaleString() ?? '-'}
+                                        {fmtStat(comp.type, p.currentValue)}
                                       </td>
                                       <td className={`px-3 py-2 font-medium ${isFlagged ? 'text-red-400' : gained > 0 ? 'text-accent-green-light' : 'text-text-muted'}`}>
-                                        {p.baselineValue !== null ? `+${gained.toLocaleString()}` : '-'}
+                                        {p.baselineValue !== null ? `+${fmtStat(comp.type, gained)}` : '-'}
                                       </td>
                                       <td className="px-3 py-2 text-text-muted text-xs">
                                         {p.lastUpdated ? new Date(p.lastUpdated).toLocaleString() : 'Never'}
@@ -640,6 +679,7 @@ export default function WeeklyManagementClient() {
                                           <div className="flex items-center gap-1.5 justify-end">
                                             <Input
                                               type="number"
+                                              step={comp.type === 'efficiency' ? '0.01' : '1'}
                                               value={fixValue}
                                               onChange={(e) => setFixValue(e.target.value)}
                                               className="w-28 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs"
@@ -671,7 +711,7 @@ export default function WeeklyManagementClient() {
                                             )}
                                             {p.baselineValue !== null && (
                                               <button
-                                                onClick={() => startFix(p)}
+                                                onClick={() => startFix(p, comp.type)}
                                                 title="Correct this participant's baseline"
                                                 className={`px-2 py-1 text-xs border rounded transition-colors ${isFlagged ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-card-border text-text-muted hover:border-gold/40'}`}
                                               >

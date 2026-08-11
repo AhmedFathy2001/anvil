@@ -16,6 +16,7 @@ import {
   getAlwaysNotifyItems,
   getAlwaysNotifyItemIds,
   getShowKillCount,
+  getDropRarityFloor,
   getClanDisplayName,
   getTierBands,
   type PluginWebhooks,
@@ -190,7 +191,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, unlinkedActiveEvent, homeBoard] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, unlinkedActiveEvent, homeBoard] =
         await Promise.all([
           buildSchedule(),
           getActiveWeekly(),
@@ -202,6 +203,7 @@ export async function GET(request: Request) {
           getAlwaysNotifyItems(),
           getAlwaysNotifyItemIds(),
           getShowKillCount(),
+          getDropRarityFloor(),
           activeEventForUnlinkedRsn(request),
           homeBoardForUser(userOnly.userId),
         ]);
@@ -247,6 +249,7 @@ export async function GET(request: Request) {
         alwaysNotifyItems,
         alwaysNotifyItemIds,
         showKillCount,
+        dropRarityFloor,
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
@@ -471,7 +474,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, tiers] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, tiers] =
     await Promise.all([
       buildSchedule(),
       getActiveWeekly(),
@@ -482,6 +485,7 @@ export async function GET(request: Request) {
       getAlwaysNotifyItems(),
       getAlwaysNotifyItemIds(),
       getShowKillCount(),
+      getDropRarityFloor(),
       getTierBands(),
     ]);
 
@@ -687,6 +691,7 @@ export async function GET(request: Request) {
     alwaysNotifyItems,
     alwaysNotifyItemIds,
     showKillCount,
+    dropRarityFloor,
     completedTiles,
     trackedStats,
     trackedKcNames,

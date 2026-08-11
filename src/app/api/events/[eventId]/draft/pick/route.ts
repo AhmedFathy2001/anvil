@@ -186,6 +186,7 @@ export async function POST(
       notifyDraftComplete({
         eventName: event.name,
         teams: teamsWithPlayers,
+        eventId: event.id,
       }).catch(() => {}); // Silently ignore errors
 
       // Auto-provision the team Discord channels + assign contestant roles now that rosters are

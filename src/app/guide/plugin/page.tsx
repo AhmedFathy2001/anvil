@@ -443,7 +443,7 @@ export default async function PluginGuidePage() {
                 {
                   n: 5,
                   label: 'Min drop value / Min drop rarity',
-                  body: 'two independent routes to a post: worth at least this much (GE or high alch, whichever is higher), or rarer than 1-in-N. Set either to 0 to switch that route off.',
+                  body: 'two independent routes to a post: worth at least this much (GE or high alch, whichever is higher), or rarer than 1-in-N (1/10,000 by default — looser settings fill the channel with herb rolls). Your clan can set a rarity floor that applies to everyone; yours still applies when it is stricter. Set either to 0 to switch that route off.',
                 },
                 { n: 6, label: 'Screenshot rare drops', body: 'attach the picture, not just the text.' },
                 {

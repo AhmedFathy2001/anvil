@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
-import { SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILL_LABELS, BOSSES, EFFICIENCY_LABELS, formatEfficiencyHours } from '@/lib/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
@@ -11,11 +11,15 @@ export const dynamic = 'force-dynamic';
 
 function getMetricLabel(type: string, metric: string): string {
   if (type === 'skill') return SKILL_LABELS[metric] || metric;
+  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
   const boss = BOSSES.find((b) => b.key === metric);
   return boss?.label || metric;
 }
 
 function formatValue(value: number, type: string): string {
+  // Efficiency is stored in milli-hours (see EFFICIENCY_SCALE) — a week's gain is single digits,
+  // so it reads as hours to two decimals rather than as a five-digit integer.
+  if (type === 'efficiency') return formatEfficiencyHours(value);
   if (type === 'skill') {
     // Format XP nicely
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -44,7 +48,8 @@ export default async function WeeklyLeaderboardPage({
 
   const leaderboard = computeLeaderboard(participants);
 
-  const gainLabel = competition.type === 'skill' ? 'XP Gained' : 'KC Gained';
+  const gainLabel =
+    competition.type === 'skill' ? 'XP Gained' : competition.type === 'boss' ? 'KC Gained' : 'Hours Gained';
 
   return (
     <div>
@@ -59,7 +64,8 @@ export default async function WeeklyLeaderboardPage({
         <h1 className="text-2xl sm:text-3xl font-bold text-gold">{competition.title}</h1>
         <div className="flex items-center gap-3 mt-2">
           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">
-            {competition.type === 'skill' ? 'Skill' : 'Boss'}: {getMetricLabel(competition.type, competition.metric)}
+            {competition.type === 'skill' ? 'Skill' : competition.type === 'boss' ? 'Boss' : 'Efficiency'}:{' '}
+            {getMetricLabel(competition.type, competition.metric)}
           </span>
           <span
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${

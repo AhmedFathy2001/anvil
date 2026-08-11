@@ -9,6 +9,7 @@
  */
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
+import { stampEmbeds } from '@/lib/discordEmbeds';
 
 // Discord channel types (https://discord.com/developers/docs/resources/channel#channel-object-channel-types).
 const CHANNEL_TEXT = 0;
@@ -267,7 +268,9 @@ export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
   for (const msg of messages) {
     const res = await discordRest(creds.botToken, `/channels/${opts.channelId}/messages`, {
       method: 'POST',
-      body: JSON.stringify(msg),
+      // Same brand footer as every webhook post — this is the bot API's exit, so it stamps here.
+      // Plain-text broadcasts carry no embed and pass through untouched.
+      body: JSON.stringify(stampEmbeds(msg)),
     });
     if (!res.ok) {
       const detail = await describeSendError(res);
