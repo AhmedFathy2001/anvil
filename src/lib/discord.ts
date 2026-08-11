@@ -973,7 +973,10 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     ...weeklyThumbnail(type, metric),
     // Just the admin-set title — no raw metric key (e.g. "lunarChests").
     title: clamp(`${emoji} ${title}`, LIMIT.title),
-    description: 'Live now. Enroll in-game with the Anvil plugin and start grinding!',
+    // No sign-up step to advertise: the clan roster IS the entry list, so everyone synced from the
+    // in-game clan is already racing. Saying "enroll with the plugin" sent people looking for a
+    // button that doesn't exist. What the plugin actually does is track your gains live.
+    description: "Live now — everyone on the clan roster is entered. Run the Anvil plugin and your gains track themselves.",
     color: EMBED_COLOR.green,
     fields: [
       // Exact end time + a live countdown that ticks down in everyone's client.

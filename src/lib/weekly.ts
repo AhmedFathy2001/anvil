@@ -11,27 +11,37 @@ import { log } from '@/lib/logger';
 // Re-exported for callers that still reference the type via '@/lib/weekly'.
 export type { HiscoresSnapshot };
 
-// Setting key for the "include guests in weekly auto-enrollment" toggle.
-// Default off — guests are typically not part of the clan-wide weekly comp.
-// Admins can flip this from the settings UI for events where guests should be tracked.
+// Legacy clan-wide "include guests" toggle. Enrollment no longer reads it — each competition
+// carries its own `includeGuests` flag (set on the create form, default on) — but it still seeds
+// that form's initial state for clans that set it, so an admin who deliberately excluded guests
+// doesn't get them back by surprise on the next comp they create.
 const WEEKLY_TRACK_GUESTS_KEY = 'weekly_track_guests';
 
-async function shouldTrackGuests(): Promise<boolean> {
+export async function defaultIncludeGuests(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, WEEKLY_TRACK_GUESTS_KEY) });
-  return row?.value === 'true' || row?.value === '1';
+  // Only an explicit "off" opts out; unset means include, which is the new default.
+  return !(row?.value === 'false' || row?.value === '0');
 }
 
 /**
  * Enroll every active clan member into a competition. The pool comes from the
  * plugin-synced clan roster (`clan_members` with `left_at IS NULL`). Discord
- * login is NOT required — weekly comps are clan-wide by design.
+ * login is NOT required — weekly comps are clan-wide by design, so nobody has
+ * to opt in: the roster IS the entry list.
  *
- * Guests (`is_guest = 1`) are excluded by default. Set the `weekly_track_guests`
- * setting to "true" to also enroll them, or use the per-event participants
- * endpoint to manually add specific guests for one comp.
+ * Guests (`is_guest = 1`) come along when the competition's own `includeGuests`
+ * flag is set, which is the default for new comps. Turn it off at creation for
+ * a members-only comp; either way an admin can still add or remove individuals
+ * through the participants endpoint.
  */
 export async function enrollAllPlayers(competitionId: number) {
-  const trackGuests = await shouldTrackGuests();
+  const comp = await db.query.weeklyCompetitions.findFirst({
+    where: eq(weeklyCompetitions.id, competitionId),
+    columns: { includeGuests: true },
+  });
+  // A comp that vanished between scheduling and this call has nobody to enroll.
+  if (!comp) return 0;
+  const trackGuests = comp.includeGuests === 1;
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
   // (or manual mod action) flips status back to 'active'.
