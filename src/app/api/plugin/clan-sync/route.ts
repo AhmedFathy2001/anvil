@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, settings } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
-import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -109,6 +109,7 @@ export async function POST(request: Request) {
   const toUpdate: ToUpdate[] = [];
   const incomingNormalized = new Set<string>();
   const seenIncoming = new Set<string>();
+  let skippedNames = 0;
 
   for (const m of members) {
     if (!m || typeof m.rsn !== 'string') continue;
@@ -116,6 +117,13 @@ export async function POST(request: Request) {
     // Hiscores library accepts. Raw plugin payloads ship in-game names with U+00A0.
     const rsn = sanitizeRsn(m.rsn);
     if (!rsn) continue;
+    // RuneLite reports unresolvable clan members as placeholders like "#Player1404". They can never
+    // be found on the hiscores, so admitting them just fills the roster with rows that will never
+    // have a stat — skip them and count them, rather than storing a member who doesn't exist.
+    if (!isPlausibleRsn(rsn)) {
+      skippedNames++;
+      continue;
+    }
     const rsnNormalized = normalizeRsn(rsn);
     if (seenIncoming.has(rsnNormalized)) continue; // de-dupe duplicate names in payload
     seenIncoming.add(rsnNormalized);
@@ -404,6 +412,9 @@ export async function POST(request: Request) {
     markedLeft: leftResult.length,
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,
+    // Names RuneLite couldn't resolve ("#Player1404") and we therefore didn't store. Reported so a
+    // roster that syncs 48 of 52 members isn't silently short.
+    skippedNames,
     syncedAt: now,
     // { cap, active, overLimit, remaining, state, overSince, graceEndsAt, graceDaysLeft }.
     // cap=null means unlimited. `capNotice` is a ready-to-show line for the plugin/admin UI, and

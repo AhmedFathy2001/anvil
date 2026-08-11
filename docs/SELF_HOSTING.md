@@ -15,7 +15,7 @@ and no build step at deploy time — the container migrates its own schema on bo
 > clan — exactly what the hosted service runs for you, minus the automation around it.
 
 > **Don't want to self-host?** I run and maintain Anvil for clans for a fee — no
-> infrastructure on your end. [Reach out on Discord](https://discord.gg/nqTxCQAbv4) if
+> infrastructure on your end. [Reach out on Discord](https://discord.gg/p9NkrTQmxN) if
 > you'd rather have it hosted (it's also what funds development).
 
 ---

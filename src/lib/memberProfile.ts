@@ -10,7 +10,7 @@ import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
 import { SKILLS, EFFICIENCY_SCALE } from '@/lib/constants';
-import { normalizeRsn } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
   id: number;
@@ -65,17 +65,22 @@ export async function listMembers(): Promise<MemberListRow[]> {
     .where(isNull(clanMembers.leftAt))
     .orderBy(clanMembers.rsn);
 
-  return rows.map((r) => ({
-    id: r.id,
-    rsn: r.rsn,
-    rank: r.rank,
-    isGuest: r.isGuest === 1,
-    status: r.status,
-    lastSeenAt: r.lastSeenAt,
-    overallXp: r.overallXp ?? null,
-    ehp: r.ehpMilli != null ? r.ehpMilli / EFFICIENCY_SCALE : null,
-    ehb: r.ehbMilli != null ? r.ehbMilli / EFFICIENCY_SCALE : null,
-  }));
+  return rows
+    // Placeholder rows RuneLite handed us before the sync learned to reject them ("#Player1404"):
+    // never on the hiscores, never a stat, pure noise in a roster view. Filtered on read rather than
+    // deleted — removing member rows is the operator's call, not a side effect of listing them.
+    .filter((r) => isPlausibleRsn(r.rsn))
+    .map((r) => ({
+      id: r.id,
+      rsn: r.rsn,
+      rank: r.rank,
+      isGuest: r.isGuest === 1,
+      status: r.status,
+      lastSeenAt: r.lastSeenAt,
+      overallXp: r.overallXp ?? null,
+      ehp: r.ehpMilli != null ? r.ehpMilli / EFFICIENCY_SCALE : null,
+      ehb: r.ehbMilli != null ? r.ehbMilli / EFFICIENCY_SCALE : null,
+    }));
 }
 
 export interface SkillRow {
