@@ -439,6 +439,15 @@ export const users = sqliteTable('users', {
   // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
   // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
   editorScope: text('editor_scope').notNull().default('all'),
+  // Tile authoring as a CAPABILITY rather than a role. `role` is the base tier (member <
+  // moderator < treasurer < admin) and this rides on top of any of them, so "a moderator who
+  // builds boards" or "a treasurer who does fees AND tiles" is one checkbox instead of a new role
+  // per combination. Admins always have it implicitly; per-board `event_editors` grants are the
+  // narrower version for someone who should only touch one event.
+  //
+  // The legacy `editor` role predates this and meant "member with global authoring" — migration
+  // 0048 converts those rows, and nothing new should ever write role='editor'.
+  canEditTiles: integer('can_edit_tiles', { mode: 'boolean' }).notNull().default(false),
   // The clan owner — the person who provisioned this instance. Exactly one user has this set.
   // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
   // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can

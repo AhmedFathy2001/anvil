@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyUser } from '@/lib/auth';
+import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { clanMembers, federationBans, users } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
@@ -65,8 +65,12 @@ export async function GET() {
 
 // POST — manual add (admin entering a guest / member the plugin can't reach).
 export async function POST(request: Request) {
-  const user = await verifyUser();
-  if (!user || user.role !== 'admin') {
+  // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
+  // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
+  // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
+  // admin-only. So a moderator can never promote themselves or anyone else.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

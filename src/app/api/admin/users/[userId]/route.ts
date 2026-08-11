@@ -18,7 +18,7 @@ export async function PUT(
 
   const { userId } = await params;
   const targetId = parseInt(userId, 10);
-  const { displayName, role } = await request.json();
+  const { displayName, role, canEditTiles } = await request.json();
 
   if (role !== undefined && !VALID_ROLES.has(role)) {
     return NextResponse.json({ error: 'Role must be admin, treasurer, editor, moderator, or member' }, { status: 400 });
@@ -47,12 +47,23 @@ export async function PUT(
 
   const updates: Record<string, unknown> = {};
   if (displayName !== undefined) updates.displayName = displayName;
+  // Tile authoring is a capability, so it's set independently of the role — that's what makes
+  // "a moderator who builds boards" or "a treasurer who does fees and tiles" possible without
+  // inventing a role for each combination. Admin-only, like every other grant of power.
+  if (canEditTiles !== undefined) updates.canEditTiles = canEditTiles === true;
   // A manual role pick is a coarse decision that supersedes any board-scoped-editor state:
   // reset editorScope to 'all' so picking 'editor' here always means a GLOBAL editor. Board
   // scoping is established only via the Boards control (grantEventEditor sets scope 'assigned').
   if (role !== undefined) {
     updates.role = role;
     updates.editorScope = 'all';
+    // 'editor' is no longer offered in the UI — global authoring is the capability, and the role
+    // survives only as lib/eventEditors' internal marker for a member holding board grants. If an
+    // older client still sends it, express the intent the new way instead of resurrecting it.
+    if (role === 'editor') {
+      updates.role = 'member';
+      updates.canEditTiles = true;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

@@ -57,12 +57,21 @@ export function timingSafeStrEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
-export function signUserToken(userId: number, username: string, role: string, editorScope: string = 'all'): string {
+export function signUserToken(
+  userId: number,
+  username: string,
+  role: string,
+  editorScope: string = 'all',
+  canEditTiles: boolean = false,
+): string {
   // editorScope rides in the token so middleware (edge, no DB) can tell a board-scoped editor
   // (role 'editor' + scope 'assigned') from a global editor and route them to /admin/events only.
   // Server gates (verifyUser/verifyAdminOrModerator) re-read the live scope from the DB, so a stale
   // token only affects coarse page-routing until the next login.
-  return sign(JSON.stringify({ userId, username, role, editorScope, iat: Date.now() }), ADMIN_SESSION_SECRET);
+  return sign(
+    JSON.stringify({ userId, username, role, editorScope, canEditTiles, iat: Date.now() }),
+    ADMIN_SESSION_SECRET,
+  );
 }
 
 export function signCaptainToken(teamId: number): string {
@@ -77,6 +86,8 @@ export interface UserPayload {
   // board-scoped editor (edits only granted events). Always present so callers don't branch on
   // undefined; non-editor roles carry 'all' but never consult it. See users.editorScope.
   editorScope: string;
+  // Tile authoring, independent of role — see users.canEditTiles. Admins always have it.
+  canEditTiles: boolean;
 }
 
 export async function verifyUser(): Promise<UserPayload | null> {
@@ -93,7 +104,7 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, role: true, banned: true, editorScope: true },
+      columns: { id: true, role: true, banned: true, editorScope: true, canEditTiles: true },
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
@@ -103,6 +114,8 @@ export async function verifyUser(): Promise<UserPayload | null> {
       username: typeof data.username === 'string' ? data.username : 'user',
       role: dbUser.role,
       editorScope: dbUser.editorScope ?? 'all',
+      // Admins can always author; for everyone else it's the explicit grant.
+      canEditTiles: dbUser.role === 'admin' || dbUser.canEditTiles === true,
     };
   } catch {
     return null;
@@ -138,7 +151,9 @@ export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
 export async function verifyTileEditorForEvent(eventId: number): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin') return user;
+  if (user.canEditTiles) return user;
+  // Legacy: a global 'editor' role from before the capability column existed (migration 0049
+  // converts these, but a session minted just before it lands still says 'editor').
   if (user.role === 'editor' && user.editorScope === 'all') return user;
   const grant = await db.query.eventEditors.findFirst({
     where: and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, user.userId)),
@@ -153,8 +168,8 @@ export async function verifyTileEditorForEvent(eventId: number): Promise<UserPay
 export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin') return user;
-  if (user.role === 'editor' && user.editorScope === 'all') return user;
+  if (user.canEditTiles) return user;
+  if (user.role === 'editor' && user.editorScope === 'all') return user; // legacy, see above
   const grant = await db.query.eventEditors.findFirst({
     where: eq(eventEditors.userId, user.userId),
     columns: { id: true },
