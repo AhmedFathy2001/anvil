@@ -30,8 +30,17 @@ export async function GET(request: Request) {
   // it, but stale rows from before that logic (and the reject path, which doesn't delete)
   // can linger and pollute the Open queue as a phantom "collect me". Hide them everywhere;
   // a *touched* fee (collected/disputed/confirmed) is kept so its refund trail stays visible.
+  // 'reported' counts as untouched too: the player claims they paid, but no mod ever confirmed
+  // receiving anything, so a withdrawn/rejected sign-up leaves exactly the same phantom "collect me"
+  // as a pending one. Only a TOUCHED fee (collected/disputed/confirmed) survives here, so its refund
+  // trail stays visible.
   filters.push(
-    not(and(eq(signupFees.status, 'pending'), inArray(eventSignups.status, ['withdrawn', 'rejected']))!),
+    not(
+      and(
+        inArray(signupFees.status, ['pending', 'reported']),
+        inArray(eventSignups.status, ['withdrawn', 'rejected']),
+      )!,
+    ),
   );
   if (status) {
     if (status === 'open') {

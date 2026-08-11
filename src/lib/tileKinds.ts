@@ -1,3 +1,4 @@
+import { activityFor } from '@/lib/hiscoresActivities';
 import { BOSSES, SKILL_LABELS } from './constants';
 
 // Structural subset of a tile row that the kind/target helpers need — board clients keep
@@ -98,7 +99,7 @@ export function statLabel(trackedStat: string | null | undefined, statType?: str
   return statKeys(trackedStat)
     .map((key) =>
       statType === 'boss'
-        ? BOSSES.find((b) => b.key === key)?.label ?? key
+        ? BOSSES.find((b) => b.key === key)?.label ?? activityFor(key)?.label ?? key
         : SKILL_LABELS[key] ?? key,
     )
     .join(' + ');

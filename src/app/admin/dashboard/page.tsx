@@ -5,13 +5,14 @@ import {
   clanAuditLog,
   clanMembers,
   events,
+  eventSignups,
   signupFees,
   teams,
   users,
   weeklyCompetitions,
 } from '@/db/schema';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { getSetupStatus } from '@/lib/setupStatus';
 import SetupChecklist from '@/components/SetupChecklist';
@@ -48,7 +49,7 @@ export default async function AdminDashboardPage() {
   // Aliased so the audit feed can join users as the "actor" without colliding with any
   // other users join.
   const actor = alias(users, 'actor_user');
-  const [provisionalCount, activeMembers, activeWeekly, rawRecentAudit, openFeeCount] = await Promise.all([
+  const [provisionalCount, activeMembers, activeWeekly, rawRecentAudit, feeCounts] = await Promise.all([
     db
       .select({ c: count() })
       .from(clanMembers)
@@ -80,11 +81,30 @@ export default async function AdminDashboardPage() {
       .leftJoin(actor, eq(clanAuditLog.actorUserId, actor.id))
       .orderBy(desc(clanAuditLog.occurredAt))
       .limit(60),
+    // Two different questions, which one number was conflating:
+    //   owed    — nobody has the money yet (or it's disputed). Chase the player.
+    //   toSign  — a mod HAS the money; it needs a second pair of eyes to close out. Chase staff.
+    // Fees on a withdrawn/rejected sign-up are excluded outright: the player is gone and nothing
+    // was collected, so they're dead rows that only ever inflated the badge (the fees API already
+    // hides them from its own queue).
     db
-      .select({ c: count() })
+      .select({ status: signupFees.status, c: count() })
       .from(signupFees)
-      .where(inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']))
-      .then((r) => r[0]?.c ?? 0),
+      .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+      .where(
+        and(
+          inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']),
+          notInArray(eventSignups.status, ['withdrawn', 'rejected']),
+        ),
+      )
+      .groupBy(signupFees.status)
+      .then((rows) => {
+        const by = new Map(rows.map((r) => [r.status, r.c]));
+        return {
+          owed: (by.get('pending') ?? 0) + (by.get('reported') ?? 0) + (by.get('disputed') ?? 0),
+          toSign: by.get('collected') ?? 0,
+        };
+      }),
   ]);
 
   // A single logical action (e.g. verifying a member) writes several audit rows —
@@ -257,11 +277,18 @@ export default async function AdminDashboardPage() {
               />
               <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/clan" />
               <SnapshotRow
-                label="Open sign-up fees"
-                value={`${openFeeCount} fee${openFeeCount === 1 ? '' : 's'}`}
-                href="/admin/events"
-                emphasize={openFeeCount > 0}
+                label="Fees to collect"
+                value={`${feeCounts.owed} fee${feeCounts.owed === 1 ? '' : 's'}`}
+                href="/admin/fees"
+                emphasize={feeCounts.owed > 0}
               />
+              {feeCounts.toSign > 0 && (
+                <SnapshotRow
+                  label="Fees awaiting sign-off"
+                  value={`${feeCounts.toSign} paid`}
+                  href="/admin/fees"
+                />
+              )}
             </div>
           </section>
         </aside>
