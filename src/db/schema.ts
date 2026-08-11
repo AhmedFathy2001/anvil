@@ -603,6 +603,23 @@ export const clanMembers = sqliteTable('clan_members', {
   // (its stat rose within the window) instead of every tile they've ever progressed — liveStatsAt alone
   // is per-member, so one fishing push otherwise lit them up on every tile. Pruned to the recent window.
   liveStatKeyTimes: text('live_stat_key_times'),
+
+  // ── Adaptive hiscores polling ──────────────────────────────────────────────────────────────────
+  // The sweep used to poll every participating member every tick, whether or not they had played —
+  // a 200-member clan spending 19k requests a day to learn that 160 people were offline. These three
+  // let it poll on evidence instead: after a fetch that changed nothing, the member's next fetch is
+  // pushed further out; any change (or any plugin push, which means they're online right now) snaps
+  // them back to hot. See nextDueAfterMiss() in the stats cron for the ladder.
+  //
+  // This matters more per clan we host than per member: every clan container polls Jagex from the
+  // same box IP, so the per-clan rate limit composes into a per-box one.
+  statsOverallXp: integer('stats_overall_xp'),      // last observed total XP — the change detector
+  statsMissStreak: integer('stats_miss_streak').notNull().default(0),
+  statsNextDueAt: text('stats_next_due_at'),        // null = due now
+  // The member's last seen full snapshot, so the daily rollup can say WHICH metrics moved rather than
+  // just how much total XP did. One row per member, overwritten — bounded, unlike a per-day archive —
+  // and only rewritten on a tick where something actually changed.
+  statsLastSnapshot: text('stats_last_snapshot')
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
@@ -1195,3 +1212,68 @@ export const federationDeviceSessions = sqliteTable('federation_device_sessions'
   brokerToken: text('broker_token'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 });
+
+/**
+ * One compact row per member per day they actually played — the history behind gains-over-time,
+ * best-ever records and dated milestones.
+ *
+ * Deliberately NOT a snapshot archive. Keeping the full skills+bosses payload daily is what grew the
+ * old player_snapshots table to 1.2 GB; this stores the totals plus a delta of only what moved, so a
+ * day of Zulrah is `{"bosses":{"zulrah":140}}` rather than 3 KB of unchanged numbers. A day nobody
+ * played writes nothing at all, and the whole thing costs a clan single-digit MB a year.
+ *
+ * Written by the stats sweep from the snapshot it already holds — no extra hiscores traffic — and
+ * because that read merges the plugin's live overlay, a member running the plugin lands accurate
+ * same-session numbers here without any additional push.
+ *
+ * Records (best day / week / month) are NOT stored: they're a query over these rows, which is at most
+ * 365 tiny rows per member. Nothing to maintain incrementally, nothing to drift.
+ */
+export const memberDailyStats = sqliteTable('member_daily_stats', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // UTC calendar day, 'YYYY-MM-DD'. UTC because every other date in the app is, and a clan spans zones.
+  day: text('day').notNull(),
+
+  // Totals as at the last sweep of that day — the absolute line on a chart.
+  overallXp: integer('overall_xp').notNull(),
+  ehpMilli: integer('ehp_milli').notNull().default(0),
+  ehbMilli: integer('ehb_milli').notNull().default(0),
+
+  // What they gained during the day. Stored rather than derived from consecutive rows, because
+  // inactive days have no row at all — so "yesterday's row" isn't reliably yesterday.
+  xpGained: integer('xp_gained').notNull().default(0),
+  ehpMilliGained: integer('ehp_milli_gained').notNull().default(0),
+  ehbMilliGained: integer('ehb_milli_gained').notNull().default(0),
+
+  // JSON `{ skills: { slayer: 412000 }, bosses: { zulrah: 140 } }` — ONLY metrics that moved.
+  deltas: text('deltas'),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_daily_stats_member_day_idx').on(table.clanMemberId, table.day),
+  index('member_daily_stats_day_idx').on(table.day),
+]);
+
+/**
+ * Dated achievements — a 99, an XP threshold, a boss KC threshold — written the first time we see one
+ * crossed. An event log, not a projection: rows are only ever inserted, and only when something
+ * actually happened, so the write cost is nil on an ordinary tick.
+ *
+ * The date is when WE noticed, which for a member on the plugin is minutes and for everyone else is
+ * within their polling interval. Recorded as `noticedAt` rather than pretending to be the moment it
+ * happened in game.
+ */
+export const memberMilestones = sqliteTable('member_milestones', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // 'level' (99s) | 'xp' | 'kc' | 'ehb' | 'ehp' | 'total'
+  kind: text('kind').notNull(),
+  // The skill or boss key it applies to; null for account-wide ones (total level, EHP, EHB).
+  metric: text('metric'),
+  // The threshold crossed: 99, 50_000_000, 1000 kills…
+  threshold: integer('threshold').notNull(),
+  noticedAt: text('noticed_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_milestones_unique').on(table.clanMemberId, table.kind, table.metric, table.threshold),
+  index('member_milestones_member_idx').on(table.clanMemberId, table.noticedAt),
+]);

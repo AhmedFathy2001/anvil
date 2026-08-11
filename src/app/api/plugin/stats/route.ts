@@ -100,7 +100,17 @@ export async function POST(request: Request) {
     }
     await db
       .update(clanMembers)
-      .set({ liveStats: JSON.stringify(live), liveStatsAt: nowIso, liveStatKeyTimes: JSON.stringify(keyTimes) })
+      .set({
+        liveStats: JSON.stringify(live),
+        liveStatsAt: nowIso,
+        liveStatKeyTimes: JSON.stringify(keyTimes),
+        // A push proves they're logged in and gaining right now, so clear any backoff the sweep had
+        // built up while they were away: the next tick fetches them, and their hiscores reconcile
+        // stays prompt. This is what lets idle members be deferred aggressively without an active
+        // player ever going stale (lib/statHistory.ts).
+        statsMissStreak: 0,
+        statsNextDueAt: null,
+      })
       .where(eq(clanMembers.id, member.clanMemberId));
   }
 
