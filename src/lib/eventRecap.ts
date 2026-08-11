@@ -85,6 +85,10 @@ interface PersonStat {
   kcGained: number;
   deaths: number; // plugin-pushed per-event death count
   lootGpTotal: number; // plugin-pushed total loot GP for the event
+  /** Hardest single hitsplat landed this event (plugin-pushed). */
+  biggestHit: number;
+  /** Minutes actually logged in during the event (plugin-pushed) — the denominator for rates. */
+  minutesPlayed: number;
   /** Tiles finished where this person was the ONLY contributor. */
   soloFinishes: number;
   /** Running sum of this person's share (0..1) of each tile they contributed to, and the count. */
@@ -125,6 +129,8 @@ function emptyStat(personKey: string): PersonStat {
     kcGained: 0,
     deaths: 0,
     lootGpTotal: 0,
+    biggestHit: 0,
+    minutesPlayed: 0,
     soloFinishes: 0,
     shareSum: 0,
     shareCount: 0,
@@ -148,6 +154,18 @@ function bossLabel(key: string | null): string | undefined {
 function skillLabel(key: string | null): string | undefined {
   if (!key) return undefined;
   return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+// An hour of play is the floor for a per-hour rate: below that, one good session reads as an
+// absurd rate and the award stops meaning anything.
+const MIN_MINUTES_FOR_RATE = 60;
+
+// Play time as people say it: "14h 20m", or plain minutes under an hour.
+function formatPlaytime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 // mm:ss for anything under an hour, else h:mm:ss — how OSRS raid timers read.
@@ -246,6 +264,10 @@ async function computeRecap(eventId: number): Promise<{
       s.deaths += p.deaths ?? 0;
       s.lootGpTotal += p.lootGpGained ?? 0;
       s.pvpKillCounter += p.pvpKills ?? 0;
+      // Hardest hit is a record, so take the best across a person's accounts; play time is a
+      // duration, so it sums (two accounts can't be played at once in any meaningful sense).
+      s.biggestHit = Math.max(s.biggestHit, p.biggestHit ?? 0);
+      s.minutesPlayed += p.minutesPlayed ?? 0;
 
       // Biggest single-boss and single-skill grind, diffed out of the hiscores snapshots already on
       // the row. Covers EVERY boss and skill, not just the ones a tile tracks — so the person who
@@ -541,6 +563,28 @@ async function computeRecap(eventId: number): Promise<{
     ),
   );
 
+  pushAward(
+    award('heavy-hitter', '🔨', 'Heavy Hitter', 'Hardest single hit landed', (s) =>
+      s.biggestHit > 0 ? toEntry(s, s.biggestHit, `${s.biggestHit.toLocaleString()} damage`) : null,
+    ),
+  );
+  pushAward(
+    award('no-life', '🕰️', 'Absolutely Locked In', 'Most hours played', (s) =>
+      s.minutesPlayed > 0 ? toEntry(s, s.minutesPlayed, formatPlaytime(s.minutesPlayed)) : null,
+    ),
+  );
+  pushAward(
+    // The counterweight to every "most X" award, which mostly measure who played longest. Needs a
+    // real session behind it so someone who logged in for ten lucky minutes doesn't take it.
+    award('efficient', '⚡', 'Most Efficient', 'Most done per hour played', (s) => {
+      if (s.minutesPlayed < MIN_MINUTES_FOR_RATE) return null;
+      const done = s.tilesFinished + s.submissions;
+      if (done <= 0) return null;
+      const perHour = done / (s.minutesPlayed / 60);
+      return toEntry(s, perHour, `${perHour.toFixed(1)}/hour`, formatPlaytime(s.minutesPlayed));
+    }),
+  );
+
   // ── Derived from data already on the board — no plugin release needed ───────────────────────
 
   pushAward(
@@ -654,6 +698,15 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
     if (pks > 0) stats.push({ key: 'pvp', label: 'PvP kills', value: pks.toLocaleString() });
     if (s.lootGpTotal > 0) stats.push({ key: 'loot', label: 'Loot value', value: `${s.lootGpTotal.toLocaleString()} gp` });
     if (s.deaths > 0) stats.push({ key: 'deaths', label: 'Deaths', value: s.deaths.toLocaleString() });
+    if (s.biggestHit > 0) stats.push({ key: 'hit', label: 'Biggest hit', value: s.biggestHit.toLocaleString() });
+    if (s.minutesPlayed > 0) stats.push({ key: 'played', label: 'Time played', value: formatPlaytime(s.minutesPlayed) });
+    if (s.topBossKc > 0) {
+      stats.push({
+        key: 'top-boss',
+        label: bossLabel(s.topBossName) ?? 'Top boss',
+        value: `${s.topBossKc.toLocaleString()} KC`,
+      });
+    }
     if (s.submissions > 0) stats.push({ key: 'subs', label: 'Submissions', value: s.submissions.toLocaleString() });
   }
 
