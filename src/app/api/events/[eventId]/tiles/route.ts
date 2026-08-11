@@ -491,17 +491,49 @@ export async function POST(
   const nextPosition = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
 
   let label = `Tile ${nextPosition + 1}`;
+  let duplicateOf: number | null = null;
   try {
     const body = await request.json();
     if (body && typeof body.label === 'string' && body.label.trim()) {
       label = body.label.trim().slice(0, 200);
     }
+    if (body && Number.isInteger(body.duplicateOf)) duplicateOf = body.duplicateOf as number;
   } catch {
     /* empty body is fine — fall back to the placeholder label */
   }
 
+  // Duplicating copies the whole row rather than a list of fields the client knows about. A tile has
+  // ~30 configurable columns and gains more with every tile kind; enumerating them anywhere but here
+  // guarantees that the next one silently fails to copy.
+  let source: typeof tiles.$inferSelect | null = null;
+  if (duplicateOf !== null) {
+    source = (await db.query.tiles.findFirst({ where: eq(tiles.id, duplicateOf) })) ?? null;
+    // Scoped to this event: a tile id from another board is not this editor's to read.
+    if (!source || source.eventId !== eId) {
+      return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
+    }
+    label = `${source.label} (copy)`.slice(0, 200);
+  }
+
   const created = await db.transaction(async (tx) => {
-    const [tile] = await tx.insert(tiles).values({ eventId: eId, position: nextPosition, label }).returning();
+    const values = source
+      ? (() => {
+          // Everything except identity, board placement and per-tile progress state: a copy starts
+          // unrevealed and uncompleted, wherever the original had got to.
+          const {
+            id: _id,
+            eventId: _eventId,
+            position: _position,
+            label: _label,
+            revealedAt: _revealedAt,
+            closedAt: _closedAt,
+            updatedAt: _updatedAt,
+            ...config
+          } = source;
+          return { ...config, eventId: eId, position: nextPosition, label };
+        })()
+      : { eventId: eId, position: nextPosition, label };
+    const [tile] = await tx.insert(tiles).values(values).returning();
     // Keep boardSize == tile count so the display helpers (eventTileCount / eventShapeBadge) stay accurate.
     await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
     return tile;
@@ -509,7 +541,7 @@ export async function POST(
 
   logTileAudit({
     eventId: eId,
-    action: 'created',
+    action: source ? 'duplicated' : 'created',
     tileId: created.id,
     tileLabel: created.label,
     newValue: snapshotTile(created),

@@ -270,6 +270,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
+  // Copy a configured tile, whole. Quick Build's actual rhythm is "set one up properly, then make
+  // four more like it" — without this that means re-picking the kind, the item, the source list and
+  // the points every time. The copy is made server-side from the stored row (see the tiles POST), so
+  // it can't quietly miss a field this component doesn't know about.
+  async function duplicateTile(tileId: number) {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duplicateOf: tileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not duplicate that tile.' });
+        return;
+      }
+      const created = data as Tile;
+      setLocalTiles((prev) => [...prev, created]);
+      // Land on the copy: the next thing anyone does is edit the one difference.
+      setEditingTileId(created.id);
+      setSearch('');
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
   function applyPasteLabels() {
     const labels = pasteText.split('\n').map((s) => s.trim()).filter(Boolean);
     setPasteOpen(false);
@@ -959,7 +988,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       {editingTile.label}
                     </h3>
                     {canEditTileSet && (
-                      <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          onClick={() => duplicateTile(editingTile.id)}
+                          disabled={adding}
+                          title="Create a copy of this tile with the same configuration"
+                          className="text-xs text-text-muted hover:text-gold transition-colors disabled:opacity-50"
+                        >
+                          {adding ? 'Duplicating…' : 'Duplicate'}
+                        </button>
+                        <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
+                      </div>
                     )}
                   </div>
                   {lockHolder && (

@@ -233,7 +233,7 @@ export const tileAuditLog = sqliteTable('tile_audit_log', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id'), // no FK — history outlives the tile it describes
   tileLabel: text('tile_label'), // label snapshot at the time of the change
-  // What happened: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered'.
+  // What happened: 'created' | 'updated' | 'deleted' | 'duplicated' | 'imported' | 'reordered'.
   action: text('action').notNull(),
   // For 'updated': JSON array of { field, label, from, to } for each changed column.
   changedFields: text('changed_fields'),

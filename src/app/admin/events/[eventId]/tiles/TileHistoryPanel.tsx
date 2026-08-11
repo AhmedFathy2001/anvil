@@ -13,7 +13,7 @@ interface HistoryEntry {
   id: number;
   tileId: number | null;
   tileLabel: string | null;
-  action: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered';
+  action: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered' | 'duplicated';
   changedFields: string | null;
   oldValue: string | null;
   newValue: string | null;
@@ -28,12 +28,14 @@ const ACTION_META: Record<HistoryEntry['action'], { label: string; cls: string }
   deleted: { label: 'Deleted', cls: 'bg-red-400/10 text-red-400 border-red-400/25' },
   imported: { label: 'Imported', cls: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
   reordered: { label: 'Reordered', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
+  duplicated: { label: 'Duplicated', cls: 'bg-accent-green/10 text-accent-green-light border-accent-green/25' },
 };
 
 const FILTERS: { key: 'all' | HistoryEntry['action']; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'updated', label: 'Edits' },
   { key: 'created', label: 'Created' },
+  { key: 'duplicated', label: 'Duplicated' },
   { key: 'deleted', label: 'Deleted' },
   { key: 'imported', label: 'Imports' },
   { key: 'reordered', label: 'Reorders' },

@@ -11,7 +11,7 @@ import { tileAuditLog, type tiles } from '@/db/schema';
 
 type TileRow = typeof tiles.$inferSelect;
 
-export type TileAuditAction = 'created' | 'updated' | 'deleted' | 'imported' | 'reordered';
+export type TileAuditAction = 'created' | 'updated' | 'deleted' | 'duplicated' | 'imported' | 'reordered';
 
 export interface FieldChange {
   field: string;
