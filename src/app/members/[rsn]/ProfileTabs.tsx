@@ -4,21 +4,28 @@ import { useMemo, useState } from 'react';
 import { ActivityHeatmap, Bar, LineChart, ProgressRing } from '@/components/stats/Charts';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
-import type { DailyPoint, MemberProfile, MilestoneRow, PeriodRecord } from '@/lib/memberProfile';
+import type {
+  CompetitionHistory,
+  DailyPoint,
+  MemberProfile,
+  MilestoneRow,
+  PeriodRecord,
+} from '@/lib/memberProfile';
 
 // Every tab renders from data the server already sent, so switching is instant and costs nothing.
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'overview' | 'gained' | 'records' | 'achievements';
+type Tab = 'stats' | 'progress' | 'trophies' | 'bests' | 'milestones';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'gained', label: 'Gained' },
-  { key: 'records', label: 'Records' },
-  { key: 'achievements', label: 'Achievements' },
+  { key: 'stats', label: 'Stats' },
+  { key: 'progress', label: 'Progress' },
+  { key: 'trophies', label: 'Trophies' },
+  { key: 'bests', label: 'Bests' },
+  { key: 'milestones', label: 'Milestones' },
 ];
 
 const bossLabel = (key: string) => BOSSES.find((b) => b.key === key)?.label ?? key;
@@ -68,13 +75,15 @@ export default function ProfileTabs({
   series,
   records,
   milestones,
+  history,
 }: {
   profile: MemberProfile;
   series: DailyPoint[];
   records: PeriodRecord[];
   milestones: MilestoneRow[];
+  history: CompetitionHistory;
 }) {
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('stats');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
 
@@ -104,6 +113,12 @@ export default function ProfileTabs({
     [series],
   );
   const windowTotal = chartPoints.reduce((sum, p) => sum + p.value, 0);
+  // How much history there is to draw. A brand-new install has a day or two, and a heatmap of 90
+  // empty squares looks broken rather than new — so say which it is.
+  const activeDays = series.filter((p) => p.ehpGained + p.ehbGained + p.xpGained > 0).length;
+  const trackedFor = series.length;
+  const totalWins = history.eventWins + history.weeklyWins;
+  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`);
 
   const maxSkillEhp = Math.max(...profile.skills.map((s) => s.ehp), 0.01);
   const maxBossEhb = Math.max(...profile.bosses.map((b) => b.ehb), 0.01);
@@ -130,14 +145,17 @@ export default function ProfileTabs({
             }`}
           >
             {t.label}
-            {t.key === 'achievements' && milestones.length > 0 && (
+            {t.key === 'milestones' && milestones.length > 0 && (
               <span className="ml-1.5 text-[10px] text-text-muted">{milestones.length}</span>
+            )}
+            {t.key === 'trophies' && totalWins > 0 && (
+              <span className="ml-1.5 text-[10px] text-gold">{totalWins}🏆</span>
             )}
           </button>
         ))}
       </div>
 
-      {tab === 'overview' && (
+      {tab === 'stats' && (
         <>
           {nearest99s.length > 0 && (
             <Section title="Nearest 99s">
@@ -154,13 +172,18 @@ export default function ProfileTabs({
             </Section>
           )}
 
-          {heatDays.length > 0 && (
-            <Section title="Activity" aside="efficient hours gained, last 90 days">
-              <div className="border border-card-border rounded-xl bg-card-bg p-4">
+          <Section title="Activity" aside="efficient hours gained, last 90 days">
+            <div className="border border-card-border rounded-xl bg-card-bg p-4">
+              {activeDays > 0 ? (
                 <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
-              </div>
-            </Section>
-          )}
+              ) : (
+                <p className="text-sm text-text-muted py-6 text-center">
+                  Nothing to plot yet — daily tracking started {trackedFor === 0 ? 'today' : `${trackedFor} day${trackedFor === 1 ? '' : 's'} ago`},
+                  and this fills in as they play.
+                </p>
+              )}
+            </div>
+          </Section>
 
           <Section title="Skills" aside="by hours invested">
             <div className="border border-card-border rounded-xl overflow-hidden">
@@ -224,7 +247,7 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'gained' && (
+      {tab === 'progress' && (
         <Section title="Gained over time">
           <div className="border border-card-border rounded-xl bg-card-bg p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -259,8 +282,102 @@ export default function ProfileTabs({
         </Section>
       )}
 
-      {tab === 'records' && (
-        <Section title="Records" aside="best stretch we've recorded">
+      {tab === 'trophies' && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3">
+              <div className="text-[11px] uppercase tracking-widest text-text-muted">Events played</div>
+              <div className="text-xl font-bold text-gold tabular-nums mt-0.5">{history.events.length}</div>
+            </div>
+            <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3">
+              <div className="text-[11px] uppercase tracking-widest text-text-muted">Bingos won</div>
+              <div className="text-xl font-bold text-gold tabular-nums mt-0.5">{history.eventWins}</div>
+              {history.eventPodiums > history.eventWins && (
+                <div className="text-[11px] text-text-muted mt-0.5">{history.eventPodiums} podiums</div>
+              )}
+            </div>
+            <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3">
+              <div className="text-[11px] uppercase tracking-widest text-text-muted">Weeklies won</div>
+              <div className="text-xl font-bold text-gold tabular-nums mt-0.5">{history.weeklyWins}</div>
+              {history.weeklyPodiums > history.weeklyWins && (
+                <div className="text-[11px] text-text-muted mt-0.5">{history.weeklyPodiums} podiums</div>
+              )}
+            </div>
+            <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3">
+              <div className="text-[11px] uppercase tracking-widest text-text-muted">Points scored</div>
+              <div className="text-xl font-bold text-gold tabular-nums mt-0.5">
+                {Math.round(history.totalPoints).toLocaleString()}
+              </div>
+              <div className="text-[11px] text-text-muted mt-0.5">across all bingos</div>
+            </div>
+          </div>
+
+          {history.events.length === 0 && history.weeklies.length === 0 ? (
+            <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
+              Nothing here yet — this fills in when they finish a bingo or a weekly competition.
+            </p>
+          ) : (
+            <>
+              {history.events.length > 0 && (
+                <Section title="Bingos" aside="most recent first">
+                  <div className="border border-card-border rounded-xl overflow-hidden">
+                    {history.events.map((e, i) => (
+                      <div
+                        key={e.eventId}
+                        className={`grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] sm:grid-cols-[minmax(0,1fr)_7rem_5rem_5rem] gap-2 px-4 py-2.5 text-sm items-center ${i % 2 ? 'bg-card-bg' : 'bg-tile-bg'}`}
+                      >
+                        <span className="min-w-0 truncate">{e.name}</span>
+                        <span className="hidden sm:block text-xs text-text-muted">
+                          {e.endedOn ? new Date(e.endedOn).toLocaleDateString() : '—'}
+                        </span>
+                        <span className="text-right tabular-nums text-text-muted">
+                          {Math.round(e.points).toLocaleString()} pts
+                        </span>
+                        <span className={`text-right tabular-nums ${e.teamRank === 1 ? 'text-gold' : 'text-text-muted'}`}>
+                          {e.teamRank ? `${medal(e.teamRank)}${e.teamsTotal ? ` /${e.teamsTotal}` : ''}` : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Placing is their TEAM&rsquo;s finish; points are what they personally contributed.
+                  </p>
+                </Section>
+              )}
+
+              {history.weeklies.length > 0 && (
+                <Section title="Weekly competitions" aside="most recent first">
+                  <div className="border border-card-border rounded-xl overflow-hidden">
+                    {history.weeklies.map((w, i) => (
+                      <div
+                        key={w.competitionId}
+                        className={`grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] sm:grid-cols-[minmax(0,1fr)_7rem_5rem_5rem] gap-2 px-4 py-2.5 text-sm items-center ${i % 2 ? 'bg-card-bg' : 'bg-tile-bg'}`}
+                      >
+                        <span className="min-w-0 truncate">{w.title}</span>
+                        <span className="hidden sm:block text-xs text-text-muted">
+                          {new Date(w.endedOn).toLocaleDateString()}
+                        </span>
+                        <span className="text-right tabular-nums text-text-muted">
+                          {w.type === 'efficiency' ? `${(w.gained / 1000).toFixed(2)}h` : fmtXp(w.gained)}
+                        </span>
+                        <span className={`text-right tabular-nums ${w.rank === 1 ? 'text-gold' : 'text-text-muted'}`}>
+                          {medal(w.rank)}/{w.entrants}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Placed against everyone who actually scored, not everyone enrolled.
+                  </p>
+                </Section>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {tab === 'bests' && (
+        <Section title="Personal bests" aside="the biggest stretch we've recorded">
           {records.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
               Nothing yet. Records build from daily history, so they appear once they&rsquo;ve played a
@@ -293,8 +410,8 @@ export default function ProfileTabs({
         </Section>
       )}
 
-      {tab === 'achievements' && (
-        <Section title="Achievements" aside="milestones as we noticed them">
+      {tab === 'milestones' && (
+        <Section title="Milestones" aside="as we noticed them">
           {milestones.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
               None recorded yet. These are logged the first time we see one crossed, so they start

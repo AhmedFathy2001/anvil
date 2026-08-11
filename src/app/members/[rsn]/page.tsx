@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
+  getCompetitionHistory,
   getDailySeries,
   getMemberProfile,
   getMilestones,
@@ -54,11 +55,12 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   if (!profile) notFound();
 
   // All four tabs' data in one round trip — every query is small and the tabs then switch instantly.
-  const [milestones, records, series, standings] = await Promise.all([
+  const [milestones, records, series, standings, history] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
     getStandings(profile.id),
+    getCompetitionHistory(profile.id, profile.rsn),
   ]);
 
   const eff = profile.efficiency;
@@ -129,7 +131,13 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      <ProfileTabs profile={profile} series={series} records={records} milestones={milestones} />
+      <ProfileTabs
+        profile={profile}
+        series={series}
+        records={records}
+        milestones={milestones}
+        history={history}
+      />
     </main>
   );
 }
