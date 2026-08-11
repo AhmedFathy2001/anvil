@@ -52,6 +52,8 @@ export default function WeeklyManagementClient() {
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  // Guests race too unless the admin says otherwise — the clan roster is the entry list.
+  const [includeGuests, setIncludeGuests] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -96,7 +98,7 @@ export default function WeeklyManagementClient() {
     const res = await fetch('/api/admin/weekly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, metric, title, startDate, endDate }),
+      body: JSON.stringify({ type, metric, title, startDate, endDate, includeGuests }),
     });
 
     if (!res.ok) {
@@ -471,6 +473,22 @@ export default function WeeklyManagementClient() {
               }}
               required
             />
+
+            <div>
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeGuests}
+                  onChange={(e) => setIncludeGuests(e.target.checked)}
+                  className="h-4 w-4 accent-gold"
+                />
+                <span className="text-sm">Include guests</span>
+              </label>
+              <p className="text-[11px] text-text-muted mt-1.5 leading-snug">
+                Everyone on the clan roster is entered automatically — no sign-up needed. Untick to
+                keep this one to full members; you can still add or remove individuals afterwards.
+              </p>
+            </div>
 
 
             {createError && <p className="text-red-400 text-sm">{createError}</p>}
