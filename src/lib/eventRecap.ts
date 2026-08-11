@@ -7,6 +7,8 @@ import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { isPointsMode } from '@/lib/utils';
+import { biggestGain, isEarlyHour, isNightHour, localHour } from '@/lib/recapDerive';
+import { BOSSES } from '@/lib/constants';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Event "recap" — the fun end-of-event superlatives ("Warmonger", "Big Baller", "Speed Demon", …).
@@ -83,6 +85,21 @@ interface PersonStat {
   kcGained: number;
   deaths: number; // plugin-pushed per-event death count
   lootGpTotal: number; // plugin-pushed total loot GP for the event
+  /** Tiles finished where this person was the ONLY contributor. */
+  soloFinishes: number;
+  /** Running sum of this person's share (0..1) of each tile they contributed to, and the count. */
+  shareSum: number;
+  shareCount: number;
+  /** Timestamped actions bucketed by local hour — drives Night Owl / Early Bird. */
+  nightActions: number;
+  earlyActions: number;
+  timedActions: number;
+  /** Biggest single-boss KC grind this event, from the hiscores snapshots we already store. */
+  topBossKc: number;
+  topBossName: string | null;
+  /** Same, for a single skill's XP. */
+  topSkillXp: number;
+  topSkillName: string | null;
 }
 
 function emptyStat(personKey: string): PersonStat {
@@ -108,7 +125,29 @@ function emptyStat(personKey: string): PersonStat {
     kcGained: 0,
     deaths: 0,
     lootGpTotal: 0,
+    soloFinishes: 0,
+    shareSum: 0,
+    shareCount: 0,
+    nightActions: 0,
+    earlyActions: 0,
+    timedActions: 0,
+    topBossKc: 0,
+    topBossName: null,
+    topSkillXp: 0,
+    topSkillName: null,
   };
+}
+
+// Hiscores keys are camelCase ("theatreOfBlood"); show players the name they use. Lives here rather
+// than in lib/recapDerive so that module can stay import-free for the test runner.
+function bossLabel(key: string | null): string | undefined {
+  if (!key) return undefined;
+  return BOSSES.find((b) => b.key === key)?.label ?? key;
+}
+
+function skillLabel(key: string | null): string | undefined {
+  if (!key) return undefined;
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 // mm:ss for anything under an hour, else h:mm:ss — how OSRS raid timers read.
@@ -165,6 +204,7 @@ async function computeRecap(eventId: number): Promise<{
           creditPlayerId: submissions.creditPlayerId,
           amount: submissions.amount,
           durationSeconds: submissions.durationSeconds,
+          createdAt: submissions.createdAt,
         })
         .from(submissions)
         .where(inArray(submissions.tileId, tileIds))
@@ -206,6 +246,21 @@ async function computeRecap(eventId: number): Promise<{
       s.deaths += p.deaths ?? 0;
       s.lootGpTotal += p.lootGpGained ?? 0;
       s.pvpKillCounter += p.pvpKills ?? 0;
+
+      // Biggest single-boss and single-skill grind, diffed out of the hiscores snapshots already on
+      // the row. Covers EVERY boss and skill, not just the ones a tile tracks — so the person who
+      // spent the whole event at a boss nobody scored still gets their due. Keep the best across a
+      // person's accounts rather than summing: "1,204 Zulrah" is the story, not a merged total.
+      const boss = biggestGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats, 'bosses');
+      if (boss && boss.gained > s.topBossKc) {
+        s.topBossKc = boss.gained;
+        s.topBossName = boss.name;
+      }
+      const skill = biggestGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats, 'skills');
+      if (skill && skill.gained > s.topSkillXp) {
+        s.topSkillXp = skill.gained;
+        s.topSkillName = skill.name;
+      }
     }
     if (!s.name) {
       s.name = p.name;
@@ -261,10 +316,66 @@ async function computeRecap(eventId: number): Promise<{
     }
   }
 
-  // Completion credit → "Closer".
+  // When did people actually play? Bucket every timestamped action in the actor's own timezone.
+  const timezoneByPlayerId = new Map(eventPlayers.map((p) => [p.id, p.timezone]));
+  const bucketAction = (playerId: number | null | undefined, iso: string | null | undefined) => {
+    const s = stat(playerId);
+    if (!s || !iso) return;
+    const hour = localHour(iso, playerId != null ? timezoneByPlayerId.get(playerId) : null);
+    if (hour == null) return;
+    s.timedActions += 1;
+    if (isNightHour(hour)) s.nightActions += 1;
+    else if (isEarlyHour(hour)) s.earlyActions += 1;
+  };
+  for (const sub of eventSubmissions) bucketAction(sub.creditPlayerId, sub.createdAt);
+
+  // Completion credit → "Closer", plus who finished tiles alone.
+  //
+  // Two kinds of tile need two sources for "alone". Stat tiles carry a frozen contribution split
+  // (who gained what at the moment it completed); submission-backed tiles don't, so the split is
+  // rebuilt from the submissions on that tile+team. Either way a person's share is their slice of
+  // the work — share == 1 means nobody else touched it.
+  const submissionSplit = new Map<string, Map<number, number>>(); // `tileId:teamId` → playerId → amount
+  for (const sub of eventSubmissions) {
+    if (sub.creditPlayerId == null) continue;
+    const key = `${sub.tileId}:${sub.teamId}`;
+    let split = submissionSplit.get(key);
+    if (!split) {
+      split = new Map();
+      submissionSplit.set(key, split);
+    }
+    split.set(sub.creditPlayerId, (split.get(sub.creditPlayerId) ?? 0) + Math.max(0, sub.amount));
+  }
+
   for (const c of eventCompletions) {
     const s = stat(c.creditPlayerId);
     if (s) s.tilesFinished += 1;
+    bucketAction(c.creditPlayerId, c.completedAt);
+
+    // Per-person shares of this tile. Merge by personKey first, so a multi-account person doesn't
+    // read as two contributors carrying each other.
+    const byKey = new Map<string, number>();
+    const addShare = (playerId: number | null | undefined, amount: number) => {
+      if (playerId == null || amount <= 0) return;
+      const key = personKeyByPlayerId.get(playerId);
+      if (!key) return;
+      byKey.set(key, (byKey.get(key) ?? 0) + amount);
+    };
+    if (c.statContributions?.split?.length) {
+      for (const part of c.statContributions.split) addShare(part.playerId, part.gained);
+    } else {
+      const split = submissionSplit.get(`${c.tileId}:${c.teamId}`);
+      if (split) for (const [playerId, amount] of split) addShare(playerId, amount);
+    }
+    const total = [...byKey.values()].reduce((a, b) => a + b, 0);
+    if (total <= 0) continue;
+    for (const [key, amount] of byKey) {
+      const person = byPerson.get(key);
+      if (!person) continue;
+      person.shareSum += amount / total;
+      person.shareCount += 1;
+      if (byKey.size === 1) person.soloFinishes += 1;
+    }
   }
 
   // Stat-tile XP / KC gained (frozen split ∪ live overlay, already reconciled by getStatStandings).
@@ -427,6 +538,64 @@ async function computeRecap(eventId: number): Promise<{
   pushAward(
     award('wipe-magnet', '💀', 'Wipe Magnet', 'Died the most', (s) =>
       s.deaths > 0 ? toEntry(s, s.deaths, `${s.deaths.toLocaleString()} ${s.deaths === 1 ? 'death' : 'deaths'}`) : null,
+    ),
+  );
+
+  // ── Derived from data already on the board — no plugin release needed ───────────────────────
+
+  pushAward(
+    award('solo-act', '🧍', 'Solo Act', 'Finished the most tiles single-handed', (s) =>
+      s.soloFinishes > 0
+        ? toEntry(s, s.soloFinishes, `${s.soloFinishes} ${s.soloFinishes === 1 ? 'tile' : 'tiles'} alone`)
+        : null,
+    ),
+  );
+  pushAward(
+    // The gentle inverse of Solo Act: present on plenty of tiles, small slice of each. Needs a few
+    // contributions before it means anything — one lucky assist shouldn't win it.
+    award(
+      'the-passenger',
+      '🚗',
+      'The Passenger',
+      'Along for the ride on the most tiles',
+      (s) => {
+        if (s.shareCount < 3 || s.soloFinishes > 0) return null;
+        const avg = s.shareSum / s.shareCount;
+        if (avg >= 0.34) return null; // a real third of the work isn't a passenger
+        return toEntry(s, avg, `${Math.round(avg * 100)}% average share`, `${s.shareCount} tiles`);
+      },
+      { asc: true },
+    ),
+  );
+  pushAward(
+    // Needs a real sample: a person with two submissions at 2am isn't nocturnal, they're unlucky.
+    award('night-owl', '🦉', 'Night Owl', 'Most active after midnight', (s) => {
+      if (s.timedActions < 5 || s.nightActions === 0) return null;
+      const pct = Math.round((s.nightActions / s.timedActions) * 100);
+      return toEntry(s, s.nightActions, `${s.nightActions} after midnight`, `${pct}% of their play`);
+    }),
+  );
+  pushAward(
+    award('early-bird', '🐓', 'Early Bird', 'Most dawn-patrol activity', (s) => {
+      if (s.timedActions < 5 || s.earlyActions === 0) return null;
+      const pct = Math.round((s.earlyActions / s.timedActions) * 100);
+      return toEntry(s, s.earlyActions, `${s.earlyActions} before 9am`, `${pct}% of their play`);
+    }),
+  );
+  pushAward(
+    // Every boss on the hiscores counts, not just the ones a tile tracks — the person who sank the
+    // event into one boss gets it whether or not the board rewarded that boss.
+    award('tunnel-vision', '🎯', 'Tunnel Vision', 'Most kills at a single boss', (s) =>
+      s.topBossKc > 0
+        ? toEntry(s, s.topBossKc, `${s.topBossKc.toLocaleString()} KC`, bossLabel(s.topBossName))
+        : null,
+    ),
+  );
+  pushAward(
+    award('one-track-mind', '📚', 'One-Track Mind', 'Most XP poured into a single skill', (s) =>
+      s.topSkillXp > 0
+        ? toEntry(s, s.topSkillXp, `${s.topSkillXp.toLocaleString()} XP`, skillLabel(s.topSkillName))
+        : null,
     ),
   );
 
