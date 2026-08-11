@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS } from "@/lib/constants";
+import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
@@ -71,6 +72,21 @@ function parseGp(raw: string): number | null {
 
 // Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
 const DIARY_ANY = 'Any';
+
+// Everything a KC-style tile can track: the boss map plus the non-boss hiscores counters (clue
+// tiers, GOTR rifts, Bounty Hunter, LMS, Soul Wars, Colosseum glory, collection-log slots). One list
+// so the picker, the chips and the CSV importer can't drift apart on what's selectable.
+const TRACKABLE_KC_OPTIONS = [
+  ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
+  ...HISCORES_ACTIVITIES.map((a) => ({ value: a.key, label: a.label, keywords: a.aliases })),
+];
+
+const TRACKABLE_KC_LABELS = new Map(TRACKABLE_KC_OPTIONS.map((o) => [o.value, o.label]));
+
+/** Display label for a tracked key, falling back to the raw key so nothing renders blank. */
+function trackedKeyLabel(key: string): string {
+  return TRACKABLE_KC_LABELS.get(key) ?? key;
+}
 
 // Activity hints for timed tiles. The free-text field accepts any name the plugin can time —
 // anything that prints a "duration:" / "completion time:" / "Time:" / "Subdued in" chat line
@@ -1228,12 +1244,12 @@ export default function TileTrackingConfig({
                       key={key}
                       className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-gold/15 border border-gold/30 text-gold"
                     >
-                      {BOSSES.find((b) => b.key === key)?.label ?? key}
+                      {trackedKeyLabel(key)}
                       <button
                         type="button"
                         onClick={() => setTrackedStat(statKeys(trackedStat).filter((k) => k !== key).join(','))}
                         className="text-red-400 hover:text-red-300 flex-shrink-0"
-                        aria-label={`Remove ${BOSSES.find((b) => b.key === key)?.label ?? key}`}
+                        aria-label={`Remove ${trackedKeyLabel(key)}`}
                       >
                         &times;
                       </button>
@@ -1248,13 +1264,14 @@ export default function TileTrackingConfig({
                   const keys = statKeys(trackedStat);
                   if (!keys.includes(key)) setTrackedStat([...keys, key].join(','));
                 }}
-                placeholder={statKeys(trackedStat).length > 0 ? 'Add another boss...' : 'Select a boss...'}
-                ariaLabel="Boss"
-                options={BOSSES.filter((b) => !statKeys(trackedStat).includes(b.key)).map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))}
+                placeholder={statKeys(trackedStat).length > 0 ? 'Add another...' : 'Select a boss or activity...'}
+                ariaLabel="Boss or activity"
+                options={TRACKABLE_KC_OPTIONS.filter((o) => !statKeys(trackedStat).includes(o.value))}
               />
               <p className="text-[10px] text-text-muted mt-0.5">
                 Add more than one to combine modes — e.g. <span className="text-foreground/70">Chambers of Xeric</span> +{' '}
-                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal.
+                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal. Non-boss
+                hiscores counters (clues, Guardians of the Rift, Bounty Hunter…) work the same way.
               </p>
             </div>
           )}

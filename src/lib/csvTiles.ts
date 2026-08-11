@@ -56,6 +56,7 @@ export const TILE_CSV_COLUMNS = [
 
 import type { Tile } from '@/lib/types';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 
 export interface TileCsvItem {
   /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
@@ -241,6 +242,13 @@ function normalizeTrackedStat(raw: string): { key: string; type: 'skill' | 'boss
   }
   for (const b of BOSSES) {
     if (b.key.toLowerCase() === s || b.label.toLowerCase() === s) return { key: b.key, type: 'boss' };
+  }
+  // Non-boss hiscores counters (clue tiers, GOTR, Bounty Hunter, …) count as 'boss' type: they're
+  // score counters, read the same way, and share the tile's KC semantics. Aliases are accepted here
+  // because a spreadsheet row is hand-typed — "gotr" should work as well as "riftsClosed".
+  for (const a of HISCORES_ACTIVITIES) {
+    if (a.key.toLowerCase() === s || a.label.toLowerCase() === s) return { key: a.key, type: 'boss' };
+    if (a.aliases?.some((alias) => alias.toLowerCase() === s)) return { key: a.key, type: 'boss' };
   }
   return null;
 }

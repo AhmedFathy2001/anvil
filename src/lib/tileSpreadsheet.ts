@@ -16,6 +16,7 @@ import ExcelJS from 'exceljs';
 import type { Event, Tile } from '@/lib/types';
 import { TILE_CSV_COLUMNS, tileToCsvCells, parseTileGrid, type ParsedTileCsv } from '@/lib/csvTiles';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 import type { MappingItem } from '@/lib/osrsItems';
 
 const GOLD = 'FFC9A24B';
@@ -59,7 +60,10 @@ export async function buildTileSpreadsheet(opts: {
   ];
   for (const k of SKILLS) keys.addRow([k, 'skill', SKILL_LABELS[k] ?? k]);
   for (const b of BOSSES) keys.addRow([b.key, 'boss', b.label]);
-  const keyCount = SKILLS.length + BOSSES.length;
+  // The non-boss hiscores counters are just as trackable and far less discoverable, so they're
+  // listed here rather than left for someone to guess.
+  for (const a of HISCORES_ACTIVITIES) keys.addRow([a.key, 'boss', a.label]);
+  const keyCount = SKILLS.length + BOSSES.length + HISCORES_ACTIVITIES.length;
   styleHeaderRow(keys.getRow(1));
   keys.views = [{ state: 'frozen', ySplit: 1 }];
   keys.autoFilter = 'A1:C1';

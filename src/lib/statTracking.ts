@@ -1,4 +1,5 @@
 import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { isActivityKey, readActivityScore } from '@/lib/hiscoresActivities';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The single definition of a hiscores-backed stat gain, shared by every consumer: the unified stat
@@ -73,6 +74,11 @@ export function snapshotValue(
     const xp = snap.skills?.[key]?.xp ?? 0;
     return xp < 0 ? 0 : xp;
   }
+  // Non-boss hiscores entries (GOTR rifts, clue tiers, Bounty Hunter, LMS, Soul Wars, clog slots)
+  // live outside the `bosses` map, each at its own path. Checked before the boss lookup because a
+  // miss there returns a silent 0 — which is how "close 100 rifts" would look like a tile that
+  // simply never progresses. Keys can't collide: activity keys are distinct from every boss key.
+  if (isActivityKey(key)) return readActivityScore(snap, key);
   const score = snap.bosses?.[key]?.score ?? 0;
   return score < 0 ? 0 : score;
 }
