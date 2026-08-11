@@ -501,6 +501,12 @@ export const weeklyCompetitions = sqliteTable('weekly_competitions', {
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('upcoming'), // 'upcoming' | 'active' | 'completed'
+  // Whether auto-enrollment sweeps in guests (clan_members.is_guest = 1) alongside full members.
+  // Per-competition, set at creation and default ON — a weekly is a clan-wide activity and most
+  // clans want everyone on the roster racing. Turn it off for a members-only comp. Supersedes the
+  // old clan-wide `weekly_track_guests` setting, which now only seeds the create form's default;
+  // competitions that predate this column were backfilled from it (migration 0043).
+  includeGuests: integer('include_guests').notNull().default(1),
 });
 
 export const weeklyParticipants = sqliteTable('weekly_participants', {

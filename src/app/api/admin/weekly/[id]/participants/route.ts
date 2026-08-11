@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers, settings, weeklyParticipants } from '@/db/schema';
+import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, getTableColumns, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 
@@ -33,8 +33,13 @@ export async function GET(
   //   notEnrolled — active roster members (per the guest setting) with no participant row.
   //   duplicates  — roster rows that collapse to the same normalized RSN; the unique index
   //                 silently absorbs the second one at enroll time.
-  const guestsRow = await db.query.settings.findFirst({ where: eq(settings.key, 'weekly_track_guests') });
-  const trackGuests = guestsRow?.value === 'true';
+  // Guest inclusion is per-competition (weekly_competitions.include_guests), set when the comp was
+  // created. Missing row → treat as included, matching the column default.
+  const compRow = await db.query.weeklyCompetitions.findFirst({
+    where: eq(weeklyCompetitions.id, compId),
+    columns: { includeGuests: true },
+  });
+  const trackGuests = compRow?.includeGuests !== 0;
   const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
   // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
   // "124 of 125" is usually one member sitting outside the enrollment filter.
@@ -45,8 +50,8 @@ export async function GET(
   const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.isGuest === 0);
   const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
   const notEnrolled = roster.filter((m) => !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
-  // Active members excluded from auto-enrollment by the guest filter (named so the admin
-  // can add them manually or flip weekly_track_guests / their guest flag).
+  // Active members excluded from auto-enrollment by this comp's guest setting (named so the admin
+  // can add them manually or clear their guest flag).
   const guestsExcluded = trackGuests
     ? []
     : fullRoster.filter((m) => m.isGuest === 1 && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);

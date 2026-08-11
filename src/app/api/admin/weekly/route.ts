@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate } = await request.json();
+  const { type, metric, title, startDate, endDate, includeGuests } = await request.json();
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -66,6 +66,9 @@ export async function POST(request: Request) {
     endDate,
     createdById: user.userId > 0 ? user.userId : null,
     status,
+    // Guests race alongside members unless the admin unticked the box. Absent (an older client)
+    // means include — the clan roster is the entry list, and a weekly is a clan-wide activity.
+    includeGuests: includeGuests === false ? 0 : 1,
   }).returning();
 
   const comp = result[0];
