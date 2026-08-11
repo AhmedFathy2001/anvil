@@ -15,7 +15,7 @@ import {
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import LocalTime from '@/components/LocalTime';
 import EventTimer from '@/components/EventTimer';
-import { SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILL_LABELS, BOSSES, EFFICIENCY_LABELS, weeklyKindLabel } from '@/lib/constants';
 import { eventTileCount, eventShapeBadge, tileWeight, isPointsMode } from '@/lib/utils';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { signupWindowState } from '@/lib/signup';
@@ -25,6 +25,9 @@ export const dynamic = 'force-dynamic';
 
 function metricLabel(comp: { type: string; metric: string }): string {
   if (comp.type === 'skill') return SKILL_LABELS[comp.metric] ?? comp.metric;
+  // An efficiency comp's metric is 'ehp'/'ehb', which isn't a boss key — without this it fell
+  // through to the raw key and rendered lowercase.
+  if (comp.type === 'efficiency') return EFFICIENCY_LABELS[comp.metric] ?? comp.metric.toUpperCase();
   return BOSSES.find((b) => b.key === comp.metric)?.label ?? comp.metric;
 }
 
@@ -275,7 +278,7 @@ export default async function HomePage() {
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="min-w-0">
                       <div className="text-xs uppercase tracking-wider text-text-muted mb-1">
-                        {w.type === 'skill' ? 'Skill of the Week' : 'Boss of the Week'}
+                        {weeklyKindLabel(w.type)}
                       </div>
                       <h3 className="text-lg font-semibold text-foreground group-hover:text-blue-300 transition-colors truncate">
                         {w.title}
@@ -305,7 +308,7 @@ export default async function HomePage() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="text-xs uppercase tracking-wider text-text-muted mb-1">
-                    {activeWeekly.type === 'skill' ? 'Skill of the Week' : 'Boss of the Week'}
+                    {weeklyKindLabel(activeWeekly.type)}
                   </div>
                   <h2 className="text-2xl font-bold text-gold">{activeWeekly.title}</h2>
                   <div className="text-sm text-text-muted mt-1">{metricLabel(activeWeekly)}</div>
