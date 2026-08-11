@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
+import { countProgress } from '@/lib/countProgress';
 
 interface DropProgress {
   current: number;
@@ -26,7 +27,10 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
         && tile.requiredAmount
       ) {
         const tileSubs = submissions.filter((s) => s.tileId === tile.id);
-        const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
+        // Mode-aware (lib/countProgress — the same rule the server completes on): Team Total sums the
+        // team, Solo shows the best single member's count, so the bar can't read 10/10 on a tile that
+        // needs one member to get there alone.
+        const { current } = countProgress(tileSubs, tile.trackingMode);
         dropProgress.set(tile.id, { current, required: tile.requiredAmount });
 
         if (tile.itemRequirements) {

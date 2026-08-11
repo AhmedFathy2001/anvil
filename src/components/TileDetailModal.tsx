@@ -12,6 +12,7 @@ import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
 import { statLabel } from '@/lib/tileKinds';
+import { isIndividualMode } from '@/lib/statTracking';
 import { submissionHasProof } from '@/lib/submissionProof';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -520,7 +521,14 @@ export default function TileDetailModal({
           {isCount && dropProgress && (
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-text-muted">Progress</span>
+                {/* A Solo tile completes on one member's own count, so its bar is the best single
+                    member's — labelled, or "12/10" on a tile nobody has finished reads as a bug. */}
+                <span className="text-text-muted">
+                  Progress
+                  {isIndividualMode(tile.trackingMode) && (
+                    <span className="text-text-muted/60 ml-1">(best member — solo tile)</span>
+                  )}
+                </span>
                 <span className="font-medium text-accent-green-light">
                   {dropProgress.current}/{dropProgress.required}
                 </span>

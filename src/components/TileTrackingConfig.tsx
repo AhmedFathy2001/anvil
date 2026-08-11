@@ -317,6 +317,71 @@ function extractCountLikeNumbers(text: string): number[] {
   return out;
 }
 
+// Hover hint next to a flag's label. Native title tooltip (same pattern as PlayerRatingBadge) so it
+// works on every surface the tile editor is embedded in without a popover dependency.
+function FlagHint({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="ml-1 cursor-help text-gold/70 border border-gold/40 rounded-full px-[5px] text-[9px] leading-[14px] inline-block align-middle"
+    >
+      i
+    </span>
+  );
+}
+
+// Team Total vs Solo — one control, rendered by every kind that stores a tracking mode, so the
+// wording of what the flag DOES is written once. `unit` is the kind's countable noun ("kills",
+// "task completions") and `goal` names what a member has to reach on their own.
+function TrackingModeField({
+  value,
+  onChange,
+  unit,
+  goal,
+}: {
+  value: string;
+  onChange: (mode: string) => void;
+  unit: string;
+  goal: string;
+}) {
+  const teamHelp = `Team Total — every member's ${unit} add up toward the ${goal}. Three members with 4, 3 and 3 finish a tile that needs 10.`;
+  const soloHelp = `Solo — one member has to reach the ${goal} on their own. Three members with 4, 3 and 3 are still at 4 of 10; each member's count is tracked separately and the first to get there completes the tile for the team.`;
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Tracking Mode
+        <FlagHint text={`Whose progress completes this tile. ${teamHelp} ${soloHelp}`} />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          title={teamHelp}
+          onClick={() => onChange('team')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Team Total
+        </button>
+        <button
+          type="button"
+          title={soloHelp}
+          onClick={() => onChange('individual')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'individual' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Solo (Any Member)
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-0.5">
+        Team Total sums every member&rsquo;s {unit}; Solo completes when any one member reaches the {goal} alone.
+      </p>
+    </div>
+  );
+}
+
 export default function TileTrackingConfig({
   tileId,
   eventId,
@@ -1288,29 +1353,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" />
         </div>
       )}
 
@@ -1623,6 +1666,11 @@ export default function TileTrackingConfig({
               running total onto a screenshot like kill tiles.
             </p>
           </div>
+
+          {/* Gain tiles have always SAVED a tracking mode; the control was just never rendered, so a
+              tile that inherited 'individual' (e.g. switched over from a Solo kill tile) got a mode the
+              admin couldn't see or change. It's shown here now that the mode is enforced. */}
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gathered items" goal="amount" />
         </div>
       )}
 
@@ -1748,32 +1796,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" />
         </div>
       )}
 
@@ -1870,32 +1893,7 @@ export default function TileTrackingConfig({
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s PvP kills; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="PvP kills" goal="kill count" />
         </div>
       )}
 
@@ -1981,32 +1979,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" />
         </div>
       )}
 
@@ -2132,32 +2105,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s task completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="task completions" goal="count" />
         </div>
       )}
 

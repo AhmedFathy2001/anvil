@@ -3,7 +3,9 @@ import { db } from '@/db';
 import { submissions, tiles, teams, players, events, users } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
-import { syncDropTileCompletion } from '@/lib/submissions';
+import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
+import { countProgress, memberProgress } from '@/lib/countProgress';
+import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
@@ -202,6 +204,40 @@ export async function POST(
     return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
   }
 
+  // Determine uploader playerId. Resolved BEFORE the over-submission guards below because a Solo
+  // ("any one member") tile measures the SUBMITTER's own count, not the team's — so the guards need
+  // to know who this submission will be credited to.
+  let uploaderId: number | null = null;
+  if (player) {
+    uploaderId = player.playerId;
+  } else if (pluginAuth) {
+    uploaderId = pluginAuth.playerId;
+  } else if (membership) {
+    // Discord web session — attribute to the user's own player row on this team
+    // (a captain-only with no player row stays unattributed, like the captain path).
+    uploaderId = membership.playerId;
+  } else if (captain) {
+    // Captain submitting - they are the uploader
+    // Find captain's player record if they have one
+    const captainPlayer = await db.query.players.findFirst({
+      where: and(eq(players.teamId, captain.teamId), eq(players.eventId, eId)),
+    });
+    uploaderId = captainPlayer?.id || null;
+  }
+
+  // Validate creditPlayerId if provided - must be on the same team
+  const resolvedCreditPlayerId: number | null = creditPlayerId || null;
+  if (resolvedCreditPlayerId) {
+    const creditPlayer = await db.query.players.findFirst({
+      where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
+    });
+    if (!creditPlayer) {
+      return NextResponse.json({ error: 'Credit player must be on the same team' }, { status: 400 });
+    }
+  }
+  // Who this submission counts FOR (lib/countProgress owns the same rule server-side).
+  const submitterCreditId = resolvedCreditPlayerId ?? uploaderId;
+
   // Per-item tracking validation
   const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[] : null;
 
@@ -250,50 +286,32 @@ export async function POST(
       return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
     }
   } else if (tile.requiredAmount) {
-    // Simple mode: existing behavior
-    const currentSubmissions = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+    // Count tiles. Team Total caps against the team's summed progress; Solo caps against the
+    // SUBMITTER's own — otherwise the first member to reach the count would lock everyone else out
+    // of a tile that each of them is supposed to be racing independently.
+    const tileSubs = await db
+      .select({
+        playerId: submissions.playerId,
+        creditPlayerId: submissions.creditPlayerId,
+        amount: submissions.amount,
+      })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    const currentTotal = Number(currentSubmissions[0]?.total ?? 0);
+    const soloTile = isIndividualMode(tile.trackingMode);
+    const currentTotal = soloTile
+      ? memberProgress(tileSubs, submitterCreditId)
+      : countProgress(tileSubs, tile.trackingMode).current;
     const submitAmount = amount || 1;
 
     if (currentTotal >= tile.requiredAmount) {
-      return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
+      return NextResponse.json(
+        { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
+        { status: 400 },
+      );
     }
     if (currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
       const remaining = tile.requiredAmount - currentTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more (tile needs ${tile.requiredAmount}, has ${currentTotal})` }, { status: 400 });
-    }
-  }
-
-  // Determine uploader playerId
-  let uploaderId: number | null = null;
-  if (player) {
-    uploaderId = player.playerId;
-  } else if (pluginAuth) {
-    uploaderId = pluginAuth.playerId;
-  } else if (membership) {
-    // Discord web session — attribute to the user's own player row on this team
-    // (a captain-only with no player row stays unattributed, like the captain path).
-    uploaderId = membership.playerId;
-  } else if (captain) {
-    // Captain submitting - they are the uploader
-    // Find captain's player record if they have one
-    const captainPlayer = await db.query.players.findFirst({
-      where: and(eq(players.teamId, captain.teamId), eq(players.eventId, eId)),
-    });
-    uploaderId = captainPlayer?.id || null;
-  }
-
-  // Validate creditPlayerId if provided - must be on the same team
-  const resolvedCreditPlayerId: number | null = creditPlayerId || null;
-  if (resolvedCreditPlayerId) {
-    const creditPlayer = await db.query.players.findFirst({
-      where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
-    });
-    if (!creditPlayer) {
-      return NextResponse.json({ error: 'Credit player must be on the same team' }, { status: 400 });
     }
   }
 
@@ -312,12 +330,9 @@ export async function POST(
     })
     .returning();
 
-  // Get current total submissions for progress
-  const totalResult = await db
-    .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-    .from(submissions)
-    .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-  const currentTotal = totalResult[0]?.total ?? 0;
+  // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
+  // finisher's own count rather than a team sum that isn't what completes the tile.
+  const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode)).current;
 
   // Get credit player name if provided
   let creditPlayerName: string | null = null;

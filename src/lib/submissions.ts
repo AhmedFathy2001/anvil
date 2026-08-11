@@ -5,6 +5,28 @@ import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
+import { countProgress } from '@/lib/countProgress';
+
+/**
+ * A team's progress on one submission-backed count tile, under that tile's tracking mode
+ * (lib/countProgress owns the rule; this just feeds it the rows). Reads the attribution columns
+ * rather than SUM-ing in SQL so the server and the board's client-side bars can't drift apart.
+ */
+export async function countTileProgress(
+  tileId: number,
+  teamId: number,
+  trackingMode: string | null | undefined,
+) {
+  const rows = await db
+    .select({
+      playerId: submissions.playerId,
+      creditPlayerId: submissions.creditPlayerId,
+      amount: submissions.amount,
+    })
+    .from(submissions)
+    .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+  return countProgress(rows, trackingMode);
+}
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
@@ -32,6 +54,11 @@ export async function syncDropTileCompletion(
 
   let totalAmount: number;
   let isComplete: boolean;
+  // Solo ("any one member") count tiles: who reached the goal, and whether the ONLY thing keeping
+  // the tile incomplete is that no single member got there alone. Both stay false/null for every
+  // team-mode tile, which is every tile kind that doesn't expose the Team/Solo toggle.
+  let finisherPlayerId: number | null = null;
+  let soloShortfall = false;
 
   // Collection tiles (a SET of items via itemRequirements) complete when a full set is satisfied. Keyed on
   // the PRESENCE of itemRequirements — independent of tile.tileType and tile.requiredAmount — because older
@@ -98,21 +125,20 @@ export async function syncDropTileCompletion(
     // each haul's gp and requiredAmount the total gp to collect. (LMS placement / deathless
     // gating happens plugin-side, like kill targeting.)
     if (!tile.requiredAmount) return null;
-    const result = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    totalAmount = result[0]?.total ?? 0;
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    totalAmount = progress.current;
+    finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
+    soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
     // Simple drop pool (no per-item requirements — collections are handled by the branch above).
-    const result = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-
-    totalAmount = result[0]?.total ?? 0;
+    // Drop tiles have no Team/Solo toggle in the editor, so this is always the team sum; it goes
+    // through the same helper so there is one definition of progress rather than two.
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    totalAmount = progress.current;
+    finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
+    soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
   } else {
     return null;
   }
@@ -146,8 +172,10 @@ export async function syncDropTileCompletion(
   }
 
   if (isComplete && !raceBlocked && !ruleBlocked) {
-    // Auto-complete — use onConflictDoNothing to avoid race condition
-    const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints })
+    // Auto-complete — use onConflictDoNothing to avoid race condition. A Solo tile names its
+    // finisher (the one member who reached the count alone) the way stat tiles do, so the activity
+    // feed reads "Kayle completed 10 CoX raids" instead of attributing it to the team.
+    const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints, creditPlayerId: finisherPlayerId })
       .onConflictDoNothing()
       .returning();
 
@@ -200,9 +228,16 @@ export async function syncDropTileCompletion(
         }
       }
     }
-  } else if (!isComplete) {
+  } else if (!isComplete && !soloShortfall) {
     // Revert completion if it exists (idempotent DELETE). A race-blocked tile is
     // left untouched — its earlier-tile gate, not its own progress, is what's missing.
+    //
+    // `soloShortfall` is the grandfather clause for enforcing Solo mode on submission tiles: the
+    // team has the count but no single member does, which is exactly the state a board sat in
+    // while the Solo setting was inert. Those tiles were already credited under the old (team-sum)
+    // reading, so we leave the existing completion alone rather than yanking a finished tile out
+    // from under a live board. Nothing here can CREATE a completion, so going forward the stricter
+    // rule is what decides; only the historical credit is protected.
     const removed = await db.delete(completions).where(
       and(eq(completions.teamId, teamId), eq(completions.tileId, tileId))
     ).returning({ id: completions.id });
