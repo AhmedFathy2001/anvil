@@ -28,6 +28,7 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -106,6 +107,11 @@ interface MemberWork {
   bingo: BingoTask[];
   weekly: WeeklyTask[];
   staleKey: string; // oldest task timestamp — drives oldest-first ordering
+  // Adaptive polling state (lib/statHistory.ts). A member who keeps coming back unchanged is fetched
+  // less and less often, up to a two-hour floor; anything that proves they're playing resets it.
+  missStreak: number;
+  nextDueAt: string | null;
+  lastSnapshot: string | null;
 }
 
 // A bingo player fetched this tick, held for the single-threaded completion pass.
@@ -148,7 +154,19 @@ export async function GET(request: Request) {
     const key = keyFor(clanMemberId, provisionalRsn);
     let entry = work.get(key);
     if (!entry) {
-      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, liveKeyTimes: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
+      entry = {
+        key,
+        clanMemberId,
+        fetchRsn: provisionalRsn,
+        liveMap: {},
+        liveKeyTimes: {},
+        bingo: [],
+        weekly: [],
+        staleKey: 'zzzz',
+        missStreak: 0,
+        nextDueAt: null,
+        lastSnapshot: null,
+      };
       work.set(key, entry);
     }
     if (clanMemberId != null) clanMemberIds.add(clanMemberId);
@@ -244,7 +262,15 @@ export async function GET(request: Request) {
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
     const members = await db
-      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats, liveStatKeyTimes: clanMembers.liveStatKeyTimes })
+      .select({
+        id: clanMembers.id,
+        rsn: clanMembers.rsn,
+        liveStats: clanMembers.liveStats,
+        liveStatKeyTimes: clanMembers.liveStatKeyTimes,
+        statsMissStreak: clanMembers.statsMissStreak,
+        statsNextDueAt: clanMembers.statsNextDueAt,
+        statsLastSnapshot: clanMembers.statsLastSnapshot,
+      })
       .from(clanMembers)
       .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
     const memberById = new Map(members.map((m) => [m.id, m]));
@@ -255,17 +281,39 @@ export async function GET(request: Request) {
         entry.fetchRsn = m.rsn;
         entry.liveMap = parsePluginStats(m.liveStats);
         entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
+        entry.missStreak = m.statsMissStreak ?? 0;
+        entry.nextDueAt = m.statsNextDueAt;
+        entry.lastSnapshot = m.statsLastSnapshot;
+        // A plugin push means they're logged in RIGHT NOW, which is the strongest "worth fetching"
+        // signal we get — it overrides any backoff the ladder had built up while they were away.
+        if (Object.keys(entry.liveMap).length > 0) entry.nextDueAt = null;
       }
     }
   }
 
   // ── Phase 2: fetch each member once, under a shared token bucket + wall-clock budget ────────────
-  const queue = Array.from(work.values()).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  // Only fetch members who could plausibly have changed. A member still missing a baseline is always
+  // due — their tile or comp row can't score without one — but an idle member who has come back
+  // unchanged several ticks running is deferred (lib/statHistory.ts). This is the difference between
+  // polling a 200-member clan ~19k times a day and ~4k, and it compounds with every clan on the box,
+  // since all of them share one IP as far as Jagex is concerned.
+  const nowDate = new Date();
+  const allWork = Array.from(work.values());
+  const queue = allWork
+    .filter((entry) => {
+      const needsBaseline =
+        entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
+      return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    })
+    .sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  const deferred = allWork.length - queue.length;
   const fetchedBingo: FetchedBingo[] = [];
   const unrankedMemberIds = new Set<number>();
   let membersFetched = 0;
   let weeklyUpdated = 0;
   let fetchErrors = 0;
+  let historyWrites = 0;
+  let milestonesRecorded = 0;
 
   let lastDispatch = 0;
   async function takeToken() {
@@ -314,6 +362,45 @@ export async function GET(request: Request) {
             .update(clanMembers)
             .set({ liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null })
             .where(eq(clanMembers.id, entry.clanMemberId));
+        }
+      }
+
+      // ── History + adaptive polling ────────────────────────────────────────────────────────────
+      // Everything below is derived from the snapshot we already have — no extra hiscores traffic.
+      if (entry.clanMemberId != null) {
+        let previous: HiscoresSnapshot | null = null;
+        if (entry.lastSnapshot) {
+          try {
+            previous = JSON.parse(entry.lastSnapshot) as HiscoresSnapshot;
+          } catch {
+            previous = null; // corrupt blob — treat as a first sighting rather than failing the tick
+          }
+        }
+        const overallXp = Math.max(0, snapshot.skills?.overall?.xp ?? 0);
+        const changed = previous === null || overallXp !== Math.max(0, previous.skills?.overall?.xp ?? 0);
+        const missStreak = changed ? 0 : entry.missStreak + 1;
+
+        await db
+          .update(clanMembers)
+          .set({
+            statsOverallXp: overallXp,
+            statsMissStreak: missStreak,
+            statsNextDueAt: nextDueAt(missStreak, new Date()),
+            // Only rewrite the blob when it would differ — an idle member's row stays untouched.
+            ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
+          })
+          .where(eq(clanMembers.id, entry.clanMemberId));
+
+        if (changed) {
+          historyWrites++;
+          try {
+            await recordDailyStats({ clanMemberId: entry.clanMemberId, snapshot, previous });
+            const found = detectMilestones(previous, snapshot, computeDeltas(previous, snapshot));
+            if (found.length > 0) milestonesRecorded += await recordMilestones(entry.clanMemberId, found);
+          } catch (e) {
+            // History is a reporting nicety; a failure here must never cost the tick its scoring work.
+            log.warn('stats-cron.history-failed', { clanMemberId: entry.clanMemberId, error: (e as Error).message });
+          }
         }
       }
 
@@ -526,7 +613,11 @@ export async function GET(request: Request) {
     activeEvents: activeEvents.length,
     activeComps: activeComps.length,
     membersQueued: queue.length,
+    // How many the backoff ladder held back this tick — the number to watch when tuning it.
+    membersDeferred: deferred,
     membersFetched,
+    historyWrites,
+    milestonesRecorded,
     skipped,
     snapshotted: results.reduce((s, r) => s + r.playersSnapshotted, 0),
     checked: results.reduce((s, r) => s + r.playersChecked, 0),
