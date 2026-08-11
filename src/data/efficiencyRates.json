@@ -1,0 +1,5527 @@
+{
+  "source": "Wise Old Man efficiency configs (MIT) — https://github.com/wise-old-man/wise-old-man",
+  "generatedAt": "2026-08-11T04:43:17.243Z",
+  "version": 1,
+  "note": "Rate tables only. The EHP/EHB algorithm lives in src/lib/efficiency.ts and runs locally against our own hiscores snapshots. Variants beyond `main` are captured for future account-type support; we read main-mode hiscores today and select `main`.",
+  "algorithms": {
+    "main": {
+      "skills": [
+        {
+          "skill": "attack",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 37224,
+              "rate": 38000
+            },
+            {
+              "startExp": 100000,
+              "rate": 55000
+            },
+            {
+              "startExp": 1000000,
+              "rate": 65000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 315000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 505000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "defence",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 420000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "defence",
+              "bonusSkill": "ranged",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1.25
+            },
+            {
+              "originSkill": "defence",
+              "bonusSkill": "prayer",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.154
+            }
+          ]
+        },
+        {
+          "skill": "strength",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 37224,
+              "rate": 38000
+            },
+            {
+              "startExp": 61512,
+              "rate": 145000
+            },
+            {
+              "startExp": 449428,
+              "rate": 245000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 300000
+            },
+            {
+              "startExp": 6517253,
+              "rate": 335000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 415000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 250000
+            },
+            {
+              "startExp": 6517253,
+              "rate": 330000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 1190000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 1670000
+            },
+            {
+              "startExp": 737627,
+              "rate": 2000000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 172800
+            },
+            {
+              "startExp": 13363,
+              "rate": 519100
+            },
+            {
+              "startExp": 37224,
+              "rate": 591600
+            },
+            {
+              "startExp": 101333,
+              "rate": 663600
+            },
+            {
+              "startExp": 273742,
+              "rate": 735700
+            },
+            {
+              "startExp": 737627,
+              "rate": 808000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 880400
+            },
+            {
+              "startExp": 5346332,
+              "rate": 948100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 980000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29000
+            },
+            {
+              "startExp": 2411,
+              "rate": 56000
+            },
+            {
+              "startExp": 22406,
+              "rate": 93174
+            },
+            {
+              "startExp": 41171,
+              "rate": 114728
+            },
+            {
+              "startExp": 111945,
+              "rate": 127339
+            },
+            {
+              "startExp": 302288,
+              "rate": 172507
+            },
+            {
+              "startExp": 814445,
+              "rate": 194022
+            },
+            {
+              "startExp": 1986068,
+              "rate": 207636
+            },
+            {
+              "startExp": 5346332,
+              "rate": 221977
+            },
+            {
+              "startExp": 13034431,
+              "rate": 235000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29200
+            },
+            {
+              "startExp": 14612,
+              "rate": 46592
+            },
+            {
+              "startExp": 75127,
+              "rate": 84686
+            },
+            {
+              "startExp": 106046,
+              "rate": 97867
+            },
+            {
+              "startExp": 229685,
+              "rate": 112877
+            },
+            {
+              "startExp": 302288,
+              "rate": 128082
+            },
+            {
+              "startExp": 593234,
+              "rate": 139313
+            },
+            {
+              "startExp": 737627,
+              "rate": 132800
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 73700
+            },
+            {
+              "startExp": 22406,
+              "rate": 138900
+            },
+            {
+              "startExp": 45529,
+              "rate": 184250
+            },
+            {
+              "startExp": 61512,
+              "rate": 198990
+            },
+            {
+              "startExp": 101333,
+              "rate": 403745
+            },
+            {
+              "startExp": 273742,
+              "rate": 551169
+            },
+            {
+              "startExp": 1210421,
+              "rate": 775388
+            },
+            {
+              "startExp": 5346332,
+              "rate": 872198
+            },
+            {
+              "startExp": 13034431,
+              "rate": 789944,
+              "realRate": 302000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "thieving",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.8443
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 37000
+            },
+            {
+              "startExp": 4470,
+              "rate": 139000
+            },
+            {
+              "startExp": 9730,
+              "rate": 187650
+            },
+            {
+              "startExp": 20224,
+              "rate": 236300
+            },
+            {
+              "startExp": 50339,
+              "rate": 298850
+            },
+            {
+              "startExp": 368599,
+              "rate": 335230
+            },
+            {
+              "startExp": 814445,
+              "rate": 378490
+            },
+            {
+              "startExp": 1475581,
+              "rate": 421740
+            },
+            {
+              "startExp": 2951373,
+              "rate": 465000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 46500
+            },
+            {
+              "startExp": 37224,
+              "rate": 475000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 505000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 20000
+            },
+            {
+              "startExp": 35025,
+              "rate": 50600
+            },
+            {
+              "startExp": 393485,
+              "rate": 106540
+            },
+            {
+              "startExp": 1210421,
+              "rate": 112166
+            },
+            {
+              "startExp": 3258594,
+              "rate": 116760
+            },
+            {
+              "startExp": 8771558,
+              "rate": 119438
+            },
+            {
+              "startExp": 13034431,
+              "rate": 126000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "mining",
+              "bonusSkill": "smithing",
+              "startExp": 1210421,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.08
+            }
+          ]
+        },
+        {
+          "skill": "herblore",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 11100
+            },
+            {
+              "startExp": 8025,
+              "rate": 218750
+            },
+            {
+              "startExp": 123660,
+              "rate": 293750
+            },
+            {
+              "startExp": 166636,
+              "rate": 312500
+            },
+            {
+              "startExp": 368599,
+              "rate": 356250
+            },
+            {
+              "startExp": 496254,
+              "rate": 375000
+            },
+            {
+              "startExp": 668051,
+              "rate": 393750
+            },
+            {
+              "startExp": 899257,
+              "rate": 406250
+            },
+            {
+              "startExp": 1336443,
+              "rate": 431250
+            },
+            {
+              "startExp": 1475581,
+              "rate": 535500
+            },
+            {
+              "startExp": 2951373,
+              "rate": 577500
+            },
+            {
+              "startExp": 3972294,
+              "rate": 630000
+            },
+            {
+              "startExp": 11805606,
+              "rate": 840000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "agility",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15100
+            },
+            {
+              "startExp": 75127,
+              "rate": 35000
+            },
+            {
+              "startExp": 123660,
+              "rate": 45000
+            },
+            {
+              "startExp": 333804,
+              "rate": 56300
+            },
+            {
+              "startExp": 899257,
+              "rate": 68900
+            },
+            {
+              "startExp": 2421087,
+              "rate": 79700
+            },
+            {
+              "startExp": 6517253,
+              "rate": 102000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "agility",
+              "bonusSkill": "herblore",
+              "startExp": 6517253,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.6485
+            }
+          ]
+        },
+        {
+          "skill": "thieving",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 61512,
+              "rate": 80000
+            },
+            {
+              "startExp": 91721,
+              "rate": 241906
+            },
+            {
+              "startExp": 295315,
+              "rate": 279597
+            },
+            {
+              "startExp": 1319012,
+              "rate": 333283
+            },
+            {
+              "startExp": 4799743,
+              "rate": 370532
+            },
+            {
+              "startExp": 10966391,
+              "rate": 363882
+            },
+            {
+              "startExp": 13034431,
+              "rate": 370169
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "slayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 5000
+            },
+            {
+              "startExp": 37224,
+              "rate": 12000
+            },
+            {
+              "startExp": 101333,
+              "rate": 40000
+            },
+            {
+              "startExp": 449428,
+              "rate": 74250
+            },
+            {
+              "startExp": 1986068,
+              "rate": 79000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 86500
+            },
+            {
+              "startExp": 5346332,
+              "rate": 87000
+            },
+            {
+              "startExp": 7195629,
+              "rate": 93000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 105800
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "attack",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "strength",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "defence",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.493
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 0,
+              "endExp": 1986068,
+              "end": false,
+              "ratio": 0.3299
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 1986068,
+              "endExp": 3258594,
+              "end": false,
+              "ratio": 0.2494
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 3258594,
+              "endExp": 5346332,
+              "end": false,
+              "ratio": 0.1896
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 5346332,
+              "endExp": 7195629,
+              "end": false,
+              "ratio": 0.174
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 7195629,
+              "endExp": 13034431,
+              "end": false,
+              "ratio": 0.1521
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.11
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 0,
+              "endExp": 1986068,
+              "end": false,
+              "ratio": 0.0673
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 1986068,
+              "endExp": 3258594,
+              "end": false,
+              "ratio": 0.0824
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 3258594,
+              "endExp": 5346332,
+              "end": false,
+              "ratio": 0.11917
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 5346332,
+              "endExp": 7195629,
+              "end": false,
+              "ratio": 0.21689
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 7195629,
+              "endExp": 13034431,
+              "end": false,
+              "ratio": 0.18914
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "prayer",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.21605
+            }
+          ]
+        },
+        {
+          "skill": "farming",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 16000
+            },
+            {
+              "startExp": 32500,
+              "rate": 304000
+            },
+            {
+              "startExp": 61512,
+              "rate": 506000
+            },
+            {
+              "startExp": 166636,
+              "rate": 719000
+            },
+            {
+              "startExp": 273742,
+              "rate": 1083000
+            },
+            {
+              "startExp": 605032,
+              "rate": 1362000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 1896000
+            },
+            {
+              "startExp": 2192818,
+              "rate": 2314000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 2475000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 2500000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 13600
+            },
+            {
+              "startExp": 33210,
+              "rate": 45000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 75400
+            },
+            {
+              "startExp": 3258594,
+              "rate": 106100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 162000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "hunter",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 30000
+            },
+            {
+              "startExp": 2107,
+              "rate": 83000
+            },
+            {
+              "startExp": 7028,
+              "rate": 110000
+            },
+            {
+              "startExp": 20224,
+              "rate": 138000
+            },
+            {
+              "startExp": 55649,
+              "rate": 215112
+            },
+            {
+              "startExp": 91721,
+              "rate": 268770
+            },
+            {
+              "startExp": 24886,
+              "rate": 293310
+            },
+            {
+              "startExp": 343551,
+              "rate": 322424
+            },
+            {
+              "startExp": 737627,
+              "rate": 350697
+            },
+            {
+              "startExp": 933979,
+              "rate": 265000,
+              "realRate": 123000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "hunter",
+              "bonusSkill": "fishing",
+              "startExp": 933979,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.75862069443,
+              "maxBonus": 32414530
+            }
+          ]
+        },
+        {
+          "skill": "construction",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 54700
+            },
+            {
+              "startExp": 18247,
+              "rate": 450000
+            },
+            {
+              "startExp": 123660,
+              "rate": 950000
+            },
+            {
+              "startExp": 1475581,
+              "rate": 1070000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "sailing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10000
+            },
+            {
+              "startExp": 13363,
+              "rate": 25000
+            },
+            {
+              "startExp": 101333,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 85000
+            },
+            {
+              "startExp": 899257,
+              "rate": 205000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 240000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {
+        "abyssalSire": 50,
+        "alchemicalHydra": 30,
+        "amoxliatl": 85,
+        "araxxor": 40,
+        "artio": 60,
+        "barrows": 22,
+        "brutus": 250,
+        "bryophyta": 9,
+        "callisto": 142,
+        "calvarion": 55,
+        "cerberus": 65,
+        "chambersOfXericChallengeMode": 3,
+        "chambersOfXeric": 3.5,
+        "chaosElemental": 120,
+        "chaosFanatic": 100,
+        "commanderZilyana": 60,
+        "corporealBeast": 60,
+        "crazyArchaeologist": 75,
+        "dagannothPrime": 105,
+        "dagannothRex": 105,
+        "dagannothSupreme": 105,
+        "derangedArchaeologist": 80,
+        "doomOfMokhaiotl": 20,
+        "dukeSucellus": 39,
+        "generalGraardor": 58,
+        "giantMole": 125,
+        "grotesqueGuardians": 37,
+        "hespori": 60,
+        "kalphiteQueen": 55,
+        "kingBlackDragon": 130,
+        "kraken": 100,
+        "kreeArra": 40,
+        "krilTsutsaroth": 65,
+        "lunarChests": 18,
+        "madAngel": 60,
+        "maggotKing": 30,
+        "mimic": 60,
+        "nex": 23.5,
+        "nightmare": 14,
+        "obor": 12,
+        "phantomMuspah": 30,
+        "phosanisNightmare": 9.6,
+        "sarachnis": 110,
+        "scorpia": 130,
+        "scurrius": 70,
+        "skotizo": 45,
+        "solHeredit": 2.7,
+        "spindel": 55,
+        "corruptedGauntlet": 7.2,
+        "hueycoatl": 20,
+        "gauntlet": 10,
+        "leviathan": 31,
+        "royalTitans": 55,
+        "whisperer": 22,
+        "theatreOfBloodHardMode": 3,
+        "theatreOfBlood": 3.2,
+        "thermonuclearSmokeDevil": 150,
+        "tombsOfAmascutExpertMode": 3,
+        "tombsOfAmascut": 3.7,
+        "tzKalZuk": 1,
+        "tzTokJad": 2.5,
+        "vardorvis": 39,
+        "venenatis": 80,
+        "vetion": 50,
+        "vorkath": 34,
+        "yama": 18,
+        "zulrah": 46
+      }
+    },
+    "ironman": {
+      "skills": [
+        {
+          "skill": "attack",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 186400
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "defence",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 768000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "strength",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 300000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 17000
+            },
+            {
+              "startExp": 203254,
+              "rate": 565900
+            },
+            {
+              "startExp": 449428,
+              "rate": 842800
+            },
+            {
+              "startExp": 737627,
+              "rate": 1123600
+            },
+            {
+              "startExp": 1986068,
+              "rate": 1310100
+            },
+            {
+              "startExp": 5346332,
+              "rate": 1489400
+            },
+            {
+              "startExp": 13034431,
+              "rate": 1560900
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 175900
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 74300
+            },
+            {
+              "startExp": 13363,
+              "rate": 232200
+            },
+            {
+              "startExp": 37224,
+              "rate": 264800
+            },
+            {
+              "startExp": 101333,
+              "rate": 297400
+            },
+            {
+              "startExp": 273742,
+              "rate": 330000
+            },
+            {
+              "startExp": 737627,
+              "rate": 362600
+            },
+            {
+              "startExp": 1986068,
+              "rate": 395200
+            },
+            {
+              "startExp": 5346332,
+              "rate": 425600
+            },
+            {
+              "startExp": 13034431,
+              "rate": 440000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 7000
+            },
+            {
+              "startExp": 2411,
+              "rate": 25000
+            },
+            {
+              "startExp": 22406,
+              "rate": 45000
+            },
+            {
+              "startExp": 75416,
+              "rate": 0
+            },
+            {
+              "startExp": 368599,
+              "rate": 158600
+            },
+            {
+              "startExp": 737627,
+              "rate": 169900
+            },
+            {
+              "startExp": 1986068,
+              "rate": 182200
+            },
+            {
+              "startExp": 5346332,
+              "rate": 194000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 202400
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fletching",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 1524300
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 22406,
+              "rate": 32000
+            },
+            {
+              "startExp": 302288,
+              "rate": 67200
+            },
+            {
+              "startExp": 737627,
+              "rate": 115500
+            },
+            {
+              "startExp": 2951373,
+              "rate": 126400
+            },
+            {
+              "startExp": 5902831,
+              "rate": 133800
+            },
+            {
+              "startExp": 10692629,
+              "rate": 138300
+            },
+            {
+              "startExp": 13034431,
+              "rate": 141800
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "strength",
+              "startExp": 737627,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.0885
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 737627,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.1192
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 737627,
+              "endExp": 13034431,
+              "end": false,
+              "ratio": 0.0885
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0885
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 45000
+            },
+            {
+              "startExp": 101333,
+              "rate": 233900
+            },
+            {
+              "startExp": 273742,
+              "rate": 274800
+            },
+            {
+              "startExp": 737627,
+              "rate": 317100
+            },
+            {
+              "startExp": 1986068,
+              "rate": 359300
+            },
+            {
+              "startExp": 5346332,
+              "rate": 398800
+            },
+            {
+              "startExp": 13034431,
+              "rate": 462400
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 50000
+            },
+            {
+              "startExp": 333804,
+              "rate": 347700
+            },
+            {
+              "startExp": 3539592,
+              "rate": 260100
+            },
+            {
+              "startExp": 3972294,
+              "rate": 331100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 207200
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 72800
+            },
+            {
+              "startExp": 273742,
+              "rate": 350000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 375000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 25000
+            },
+            {
+              "startExp": 27473,
+              "rate": 70600
+            },
+            {
+              "startExp": 150872,
+              "rate": 72600
+            },
+            {
+              "startExp": 273742,
+              "rate": 17000
+            },
+            {
+              "startExp": 1283073,
+              "rate": 99600
+            },
+            {
+              "startExp": 3258594,
+              "rate": 45200
+            },
+            {
+              "startExp": 4385776,
+              "rate": 108700
+            },
+            {
+              "startExp": 11441686,
+              "rate": 90200
+            },
+            {
+              "startExp": 13034431,
+              "rate": 125000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "herblore",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 70000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 76000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "agility",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10000
+            },
+            {
+              "startExp": 61512,
+              "rate": 45000
+            },
+            {
+              "startExp": 123660,
+              "rate": 45000
+            },
+            {
+              "startExp": 333804,
+              "rate": 56300
+            },
+            {
+              "startExp": 899257,
+              "rate": 66700
+            },
+            {
+              "startExp": 1152279,
+              "rate": 69700
+            },
+            {
+              "startExp": 2421087,
+              "rate": 76600
+            },
+            {
+              "startExp": 6517253,
+              "rate": 93300
+            },
+            {
+              "startExp": 13034431,
+              "rate": 97600
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "thieving",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 26000
+            },
+            {
+              "startExp": 61512,
+              "rate": 80000
+            },
+            {
+              "startExp": 91721,
+              "rate": 193200
+            },
+            {
+              "startExp": 247886,
+              "rate": 219700
+            },
+            {
+              "startExp": 668051,
+              "rate": 246200
+            },
+            {
+              "startExp": 1798808,
+              "rate": 272700
+            },
+            {
+              "startExp": 4842295,
+              "rate": 299200
+            },
+            {
+              "startExp": 13034431,
+              "rate": 381200
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "slayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 5156
+            },
+            {
+              "startExp": 101333,
+              "rate": 16000
+            },
+            {
+              "startExp": 273742,
+              "rate": 21000
+            },
+            {
+              "startExp": 449428,
+              "rate": 23500
+            },
+            {
+              "startExp": 1210421,
+              "rate": 24200
+            },
+            {
+              "startExp": 1986068,
+              "rate": 27000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 33800
+            },
+            {
+              "startExp": 7195629,
+              "rate": 34500
+            },
+            {
+              "startExp": 13034431,
+              "rate": 81500
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "defence",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "attack",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "strength",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.9115
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.055
+            }
+          ]
+        },
+        {
+          "skill": "farming",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 500000
+            },
+            {
+              "startExp": 150872,
+              "rate": 66000
+            },
+            {
+              "startExp": 407015,
+              "rate": 2000000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 3445600
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 16000
+            },
+            {
+              "startExp": 33648,
+              "rate": 84600
+            },
+            {
+              "startExp": 101333,
+              "rate": 99600
+            },
+            {
+              "startExp": 1210421,
+              "rate": 70000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 115000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 119100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 80100
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "hunter",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 136800
+            },
+            {
+              "startExp": 91721,
+              "rate": 192000
+            },
+            {
+              "startExp": 668051,
+              "rate": 84400
+            },
+            {
+              "startExp": 1210421,
+              "rate": 192000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 156900
+            },
+            {
+              "startExp": 2421087,
+              "rate": 207900
+            },
+            {
+              "startExp": 5346332,
+              "rate": 241000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 255000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "construction",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 20000
+            },
+            {
+              "startExp": 18247,
+              "rate": 75000
+            },
+            {
+              "startExp": 37224,
+              "rate": 0
+            },
+            {
+              "startExp": 101333,
+              "rate": 240000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 279100
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "sailing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10000
+            },
+            {
+              "startExp": 13363,
+              "rate": 25000
+            },
+            {
+              "startExp": 101333,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 85000
+            },
+            {
+              "startExp": 899257,
+              "rate": 205000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 240000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {
+        "abyssalSire": 44,
+        "alchemicalHydra": 29,
+        "amoxliatl": 71,
+        "araxxor": 38,
+        "artio": 50,
+        "barrows": 22,
+        "brutus": 250,
+        "bryophyta": 9,
+        "callisto": 142,
+        "calvarion": 45,
+        "cerberus": 54,
+        "chambersOfXericChallengeMode": 3,
+        "chambersOfXeric": 3.5,
+        "chaosElemental": 48,
+        "chaosFanatic": 80,
+        "commanderZilyana": 30,
+        "corporealBeast": 10,
+        "crazyArchaeologist": 95,
+        "dagannothPrime": 100,
+        "dagannothRex": 100,
+        "dagannothSupreme": 100,
+        "derangedArchaeologist": 95,
+        "doomOfMokhaiotl": 18,
+        "dukeSucellus": 37,
+        "generalGraardor": 31,
+        "giantMole": 97,
+        "grotesqueGuardians": 34,
+        "hespori": 50,
+        "kalphiteQueen": 37,
+        "kingBlackDragon": 75,
+        "kraken": 90,
+        "kreeArra": 30,
+        "krilTsutsaroth": 32,
+        "lunarChests": 18,
+        "madAngel": 60,
+        "maggotKing": 30,
+        "mimic": 50,
+        "nex": 20,
+        "nightmare": 11,
+        "obor": 12,
+        "phantomMuspah": 27,
+        "phosanisNightmare": 9.3,
+        "sarachnis": 67,
+        "scorpia": 80,
+        "scurrius": 60,
+        "skotizo": 38,
+        "solHeredit": 2.7,
+        "spindel": 50,
+        "corruptedGauntlet": 7.2,
+        "hueycoatl": 20,
+        "gauntlet": 10,
+        "leviathan": 27,
+        "royalTitans": 55,
+        "whisperer": 21,
+        "theatreOfBloodHardMode": 3,
+        "theatreOfBlood": 3.2,
+        "thermonuclearSmokeDevil": 100,
+        "tombsOfAmascutExpertMode": 3,
+        "tombsOfAmascut": 3.7,
+        "tzKalZuk": 1,
+        "tzTokJad": 2.2,
+        "vardorvis": 37,
+        "venenatis": 80,
+        "vetion": 39,
+        "vorkath": 34,
+        "yama": 18,
+        "zulrah": 42
+      }
+    },
+    "ultimate": {
+      "skills": [
+        {
+          "skill": "attack",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 207800
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "defence",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 539100
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "strength",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 300000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 21000
+            },
+            {
+              "startExp": 273742,
+              "rate": 533000
+            },
+            {
+              "startExp": 737627,
+              "rate": 628000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 716000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 801000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 1085000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 30000
+            },
+            {
+              "startExp": 50339,
+              "rate": 50000
+            },
+            {
+              "startExp": 737627,
+              "rate": 122900
+            },
+            {
+              "startExp": 13034431,
+              "rate": 137800
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 50000
+            },
+            {
+              "startExp": 13363,
+              "rate": 211200
+            },
+            {
+              "startExp": 41171,
+              "rate": 240800
+            },
+            {
+              "startExp": 101333,
+              "rate": 270400
+            },
+            {
+              "startExp": 273742,
+              "rate": 300100
+            },
+            {
+              "startExp": 737627,
+              "rate": 329700
+            },
+            {
+              "startExp": 1986068,
+              "rate": 359300
+            },
+            {
+              "startExp": 5346332,
+              "rate": 385900
+            },
+            {
+              "startExp": 13034431,
+              "rate": 400000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29000
+            },
+            {
+              "startExp": 2411,
+              "rate": 35500
+            },
+            {
+              "startExp": 13363,
+              "rate": 44300
+            },
+            {
+              "startExp": 64249,
+              "rate": 130900
+            },
+            {
+              "startExp": 302288,
+              "rate": 75000
+            },
+            {
+              "startExp": 602288,
+              "rate": 164700
+            },
+            {
+              "startExp": 737627,
+              "rate": 168600
+            },
+            {
+              "startExp": 1986068,
+              "rate": 181100
+            },
+            {
+              "startExp": 5902831,
+              "rate": 193400
+            },
+            {
+              "startExp": 13034431,
+              "rate": 204500
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fletching",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 300000
+            },
+            {
+              "startExp": 123660,
+              "rate": 880000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 980000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 53300
+            },
+            {
+              "startExp": 83014,
+              "rate": 42700
+            },
+            {
+              "startExp": 224466,
+              "rate": 70900
+            },
+            {
+              "startExp": 737627,
+              "rate": 92600
+            },
+            {
+              "startExp": 2183968,
+              "rate": 153100
+            },
+            {
+              "startExp": 5346332,
+              "rate": 169600
+            },
+            {
+              "startExp": 13034431,
+              "rate": 183000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 83014,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.13
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.1355
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 83014,
+              "endExp": 224466,
+              "end": false,
+              "ratio": 0.1
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 224466,
+              "endExp": 737627,
+              "end": false,
+              "ratio": 0.093
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 737627,
+              "endExp": 2183968,
+              "end": false,
+              "ratio": 0.091
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 2183968,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.091
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "agility",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0885
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "strength",
+              "startExp": 83014,
+              "endExp": 224466,
+              "end": false,
+              "ratio": 0.1
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "strength",
+              "startExp": 224466,
+              "endExp": 737627,
+              "end": false,
+              "ratio": 0.093
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "strength",
+              "startExp": 737627,
+              "endExp": 13034431,
+              "end": false,
+              "ratio": 0.091
+            },
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "strength",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.0885
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 7200
+            },
+            {
+              "startExp": 2411,
+              "rate": 66500
+            },
+            {
+              "startExp": 50339,
+              "rate": 80500
+            },
+            {
+              "startExp": 101333,
+              "rate": 181300
+            },
+            {
+              "startExp": 273742,
+              "rate": 215000
+            },
+            {
+              "startExp": 737627,
+              "rate": 249500
+            },
+            {
+              "startExp": 1986068,
+              "rate": 287600
+            },
+            {
+              "startExp": 5848876,
+              "rate": 459700
+            },
+            {
+              "startExp": 13034431,
+              "rate": 522000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "fletching",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.025
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15200
+            },
+            {
+              "startExp": 91721,
+              "rate": 44000
+            },
+            {
+              "startExp": 302288,
+              "rate": 83800
+            },
+            {
+              "startExp": 3972294,
+              "rate": 103800
+            },
+            {
+              "startExp": 13034431,
+              "rate": 130000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 75200
+            },
+            {
+              "startExp": 273742,
+              "rate": 315000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 330000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8000
+            },
+            {
+              "startExp": 13363,
+              "rate": 59158
+            },
+            {
+              "startExp": 61512,
+              "rate": 85500
+            },
+            {
+              "startExp": 101333,
+              "rate": 89151
+            },
+            {
+              "startExp": 302288,
+              "rate": 97923
+            },
+            {
+              "startExp": 737627,
+              "rate": 103751
+            },
+            {
+              "startExp": 1986068,
+              "rate": 109143
+            },
+            {
+              "startExp": 3258594,
+              "rate": 40000
+            },
+            {
+              "startExp": 3808594,
+              "rate": 113287
+            },
+            {
+              "startExp": 5346332,
+              "rate": 115638
+            },
+            {
+              "startExp": 13034431,
+              "rate": 125000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "herblore",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 21800
+            },
+            {
+              "startExp": 737627,
+              "rate": 38169
+            },
+            {
+              "startExp": 13034431,
+              "rate": 40300
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "agility",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10900
+            },
+            {
+              "startExp": 123660,
+              "rate": 44900
+            },
+            {
+              "startExp": 273742,
+              "rate": 40000
+            },
+            {
+              "startExp": 737627,
+              "rate": 48000
+            },
+            {
+              "startExp": 1282357,
+              "rate": 65700
+            },
+            {
+              "startExp": 2421087,
+              "rate": 77500
+            },
+            {
+              "startExp": 6517253,
+              "rate": 92300
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "thieving",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 26000
+            },
+            {
+              "startExp": 61512,
+              "rate": 80000
+            },
+            {
+              "startExp": 166636,
+              "rate": 130000
+            },
+            {
+              "startExp": 449428,
+              "rate": 200000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 225000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 245000
+            },
+            {
+              "startExp": 7944614,
+              "rate": 339866
+            },
+            {
+              "startExp": 13034431,
+              "rate": 357725
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "slayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 7100
+            },
+            {
+              "startExp": 404857,
+              "rate": 21300
+            },
+            {
+              "startExp": 668051,
+              "rate": 16400
+            },
+            {
+              "startExp": 1210421,
+              "rate": 38300
+            },
+            {
+              "startExp": 1986068,
+              "rate": 42400
+            },
+            {
+              "startExp": 3258594,
+              "rate": 58300
+            },
+            {
+              "startExp": 5346332,
+              "rate": 36800
+            },
+            {
+              "startExp": 7195629,
+              "rate": 63000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 71800
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.025
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "attack",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "strength",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.911
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "defence",
+              "startExp": 0,
+              "endExp": 13034431,
+              "end": false,
+              "ratio": 0.605
+            },
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "defence",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.663
+            }
+          ]
+        },
+        {
+          "skill": "farming",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 115000
+            },
+            {
+              "startExp": 313818,
+              "rate": 65000
+            },
+            {
+              "startExp": 496254,
+              "rate": 800000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 1090000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 13100
+            },
+            {
+              "startExp": 37224,
+              "rate": 36100
+            },
+            {
+              "startExp": 101333,
+              "rate": 53000
+            },
+            {
+              "startExp": 449428,
+              "rate": 58300
+            },
+            {
+              "startExp": 1210421,
+              "rate": 59900
+            },
+            {
+              "startExp": 1475581,
+              "rate": 60600
+            },
+            {
+              "startExp": 3258594,
+              "rate": 74400
+            },
+            {
+              "startExp": 8771558,
+              "rate": 78600
+            },
+            {
+              "startExp": 13034431,
+              "rate": 76000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "runecraft",
+              "bonusSkill": "crafting",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.095
+            },
+            {
+              "originSkill": "runecraft",
+              "bonusSkill": "mining",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0364
+            }
+          ]
+        },
+        {
+          "skill": "hunter",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 72200
+            },
+            {
+              "startExp": 91721,
+              "rate": 103800
+            },
+            {
+              "startExp": 737627,
+              "rate": 104600
+            },
+            {
+              "startExp": 1986068,
+              "rate": 158300
+            },
+            {
+              "startExp": 5346332,
+              "rate": 183300
+            },
+            {
+              "startExp": 13034431,
+              "rate": 235000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "construction",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 3800
+            },
+            {
+              "startExp": 4470,
+              "rate": 0
+            },
+            {
+              "startExp": 223678,
+              "rate": 128100
+            },
+            {
+              "startExp": 508945,
+              "rate": 138400
+            },
+            {
+              "startExp": 1336443,
+              "rate": 144600
+            },
+            {
+              "startExp": 1475581,
+              "rate": 219944
+            },
+            {
+              "startExp": 13034431,
+              "rate": 250500
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "sailing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10000
+            },
+            {
+              "startExp": 13363,
+              "rate": 25000
+            },
+            {
+              "startExp": 101333,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 85000
+            },
+            {
+              "startExp": 899257,
+              "rate": 205000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 240000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {
+        "abyssalSire": 38,
+        "alchemicalHydra": 28,
+        "amoxliatl": 65,
+        "araxxor": 35,
+        "artio": 42,
+        "barrows": 20,
+        "brutus": 250,
+        "bryophyta": 7,
+        "callisto": 45,
+        "calvarion": 40,
+        "cerberus": 48,
+        "chambersOfXericChallengeMode": 2.5,
+        "chambersOfXeric": 3,
+        "chaosElemental": 38,
+        "chaosFanatic": 60,
+        "commanderZilyana": 29,
+        "corporealBeast": 7.5,
+        "crazyArchaeologist": 62,
+        "dagannothPrime": 85,
+        "dagannothRex": 85,
+        "dagannothSupreme": 85,
+        "derangedArchaeologist": 85,
+        "doomOfMokhaiotl": 16,
+        "dukeSucellus": 35,
+        "generalGraardor": 30,
+        "giantMole": 85,
+        "grotesqueGuardians": 32,
+        "hespori": 30,
+        "kalphiteQueen": 33,
+        "kingBlackDragon": 55,
+        "kraken": 80,
+        "kreeArra": 25,
+        "krilTsutsaroth": 28,
+        "lunarChests": 18,
+        "madAngel": 50,
+        "maggotKing": 24,
+        "mimic": 25,
+        "nex": 12,
+        "nightmare": 11,
+        "obor": 10,
+        "phantomMuspah": 25,
+        "phosanisNightmare": 8.5,
+        "sarachnis": 65,
+        "scorpia": 38,
+        "scurrius": 60,
+        "solHeredit": 2,
+        "spindel": 40,
+        "corruptedGauntlet": 7.2,
+        "hueycoatl": 20,
+        "gauntlet": 10,
+        "leviathan": 23,
+        "royalTitans": 55,
+        "whisperer": 20,
+        "theatreOfBloodHardMode": 2.6,
+        "theatreOfBlood": 2.9,
+        "thermonuclearSmokeDevil": 88,
+        "tombsOfAmascutExpertMode": 2.5,
+        "tombsOfAmascut": 3,
+        "tzKalZuk": 0.8,
+        "tzTokJad": 2,
+        "vardorvis": 33,
+        "venenatis": 35,
+        "vetion": 35,
+        "vorkath": 28,
+        "yama": 16,
+        "zulrah": 36
+      }
+    },
+    "def1": {
+      "skills": [
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 631537
+            },
+            {
+              "startExp": 1986068,
+              "rate": 744604
+            },
+            {
+              "startExp": 13034431,
+              "rate": 857806
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 1670000
+            },
+            {
+              "startExp": 737627,
+              "rate": 2000000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 171000
+            },
+            {
+              "startExp": 13363,
+              "rate": 513800
+            },
+            {
+              "startExp": 37224,
+              "rate": 585600
+            },
+            {
+              "startExp": 101333,
+              "rate": 656800
+            },
+            {
+              "startExp": 273742,
+              "rate": 728200
+            },
+            {
+              "startExp": 737627,
+              "rate": 799800
+            },
+            {
+              "startExp": 1986068,
+              "rate": 871400
+            },
+            {
+              "startExp": 5346332,
+              "rate": 938400
+            },
+            {
+              "startExp": 13034431,
+              "rate": 970000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29000
+            },
+            {
+              "startExp": 2411,
+              "rate": 56000
+            },
+            {
+              "startExp": 22406,
+              "rate": 93174
+            },
+            {
+              "startExp": 41171,
+              "rate": 114728
+            },
+            {
+              "startExp": 111945,
+              "rate": 127339
+            },
+            {
+              "startExp": 302288,
+              "rate": 172507
+            },
+            {
+              "startExp": 814445,
+              "rate": 194022
+            },
+            {
+              "startExp": 1986068,
+              "rate": 207636
+            },
+            {
+              "startExp": 5346332,
+              "rate": 221977
+            },
+            {
+              "startExp": 13034431,
+              "rate": 235000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29200
+            },
+            {
+              "startExp": 14612,
+              "rate": 46592
+            },
+            {
+              "startExp": 75127,
+              "rate": 81612
+            },
+            {
+              "startExp": 106046,
+              "rate": 94314
+            },
+            {
+              "startExp": 229685,
+              "rate": 108780
+            },
+            {
+              "startExp": 302288,
+              "rate": 123432
+            },
+            {
+              "startExp": 593234,
+              "rate": 134256
+            },
+            {
+              "startExp": 737627,
+              "rate": 132800
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 73700
+            },
+            {
+              "startExp": 22406,
+              "rate": 138900
+            },
+            {
+              "startExp": 45529,
+              "rate": 184250
+            },
+            {
+              "startExp": 61512,
+              "rate": 198990
+            },
+            {
+              "startExp": 101333,
+              "rate": 414079
+            },
+            {
+              "startExp": 273742,
+              "rate": 565154
+            },
+            {
+              "startExp": 1210421,
+              "rate": 795098
+            },
+            {
+              "startExp": 5346332,
+              "rate": 894364
+            },
+            {
+              "startExp": 13034431,
+              "rate": 794566,
+              "realRate": 310000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "thieving",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.8387
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 57000
+            },
+            {
+              "startExp": 4470,
+              "rate": 139000
+            },
+            {
+              "startExp": 9730,
+              "rate": 187650
+            },
+            {
+              "startExp": 20224,
+              "rate": 236300
+            },
+            {
+              "startExp": 50339,
+              "rate": 298850
+            },
+            {
+              "startExp": 368599,
+              "rate": 324420
+            },
+            {
+              "startExp": 814445,
+              "rate": 366280
+            },
+            {
+              "startExp": 1475581,
+              "rate": 408140
+            },
+            {
+              "startExp": 2951373,
+              "rate": 450000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 46500
+            },
+            {
+              "startExp": 37224,
+              "rate": 380000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 410000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 30000
+            },
+            {
+              "startExp": 13363,
+              "rate": 53780
+            },
+            {
+              "startExp": 61512,
+              "rate": 77727
+            },
+            {
+              "startExp": 101333,
+              "rate": 81046
+            },
+            {
+              "startExp": 302288,
+              "rate": 88350
+            },
+            {
+              "startExp": 737627,
+              "rate": 93609
+            },
+            {
+              "startExp": 1986068,
+              "rate": 98474
+            },
+            {
+              "startExp": 3258594,
+              "rate": 46500
+            },
+            {
+              "startExp": 3693744,
+              "rate": 103620
+            },
+            {
+              "startExp": 5346332,
+              "rate": 105125
+            },
+            {
+              "startExp": 13034431,
+              "rate": 114130
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "mining",
+              "bonusSkill": "smithing",
+              "startExp": 61512,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.08
+            }
+          ]
+        },
+        {
+          "skill": "herblore",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 6000
+            },
+            {
+              "startExp": 3000,
+              "rate": 125000
+            },
+            {
+              "startExp": 30408,
+              "rate": 218750
+            },
+            {
+              "startExp": 61512,
+              "rate": 250000
+            },
+            {
+              "startExp": 123660,
+              "rate": 293750
+            },
+            {
+              "startExp": 166636,
+              "rate": 312500
+            },
+            {
+              "startExp": 368599,
+              "rate": 356250
+            },
+            {
+              "startExp": 496254,
+              "rate": 375000
+            },
+            {
+              "startExp": 668051,
+              "rate": 393750
+            },
+            {
+              "startExp": 899257,
+              "rate": 406250
+            },
+            {
+              "startExp": 1336443,
+              "rate": 431250
+            },
+            {
+              "startExp": 1475581,
+              "rate": 535500
+            },
+            {
+              "startExp": 3972294,
+              "rate": 630000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "agility",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15100
+            },
+            {
+              "startExp": 75127,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 55000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 66000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "thieving",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 61512,
+              "rate": 80000
+            },
+            {
+              "startExp": 91721,
+              "rate": 246655
+            },
+            {
+              "startExp": 293865,
+              "rate": 285024
+            },
+            {
+              "startExp": 1309988,
+              "rate": 339767
+            },
+            {
+              "startExp": 4765013,
+              "rate": 377739
+            },
+            {
+              "startExp": 10885948,
+              "rate": 363882
+            },
+            {
+              "startExp": 13034431,
+              "rate": 370169
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "slayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 5000
+            },
+            {
+              "startExp": 37224,
+              "rate": 12000
+            },
+            {
+              "startExp": 101333,
+              "rate": 40000
+            },
+            {
+              "startExp": 449428,
+              "rate": 53171
+            },
+            {
+              "startExp": 1986068,
+              "rate": 54961
+            },
+            {
+              "startExp": 3258594,
+              "rate": 60691
+            },
+            {
+              "startExp": 7195629,
+              "rate": 66330
+            },
+            {
+              "startExp": 13034431,
+              "rate": 70609
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "slayer",
+              "bonusSkill": "ranged",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.277
+            }
+          ]
+        },
+        {
+          "skill": "farming",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 16000
+            },
+            {
+              "startExp": 32500,
+              "rate": 285000
+            },
+            {
+              "startExp": 61512,
+              "rate": 491000
+            },
+            {
+              "startExp": 166636,
+              "rate": 679000
+            },
+            {
+              "startExp": 273742,
+              "rate": 1052000
+            },
+            {
+              "startExp": 605032,
+              "rate": 1338000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 1884000
+            },
+            {
+              "startExp": 2192818,
+              "rate": 2309000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 2474000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 2500000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 13600
+            },
+            {
+              "startExp": 6291,
+              "rate": 260000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "hunter",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 30000
+            },
+            {
+              "startExp": 2107,
+              "rate": 83000
+            },
+            {
+              "startExp": 7028,
+              "rate": 110000
+            },
+            {
+              "startExp": 20224,
+              "rate": 138000
+            },
+            {
+              "startExp": 55649,
+              "rate": 161000
+            },
+            {
+              "startExp": 91721,
+              "rate": 207303
+            },
+            {
+              "startExp": 24886,
+              "rate": 282663
+            },
+            {
+              "startExp": 343551,
+              "rate": 310720
+            },
+            {
+              "startExp": 737627,
+              "rate": 337966
+            },
+            {
+              "startExp": 933979,
+              "rate": 265000,
+              "realRate": 118535
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "hunter",
+              "bonusSkill": "fishing",
+              "startExp": 933979,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.7586
+            }
+          ]
+        },
+        {
+          "skill": "construction",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 54700
+            },
+            {
+              "startExp": 18247,
+              "rate": 450000
+            },
+            {
+              "startExp": 123660,
+              "rate": 950000
+            },
+            {
+              "startExp": 1475581,
+              "rate": 1050000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "sailing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 10000
+            },
+            {
+              "startExp": 13363,
+              "rate": 25000
+            },
+            {
+              "startExp": 101333,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 85000
+            },
+            {
+              "startExp": 899257,
+              "rate": 205000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 240000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {
+        "abyssalSire": 35,
+        "alchemicalHydra": 25,
+        "amoxliatl": 55,
+        "araxxor": 25,
+        "artio": 50,
+        "brutus": 200,
+        "callisto": 85,
+        "calvarion": 50,
+        "cerberus": 48,
+        "chambersOfXeric": 2.9,
+        "chambersOfXericChallengeMode": 2.4,
+        "chaosElemental": 95,
+        "chaosFanatic": 100,
+        "commanderZilyana": 26,
+        "corporealBeast": 60,
+        "dagannothPrime": 75,
+        "dagannothRex": 75,
+        "dagannothSupreme": 75,
+        "doomOfMokhaiotl": 16,
+        "dukeSucellus": 27,
+        "generalGraardor": 52,
+        "giantMole": 90,
+        "grotesqueGuardians": 23,
+        "kalphiteQueen": 35,
+        "kingBlackDragon": 100,
+        "kraken": 80,
+        "kreeArra": 23,
+        "krilTsutsaroth": 50,
+        "lunarChests": 18,
+        "madAngel": 33,
+        "nex": 23,
+        "nightmare": 12,
+        "phantomMuspah": 20,
+        "phosanisNightmare": 7,
+        "sarachnis": 80,
+        "scorpia": 130,
+        "scurrius": 50,
+        "skotizo": 30,
+        "solHeredit": 2,
+        "spindel": 50,
+        "corruptedGauntlet": 6.5,
+        "hueycoatl": 25,
+        "gauntlet": 9,
+        "leviathan": 22,
+        "royalTitans": 50,
+        "whisperer": 19,
+        "theatreOfBloodHardMode": 2.5,
+        "theatreOfBlood": 2.9,
+        "thermonuclearSmokeDevil": 110,
+        "tombsOfAmascutExpertMode": 2.5,
+        "tombsOfAmascut": 3,
+        "tzKalZuk": 0.7,
+        "tzTokJad": 1.7,
+        "vardorvis": 25,
+        "venenatis": 35,
+        "vetion": 45,
+        "yama": 16,
+        "zulrah": 35
+      }
+    },
+    "lvl3": {
+      "skills": [
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 172800
+            },
+            {
+              "startExp": 13363,
+              "rate": 519100
+            },
+            {
+              "startExp": 37224,
+              "rate": 591600
+            },
+            {
+              "startExp": 101333,
+              "rate": 663600
+            },
+            {
+              "startExp": 273742,
+              "rate": 735700
+            },
+            {
+              "startExp": 737627,
+              "rate": 808000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 880400
+            },
+            {
+              "startExp": 5346332,
+              "rate": 948100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 980000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8000
+            },
+            {
+              "startExp": 9500,
+              "rate": 56000
+            },
+            {
+              "startExp": 22406,
+              "rate": 93170
+            },
+            {
+              "startExp": 41171,
+              "rate": 114724
+            },
+            {
+              "startExp": 111945,
+              "rate": 127335
+            },
+            {
+              "startExp": 302288,
+              "rate": 172502
+            },
+            {
+              "startExp": 814445,
+              "rate": 186565
+            },
+            {
+              "startExp": 1986068,
+              "rate": 199286
+            },
+            {
+              "startExp": 5346332,
+              "rate": 212789
+            },
+            {
+              "startExp": 13034431,
+              "rate": 225000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 29200
+            },
+            {
+              "startExp": 14612,
+              "rate": 46592
+            },
+            {
+              "startExp": 75127,
+              "rate": 84686
+            },
+            {
+              "startExp": 106046,
+              "rate": 97867
+            },
+            {
+              "startExp": 229685,
+              "rate": 112877
+            },
+            {
+              "startExp": 302288,
+              "rate": 128082
+            },
+            {
+              "startExp": 593234,
+              "rate": 139313
+            },
+            {
+              "startExp": 737627,
+              "rate": 132800
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 737627,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.216
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 58960
+            },
+            {
+              "startExp": 2411,
+              "rate": 88440
+            },
+            {
+              "startExp": 13363,
+              "rate": 132660
+            },
+            {
+              "startExp": 22406,
+              "rate": 154770
+            },
+            {
+              "startExp": 61512,
+              "rate": 198990
+            },
+            {
+              "startExp": 101333,
+              "rate": 365272
+            },
+            {
+              "startExp": 273742,
+              "rate": 469636
+            },
+            {
+              "startExp": 1210421,
+              "rate": 704569
+            },
+            {
+              "startExp": 5346332,
+              "rate": 794566,
+              "realRate": 310000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "thieving",
+              "startExp": 5346332,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.8387
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 37000
+            },
+            {
+              "startExp": 4470,
+              "rate": 139000
+            },
+            {
+              "startExp": 9730,
+              "rate": 187650
+            },
+            {
+              "startExp": 20224,
+              "rate": 236300
+            },
+            {
+              "startExp": 50339,
+              "rate": 298850
+            },
+            {
+              "startExp": 368599,
+              "rate": 335230
+            },
+            {
+              "startExp": 814445,
+              "rate": 378490
+            },
+            {
+              "startExp": 1475581,
+              "rate": 421740
+            },
+            {
+              "startExp": 2951373,
+              "rate": 465000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 47450
+            },
+            {
+              "startExp": 23725,
+              "rate": 116000
+            },
+            {
+              "startExp": 83014,
+              "rate": 174000
+            },
+            {
+              "startExp": 605032,
+              "rate": 232000
+            },
+            {
+              "startExp": 4385776,
+              "rate": 290000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 505000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 24500
+            },
+            {
+              "startExp": 22525,
+              "rate": 53780
+            },
+            {
+              "startExp": 61512,
+              "rate": 77708
+            },
+            {
+              "startExp": 101333,
+              "rate": 81026
+            },
+            {
+              "startExp": 302288,
+              "rate": 88329
+            },
+            {
+              "startExp": 737627,
+              "rate": 93586
+            },
+            {
+              "startExp": 1986068,
+              "rate": 98450
+            },
+            {
+              "startExp": 3258594,
+              "rate": 46500
+            },
+            {
+              "startExp": 3693744,
+              "rate": 103620
+            },
+            {
+              "startExp": 5346332,
+              "rate": 105100
+            },
+            {
+              "startExp": 13034431,
+              "rate": 114100
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "mining",
+              "bonusSkill": "smithing",
+              "startExp": 302288,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.08
+            }
+          ]
+        },
+        {
+          "skill": "herblore",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 6000
+            },
+            {
+              "startExp": 3025,
+              "rate": 125000
+            },
+            {
+              "startExp": 30408,
+              "rate": 218750
+            },
+            {
+              "startExp": 61512,
+              "rate": 250000
+            },
+            {
+              "startExp": 123660,
+              "rate": 293750
+            },
+            {
+              "startExp": 166636,
+              "rate": 312500
+            },
+            {
+              "startExp": 368599,
+              "rate": 356250
+            },
+            {
+              "startExp": 496254,
+              "rate": 375000
+            },
+            {
+              "startExp": 668051,
+              "rate": 393750
+            },
+            {
+              "startExp": 899257,
+              "rate": 406250
+            },
+            {
+              "startExp": 1336443,
+              "rate": 431250
+            },
+            {
+              "startExp": 1475581,
+              "rate": 535500
+            },
+            {
+              "startExp": 3258594,
+              "rate": 810000
+            },
+            {
+              "startExp": 5902831,
+              "rate": 660000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 644841
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "agility",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 9000
+            },
+            {
+              "startExp": 2411,
+              "rate": 11000
+            },
+            {
+              "startExp": 7842,
+              "rate": 14000
+            },
+            {
+              "startExp": 37224,
+              "rate": 28000
+            },
+            {
+              "startExp": 61512,
+              "rate": 34000
+            },
+            {
+              "startExp": 166636,
+              "rate": 44000
+            },
+            {
+              "startExp": 449428,
+              "rate": 56000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 59000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 66000
+            },
+            {
+              "startExp": 9684577,
+              "rate": 70000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "thieving",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15505
+            },
+            {
+              "startExp": 46525,
+              "rate": 39000
+            },
+            {
+              "startExp": 61512,
+              "rate": 55000
+            },
+            {
+              "startExp": 91721,
+              "rate": 210000
+            },
+            {
+              "startExp": 293865,
+              "rate": 243000
+            },
+            {
+              "startExp": 1309988,
+              "rate": 291000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 375000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 411393
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "farming",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 24000
+            },
+            {
+              "startExp": 17470,
+              "rate": 288000
+            },
+            {
+              "startExp": 61512,
+              "rate": 498000
+            },
+            {
+              "startExp": 166636,
+              "rate": 679000
+            },
+            {
+              "startExp": 273742,
+              "rate": 1045000
+            },
+            {
+              "startExp": 605032,
+              "rate": 1261000
+            },
+            {
+              "startExp": 1210421,
+              "rate": 1875000
+            },
+            {
+              "startExp": 2192818,
+              "rate": 2167000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 2265000
+            },
+            {
+              "startExp": 5346332,
+              "rate": 2300000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 7000
+            },
+            {
+              "startExp": 6500,
+              "rate": 145000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "hunter",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 30080
+            },
+            {
+              "startExp": 2107,
+              "rate": 82849
+            },
+            {
+              "startExp": 7028,
+              "rate": 110466
+            },
+            {
+              "startExp": 20224,
+              "rate": 138082
+            },
+            {
+              "startExp": 55649,
+              "rate": 215112
+            },
+            {
+              "startExp": 91721,
+              "rate": 268770
+            },
+            {
+              "startExp": 24886,
+              "rate": 293310
+            },
+            {
+              "startExp": 343551,
+              "rate": 322424
+            },
+            {
+              "startExp": 737627,
+              "rate": 350697
+            },
+            {
+              "startExp": 933979,
+              "rate": 265000,
+              "realRate": 123000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "hunter",
+              "bonusSkill": "fishing",
+              "startExp": 933979,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.75862069443,
+              "maxBonus": 43163290
+            }
+          ]
+        },
+        {
+          "skill": "construction",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 54700
+            },
+            {
+              "startExp": 18247,
+              "rate": 450000
+            },
+            {
+              "startExp": 123660,
+              "rate": 950000
+            },
+            {
+              "startExp": 1475581,
+              "rate": 1070000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "sailing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 5000
+            },
+            {
+              "startExp": 13363,
+              "rate": 25000
+            },
+            {
+              "startExp": 101333,
+              "rate": 35000
+            },
+            {
+              "startExp": 166636,
+              "rate": 80000
+            },
+            {
+              "startExp": 922895,
+              "rate": 130000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {}
+    },
+    "f2p": {
+      "skills": [
+        {
+          "skill": "attack",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 12000
+            },
+            {
+              "startExp": 4825,
+              "rate": 30000
+            },
+            {
+              "startExp": 37224,
+              "rate": 90000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "defence",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 90000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "strength",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 12000
+            },
+            {
+              "startExp": 18650,
+              "rate": 25000
+            },
+            {
+              "startExp": 37224,
+              "rate": 40500
+            },
+            {
+              "startExp": 50339,
+              "rate": 43500
+            },
+            {
+              "startExp": 75127,
+              "rate": 49000
+            },
+            {
+              "startExp": 123660,
+              "rate": 52000
+            },
+            {
+              "startExp": 166636,
+              "rate": 55000
+            },
+            {
+              "startExp": 273742,
+              "rate": 58000
+            },
+            {
+              "startExp": 407015,
+              "rate": 61000
+            },
+            {
+              "startExp": 547953,
+              "rate": 66500
+            },
+            {
+              "startExp": 899257,
+              "rate": 69500
+            },
+            {
+              "startExp": 1336443,
+              "rate": 72500
+            },
+            {
+              "startExp": 1986068,
+              "rate": 75500
+            },
+            {
+              "startExp": 2951373,
+              "rate": 78500
+            },
+            {
+              "startExp": 4385776,
+              "rate": 84000
+            },
+            {
+              "startExp": 7195629,
+              "rate": 87000
+            },
+            {
+              "startExp": 9684577,
+              "rate": 90000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8000
+            },
+            {
+              "startExp": 13363,
+              "rate": 30000
+            },
+            {
+              "startExp": 20224,
+              "rate": 34000
+            },
+            {
+              "startExp": 33648,
+              "rate": 40500
+            },
+            {
+              "startExp": 55649,
+              "rate": 44500
+            },
+            {
+              "startExp": 91721,
+              "rate": 48500
+            },
+            {
+              "startExp": 150872,
+              "rate": 52500
+            },
+            {
+              "startExp": 273742,
+              "rate": 56500
+            },
+            {
+              "startExp": 449428,
+              "rate": 63000
+            },
+            {
+              "startExp": 737627,
+              "rate": 66500
+            },
+            {
+              "startExp": 1210421,
+              "rate": 70500
+            },
+            {
+              "startExp": 1986068,
+              "rate": 74500
+            },
+            {
+              "startExp": 3258594,
+              "rate": 78500
+            },
+            {
+              "startExp": 5346332,
+              "rate": 85500
+            },
+            {
+              "startExp": 8771558,
+              "rate": 89500
+            },
+            {
+              "startExp": 13034431,
+              "rate": 90000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 160000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 130000
+            },
+            {
+              "startExp": 22406,
+              "rate": 450000
+            },
+            {
+              "startExp": 605032,
+              "rate": 500000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8365
+            },
+            {
+              "startExp": 2411,
+              "rate": 35000
+            },
+            {
+              "startExp": 5018,
+              "rate": 45000
+            },
+            {
+              "startExp": 14833,
+              "rate": 60000
+            },
+            {
+              "startExp": 41171,
+              "rate": 80000
+            },
+            {
+              "startExp": 101333,
+              "rate": 98000
+            },
+            {
+              "startExp": 273742,
+              "rate": 105000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 3000
+            },
+            {
+              "startExp": 388,
+              "rate": 5000
+            },
+            {
+              "startExp": 1154,
+              "rate": 12000
+            },
+            {
+              "startExp": 4470,
+              "rate": 21000
+            },
+            {
+              "startExp": 13363,
+              "rate": 41000
+            },
+            {
+              "startExp": 37224,
+              "rate": 50000
+            },
+            {
+              "startExp": 101333,
+              "rate": 58000
+            },
+            {
+              "startExp": 273742,
+              "rate": 65000
+            },
+            {
+              "startExp": 737627,
+              "rate": 71000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 78000
+            },
+            {
+              "startExp": 5902831,
+              "rate": 84000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 90000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 13363,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1.15
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 20000
+            },
+            {
+              "startExp": 2411,
+              "rate": 40000
+            },
+            {
+              "startExp": 13363,
+              "rate": 100000
+            },
+            {
+              "startExp": 61512,
+              "rate": 195750
+            },
+            {
+              "startExp": 273742,
+              "rate": 293625
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "prayer",
+              "startExp": 61512,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 0.12
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 37000
+            },
+            {
+              "startExp": 4470,
+              "rate": 139000
+            },
+            {
+              "startExp": 9730,
+              "rate": 187650
+            },
+            {
+              "startExp": 20224,
+              "rate": 236300
+            },
+            {
+              "startExp": 50339,
+              "rate": 298850
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 38175
+            },
+            {
+              "startExp": 12725,
+              "rate": 59970
+            },
+            {
+              "startExp": 18247,
+              "rate": 119950
+            },
+            {
+              "startExp": 83014,
+              "rate": 179900
+            },
+            {
+              "startExp": 605032,
+              "rate": 239900
+            },
+            {
+              "startExp": 4385776,
+              "rate": 300000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 4000
+            },
+            {
+              "startExp": 2411,
+              "rate": 50750
+            },
+            {
+              "startExp": 5018,
+              "rate": 53600
+            },
+            {
+              "startExp": 14833,
+              "rate": 57550
+            },
+            {
+              "startExp": 41171,
+              "rate": 60900
+            },
+            {
+              "startExp": 302288,
+              "rate": 65000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 75000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {}
+    },
+    "f2p_lvl3": {
+      "skills": [
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 130000
+            },
+            {
+              "startExp": 22406,
+              "rate": 450000
+            },
+            {
+              "startExp": 605032,
+              "rate": 500000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8365
+            },
+            {
+              "startExp": 2411,
+              "rate": 35000
+            },
+            {
+              "startExp": 5018,
+              "rate": 45000
+            },
+            {
+              "startExp": 14833,
+              "rate": 60000
+            },
+            {
+              "startExp": 41171,
+              "rate": 80000
+            },
+            {
+              "startExp": 101333,
+              "rate": 98000
+            },
+            {
+              "startExp": 273742,
+              "rate": 105000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 3000
+            },
+            {
+              "startExp": 388,
+              "rate": 5000
+            },
+            {
+              "startExp": 1154,
+              "rate": 12000
+            },
+            {
+              "startExp": 4470,
+              "rate": 21000
+            },
+            {
+              "startExp": 13363,
+              "rate": 41000
+            },
+            {
+              "startExp": 37224,
+              "rate": 50000
+            },
+            {
+              "startExp": 101333,
+              "rate": 58000
+            },
+            {
+              "startExp": 273742,
+              "rate": 65000
+            },
+            {
+              "startExp": 737627,
+              "rate": 71000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 78000
+            },
+            {
+              "startExp": 5902831,
+              "rate": 84000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 90000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 13363,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1.15
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 20000
+            },
+            {
+              "startExp": 2411,
+              "rate": 40000
+            },
+            {
+              "startExp": 13363,
+              "rate": 100000
+            },
+            {
+              "startExp": 61512,
+              "rate": 197000
+            },
+            {
+              "startExp": 273742,
+              "rate": 296000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 37000
+            },
+            {
+              "startExp": 4470,
+              "rate": 139000
+            },
+            {
+              "startExp": 9730,
+              "rate": 187650
+            },
+            {
+              "startExp": 20224,
+              "rate": 236300
+            },
+            {
+              "startExp": 50339,
+              "rate": 298850
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 38175
+            },
+            {
+              "startExp": 12725,
+              "rate": 59970
+            },
+            {
+              "startExp": 18247,
+              "rate": 119950
+            },
+            {
+              "startExp": 83014,
+              "rate": 179900
+            },
+            {
+              "startExp": 605032,
+              "rate": 239900
+            },
+            {
+              "startExp": 4385776,
+              "rate": 300000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 4000
+            },
+            {
+              "startExp": 2411,
+              "rate": 50750
+            },
+            {
+              "startExp": 5018,
+              "rate": 53600
+            },
+            {
+              "startExp": 14833,
+              "rate": 57550
+            },
+            {
+              "startExp": 41171,
+              "rate": 60900
+            },
+            {
+              "startExp": 302288,
+              "rate": 65000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 60000
+            }
+          ],
+          "bonuses": []
+        }
+      ],
+      "bosses": {}
+    },
+    "f2p_ironman": {
+      "skills": [
+        {
+          "skill": "attack",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 12000
+            },
+            {
+              "startExp": 4825,
+              "rate": 14000
+            },
+            {
+              "startExp": 37224,
+              "rate": 31200
+            },
+            {
+              "startExp": 101333,
+              "rate": 36000
+            },
+            {
+              "startExp": 273742,
+              "rate": 40600
+            },
+            {
+              "startExp": 737627,
+              "rate": 43000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 48600
+            },
+            {
+              "startExp": 5346332,
+              "rate": 49600
+            },
+            {
+              "startExp": 13034431,
+              "rate": 50700
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "attack",
+              "bonusSkill": "prayer",
+              "startExp": 4825,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.129
+            },
+            {
+              "originSkill": "attack",
+              "bonusSkill": "prayer",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.1175
+            },
+            {
+              "originSkill": "attack",
+              "bonusSkill": "crafting",
+              "startExp": 37224,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.0047
+            },
+            {
+              "originSkill": "attack",
+              "bonusSkill": "crafting",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0081
+            }
+          ]
+        },
+        {
+          "skill": "defence",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 12000
+            },
+            {
+              "startExp": 18650,
+              "rate": 20000
+            },
+            {
+              "startExp": 37224,
+              "rate": 50700
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "defence",
+              "bonusSkill": "prayer",
+              "startExp": 37224,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.1176
+            },
+            {
+              "originSkill": "defence",
+              "bonusSkill": "crafting",
+              "startExp": 37224,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0081
+            }
+          ]
+        },
+        {
+          "skill": "strength",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 12000
+            },
+            {
+              "startExp": 18650,
+              "rate": 14000
+            },
+            {
+              "startExp": 37224,
+              "rate": 23300
+            },
+            {
+              "startExp": 101333,
+              "rate": 27300
+            },
+            {
+              "startExp": 273742,
+              "rate": 32100
+            },
+            {
+              "startExp": 737627,
+              "rate": 36700
+            },
+            {
+              "startExp": 1986068,
+              "rate": 42000
+            },
+            {
+              "startExp": 3258594,
+              "rate": 44800
+            },
+            {
+              "startExp": 5346332,
+              "rate": 46700
+            },
+            {
+              "startExp": 8771558,
+              "rate": 49600
+            },
+            {
+              "startExp": 13034431,
+              "rate": 51100
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "strength",
+              "bonusSkill": "prayer",
+              "startExp": 18650,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.129
+            },
+            {
+              "originSkill": "strength",
+              "bonusSkill": "prayer",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.1173
+            },
+            {
+              "originSkill": "strength",
+              "bonusSkill": "crafting",
+              "startExp": 37224,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.0047
+            },
+            {
+              "originSkill": "strength",
+              "bonusSkill": "crafting",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0081
+            }
+          ]
+        },
+        {
+          "skill": "ranged",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 2900
+            },
+            {
+              "startExp": 388,
+              "rate": 5400
+            },
+            {
+              "startExp": 4470,
+              "rate": 11000
+            },
+            {
+              "startExp": 13363,
+              "rate": 13900
+            },
+            {
+              "startExp": 37224,
+              "rate": 21500
+            },
+            {
+              "startExp": 101333,
+              "rate": 27300
+            },
+            {
+              "startExp": 166636,
+              "rate": 30100
+            },
+            {
+              "startExp": 302288,
+              "rate": 27000
+            },
+            {
+              "startExp": 547953,
+              "rate": 30100
+            },
+            {
+              "startExp": 992895,
+              "rate": 33200
+            },
+            {
+              "startExp": 1798808,
+              "rate": 36400
+            },
+            {
+              "startExp": 3258594,
+              "rate": 39500
+            },
+            {
+              "startExp": 5902831,
+              "rate": 42500
+            },
+            {
+              "startExp": 9684577,
+              "rate": 45400
+            },
+            {
+              "startExp": 13034431,
+              "rate": 44400
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "prayer",
+              "startExp": 0,
+              "endExp": 302288,
+              "end": true,
+              "ratio": 0.145
+            },
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "prayer",
+              "startExp": 302288,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.0457
+            },
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "prayer",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0534
+            },
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "crafting",
+              "startExp": 37224,
+              "endExp": 302288,
+              "end": true,
+              "ratio": 0.0047
+            },
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "crafting",
+              "startExp": 302288,
+              "endExp": 13034431,
+              "end": true,
+              "ratio": 0.0326
+            },
+            {
+              "originSkill": "ranged",
+              "bonusSkill": "crafting",
+              "startExp": 13034431,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0369
+            }
+          ]
+        },
+        {
+          "skill": "prayer",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 17000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "magic",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 3973,
+              "rate": 33000
+            },
+            {
+              "startExp": 33648,
+              "rate": 43500
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "magic",
+              "bonusSkill": "prayer",
+              "startExp": 33648,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.0516
+            }
+          ]
+        },
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 115000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8365
+            },
+            {
+              "startExp": 2411,
+              "rate": 35000
+            },
+            {
+              "startExp": 5018,
+              "rate": 45000
+            },
+            {
+              "startExp": 14833,
+              "rate": 60000
+            },
+            {
+              "startExp": 41171,
+              "rate": 80000
+            },
+            {
+              "startExp": 101333,
+              "rate": 98000
+            },
+            {
+              "startExp": 273742,
+              "rate": 105000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 3000
+            },
+            {
+              "startExp": 388,
+              "rate": 5000
+            },
+            {
+              "startExp": 1154,
+              "rate": 12000
+            },
+            {
+              "startExp": 4470,
+              "rate": 21000
+            },
+            {
+              "startExp": 13363,
+              "rate": 41000
+            },
+            {
+              "startExp": 37224,
+              "rate": 50000
+            },
+            {
+              "startExp": 101333,
+              "rate": 58000
+            },
+            {
+              "startExp": 273742,
+              "rate": 65000
+            },
+            {
+              "startExp": 737627,
+              "rate": 71000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 78000
+            },
+            {
+              "startExp": 5902831,
+              "rate": 84000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 90000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1.15
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 2411,
+              "rate": 45000
+            },
+            {
+              "startExp": 13363,
+              "rate": 60000
+            },
+            {
+              "startExp": 50339,
+              "rate": 65000
+            },
+            {
+              "startExp": 237742,
+              "rate": 70000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "woodcutting",
+              "startExp": 13363,
+              "endExp": 273742,
+              "end": true,
+              "ratio": 0.75
+            },
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "woodcutting",
+              "startExp": 273742,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.8642
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 2746,
+              "rate": 19000
+            },
+            {
+              "startExp": 6291,
+              "rate": 19500
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "smithing",
+              "startExp": 2746,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.261
+            },
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "mining",
+              "startExp": 2746,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.762
+            },
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "magic",
+              "startExp": 2746,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.044
+            }
+          ]
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 38175
+            },
+            {
+              "startExp": 12725,
+              "rate": 16500
+            },
+            {
+              "startExp": 24463,
+              "rate": 20700
+            },
+            {
+              "startExp": 50000,
+              "rate": 23300
+            },
+            {
+              "startExp": 106000,
+              "rate": 25700
+            },
+            {
+              "startExp": 334700,
+              "rate": 27200
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "smithing",
+              "bonusSkill": "mining",
+              "startExp": 12725,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.933
+            },
+            {
+              "originSkill": "smithing",
+              "bonusSkill": "magic",
+              "startExp": 12725,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 1.6373
+            }
+          ]
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 4000
+            },
+            {
+              "startExp": 2411,
+              "rate": 40500
+            },
+            {
+              "startExp": 13363,
+              "rate": 45500
+            },
+            {
+              "startExp": 37224,
+              "rate": 48000
+            },
+            {
+              "startExp": 101333,
+              "rate": 54000
+            },
+            {
+              "startExp": 302288,
+              "rate": 60000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 5900
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "runecraft",
+              "bonusSkill": "mining",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.6233
+            }
+          ]
+        }
+      ],
+      "bosses": {}
+    },
+    "f2p_lvl3_ironman": {
+      "skills": [
+        {
+          "skill": "cooking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 115000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "woodcutting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 8365
+            },
+            {
+              "startExp": 2411,
+              "rate": 36000
+            },
+            {
+              "startExp": 5018,
+              "rate": 46300
+            },
+            {
+              "startExp": 14833,
+              "rate": 61700
+            },
+            {
+              "startExp": 41171,
+              "rate": 82300
+            },
+            {
+              "startExp": 101333,
+              "rate": 100800
+            },
+            {
+              "startExp": 273742,
+              "rate": 108000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "fishing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 3000
+            },
+            {
+              "startExp": 388,
+              "rate": 5000
+            },
+            {
+              "startExp": 1154,
+              "rate": 12000
+            },
+            {
+              "startExp": 4470,
+              "rate": 21000
+            },
+            {
+              "startExp": 13363,
+              "rate": 41000
+            },
+            {
+              "startExp": 37224,
+              "rate": 50000
+            },
+            {
+              "startExp": 101333,
+              "rate": 58000
+            },
+            {
+              "startExp": 273742,
+              "rate": 65000
+            },
+            {
+              "startExp": 737627,
+              "rate": 71000
+            },
+            {
+              "startExp": 1986068,
+              "rate": 78000
+            },
+            {
+              "startExp": 5902831,
+              "rate": 84000
+            },
+            {
+              "startExp": 13034431,
+              "rate": 90000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "fishing",
+              "bonusSkill": "cooking",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": false,
+              "ratio": 1.15
+            }
+          ]
+        },
+        {
+          "skill": "firemaking",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 15000
+            },
+            {
+              "startExp": 2411,
+              "rate": 45000
+            },
+            {
+              "startExp": 13363,
+              "rate": 60000
+            },
+            {
+              "startExp": 50339,
+              "rate": 65000
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "firemaking",
+              "bonusSkill": "woodcutting",
+              "startExp": 13363,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.75
+            }
+          ]
+        },
+        {
+          "skill": "crafting",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 6750
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "mining",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.762
+            },
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "runecraft",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.476
+            },
+            {
+              "originSkill": "crafting",
+              "bonusSkill": "smithing",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.261
+            }
+          ]
+        },
+        {
+          "skill": "smithing",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 38175
+            },
+            {
+              "startExp": 12725,
+              "rate": 9500
+            },
+            {
+              "startExp": 37224,
+              "rate": 9500
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "smithing",
+              "bonusSkill": "mining",
+              "startExp": 12725,
+              "endExp": 37224,
+              "end": true,
+              "ratio": 0.933
+            }
+          ]
+        },
+        {
+          "skill": "mining",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 4000
+            },
+            {
+              "startExp": 2411,
+              "rate": 40500
+            },
+            {
+              "startExp": 13363,
+              "rate": 45500
+            },
+            {
+              "startExp": 37224,
+              "rate": 48000
+            },
+            {
+              "startExp": 101333,
+              "rate": 54000
+            },
+            {
+              "startExp": 302288,
+              "rate": 60000
+            }
+          ],
+          "bonuses": []
+        },
+        {
+          "skill": "runecraft",
+          "methods": [
+            {
+              "startExp": 0,
+              "rate": 4550
+            }
+          ],
+          "bonuses": [
+            {
+              "originSkill": "runecraft",
+              "bonusSkill": "mining",
+              "startExp": 0,
+              "endExp": 200000000,
+              "end": true,
+              "ratio": 0.769
+            }
+          ]
+        }
+      ],
+      "bosses": {}
+    }
+  }
+}
