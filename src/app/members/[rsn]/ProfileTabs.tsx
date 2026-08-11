@@ -111,10 +111,21 @@ export default function ProfileTabs({
       })),
     [windowed, metric],
   );
-  const heatDays = useMemo(
-    () => series.slice(-90).map((p) => ({ day: p.day, value: p.ehpGained + p.ehbGained })),
-    [series],
-  );
+  // The heatmap always draws the full 90-day calendar, even on an instance that only started
+  // tracking yesterday. An empty cell reads as "nothing happened", which is exactly right; one lone
+  // square floating in a blank card reads as a broken chart.
+  //
+  // The line chart deliberately does NOT do this: a flat zero line claims they were inactive, and for
+  // days before tracking began we simply weren't looking. Empty grid, honest chart.
+  const heatDays = useMemo(() => {
+    const byDay = new Map(series.map((p) => [p.day, p.ehpGained + p.ehbGained]));
+    const out: { day: string; value: number }[] = [];
+    for (let i = 89; i >= 0; i--) {
+      const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      out.push({ day, value: byDay.get(day) ?? 0 });
+    }
+    return out;
+  }, [series]);
   const windowTotal = chartPoints.reduce((sum, p) => sum + p.value, 0);
   // How much history there is to draw. A brand-new install has a day or two, and a heatmap of 90
   // empty squares looks broken rather than new — so say which it is.
@@ -177,12 +188,12 @@ export default function ProfileTabs({
 
           <Section title="Activity" aside="efficient hours gained, last 90 days">
             <div className="border border-card-border rounded-xl bg-card-bg p-4">
-              {activeDays > 0 ? (
-                <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
-              ) : (
-                <p className="text-sm text-text-muted py-6 text-center">
-                  Nothing to plot yet — daily tracking started {trackedFor === 0 ? 'today' : `${trackedFor} day${trackedFor === 1 ? '' : 's'} ago`},
-                  and this fills in as they play.
+              <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
+              {trackedFor <= 14 && (
+                // Say why most of the grid is empty, so it isn't mistaken for a very quiet player.
+                <p className="text-xs text-text-muted mt-3">
+                  Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — earlier
+                  squares are empty because nothing was recorded yet, not because nothing happened.
                 </p>
               )}
             </div>
