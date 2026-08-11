@@ -13,6 +13,7 @@ import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
 import { statLabel } from '@/lib/tileKinds';
 import { isIndividualMode } from '@/lib/statTracking';
+import { evaluateCollection, groupModeHint } from '@/lib/collectionSets';
 import { submissionHasProof } from '@/lib/submissionProof';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -545,9 +546,9 @@ export default function TileDetailModal({
                 />
               </div>
 
-              {/* Per-item breakdown. Items carrying a `group` form "any one set" alternatives \u2014
-                  one fully-collected set completes the tile (no mixing); ungrouped items are
-                  always required. Without groups this renders the classic flat list. */}
+              {/* Per-item breakdown. Items carrying a `group` form sets; the tile's groupMode decides
+                  whether satisfying ONE of them finishes the tile or every one must be satisfied,
+                  and a set can need only some of its items. Without groups: the classic flat list. */}
               {perItemProgress && perItemProgress.length > 0 && (() => {
                 const row = (item: (typeof perItemProgress)[number]) => {
                   const itemComplete = item.currentAmount >= item.requiredAmount;
@@ -565,42 +566,34 @@ export default function TileDetailModal({
                     </div>
                   );
                 };
-                const ungrouped = perItemProgress.filter((i) => !i.group?.trim());
-                const sets = new Map<string, typeof perItemProgress>();
-                for (const i of perItemProgress) {
-                  const g = i.group?.trim();
-                  if (!g) continue;
-                  const key = g.toLowerCase();
-                  if (!sets.has(key)) sets.set(key, []);
-                  sets.get(key)!.push(i);
-                }
-                if (sets.size === 0) {
+                // Sets and what they mean come from lib/collectionSets, the same rule the server
+                // completes on \u2014 including 'all' mode ("one from each source"), where a set can need
+                // just some of its items.
+                const state = evaluateCollection(perItemProgress, tile.groupMode);
+                if (state.groups.length === 0) {
                   return <div className="mt-3 space-y-1.5">{perItemProgress.map(row)}</div>;
                 }
                 return (
                   <div className="mt-3 space-y-2.5">
-                    <p className="text-[11px] text-text-muted">
-                      Complete <span className="text-gold">any one set</span> below \u2014 pieces from different
-                      sets don&rsquo;t mix.
-                    </p>
-                    {ungrouped.length > 0 && (
+                    <p className="text-[11px] text-text-muted">{groupModeHint(state)}</p>
+                    {state.ungrouped.length > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold text-text-muted mb-1">Always required</p>
-                        <div className="space-y-1.5">{ungrouped.map(row)}</div>
+                        <div className="space-y-1.5">{state.ungrouped.map(row)}</div>
                       </div>
                     )}
-                    {[...sets.values()].map((set) => {
-                      const setDone = set.every((i) => i.currentAmount >= i.requiredAmount);
-                      const label = set[0].group!.trim();
-                      return (
-                        <div key={label.toLowerCase()} className={`rounded-lg border px-2.5 py-2 ${setDone ? 'border-accent-green/40 bg-accent-green/10' : 'border-card-border/60'}`}>
-                          <p className={`text-[11px] font-semibold mb-1 ${setDone ? 'text-accent-green-light' : 'text-foreground/80'}`}>
-                            {label}{setDone ? ' \u2713' : ''}
-                          </p>
-                          <div className="space-y-1.5">{set.map(row)}</div>
-                        </div>
-                      );
-                    })}
+                    {state.groups.map((set) => (
+                      <div key={set.name.toLowerCase()} className={`rounded-lg border px-2.5 py-2 ${set.satisfied ? 'border-accent-green/40 bg-accent-green/10' : 'border-card-border/60'}`}>
+                        <p className={`text-[11px] font-semibold mb-1 flex justify-between gap-2 ${set.satisfied ? 'text-accent-green-light' : 'text-foreground/80'}`}>
+                          <span>{set.name}{set.satisfied ? ' \u2713' : ''}</span>
+                          {/* Only worth saying when the set doesn't need all of its items. */}
+                          {set.require < set.items.length && (
+                            <span className="text-text-muted font-normal">any {set.require} \u00b7 {set.met}/{set.require}</span>
+                          )}
+                        </p>
+                        <div className="space-y-1.5">{set.items.map(row)}</div>
+                      </div>
+                    ))}
                   </div>
                 );
               })()}

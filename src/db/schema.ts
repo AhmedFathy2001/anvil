@@ -126,7 +126,14 @@ export const tiles = sqliteTable('tiles', {
   // hiscores polling still happen (evidence keeps flowing); only the auto-credit is suppressed.
   autoTrackDisabled: integer('auto_track_disabled').default(0).notNull(),
   trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
-  itemRequirements: text('item_requirements'), // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}]
+  // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}].
+  // A row may carry `group` (set name) and `groupRequire` (how many distinct items in that set count
+  // as satisfying it; absent = all of them) — see lib/collectionSets for what the two mean together.
+  itemRequirements: text('item_requirements'),
+  // How a collection tile's groups combine (lib/collectionSets). NULL/'any' = the OR-ed reading every
+  // pre-existing collection has: satisfy ONE set. 'all' = AND-ed, every set must be satisfied — which
+  // with groupRequire=1 per set is "one of many from EACH source" (a unique from each DT2 boss).
+  groupMode: text('group_mode'),
   // JSON array of accepted loot sources for this tile. NULL = accept any source
   // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
   // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles

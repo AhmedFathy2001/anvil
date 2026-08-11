@@ -80,6 +80,7 @@ export async function POST(
         autoTrackDisabled: t.autoTrackDisabled,
         trackedItemIds: t.trackedItemIds,
         itemRequirements: t.itemRequirements,
+        groupMode: t.groupMode,
         acceptedSources: t.acceptedSources,
         sourceNpcs: t.sourceNpcs,
         targetNpcs: t.targetNpcs,

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Event, Tile } from '@/lib/types';
+import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
@@ -38,8 +38,11 @@ function tileToTrackingInitial(tile: Tile) {
     autoTrackDisabled: !!tile.autoTrackDisabled,
     trackedItemIds: tile.trackedItemIds ? (JSON.parse(tile.trackedItemIds) as number[]) : null,
     itemRequirements: tile.itemRequirements
-      ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[])
+      ? (JSON.parse(tile.itemRequirements) as ItemRequirement[])
       : null,
+    // Without this the set controls reloaded on 'any' and the next save silently flipped an
+    // "every set" collection back to any-one-set.
+    groupMode: tile.groupMode ?? null,
     points: tile.points ?? 1,
     category: tile.category ?? null,
     sourceNpcs: tile.sourceNpcs ? (JSON.parse(tile.sourceNpcs) as string[]) : null,

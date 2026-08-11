@@ -351,6 +351,13 @@
       "when": 1786485785330,
       "tag": "0049_tile-capability",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1786490038900,
+      "tag": "0050_collection-group-mode",
+      "breakpoints": true
     }
   ]
 }

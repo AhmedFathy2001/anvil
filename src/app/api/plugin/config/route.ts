@@ -724,7 +724,7 @@ export async function GET(request: Request) {
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {
         const itemReqs = t.itemRequirements
-          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
+          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
           : null;
         const tileItemTotals = perItemMap.get(t.id);
 
@@ -764,8 +764,14 @@ export async function GET(request: Request) {
               name: req.name,
               requiredAmount: req.requiredAmount,
               group: req.group ?? null,
+              // How many of the set satisfy it (absent = all), and how the sets combine. Older
+              // plugins ignore both and keep reading the tile as OR-ed full sets; the SERVER owns
+              // completion either way, so an 'all' tile still credits correctly in-game — its
+              // progress bar just reads the old way until the plugin ships set support.
+              groupRequire: req.groupRequire ?? 0,
               currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
             })),
+            groupMode: t.groupMode === 'all' ? 'all' : 'any',
           } : {}),
         };
       }),

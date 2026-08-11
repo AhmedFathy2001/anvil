@@ -6,6 +6,7 @@ import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
 import { parseEventRules, hasRevealPolicy, visibleTiles, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
+import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 
 export async function GET(
   _request: Request,
@@ -53,7 +54,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -122,13 +123,24 @@ export async function PUT(
   if (itemRequirements !== undefined && itemRequirements !== null) {
     if (!Array.isArray(itemRequirements) ||
         !itemRequirements.every((r: unknown) => {
-          const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown };
+          const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown; groupRequire?: unknown };
           const groupOk = req.group == null || (typeof req.group === 'string' && req.group.length <= 30);
+          // How many of the set count as satisfying it — only meaningful ON a set. Clamping to the
+          // group's size happens at read time (lib/collectionSets), so a later edit that shrinks a
+          // group can't strand a tile; this only rejects nonsense.
+          const requireOk = req.groupRequire == null ||
+            (Number.isInteger(req.groupRequire) && (req.groupRequire as number) >= 1 && (req.groupRequire as number) <= 100);
           return req && Number.isInteger(req.itemId) && (req.itemId as number) > 0 &&
-                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk;
+                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk && requireOk;
         })) {
-      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, and an optional set name (≤30 chars)' }, { status: 400 });
+      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, an optional set name (≤30 chars), and an optional groupRequire of 1-100' }, { status: 400 });
     }
+  }
+
+  // How a collection's sets combine — 'any' (satisfy one) or 'all' (satisfy each). Null clears it
+  // back to the default rather than storing a value.
+  if (groupMode !== undefined && groupMode !== null && groupMode !== 'any' && groupMode !== 'all') {
+    return NextResponse.json({ error: "groupMode must be 'any' or 'all'" }, { status: 400 });
   }
 
   // sourceNpcs: optional JSON array of specific source NPC names for a drop tile.
@@ -291,25 +303,22 @@ export async function PUT(
   // itemRequirements is always editable — when set, auto-compute trackedItemIds and requiredAmount.
   // When cleared (null or []), also clear trackedItemIds so the plugin doesn't try to track this
   // tile per-item, and submission validation doesn't demand itemId for a tile with no requirements.
+  if (groupMode !== undefined) {
+    // Only ever meaningful with sets; stored as null for the default so a plain collection carries
+    // no mode at all.
+    updateSet.groupMode = groupMode === 'all' ? 'all' : null;
+  }
+
   if (itemRequirements !== undefined) {
     if (itemRequirements && Array.isArray(itemRequirements) && itemRequirements.length > 0) {
       updateSet.itemRequirements = JSON.stringify(itemRequirements);
       updateSet.trackedItemIds = JSON.stringify(itemRequirements.map((r: { itemId: number }) => r.itemId));
-      // Display total: classic collections need every item, so the sum. "Any full set"
-      // collections need the ungrouped items plus ONE set — use the smallest set so the
-      // X/Y progress reflects the shortest path to completion.
-      updateSet.requiredAmount = (() => {
-        const reqs = itemRequirements as { requiredAmount: number; group?: string | null }[];
-        const groupSums = new Map<string, number>();
-        let ungroupedSum = 0;
-        for (const r of reqs) {
-          const g = r.group?.trim().toLowerCase();
-          if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
-          else ungroupedSum += r.requiredAmount;
-        }
-        if (groupSums.size === 0) return ungroupedSum;
-        return ungroupedSum + Math.min(...groupSums.values());
-      })();
+      // Display total: the shortest path to completion under this tile's group mode
+      // (lib/collectionSets owns that arithmetic).
+      updateSet.requiredAmount = collectionDisplayTotal(
+        itemRequirements as CollectionRequirement[],
+        groupMode !== undefined ? groupMode : tile.groupMode,
+      );
     } else {
       // Cleared. Wipe derived trackedItemIds unless the admin explicitly set a non-empty
       // trackedItemIds in the same request (simple-mode drop tile).

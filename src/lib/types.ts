@@ -61,6 +61,8 @@ export interface Tile extends TileRevealState {
   autoTrackDisabled?: number | null;
   trackedItemIds?: string | null;
   itemRequirements?: string | null;
+  /** Collection tiles: 'any' (default/null) | 'all' — how the item groups combine. See collectionSets. */
+  groupMode?: string | null;
   points?: number | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
@@ -148,10 +150,13 @@ export interface ItemRequirement {
   itemId: number;
   name: string;
   requiredAmount: number;
-  /** Set name for "any full set" collections — requirements sharing a group form a set that
-   *  is OR-ed against the other sets (one complete set finishes the tile; no mixing).
-   *  Absent/null = a classic always-required collection item. */
+  /** Set name — requirements sharing a group form one set. How the sets COMBINE is the tile's
+   *  `groupMode` (lib/collectionSets): 'any' (default) OR-s them (satisfy one set), 'all' AND-s
+   *  them (satisfy every set). Absent/null = a classic always-required collection item. */
   group?: string | null;
+  /** How many DISTINCT items in this set satisfy it. Absent/null = all of them (a full set);
+   *  1 is "any one from this source", which is what makes "one from each boss" expressible. */
+  groupRequire?: number | null;
 }
 
 export interface ItemRequirementProgress extends ItemRequirement {
@@ -172,6 +177,8 @@ export interface TileConfig {
   autoTrackDisabled: boolean;
   trackedItemIds: number[] | null;
   itemRequirements: ItemRequirement[] | null;
+  /** Collection tiles: 'any' (default) | 'all' — how the item sets combine (lib/collectionSets). */
+  groupMode?: string | null;
   points: number;
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.
