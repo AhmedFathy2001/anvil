@@ -129,8 +129,70 @@ export default function EventsClient({ active, past, canManage }: Props) {
             <span className="text-xs text-text-muted/60 font-normal">({past.length})</span>
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{past.map(renderCard)}</div>
+          {canManage && <BackfillFacts />}
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * Rebuild per-player results for events that ended before those were recorded.
+ *
+ * Without it, a member who played five bingos reads "0 events played" on their profile — the results
+ * were never materialized, and the repo script that does it can't run on a hosted instance (the
+ * production image ships no scripts and no tsx). Tucked under Past events because that's what it's
+ * about, and it's a once-per-clan thing rather than part of anyone's routine.
+ */
+function BackfillFacts() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/admin/events/backfill-facts', { method: 'POST' });
+      const data = (await res.json()) as {
+        written?: { name: string }[];
+        skipped?: number;
+        failed?: { name: string }[];
+        totalRows?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setResult(data.error ?? 'Failed.');
+      } else {
+        const parts = [`${data.written?.length ?? 0} events rebuilt (${data.totalRows ?? 0} player results)`];
+        if (data.skipped) parts.push(`${data.skipped} already had results`);
+        if (data.failed?.length) parts.push(`${data.failed.length} failed`);
+        setResult(parts.join(' · '));
+      }
+    } catch {
+      setResult('Network error.');
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="mt-4 border border-card-border rounded-xl bg-card-bg p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium">Rebuild past results</div>
+          <p className="text-xs text-text-muted mt-0.5 max-w-prose">
+            Fills in per-player points and placings for events that finished before those were
+            recorded — the numbers behind each member&rsquo;s Trophies tab. Safe to run more than once.
+          </p>
+        </div>
+        <button
+          onClick={run}
+          disabled={busy}
+          className="px-3 py-1.5 text-sm rounded-lg border border-card-border hover:border-gold/50 disabled:opacity-50 whitespace-nowrap"
+        >
+          {busy ? 'Rebuilding…' : 'Rebuild'}
+        </button>
+      </div>
+      {result && <p className="text-xs text-gold mt-2">{result}</p>}
     </div>
   );
 }

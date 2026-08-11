@@ -6,6 +6,7 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
 import type {
   CompetitionHistory,
+  UpcomingMilestone,
   DailyPoint,
   MemberProfile,
   MilestoneRow,
@@ -76,12 +77,14 @@ export default function ProfileTabs({
   records,
   milestones,
   history,
+  upcoming,
 }: {
   profile: MemberProfile;
   series: DailyPoint[];
   records: PeriodRecord[];
   milestones: MilestoneRow[];
   history: CompetitionHistory;
+  upcoming: UpcomingMilestone[];
 }) {
   const [tab, setTab] = useState<Tab>('stats');
   const [metric, setMetric] = useState<Metric>('ehp');
@@ -266,18 +269,28 @@ export default function ProfileTabs({
                 ))}
               </div>
             </div>
-            <LineChart
-              points={chartPoints}
-              format={(n) => (metric === 'xp' ? fmtXp(n) : `${n.toFixed(2)}h`)}
-              ariaLabel={`${metric.toUpperCase()} gained per day over the last ${days} days`}
-            />
-            <div className="mt-3 pt-3 border-t border-card-border text-sm text-text-muted">
-              <span className="text-foreground font-medium">
-                {metric === 'xp' ? fmtXp(windowTotal) : `${windowTotal.toFixed(2)}h`}
-              </span>{' '}
-              gained in the last {days} days
-              {series.length === 0 && ' — history starts from the day this was deployed, so it fills in as they play.'}
-            </div>
+            {activeDays > 0 ? (
+              <>
+                <LineChart
+                  points={chartPoints}
+                  format={(n) => (metric === 'xp' ? fmtXp(n) : `${n.toFixed(2)}h`)}
+                  ariaLabel={`${metric.toUpperCase()} gained per day over the last ${days} days`}
+                />
+                <div className="mt-3 pt-3 border-t border-card-border text-sm text-text-muted">
+                  <span className="text-foreground font-medium">
+                    {metric === 'xp' ? fmtXp(windowTotal) : `${windowTotal.toFixed(2)}h`}
+                  </span>{' '}
+                  gained in the last {days} days
+                </div>
+              </>
+            ) : (
+              // An empty axis with "0.00h gained" reads as "this player does nothing", when the truth
+              // is that we only started recording. Say which it is.
+              <p className="text-sm text-text-muted py-10 text-center">
+                Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — the chart
+                fills in from here as they play.
+              </p>
+            )}
           </div>
         </Section>
       )}
@@ -331,7 +344,7 @@ export default function ProfileTabs({
                           {e.endedOn ? new Date(e.endedOn).toLocaleDateString() : '—'}
                         </span>
                         <span className="text-right tabular-nums text-text-muted">
-                          {Math.round(e.points).toLocaleString()} pts
+                          {e.points === null ? '—' : `${Math.round(e.points).toLocaleString()} pts`}
                         </span>
                         <span className={`text-right tabular-nums ${e.teamRank === 1 ? 'text-gold' : 'text-text-muted'}`}>
                           {e.teamRank ? `${medal(e.teamRank)}${e.teamsTotal ? ` /${e.teamsTotal}` : ''}` : '—'}
@@ -340,7 +353,9 @@ export default function ProfileTabs({
                     ))}
                   </div>
                   <p className="mt-2 text-xs text-text-muted">
-                    Placing is their TEAM&rsquo;s finish; points are what they personally contributed.
+                    Placing is their TEAM&rsquo;s finish; points are what they personally contributed. A
+                    dash means the format doesn&rsquo;t score points, or the event finished before
+                    per-player results were recorded.
                   </p>
                 </Section>
               )}
@@ -411,7 +426,29 @@ export default function ProfileTabs({
       )}
 
       {tab === 'milestones' && (
-        <Section title="Milestones" aside="as we noticed them">
+        <>
+          {upcoming.length > 0 && (
+            <Section title="In reach" aside="closest first">
+              <div className="grid sm:grid-cols-2 gap-2">
+                {upcoming.map((u) => (
+                  <div
+                    key={u.label}
+                    className="border border-card-border rounded-lg bg-card-bg px-3 py-2.5"
+                  >
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate">{u.label}</span>
+                      <span className="text-xs text-text-muted shrink-0">{u.remaining} to go</span>
+                    </div>
+                    <div className="mt-1.5">
+                      <Bar value={u.progress} max={1} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+        <Section title="Earned" aside="as we noticed them">
           {milestones.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
               None recorded yet. These are logged the first time we see one crossed, so they start
@@ -433,6 +470,7 @@ export default function ProfileTabs({
             </div>
           )}
         </Section>
+        </>
       )}
 
       {!eff && (
