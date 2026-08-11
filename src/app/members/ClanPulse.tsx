@@ -66,10 +66,10 @@ export default function ClanPulse({
       <div className="grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4">
         <div className="border border-card-border rounded-xl bg-card-bg p-4">
           <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
-            Clan activity · last 90 days
+            Clan activity · last 12 months
           </div>
           {hasActivity ? (
-            <ActivityHeatmap days={activity} ariaLabel="Clan-wide efficient hours gained per day over the last 90 days" />
+            <ActivityHeatmap days={activity} ariaLabel="Clan-wide efficient hours gained per day over the last 12 months" />
           ) : (
             <p className="text-sm text-text-muted py-6 text-center">
               Nothing recorded yet — history starts building from the next hiscores sweep.
