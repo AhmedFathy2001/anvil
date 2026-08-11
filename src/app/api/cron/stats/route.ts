@@ -420,6 +420,8 @@ export async function GET(request: Request) {
                 tileType: tile.tileType,
                 trackedStat: tile.trackedStat,
                 statType: tile.statType,
+                eventId: ctx.event.id,
+                tile,
               }).catch(() => {});
             }
           }
@@ -485,6 +487,8 @@ export async function GET(request: Request) {
                 tileType: tile.tileType,
                 trackedStat: tile.trackedStat,
                 statType: tile.statType,
+                eventId: ctx.event.id,
+                tile,
               }).catch(() => {});
             }
           }
@@ -501,7 +505,7 @@ export async function GET(request: Request) {
         }).length;
         if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
           if (ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) {
-            notifyTeamWin({ eventName: ctx.event.name, teamName: team.name, teamColor: team.color, totalTiles: totalRequiredTiles }).catch(() => {});
+            notifyTeamWin({ eventName: ctx.event.name, teamName: team.name, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
           }
         }
       }

@@ -132,6 +132,7 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
         pointsMode: event.scoringMode === 'points',
         hiddenRemaining: hidden.length - flipped.length,
         bounty: rules.revealPolicy === 'bounty',
+        eventId: event.id,
       }).catch(() => {});
     }
   }
@@ -219,6 +220,7 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
       pointsMode: event.scoringMode === 'points',
       hiddenRemaining: Math.max(0, hiddenCount - flipped.length),
       mission: true,
+      eventId: event.id,
     }).catch(() => {});
   }
   return flipped.length;
@@ -262,7 +264,7 @@ async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: Til
       .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)))
       .returning({ id: tiles.id });
     if (done.length > 0 && claimed) {
-      void announceBountyClaim(event.name, { id: t.id, label: t.label, points: t.points }, t.id);
+      void announceBountyClaim(event.id, event.name, { id: t.id, label: t.label, points: t.points }, t.id);
     }
   }
 }
@@ -324,7 +326,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
     .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
   if (closed.length > 0) {
-    void announceBountyClaim(event.name, closed[0], tileId);
+    void announceBountyClaim(event.id, event.name, closed[0], tileId);
   }
   if (!engineActive(event, now)) return;
   await revealForEvent(event, rules, now);
@@ -334,6 +336,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
 // of the first (claiming) completion — stat tiles carry creditPlayerId, submission-backed tiles
 // resolve it from the latest submission on the tile. Fire-and-forget; failures never block rotation.
 async function announceBountyClaim(
+  eventId: number,
   eventName: string,
   tile: { id: number; label: string; points: number | null },
   tileId: number,
@@ -368,6 +371,7 @@ async function announceBountyClaim(
       tileLabel: tile.label,
       points: awardedPoints ?? tile.points,
       rsn: rsn ?? 'Someone',
+      eventId,
     });
   } catch (err) {
     log.info('reveal-engine.bounty-claim-notify-failed', { tileId, err: String(err) });

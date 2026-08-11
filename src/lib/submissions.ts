@@ -174,6 +174,8 @@ export async function syncDropTileCompletion(
             tileType: tile.tileType,
             trackedStat: tile.trackedStat,
             statType: tile.statType,
+            eventId: event.id,
+            tile,
           }).catch(() => {});
         }
 
@@ -193,6 +195,7 @@ export async function syncDropTileCompletion(
             teamName: team.name,
             teamColor: team.color,
             totalTiles: eventTiles.length,
+            eventId: event.id,
           }).catch(() => {});
         }
       }

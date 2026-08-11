@@ -351,6 +351,8 @@ export async function POST(
       tileType: tile.tileType,
       durationSeconds: durationSecondsValue,
       completed: syncResult?.isComplete ?? false,
+      eventId: eId,
+      tile,
     }).catch(() => {}); // Silently ignore errors
   } else {
     // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
@@ -508,6 +510,8 @@ export async function DELETE(
       deletedBy: deletedByName,
       deletedByRole,
       reason,
+      eventId: event.id,
+      tile,
     }).catch(() => {}); // Silently ignore errors
   }
 

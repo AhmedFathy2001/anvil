@@ -4,6 +4,7 @@ import { clanAuditLog, clanMembers, settings } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
+import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
@@ -355,9 +356,10 @@ export async function POST(request: Request) {
     sendDiscordWebhook({
       embeds: [
         {
-          title: 'Clan roster sync',
-          description: clanName ? `Synced **${clanName}** (${members.length} members)` : `Synced ${members.length} members`,
-          color: 0xd4a017,
+          author: { name: clanName || 'Clan roster' },
+          title: '🔄 Roster synced',
+          description: `${members.length} members in the clan.`,
+          color: EMBED_COLOR.blue,
           fields,
           timestamp: now,
         },

@@ -220,6 +220,8 @@ export async function POST(request: Request) {
             tileType: tile.tileType,
             trackedStat: tile.trackedStat,
             statType: tile.statType,
+            eventId: event.id,
+            tile,
           }).catch(() => {});
         }
       }

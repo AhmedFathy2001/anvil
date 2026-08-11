@@ -17,7 +17,8 @@
     "verify:efficiency": "tsx scripts/verify-efficiency.mts",
     "db:studio": "drizzle-kit studio",
     "test:federation": "node --experimental-strip-types --test tests/federation-relay.test.ts",
-    "test:events": "node --experimental-strip-types --test tests/event-rules.test.ts tests/event-readiness.test.ts"
+    "test:events": "node --experimental-strip-types --test tests/event-rules.test.ts tests/event-readiness.test.ts",
+    "test:embeds": "node --experimental-strip-types --test tests/discord-embeds.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
