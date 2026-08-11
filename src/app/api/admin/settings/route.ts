@@ -52,6 +52,8 @@ const EXPOSED_KEYS = [
   'setup_completed',
   // How many distinct staff confirmations a paid fee needs before it settles (default 1).
   'fee_confirmations_required',
+  // Opt-in: settle collected fees when an event ends (skips the second-admin sign-off).
+  'fee_autoconfirm_on_event_end',
   // Federation scalars (docs/FEDERATION.md). Enums/bool/JSON stored as text; read back via the
   // typed helpers in lib/pluginConfig.ts. The signing key, instance id and broker verification
   // token are deliberately NOT here — the signing private key must never be API-readable.

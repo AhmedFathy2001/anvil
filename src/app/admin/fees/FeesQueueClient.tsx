@@ -57,6 +57,8 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +105,44 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
     return c;
   }, [rows]);
 
+  // What THIS viewer can sign off in one go: collected fees someone else took in. Fees they
+  // collected themselves are excluded for the same reason the button can't clear them — offering
+  // "Confirm all (34)" and then settling none of them would be a lie.
+  const confirmableByViewer = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          r.fee.status === 'collected' &&
+          r.fee.collectedByUserId !== null &&
+          r.fee.collectedByUserId !== viewerId,
+      ).length,
+    [rows, viewerId],
+  );
+
+  async function confirmAll() {
+    setBulkBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/admin/fees/confirm-all', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to confirm');
+      const parts: string[] = [];
+      if (data.confirmed) parts.push(`${data.confirmed} settled`);
+      if (data.recorded) parts.push(`${data.recorded} awaiting more confirmations`);
+      // Named explicitly, because "why is it still not zero?" is otherwise a mystery.
+      if (data.awaitingOtherAdmin) {
+        parts.push(`${data.awaitingOtherAdmin} you collected — another admin must sign those off`);
+      }
+      setNotice(parts.length ? parts.join(' · ') : 'Nothing to confirm.');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -114,12 +154,23 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
               : 'Read-only view. Treasurers and admins handle collection.'}
           </p>
         </div>
-        <Link
-          href="/admin/dashboard"
-          className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-        >
-          Back
-        </Link>
+        <div className="flex items-center gap-2">
+          {isAdmin && confirmableByViewer > 0 && (
+            <button
+              onClick={confirmAll}
+              disabled={bulkBusy}
+              className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-gold text-brown-dark hover:bg-yellow-500 transition-colors disabled:opacity-50"
+            >
+              {bulkBusy ? 'Confirming…' : `Confirm all (${confirmableByViewer})`}
+            </button>
+          )}
+          <Link
+            href="/admin/dashboard"
+            className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
+          >
+            Back
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -140,6 +191,12 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
           </button>
         ))}
       </div>
+
+      {notice && (
+        <div className="mb-4 text-sm text-green-400 border border-green-500/30 bg-green-500/10 rounded-lg p-3">
+          {notice}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">

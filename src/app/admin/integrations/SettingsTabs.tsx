@@ -15,6 +15,7 @@ import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
+import ToggleSetting from '@/components/ToggleSetting';
 import RoleSetting from '@/components/RoleSetting';
 import FederationSettings from '@/components/FederationSettings';
 
@@ -269,6 +270,13 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             placeholder="1"
             helpText="How many different staff must confirm a paid fee before it's marked settled. 1 = a single admin confirm (default). Set 2+ to require multiple sign-offs. The collector can never confirm their own."
           />
+          <div className="border-t border-card-border pt-4 mt-4">
+            <ToggleSetting
+              settingKey="fee_autoconfirm_on_event_end"
+              label="Settle collected fees when an event ends"
+              helpText="When an event ends, mark its already-collected fees as settled without waiting for a second admin. Off by default: it skips the sign-off that stops one person both taking the money and marking it received. Fees nobody has collected are never touched — this only closes out ones a mod already said they had."
+            />
+          </div>
         </Card>
       )}
 

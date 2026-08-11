@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { events, teams, tiles, completions, players } from '@/db/schema';
 import { eq, and, inArray, isNotNull, count } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
+import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
 import { computeStartReadiness, type StartReadiness } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
@@ -177,6 +178,19 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         unit: pointsMode ? 'pts' : 'tiles',
         superlatives,
       });
+
+      // Close out fees the treasurer already collected, when the clan opted into that. Off by
+      // default — it skips the second-pair-of-eyes confirmation, which is a real trade-off — and it
+      // only ever touches fees a mod already marked collected, never unpaid ones. Best-effort: a
+      // fee hiccup must not block the end announcement or the payouts below.
+      try {
+        if (await shouldAutoConfirmOnEventEnd()) {
+          const closed = await autoConfirmEventFees(event.id);
+          if (closed > 0) log.info('event-lifecycle.fees-auto-confirmed', { eventId: event.id, closed });
+        }
+      } catch (err) {
+        log.warn('event-lifecycle.fee-autoconfirm-failed', { eventId: event.id, err: String(err) });
+      }
 
       // Auto-build the payout rows from the configured prize-per-placement structure and final
       // standings. No-op when no structure is set or payouts already exist. Non-critical.
