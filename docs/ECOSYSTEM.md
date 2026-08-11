@@ -61,11 +61,15 @@ Registration is mostly one switch; your instance does the rest server-to-server.
      `<verificationToken>`. Use this if a proxy strips the well-known route.
    The broker's fetch is SSRF-guarded (HTTPS only, no redirects, private IPs
    rejected, 5s/8KB caps), so your domain must resolve to a public address.
-3. **You're listed.** Once `pending → verified`, you appear in
+3. **An operator admits you.** Domain proof shows the instance is *yours*; it doesn't by
+   itself make it part of the network. Verified self-hosted registrations land in an
+   admission queue and are reviewed by a broker operator — until that approval lands you
+   stay off the directory, `/assoc` pushes and assertion audiences. Hosted
+   `*.anvilosrs.com` clans skip both steps (we own the domain, and the subscription is
+   the admission).
+4. **You're listed.** Once you're both `verified` and approved, you appear in
    `GET /api/federation/v1/directory` tagged `type: "self-hosted"` (shown with a ⚠
-   "self-hosted, verify before trusting" caution — that's expected and not a
-   penalty). Hosted `*.anvilosrs.com` clans are `verified` implicitly because we own
-   the domain.
+   "self-hosted, verify before trusting" caution — that's expected and not a penalty).
 
 **What stays off by default for self-hosters:** `associationPush` (the instance
 telling the broker which Discord IDs belong to it) defaults **OFF** for self-hosted

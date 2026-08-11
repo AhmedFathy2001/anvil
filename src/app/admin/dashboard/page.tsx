@@ -15,6 +15,8 @@ import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { getSetupStatus } from '@/lib/setupStatus';
 import SetupChecklist from '@/components/SetupChecklist';
+import MemberCapNotice from '@/components/MemberCapNotice';
+import { rosterCapStatus } from '@/lib/member-cap';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +26,8 @@ export default async function AdminDashboardPage() {
   // so this never becomes a trap.
   const setup = await getSetupStatus();
   if (setup.isFresh) redirect('/admin/setup?welcome=1');
+  // Read-only: the grace clock is started by the roster sync, never by someone opening a page.
+  const capStatus = await rosterCapStatus();
   const allEvents = await db.select().from(events).orderBy(desc(events.createdAt));
   const teamCounts = new Map<number, number>();
   if (allEvents.length > 0) {
@@ -109,6 +113,8 @@ export default async function AdminDashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Dashboard</h1>
         <p className="text-text-muted text-sm">Overview of clan activity and live events.</p>
       </header>
+
+      <MemberCapNotice status={capStatus} />
 
       {!setup.allDone && !setup.dismissed && (
         <SetupChecklist

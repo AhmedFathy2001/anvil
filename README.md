@@ -1,215 +1,236 @@
 # Anvil
 
 **Where your clan's events get forged.** Anvil is a clan-operations platform for Old
-School RuneScape that runs bingo events, weekly Skill-of-the-Week / Boss-of-the-Week
-competitions, and keeps a live clan roster synced straight from the in-game clan tab
-via a companion RuneLite plugin.
+School RuneScape. It runs bingo boards and ladders, weekly Skill-of-the-Week /
+Boss-of-the-Week competitions, and keeps a live clan roster synced straight from the
+in-game clan tab — with a companion RuneLite plugin that submits drops, kills and stats
+automatically, so nobody screenshots a boss log at 3am.
+
+One instance serves **one clan**. Run it yourself on a small VPS
+([`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md)), or [have it hosted](https://anvilosrs.com).
+
+## What it does
+
+- **Events.** Classic N×N bingo, Leagues-style point boards, tile races, and hidden-tile
+  formats (Showdown, Lucky draw, Bounty) plus a **Ladder** individual leaderboard. Boards
+  can be revealed on a schedule, drawn at random, or dropped mid-event as **missions**.
+- **Tiles that verify themselves.** Item drops, boss/NPC kill counts, XP and KC gains,
+  timed raids (with party size and raid mode), collection-log unlocks, achievement diaries,
+  combat achievements, PvP kills, LMS, loot value, and deathless runs — credited by the
+  plugin as they happen, with a live in-game overlay and a 15-minute Hiscores sweep behind it.
+- **Teams and drafts.** Sign-up forms, a live draft that reads each player's frozen sign-up
+  answers, captains, per-team Discord channels, and a board-balance auditor that flags a
+  lopsided board before you run it.
+- **Weekly comps.** SotW / BotW with auto-enrollment, stale-baseline protection, and
+  standings that update between sweeps.
+- **Discord, everywhere.** OAuth login, role and nickname sync, rich embeds for drops,
+  deaths, achievements, kills and clips, event announcements, and per-channel webhooks.
+- **After the event.** Frozen contribution splits, a post-event survey, and a recap of
+  superlatives (MVP, biggest drop, most kills, best rate).
+- **Optional federation.** Opt into a shared directory + identity broker so members can
+  reach several clans with one Discord login — your data never leaves your box.
 
 ## Stack
 
-- **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript
-- **Drizzle ORM** on SQLite via **libSQL / Turso**
+- **Next.js 16** (App Router, Turbopack) + React 19 + TypeScript 5
+- **Drizzle ORM** on **SQLite** (libSQL) — a local file by default, or any libSQL endpoint
 - **Tailwind CSS 4** (custom gold/brown theme)
-- **Discord OAuth** for login, **HMAC-signed tokens** for admin/captain/player sessions
-- Deployed on **Vercel**; scheduled refresh jobs via `vercel.json`
-- Companion **RuneLite plugin** (Java / Gradle, in a [separate repo](https://github.com/AhmedFathy2001/anvil-plugin))
-  that auto-submits drops and syncs the clan roster
+- **Discord OAuth** for login; HMAC-signed cookies for admin/captain/player sessions
+- Ships as a **single Docker image** (Next.js standalone) that migrates its own schema on boot
+- Media (proof screenshots) via an **S3/R2** adapter, or Vercel Blob on the serverless path
+- Companion **RuneLite plugin** (Java / Gradle) in a
+  [separate repo](https://github.com/AhmedFathy2001/anvil-plugin)
 
 ## Repository layout
 
 ```
 src/
-  app/                Next.js routes (server components + API)
+  app/                Next.js routes — pages, /api, /admin, /guide
   components/         Shared React components
   db/                 Drizzle schema + client
-  lib/                auth, discord, weekly, clan helpers
-  hooks/              Client-side hooks (polling, countdowns)
-  middleware.ts       Edge middleware: admin/captain/player route protection
-drizzle/              Generated SQL migrations + meta snapshots
-scripts/              Node scripts runnable via `npx tsx`
+  lib/                auth, discord, weekly, stats, events, federation, storage…
+  hooks/              Client-side hooks (live refresh, countdowns)
+  middleware.ts       Edge middleware: role-gated /admin routing
+drizzle/              Generated SQL migrations + meta snapshots (the source of truth)
+scripts/              Boot migrator, dataset builders, one-off maintenance scripts
+docs/                 Self-hosting, plugin setup, wire contracts, tile authoring
+tests/                node:test suites (`npm run test:*`)
 ```
 
-The companion RuneLite plugin lives in its own repository (see below).
+## Run it
 
-## Prerequisites
+### With Docker (what production runs)
 
-- **Node 20+**, **npm** (or pnpm / bun — the examples below use npm)
-- A **Turso** database (free tier works) — or any libSQL-compatible endpoint
-- For production: a **Vercel** project with a Blob store (for screenshot uploads)
+```bash
+docker build -t anvil:local .
+docker volume create anvil-data
+docker run -d --name anvil --restart unless-stopped \
+  -p 127.0.0.1:3000:3000 \
+  -v anvil-data:/data \
+  --env-file .env \
+  anvil:local
+```
 
-## Setup
+The database is a SQLite file on the volume (`DATABASE_URL=file:/data/anvil.db`, already
+set in the image) and **migrations apply automatically on container start** — a fresh
+volume becomes a complete schema, and a migration failure aborts boot rather than serving a
+half-built one. Put it behind a reverse proxy for TLS, schedule the cron routes, and you're
+done: [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) has the full walkthrough (compose +
+Caddy, Discord app, storage, backups, troubleshooting).
 
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
+### Local development
 
-2. **Create `.env.local`** by copying `.env.example` and filling in values. Every
-   variable is documented in that file. Required for local dev:
-   - `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`
-   - `BLOB_READ_WRITE_TOKEN` (only if you'll test image uploads)
-   - Session secrets can be left blank in dev — the app uses labelled
-     `dev-*-secret` placeholders. They're **required in production**.
+**Prerequisites:** Node 22 (what CI and the image use), npm.
 
-3. **Run migrations**
-   ```bash
-   npm run db:migrate
-   ```
-   This replays `drizzle/*.sql` from `0000` against the database (idempotent — it
-   skips already-applied migrations via the `__drizzle_migrations` ledger). After any
-   schema change, run `npm run db:generate` to produce a new migration file and commit
-   it. Don't use `drizzle-kit push` on a database you intend to keep — it drifts the DB
-   out of sync with `drizzle/`. See [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
+```bash
+npm install
+cp .env.example .env.local     # every variable is documented in the file
+npm run db:migrate             # builds ./local.db from the migration chain
+npm run dev                    # http://localhost:3000
+```
 
-4. **Seed a first admin**. Login is **Discord OAuth only**. Set
-   `ADMIN_DISCORD_ID` in `.env.local` to your own Discord user ID, configure the
-   Discord OAuth vars (see `.env.example`), then sign in at `/login`. The first
-   sign-in matching that ID is promoted to `admin`. Unset `ADMIN_DISCORD_ID`
-   afterward so nobody else can self-promote. Full walkthrough in
-   [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
+For local dev you mainly need `DATABASE_URL` (defaults to `file:./local.db`) and the
+Discord OAuth vars. Session secrets fall back to labelled `dev-*` placeholders in
+development and are **required in production**.
 
-5. **Start the dev server**
-   ```bash
-   npm run dev
-   ```
-   The app runs on `http://localhost:3000`.
+To seed the first admin, set `ADMIN_DISCORD_ID` to your Discord user ID and sign in at
+`/login` — the first sign-in matching that ID becomes `admin` (and the instance owner).
+Unset it afterwards.
 
 ## Key flows
 
-### Admin / user management
-- `/admin/users` — create moderator/admin accounts
-- Moderators are restricted to `/admin/weekly*`, `/admin/clan*`, `/admin/schedule*`
-- Admins can do everything
+### Roles and the admin panel
+`admin` > `treasurer` > `moderator` > `member`, plus `editor` for tile authoring (global,
+or scoped to specific boards via per-event grants). Middleware gates `/admin` pages by
+role; every API route re-checks the live role from the DB. Staff are managed at
+`/admin/clan/staff`, and `/admin/setup` is a guided checklist for a new instance.
 
 ### Clan roster + plugin linking
-The roster at `/admin/clan` is the source of truth for "who is in the clan".
-It's populated three ways:
-1. **Admin manually adds** a member from the `+ Add Manually` button.
-2. **Any plugin user** who logs in gets self-registered as a guest via
-   `POST /api/plugin/hello`. Admins can promote guests to members.
-3. **An admin syncs** the in-game clan roster via the plugin:
-   - On `/admin/clan`, click **Generate Link Code** — you get a 6-char code.
-   - In RuneLite, open the Anvil plugin settings → paste the code into
-     **Admin link code** → open the side panel → click **Link as admin**.
-     The site issues a long-lived admin token, bound to your user account + RSN.
-   - In-game, open the clan tab (so RuneLite loads the roster), then click
-     **Sync clan** in the plugin side panel. The plugin POSTs the full roster
-     to `/api/plugin/clan-sync`.
-   - The site rejects the sync if the reported clan name doesn't match
-     `Clan Settings` on `/admin/clan` — a display name plus, optionally, the exact
-     in-game clan name the plugin's roster sync must match (or the `CLAN_NAME` /
-     `CLAN_INGAME_NAME` env fallbacks).
-     Leave the clan name blank to accept any clan.
+The roster at `/admin/clan` is the source of truth for "who is in the clan". Membership
+comes from:
+1. **An in-game roster sync.** On `/admin/clan`, click **Generate Link Code**, paste the
+   6-char code into the plugin's **Admin link code**, then **Link as admin** in the side
+   panel. Open the clan tab in game and click **Sync clan** — the plugin POSTs the full
+   roster to `/api/plugin/clan-sync`. The site rejects the push if the reported clan name
+   doesn't match **In-game clan name** in Clan Settings (blank = accept any clan).
+2. **An admin adding a member by hand.**
 
-### Bingo events
-- Admins create events at `/admin/dashboard`, add tiles, teams, and players
-  (`/admin/events/[id]`)
-- Players enroll via a personal token link (generated per-event)
-- Captains have a per-team dashboard at `/captain/[teamId]`
-- The RuneLite plugin auto-submits drops for tracked item tiles
+Anyone who merely links the plugin or verifies an RSN lands as a **guest** until promoted —
+verification alone never grants membership.
+
+### Events
+Admins create events from `/admin/events/new` (format-first wizard) and manage each one
+through its tabs: `/admin/events/[eventId]{,/tiles,/teams,/signups,/stats,/survey,/payouts}`. Tiles can be
+authored in the UI, imported from CSV/`.xlsx` ([`docs/tile-authoring.md`](docs/tile-authoring.md)),
+or pulled from the shared task library. Members live at `/team`; captains get
+`/captain/[teamId]`.
 
 ### Weekly competitions (SotW / BotW)
-- Admins/mods create comps at `/admin/weekly`
-- `enrollAllPlayers()` auto-enrolls every active clan member at creation time
-- Plugin users with `autoEnrollWeekly` on are enrolled automatically on login
-  via `POST /api/plugin/weekly/enroll`
-- Two cron jobs run via Vercel cron (`vercel.json`):
-  - `/api/cron/stats` at `:00` — refreshes event stat tiles
-  - `/api/cron/weekly` at `:30` — refreshes weekly leaderboards
-- Both cron routes require `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is set
+Created at `/admin/weekly`; every active clan member is enrolled at creation, and plugin
+users with `autoEnrollWeekly` are enrolled on login. Values come from the same 15-minute
+Hiscores sweep that feeds stat tiles.
 
-### Schedule
-`/admin/schedule` shows a unified month view of bingo events + weekly comps with
-an "upcoming & active" list underneath.
+### Scheduled jobs
+Four routes must be hit on a schedule — nothing calls them for you:
+
+| Route | Cadence | Does |
+| --- | --- | --- |
+| `/api/cron/stats` | every 15 min | Unified Hiscores sweep: event stat tiles + weekly values |
+| `/api/cron/weekly` | every 15 min | Weekly competition lifecycle |
+| `/api/cron/flush-notifications` | every minute | Drains queued Discord posts |
+| `/api/cron/backup` | daily | Off-box DB backup (no-op unless configured) |
+
+All require `Authorization: Bearer $CRON_SECRET`, and all return **500 in production if
+`CRON_SECRET` is unset**. The repo ships no `vercel.json` — use system cron, systemd timers,
+or your platform's scheduler. See [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md#5-schedule-the-background-jobs).
 
 ## Migrations
 
-The migration chain in `drizzle/` is the source of truth and **must always apply
-cleanly from `0000` against an empty database** — every fresh self-host clan boots by
-replaying it. Schema lives at `src/db/schema.ts`. To add or change a column:
+The chain in `drizzle/` is the source of truth and **must always apply cleanly from `0000`
+against an empty database** — every fresh instance boots by replaying it. Schema lives in
+`src/db/schema.ts`.
 
 ```bash
 # Edit src/db/schema.ts, then:
 npm run db:generate   # creates drizzle/NNNN_<name>.sql + updates drizzle/meta
-npm run db:migrate    # applies the chain to the DB in env (NOT drizzle-kit push)
+npm run db:migrate    # applies the chain (NOT drizzle-kit push)
 ```
 
-Commit the generated `drizzle/NNNN_*.sql` and updated `drizzle/meta/` alongside the
-`schema.ts` change. Before opening the PR, verify against a fresh DB
-(`TURSO_DATABASE_URL=file:/tmp/fresh.db npm run db:migrate` → `up to date`) and re-run
-`npm run db:generate` (must say *"No schema changes"*). For `ALTER TABLE ... ADD NOT
-NULL` on existing tables SQLite requires a default; hand-edit the migration to
-seed-then-backfill if needed. Full policy: [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
+Commit the generated SQL and `drizzle/meta/` alongside the schema change. Verify against a
+fresh DB (`DATABASE_URL=file:/tmp/fresh.db npm run db:migrate` → `up to date`), then re-run
+`npm run db:generate` (must print *"No schema changes"*). **Never `db:push` a database you
+intend to keep** — it drifts the DB out of sync with `drizzle/` and breaks future migrate
+runs. Full policy: [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
 
 ## Scripts
 
-- `scripts/backfill-clan-members.ts` — populates `clan_members` from existing
-  `players` + `weekly_participants` rows. Safe to re-run. Runs the normalize-rsn
-  upsert so case variants are deduplicated.
+Run with `npx tsx` (`.ts`) or `node` (`.mjs`); each loads `.env` / `.env.local` itself.
 
-```bash
-npx tsx scripts/backfill-clan-members.ts
-```
+- `npm run db:migrate` — apply the migration chain (this is what the container runs on boot)
+- `npm run data:clog` / `data:ca` / `data:rates` / `data:efficiency` — rebuild the bundled
+  wiki-derived datasets
+- `npm run test:events` / `test:embeds` / `test:federation` / `test:recap` — node:test suites
+- `scripts/backfill-clan-members.ts` — populate `clan_members` from legacy `players` /
+  `weekly_participants` rows (idempotent)
+- `scripts/prune-player-snapshots.ts` — trim historical hiscores snapshots
+- `scripts/bootstrap-migrations-table.ts --mark-all` — one-time reconcile for a pre-migration
+  `db:push` database
 
-## RuneLite plugin
+## Versioning
 
-The companion RuneLite plugin lives in its **own repository**
-([anvil-plugin](https://github.com/AhmedFathy2001/anvil-plugin)) — it is not part
-of this repo. Self-hosters just point the plugin's **Site URL** setting at their
-instance; see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md). Build it locally
-with `./gradlew build` (jar lands in `build/libs/`).
+Semver, reported at `GET /api/version` (version, exact build commit, plugin API level and
+capabilities) and shown in the site footer. The plugin gates features on **capabilities**, never
+on version comparison, so an older self-hosted site keeps working with the always-latest
+Hub plugin — it just doesn't show newer features. Contract:
+[`docs/PLUGIN_WIRE.md`](docs/PLUGIN_WIRE.md).
 
-## Deployment
+## Documentation
 
-On Vercel:
-1. Import the repo.
-2. Set every variable from `.env.example` in the project's **Environment Variables**
-   (Production + Preview).
-3. Create a Blob store and copy `BLOB_READ_WRITE_TOKEN` into the env.
-4. Add your Turso database URL + auth token.
-5. Deploy. On first deploy, set `ADMIN_DISCORD_ID` to your Discord user ID and
-   sign in at `/login` to seed the first admin (then unset it).
-6. Run migrations: `npm run db:migrate` (locally with prod creds, or via a CI step) —
-   not auto-applied on a Vercel deploy. An existing `drizzle-kit push` DB must be
-   reconciled once first; see [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
+| Doc | What's in it |
+| --- | --- |
+| [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) | Standing up your own instance, end to end |
+| [`docs/PLUGIN_SETUP.md`](docs/PLUGIN_SETUP.md) | The member-facing plugin walkthrough |
+| [`docs/tile-authoring.md`](docs/tile-authoring.md) | CSV / spreadsheet tile authoring spec |
+| [`docs/PLUGIN_WIRE.md`](docs/PLUGIN_WIRE.md) | Site ↔ plugin contract and compatibility rules |
+| [`docs/ECOSYSTEM.md`](docs/ECOSYSTEM.md) | Joining the optional federation network |
+| [`docs/FEDERATION*.md`](docs/FEDERATION.md) | Federation design, wire spec, security model |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local setup, migration workflow, PR process |
 
-See [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) for the full clan-by-clan
-deployment walkthrough, including non-Vercel hosting notes.
-
-Cron jobs are declared in `vercel.json` and are scheduled automatically.
+Your own instance also serves in-app guides at `/guide/plugin` and `/guide/admin`, prefilled
+with your domain — those are the links to hand your clan.
 
 ## Conventions
 
-- API routes: async params (`{ params: Promise<{ id: string }> }`) per Next.js 16
+- API routes use async params (`{ params: Promise<{ id: string }> }`) per Next.js 16
 - Dates stored as ISO UTC text strings
-- Discord notifications fire-and-forget (`.catch(() => {})`)
-- Gold is the accent colour. Section headers use `<span className="w-1 h-5 bg-gold rounded-full" />`.
-- **No hardcoded clan-specific values.** Discord IDs/invites, the clan name,
-  webhooks, and role maps are all admin-editable (`settings` table) or env-driven.
+- Discord notifications are fire-and-forget (`.catch(() => {})`)
+- Gold is the accent colour; section headers use `<span className="w-1 h-5 bg-gold rounded-full" />`
+- **No hardcoded clan-specific values.** Clan names, Discord IDs/invites, webhooks and role
+  maps live in the `settings` table (admin-editable) or in env as first-boot fallbacks.
 
 ## Contributing
 
-Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for local
-setup, the database-migration workflow, and PR guidelines.
+Contributions land on **`beta`** first and are promoted to `main` after baking on canary
+clans — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for local setup, the migration workflow,
+and PR guidelines.
 
 ## Managed hosting & support
 
-Don't want to run the infrastructure yourself? I **host and maintain Anvil for your
-clan** — your own instance on your own subdomain, provisioned automatically, no
-servers to touch. Plans start with a 30-day free trial at
-[anvilosrs.com](https://anvilosrs.com), and paying for hosting is what funds continued
-development. Questions? [Come say hi on Discord](https://discord.gg/nqTxCQAbv4).
+Don't want to run the infrastructure yourself? I **host and maintain Anvil for your clan** —
+your own instance on your own subdomain, provisioned automatically, no servers to touch.
+Plans start with a 30-day free trial at [anvilosrs.com](https://anvilosrs.com), and paying
+for hosting is what funds continued development. Questions?
+[Come say hi on Discord](https://discord.gg/nqTxCQAbv4).
 
 ## License
 
 Released under the [PolyForm Noncommercial License 1.0.0 with an Attribution
-requirement](LICENSE). Anvil is **source-available, not open source**: you're free
-to self-host, modify, and redistribute it for **noncommercial** use — running it for
-your own clan is explicitly permitted, including collecting contributions from your
-own members to cover hosting. Two conditions: the **"Built by Ahmed Fathy"** credit
-in the site footer stays visible, and you may not offer Anvil (or a service based on
-it) to third parties for a fee — that includes reselling it as hosting. Want a
-commercial licence? Get in touch.
+requirement](LICENSE). Anvil is **source-available, not open source**: you're free to
+self-host, modify, and redistribute it for **noncommercial** use — running it for your own
+clan is explicitly permitted, including collecting contributions from your own members to
+cover hosting. Two conditions: the **"Built by Ahmed Fathy"** credit in the site footer
+stays visible, and you may not offer Anvil (or a service based on it) to third parties for a
+fee — that includes reselling it as hosting. Want a commercial licence? Get in touch.
 
-Built by [Ahmed Fathy](https://github.com/AhmedFathy2001). If Anvil saved your clan
-some time, the best support is [hosting with me](https://anvilosrs.com) 🔨.
+Built by [Ahmed Fathy](https://github.com/AhmedFathy2001). If Anvil saved your clan some
+time, the best support is [hosting with me](https://anvilosrs.com) 🔨.
