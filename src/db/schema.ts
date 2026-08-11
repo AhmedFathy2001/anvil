@@ -329,6 +329,13 @@ export const players = sqliteTable('players', {
   deaths: integer('deaths').default(0),
   lootGpGained: integer('loot_gp_gained').default(0),
   pvpKills: integer('pvp_kills').default(0),
+  // Same contract, added later: `biggestHit` = hardest single hitsplat landed this event
+  // ("Heavy Hitter"); `minutesPlayed` = minutes actually logged in during it, counted from game
+  // ticks. Play time is the one that turns every other counter into a rate — "most kills" is
+  // usually just "played most". Older plugins never send either; the columns simply stay 0 and
+  // their awards are omitted from the recap.
+  biggestHit: integer('biggest_hit').default(0),
+  minutesPlayed: integer('minutes_played').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
