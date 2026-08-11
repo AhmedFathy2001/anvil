@@ -8,7 +8,7 @@ import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
-import { rosterCapStatus } from '@/lib/member-cap';
+import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
 
@@ -181,6 +181,24 @@ export async function POST(request: Request) {
 
   // ── 3) Bulk insert new members ───────────────────────────────────────────
   const auditPayload: { clanMemberId: number; eventType: string; oldValue?: string | null; newValue?: string | null; notes?: string | null }[] = [];
+
+  // Plan limit. This insert is the ONLY place billable members are created (guests are free and
+  // made elsewhere), so the cap is enforced here or nowhere. syncCapGrace also maintains the grace
+  // clock — this sweep is what observes the roster changing size.
+  //
+  // Growth is all that ever stops. Existing members keep syncing — renames, rank changes, leaves,
+  // returns — because a clan discovering it outgrew its plan shouldn't find its board half-broken.
+  const roster = await syncCapGrace();
+  const refusedNewMembers: string[] = [];
+  if (newMemberAllowance(roster) === 0 && toInsert.length > 0) {
+    refusedNewMembers.push(...toInsert.map((row) => row.rsn));
+    toInsert.length = 0;
+    log.warn('member-cap.blocked-new-members', {
+      active: roster.active,
+      cap: roster.cap,
+      refused: refusedNewMembers.length,
+    });
+  }
 
   if (toInsert.length > 0) {
     const insertedRows = await db
@@ -367,12 +385,15 @@ export async function POST(request: Request) {
     }).catch(() => {});
   }
 
-  // Member-cap (plan limit). Soft-enforced: we never reject the sync — breaking a paying clan's
-  // plugin mid-event would be worse than a brief overage — but we report the roster status so the
-  // plugin/admin can prompt an upgrade, and log it for the control plane to act on.
-  const roster = await rosterCapStatus();
+  // The sync itself is never rejected — breaking a paying clan's plugin mid-event would be worse
+  // than an overage. Only new-member growth stops, and only after the grace window (see above).
   if (roster.overLimit) {
-    log.warn('member-cap.over-limit', { active: roster.active, cap: roster.cap });
+    log.warn('member-cap.over-limit', {
+      active: roster.active,
+      cap: roster.cap,
+      state: roster.state,
+      graceDaysLeft: roster.graceDaysLeft,
+    });
   }
 
   // Detailed change list for the plugin to render as in-game chat lines (one per
@@ -384,7 +405,12 @@ export async function POST(request: Request) {
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,
     syncedAt: now,
-    roster, // { cap, active, overLimit, remaining } — cap=null means unlimited
+    // { cap, active, overLimit, remaining, state, overSince, graceEndsAt, graceDaysLeft }.
+    // cap=null means unlimited. `capNotice` is a ready-to-show line for the plugin/admin UI, and
+    // `refusedNewMembers` names anyone the plan limit kept off the roster this sweep.
+    roster,
+    capNotice: capMessage(roster),
+    refusedNewMembers,
     changes: changes.map((c) => ({
       type: c.type,
       rsn: c.rsn,
