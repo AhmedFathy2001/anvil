@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import { getClanAnalytics, getRosterLog, listMembers } from '@/lib/memberProfile';
-import MembersDirectory from './MembersDirectory';
-import ClanPulse from './ClanPulse';
+import { getClanActivityAnalytics, getClanAnalytics, getRosterLog, listMembers } from '@/lib/memberProfile';
+import MembersTabs from './MembersTabs';
 
 export const metadata: Metadata = {
   title: 'Members — Anvil',
@@ -13,8 +12,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function MembersPage() {
   const members = await listMembers();
-  // Analytics reuses the list rather than re-querying it, so the whole page is three statements.
-  const [analytics, rosterLog] = await Promise.all([getClanAnalytics(members), getRosterLog(20)]);
+  // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
+  // statements. The activity read is its own query, but a narrow one — two columns off the roster,
+  // where the alternative was every member's full hiscores snapshot.
+  const [analytics, rosterLog, activities] = await Promise.all([
+    getClanAnalytics(members),
+    getRosterLog(20),
+    getClanActivityAnalytics(),
+  ]);
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -26,8 +31,12 @@ export default async function MembersPage() {
         Everyone we track. Click anyone to see their skills, bosses and efficient hours.
       </p>
 
-      <ClanPulse analytics={analytics} rosterLog={rosterLog} />
-      <MembersDirectory members={members} />
+      <MembersTabs
+        members={members}
+        analytics={analytics}
+        rosterLog={rosterLog}
+        activities={activities}
+      />
     </main>
   );
 }

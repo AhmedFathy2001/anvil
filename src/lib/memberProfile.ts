@@ -21,6 +21,16 @@ import {
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
+import {
+  CLUE_TIER_KEYS,
+  HISCORES_ACTIVITIES,
+  activityFor,
+  parseActivityBlob,
+  readAllActivities,
+  type ActivityGroup,
+  type ActivityReading,
+  type ActivityScale,
+} from '@/lib/hiscoresActivities';
 import { SKILLS, SKILL_LABELS, BOSSES, EFFICIENCY_SCALE } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
@@ -112,6 +122,18 @@ export interface BossRow {
   ehb: number;
 }
 
+export interface ActivityRow {
+  key: string;
+  label: string;
+  shortLabel: string;
+  group: ActivityGroup;
+  scale: ActivityScale;
+  unit: string | null;
+  score: number;
+  /** Hiscores position — 1 is the best in the game. Null when unranked. */
+  rank: number | null;
+}
+
 export interface MemberProfile {
   id: number;
   rsn: string;
@@ -125,6 +147,8 @@ export interface MemberProfile {
   efficiency: EfficiencyResult | null;
   skills: SkillRow[];
   bosses: BossRow[];
+  /** Clues, minigames and collection-log slots. Every activity the account has anything on. */
+  activities: ActivityRow[];
   totalLevel: number;
   combatLevel: number | null;
 }
@@ -195,6 +219,7 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
       efficiency: null,
       skills: [],
       bosses: [],
+      activities: [],
       totalLevel: 0,
       combatLevel: null,
     };
@@ -220,6 +245,24 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
     .filter((b) => b.kc > 0)
     .sort((a, b) => b.ehb - a.ehb || b.kc - a.kc);
 
+  // Declaration order, not score order: these are read as a fixed list of things ("how many elite
+  // clues?"), so a member with no master clues should show a zero row where the reader expects it
+  // rather than silently dropping the row and shifting everything up.
+  const readings = readAllActivities(snapshot);
+  const activities: ActivityRow[] = HISCORES_ACTIVITIES.map((a) => {
+    const reading = readings[a.key];
+    return {
+      key: a.key,
+      label: a.label,
+      shortLabel: a.shortLabel ?? a.label,
+      group: a.group,
+      scale: a.scale,
+      unit: a.unit ?? null,
+      score: reading?.score ?? 0,
+      rank: reading?.rank ?? null,
+    };
+  });
+
   return {
     id: member.id,
     rsn: member.rsn,
@@ -232,6 +275,7 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
     efficiency,
     skills,
     bosses,
+    activities,
     totalLevel: snapshot.skills?.overall?.level ?? 0,
     combatLevel: combatLevelFrom(snapshot),
   };
@@ -508,6 +552,188 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
     topWeek,
     activeThisWeek: weekRows.filter((r) => r.hours > 0).length,
   };
+}
+
+// ── Activity analytics ───────────────────────────────────────────────────────────────────────────
+//
+// The clue, minigame and collection-log numbers, read clan-wide. Everything here comes off
+// clan_members.stats_activities — the compact map the sweep derives — so this is one indexed scan
+// and a few hundred bytes of JSON per member, never a full snapshot. Adding a leaderboard costs
+// nothing extra; adding one that needed snapshots would cost megabytes a page load.
+
+/** One member's entry on an activity board. */
+export interface ActivityLeader {
+  rsn: string;
+  score: number;
+  /** Hiscores position, for rank-scaled activities where the score isn't the interesting number. */
+  rank: number | null;
+}
+
+export interface ActivityBoard {
+  key: string;
+  label: string;
+  unit: string | null;
+  scale: ActivityScale;
+  rows: ActivityLeader[];
+}
+
+/** A fun title, awarded to whoever leads one activity. Cosmetic — nothing scores off these. */
+export interface ActivityTitle {
+  key: string;
+  emoji: string;
+  title: string;
+  /** What earns it, in the third person: "Most caskets opened". */
+  blurb: string;
+  rsn: string;
+  /** Already formatted for display, because a rank reads "#1,204" and a count reads "4,812". */
+  value: string;
+}
+
+export interface ClanActivityAnalytics {
+  /** How many members had any activity data at all — the denominator for "nobody has X yet". */
+  tracked: number;
+  totals: { caskets: number; clogSlots: number; rifts: number; zeal: number; glory: number };
+  /** Clan-wide caskets per tier, hardest last. */
+  clueMix: { key: string; label: string; count: number }[];
+  titles: ActivityTitle[];
+  boards: ActivityBoard[];
+}
+
+/** The named titles, in the order they're shown. `key` picks the activity that decides the winner. */
+const ACTIVITY_TITLES: { key: string; emoji: string; title: string; blurb: string }[] = [
+  { key: 'cluesAll', emoji: '🗺️', title: 'Clue Hunter', blurb: 'Most caskets opened' },
+  { key: 'cluesMaster', emoji: '👑', title: 'Trailblazer', blurb: 'Most master clues' },
+  { key: 'collectionsLogged', emoji: '📕', title: 'Completionist', blurb: 'Most collection log slots' },
+  { key: 'colosseumGlory', emoji: '⚔️', title: 'Gladiator', blurb: 'Highest Colosseum glory' },
+  { key: 'riftsClosed', emoji: '🌀', title: 'Rift Closer', blurb: 'Most rifts closed' },
+  { key: 'soulWarsZeal', emoji: '💀', title: 'Zealot', blurb: 'Most Soul Wars zeal' },
+  { key: 'lastManStanding', emoji: '🎯', title: 'Last One Standing', blurb: 'Best LMS rank' },
+];
+
+/** Boards worth showing in full, as opposed to just naming a winner. */
+const ACTIVITY_BOARD_KEYS = ['cluesAll', 'collectionsLogged', 'cluesMaster', 'riftsClosed'];
+
+const BOARD_SIZE = 5;
+
+/** Every non-departed member's activity map, with their name. One query, small blobs. */
+async function readClanActivities(): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
+  const rows = await db
+    .select({
+      rsn: clanMembers.rsn,
+      statsActivities: clanMembers.statsActivities,
+    })
+    .from(clanMembers)
+    .where(isNull(clanMembers.leftAt));
+
+  return rows
+    .filter((r) => isPlausibleRsn(r.rsn) && r.statsActivities)
+    .map((r) => ({ rsn: r.rsn, activities: parseActivityBlob(r.statsActivities) }));
+}
+
+/**
+ * Order members for one activity, best first.
+ *
+ * A count sorts high-to-low. A RANK sorts low-to-high with unranked excluded entirely, because
+ * hiscores rank 1 is the best in the game — sorting those like counts would put the clan's best
+ * PKer last and someone who has never entered the arena first.
+ */
+function rankFor(
+  rows: { rsn: string; activities: Record<string, ActivityReading> }[],
+  key: string,
+): ActivityLeader[] {
+  const activity = activityFor(key);
+  if (!activity) return [];
+  const entries = rows
+    .map((r) => ({ rsn: r.rsn, score: r.activities[key]?.score ?? 0, rank: r.activities[key]?.rank ?? null }))
+    .filter((e) => (activity.scale === 'rank' ? e.rank != null : e.score > 0));
+
+  entries.sort((a, b) =>
+    activity.scale === 'rank' ? (a.rank as number) - (b.rank as number) : b.score - a.score || a.rsn.localeCompare(b.rsn),
+  );
+  return entries;
+}
+
+/** The clan's clues, minigames and collection logs, plus the fun titles that fall out of them. */
+export async function getClanActivityAnalytics(): Promise<ClanActivityAnalytics> {
+  const rows = await readClanActivities();
+
+  const sum = (key: string) => rows.reduce((total, r) => total + (r.activities[key]?.score ?? 0), 0);
+
+  const clueMix = CLUE_TIER_KEYS.map((key) => ({
+    key,
+    label: activityFor(key)?.shortLabel ?? key,
+    count: sum(key),
+  }));
+
+  const titles: ActivityTitle[] = [];
+  for (const t of ACTIVITY_TITLES) {
+    const leader = rankFor(rows, t.key)[0];
+    if (!leader) continue; // nobody in the clan has touched it — no title rather than an empty one
+    const scale = activityFor(t.key)?.scale ?? 'count';
+    titles.push({
+      key: t.key,
+      emoji: t.emoji,
+      title: t.title,
+      blurb: t.blurb,
+      rsn: leader.rsn,
+      value: scale === 'rank' ? `#${(leader.rank ?? 0).toLocaleString()}` : leader.score.toLocaleString(),
+    });
+  }
+
+  const boards: ActivityBoard[] = ACTIVITY_BOARD_KEYS.map((key) => {
+    const activity = activityFor(key);
+    return {
+      key,
+      label: activity?.label ?? key,
+      unit: activity?.unit ?? null,
+      scale: activity?.scale ?? 'count',
+      rows: rankFor(rows, key).slice(0, BOARD_SIZE),
+    };
+  }).filter((b) => b.rows.length > 0);
+
+  return {
+    tracked: rows.length,
+    totals: {
+      caskets: sum('cluesAll'),
+      clogSlots: sum('collectionsLogged'),
+      rifts: sum('riftsClosed'),
+      zeal: sum('soulWarsZeal'),
+      glory: sum('colosseumGlory'),
+    },
+    clueMix,
+    titles,
+    boards,
+  };
+}
+
+/** Where one member sits in the clan for an activity, out of everyone who has any. */
+export interface ActivityStanding {
+  key: string;
+  position: number;
+  of: number;
+}
+
+/**
+ * A member's clan placing for every activity they have something on.
+ *
+ * "#3 of 41" is the number that makes a raw casket count mean something, and it's the reason the
+ * derived blob exists — the alternative was parsing the whole roster's snapshots to render one
+ * profile. Activities nobody in the clan has are simply absent.
+ */
+export async function getActivityStandings(rsn: string): Promise<Record<string, ActivityStanding>> {
+  const normalized = normalizeRsn(rsn);
+  if (!normalized) return {};
+  const rows = await readClanActivities();
+
+  const out: Record<string, ActivityStanding> = {};
+  for (const activity of HISCORES_ACTIVITIES) {
+    const ordered = rankFor(rows, activity.key);
+    if (ordered.length === 0) continue;
+    const index = ordered.findIndex((e) => normalizeRsn(e.rsn) === normalized);
+    if (index < 0) continue; // they have none of it — no placing to report
+    out[activity.key] = { key: activity.key, position: index + 1, of: ordered.length };
+  }
+  return out;
 }
 
 // ── Competition history ──────────────────────────────────────────────────────────────────────────

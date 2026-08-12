@@ -665,7 +665,15 @@ export const clanMembers = sqliteTable('clan_members', {
   // The member's last seen full snapshot, so the daily rollup can say WHICH metrics moved rather than
   // just how much total XP did. One row per member, overwritten — bounded, unlike a per-day archive —
   // and only rewritten on a tick where something actually changed.
-  statsLastSnapshot: text('stats_last_snapshot')
+  statsLastSnapshot: text('stats_last_snapshot'),
+  // The hiscores entries that aren't skills or bosses — clue tiers, minigames, collection-log slots —
+  // pulled out of the same snapshot as a compact `{"cluesElite":{"score":47,"rank":88123}}` map.
+  //
+  // Derived, so it holds nothing statsLastSnapshot doesn't. It exists because the member directory
+  // is deliberately snapshot-parse-free: clan-wide activity leaderboards over full snapshots would
+  // mean reading and parsing megabytes per page load on a 400-member roster, where this is a few
+  // hundred bytes each. Written on the same ticks as the snapshot, from data already in hand.
+  statsActivities: text('stats_activities')
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
