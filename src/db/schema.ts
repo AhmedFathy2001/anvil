@@ -141,6 +141,16 @@ export const tiles = sqliteTable('tiles', {
   // concerned. Enforced by the plugin, which is the only thing that can see a kill boundary; manual
   // and admin submissions are unaffected.
   perKillCap: integer('per_kill_cap'),
+  // KILL tiles: how much a kill several members were in is worth to the team. NULL/'per-member' =
+  // every member who reported it credits (the historical behaviour — a 2-man Yama gives 2 KC, a
+  // 20-man raid gives 20). 'per-kill' collapses the reports of ONE kill into one credit; the site
+  // correlates them (lib/coopRuns) rather than trusting any single client to stay quiet.
+  coopCredit: text('coop_credit'),
+  // KILL tiles: the kill only counts when at least this many of the team were in it — "complete N
+  // raids with 3+ teammates". NULL/0 = no requirement. Counted from members who reported the kill
+  // plus roster members they NAMED, never from the raid party size (20 in a CoX party is not 20
+  // teammates), so the gate errs toward not crediting.
+  coopMinMembers: integer('coop_min_members'),
   // JSON array of accepted loot sources for this tile. NULL = accept any source
   // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
   // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles
@@ -377,6 +387,13 @@ export const submissions = sqliteTable('submissions', {
   // (and baked onto the screenshot) by the plugin. NULL for drop/kill submissions. The
   // tile completes when any submission's durationSeconds ≤ tile.timeThresholdSeconds.
   durationSeconds: integer('duration_seconds'),
+  // What the submitting client could see of its company at kill time, for shared-kill correlation
+  // (lib/coopRuns). `coopGroup` is a JSON array of lowercased roster RSNs it saw — reliable for a
+  // single-arena boss, empty inside raids where the party splits across rooms; `coopPartySize` is
+  // the instance/raid party headcount, which is reliable exactly where the names aren't. Both NULL
+  // on manual/web submissions and on anything an older plugin sent.
+  coopGroup: text('coop_group'),
+  coopPartySize: integer('coop_party_size'),
   // FEDERATION_SECURITY.md §3 — the instanceId of the REMOTE home that relayed this credit in via
   // POST /api/federation/v1/events. NULL for every native (non-federated) submission. Its presence
   // makes a relayed write auditable + reversible by this clan (the receiver never trusts the relay

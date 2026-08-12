@@ -52,6 +52,9 @@ interface ImportRow {
   groupMode?: string | null;
   /** Drop tiles: most credits one kill can give (1 = count rolls, not items). */
   perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in; min gates on how many. */
+  coopCredit?: string | null;
+  coopMinMembers?: number | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -306,6 +309,10 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   }
   if (row.perKillCap !== undefined) {
     s.perKillCap = row.perKillCap != null && row.perKillCap >= 1 ? Math.min(10, Math.floor(row.perKillCap)) : null;
+  }
+  if (row.coopCredit !== undefined) s.coopCredit = row.coopCredit === 'per-kill' ? 'per-kill' : null;
+  if (row.coopMinMembers !== undefined) {
+    s.coopMinMembers = row.coopMinMembers != null && row.coopMinMembers >= 2 ? Math.min(50, Math.floor(row.coopMinMembers)) : null;
   }
   if (row.timedActivity !== undefined) s.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
   if (row.timeThresholdSeconds !== undefined) s.timeThresholdSeconds = row.timeThresholdSeconds ?? null;

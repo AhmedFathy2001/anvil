@@ -65,6 +65,10 @@ export interface Tile extends TileRevealState {
   groupMode?: string | null;
   /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
   perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */
+  coopCredit?: string | null;
+  /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
+  coopMinMembers?: number | null;
   points?: number | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
@@ -183,6 +187,10 @@ export interface TileConfig {
   groupMode?: string | null;
   /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
   perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */
+  coopCredit?: string | null;
+  /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
+  coopMinMembers?: number | null;
   points: number;
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.

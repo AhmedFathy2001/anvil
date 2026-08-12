@@ -632,7 +632,13 @@ export async function GET(request: Request) {
   // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
   // exists — otherwise it's payload (and roster) for nothing.
   const hasPvpTiles = allEventTiles.some((t) => t.tileType === 'pvp');
-  const pvpRoster = hasPvpTiles
+  // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
+  // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
+  // plugin). Sent for those tiles too, not just PvP ones.
+  const hasCoopTiles = allEventTiles.some(
+    (t) => t.tileType === 'kill' && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0),
+  );
+  const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
         await db
           .select({ name: players.name, teamId: players.teamId })
@@ -820,6 +826,12 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
+          // Shared kills: 'per-kill' collapses one kill several members were in, and
+          // coopMinMembers gates it on how many of the team were there. Either one makes the plugin
+          // attach what it could see of its company to the submission (lib/coopRuns correlates
+          // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
+          coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+          coopMinMembers: t.coopMinMembers ?? 0,
         };
       }),
 
