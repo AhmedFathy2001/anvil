@@ -23,6 +23,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
@@ -34,6 +35,17 @@ import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
+
+// The roll tables as the plugin needs them: ids to match loot against, the vestige to watch for, and
+// the cadence. Item NAMES stay server-side — they exist for the tile editor's fill button, and the
+// plugin already knows how to name an item id.
+const pluginRollTables = ROLL_TABLES.map((t) => ({
+  boss: t.boss,
+  rollItemIds: rollItemIds(t),
+  vestigeItemId: t.vestigeItemId,
+  vestigeName: t.vestigeName,
+  rollsPerVestige: t.rollsPerVestige,
+}));
 
 // The plugin only needs to know WHICH notification channels are live, never the webhook URLs
 // themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
@@ -240,6 +252,7 @@ export async function GET(request: Request) {
         trackedDiaries: [],
         trackedCombatTasks: [],
         noActiveEvent: true,
+        rollTables: pluginRollTables,
         schedule,
         activeWeekly,
         notify: notifyFlags(webhooks),
@@ -704,6 +717,9 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    // Bosses whose vestige is on a fixed rotation (lib/rollTables). Server-side data so a cadence
+    // change or a corrected item list is an edit here, not a plugin release.
+    rollTables: pluginRollTables,
     schedule,
     activeWeekly,
     // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
@@ -758,6 +774,9 @@ export async function GET(request: Request) {
           // Exact raid party size required ("solo Cursed phalanx"); rides
           // timeThresholdSeconds on drop tiles. 0 = any size.
           partySize: t.timeThresholdSeconds ?? 0,
+          // Most this tile can be credited from one kill (0 = uncapped). The plugin enforces it —
+          // it's the only side that can see where one kill ends and the next begins.
+          perKillCap: t.perKillCap ?? 0,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,

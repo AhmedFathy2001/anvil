@@ -28,6 +28,8 @@
 //                       'scheduled' reveal policy; see lib/eventRules). ISO or any parseable
 //                       date-time, e.g. "2026-08-01 19:00" (stored as UTC ISO). Blank = the
 //                       tile stays hidden until a time is set. Ignored on classic events.
+//   perKillCap          drop tiles — most credits ONE kill can give (blank = uncapped). "1" counts
+//                       rolls rather than items: a kill dropping two tracked items credits once
 //   groupMode           collection tiles — how the @Set groups combine: blank/"any" (default) =
 //                       satisfy ONE set; "all" = satisfy EVERY set. "all" with "@Set/1" groups is
 //                       "one of many from each source" (a unique from each DT2 boss)
@@ -57,6 +59,7 @@ export const TILE_CSV_COLUMNS = [
   'revealAt',
   'items',
   'groupMode',
+  'perKillCap',
 ] as const;
 
 import type { Tile } from '@/lib/types';
@@ -93,6 +96,7 @@ export interface TileCsvRow {
   revealAt?: string | null;
   items?: TileCsvItem[] | null;
   groupMode?: string | null;
+  perKillCap?: number | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -314,6 +318,7 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     revealAt: idx('revealat'),
     items: idx('items'),
     groupMode: idx('groupmode'),
+    perKillCap: idx('perkillcap'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -361,6 +366,10 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     if (col.groupMode >= 0) {
       // Only 'all' means anything; everything else (including blank) is the default any-one-set.
       row.groupMode = get(cells, col.groupMode).trim().toLowerCase() === 'all' ? 'all' : null;
+    }
+    if (col.perKillCap >= 0) {
+      const cap = toNumberLoose(get(cells, col.perKillCap));
+      row.perKillCap = cap != null && cap >= 1 ? cap : null;
     }
     rows.push(row);
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
@@ -468,5 +477,6 @@ export function tileToCsvCells(t: Tile): string[] {
     tileItemsCell(t),
     // Only emitted when it's not the default, so an ordinary collection's sheet stays as it was.
     t.groupMode === 'all' ? 'all' : '',
+    t.perKillCap != null ? String(t.perKillCap) : '',
   ];
 }

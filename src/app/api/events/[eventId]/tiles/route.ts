@@ -54,7 +54,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -141,6 +141,14 @@ export async function PUT(
   // back to the default rather than storing a value.
   if (groupMode !== undefined && groupMode !== null && groupMode !== 'any' && groupMode !== 'all') {
     return NextResponse.json({ error: "groupMode must be 'any' or 'all'" }, { status: 400 });
+  }
+
+  // Most credits one kill can give this tile. Small ceiling: this exists to count rolls (1) or the
+  // odd "a double still counts as two, but no more" case, not to express a requirement.
+  if (perKillCap !== undefined && perKillCap !== null) {
+    if (!Number.isInteger(perKillCap) || perKillCap < 1 || perKillCap > 10) {
+      return NextResponse.json({ error: 'perKillCap must be an integer between 1 and 10 (or null for uncapped)' }, { status: 400 });
+    }
   }
 
   // sourceNpcs: optional JSON array of specific source NPC names for a drop tile.
@@ -307,6 +315,10 @@ export async function PUT(
     // Only ever meaningful with sets; stored as null for the default so a plain collection carries
     // no mode at all.
     updateSet.groupMode = groupMode === 'all' ? 'all' : null;
+  }
+
+  if (perKillCap !== undefined) {
+    updateSet.perKillCap = perKillCap ?? null;
   }
 
   if (itemRequirements !== undefined) {

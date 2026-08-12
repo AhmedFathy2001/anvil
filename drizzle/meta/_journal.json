@@ -358,6 +358,13 @@
       "when": 1786490038900,
       "tag": "0050_collection-group-mode",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1786492949608,
+      "tag": "0051_per-kill-cap",
+      "breakpoints": true
     }
   ]
 }

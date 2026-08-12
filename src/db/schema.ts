@@ -134,6 +134,13 @@ export const tiles = sqliteTable('tiles', {
   // pre-existing collection has: satisfy ONE set. 'all' = AND-ed, every set must be satisfied — which
   // with groupRequire=1 per set is "one of many from EACH source" (a unique from each DT2 boss).
   groupMode: text('group_mode'),
+  // DROP tiles: the most this tile can be credited from a SINGLE kill, however many tracked items
+  // that kill dropped or how big the stack was. NULL = uncapped (every drop counts, the historical
+  // behaviour). 1 is "one credit per kill" — what makes a tile count ROLLS of a unique table rather
+  // than items, since a kill that hands you a vestige and an ingot rolled once as far as the board is
+  // concerned. Enforced by the plugin, which is the only thing that can see a kill boundary; manual
+  // and admin submissions are unaffected.
+  perKillCap: integer('per_kill_cap'),
   // JSON array of accepted loot sources for this tile. NULL = accept any source
   // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
   // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles

@@ -81,6 +81,7 @@ export async function POST(
         trackedItemIds: t.trackedItemIds,
         itemRequirements: t.itemRequirements,
         groupMode: t.groupMode,
+        perKillCap: t.perKillCap,
         acceptedSources: t.acceptedSources,
         sourceNpcs: t.sourceNpcs,
         targetNpcs: t.targetNpcs,

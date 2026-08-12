@@ -63,6 +63,8 @@ export interface Tile extends TileRevealState {
   itemRequirements?: string | null;
   /** Collection tiles: 'any' (default/null) | 'all' — how the item groups combine. See collectionSets. */
   groupMode?: string | null;
+  /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
+  perKillCap?: number | null;
   points?: number | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
@@ -179,6 +181,8 @@ export interface TileConfig {
   itemRequirements: ItemRequirement[] | null;
   /** Collection tiles: 'any' (default) | 'all' — how the item sets combine (lib/collectionSets). */
   groupMode?: string | null;
+  /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
+  perKillCap?: number | null;
   points: number;
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.

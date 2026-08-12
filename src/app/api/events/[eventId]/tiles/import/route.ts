@@ -50,6 +50,8 @@ interface ImportRow {
   items?: { name?: string; count: number; id?: number; group?: string | null; groupRequire?: number | null }[] | null;
   /** Collection tiles: 'any' (default) | 'all' — how the @Set groups combine. See lib/collectionSets. */
   groupMode?: string | null;
+  /** Drop tiles: most credits one kill can give (1 = count rolls, not items). */
+  perKillCap?: number | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -301,6 +303,9 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
     s.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
       ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))
       : null;
+  }
+  if (row.perKillCap !== undefined) {
+    s.perKillCap = row.perKillCap != null && row.perKillCap >= 1 ? Math.min(10, Math.floor(row.perKillCap)) : null;
   }
   if (row.timedActivity !== undefined) s.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
   if (row.timeThresholdSeconds !== undefined) s.timeThresholdSeconds = row.timeThresholdSeconds ?? null;

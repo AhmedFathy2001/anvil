@@ -43,6 +43,7 @@ const AUDITED_FIELDS: { key: keyof TileRow; label: string; json?: boolean }[] = 
   { key: 'trackedItemIds', label: 'Tracked items', json: true },
   { key: 'itemRequirements', label: 'Item requirements', json: true },
   { key: 'groupMode', label: 'Sets required' },
+  { key: 'perKillCap', label: 'Max credits per kill' },
   { key: 'acceptedSources', label: 'Accepted sources', json: true },
   { key: 'sourceNpcs', label: 'Source NPCs', json: true },
   { key: 'targetNpcs', label: 'Target selectors', json: true },

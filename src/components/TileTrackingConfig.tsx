@@ -11,6 +11,7 @@ import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
+import { ROLL_TABLES } from '@/lib/rollTables';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
@@ -332,6 +333,11 @@ function FlagHint({ text }: { text: string }) {
   );
 }
 
+const PER_KILL_CAP_HELP =
+  'Caps how much ONE kill can credit this tile. A DT2 boss that drops a vestige and an ingot on the same kill rolled its unique table once, so with this on the tile counts 1, not 2. Off is the historical behaviour: every tracked item, and every item in a stack, counts.';
+const ROLL_TABLE_HELP =
+  "These bosses hand out their vestige on a fixed rotation — two other uniques, then the vestige. Filling the item list with a boss's whole unique table and counting once per kill makes the tile count ROLLS, so \u201cget 3 unique rolls from Vardorvis\u201d is a target a team can make progress on rather than a coin-flip on a vestige.";
+
 const GROUP_MODE_ANY_HELP =
   'Any one set — the sets are alternatives. Satisfying ONE of them (plus any always-required items) finishes the tile, and pieces from different sets never mix. "Collect any one Barrows set."';
 const GROUP_MODE_ALL_HELP =
@@ -549,6 +555,9 @@ export default function TileTrackingConfig({
   // How this collection's sets combine, and how many items each set needs (keyed by the lowercased
   // set name — the same key lib/collectionSets groups on). 'all' + require 1 is "one from each source".
   const [groupMode, setGroupMode] = useState<'any' | 'all'>(initial.groupMode === 'all' ? 'all' : 'any');
+  // "Count once per kill": a kill credits the tile once however many tracked items it dropped. What
+  // turns an item tile into a ROLL tile — see the roll-table fill below.
+  const [oncePerKill, setOncePerKill] = useState<boolean>((initial.perKillCap ?? 0) === 1);
   const [groupRequires, setGroupRequires] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
     for (const r of initial.itemRequirements ?? []) {
@@ -1024,6 +1033,8 @@ export default function TileTrackingConfig({
         // Cleared by default so switching a collection to another kind doesn't leave a stale
         // set mode behind; the collection branch sets it.
         groupMode: null,
+        // Same: only drop-shaped tiles carry a per-kill cap.
+        perKillCap: null,
         sourceNpcs: null,
         targetNpcs: null,
         timedActivity: null,
@@ -1039,6 +1050,7 @@ export default function TileTrackingConfig({
         payload.statGoal = parseInt(statGoal, 10);
         payload.trackingMode = trackingMode;
       } else if (kind === 'collection') {
+        payload.perKillCap = oncePerKill ? 1 : null;
         payload.itemRequirements = trackedItems.map((i) => {
           const g = i.group?.trim() || null;
           const key = g?.toLowerCase();
@@ -1056,6 +1068,7 @@ export default function TileTrackingConfig({
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+        payload.perKillCap = oncePerKill ? 1 : null;
       } else if (kind === 'kill') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = targetNpcNames;
@@ -1438,6 +1451,54 @@ export default function TileTrackingConfig({
               <p className="text-[10px] text-text-muted mt-0.5">
                 Total drops needed across all tracked items combined. E.g. &ldquo;10 uniques from any GWD boss&rdquo;.
               </p>
+            </div>
+          )}
+
+          {isDrop && (
+            <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={oncePerKill}
+                  onChange={(e) => setOncePerKill(e.target.checked)}
+                  className="mt-0.5 accent-gold"
+                />
+                <span className="text-xs text-foreground/90">
+                  Count once per kill
+                  <FlagHint text={PER_KILL_CAP_HELP} />
+                  <span className="block text-[10px] text-text-muted mt-0.5">
+                    One kill credits this tile once, however many tracked items it dropped. Off = every
+                    drop counts, so a kill that hands you two tracked items counts twice.
+                  </span>
+                </span>
+              </label>
+
+              {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
+                  a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
+                  item list plus the cap above, so no new tile kind is needed. */}
+              <div>
+                <p className="text-[10px] text-text-muted mb-1">
+                  Track unique-table rolls:
+                  <FlagHint text={ROLL_TABLE_HELP} />
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ROLL_TABLES.map((t) => (
+                    <button
+                      key={t.boss}
+                      type="button"
+                      title={`Fill the tracked items with ${t.boss}'s unique table (${t.rollItems.length} items, ${t.vestigeName} among them) and count once per kill — one roll, one credit.`}
+                      onClick={() => {
+                        setTrackedItems(t.rollItems.map((i) => ({ ...i, perItemAmount: 1 })));
+                        setSourceNpcsText(t.boss);
+                        setOncePerKill(true);
+                      }}
+                      className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                    >
+                      {t.boss}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
