@@ -111,6 +111,11 @@ export const tiles = sqliteTable('tiles', {
   trackedStat: text('tracked_stat'),
   statType: text('stat_type'),
   statGoal: integer('stat_goal'),
+  // 'team' (default) = every member's progress sums toward the goal; 'individual' ('solo' is the
+  // legacy spelling of the same thing) = ONE member has to reach it alone. Honoured for hiscores
+  // stat tiles (lib/statTracking) and for submission-backed count tiles (lib/countProgress), which
+  // then measure the best single member rather than the team sum. Only the kinds whose editor shows
+  // the Team/Solo control ever store anything but 'team'.
   trackingMode: text('tracking_mode').default('team').notNull(),
   optional: integer('optional').default(0),
   // Admin kill-switch for a single tile's automatic crediting. When set (1), the site stops
@@ -121,7 +126,14 @@ export const tiles = sqliteTable('tiles', {
   // hiscores polling still happen (evidence keeps flowing); only the auto-credit is suppressed.
   autoTrackDisabled: integer('auto_track_disabled').default(0).notNull(),
   trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
-  itemRequirements: text('item_requirements'), // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}]
+  // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}].
+  // A row may carry `group` (set name) and `groupRequire` (how many distinct items in that set count
+  // as satisfying it; absent = all of them) — see lib/collectionSets for what the two mean together.
+  itemRequirements: text('item_requirements'),
+  // How a collection tile's groups combine (lib/collectionSets). NULL/'any' = the OR-ed reading every
+  // pre-existing collection has: satisfy ONE set. 'all' = AND-ed, every set must be satisfied — which
+  // with groupRequire=1 per set is "one of many from EACH source" (a unique from each DT2 boss).
+  groupMode: text('group_mode'),
   // JSON array of accepted loot sources for this tile. NULL = accept any source
   // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
   // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles
@@ -221,7 +233,7 @@ export const tileAuditLog = sqliteTable('tile_audit_log', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id'), // no FK — history outlives the tile it describes
   tileLabel: text('tile_label'), // label snapshot at the time of the change
-  // What happened: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered'.
+  // What happened: 'created' | 'updated' | 'deleted' | 'duplicated' | 'imported' | 'reordered'.
   action: text('action').notNull(),
   // For 'updated': JSON array of { field, label, from, to } for each changed column.
   changedFields: text('changed_fields'),
@@ -264,10 +276,11 @@ export const completions = sqliteTable('completions', {
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   completedAt: text('completed_at').default(sql`(datetime('now'))`).notNull(),
-  // The player who finished it, for stat tiles (boss KC / skilling) that complete via the hiscores
-  // sweep or a live push and so have NO submission to attribute. NULL for team-total tiles, admin
-  // manual completions, and submission-backed tiles (the activity feed attributes those from the
-  // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
+  // The player who finished it: a stat tile (boss KC / skilling) that completed via the hiscores
+  // sweep or a live push and so has NO submission to attribute, or a Solo count tile, where one
+  // member reaching the count alone IS the completion (lib/countProgress). NULL for team-total
+  // tiles and admin manual completions — the activity feed attributes those from the latest
+  // submission instead. Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
   creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
   // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
   // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.

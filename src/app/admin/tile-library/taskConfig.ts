@@ -64,7 +64,7 @@ export async function toTileConfig(
   for (const it of items) {
     const count = it.count ?? 1;
     if (it.id) {
-      reqs.push({ itemId: it.id, name: it.name || `Item #${it.id}`, requiredAmount: count, group: it.group ?? null });
+      reqs.push({ itemId: it.id, name: it.name || `Item #${it.id}`, requiredAmount: count, group: it.group ?? null, groupRequire: it.groupRequire ?? null });
       continue;
     }
     if (!it.name) continue;
@@ -73,7 +73,7 @@ export async function toTileConfig(
       const results: { id: number; name: string }[] = res.ok ? await res.json() : [];
       const hit =
         results.find((r) => r.name.toLowerCase() === it.name.toLowerCase()) ?? results[0] ?? null;
-      if (hit) reqs.push({ itemId: hit.id, name: hit.name, requiredAmount: count, group: it.group ?? null });
+      if (hit) reqs.push({ itemId: hit.id, name: hit.name, requiredAmount: count, group: it.group ?? null, groupRequire: it.groupRequire ?? null });
     } catch {
       /* unresolvable — skip it rather than persist a dead id */
     }
@@ -96,6 +96,7 @@ export async function toTileConfig(
     timeThresholdSeconds: asNumber(row.timeThresholdSeconds),
     itemRequirements: reqs.length ? reqs : null,
     trackedItemIds: reqs.length ? reqs.map((r) => r.itemId) : null,
+    groupMode: row.groupMode === 'all' ? 'all' : null,
   };
 }
 
@@ -108,7 +109,13 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
   const ids = (payload.trackedItemIds as number[] | null) ?? null;
 
   const items = reqs?.length
-    ? reqs.map((r) => ({ name: r.name, count: r.requiredAmount ?? 1, id: r.itemId, group: r.group ?? undefined }))
+    ? reqs.map((r) => ({
+        name: r.name,
+        count: r.requiredAmount ?? 1,
+        id: r.itemId,
+        group: r.group ?? undefined,
+        groupRequire: r.groupRequire ?? undefined,
+      }))
     : ids?.length
       ? ids.map((id) => ({ name: '', count: 1, id }))
       : null;
@@ -128,6 +135,8 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     timedActivity: (payload.timedActivity as string | null) ?? null,
     timeThresholdSeconds: (payload.timeThresholdSeconds as number | null) ?? null,
     items,
+    // Only stored when it isn't the default, so a plain collection's library row is unchanged.
+    groupMode: payload.groupMode === 'all' ? 'all' : null,
   };
 
   // Drop empties so a stored task stays readable as a seed pack.

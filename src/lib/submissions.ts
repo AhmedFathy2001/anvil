@@ -5,6 +5,29 @@ import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
+import { countProgress } from '@/lib/countProgress';
+import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
+
+/**
+ * A team's progress on one submission-backed count tile, under that tile's tracking mode
+ * (lib/countProgress owns the rule; this just feeds it the rows). Reads the attribution columns
+ * rather than SUM-ing in SQL so the server and the board's client-side bars can't drift apart.
+ */
+export async function countTileProgress(
+  tileId: number,
+  teamId: number,
+  trackingMode: string | null | undefined,
+) {
+  const rows = await db
+    .select({
+      playerId: submissions.playerId,
+      creditPlayerId: submissions.creditPlayerId,
+      amount: submissions.amount,
+    })
+    .from(submissions)
+    .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+  return countProgress(rows, trackingMode);
+}
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
@@ -32,14 +55,19 @@ export async function syncDropTileCompletion(
 
   let totalAmount: number;
   let isComplete: boolean;
+  // Solo ("any one member") count tiles: who reached the goal, and whether the ONLY thing keeping
+  // the tile incomplete is that no single member got there alone. Both stay false/null for every
+  // team-mode tile, which is every tile kind that doesn't expose the Team/Solo toggle.
+  let finisherPlayerId: number | null = null;
+  let soloShortfall = false;
 
-  // Collection tiles (a SET of items via itemRequirements) complete when a full set is satisfied. Keyed on
+  // Collection tiles (a SET of items via itemRequirements) complete when their sets are satisfied. Keyed on
   // the PRESENCE of itemRequirements — independent of tile.tileType and tile.requiredAmount — because older
   // / bulk-imported collections can carry a non-'drop' tileType or a stale requiredAmount, which made the
   // `tile.tileType === 'drop' && tile.requiredAmount` guard below skip them so a full set never completed
   // server-side (the clog masked it with a client-side full-set check).
   const itemRequirements = tile.itemRequirements
-    ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[])
+    ? (JSON.parse(tile.itemRequirements) as CollectionRequirement[])
     : null;
 
   if (itemRequirements && itemRequirements.length > 0) {
@@ -50,22 +78,13 @@ export async function syncDropTileCompletion(
       .groupBy(submissions.itemId);
     const itemTotalMap = new Map(perItemTotals.map((r) => [r.itemId, Number(r.total)]));
     totalAmount = perItemTotals.reduce((sum, r) => sum + Number(r.total), 0);
-    // Grouped ("any full set") mode: requirements carrying a `group` name form OR-ed sets — one full set
-    // completes the tile (no mixing across sets). Ungrouped requirements stay AND-ed on top; no groups at
-    // all keeps the classic all-of collection semantics.
-    const met = (req: { itemId: number; requiredAmount: number }) =>
-      (itemTotalMap.get(req.itemId) ?? 0) >= req.requiredAmount;
-    const ungrouped = itemRequirements.filter((r) => !r.group?.trim());
-    const groups = new Map<string, typeof itemRequirements>();
-    for (const r of itemRequirements) {
-      const g = r.group?.trim();
-      if (!g) continue;
-      const key = g.toLowerCase();
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
-    }
-    const anySetDone = groups.size === 0 || [...groups.values()].some((set) => set.every(met));
-    isComplete = ungrouped.every(met) && anySetDone;
+    // Sets: how the tile's `group` tags combine is lib/collectionSets' call — OR-ed alternative sets
+    // ('any', the default and what every legacy collection does) or AND-ed one-from-each-source
+    // sets ('all'), with each group's own require count. Ungrouped items are always required.
+    isComplete = evaluateCollection(
+      itemRequirements.map((r) => ({ ...r, currentAmount: itemTotalMap.get(r.itemId) ?? 0 })),
+      tile.groupMode,
+    ).isComplete;
   } else if (tile.tileType === 'timed') {
     // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
     // match, so the rank is the gate — complete on any submission, no time cap (each rank is its own
@@ -98,21 +117,20 @@ export async function syncDropTileCompletion(
     // each haul's gp and requiredAmount the total gp to collect. (LMS placement / deathless
     // gating happens plugin-side, like kill targeting.)
     if (!tile.requiredAmount) return null;
-    const result = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    totalAmount = result[0]?.total ?? 0;
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    totalAmount = progress.current;
+    finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
+    soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
     // Simple drop pool (no per-item requirements — collections are handled by the branch above).
-    const result = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-      .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-
-    totalAmount = result[0]?.total ?? 0;
+    // Drop tiles have no Team/Solo toggle in the editor, so this is always the team sum; it goes
+    // through the same helper so there is one definition of progress rather than two.
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    totalAmount = progress.current;
+    finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
+    soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
   } else {
     return null;
   }
@@ -146,8 +164,10 @@ export async function syncDropTileCompletion(
   }
 
   if (isComplete && !raceBlocked && !ruleBlocked) {
-    // Auto-complete — use onConflictDoNothing to avoid race condition
-    const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints })
+    // Auto-complete — use onConflictDoNothing to avoid race condition. A Solo tile names its
+    // finisher (the one member who reached the count alone) the way stat tiles do, so the activity
+    // feed reads "Kayle completed 10 CoX raids" instead of attributing it to the team.
+    const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints, creditPlayerId: finisherPlayerId })
       .onConflictDoNothing()
       .returning();
 
@@ -200,9 +220,16 @@ export async function syncDropTileCompletion(
         }
       }
     }
-  } else if (!isComplete) {
+  } else if (!isComplete && !soloShortfall) {
     // Revert completion if it exists (idempotent DELETE). A race-blocked tile is
     // left untouched — its earlier-tile gate, not its own progress, is what's missing.
+    //
+    // `soloShortfall` is the grandfather clause for enforcing Solo mode on submission tiles: the
+    // team has the count but no single member does, which is exactly the state a board sat in
+    // while the Solo setting was inert. Those tiles were already credited under the old (team-sum)
+    // reading, so we leave the existing completion alone rather than yanking a finished tile out
+    // from under a live board. Nothing here can CREATE a completion, so going forward the stricter
+    // rule is what decides; only the historical credit is protected.
     const removed = await db.delete(completions).where(
       and(eq(completions.teamId, teamId), eq(completions.tileId, tileId))
     ).returning({ id: completions.id });

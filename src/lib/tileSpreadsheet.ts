@@ -80,7 +80,7 @@ export async function buildTileSpreadsheet(opts: {
   for (const t of tiles) ws.addRow(tileToCsvCells(t));
 
   // Dropdowns on the fiddly columns. Column letters follow TILE_CSV_COLUMNS order:
-  //   C=type  F=optional  H=trackedStat  I=statType. exceljs sets validation per-cell, so we
+  //   C=type  F=optional  H=trackedStat  I=statType  P=groupMode. exceljs sets validation per-cell, so we
   //   pre-wire a generous row range; lenient (allowBlank, no hard error) so pasting still works.
   const listValidation = (formulae: string[]): ExcelJS.DataValidation => ({
     type: 'list',
@@ -93,10 +93,11 @@ export async function buildTileSpreadsheet(opts: {
     ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
+    ws.getCell(`P${r}`).dataValidation = listValidation(['"any,all"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
   }
 
-  // -- Examples (one worked row per tile kind; copy A:N into the Tiles sheet) ----------------
+  // -- Examples (one worked row per tile kind; copy A:P into the Tiles sheet) ----------------
   const ex = wb.addWorksheet(SHEET_EXAMPLES);
   ex.columns = [...TILE_CSV_COLUMNS.map((c) => ({ header: c, width: c === 'items' ? 46 : 16 })), { header: 'What it does', width: 50 }];
   styleHeaderRow(ex.getRow(1));
@@ -115,6 +116,12 @@ export async function buildTileSpreadsheet(opts: {
     'Drop POOL: requiredAmount set → any listed item counts toward the total (here, any 3).');
   example({ label: 'Full Bandos set', type: 'drop', points: 25, category: 'GWD', items: 'Bandos chestplate:1; Bandos tassets:1; Bandos boots:1' },
     'COLLECTION: no requiredAmount → each item needs its own count; completes when all are met.');
+  example({ label: 'A unique from each DT2 boss', type: 'drop', points: 40, category: 'DT2', groupMode: 'all',
+      items: 'Eye of the duke:1@Duke/1; Magus vestige:1@Duke/1; Virtus mask:1@Leviathan/1; Venator vestige:1@Leviathan/1' },
+    'ONE FROM EACH SOURCE: @Set/1 = any 1 item from that set; groupMode=all = every set must be satisfied.');
+  example({ label: 'Any one Barrows set', type: 'drop', points: 20, category: 'Barrows',
+      items: "Dharok's helm:1@Dharok; Dharok's greataxe:1@Dharok; Guthan's helm:1@Guthan; Guthan's warspear:1@Guthan" },
+    'ANY ONE SET (default): @Set groups are alternatives — complete one in full; pieces never mix.');
   example({ label: 'Kill 100 cows', type: 'kill', points: 3, category: 'Skilling', requiredAmount: 100, targetNpcs: 'Cow|Cow calf' },
     'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
   example({ label: 'Sub-30 Inferno', type: 'timed', points: 50, category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: 1800 },

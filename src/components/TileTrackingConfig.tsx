@@ -10,6 +10,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
@@ -317,6 +318,78 @@ function extractCountLikeNumbers(text: string): number[] {
   return out;
 }
 
+// Hover hint next to a flag's label. Native title tooltip (same pattern as PlayerRatingBadge) so it
+// works on every surface the tile editor is embedded in without a popover dependency.
+function FlagHint({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="ml-1 cursor-help text-gold/70 border border-gold/40 rounded-full px-[5px] text-[9px] leading-[14px] inline-block align-middle"
+    >
+      i
+    </span>
+  );
+}
+
+const GROUP_MODE_ANY_HELP =
+  'Any one set — the sets are alternatives. Satisfying ONE of them (plus any always-required items) finishes the tile, and pieces from different sets never mix. "Collect any one Barrows set."';
+const GROUP_MODE_ALL_HELP =
+  'Every set — all of the sets must be satisfied. Combined with "needs 1" per set this is one item from each source: a unique from each DT2 boss, a pet from each GWD boss.';
+const GROUP_REQUIRE_HELP =
+  'How many DIFFERENT items from that set count as satisfying it. The default is all of them (a full set); 1 means any single item from it; 3 of 6 means "any three of these".';
+
+// Team Total vs Solo — one control, rendered by every kind that stores a tracking mode, so the
+// wording of what the flag DOES is written once. `unit` is the kind's countable noun ("kills",
+// "task completions") and `goal` names what a member has to reach on their own.
+function TrackingModeField({
+  value,
+  onChange,
+  unit,
+  goal,
+}: {
+  value: string;
+  onChange: (mode: string) => void;
+  unit: string;
+  goal: string;
+}) {
+  const teamHelp = `Team Total — every member's ${unit} add up toward the ${goal}. Three members with 4, 3 and 3 finish a tile that needs 10.`;
+  const soloHelp = `Solo — one member has to reach the ${goal} on their own. Three members with 4, 3 and 3 are still at 4 of 10; each member's count is tracked separately and the first to get there completes the tile for the team.`;
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Tracking Mode
+        <FlagHint text={`Whose progress completes this tile. ${teamHelp} ${soloHelp}`} />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          title={teamHelp}
+          onClick={() => onChange('team')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Team Total
+        </button>
+        <button
+          type="button"
+          title={soloHelp}
+          onClick={() => onChange('individual')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'individual' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Solo (Any Member)
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-0.5">
+        Team Total sums every member&rsquo;s {unit}; Solo completes when any one member reaches the {goal} alone.
+      </p>
+    </div>
+  );
+}
+
 export default function TileTrackingConfig({
   tileId,
   eventId,
@@ -473,6 +546,17 @@ export default function TileTrackingConfig({
   const [valueMode, setValueMode] = useState<'single' | 'total'>(
     initial.tileType === 'valuetotal' ? 'total' : 'single',
   );
+  // How this collection's sets combine, and how many items each set needs (keyed by the lowercased
+  // set name — the same key lib/collectionSets groups on). 'all' + require 1 is "one from each source".
+  const [groupMode, setGroupMode] = useState<'any' | 'all'>(initial.groupMode === 'all' ? 'all' : 'any');
+  const [groupRequires, setGroupRequires] = useState<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const r of initial.itemRequirements ?? []) {
+      const g = r.group?.trim().toLowerCase();
+      if (g && r.groupRequire != null && r.groupRequire >= 1) out[g] = Math.max(out[g] ?? 0, r.groupRequire);
+    }
+    return out;
+  });
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number; group?: string }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount, group: r.group ?? undefined }))
@@ -526,6 +610,37 @@ export default function TileTrackingConfig({
   const isStat = kind === 'skill' || kind === 'boss';
   const isDrop = kind === 'drop' || kind === 'collection';
   const isCollection = kind === 'collection';
+  // The tile's requirements in the shape lib/collectionSets reads, and the sets they form — so the
+  // editor's set controls and its auto-computed total use the same rule the board completes on.
+  const collectionRequirements = trackedItems.map((i) => {
+    const g = i.group?.trim() || null;
+    const key = g?.toLowerCase();
+    const require = key ? groupRequires[key] : undefined;
+    return {
+      itemId: i.id,
+      name: i.name,
+      requiredAmount: i.perItemAmount,
+      group: g,
+      groupRequire: g && require && require >= 1 ? require : null,
+    };
+  });
+  const collectionGroups = (() => {
+    const out: { key: string; name: string; size: number }[] = [];
+    const seen = new Map<string, number>();
+    for (const i of trackedItems) {
+      const g = i.group?.trim();
+      if (!g) continue;
+      const key = g.toLowerCase();
+      const at = seen.get(key);
+      if (at == null) {
+        seen.set(key, out.length);
+        out.push({ key, name: g, size: 1 });
+      } else {
+        out[at].size++;
+      }
+    }
+    return out;
+  })();
   const isKill = kind === 'kill';
   const isPvp = kind === 'pvp';
   const isGain = kind === 'gain';
@@ -906,6 +1021,9 @@ export default function TileTrackingConfig({
         requiredAmount: null,
         trackedItemIds: null,
         itemRequirements: null,
+        // Cleared by default so switching a collection to another kind doesn't leave a stale
+        // set mode behind; the collection branch sets it.
+        groupMode: null,
         sourceNpcs: null,
         targetNpcs: null,
         timedActivity: null,
@@ -921,12 +1039,20 @@ export default function TileTrackingConfig({
         payload.statGoal = parseInt(statGoal, 10);
         payload.trackingMode = trackingMode;
       } else if (kind === 'collection') {
-        payload.itemRequirements = trackedItems.map((i) => ({
-          itemId: i.id,
-          name: i.name,
-          requiredAmount: i.perItemAmount,
-          group: i.group?.trim() || null,
-        }));
+        payload.itemRequirements = trackedItems.map((i) => {
+          const g = i.group?.trim() || null;
+          const key = g?.toLowerCase();
+          const require = key ? groupRequires[key] : undefined;
+          return {
+            itemId: i.id,
+            name: i.name,
+            requiredAmount: i.perItemAmount,
+            group: g,
+            // Written on every row of the set (the reader takes the strictest); null = the whole set.
+            groupRequire: g && require && require >= 1 ? require : null,
+          };
+        });
+        payload.groupMode = groupMode;
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
@@ -1288,29 +1414,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" />
         </div>
       )}
 
@@ -1344,15 +1448,14 @@ export default function TileTrackingConfig({
               </label>
               <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
                 {(() => {
-                  const groups = new Map<string, number>();
-                  let ungrouped = 0;
-                  for (const i of trackedItems) {
-                    const g = i.group?.trim().toLowerCase();
-                    if (g) groups.set(g, (groups.get(g) ?? 0) + i.perItemAmount);
-                    else ungrouped += i.perItemAmount;
-                  }
-                  if (groups.size === 0) return ungrouped;
-                  return `${ungrouped + Math.min(...groups.values())} (smallest set of ${groups.size})`;
+                  // Same arithmetic the server stores (lib/collectionSets): the shortest path to
+                  // completion under this tile's mode.
+                  const total = collectionDisplayTotal(collectionRequirements, groupMode);
+                  const setCount = new Set(
+                    trackedItems.map((i) => i.group?.trim().toLowerCase()).filter(Boolean),
+                  ).size;
+                  if (setCount === 0) return total;
+                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : `smallest of ${setCount} sets`})`;
                 })()}
               </div>
             </div>
@@ -1426,9 +1529,73 @@ export default function TileTrackingConfig({
                   Auto-set by name prefix
                 </button>
                 <span className="text-[10px] text-text-muted leading-tight">
-                  Sets make this an <span className="text-gold">any-one-set</span> tile: one complete set finishes it
-                  (no mixing). Blank = item always required.
+                  Items sharing a set form one group. Blank = item always required.
                 </span>
+              </div>
+            )}
+
+            {/* How the sets combine + how much of each is needed. Only shown once sets exist —
+                on a flat collection there is nothing to combine. */}
+            {isCollection && collectionGroups.length > 0 && (
+              <div className="mb-2 rounded-lg border border-card-border/60 p-2.5 space-y-2">
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Sets required
+                    <FlagHint text={`How this tile's ${collectionGroups.length} sets combine. ${GROUP_MODE_ANY_HELP} ${GROUP_MODE_ALL_HELP}`} />
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      title={GROUP_MODE_ANY_HELP}
+                      onClick={() => setGroupMode('any')}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        groupMode === 'any' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      Any one set
+                    </button>
+                    <button
+                      type="button"
+                      title={GROUP_MODE_ALL_HELP}
+                      onClick={() => setGroupMode('all')}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        groupMode === 'all' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      Every set
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-0.5">
+                    {groupMode === 'all'
+                      ? 'Every set must be satisfied — with "needs 1" below, that\u2019s one item from each source.'
+                      : 'Sets are alternatives: satisfying one finishes the tile, and pieces don\u2019t mix.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Items needed per set
+                    <FlagHint text={GROUP_REQUIRE_HELP} />
+                  </label>
+                  <div className="space-y-1">
+                    {collectionGroups.map((g) => (
+                      <div key={g.key} className="flex items-center gap-2 text-xs">
+                        <span className="flex-1 min-w-0 truncate text-foreground/80">{g.name}</span>
+                        <NumberInput
+                          value={groupRequires[g.key] ?? g.size}
+                          onChange={(val) =>
+                            setGroupRequires((prev) => ({ ...prev, [g.key]: Math.min(Math.max(1, val), g.size) }))
+                          }
+                          min={1}
+                          max={g.size}
+                          fallback={g.size}
+                          className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
+                          aria-label={`Items needed from the ${g.name} set`}
+                        />
+                        <span className="text-text-muted/60 w-14">of {g.size}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1623,6 +1790,11 @@ export default function TileTrackingConfig({
               running total onto a screenshot like kill tiles.
             </p>
           </div>
+
+          {/* Gain tiles have always SAVED a tracking mode; the control was just never rendered, so a
+              tile that inherited 'individual' (e.g. switched over from a Solo kill tile) got a mode the
+              admin couldn't see or change. It's shown here now that the mode is enforced. */}
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gathered items" goal="amount" />
         </div>
       )}
 
@@ -1748,32 +1920,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" />
         </div>
       )}
 
@@ -1870,32 +2017,7 @@ export default function TileTrackingConfig({
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s PvP kills; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="PvP kills" goal="kill count" />
         </div>
       )}
 
@@ -1981,32 +2103,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" />
         </div>
       )}
 
@@ -2132,32 +2229,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s task completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="task completions" goal="count" />
         </div>
       )}
 

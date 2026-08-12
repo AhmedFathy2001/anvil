@@ -1,0 +1,1 @@
+ALTER TABLE `tiles` ADD `group_mode` text;

@@ -21,7 +21,9 @@
     "test:embeds": "node --experimental-strip-types --test tests/discord-embeds.test.ts",
     "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",
-    "test:activities": "node --experimental-strip-types --test tests/hiscores-activities.test.ts"
+    "test:activities": "node --experimental-strip-types --test tests/hiscores-activities.test.ts",
+    "test:progress": "npx tsx --test tests/count-progress.test.ts",
+    "test:sets": "node --experimental-strip-types --test tests/collection-sets.test.ts && npx tsx --test tests/tile-csv-sets.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",

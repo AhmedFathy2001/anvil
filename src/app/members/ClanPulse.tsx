@@ -63,37 +63,45 @@ export default function ClanPulse({
         <Tile label="Clan EHB" value={Math.round(totalEhb).toLocaleString()} sub="hours bossed" />
       </div>
 
-      <div className="grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4">
+      {/* Activity gets the full width: a year is 53 columns, which cannot fit a half-width column at
+          a legible cell size — squeezing it produced a horizontal scrollbar inside a card, which is
+          the worst of both (smaller AND hidden). The two shorter lists sit below it instead. */}
+      <div className="border border-card-border rounded-xl bg-card-bg p-4 mb-4">
+        <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
+          Clan activity · last 12 months
+        </div>
+        {hasActivity ? (
+          <ActivityHeatmap
+            days={activity}
+            ariaLabel="Clan-wide efficient hours gained per day over the last 12 months"
+          />
+        ) : (
+          <p className="text-sm text-text-muted py-6 text-center">
+            Nothing recorded yet — history starts building from the next hiscores sweep.
+          </p>
+        )}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
         <div className="border border-card-border rounded-xl bg-card-bg p-4">
           <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
-            Clan activity · last 12 months
+            Most hours this week
           </div>
-          {hasActivity ? (
-            <ActivityHeatmap days={activity} ariaLabel="Clan-wide efficient hours gained per day over the last 12 months" />
+          {topWeek.length === 0 ? (
+            <p className="text-sm text-text-muted py-6 text-center">Nobody has gained hours yet this week.</p>
           ) : (
-            <p className="text-sm text-text-muted py-6 text-center">
-              Nothing recorded yet — history starts building from the next hiscores sweep.
-            </p>
-          )}
-
-          {topWeek.length > 0 && (
-            <div className="mt-5 pt-4 border-t border-card-border">
-              <div className="text-[11px] uppercase tracking-widest text-text-muted mb-2">
-                Most hours this week
-              </div>
-              <div className="space-y-2">
-                {topWeek.map((t) => (
-                  <Link
-                    key={t.rsn}
-                    href={`/members/${encodeURIComponent(t.rsn)}`}
-                    className="grid grid-cols-[minmax(0,1fr)_minmax(0,6rem)_3.5rem] items-center gap-3 text-sm hover:text-gold"
-                  >
-                    <span className="truncate">{t.rsn}</span>
-                    <Bar value={t.hours} max={topHours} />
-                    <span className="text-right tabular-nums text-text-muted">{t.hours.toFixed(1)}h</span>
-                  </Link>
-                ))}
-              </div>
+            <div className="space-y-2">
+              {topWeek.map((t) => (
+                <Link
+                  key={t.rsn}
+                  href={`/members/${encodeURIComponent(t.rsn)}`}
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,7rem)_3.5rem] items-center gap-3 text-sm hover:text-gold"
+                >
+                  <span className="truncate">{t.rsn}</span>
+                  <Bar value={t.hours} max={topHours} />
+                  <span className="text-right tabular-nums text-text-muted">{t.hours.toFixed(1)}h</span>
+                </Link>
+              ))}
             </div>
           )}
         </div>
@@ -101,11 +109,9 @@ export default function ClanPulse({
         <div className="border border-card-border rounded-xl bg-card-bg p-4">
           <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">Roster changes</div>
           {rosterLog.length === 0 ? (
-            <p className="text-sm text-text-muted py-6 text-center">
-              No joins or leaves recorded yet.
-            </p>
+            <p className="text-sm text-text-muted py-6 text-center">No joins or leaves recorded yet.</p>
           ) : (
-            <div className="space-y-2 max-h-[19rem] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {rosterLog.map((e, i) => {
                 const copy = EVENT_COPY[e.type] ?? { verb: e.type, tone: 'text-text-muted' };
                 return (

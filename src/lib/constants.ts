@@ -238,6 +238,16 @@ export const EFFICIENCY_LABELS: Record<string, string> = Object.fromEntries(
   EFFICIENCY_METRICS.map((m) => [m.key, m.label]),
 );
 
+/**
+ * What to call a weekly competition of this type. Efficiency is a THIRD type, not a fallback —
+ * `type === 'skill' ? SOTW : BOTW` labels every EHP/EHB week "Boss of the Week", which is what the
+ * home page and the plugin's clog tab both did.
+ */
+export function weeklyKindLabel(type: string): string {
+  if (type === 'skill') return 'Skill of the Week';
+  return type === 'efficiency' ? 'Efficiency of the Week' : 'Boss of the Week';
+}
+
 /** Milli-hours → a display string. Two decimals: a week's honest gain is often under 10 hours. */
 export function formatEfficiencyHours(milli: number): string {
   const hours = milli / EFFICIENCY_SCALE;

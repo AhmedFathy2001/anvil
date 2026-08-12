@@ -7,6 +7,7 @@ import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 import { assertEventEditable } from '@/lib/eventLock';
+import { collectionDisplayTotal } from '@/lib/collectionSets';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -46,7 +47,9 @@ interface ImportRow {
   timeThresholdSeconds?: number | null;
   /** Scheduled reveal time (ISO UTC) for Showdown boards — always applied, like the PUT route. */
   revealAt?: string | null;
-  items?: { name?: string; count: number; id?: number; group?: string | null }[] | null;
+  items?: { name?: string; count: number; id?: number; group?: string | null; groupRequire?: number | null }[] | null;
+  /** Collection tiles: 'any' (default) | 'all' — how the @Set groups combine. See lib/collectionSets. */
+  groupMode?: string | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -55,7 +58,11 @@ interface DerivedItemFields {
   tileType: 'drop';
   requiredAmount: number;
   trackedItemIds: number[] | null;
-  itemRequirements: { itemId: number; name: string; requiredAmount: number }[] | null;
+  itemRequirements:
+    | { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
+    | null;
+  /** 'all' when the row's sets are AND-ed; null for the default any-one-set reading. */
+  groupMode?: string | null;
 }
 
 const MAX_TILES = 1000;
@@ -128,7 +135,7 @@ function validateRowFields(i: number, row: ImportRow): string | null {
     Array.isArray(row.items) &&
     row.items.some((it) => it != null && typeof it.group === 'string' && it.group.trim() !== '')
   ) {
-    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for an "any one full set" collection, or remove the @Set groups for a pool.`;
+    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for a set collection, or remove the @Set groups for a pool.`;
   }
   if (
     row.points !== undefined && row.points !== null &&
@@ -173,34 +180,33 @@ function deriveItemFields(
   const reqs = row.items.map((it) => {
     const requiredAmount = Math.max(1, Math.floor(it.count) || 1);
     const group = it.group?.trim() ? it.group.trim().slice(0, 30) : null;
+    // "@Set/2" — how many of that set count as satisfying it. Only meaningful on a grouped item.
+    const groupRequire = group && it.groupRequire != null && it.groupRequire >= 1
+      ? Math.floor(it.groupRequire)
+      : null;
     if (it.id != null) {
       const label = it.name && it.name.trim() ? it.name.trim() : byId.get(it.id)?.name ?? `Item #${it.id}`;
-      return { itemId: it.id, name: label, requiredAmount, group };
+      return { itemId: it.id, name: label, requiredAmount, group, groupRequire };
     }
     const hit = byName.get((it.name ?? '').trim().toLowerCase())!;
-    return { itemId: hit.id, name: hit.name, requiredAmount, group };
+    return { itemId: hit.id, name: hit.name, requiredAmount, group, groupRequire };
   });
   const simpleAmount =
     row.requiredAmount != null && Number.isInteger(row.requiredAmount) && row.requiredAmount >= 1
       ? row.requiredAmount
       : null;
   if (simpleAmount != null) {
-    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null };
+    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null, groupMode: null };
   }
-  // Collections: classic all-of totals sum every item; "any full set" groups (via @Set)
-  // count the ungrouped items plus the smallest set — the shortest path to completion.
-  const groupSums = new Map<string, number>();
-  let ungroupedSum = 0;
-  for (const r of reqs) {
-    const g = r.group?.toLowerCase();
-    if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
-    else ungroupedSum += r.requiredAmount;
-  }
+  // Collections: the display total is the shortest path to completion under the row's group mode
+  // (lib/collectionSets) — every ungrouped item, plus one set's cheapest items ('any') or every
+  // set's ('all').
   return {
     tileType: 'drop',
-    requiredAmount: groupSums.size === 0 ? ungroupedSum : ungroupedSum + Math.min(...groupSums.values()),
+    requiredAmount: collectionDisplayTotal(reqs, row.groupMode),
     trackedItemIds: null,
     itemRequirements: reqs,
+    groupMode: row.groupMode === 'all' ? 'all' : null,
   };
 }
 
@@ -324,6 +330,9 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
         s.requiredAmount = derived.requiredAmount;
         s.trackedItemIds = derived.trackedItemIds ? JSON.stringify(derived.trackedItemIds) : null;
         s.itemRequirements = derived.itemRequirements ? JSON.stringify(derived.itemRequirements) : null;
+        // Null unless the row asked for AND-ed sets, so re-importing a sheet without the column
+        // returns a tile to the default reading instead of silently keeping an old 'all'.
+        s.groupMode = derived.groupMode ?? null;
       }
     }
   }

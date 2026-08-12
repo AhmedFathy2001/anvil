@@ -313,6 +313,30 @@ export async function GET(request: Request) {
 
   const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
 
+  // The CALLER's own totals per tile (credit follows creditPlayerId when a captain uploaded on their
+  // behalf). Solo ("any one member") tiles complete on one member's count, so the progress the plugin
+  // shows in-game — and counts up against locally — has to be theirs, not the team's. Mirrors what
+  // trackedStats already does for individual-mode hiscores tiles by filtering `sources` to the caller.
+  const soloSubmissionMap: Record<number, number> = {};
+  if (auth.playerId != null) {
+    const own = await db
+      .select({
+        tileId: submissions.tileId,
+        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+      })
+      .from(submissions)
+      .where(and(
+        eq(submissions.teamId, auth.teamId),
+        sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${auth.playerId}`,
+      ))
+      .groupBy(submissions.tileId)
+      .all();
+    for (const r of own) soloSubmissionMap[r.tileId] = r.total;
+  }
+  // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
+  const currentFor = (t: { id: number; trackingMode: string | null }) =>
+    (isIndividualMode(t.trackingMode) ? soloSubmissionMap[t.id] : submissionMap[t.id]) ?? 0;
+
   // Get per-item submission totals for tiles with itemRequirements
   const perItemSubmissions = await db
     .select({
@@ -700,7 +724,7 @@ export async function GET(request: Request) {
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {
         const itemReqs = t.itemRequirements
-          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[]
+          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
           : null;
         const tileItemTotals = perItemMap.get(t.id);
 
@@ -740,8 +764,14 @@ export async function GET(request: Request) {
               name: req.name,
               requiredAmount: req.requiredAmount,
               group: req.group ?? null,
+              // How many of the set satisfy it (absent = all), and how the sets combine. Older
+              // plugins ignore both and keep reading the tile as OR-ed full sets; the SERVER owns
+              // completion either way, so an 'all' tile still credits correctly in-game — its
+              // progress bar just reads the old way until the plugin ships set support.
+              groupRequire: req.groupRequire ?? 0,
               currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
             })),
+            groupMode: t.groupMode === 'all' ? 'all' : 'any',
           } : {}),
         };
       }),
@@ -769,7 +799,7 @@ export async function GET(request: Request) {
           category: t.category ?? null,
           targetNpcs,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: submissionMap[t.id] ?? 0,
+          currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
         };
       }),
@@ -800,7 +830,7 @@ export async function GET(request: Request) {
           category: t.category ?? null,
           targets,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: submissionMap[t.id] ?? 0,
+          currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
           // Minimum loot value (gp) a kill must yield to count. 0 = no minimum (every attributed
           // kill counts, incl. loot-key kills). > 0 makes the plugin price the kill's loot and
@@ -833,7 +863,7 @@ export async function GET(request: Request) {
           category: t.category ?? null,
           diaries,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: submissionMap[t.id] ?? 0,
+          currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
         };
       }),
@@ -864,7 +894,7 @@ export async function GET(request: Request) {
           category: t.category ?? null,
           tasks,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: submissionMap[t.id] ?? 0,
+          currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
         };
       }),
@@ -962,7 +992,8 @@ export async function GET(request: Request) {
           } catch { return []; }
         })(),
         requiredAmount: t.requiredAmount ?? 1,
-        currentAmount: submissionMap[t.id] ?? 0,
+        currentAmount: currentFor(t),
+        trackingMode: t.trackingMode ?? 'team',
         completed: completedTileIdSet.has(t.id),
       })),
 

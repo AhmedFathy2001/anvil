@@ -3,7 +3,7 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
-import { formatEfficiencyHours } from '@/lib/constants';
+import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
   EMBED_COLOR,
@@ -937,10 +937,8 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
 
-function weeklyKind(type: string): string {
-  if (type === 'efficiency') return 'Efficiency of the Week';
-  return type === 'skill' ? 'Skill of the Week' : 'Boss of the Week';
-}
+// One definition, shared with the home page (lib/constants.weeklyKindLabel).
+const weeklyKind = weeklyKindLabel;
 
 // The competition's own icon: the skill's wiki icon for a SOTW, the boss's signature drop for a
 // BOTW. Efficiency spans everything, so it gets none.

@@ -150,7 +150,9 @@ export default function ProfileTabs({
 
   return (
     <>
-      <div className="flex gap-1 border-b border-card-border mb-6 overflow-x-auto" role="tablist">
+      {/* Wraps rather than scrolls: an overflow container renders a scrollbar gutter across the whole
+          strip, which on a five-tab row that already fits is a scrollbar for nothing. */}
+      <div className="flex flex-wrap gap-1 border-b border-card-border mb-6" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}
