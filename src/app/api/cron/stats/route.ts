@@ -21,6 +21,7 @@ import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
+import { readAllActivities } from '@/lib/hiscoresActivities';
 
 // A live-overlay entry not refreshed within this window is stale: OSRS force-logs-out at ~6h, so
 // hiscores must reflect real XP/KC by then. Anything the overlay still holds above hiscores past this
@@ -112,6 +113,8 @@ interface MemberWork {
   missStreak: number;
   nextDueAt: string | null;
   lastSnapshot: string | null;
+  /** Whether the member already has a derived activity blob — false means backfill it this tick. */
+  hasActivities: boolean;
 }
 
 // A bingo player fetched this tick, held for the single-threaded completion pass.
@@ -166,6 +169,7 @@ export async function GET(request: Request) {
         missStreak: 0,
         nextDueAt: null,
         lastSnapshot: null,
+        hasActivities: false,
       };
       work.set(key, entry);
     }
@@ -270,6 +274,7 @@ export async function GET(request: Request) {
         statsMissStreak: clanMembers.statsMissStreak,
         statsNextDueAt: clanMembers.statsNextDueAt,
         statsLastSnapshot: clanMembers.statsLastSnapshot,
+        statsActivities: clanMembers.statsActivities,
       })
       .from(clanMembers)
       .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
@@ -284,6 +289,7 @@ export async function GET(request: Request) {
         entry.missStreak = m.statsMissStreak ?? 0;
         entry.nextDueAt = m.statsNextDueAt;
         entry.lastSnapshot = m.statsLastSnapshot;
+        entry.hasActivities = m.statsActivities != null;
         // A plugin push means they're logged in RIGHT NOW, which is the strongest "worth fetching"
         // signal we get — it overrides any backoff the ladder had built up while they were away.
         if (Object.keys(entry.liveMap).length > 0) entry.nextDueAt = null;
@@ -380,6 +386,12 @@ export async function GET(request: Request) {
         const changed = previous === null || overallXp !== Math.max(0, previous.skills?.overall?.xp ?? 0);
         const missStreak = changed ? 0 : entry.missStreak + 1;
 
+        // The compact activity map the member directory reads instead of parsing full snapshots.
+        // Written whenever the snapshot is, plus once for a member who predates the column — without
+        // that backfill an idle account would sit missing from the clan leaderboards until the day
+        // it happened to gain XP, which for some members is never.
+        const writeActivities = changed || !entry.hasActivities;
+
         await db
           .update(clanMembers)
           .set({
@@ -388,8 +400,10 @@ export async function GET(request: Request) {
             statsNextDueAt: nextDueAt(missStreak, new Date()),
             // Only rewrite the blob when it would differ — an idle member's row stays untouched.
             ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
+            ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
           })
           .where(eq(clanMembers.id, entry.clanMemberId));
+        if (writeActivities) entry.hasActivities = true;
 
         if (changed) {
           historyWrites++;

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Persona from './Persona';
 import {
+  getActivityStandings,
   getCompetitionHistory,
   getPersona,
   getUpcomingMilestones,
@@ -57,14 +58,15 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   const profile = await getMemberProfile(decodeURIComponent(rsn));
   if (!profile) notFound();
 
-  // All four tabs' data in one round trip — every query is small and the tabs then switch instantly.
-  const [milestones, records, series, standings, history, persona] = await Promise.all([
+  // Every tab's data in one round trip — every query is small and the tabs then switch instantly.
+  const [milestones, records, series, standings, history, persona, activityStandings] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
     getStandings(profile.id),
     getCompetitionHistory(profile.id, profile.rsn),
     getPersona(profile.id),
+    getActivityStandings(profile.rsn),
   ]);
   const upcoming = getUpcomingMilestones(profile);
 
@@ -145,6 +147,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         milestones={milestones}
         history={history}
         upcoming={upcoming}
+        activityStandings={activityStandings}
       />
     </main>
   );
