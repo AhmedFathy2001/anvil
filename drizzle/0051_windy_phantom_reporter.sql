@@ -1,1 +1,0 @@
-ALTER TABLE `clan_members` ADD `stats_activities` text;
