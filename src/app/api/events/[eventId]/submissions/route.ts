@@ -5,6 +5,7 @@ import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
 import { countProgress, memberProgress } from '@/lib/countProgress';
+import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
@@ -74,7 +75,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
@@ -181,6 +182,25 @@ export async function POST(
     imageUrlValue = imageUrl.trim();
   } else if (!isPluginKillPing) {
     return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
+  }
+
+  // Shared-kill fingerprint: what the client could see of its company at kill time (lib/coopRuns
+  // correlates reports of the SAME kill from it). Plugin-only — a web submitter has nothing to
+  // report — and clamped hard because it's client-supplied.
+  let coopGroupJson: string | null = null;
+  let coopPartySizeValue: number | null = null;
+  if (pluginAuth) {
+    if (Array.isArray(coopGroup)) {
+      const names = coopGroup
+        .filter((n: unknown): n is string => typeof n === 'string')
+        .map((n) => n.trim().toLowerCase().replace(/\s+/g, ' '))
+        .filter((n) => n.length > 0 && n.length <= 12)
+        .slice(0, 50);
+      if (names.length > 0) coopGroupJson = JSON.stringify([...new Set(names)]);
+    }
+    if (Number.isInteger(coopPartySize) && coopPartySize > 1 && coopPartySize <= 100) {
+      coopPartySizeValue = coopPartySize;
+    }
   }
 
   // Timed tiles carry a completion duration instead of a count. Validate it up front so the
@@ -298,9 +318,15 @@ export async function POST(
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     const soloTile = isIndividualMode(tile.trackingMode);
-    const currentTotal = soloTile
-      ? memberProgress(tileSubs, submitterCreditId)
-      : countProgress(tileSubs, tile.trackingMode).current;
+    const coopTile = parseCoopCredit(tile.coopCredit) === 'per-kill' || (tile.coopMinMembers ?? 0) > 0;
+    const currentTotal = coopTile
+      // Shared-kill tiles count RUNS, not submissions: a teammate reporting the same kill adds
+      // nothing to the total, so guarding on the raw sum would refuse the report that proves it
+      // was shared. Guard on the credited figure (lib/coopRuns) and let the run absorb it.
+      ? (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current
+      : soloTile
+        ? memberProgress(tileSubs, submitterCreditId)
+        : countProgress(tileSubs, tile.trackingMode).current;
     const submitAmount = amount || 1;
 
     if (currentTotal >= tile.requiredAmount) {
@@ -309,7 +335,10 @@ export async function POST(
         { status: 400 },
       );
     }
-    if (currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
+    // The remainder cap doesn't apply to a shared-kill tile: a second teammate reporting the same
+    // kill doesn't overshoot anything (their report merges into the run), and refusing it would
+    // throw away the very evidence that the kill was shared.
+    if (!coopTile && currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
       const remaining = tile.requiredAmount - currentTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more (tile needs ${tile.requiredAmount}, has ${currentTotal})` }, { status: 400 });
     }
@@ -327,12 +356,14 @@ export async function POST(
       note: note || null,
       itemId: itemId || null,
       durationSeconds: durationSecondsValue,
+      coopGroup: coopGroupJson,
+      coopPartySize: coopPartySizeValue,
     })
     .returning();
 
   // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
   // finisher's own count rather than a team sum that isn't what completes the tile.
-  const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode)).current;
+  const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current;
 
   // Get credit player name if provided
   let creditPlayerName: string | null = null;
