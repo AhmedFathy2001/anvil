@@ -66,7 +66,22 @@ of v1.0.0: `stats-live`, `drop-tiles`, `kill-tiles`, `timed-tiles`, `lms-tiles`,
 `clog-tiles`, `weekly`, `schedule`, `notify`, `counters`, `activity-feed`, `federation`,
 `ladder`, `reveal-modes`, `config-etag`. Post-baseline additions: `bingo-missions`
 (mid-event announced mission tiles on a normal bingo — the plugin gates its mission strip
-on this so it isn't confused by a self-hosted site that predates the feature).
+on this so it isn't confused by a self-hosted site that predates the feature);
+`activity-stats` (`POST /api/plugin/stats` accepts an `activities: [{key, value}]` array
+alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill).
+
+### `activity-stats`
+
+Boss KC and skill XP are pushed by in-game NAME and mapped server-side. Activities are
+pushed by the site's own KEY — the plugin reads each from a named varbit, so it knows
+which counter it holds and there is nothing to map. Keys are the `key` field of
+`HISCORES_ACTIVITIES` in `src/lib/hiscoresActivities.ts`; unknown keys are dropped.
+
+Only the counters the client can actually read are pushable. Rank-based entries (LMS, PvP
+Arena, Bounty Hunter) and GOTR rifts have no absolute in-game counter, so tiles tracking
+those stay on the 15-minute hiscores sweep — which is the pre-`activity-stats` behaviour,
+not a regression. Values are absolute and the server keeps `max(hiscores, pushed)`, so a
+low read can never walk a tile backwards.
 
 ## Checklist: shipping a new plugin-facing feature
 

@@ -48,6 +48,7 @@ export const PLUGIN_CAPABILITIES = [
   'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
   'config-etag', // conditional GET on /api/plugin/config + /board
   'bingo-missions', // mid-event announced mission tiles on a normal bingo (lockout/bonus/decay/expiry)
+  'activity-stats', // live push for non-boss/non-skill hiscores counters (clue tiers, zeal, glory, clog slots)
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */
