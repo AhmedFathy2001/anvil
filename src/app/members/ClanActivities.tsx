@@ -44,10 +44,8 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
 
   return (
     <div className="mb-8">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        <h2 className="text-lg font-bold">Clues, minigames &amp; collection logs</h2>
-      </div>
+      {/* No heading: the tab this sits behind already names it, and repeating that immediately
+          under the tab strip reads as a mistake. */}
       <p className="text-sm text-text-muted mb-4">
         Everything on the hiscores that isn&apos;t experience or a boss kill, added up across{' '}
         {tracked} tracked {tracked === 1 ? 'member' : 'members'}.

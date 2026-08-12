@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { getClanActivityAnalytics, getClanAnalytics, getRosterLog, listMembers } from '@/lib/memberProfile';
-import MembersDirectory from './MembersDirectory';
-import ClanPulse from './ClanPulse';
-import ClanActivities from './ClanActivities';
+import MembersTabs from './MembersTabs';
 
 export const metadata: Metadata = {
   title: 'Members — Anvil',
@@ -33,9 +31,12 @@ export default async function MembersPage() {
         Everyone we track. Click anyone to see their skills, bosses and efficient hours.
       </p>
 
-      <ClanPulse analytics={analytics} rosterLog={rosterLog} />
-      <ClanActivities activities={activities} />
-      <MembersDirectory members={members} />
+      <MembersTabs
+        members={members}
+        analytics={analytics}
+        rosterLog={rosterLog}
+        activities={activities}
+      />
     </main>
   );
 }
