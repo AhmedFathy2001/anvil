@@ -372,6 +372,13 @@
       "when": 1786495193640,
       "tag": "0052_coop-kill-credit",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1786578697776,
+      "tag": "0053_member-activities",
+      "breakpoints": true
     }
   ]
 }
