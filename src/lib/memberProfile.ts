@@ -21,7 +21,7 @@ import {
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
-import { SKILLS, SKILL_LABELS, EFFICIENCY_SCALE } from '@/lib/constants';
+import { SKILLS, SKILL_LABELS, BOSSES, EFFICIENCY_SCALE } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
@@ -841,11 +841,14 @@ export function getUpcomingMilestones(profile: MemberProfile, limit = 6): Upcomi
     }
   }
 
+  // Boss keys are hiscores identifiers, not names: without this the card read
+  // "100 daggannothSupreme" instead of "100 Dagannoth Supreme kills".
+  const bossLabel = new Map(BOSSES.map((b) => [b.key, b.label]));
   for (const boss of profile.bosses) {
     const nextKc = KC_STEPS.find((t) => boss.kc < t);
     if (!nextKc) continue;
     out.push({
-      label: `${nextKc.toLocaleString()} ${boss.key}`,
+      label: `${nextKc.toLocaleString()} ${bossLabel.get(boss.key) ?? boss.key} kills`,
       remaining: `${(nextKc - boss.kc).toLocaleString()} kills`,
       progress: boss.kc / nextKc,
     });

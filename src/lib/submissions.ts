@@ -1,11 +1,14 @@
 import { db } from '@/db';
-import { submissions, tiles, completions, teams, events } from '@/db/schema';
+import { submissions, tiles, completions, teams, events, players } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
 import { countProgress } from '@/lib/countProgress';
+import { buildRuns, parseCoopCredit } from '@/lib/coopRuns';
+import { isIndividualMode } from '@/lib/statTracking';
+import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
 
 /**
@@ -17,16 +20,61 @@ export async function countTileProgress(
   tileId: number,
   teamId: number,
   trackingMode: string | null | undefined,
+  // Shared-kill settings, when the tile has any. Omitted → plain per-member counting.
+  coop?: { coopCredit?: string | null; coopMinMembers?: number | null },
 ) {
   const rows = await db
     .select({
+      id: submissions.id,
       playerId: submissions.playerId,
       creditPlayerId: submissions.creditPlayerId,
       amount: submissions.amount,
+      createdAt: submissions.createdAt,
+      coopGroup: submissions.coopGroup,
+      coopPartySize: submissions.coopPartySize,
     })
     .from(submissions)
     .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-  return countProgress(rows, trackingMode);
+
+  const credit = parseCoopCredit(coop?.coopCredit);
+  const minMembers = coop?.coopMinMembers ?? 0;
+  if (credit === 'per-member' && minMembers <= 0) {
+    return countProgress(rows.map((r) => ({ ...r, playerId: r.creditPlayerId ?? r.playerId })), trackingMode);
+  }
+
+  // The team's roster, so a member NAMED by someone else's client resolves to a player row — that's
+  // what lets a three-man count as three when only one of the three runs the plugin.
+  const roster = await db
+    .select({ id: players.id, name: players.name })
+    .from(players)
+    .where(eq(players.teamId, teamId));
+  const idByRsn = new Map(roster.map((p) => [p.name.trim().toLowerCase().replace(/\s+/g, ' '), p.id]));
+  const namedMemberIds = (group: string[]) => group.map((n) => idByRsn.get(n)).filter((id): id is number => id != null);
+
+  const coopRows = rows.map((r) => ({
+    id: r.id,
+    playerId: r.creditPlayerId ?? r.playerId,
+    amount: r.amount,
+    createdAt: r.createdAt,
+    rsn: r.playerId != null ? (roster.find((p) => p.id === (r.creditPlayerId ?? r.playerId))?.name.trim().toLowerCase() ?? null) : null,
+    coopGroup: parseJsonArray<string>(r.coopGroup),
+    coopPartySize: r.coopPartySize,
+  }));
+  const teamTotal = rows.reduce((sum, r) => sum + r.amount, 0);
+  const runs = buildRuns(coopRows, { credit, minMembers, namedMemberIds });
+
+  if (isIndividualMode(trackingMode)) {
+    // Solo tiles still measure ONE member's own count — shared-kill collapsing is a team-total
+    // notion. The minimum-teammates gate still bites: only kills that met it are counted at all.
+    const surviving = runs.filter((r) => r.credit > 0).flatMap((r) => r.submissions);
+    const progress = countProgress(surviving, trackingMode);
+    return { ...progress, teamTotal };
+  }
+  return {
+    current: runs.reduce((sum, r) => sum + r.credit, 0),
+    finisherPlayerId: null,
+    teamTotal,
+  };
 }
 
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
@@ -117,7 +165,7 @@ export async function syncDropTileCompletion(
     // each haul's gp and requiredAmount the total gp to collect. (LMS placement / deathless
     // gating happens plugin-side, like kill targeting.)
     if (!tile.requiredAmount) return null;
-    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode, tile);
     totalAmount = progress.current;
     finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
@@ -126,7 +174,7 @@ export async function syncDropTileCompletion(
     // Simple drop pool (no per-item requirements — collections are handled by the branch above).
     // Drop tiles have no Team/Solo toggle in the editor, so this is always the team sum; it goes
     // through the same helper so there is one definition of progress rather than two.
-    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode, tile);
     totalAmount = progress.current;
     finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;

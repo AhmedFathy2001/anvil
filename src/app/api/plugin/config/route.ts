@@ -23,6 +23,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
@@ -34,6 +35,17 @@ import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
+
+// The roll tables as the plugin needs them: ids to match loot against, the vestige to watch for, and
+// the cadence. Item NAMES stay server-side — they exist for the tile editor's fill button, and the
+// plugin already knows how to name an item id.
+const pluginRollTables = ROLL_TABLES.map((t) => ({
+  boss: t.boss,
+  rollItemIds: rollItemIds(t),
+  vestigeItemId: t.vestigeItemId,
+  vestigeName: t.vestigeName,
+  rollsPerVestige: t.rollsPerVestige,
+}));
 
 // The plugin only needs to know WHICH notification channels are live, never the webhook URLs
 // themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
@@ -240,6 +252,7 @@ export async function GET(request: Request) {
         trackedDiaries: [],
         trackedCombatTasks: [],
         noActiveEvent: true,
+        rollTables: pluginRollTables,
         schedule,
         activeWeekly,
         notify: notifyFlags(webhooks),
@@ -619,7 +632,13 @@ export async function GET(request: Request) {
   // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
   // exists — otherwise it's payload (and roster) for nothing.
   const hasPvpTiles = allEventTiles.some((t) => t.tileType === 'pvp');
-  const pvpRoster = hasPvpTiles
+  // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
+  // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
+  // plugin). Sent for those tiles too, not just PvP ones.
+  const hasCoopTiles = allEventTiles.some(
+    (t) => t.tileType === 'kill' && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0),
+  );
+  const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
         await db
           .select({ name: players.name, teamId: players.teamId })
@@ -704,6 +723,9 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    // Bosses whose vestige is on a fixed rotation (lib/rollTables). Server-side data so a cadence
+    // change or a corrected item list is an edit here, not a plugin release.
+    rollTables: pluginRollTables,
     schedule,
     activeWeekly,
     // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
@@ -758,6 +780,9 @@ export async function GET(request: Request) {
           // Exact raid party size required ("solo Cursed phalanx"); rides
           // timeThresholdSeconds on drop tiles. 0 = any size.
           partySize: t.timeThresholdSeconds ?? 0,
+          // Most this tile can be credited from one kill (0 = uncapped). The plugin enforces it —
+          // it's the only side that can see where one kill ends and the next begins.
+          perKillCap: t.perKillCap ?? 0,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,
@@ -801,6 +826,12 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
+          // Shared kills: 'per-kill' collapses one kill several members were in, and
+          // coopMinMembers gates it on how many of the team were there. Either one makes the plugin
+          // attach what it could see of its company to the submission (lib/coopRuns correlates
+          // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
+          coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+          coopMinMembers: t.coopMinMembers ?? 0,
         };
       }),
 
