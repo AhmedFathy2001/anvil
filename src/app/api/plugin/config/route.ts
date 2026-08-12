@@ -25,6 +25,7 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
+import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
@@ -228,6 +229,9 @@ export async function GET(request: Request) {
         // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
         trackedKcNames: weeklyNames.kc,
         trackedSkillNames: weeklyNames.skills,
+        // Weekly comps rank on a skill or a boss only — the picker offers nothing else — so there's
+        // never an activity to push without a bingo event behind it.
+        trackedActivityKeys: [],
         trackedDrops: [],
         trackedKills: [],
         trackedPvp: [],
@@ -484,6 +488,22 @@ export async function GET(request: Request) {
     ]),
   );
 
+  // The event's tracked stats that are hiscores ACTIVITIES rather than bosses — clue tiers, clog
+  // slots, Colosseum glory and the rest. They're saved as statType 'boss' (they share the KC-style
+  // picker), so they'd otherwise be indistinguishable here; kcNamesForKey returns [] for them, which
+  // is why they contribute nothing to trackedKcNames. Sent as raw keys: the plugin reads each from a
+  // named varbit, so unlike a boss there is no in-game name to match on. It pushes only the subset
+  // it can actually read — rank-based entries (LMS, PvP Arena, Bounty Hunter) have no in-game
+  // counter — and that filtering is the plugin's call, so everything the board tracks is listed.
+  const trackedActivityKeys = Array.from(
+    new Set(
+      statTilesRaw
+        .filter((t) => t.statType === 'boss' || t.statType === 'kc')
+        .flatMap((t) => statKeys(t.trackedStat))
+        .filter((k) => isActivityKey(k)),
+    ),
+  );
+
   // Skill names for the event's skill-XP tiles (+ any active SOTW skill). The plugin pushes real-time
   // absolute XP for these off StatChanged so the tile / weekly moves without waiting on the sweep.
   const trackedSkillNames = Array.from(
@@ -720,6 +740,7 @@ export async function GET(request: Request) {
     trackedStats,
     trackedKcNames,
     trackedSkillNames,
+    trackedActivityKeys,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {

@@ -77,11 +77,17 @@ pushed by the site's own KEY — the plugin reads each from a named varbit, so i
 which counter it holds and there is nothing to map. Keys are the `key` field of
 `HISCORES_ACTIVITIES` in `src/lib/hiscoresActivities.ts`; unknown keys are dropped.
 
-Only the counters the client can actually read are pushable. Rank-based entries (LMS, PvP
-Arena, Bounty Hunter) and GOTR rifts have no absolute in-game counter, so tiles tracking
-those stay on the 15-minute hiscores sweep — which is the pre-`activity-stats` behaviour,
-not a regression. Values are absolute and the server keeps `max(hiscores, pushed)`, so a
-low read can never walk a tile backwards.
+Only the counters the client can actually read are pushable — currently the six clue tiers
+(plus `cluesAll` as their sum), `colosseumGlory` and `collectionsLogged`. Rank-based
+entries (LMS, PvP Arena, Bounty Hunter) have no in-game equivalent, GOTR has per-game
+varbits but no absolute rifts-closed total, and Soul Wars' varp is a spendable zeal
+BALANCE where the hiscores counter is zeal EARNED. Tiles tracking those stay on the
+15-minute hiscores sweep — the pre-`activity-stats` behaviour, not a regression.
+
+The site sends every activity key the board tracks and lets the plugin filter down to what
+it can read, so growing the readable set is a plugin release rather than a wire change.
+Values are absolute and the server keeps `max(hiscores, pushed)`, so a counter the client
+hasn't synced yet can never walk a tile backwards.
 
 ## Checklist: shipping a new plugin-facing feature
 
