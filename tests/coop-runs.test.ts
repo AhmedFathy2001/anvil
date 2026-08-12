@@ -129,6 +129,31 @@ test('minMembers is satisfied by NAMES when only one member runs the plugin', ()
   assert.equal(gated.runs[0].memberCount, 3);
 });
 
+test('BOTH on: a qualifying run counts exactly once, a short-handed one not at all', () => {
+  // The canonical tile: "raids done with 3+ teammates", each counting once. Three group raids an
+  // hour apart, plus a duo raid that shouldn't count at all.
+  const hour = 60 * 60 * 1000;
+  const raid = (n: number, members: number) =>
+    Array.from({ length: members }, (_, i) =>
+      sub(i + 1, {
+        at: n * hour + i * 400,
+        rsn: ['alice', 'bob', 'carol', 'dave'][i],
+        group: ['alice', 'bob', 'carol', 'dave'].slice(0, members).filter((_, j) => j !== i),
+        party: members,
+      }),
+    );
+  const subs = [...raid(0, 3), ...raid(1, 4), ...raid(2, 2), ...raid(3, 3)];
+
+  const both = coopProgress(subs, { credit: 'per-kill', minMembers: 3 });
+  assert.equal(both.current, 3, 'three qualifying raids; the duo counts for nothing');
+  assert.deepEqual(both.runs.map((r) => [r.memberCount, r.credit]), [[3, 1], [4, 1], [2, 0], [3, 1]]);
+
+  // Each knob alone, for contrast: the gate without the collapse credits every reporter of a
+  // qualifying raid, and the collapse without the gate counts the duo too.
+  assert.equal(coopProgress(subs, { minMembers: 3 }).current, 10, '3 + 4 + 3 reporters');
+  assert.equal(coopProgress(subs, { credit: 'per-kill' }).current, 4, 'the duo raid counts as one');
+});
+
 test('a big raid party of strangers never satisfies the gate', () => {
   // 20 in the party, one of them ours: party size is not teammate count.
   const subs = [sub(1, { rsn: 'alice', party: 20 })];
