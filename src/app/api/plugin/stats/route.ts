@@ -5,6 +5,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
+import { isActivityKey } from '@/lib/hiscoresActivities';
 import { computeGainFromJson, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
@@ -13,7 +14,8 @@ import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim } from '@/lib/revealEngine';
 
-// Real-time boss-KC / skill-XP ingest. The plugin posts {stats:[{name,kc}], skills:[{name,xp}]} with
+// Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
+// skills:[{name,xp}], activities:[{key,value}]} with
 // ABSOLUTE counts (no image), debounced to one push per key per 15 s. We resolve the caller's clan
 // member from the account token (NO active bingo event required), store the max per key on
 // clan_members.live_stats — the ONE member-scoped overlay read by both bingo tiles AND weekly
@@ -24,6 +26,10 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 // Absolute sanity ceilings — reject obviously bogus pushes. No legit boss KC / skill XP approaches these.
 const MAX_KC = 1_000_000;
 const MAX_XP = 200_000_000;
+// Activity counters (clue tiers, Soul Wars zeal, Colosseum glory, collection-log slots) are all
+// small next to boss KC — the largest real value is a five-figure clue count — so MAX_KC is a
+// generous ceiling that still rejects a garbage varbit read.
+const MAX_ACTIVITY = MAX_KC;
 
 // How long a per-key "rose just now" stamp is retained. Must outlast the stats sweep's stale-overlay
 // window (~6h, the OSRS logout backstop) so that check can tell a still-active grind from a stuck push;
@@ -39,7 +45,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
   }
 
-  let body: { stats?: Array<{ name?: string; kc?: number }>; skills?: Array<{ name?: string; xp?: number }> };
+  let body: {
+    stats?: Array<{ name?: string; kc?: number }>;
+    skills?: Array<{ name?: string; xp?: number }>;
+    activities?: Array<{ key?: string; value?: number }>;
+  };
   try {
     body = await request.json();
   } catch {
@@ -47,7 +57,8 @@ export async function POST(request: Request) {
   }
   const incoming = Array.isArray(body?.stats) ? body.stats : [];
   const incomingSkills = Array.isArray(body?.skills) ? body.skills : [];
-  if (incoming.length === 0 && incomingSkills.length === 0) {
+  const incomingActivities = Array.isArray(body?.activities) ? body.activities : [];
+  if (incoming.length === 0 && incomingSkills.length === 0 && incomingActivities.length === 0) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
@@ -67,6 +78,16 @@ export async function POST(request: Request) {
     const key = skillKeyForName(s.name);
     if (!key) continue;
     pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(s.xp));
+  }
+  // Activities arrive already keyed — the plugin reads them from named varbits, so it knows exactly
+  // which counter it holds and there's no in-game name to map. Unknown keys are dropped rather than
+  // stored: live_stats is read by key, so a typo'd entry would sit there forever matching nothing.
+  for (const a of incomingActivities) {
+    if (!a || typeof a.key !== 'string' || typeof a.value !== 'number') continue;
+    if (!Number.isFinite(a.value) || a.value < 0 || a.value > MAX_ACTIVITY) continue;
+    if (!isActivityKey(a.key)) continue;
+    const key = a.key.trim();
+    pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(a.value));
   }
   if (Object.keys(pushed).length === 0) {
     return NextResponse.json({ ok: true, updated: 0 });

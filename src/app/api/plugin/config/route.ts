@@ -23,8 +23,10 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
+import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
@@ -34,6 +36,17 @@ import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
+
+// The roll tables as the plugin needs them: ids to match loot against, the vestige to watch for, and
+// the cadence. Item NAMES stay server-side — they exist for the tile editor's fill button, and the
+// plugin already knows how to name an item id.
+const pluginRollTables = ROLL_TABLES.map((t) => ({
+  boss: t.boss,
+  rollItemIds: rollItemIds(t),
+  vestigeItemId: t.vestigeItemId,
+  vestigeName: t.vestigeName,
+  rollsPerVestige: t.rollsPerVestige,
+}));
 
 // The plugin only needs to know WHICH notification channels are live, never the webhook URLs
 // themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
@@ -228,6 +241,9 @@ export async function GET(request: Request) {
         // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
         trackedKcNames: weeklyNames.kc,
         trackedSkillNames: weeklyNames.skills,
+        // Weekly comps rank on a skill or a boss only — the picker offers nothing else — so there's
+        // never an activity to push without a bingo event behind it.
+        trackedActivityKeys: [],
         trackedDrops: [],
         trackedKills: [],
         trackedPvp: [],
@@ -240,6 +256,7 @@ export async function GET(request: Request) {
         trackedDiaries: [],
         trackedCombatTasks: [],
         noActiveEvent: true,
+        rollTables: pluginRollTables,
         schedule,
         activeWeekly,
         notify: notifyFlags(webhooks),
@@ -484,6 +501,22 @@ export async function GET(request: Request) {
     ]),
   );
 
+  // The event's tracked stats that are hiscores ACTIVITIES rather than bosses — clue tiers, clog
+  // slots, Colosseum glory and the rest. They're saved as statType 'boss' (they share the KC-style
+  // picker), so they'd otherwise be indistinguishable here; kcNamesForKey returns [] for them, which
+  // is why they contribute nothing to trackedKcNames. Sent as raw keys: the plugin reads each from a
+  // named varbit, so unlike a boss there is no in-game name to match on. It pushes only the subset
+  // it can actually read — rank-based entries (LMS, PvP Arena, Bounty Hunter) have no in-game
+  // counter — and that filtering is the plugin's call, so everything the board tracks is listed.
+  const trackedActivityKeys = Array.from(
+    new Set(
+      statTilesRaw
+        .filter((t) => t.statType === 'boss' || t.statType === 'kc')
+        .flatMap((t) => statKeys(t.trackedStat))
+        .filter((k) => isActivityKey(k)),
+    ),
+  );
+
   // Skill names for the event's skill-XP tiles (+ any active SOTW skill). The plugin pushes real-time
   // absolute XP for these off StatChanged so the tile / weekly moves without waiting on the sweep.
   const trackedSkillNames = Array.from(
@@ -619,7 +652,13 @@ export async function GET(request: Request) {
   // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
   // exists — otherwise it's payload (and roster) for nothing.
   const hasPvpTiles = allEventTiles.some((t) => t.tileType === 'pvp');
-  const pvpRoster = hasPvpTiles
+  // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
+  // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
+  // plugin). Sent for those tiles too, not just PvP ones.
+  const hasCoopTiles = allEventTiles.some(
+    (t) => t.tileType === 'kill' && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0),
+  );
+  const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
         await db
           .select({ name: players.name, teamId: players.teamId })
@@ -704,6 +743,9 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    // Bosses whose vestige is on a fixed rotation (lib/rollTables). Server-side data so a cadence
+    // change or a corrected item list is an edit here, not a plugin release.
+    rollTables: pluginRollTables,
     schedule,
     activeWeekly,
     // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
@@ -720,6 +762,7 @@ export async function GET(request: Request) {
     trackedStats,
     trackedKcNames,
     trackedSkillNames,
+    trackedActivityKeys,
     trackedDrops: dropTiles
       .filter(t => t.trackedItemIds) // only tiles with item IDs configured
       .map(t => {
@@ -758,6 +801,9 @@ export async function GET(request: Request) {
           // Exact raid party size required ("solo Cursed phalanx"); rides
           // timeThresholdSeconds on drop tiles. 0 = any size.
           partySize: t.timeThresholdSeconds ?? 0,
+          // Most this tile can be credited from one kill (0 = uncapped). The plugin enforces it —
+          // it's the only side that can see where one kill ends and the next begins.
+          perKillCap: t.perKillCap ?? 0,
           ...(itemReqs ? {
             itemRequirements: itemReqs.map(req => ({
               itemId: req.itemId,
@@ -801,6 +847,12 @@ export async function GET(request: Request) {
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',
+          // Shared kills: 'per-kill' collapses one kill several members were in, and
+          // coopMinMembers gates it on how many of the team were there. Either one makes the plugin
+          // attach what it could see of its company to the submission (lib/coopRuns correlates
+          // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
+          coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+          coopMinMembers: t.coopMinMembers ?? 0,
         };
       }),
 
