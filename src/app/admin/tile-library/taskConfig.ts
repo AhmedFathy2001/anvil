@@ -98,6 +98,8 @@ export async function toTileConfig(
     trackedItemIds: reqs.length ? reqs.map((r) => r.itemId) : null,
     groupMode: row.groupMode === 'all' ? 'all' : null,
     perKillCap: asNumber(row.perKillCap),
+    coopCredit: row.coopCredit === 'per-kill' ? 'per-kill' : null,
+    coopMinMembers: asNumber(row.coopMinMembers),
   };
 }
 
@@ -139,6 +141,8 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     // Only stored when it isn't the default, so a plain collection's library row is unchanged.
     groupMode: payload.groupMode === 'all' ? 'all' : null,
     perKillCap: (payload.perKillCap as number | null) ?? null,
+    coopCredit: payload.coopCredit === 'per-kill' ? 'per-kill' : null,
+    coopMinMembers: (payload.coopMinMembers as number | null) ?? null,
   };
 
   // Drop empties so a stored task stays readable as a seed pack.

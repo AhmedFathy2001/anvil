@@ -44,6 +44,8 @@ function tileToTrackingInitial(tile: Tile) {
     // "every set" collection back to any-one-set.
     groupMode: tile.groupMode ?? null,
     perKillCap: tile.perKillCap ?? null,
+    coopCredit: tile.coopCredit ?? null,
+    coopMinMembers: tile.coopMinMembers ?? null,
     points: tile.points ?? 1,
     category: tile.category ?? null,
     sourceNpcs: tile.sourceNpcs ? (JSON.parse(tile.sourceNpcs) as string[]) : null,

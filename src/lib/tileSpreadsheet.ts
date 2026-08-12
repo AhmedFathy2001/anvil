@@ -80,7 +80,7 @@ export async function buildTileSpreadsheet(opts: {
   for (const t of tiles) ws.addRow(tileToCsvCells(t));
 
   // Dropdowns on the fiddly columns. Column letters follow TILE_CSV_COLUMNS order:
-  //   C=type  F=optional  H=trackedStat  I=statType  P=groupMode  Q=perKillCap. exceljs sets validation
+  //   C=type  F=optional  H=trackedStat  I=statType  P=groupMode  Q=perKillCap  R=coopCredit. exceljs sets validation
   //   pre-wire a generous row range; lenient (allowBlank, no hard error) so pasting still works.
   const listValidation = (formulae: string[]): ExcelJS.DataValidation => ({
     type: 'list',
@@ -95,10 +95,11 @@ export async function buildTileSpreadsheet(opts: {
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
     ws.getCell(`P${r}`).dataValidation = listValidation(['"any,all"']);
     ws.getCell(`Q${r}`).dataValidation = listValidation(['"1"']);
+    ws.getCell(`R${r}`).dataValidation = listValidation(['"per-member,per-kill"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
   }
 
-  // -- Examples (one worked row per tile kind; copy A:Q into the Tiles sheet) ----------------
+  // -- Examples (one worked row per tile kind; copy A:S into the Tiles sheet) ----------------
   const ex = wb.addWorksheet(SHEET_EXAMPLES);
   ex.columns = [...TILE_CSV_COLUMNS.map((c) => ({ header: c, width: c === 'items' ? 46 : 16 })), { header: 'What it does', width: 50 }];
   styleHeaderRow(ex.getRow(1));
@@ -126,6 +127,9 @@ export async function buildTileSpreadsheet(opts: {
   example({ label: '3 unique rolls from Vardorvis', type: 'drop', points: 25, category: 'DT2', requiredAmount: 3, perKillCap: 1,
       items: 'Virtus mask; Virtus robe top; Virtus robe bottom; Chromium ingot; Ultor vestige; Executioner\u2019s axe head' },
     'ROLLS, not items: the boss\u2019s whole unique table + perKillCap=1, so one kill counts once however much it drops.');
+  example({ label: '5 CoX raids with 2+ teammates', type: 'kill', points: 30, category: 'Raids', requiredAmount: 5,
+      targetNpcs: 'Chambers of Xeric', coopCredit: 'per-kill', coopMinMembers: 3 },
+    'SHARED KILLS: per-kill counts one raid once however many members were in it; coopMinMembers=3 means it only counts with 3 of your team there.');
   example({ label: 'Kill 100 cows', type: 'kill', points: 3, category: 'Skilling', requiredAmount: 100, targetNpcs: 'Cow|Cow calf' },
     'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
   example({ label: 'Sub-30 Inferno', type: 'timed', points: 50, category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: 1800 },

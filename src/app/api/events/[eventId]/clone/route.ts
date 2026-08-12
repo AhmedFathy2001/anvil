@@ -82,6 +82,8 @@ export async function POST(
         itemRequirements: t.itemRequirements,
         groupMode: t.groupMode,
         perKillCap: t.perKillCap,
+        coopCredit: t.coopCredit,
+        coopMinMembers: t.coopMinMembers,
         acceptedSources: t.acceptedSources,
         sourceNpcs: t.sourceNpcs,
         targetNpcs: t.targetNpcs,

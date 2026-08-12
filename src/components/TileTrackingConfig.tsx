@@ -338,6 +338,11 @@ const PER_KILL_CAP_HELP =
 const ROLL_TABLE_HELP =
   "These bosses hand out their vestige on a fixed rotation — two other uniques, then the vestige. Filling the item list with a boss's whole unique table and counting once per kill makes the tile count ROLLS, so \u201cget 3 unique rolls from Vardorvis\u201d is a target a team can make progress on rather than a coin-flip on a vestige.";
 
+const COOP_CREDIT_HELP =
+  'What a kill several of your members were in is worth. Every client sees the kill, so by default a 2-man Yama gives the team 2 KC and a 20-man raid gives it 20 — for one kill. On, the site correlates the reports of that one kill and credits it ONCE. Members killing the same boss separately still count separately.';
+const COOP_MIN_HELP =
+  'Only count a kill when at least this many of YOUR team were in it — "complete 5 raids with 3+ teammates". Counted from the members who reported the kill plus any teammates their client could name, never from the raid party size: 20 people in a CoX party is not 20 teammates. Leave blank for no requirement.';
+
 const GROUP_MODE_ANY_HELP =
   'Any one set — the sets are alternatives. Satisfying ONE of them (plus any always-required items) finishes the tile, and pieces from different sets never mix. "Collect any one Barrows set."';
 const GROUP_MODE_ALL_HELP =
@@ -558,6 +563,13 @@ export default function TileTrackingConfig({
   // "Count once per kill": a kill credits the tile once however many tracked items it dropped. What
   // turns an item tile into a ROLL tile — see the roll-table fill below.
   const [oncePerKill, setOncePerKill] = useState<boolean>((initial.perKillCap ?? 0) === 1);
+  // Shared kills on a KILL tile: collapse a kill several members were in, and/or require a minimum
+  // number of them in it. Separate knobs — one is "how much is a shared kill worth", the other is
+  // "does it count at all" (see lib/coopRuns).
+  const [coopPerKill, setCoopPerKill] = useState<boolean>(initial.coopCredit === 'per-kill');
+  const [coopMinMembers, setCoopMinMembers] = useState<string>(
+    initial.coopMinMembers ? String(initial.coopMinMembers) : '',
+  );
   const [groupRequires, setGroupRequires] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
     for (const r of initial.itemRequirements ?? []) {
@@ -1033,8 +1045,10 @@ export default function TileTrackingConfig({
         // Cleared by default so switching a collection to another kind doesn't leave a stale
         // set mode behind; the collection branch sets it.
         groupMode: null,
-        // Same: only drop-shaped tiles carry a per-kill cap.
+        // Same: only drop-shaped tiles carry a per-kill cap, only kill tiles carry shared-kill rules.
         perKillCap: null,
+        coopCredit: null,
+        coopMinMembers: null,
         sourceNpcs: null,
         targetNpcs: null,
         timedActivity: null,
@@ -1073,6 +1087,8 @@ export default function TileTrackingConfig({
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = targetNpcNames;
         payload.trackingMode = trackingMode;
+        payload.coopCredit = coopPerKill ? 'per-kill' : null;
+        payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
       } else if (kind === 'pvp') {
         // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
         // 'rsn:<name>' entries.
@@ -1982,6 +1998,45 @@ export default function TileTrackingConfig({
           </div>
 
           <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" />
+
+          {/* Shared kills. Tracking Mode answers WHOSE kills count; these answer what a kill several
+              members were in is worth, and whether it counts at all. */}
+          <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={coopPerKill}
+                onChange={(e) => setCoopPerKill(e.target.checked)}
+                className="mt-0.5 accent-gold"
+              />
+              <span className="text-xs text-foreground/90">
+                Count a shared kill once
+                <FlagHint text={COOP_CREDIT_HELP} />
+                <span className="block text-[10px] text-text-muted mt-0.5">
+                  Members who were in the same kill credit it once between them. Off = every member who
+                  was there credits it, so a 20-man raid counts 20.
+                </span>
+              </span>
+            </label>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Minimum teammates per kill
+                <FlagHint text={COOP_MIN_HELP} />
+              </label>
+              <Input
+                type="number"
+                value={coopMinMembers}
+                onChange={(e) => setCoopMinMembers(e.target.value)}
+                placeholder="any"
+                min="2"
+                max="50"
+                className="w-24 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Blank = a solo kill counts. Set 3 for &ldquo;only kills you did with 2+ teammates&rdquo;.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
