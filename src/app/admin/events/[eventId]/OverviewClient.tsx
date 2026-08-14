@@ -10,6 +10,7 @@ import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel, eventNoun } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import RevealRulesPanel from './RevealRulesPanel';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
@@ -80,7 +81,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const eventEnded = currentEvent.endDate ? new Date(currentEvent.endDate) <= now : false;
   const isActive = eventStarted && !eventEnded;
   const raceFormat = isTileRaceFormat(currentEvent.format);
-  const ladderFormat = isLadderFormat(currentEvent.format);
+  const ladderFormat = eventAxes(currentEvent).competitors === 'individuals';
   const pointsMode = isPointsMode(currentEvent.scoringMode);
   const noun = eventNoun(currentEvent.format);
   const eventRules = useMemo(() => parseEventRules(currentEvent.rules), [currentEvent.rules]);
@@ -662,7 +663,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
 
       {/* Missions — mid-event hidden-objective controls. Hidden on a ladder, whose whole board is
           already a pool of announced objectives. */}
-      <MissionAdminPanel event={currentEvent} tiles={localTiles} allowed={!ladderFormat} />
+      <MissionAdminPanel event={currentEvent} tiles={localTiles} allowed={supportsMissions(eventAxes(currentEvent))} />
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">

@@ -22,6 +22,7 @@ import { usePlayerRatings } from '@/hooks/usePlayerRatings';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode, eventNoun } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { eventAxes } from '@/lib/eventAxes';
 import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 
@@ -111,7 +112,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
     // A ladder event is individual-primary by design — default a fresh one to one-team-each (the
     // admin can still switch to real teams). Other formats ask on the first screen.
-    if (event.format === 'ladder') return 'individual';
+    if (eventAxes(event).competitors === 'individuals') return 'individual';
     return null; // fresh event — ask
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);

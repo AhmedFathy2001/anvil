@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
 import NumberInput from '@/components/NumberInput';
 import { parseEventRules, nextRevealAt, type RevealPolicy, type RevealOrder } from '@/lib/eventRules';
-import { isLadderFormat } from '@/lib/utils';
+import { eventAxes, supportsRevealPolicy } from '@/lib/eventAxes';
+import { eventModeLabel } from '@/lib/utils';
 import type { Event, Tile } from '@/lib/types';
 
 /**
@@ -26,8 +27,10 @@ import type { Event, Tile } from '@/lib/types';
 export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles: Tile[] }) {
   const router = useRouter();
   const stored = parseEventRules(event.rules);
-  const isLadder = isLadderFormat(event.format);
-  const pointsMode = event.scoringMode === 'points';
+  const axes = eventAxes(event);
+  // Individual boards call them tasks and use "rotation"; team boards call them tiles.
+  const isLadder = axes.competitors === 'individuals';
+  const pointsMode = axes.scoring === 'points';
 
   const [policy, setPolicy] = useState<RevealPolicy>(stored.revealPolicy);
   const [intervalMinutes, setIntervalMinutes] = useState(stored.revealIntervalMinutes);
@@ -49,7 +52,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
   // COULD take one — a ladder whose rules are still NULL (cloned, templated, or made before the
   // rotation existed) has no other way to get an interval, which is the bug that motivated this.
   // Tiles-scored classic bingo is left out: reveal policies only ever shipped on points boards.
-  const canConfigure = stored.revealPolicy !== 'all' || isLadder || pointsMode;
+  const canConfigure = stored.revealPolicy !== 'all' || supportsRevealPolicy(axes);
   if (!canConfigure) return null;
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
 
@@ -128,6 +131,22 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
         How and when tasks open on this board. Safe to change mid-event — nothing already live is
         taken away.
       </p>
+
+      {/* The named modes are presets over these axes, not separate systems — so the label is shown
+          as a consequence of the settings rather than a type the event is stuck with. Change how
+          tasks open and the name changes with it. */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+        <span className="rounded-full border border-gold/30 bg-gold/10 text-gold px-2 py-0.5 font-medium">
+          {eventModeLabel(event.format, event.scoringMode, JSON.stringify({ ...stored, revealPolicy: policy }))}
+        </span>
+        <span className="text-text-muted">
+          {axes.competitors === 'individuals' ? 'ranks players' : 'ranks teams'}
+          {' · '}
+          {axes.scoring === 'points' ? 'points' : 'tile count'}
+          {' · '}
+          {axes.runLength === 'rolling' ? 'no end date' : 'runs to a finish'}
+        </span>
+      </div>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-4 space-y-4">
         {/* Only meaningful once tiles actually open in stages — on an "all at once" board every

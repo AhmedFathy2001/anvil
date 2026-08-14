@@ -6,8 +6,8 @@ import TilesClient from './TilesClient';
 import { getTierBands } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { eventEditLocked } from '@/lib/eventLock';
-import { isLadderFormat } from '@/lib/utils';
 import { parseEventRules, hasMissions } from '@/lib/eventRules';
+import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,12 +37,15 @@ export default async function EventTilesPage({
   for (const p of eventPlayers) {
     if (p.teamId != null) playersPerTeam.set(p.teamId, (playersPerTeam.get(p.teamId) ?? 0) + 1);
   }
-  const teamPlay = !isLadderFormat(event.format) || [...playersPerTeam.values()].some((n) => n > 1);
+  const axes = eventAxes(event);
+  // Whether team-shaped tile options mean anything: an individual board only becomes team play once
+  // some team really holds more than one player.
+  const teamPlay = axes.competitors === 'teams' || [...playersPerTeam.values()].some((n) => n > 1);
 
-  // Missions are a board-level opt-in, and a contradiction on a ladder — that format's whole board
-  // is already a pool of announced objectives, so a "mission" inside it would be a mission inside a
-  // mission. Elsewhere the flag only appears once the host has turned missions on for the event.
-  const missionsAllowed = !isLadderFormat(event.format) && hasMissions(parseEventRules(event.rules));
+  // Missions are a board-level opt-in, and a contradiction where the board is already a pool of
+  // announced objectives (see supportsMissions). Elsewhere the flag only appears once the host has
+  // turned missions on for the event.
+  const missionsAllowed = supportsMissions(axes) && hasMissions(parseEventRules(event.rules));
 
   return (
     <TilesClient

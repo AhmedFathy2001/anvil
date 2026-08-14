@@ -9,7 +9,8 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
-import { isPointsMode, isLadderFormat, eventShapeBadge } from '@/lib/utils';
+import { isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { eventAxes } from '@/lib/eventAxes';
 import { parseEventRules, hasRevealPolicy, visibleTiles, isTileRevealed, nextRevealAt, boardTiles as scoredBoardTiles } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
@@ -133,7 +134,7 @@ export default async function EventScoreboardPage({
   let individualStandings: IndividualStanding[] = [];
   let individualStandingsMonthly: IndividualStanding[] = [];
   let ladderHasTeams = false;
-  if (isLadderFormat(event.format)) {
+  if (eventAxes(event).competitors === 'individuals') {
     const ladderInputs = {
       scoringMode: event.scoringMode,
       teams: eventTeams,
