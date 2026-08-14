@@ -6,8 +6,7 @@ import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
 import { computePlayerProfiles } from '@/lib/playerProfile';
 import { isPointsMode } from '@/lib/utils';
-
-export const BALANCE_RATES_SETTING_KEY = 'balance_rates';
+import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 
 // Effort-model side of the board-balance auditor. Runs server-side because the wiki
 // drop-rate dataset (~700KB) shouldn't ship to the client; the Tiles tab fetches this

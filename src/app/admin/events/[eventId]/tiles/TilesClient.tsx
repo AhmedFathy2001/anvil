@@ -2,7 +2,7 @@
 
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
@@ -118,6 +118,21 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   );
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
+
+  // ?tile=<id> opens straight into that tile's editor. It's how the live board's "fix something"
+  // panel hands you the misconfigured tile — landing on a 150-tile list and hunting for #48 is the
+  // difference between fixing it now and fixing it later.
+  const searchParams = useSearchParams();
+  const requestedTileId = searchParams.get('tile');
+  const openedFromUrl = useRef(false);
+  useEffect(() => {
+    if (openedFromUrl.current || !requestedTileId) return;
+    const id = parseInt(requestedTileId, 10);
+    if (!Number.isFinite(id)) return;
+    openedFromUrl.current = true;
+    setViewMode('cards');
+    setEditingTileId(id);
+  }, [requestedTileId]);
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();

@@ -13,6 +13,8 @@ import { isPointsMode, eventNoun } from '@/lib/utils';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { STAGE_BLURB, type EventStage, type StageCounts } from '@/lib/eventStage';
+import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
+import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
 
 interface Props {
@@ -100,6 +102,13 @@ export default function OverviewClient({
 
   const topScore = standings[0]?.score ?? 0;
 
+  // Recomputed from the streamed tiles, so fixing a tile clears it from the panel without a reload.
+  const problems = useMemo(
+    () => findBoardProblems(localTiles, { pointsMode }),
+    [localTiles, pointsMode],
+  );
+  const hasStatTiles = useMemo(() => localTiles.some((t) => !!t.trackedStat), [localTiles]);
+
   // All-teams submission management from the board: click a tile to see/manage every team's proofs.
   const teamNameById = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t.name])), [teams]);
   const selectedTile = localTiles.find((t) => t.id === selectedTileId) ?? null;
@@ -139,6 +148,8 @@ export default function OverviewClient({
 
       {stage === 'run' && (
         <RunHome
+          problems={problems}
+          hasStatTiles={hasStatTiles}
           event={currentEvent}
           counts={counts}
           standings={standings}
@@ -440,6 +451,8 @@ function CheckRowView({ row }: { row: CheckRow }) {
 function RunHome({
   event,
   counts,
+  problems,
+  hasStatTiles,
   standings,
   topScore,
   pointsMode,
@@ -451,6 +464,8 @@ function RunHome({
 }: {
   event: Event;
   counts: StageCounts;
+  problems: BoardProblem[];
+  hasStatTiles: boolean;
   standings: { team: Team; score: number; tiles: number }[];
   topScore: number;
   pointsMode: boolean;
@@ -492,7 +507,10 @@ function RunHome({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] items-start">
+    <div className="space-y-6">
+      <LiveFixPanel eventId={event.id} problems={problems} hasStatTiles={hasStatTiles} />
+
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] items-start">
       <section className="border border-card-border rounded-xl bg-card-bg p-5 min-w-0">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -573,6 +591,7 @@ function RunHome({
             )}
           </div>
         </section>
+      </div>
       </div>
     </div>
   );
