@@ -21,6 +21,7 @@ import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/e
 import { eventAxes } from '@/lib/eventAxes';
 import EventBoard from '@/components/EventBoard';
 import { statLabel } from '@/lib/tileKinds';
+import { findBoardProblems } from '@/lib/boardMisconfig';
 import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -139,6 +140,15 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // twenty are all worth 5" is one gesture rather than twenty drawers. Only the fields that are
   // safe to change on a live board are offered (see the bulk route).
   const inspectorDocked = useHasRoomForInspector();
+  // What can't credit as configured (lib/boardMisconfig) — the same check the live board's
+  // "fix something" panel runs, surfaced here while you're still authoring.
+  const problemTileIds = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of findBoardProblems(localTiles, { pointsMode: isPointsMode(event.scoringMode) })) {
+      if (p.severity === 'broken' && !map.has(p.tileId)) map.set(p.tileId, p.problem);
+    }
+    return map;
+  }, [localTiles, event.scoringMode]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lastPickedId, setLastPickedId] = useState<number | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -852,28 +862,70 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
     <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
-      {/* Adding tiles: the three ways in, plus the file round-trip and library round-trip tucked
-          into menus. This header had grown to eight competing buttons and two paragraphs of prose
-          before you could see a single tile — the generators are what people reach for, everything
-          else is occasional. */}
-      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+      {/* Per-tile configuration */}
+      <div ref={boardRef}>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            Add tiles
+            Tile Configuration
+            <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('grid');
-                boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
-              title="Build the board here — a searchable tile list beside a live editor"
-            >
-              ⚡ Quick build
-            </button>
+            {!eventStarted && localTiles.length > 1 && (
+              <>
+                <button
+                  onClick={handleShuffle}
+                  disabled={reordering}
+                  title="Randomize the board order"
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                >
+                  🎲 Shuffle
+                </button>
+                {pointsMode && (
+                  <button
+                    onClick={handleSortByDifficulty}
+                    disabled={reordering}
+                    title="Group tiles by difficulty tier — lowest point value first"
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                  >
+                    Sort by difficulty
+                  </button>
+                )}
+              </>
+            )}
+            <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
+              {boardShape !== 'list' && (
+                <button
+                  onClick={() => setViewMode('board')}
+                  title={boardShape === 'grid' ? 'Edit tiles on the grid itself' : 'Edit tiles along the track'}
+                  className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'board' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                >
+                  {boardShape === 'grid' ? 'Grid' : 'Track'}
+                </button>
+              )}
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                ⚡ Quick build
+              </button>
+            </div>
+            {dynamicBoard && viewMode === 'cards' && (
+              <button
+                onClick={handleAddTile}
+                disabled={adding || eventStarted}
+                title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {adding ? 'Adding…' : '+ Add tile'}
+              </button>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -945,120 +997,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
           </div>
         </div>
-        <p className="text-xs text-text-muted leading-relaxed">
-          <span className="text-gold">Quick build</span> is the fastest way in — the tile list beside
-          a live editor, with per-tile locks so a whole team can draft at once without overwriting
-          each other. Fill the board first by drawing from your{' '}
-          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>{' '}
-          or generating from the collection log or skills.
-        </p>
-        <details className="mt-2 group">
-          <summary className="text-xs text-gold cursor-pointer hover:text-gold-light select-none">
-            How the spreadsheet round-trip works
-          </summary>
-          <div className="text-xs text-text-muted leading-relaxed mt-2 space-y-2">
-            <p>
-              Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
-              <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
-              {dynamicBoard && !eventStarted
-                ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
-                : ' Extra rows beyond the board size are ignored.'}
-              {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
-            </p>
-            <p>
-              <span className="text-gold">Download spreadsheet</span> gives an Excel file with the
-              current tiles, dropdowns, the full item list and instructions baked in — draft in Excel
-              or Google Sheets, then upload the same file (or a CSV of the <em>Tiles</em> tab) straight
-              back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
-            </p>
-          </div>
-        </details>
+
         {importMsg && (
-          <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
+          <p className={`text-sm mb-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
           </p>
         )}
-      </div>
-
-      {/* Live balance read — structural checks recompute client-side; the effort model
-          refetches (debounced) whenever the tile set changes */}
-      <BoardBalancePanel
-        eventId={event.id}
-        tiles={localTiles}
-        tilesVersion={tilesVersion}
-        pointsMode={pointsMode}
-        tierBands={tierBands}
-        onApplyPoints={applySuggestedPoints}
-      />
-
-      <TileHistoryPanel eventId={event.id} />
-
-      {/* Per-tile configuration */}
-      <div ref={boardRef}>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Tile Configuration
-            <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {!eventStarted && localTiles.length > 1 && (
-              <>
-                <button
-                  onClick={handleShuffle}
-                  disabled={reordering}
-                  title="Randomize the board order"
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
-                >
-                  🎲 Shuffle
-                </button>
-                {pointsMode && (
-                  <button
-                    onClick={handleSortByDifficulty}
-                    disabled={reordering}
-                    title="Group tiles by difficulty tier — lowest point value first"
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
-                  >
-                    Sort by difficulty
-                  </button>
-                )}
-              </>
-            )}
-            <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
-              {boardShape !== 'list' && (
-                <button
-                  onClick={() => setViewMode('board')}
-                  title={boardShape === 'grid' ? 'Edit tiles on the grid itself' : 'Edit tiles along the track'}
-                  className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'board' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-                >
-                  {boardShape === 'grid' ? 'Grid' : 'Track'}
-                </button>
-              )}
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                Cards
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                ⚡ Quick build
-              </button>
-            </div>
-            {dynamicBoard && viewMode === 'cards' && (
-              <button
-                onClick={handleAddTile}
-                disabled={adding || eventStarted}
-                title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {adding ? 'Adding…' : '+ Add tile'}
-              </button>
-            )}
-          </div>
-        </div>
 
         {revealMode && (
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
@@ -1476,44 +1420,64 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               <button
                 key={tile.id}
                 onClick={(e) => pickTile(tile.id, e)}
-                className={`text-left border rounded-xl p-3 bg-card-bg hover:bg-card-bg-hover transition-colors flex flex-col gap-1.5 ${
+                className={`group/tile relative text-left border rounded-xl bg-card-bg hover:bg-card-bg-hover transition-colors overflow-hidden ${
                   isEditing
                     ? 'border-gold ring-1 ring-gold/40'
-                    : selectedIds.has(tile.id)
+                    : isSelected
                       ? 'border-gold/60 bg-gold/[0.07]'
                       : 'border-card-border hover:border-gold/40'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono shrink-0 flex items-center gap-1.5">
-                    {isSelected && <span className="text-gold" aria-hidden>✓</span>}
-                    <span className="text-text-muted">#{tile.position + 1}</span>
-                  </span>
-                  <div className="flex items-center gap-1 flex-wrap justify-end">
-                    {pointsMode && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
-                        {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {tile.optional ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
-                        Optional
-                      </span>
-                    ) : null}
-                    {(() => {
-                      const rc = revealChip(tile);
-                      return rc ? (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rc.cls}`} title={rc.title}>
-                          {rc.label}
+                {/* A stripe down the side, so a half-built board reads without stopping to read:
+                    amber = can't credit as set up, violet = still hidden, grey = nothing special. */}
+                <span
+                  aria-hidden
+                  className={`absolute inset-y-0 left-0 w-1 ${
+                    problemTileIds.has(tile.id)
+                      ? 'bg-amber-400/80'
+                      : tile.revealedAt
+                        ? 'bg-accent-green/60'
+                        : revealMode
+                          ? 'bg-violet-400/60'
+                          : 'bg-transparent'
+                  }`}
+                />
+                <span className="block pl-4 pr-3 py-3 flex flex-col gap-1.5">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono shrink-0 flex items-center gap-1.5">
+                      {isSelected && <span className="text-gold" aria-hidden>✓</span>}
+                      <span className="text-text-muted">#{tile.position + 1}</span>
+                    </span>
+                    <span className="flex items-center gap-1 flex-wrap justify-end">
+                      {pointsMode && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
+                          {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
                         </span>
-                      ) : null;
-                    })()}
-                    {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
-                    <span title={k.blurb} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>{tile.label}</span>
-                <span className="text-xs text-text-muted truncate">{tileMeta(tile)}</span>
+                      )}
+                      {tile.optional ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
+                          Optional
+                        </span>
+                      ) : null}
+                      {(() => {
+                        const rc = revealChip(tile);
+                        return rc ? (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rc.cls}`} title={rc.title}>
+                            {rc.label}
+                          </span>
+                        ) : null;
+                      })()}
+                      {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
+                      <span title={k.blurb} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
+                    </span>
+                  </span>
+                  <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>
+                    {tile.label}
+                  </span>
+                  <span className={`text-xs truncate ${problemTileIds.has(tile.id) ? 'text-amber-300/90' : 'text-text-muted'}`}>
+                    {problemTileIds.get(tile.id) ?? tileMeta(tile)}
+                  </span>
+                </span>
               </button>
             );
           })}
@@ -1539,6 +1503,48 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </>
         )}
       </div>
+
+      {/* Reference material, under the board rather than stacked on top of it: you come to this
+          page to see tiles, not to read three panels first. */}
+      {/* Live balance read — structural checks recompute client-side; the effort model
+          refetches (debounced) whenever the tile set changes */}
+      <BoardBalancePanel
+        eventId={event.id}
+        tiles={localTiles}
+        tilesVersion={tilesVersion}
+        pointsMode={pointsMode}
+        tierBands={tierBands}
+        onApplyPoints={applySuggestedPoints}
+      />
+
+      <TileHistoryPanel eventId={event.id} />
+
+      <details className="border border-card-border rounded-xl bg-card-bg px-5 py-3 group">
+        <summary className="text-sm font-semibold cursor-pointer hover:text-gold select-none">
+          Spreadsheet round-trip
+          <span className="text-xs text-text-muted font-normal"> — draft the board in Excel or Sheets</span>
+        </summary>
+        <div className="text-xs text-text-muted leading-relaxed mt-3 space-y-2">
+          <p>
+            Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
+            <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
+            {dynamicBoard && !eventStarted
+              ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
+              : ' Extra rows beyond the board size are ignored.'}
+            {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+          </p>
+          <p>
+            <span className="text-gold">Download spreadsheet</span> gives an Excel file with the current
+            tiles, dropdowns, the full item list and instructions baked in — draft it, then upload the same
+            file (or a CSV of the <em>Tiles</em> tab) straight back. The round trip is 1:1: re-uploading an
+            unchanged sheet changes nothing.
+          </p>
+          <p>
+            Everything above is also reachable from{' '}
+            <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">your task library</Link>.
+          </p>
+        </div>
+      </details>
 
       {/* Narrow screens keep the covering drawer — there's no room for two panes. */}
       {viewMode === 'cards' && editingTile && !inspectorDocked && inspectorPane}
