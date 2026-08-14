@@ -12,6 +12,7 @@ import {
   EMBED_COLOR,
   POWERED_BY,
   clamp,
+  clipEmbed,
   code,
   field,
   playerEventEmbed,
@@ -98,4 +99,49 @@ test('playerEventEmbed: a PvP kill is gold, and an unknown RSN simply drops the 
   assert.equal(embed.title, '⚔️ PvP kill');
   assert.equal(embed.author, undefined);
   assert.equal(embed.image, undefined);
+});
+
+// ---- Clip embed -----------------------------------------------------------------------
+// A clip post's whole job is telling someone whether the video is worth opening. The failure
+// mode is a generic title with the real information missing — which is what shipped, because
+// the plugin only fed it a "moment" when the matching Discord channel happened to be enabled.
+
+test('clipEmbed: the headline moment becomes the title', () => {
+  const e = clipEmbed({
+    rsn: 'Drenvox mdps',
+    moment: '⚔️ Killed Molag\n💰 2.1M gp haul from Molag',
+    eventName: 'Test missions bingo',
+    seconds: 30,
+  });
+  assert.equal(e.title, '⚔️ Killed Molag');
+  assert.equal(e.author?.name, 'Drenvox mdps');
+  // Remaining moments stay in the body, newest-first order preserved.
+  assert.ok(e.description!.startsWith('💰 2.1M gp haul from Molag'));
+});
+
+test('clipEmbed: no field rows — length and event ride the subtext line', () => {
+  const e = clipEmbed({ rsn: 'x', moment: '⚔️ Killed Molag', eventName: 'Summer bingo', seconds: 30 });
+  assert.equal(e.fields, undefined, 'a whole field row for "30s" was the emptiest thing in the post');
+  assert.ok(e.description!.includes('-# Summer bingo · 30s'));
+});
+
+test('clipEmbed: falls back to naming the event when nothing notable happened', () => {
+  const e = clipEmbed({ rsn: 'x', moment: null, eventName: 'Test missions bingo', seconds: 30 });
+  assert.equal(e.title, '🎬 Clip saved');
+  assert.ok(e.description!.includes('Clipped during Test missions bingo.'));
+  // …and does not then repeat the event name in the subtext.
+  assert.equal(e.description!.match(/Test missions bingo/g)!.length, 1);
+});
+
+test('clipEmbed: survives having nothing at all to say', () => {
+  const e = clipEmbed({ rsn: null, moment: null, eventName: null, seconds: null });
+  assert.equal(e.title, '🎬 Clip saved');
+  assert.equal(e.author, undefined);
+  assert.equal(e.description, undefined);
+});
+
+test('clipEmbed: a blank-but-present moment is treated as no moment', () => {
+  const e = clipEmbed({ rsn: 'x', moment: '  \n \n', eventName: 'Bingo', seconds: 5 });
+  assert.equal(e.title, '🎬 Clip saved');
+  assert.ok(e.description!.includes('Clipped during Bingo.'));
 });

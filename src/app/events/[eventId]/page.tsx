@@ -11,11 +11,21 @@ import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
-import { parseEventRules, hasRevealPolicy, visibleTiles, isTileRevealed, nextRevealAt, boardTiles as scoredBoardTiles } from '@/lib/eventRules';
+import {
+  parseEventRules,
+  hasRevealPolicy,
+  visibleTiles,
+  isTileRevealed,
+  nextRevealAt,
+  rotationExpiries,
+  boardTiles as scoredBoardTiles,
+} from '@/lib/eventRules';
+import { deriveTileIcon } from '@/lib/tileIcons';
+import { buildLadderView } from '@/lib/ladderView';
+import LadderClient from './LadderClient';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
-import { monthWindowUtc } from '@/lib/ladderStandings';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
@@ -127,32 +137,12 @@ export default async function EventScoreboardPage({
       ? null
       : mvpTodayRaw;
 
-  // Ladder events: the event-wide INDIVIDUAL leaderboard (the primary standings for this format).
-  // Reuses the exact MVP inputs — it's the full sorted list, of which the MVP is the head. Only
-  // computed for ladder events so other formats pay nothing. ladderHasTeams = real multi-person
-  // teams exist, so the render labels rows by team and also shows the team board.
-  let individualStandings: IndividualStanding[] = [];
-  let individualStandingsMonthly: IndividualStanding[] = [];
+  // Ladder events rank PEOPLE and usually never end, so they get their own surface (LadderClient)
+  // rather than the team scoreboard with the team parts switched off. Everything it renders —
+  // seasons, movement, streaks, the hall — is derived here from rows already loaded above.
+  const isLadder = eventAxes(event).competitors === 'individuals';
   let ladderHasTeams = false;
-  if (eventAxes(event).competitors === 'individuals') {
-    const ladderInputs = {
-      scoringMode: event.scoringMode,
-      teams: eventTeams,
-      players: eventPlayers,
-      tiles: eventTiles,
-      submissions: eventSubmissions,
-      statGains,
-      ownerByPlayerId,
-      accountSlotMode,
-    };
-    individualStandings = computeIndividualStandings({ ...ladderInputs, completions: eventCompletions });
-    // The same board windowed to the current UTC month — ladder points are completion-gated, so
-    // filtering completions by completedAt gives an exact "this month" leaderboard beside the all-time.
-    const { start: monthStart, end: monthEnd } = monthWindowUtc();
-    individualStandingsMonthly = computeIndividualStandings({
-      ...ladderInputs,
-      completions: eventCompletions.filter((c) => c.completedAt >= monthStart && c.completedAt < monthEnd),
-    });
+  if (isLadder) {
     const playersPerTeam = new Map<number, number>();
     for (const p of eventPlayers) {
       if (p.teamId != null) playersPerTeam.set(p.teamId, (playersPerTeam.get(p.teamId) ?? 0) + 1);
@@ -188,6 +178,7 @@ export default async function EventScoreboardPage({
   let mySignup: { status: string } | null = null;
   let editOpen = false;
   let hasVerifiedAccount = false;
+  let myMemberIds: number[] = [];
   if (session) {
     const sig = await db.query.eventSignups.findFirst({
       where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
@@ -205,18 +196,19 @@ export default async function EventScoreboardPage({
       }).open;
     }
 
-    const verifiedCount = await db
-      .select({ id: clanMembers.id })
-      .from(clanMembers)
-      .where(
-        and(
-          eq(clanMembers.userId, session.userId),
-          isNull(clanMembers.leftAt),
-        ),
-      )
-      .limit(1);
-    hasVerifiedAccount = verifiedCount.length > 0;
+    myMemberIds = (
+      await db
+        .select({ id: clanMembers.id })
+        .from(clanMembers)
+        .where(and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)))
+    ).map((m) => m.id);
+    hasVerifiedAccount = myMemberIds.length > 0;
   }
+  // Which player rows in THIS event are the viewer's — the ladder's "you" strip needs it, and it's
+  // the same membership lookup the sign-up banner already did.
+  const myPlayerIds = myMemberIds.length
+    ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
+    : [];
 
   // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
   // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
@@ -285,6 +277,57 @@ export default async function EventScoreboardPage({
   }
   if ((event.addedPrizePool ?? 0) > 0) {
     prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
+  }
+
+  // The ladder view model — seasons, movement, streaks, the hall, the feed — all derived from the
+  // rows above, so a ladder costs one extra pass over data the page already had in memory.
+  const ladderView =
+    isLadder && !hideBoardFromPlayer
+      ? buildLadderView({
+          event,
+          tiles: eventTiles,
+          teams: eventTeams,
+          players: eventPlayers,
+          completions: eventCompletions,
+          submissions: eventSubmissions,
+          statGains,
+          ownerByPlayerId,
+          myPlayerIds,
+        })
+      : null;
+
+  if (ladderView) {
+    // Members see only what's been revealed; staff see the whole pool so they can still configure it.
+    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isStaff || isTileRevealed(rules, t));
+    const expiries = rotationExpiries(
+      rules,
+      ladderTiles.filter((t) => t.revealedAt && !t.closedAt),
+      upcomingRevealAt,
+    );
+    return (
+      <LadderClient
+        event={event}
+        tiles={ladderTiles
+          .map((t) => ({
+            id: t.id,
+            label: t.label,
+            points: t.points,
+            icon: deriveTileIcon(t),
+            revealedAt: t.revealedAt,
+            closedAt: t.closedAt,
+          }))}
+        view={ladderView}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+        hiddenTileCount={hiddenTileCount}
+        nextRevealAt={upcomingRevealAt}
+        prizePool={prizePool}
+        prizeBreakdown={prizeBreakdownParts.length ? prizeBreakdownParts.join('  +  ') : null}
+        placementPrizes={placementPrizes}
+        expiryByTile={Object.fromEntries(expiries)}
+        showTeam={ladderHasTeams}
+        poolSize={scoredBoardTiles(eventTiles).length}
+      />
+    );
   }
 
   return (
@@ -375,9 +418,6 @@ export default async function EventScoreboardPage({
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
           staffOnlyTileIds={staffOnlyTileIds}
-          individualStandings={individualStandings}
-          individualStandingsMonthly={individualStandingsMonthly}
-          ladderHasTeams={ladderHasTeams}
         />
       )}
     </>

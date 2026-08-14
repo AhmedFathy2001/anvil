@@ -14,9 +14,8 @@ import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
-import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
+import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
-import LadderStandings from '@/components/LadderStandings';
 
 interface Tile {
   id: number;
@@ -103,11 +102,6 @@ interface Props {
    * the page looked identical to a fully-revealed board while its own banner said tiles were hidden.
    */
   staffOnlyTileIds?: number[];
-  // Ladder events: the event-wide individual leaderboard (primary standings). `ladderHasTeams` = the
-  // event runs real multi-person teams, so rows carry a team label and the team board also shows.
-  individualStandings?: IndividualStanding[];
-  individualStandingsMonthly?: IndividualStanding[];
-  ladderHasTeams?: boolean;
 }
 
 interface TeamGains {
@@ -116,9 +110,7 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
-  // Standings rank people, not teams — that's the individuals axis, not "is this a ladder".
-  const ladder = eventAxes(event).competitors === 'individuals';
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [] }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -351,45 +343,17 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           <div className="min-w-0">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
-              {ladder ? 'Leaderboard' : 'Standings'}
+              Standings
             </h2>
-            {ladder ? (
-              <>
-                <LadderStandings
-                  standings={individualStandings}
-                  monthly={individualStandingsMonthly}
-                  showTeam={ladderHasTeams}
-                  openEnded={!event.endDate}
-                />
-                {ladderHasTeams && (
-                  <div className="mt-6">
-                    <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
-                      <span className="w-1 h-4 bg-gold/60 rounded-full" />
-                      Teams
-                    </h3>
-                    <Scoreboard
-                      teams={teams}
-                      totalTiles={totalWeight}
-                      completionCounts={completionCounts}
-                      eventId={event.id}
-                      dropProgressByTeam={dropProgressByTeam}
-                      pointsMode
-                      teamMvps={teamMvps}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <Scoreboard
-                teams={teams}
-                totalTiles={pointsMode ? totalWeight : requiredTiles.length}
-                completionCounts={completionCounts}
-                eventId={event.id}
-                dropProgressByTeam={dropProgressByTeam}
-                pointsMode={pointsMode}
-                teamMvps={teamMvps}
-              />
-            )}
+            <Scoreboard
+              teams={teams}
+              totalTiles={pointsMode ? totalWeight : requiredTiles.length}
+              completionCounts={completionCounts}
+              eventId={event.id}
+              dropProgressByTeam={dropProgressByTeam}
+              pointsMode={pointsMode}
+              teamMvps={teamMvps}
+            />
 
             {/* XP/Stat Gains */}
             {statTiles.length > 0 && teamGains.length > 0 && (
