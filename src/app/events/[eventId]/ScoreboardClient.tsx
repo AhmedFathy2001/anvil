@@ -8,11 +8,17 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
+import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
+import TeamLens from '@/components/board/TeamLens';
+import LineWatch, { completedLinePositions, needyPositions } from '@/components/board/LineWatch';
+import BoardMinimap from '@/components/board/BoardMinimap';
+import RacePace, { type RaceTeam } from '@/components/board/RacePace';
+import RevealSchedule from '@/components/board/RevealSchedule';
+import { deriveTileIcon } from '@/lib/tileIcons';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
@@ -102,6 +108,14 @@ interface Props {
    * the page looked identical to a fully-revealed board while its own banner said tiles were hidden.
    */
   staffOnlyTileIds?: number[];
+  /** Scheduled boards: the slots a member can't see yet — time and value only, never content. */
+  hiddenSchedule?: { revealAt: string | null; points: number | null }[];
+  /**
+   * Every point on the board including tiles that haven't dropped yet. On a reveal-policy event the
+   * visible tiles are a fraction of the pool, so scoring "350 / 900" against them alone would say a
+   * team is 39% done when the board is only a third open.
+   */
+  boardPointsTotal?: number | null;
 }
 
 interface TeamGains {
@@ -110,11 +124,13 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [] }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
+  // Which team's board the viewer is looking at. Null = everyone's, the shared view.
+  const [lensTeamId, setLensTeamId] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -229,7 +245,9 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // score is the summed weight of the required tiles it has completed, and the
   // "total" the scoreboard divides against is the summed weight of all required tiles.
   const weightById = new Map(requiredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
-  const totalWeight = requiredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
+  const visibleWeight = requiredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
+  // On a reveal board the denominator is the WHOLE pool, not the slice that happens to be open.
+  const totalWeight = pointsMode && boardPointsTotal != null ? Math.max(visibleWeight, boardPointsTotal) : visibleWeight;
 
   const completionCounts = new Map<number, number>();
   for (const c of completions) {
@@ -260,22 +278,143 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     }
   }
 
-  // Build stat progress map for tiles (aggregated across all teams for overview)
-  const statProgressMap = new Map<number, { current: number; goal: number; statType?: string }>();
-  const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
-  for (const tile of statTiles) {
-    // Get max progress across all teams for overview
-    let maxGained = 0;
-    for (const tg of teamGains) {
-      const gained = tg.tileGains[tile.id] || 0;
-      if (gained > maxGained) maxGained = gained;
+  // Build stat progress map for tiles (aggregated across all teams for overview). Memoised because
+  // the board's own derivations (the minimap's per-tile status) hang off it.
+  const statTiles = useMemo(() => tiles.filter((t) => t.trackedStat && t.statGoal), [tiles]);
+  const statProgressMap = useMemo(() => {
+    const map = new Map<number, { current: number; goal: number; statType?: string }>();
+    for (const tile of statTiles) {
+      // Get max progress across all teams for overview
+      let maxGained = 0;
+      for (const tg of teamGains) {
+        const gained = tg.tileGains[tile.id] || 0;
+        if (gained > maxGained) maxGained = gained;
+      }
+      map.set(tile.id, {
+        current: maxGained,
+        goal: tile.statGoal!,
+        statType: tile.statType || undefined,
+      });
     }
-    statProgressMap.set(tile.id, {
-      current: maxGained,
-      goal: tile.statGoal!,
-      statType: tile.statType || undefined,
+    return map;
+  }, [statTiles, teamGains]);
+
+  // ---- Format surfaces -------------------------------------------------------------------------
+  // Every format below is multi-claim: each team can complete every tile, so nothing here is "who
+  // got there first". What differs is the question the board has to answer, and each one needs a
+  // different derivation over the same completions.
+
+  const positionOf = useMemo(() => new Map(board.map((t) => [t.id, t.position])), [board]);
+  const existingPositions = useMemo(() => new Set(board.map((t) => t.position)), [board]);
+  const labelByPosition = useMemo(() => new Map(board.map((t) => [t.position, t.label])), [board]);
+  const ownedByTeam = useMemo(() => {
+    const map = new Map<number, Set<number>>(teams.map((t) => [t.id, new Set<number>()]));
+    for (const c of completions) {
+      const pos = positionOf.get(c.tileId);
+      if (pos !== undefined) map.get(c.teamId)?.add(pos);
+    }
+    return map;
+  }, [completions, teams, positionOf]);
+
+  // Classic grids are played for lines, and the lens decides whose lines are drawn.
+  const isGrid = axes.shape === 'grid';
+  const lensOwned = useMemo(
+    () => (lensTeamId != null ? ownedByTeam.get(lensTeamId) ?? new Set<number>() : null),
+    [lensTeamId, ownedByTeam],
+  );
+  const linePositions = useMemo(
+    () => (isGrid && lensOwned ? completedLinePositions(event.boardSize, lensOwned, existingPositions) : null),
+    [isGrid, lensOwned, event.boardSize, existingPositions],
+  );
+  const neededPositions = useMemo(
+    () => (isGrid && lensOwned ? needyPositions(event.boardSize, lensOwned, existingPositions) : null),
+    [isGrid, lensOwned, event.boardSize, existingPositions],
+  );
+  const lineTeams = useMemo(
+    () => teams.map((t) => ({ id: t.id, name: t.name, color: t.color, owned: ownedByTeam.get(t.id) ?? new Set<number>() })),
+    [teams, ownedByTeam],
+  );
+
+  // A long points board needs a map of itself. Status is per lens: what it is to the team you're
+  // viewing as, or to the clan as a whole.
+  const completedByLens = useMemo(() => {
+    const done = new Set<number>();
+    for (const c of completions) if (lensTeamId == null || c.teamId === lensTeamId) done.add(c.tileId);
+    return done;
+  }, [completions, lensTeamId]);
+  const minimapTiles = useMemo(() => {
+    const topPoints = Math.max(...board.map((t) => t.points ?? 0), 0);
+    return board.map((t) => ({
+      id: t.id,
+      label: t.label,
+      points: t.points,
+      top: pointsMode && topPoints > 0 && (t.points ?? 0) >= topPoints,
+      status: completedByLens.has(t.id)
+        ? ('completed' as const)
+        : (statProgressMap.get(t.id)?.current ?? 0) > 0 ||
+            submissions.some((sub) => sub.tileId === t.id && (lensTeamId == null || sub.teamId === lensTeamId))
+          ? ('in_progress' as const)
+          : ('not_started' as const),
+    }));
+  }, [board, completedByLens, statProgressMap, submissions, lensTeamId, pointsMode]);
+
+  // A tile race is about position AND pace, so each team carries the window its pace is measured over.
+  const raceTeams: RaceTeam[] = useMemo(() => {
+    if (axes.shape !== 'track') return [];
+    const ordered = [...board].sort((a, b) => a.position - b.position);
+    return teams.map((team) => {
+      const done = new Set(completions.filter((c) => c.teamId === team.id).map((c) => c.tileId));
+      let reached = 0;
+      for (const tile of ordered) {
+        if (!done.has(tile.id)) break;
+        reached++;
+      }
+      const times = completions
+        .filter((c) => c.teamId === team.id)
+        .map((c) => c.completedAt)
+        .sort();
+      return { id: team.id, name: team.name, color: team.color, reached, firstAt: times[0] ?? null, lastAt: times[times.length - 1] ?? null };
     });
-  }
+  }, [axes.shape, board, completions, teams]);
+  const nextTileLabelFor = useCallback(
+    (team: RaceTeam) => {
+      const ordered = [...board].sort((a, b) => a.position - b.position);
+      return ordered[team.reached]?.label ?? null;
+    },
+    [board],
+  );
+
+  // A showdown IS a schedule — its own surface, rather than the generic live board.
+  const scheduled = eventRules.revealPolicy === 'scheduled';
+  const scheduleTiles = useMemo(
+    () =>
+      scheduled
+        ? board.map((t) => ({
+            id: t.id,
+            label: t.label,
+            points: t.points,
+            icon: deriveTileIcon(t),
+            revealAt: (t as { revealAt?: string | null }).revealAt ?? null,
+            revealedAt: t.revealedAt ?? null,
+            closedAt: t.closedAt ?? null,
+            claims: completions.filter((c) => c.tileId === t.id).length,
+            claimed: completions.some((c) => c.tileId === t.id),
+          })).concat(
+            hiddenSchedule.map((h, i) => ({
+              id: -1 - i, // placeholder: not a real tile, and never clickable
+              label: '',
+              points: h.points,
+              icon: null,
+              revealAt: h.revealAt ?? null,
+              revealedAt: null,
+              closedAt: null,
+              claims: 0,
+              claimed: false,
+            })),
+          )
+        : [],
+    [scheduled, board, completions, hiddenSchedule],
+  );
 
   const draftActive = event.draftStatus === 'active' || event.draftStatus === 'paused';
 
@@ -394,13 +533,21 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           </div>
         )}
         <div className="min-w-0">
-          <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            {liveDropBoard ? 'Live board' : 'Board Overview'}
-            <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
-          </h2>
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              {scheduled ? 'Tonight\u2019s schedule' : liveDropBoard ? 'Live board' : 'Board Overview'}
+              <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
+            </h2>
+            {/* Multi-claim boards read very differently as "everyone" vs "us" — so let the viewer choose. */}
+            {!liveDropBoard && (
+              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" />
+            )}
+          </div>
 
-          {liveDropBoard ? (
+          {scheduled ? (
+            <RevealSchedule tiles={scheduleTiles} pointsMode={pointsMode} onTileClick={setSelectedTileId} />
+          ) : liveDropBoard ? (
             <LiveDropBoard
               tiles={board}
               rules={eventRules}
@@ -568,19 +715,51 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </div>
           )}
 
+          {axes.shape === 'list' && (
+            <BoardMinimap
+              tiles={minimapTiles}
+              lensName={lensTeamId == null ? 'the clan' : (teams.find((t) => t.id === lensTeamId)?.name ?? 'your team')}
+              onTileClick={setSelectedTileId}
+            />
+          )}
+
           <EventBoard
             format={event.format}
             tiles={board}
             boardSize={event.boardSize}
             completions={completions}
             teams={teams}
+            activeTeamId={lensTeamId ?? undefined}
             onTileClick={setSelectedTileId}
             statProgress={statProgressMap}
             expanded={fullscreen}
             pointsMode={pointsMode}
             matchedTileIds={matchedTileIds}
             staffOnlyTileIds={staffOnlySet}
+            linePositions={linePositions}
+            neededPositions={neededPositions}
+            tierBands={tierBands}
           />
+
+          {/* What a classic board is really played for, and what a race is really about. */}
+          {isGrid && teams.length > 0 && (
+            <LineWatch
+              size={event.boardSize}
+              teams={lineTeams}
+              existingPositions={existingPositions}
+              labelFor={(pos) => labelByPosition.get(pos) ?? `Tile ${pos + 1}`}
+              ownerNamesFor={(pos) =>
+                lineTeams
+                  .filter((t) => t.owned.has(pos) && t.id !== lensTeamId)
+                  .map((t) => t.name)
+                  .slice(0, 2)
+              }
+              lensTeamId={lensTeamId}
+            />
+          )}
+          {axes.shape === 'track' && raceTeams.length > 0 && (
+            <RacePace teams={raceTeams} totalTiles={board.length} nextTileLabelFor={nextTileLabelFor} />
+          )}
           </>
           )}
         </div>
