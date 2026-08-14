@@ -27,7 +27,14 @@ import {
 
 export interface CompetitionEntry {
   rsn: string;
+  /** The competition's own number: currentValue − baselineValue. Authoritative. */
   gained: number;
+  /**
+   * How much of that the daily history actually accounts for. Lower than `gained` whenever the
+   * sweep started watching this member after the competition's baseline was taken — a gain only
+   * lands on a day once there is an earlier snapshot to diff against (lib/statHistory).
+   */
+  trackedGain: number;
   /** Gain per day, index-aligned with {@link CompetitionView.days}. */
   days: number[];
   /** Today's gain (the last elapsed day). */
@@ -73,6 +80,8 @@ export interface CompetitionView {
   dailyTotals: number[];
   dailyLeaders: (string | null)[];
   clanTotal: number;
+  /** Clan total the day-by-day can explain. Below clanTotal = the shape is a partial account. */
+  trackedTotal: number;
   todayTotal: number;
   scoring: number;
   /** Where the clan lands at this pace, and how that compares to the last competition on this metric. */
@@ -197,6 +206,7 @@ export async function buildCompetitionView(
     return {
       rsn: b.rsn,
       gained: b.gained,
+      trackedGain: s.days.slice(0, elapsed).reduce((sum, d) => sum + d, 0),
       days: s.days,
       today: s.days[elapsed - 1] ?? 0,
       streak: activeStreak(s.days, elapsed),
@@ -209,6 +219,7 @@ export async function buildCompetitionView(
   const totals = dailyTotals(series, days.length);
   const leaders = dailyLeaders(series, days.length);
   const clanTotal = entries.reduce((s, e) => s + Math.max(0, e.gained), 0);
+  const trackedTotal = entries.reduce((s, e) => s + Math.max(0, e.trackedGain), 0);
   const todayTotal = totals[elapsed - 1] ?? 0;
   const scoring = entries.filter((e) => e.gained > 0).length;
 
@@ -247,6 +258,7 @@ export async function buildCompetitionView(
     dailyTotals: totals,
     dailyLeaders: leaders,
     clanTotal,
+    trackedTotal,
     todayTotal,
     scoring,
     projected,

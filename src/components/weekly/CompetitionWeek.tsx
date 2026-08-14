@@ -21,12 +21,17 @@ export function RaceChart({
   elapsed,
   type,
   unit,
+  clanTotal,
+  trackedTotal,
 }: {
   entries: CompetitionEntry[];
   days: string[];
   elapsed: number;
   type: CompetitionType;
   unit: string;
+  /** The competition's own total, and the part the daily history can account for. */
+  clanTotal: number;
+  trackedTotal: number;
 }) {
   const top = entries.slice(0, 5).filter((e) => e.gained > 0);
   if (top.length === 0 || elapsed < 2) return null;
@@ -38,6 +43,7 @@ export function RaceChart({
   /** Right-hand gutter the end-of-line names live in. */
   const PAD_R = 96;
   const series = top.map((e) => cumulative(e.days, elapsed));
+  const coverage = clanTotal > 0 ? trackedTotal / clanTotal : 1;
   const max = Math.max(...series.flat(), 1);
   const x = (i: number) => PAD_L + (i / Math.max(1, elapsed - 1)) * (W - PAD_L - PAD_R);
   const y = (v: number) => H - PAD_B - (v / max) * (H - PAD_B - 12);
@@ -57,7 +63,7 @@ export function RaceChart({
     <div className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
       <h3 className="text-sm font-bold">The race, day by day</h3>
       <p className="mt-0.5 text-xs text-text-muted">
-        cumulative {unit} for the top {top.length} — the shape of the week, not just its total
+        cumulative {unit} the sweep recorded for the top {top.length} — the shape of the week, not just its total
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 block w-full overflow-visible" role="img" aria-label="Cumulative gains per day">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
@@ -106,10 +112,21 @@ export function RaceChart({
         {top.map((e, i) => (
           <span key={e.rsn} className="inline-flex items-center gap-1.5">
             <i className="block h-[3px] w-3 rounded-full" style={{ backgroundColor: LINE_COLORS[i] }} />
-            <b className="font-semibold text-foreground">{e.rsn}</b> {shortValue(e.gained, type)}
+            <b className="font-semibold text-foreground">{e.rsn}</b> {shortValue(e.trackedGain, type)}
           </span>
         ))}
       </div>
+
+      {coverage < 0.95 && (
+        <p className="mt-3 border-t border-card-border/60 pt-3 text-[11.5px] leading-relaxed text-text-muted">
+          The day-by-day accounts for{' '}
+          <b className="font-semibold text-foreground">{shortValue(trackedTotal, type)}</b> of the{' '}
+          <b className="font-semibold text-foreground">{shortValue(clanTotal, type)}</b> gained this week
+          {coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. The rest was already banked by the time the
+          stat sweep first saw each member — a gain only lands on a day once there is an earlier snapshot to
+          compare it against, so the standings are complete and the shape is what was watched.
+        </p>
+      )}
     </div>
   );
 }
