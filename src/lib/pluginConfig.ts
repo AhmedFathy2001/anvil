@@ -158,6 +158,8 @@ export interface PluginWebhooks {
   combatAchievements: string | null;
   pvpKills: string | null;
   clips: string | null;
+  /** Seasonal (Leagues) worlds: every notification from one routes here instead of the above. */
+  leagues: string | null;
 }
 
 export const WEBHOOK_SETTING_KEYS = [
@@ -166,6 +168,7 @@ export const WEBHOOK_SETTING_KEYS = [
   'webhook_combat_achievements',
   'webhook_pvp_kills',
   'webhook_clips',
+  'webhook_leagues',
 ] as const;
 
 // Plugin-posted notification destinations, read from the settings key/value table.
@@ -181,6 +184,7 @@ export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
     combatAchievements: map.get('webhook_combat_achievements') || null,
     pvpKills: map.get('webhook_pvp_kills') || null,
     clips: map.get('webhook_clips') || null,
+    leagues: map.get('webhook_leagues') || null,
   };
 }
 
@@ -395,7 +399,9 @@ export async function getExchangePolicy(): Promise<ExchangePolicy> {
 }
 
 // Whether this instance tells the broker "discord_id X is a member here" (decision 2). Default OFF
-// (self-host sovereignty); hosted instances are flipped on at provision. The outbound /assoc push
+// (self-host sovereignty); a clan we HOST is seeded 'on' at first boot instead — see
+// seedManagedDefaults() in scripts/migrate.mjs, which writes the row only when it's absent, so a
+// hosted clan that opts back out stays out. The outbound /assoc push
 // (federation.ts pushAssociation, fired from /exchange and /token) is gated on this flag.
 export async function getAssociationPush(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ASSOCIATION_PUSH_KEY) });
@@ -422,8 +428,10 @@ export async function getBrokerTrust(): Promise<BrokerTrust[]> {
   }
 }
 
-// Master site-relayed-federation switch (WIRE §10.1). Default OFF. When on, the plugin-facing
-// /api/plugin/federation/* endpoints relay to the broker + other clan sites server-to-server.
+// Master site-relayed-federation switch (WIRE §10.1). Default OFF for a self-host; a clan we HOST is
+// seeded 'on' at first boot (scripts/migrate.mjs seedManagedDefaults), because one connected network
+// is what the hosted product sells. When on, the plugin-facing /api/plugin/federation/* endpoints
+// relay to the broker + other clan sites server-to-server.
 export async function getFederationEnabled(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
   return row?.value === 'on';
@@ -435,6 +443,23 @@ export async function getAcceptFederatedWrites(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ACCEPT_WRITES_KEY) });
   const v = row?.value; // default (no row) = accept; explicit '' / 'off' = opt out
   return v !== '' && v !== 'off';
+}
+
+// --- Public showcase listing ------------------------------------------------------------------
+// Opt-OUT flag for the "Clans on Anvil" page on the Anvil site (anvilosrs.com/clans): when on, the
+// unauthenticated GET /api/public/showcase serves this clan's name + a handful of aggregate counts
+// so the operator's page can show who actually runs Anvil. Never any member, RSN or Discord data —
+// see the route for the exact payload.
+//
+// Default ON (absent row ⇒ listed), because the page only ever reaches instances the operator hosts
+// or that already advertise themselves in the federation directory. Stored as the explicit strings
+// 'on'/'off': the settings PUT folds '' to NULL, which would read back as the default.
+export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
+
+export async function getPublicShowcase(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, PUBLIC_SHOWCASE_KEY) });
+  const v = row?.value; // default (no row) = listed; explicit 'off' opts out
+  return v !== 'off';
 }
 
 // Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting

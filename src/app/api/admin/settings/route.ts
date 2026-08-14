@@ -26,6 +26,8 @@ const EXPOSED_KEYS = [
   'webhook_combat_achievements',
   'webhook_pvp_kills',
   'webhook_clips',
+  'webhook_leagues',
+  'leagues_icon_url',
   'always_notify_items',
   'show_kill_count',
   // Clan-wide floor (1-in-N) on rarity-triggered drop posts; members can be stricter, not looser.
@@ -66,6 +68,9 @@ const EXPOSED_KEYS = [
   'federation_enabled', // 'on' | '' (off) — master switch
   'federation_accept_writes', // 'on' | 'off' — accept INBOUND cross-clan relayed credit writes (default on)
   'federation_broker_url', // optional override of the FEDERATION_BROKER_URL env default
+  // Whether GET /api/public/showcase serves this clan's name + aggregate counts to the operator's
+  // public "clans on Anvil" page. 'on' | 'off' — default on (see getPublicShowcase).
+  'public_showcase',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

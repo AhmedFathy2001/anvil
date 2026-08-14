@@ -183,6 +183,19 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               channels={channels}
               botEnabled={botEnabled}
             />
+            <WebhookField
+              settingKey="webhook_leagues"
+              label="Leagues channel"
+              helpText="While a member is on a seasonal (Leagues) world, ALL their notifications go here instead of the channels above — league drops and kill counts are meaningless next to main-game ones, and mixing them makes both channels unreadable. Leave blank to keep everything in the normal channels; seasonal posts are marked either way."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <PlainSetting
+              settingKey="leagues_icon_url"
+              label="Leagues icon (optional)"
+              placeholder="https://oldschool.runescape.wiki/images/..."
+              helpText="Thumbnail on seasonal posts. Left blank, Anvil looks up the current league's logo from the wiki once a day and falls back to the generic Leagues icon if it can't. Set this to pin a specific image."
+            />
           </Card>
         </div>
       )}

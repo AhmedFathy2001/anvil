@@ -70,7 +70,28 @@ on this so it isn't confused by a self-hosted site that predates the feature);
 `activity-stats` (`POST /api/plugin/stats` accepts an `activities: [{key, value}]` array
 alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill);
 `clip-relay` (`POST /api/plugin/clip` uploads a saved OBS clip and the server posts it to
-the clan's clips channel).
+the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
+`seasonal: true`).
+
+### `leagues-channel`
+
+A league is a separate game mode on separate worlds: the drops are absurd by main-game
+standards and the kill counts mean nothing beside them, so mixing both in one channel makes
+both unreadable.
+
+The plugin sends `seasonal: true` alongside the normal `channel` when the logged-in world
+carries `WorldType.SEASONAL`. It reports only WHERE the player is — the server decides what
+that means, so a clan can change the destination without a plugin release:
+
+- Routes to `webhook_leagues` when set, else **falls back to the channel the plugin named**.
+  Routing is an improvement, not a precondition; a post is never dropped for an unset webhook.
+- Marks the embed server-side — `[Seasonal]` on the title, the league's icon as the thumbnail
+  when the embed hasn't set one. Applied after the embed is composed, so every notification
+  kind is marked without the plugin knowing about each, and clients already in the wild get
+  it on deploy.
+
+The icon is the `leagues_icon_url` setting when set; otherwise the current league's logo is
+resolved from the wiki once a day, falling back to the generic Leagues icon.
 
 ### `clip-relay`
 

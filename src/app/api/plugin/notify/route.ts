@@ -3,6 +3,7 @@ import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
+import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
@@ -29,6 +30,21 @@ function webhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
   // A channel setting may hold multiple webhook URLs — cycle across them to spread load and dodge
   // Discord's per-webhook rate limit on busy clans.
   return pickWebhookUrl(webhooks[channel], `plugin:${channel}`);
+}
+
+/**
+ * Where a SEASONAL (Leagues) post goes.
+ *
+ * League drops are absurd by main-game standards and their kill counts mean nothing next to them,
+ * so mixing the two makes both channels useless to read — a clan can point them at their own
+ * channel. Falls back to the normal channel when they haven't: routing is an improvement, not a
+ * precondition, and a post should never be lost because a webhook is unset.
+ *
+ * The plugin only reports that the player is ON a seasonal world; which channel that means is
+ * decided here, so a clan can change it without waiting for a plugin release.
+ */
+function seasonalWebhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
+  return pickWebhookUrl(webhooks.leagues, 'plugin:leagues') ?? webhookFor(webhooks, channel);
 }
 
 // A player-facing RSN for the embed's author line. Every plugin request already carries the account
@@ -74,6 +90,8 @@ export async function POST(request: Request) {
   let content: string | undefined;
   let embed: Record<string, unknown> | undefined;
   let image: { bytes: ArrayBuffer; filename: string } | null = null;
+  // Player is on a Leagues world — the plugin reports the fact, this route decides what it means.
+  let seasonal = false;
 
   const contentType = request.headers.get('content-type') || '';
   try {
@@ -81,10 +99,11 @@ export async function POST(request: Request) {
       const form = await request.formData();
       const raw = form.get('payload_json');
       if (typeof raw === 'string') {
-        const parsed = JSON.parse(raw) as { channel?: unknown; content?: string; embed?: Record<string, unknown> };
+        const parsed = JSON.parse(raw) as { channel?: unknown; content?: string; embed?: Record<string, unknown>; seasonal?: unknown };
         channel = parsed.channel;
         content = parsed.content;
         embed = parsed.embed;
+        seasonal = parsed.seasonal === true;
       }
       const file = form.get('file');
       if (file instanceof File) {
@@ -94,10 +113,11 @@ export async function POST(request: Request) {
         image = { bytes: await file.arrayBuffer(), filename: file.name || 'image.png' };
       }
     } else {
-      const parsed = (await request.json()) as { channel?: unknown; content?: string; embed?: Record<string, unknown> };
+      const parsed = (await request.json()) as { channel?: unknown; content?: string; embed?: Record<string, unknown>; seasonal?: unknown };
       channel = parsed.channel;
       content = parsed.content;
       embed = parsed.embed;
+      seasonal = parsed.seasonal === true;
     }
   } catch {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
@@ -108,7 +128,7 @@ export async function POST(request: Request) {
   }
 
   const webhooks = await getNotificationWebhooks();
-  const url = webhookFor(webhooks, channel);
+  const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
   if (!url) {
     // No webhook configured for this channel — nothing to forward. Not an error; the plugin gates on
     // the notify flags from /api/plugin/config, but they can race a webhook being cleared on the site.
@@ -117,18 +137,25 @@ export async function POST(request: Request) {
 
   // Deaths and PvP kills arrive as plain text + a screenshot; give them the same embed treatment as
   // everything else. Skipped the moment the plugin sends its own embed for these channels.
-  if (!embed && content && (channel === 'deaths' || channel === 'pvpKills')) {
-    const built = playerEventEmbed({
+  let finalEmbed: Record<string, unknown> | null = embed ?? null;
+  let finalContent = content;
+  if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
+    finalEmbed = playerEventEmbed({
       kind: channel === 'deaths' ? 'death' : 'pvp_kill',
       rsn: await posterRsn(request, auth.userId),
       message: content,
       imageFilename: image?.filename ?? null,
-    });
+    }) as unknown as Record<string, unknown>;
     // The message moves into the embed's description, so don't also post it as content.
-    const ok = await forwardPluginNotification(url, { embed: built as unknown as Record<string, unknown>, attachment: image });
-    return NextResponse.json({ ok });
+    finalContent = undefined;
   }
 
-  const ok = await forwardPluginNotification(url, { content, embed: embed ?? null, attachment: image });
+  // Marked server-side, after the embed is composed, so EVERY notification kind gets it without the
+  // plugin knowing about each one — and clients already in the wild get it on deploy.
+  if (seasonal) {
+    finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl());
+  }
+
+  const ok = await forwardPluginNotification(url, { content: finalContent, embed: finalEmbed, attachment: image });
   return NextResponse.json({ ok });
 }
