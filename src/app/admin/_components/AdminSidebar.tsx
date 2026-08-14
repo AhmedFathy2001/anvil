@@ -8,7 +8,12 @@ export interface SidebarItem {
   href: string;
   label: string;
   icon: string;
-  badge?: number;
+  /** A number badge (hidden at 0) or a short word — 'read-only', '0 of 8', 'unpaid'. */
+  badge?: number | string;
+  /** Amber badge: this one is waiting on someone. */
+  attn?: boolean;
+  /** Reachable, but not part of the job at hand — an event's Payouts before it has ended. */
+  quiet?: boolean;
   matchPrefix?: boolean; // highlight when pathname starts with href
 }
 
@@ -106,15 +111,23 @@ export default function AdminSidebar({ groups, user }: Props) {
                           className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                             active
                               ? 'bg-gold/15 text-gold border border-gold/30'
-                              : 'text-text-muted hover:text-foreground hover:bg-brown-light border border-transparent'
+                              : item.quiet
+                                ? 'text-text-muted/55 hover:text-foreground hover:bg-brown-light border border-transparent'
+                                : 'text-text-muted hover:text-foreground hover:bg-brown-light border border-transparent'
                           }`}
                         >
                           <span className="flex items-center gap-2 min-w-0">
                             <span className={active ? 'text-gold' : 'opacity-70'}>{item.icon}</span>
                             <span className="truncate">{item.label}</span>
                           </span>
-                          {item.badge != null && item.badge > 0 && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-yellow-500/20 text-yellow-400">
+                          {item.badge != null && item.badge !== 0 && item.badge !== '' && (
+                            <span
+                              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${
+                                item.attn
+                                  ? 'bg-yellow-500/20 text-yellow-400'
+                                  : 'bg-white/[0.06] text-text-muted'
+                              }`}
+                            >
                               {item.badge}
                             </span>
                           )}

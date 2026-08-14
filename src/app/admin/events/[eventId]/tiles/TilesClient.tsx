@@ -2,7 +2,7 @@
 
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
@@ -94,6 +94,22 @@ interface Props {
   editLocked?: boolean;
 }
 
+/**
+ * True on screens wide enough to keep the tile list AND its editor on screen at once.
+ * SSR renders false, so the first paint is the phone layout and never a mismatched desktop one.
+ */
+function useHasRoomForInspector(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return wide;
+}
+
 export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +134,30 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   );
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
+
+  // Multi-select for bulk edits. Shift-click extends from the last tile you touched, so "these
+  // twenty are all worth 5" is one gesture rather than twenty drawers. Only the fields that are
+  // safe to change on a live board are offered (see the bulk route).
+  const inspectorDocked = useHasRoomForInspector();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [lastPickedId, setLastPickedId] = useState<number | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState('');
+
+  // ?tile=<id> opens straight into that tile's editor. It's how the live board's "fix something"
+  // panel hands you the misconfigured tile — landing on a 150-tile list and hunting for #48 is the
+  // difference between fixing it now and fixing it later.
+  const searchParams = useSearchParams();
+  const requestedTileId = searchParams.get('tile');
+  const openedFromUrl = useRef(false);
+  useEffect(() => {
+    if (openedFromUrl.current || !requestedTileId) return;
+    const id = parseInt(requestedTileId, 10);
+    if (!Number.isFinite(id)) return;
+    openedFromUrl.current = true;
+    setViewMode('cards');
+    setEditingTileId(id);
+  }, [requestedTileId]);
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
@@ -227,6 +267,71 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }, [editingTileId, event.id]);
 
   // Only hand the editor the freshly-fetched row — the page-load list may be stale.
+  /**
+   * Click opens a tile; ctrl/cmd-click adds it to a selection; shift-click takes the run between
+   * the last one you touched and this one. Once anything is selected, a plain click keeps
+   * selecting — otherwise every attempt to add a fifth tile would slam the drawer open instead.
+   */
+  function pickTile(tileId: number, e: React.MouseEvent) {
+    const additive = e.metaKey || e.ctrlKey;
+    const ranged = e.shiftKey;
+
+    if (ranged && lastPickedId != null) {
+      const order = filteredTiles.map((t) => t.id);
+      const from = order.indexOf(lastPickedId);
+      const to = order.indexOf(tileId);
+      if (from !== -1 && to !== -1) {
+        const run = order.slice(Math.min(from, to), Math.max(from, to) + 1);
+        setSelectedIds((prev) => new Set([...prev, ...run]));
+        setLastPickedId(tileId);
+        return;
+      }
+    }
+
+    if (additive || selectedIds.size > 0) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(tileId)) next.delete(tileId);
+        else next.add(tileId);
+        return next;
+      });
+      setLastPickedId(tileId);
+      return;
+    }
+
+    setLastPickedId(tileId);
+    setEditingTileId(tileId);
+  }
+
+  /** Apply one field to every selected tile (points, category, optional, auto-credit, reveal). */
+  async function bulkSet(set: Record<string, unknown>, describe: string) {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setBulkMsg('');
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles/bulk`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileIds: ids, set }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBulkMsg(data.error || 'That did not save.');
+        return;
+      }
+      setLocalTiles((prev) =>
+        prev.map((t) => (selectedIds.has(t.id) ? ({ ...t, ...set, updatedAt: data.updatedAt } as Tile) : t)),
+      );
+      setBulkMsg(`${describe} on ${data.updated} tile${data.updated === 1 ? '' : 's'}.`);
+      router.refresh();
+    } catch {
+      setBulkMsg('That did not save.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   const editingTile = editingTileId != null && editingFresh?.id === editingTileId ? editingFresh : null;
   const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
@@ -1225,25 +1330,113 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           {filteredTiles.length > visibleTiles.length && ` · displaying first ${visibleTiles.length}`}
         </p>
 
+        {selectedIds.size > 0 && (
+          <div className="sticky top-2 z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
+            <span className="text-sm font-semibold text-gold-light">
+              {selectedIds.size} selected
+            </span>
+            <span className="text-xs text-text-muted hidden sm:inline">shift-click for a run</span>
+
+            {pointsMode && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => {
+                  const raw = prompt(`Points for ${selectedIds.size} tiles?`);
+                  if (raw === null) return;
+                  const points = parseInt(raw, 10);
+                  if (!Number.isInteger(points) || points < 0) return;
+                  void bulkSet({ points }, `Set ${points} pt${points === 1 ? '' : 's'}`);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+              >
+                Set points
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => {
+                const category = prompt(`Category for ${selectedIds.size} tiles? (blank clears it)`);
+                if (category === null) return;
+                void bulkSet({ category: category.trim() || null }, category.trim() ? `Set “${category.trim()}”` : 'Cleared the category');
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Set category
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ optional: true }, 'Marked optional')}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Mark optional
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ optional: false }, 'Marked required')}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Mark required
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ autoTrackDisabled: true }, 'Switched to complete-by-hand')}
+              title="Stop these tiles crediting themselves — a captain or admin completes them by hand. The escape hatch when tracking is unreliable mid-event."
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Complete by hand
+            </button>
+
+            <span className="flex-1" />
+            {bulkMsg && <span className="text-xs text-text-muted">{bulkMsg}</span>}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds(new Set());
+                setBulkMsg('');
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg text-text-muted hover:text-foreground transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {filteredTiles.length === 0 ? (
           <div className="border border-card-border rounded-xl p-8 bg-card-bg text-center text-sm text-text-muted">
             No tiles match your search.
           </div>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 transition-[padding] ${
+            editingTile && inspectorDocked ? 'xl:grid-cols-3 xl:pr-[26rem]' : 'xl:grid-cols-4'
+          }`}
+        >
           {visibleTiles.map((tile) => {
             const k = tileKind(tile);
             const isEditing = editingTileId === tile.id;
+            const isSelected = selectedIds.has(tile.id);
             return (
               <button
                 key={tile.id}
-                onClick={() => setEditingTileId(tile.id)}
+                onClick={(e) => pickTile(tile.id, e)}
                 className={`text-left border rounded-xl p-3 bg-card-bg hover:bg-card-bg-hover transition-colors flex flex-col gap-1.5 ${
-                  isEditing ? 'border-gold ring-1 ring-gold/40' : 'border-card-border hover:border-gold/40'
+                  isEditing
+                    ? 'border-gold ring-1 ring-gold/40'
+                    : selectedIds.has(tile.id)
+                      ? 'border-gold/60 bg-gold/[0.07]'
+                      : 'border-card-border hover:border-gold/40'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono text-text-muted shrink-0">#{tile.position + 1}</span>
+                  <span className="text-xs font-mono shrink-0 flex items-center gap-1.5">
+                    {isSelected && <span className="text-gold" aria-hidden>✓</span>}
+                    <span className="text-text-muted">#{tile.position + 1}</span>
+                  </span>
                   <div className="flex items-center gap-1 flex-wrap justify-end">
                     {pointsMode && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
@@ -1292,6 +1485,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       {/* Configuration drawer — Cards view only. In Quick Build the editor is the right pane. */}
       {viewMode === 'cards' && editingTile && (
         <TileConfigDrawer
+          docked={inspectorDocked}
           key={editingTile.id}
           tile={editingTile}
           eventId={event.id}
@@ -1692,6 +1886,8 @@ function RevealAtEditor({
 
 interface DrawerProps {
   tile: Tile;
+  /** Wide screens dock the editor beside the board instead of covering it. */
+  docked?: boolean;
   eventId: number;
   eventStarted: boolean;
   isAdmin?: boolean;
@@ -1712,26 +1908,34 @@ interface DrawerProps {
   revealEditor?: React.ReactNode;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+    <div className={`fixed inset-0 z-40 flex justify-end ${docked ? 'pointer-events-none' : ''}`}>
+      {/* Only a covering drawer needs a backdrop. Docked, the board stays visible AND clickable:
+          picking another tile moves the inspector rather than making you close it first. */}
+      {!docked && (
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
       <div
         ref={ref}
         role="dialog"
-        aria-modal="true"
+        aria-modal={docked ? undefined : 'true'}
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative h-full w-full max-w-md bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide"
+        className={`relative w-full max-w-md bg-card-bg border-card-border shadow-2xl flex flex-col focus:outline-none pointer-events-auto ${
+          docked
+            ? 'my-4 mr-4 max-h-[calc(100vh-2rem)] rounded-xl border'
+            : 'h-full border-l animate-drawer-slide'
+        }`}
       >
         {/* Header */}
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">

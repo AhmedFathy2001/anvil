@@ -3,6 +3,16 @@ import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/sche
 import { count, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser } from '@/lib/eventEditors';
+import { eventTileCount } from '@/lib/utils';
+import {
+  getAttentionItems,
+  getPastEventResults,
+  getPastWeeklyResults,
+  getRunningEventSummaries,
+  getSetupProgress,
+  setupAttentionItems,
+  type AttentionItem,
+} from '@/lib/adminEventsOverview';
 import EventsClient, { type ListItem } from './EventsClient';
 
 export const dynamic = 'force-dynamic';
@@ -62,13 +72,14 @@ export default async function AdminEventsPage() {
     forceEndedAt: e.forceEndedAt,
     createdAt: e.createdAt,
     teamCount: teamCounts[e.id] ?? 0,
+    tilesRevealed: !!e.tilesRevealed,
   }));
 
   const weeklyItems: ListItem[] = allWeekly.map((w) => ({
     kind: 'weekly',
     id: w.id,
     title: w.title,
-    type: w.type === 'boss' ? 'boss' : 'skill',
+    type: w.type === 'boss' ? 'boss' : w.type === 'efficiency' ? 'efficiency' : 'skill',
     metric: w.metric,
     status: w.status,
     startDate: w.startDate,
@@ -82,17 +93,83 @@ export default async function AdminEventsPage() {
       ? !!item.forceEndedAt || (!!item.endDate && item.endDate < now)
       : item.status === 'completed';
 
-  // Active list keeps newest-first; sort by the date the thing runs (falling back
-  // to creation time for never-scheduled draft events).
+  // "Running" is narrower than "not past": a board with no start date, or one scheduled for next
+  // week, is being SET UP — a different job, and a different card.
+  const isRunning = (item: ListItem) =>
+    item.kind === 'event'
+      ? !isPast(item) && !!item.startDate && item.startDate <= now
+      : item.status === 'active';
+
   const sortKey = (item: ListItem) =>
     item.kind === 'event' ? item.startDate ?? item.createdAt : item.startDate;
   const byDateDesc = (a: ListItem, b: ListItem) => (sortKey(a) < sortKey(b) ? 1 : -1);
+  const byDateAsc = (a: ListItem, b: ListItem) => (sortKey(a) < sortKey(b) ? -1 : 1);
 
   const all: ListItem[] = [...eventItems, ...weeklyItems];
-  const active = all.filter((i) => !isPast(i)).sort(byDateDesc);
+  const running = all.filter(isRunning).sort(byDateAsc);
+  // Scheduled things first, soonest first; undated drafts fall to the end — a board with a date on
+  // it is the one with a deadline attached.
+  const upcoming = all
+    .filter((i) => !isPast(i) && !isRunning(i))
+    .sort((a, b) => {
+      if (!!a.startDate !== !!b.startDate) return a.startDate ? -1 : 1;
+      return byDateAsc(a, b);
+    });
   const past = all.filter(isPast).sort(byDateDesc);
 
   const canManage = session?.role === 'admin';
 
-  return <EventsClient active={active} past={past} canManage={canManage} />;
+  // ---- the numbers ------------------------------------------------------------------------
+  // Editors don't get the operational reads: they author tiles, and every href in the attention
+  // strip points at a tab their role can't open anyway.
+  const runningEventRows = allEvents.filter((e) => running.some((r) => r.kind === 'event' && r.id === e.id));
+  const upcomingEventRows = allEvents.filter((e) => upcoming.some((u) => u.kind === 'event' && u.id === e.id));
+  const pastEventIds = past.filter((p) => p.kind === 'event').map((p) => p.id);
+  const pastWeeklyIds = past.filter((p) => p.kind === 'weekly').map((p) => p.id);
+
+  const [summaries, setup, pastResults, pastWeekly] = await Promise.all([
+    getRunningEventSummaries(runningEventRows.map((e) => ({ id: e.id, scoringMode: e.scoringMode }))),
+    getSetupProgress(
+      upcomingEventRows.map((e) => ({
+        id: e.id,
+        expectedTiles: eventTileCount(e.format, e.scoringMode, e.boardSize),
+        draftStatus: e.draftStatus,
+        hasDates: !!e.startDate && !!e.endDate,
+      })),
+    ),
+    getPastEventResults(pastEventIds),
+    getPastWeeklyResults(pastWeeklyIds),
+  ]);
+
+  let attention: AttentionItem[] = [];
+  if (canManage) {
+    attention = await getAttentionItems({
+      liveEventIds: runningEventRows.map((e) => e.id),
+      upcomingEventIds: upcomingEventRows.map((e) => e.id),
+      endedEventIds: pastEventIds,
+    });
+    for (const e of upcomingEventRows) {
+      const progress = setup.get(e.id);
+      if (progress) attention.push(...setupAttentionItems(e, progress));
+    }
+    // Urgent first, then whatever came back in query order. Six is a strip; more is a report,
+    // and the rest are one click away on the event itself.
+    const rank = { urgent: 0, warn: 1, info: 2 } as const;
+    attention.sort((a, b) => rank[a.severity] - rank[b.severity]);
+    attention = attention.slice(0, 6);
+  }
+
+  return (
+    <EventsClient
+      running={running}
+      upcoming={upcoming}
+      past={past}
+      canManage={canManage}
+      summaries={Object.fromEntries(summaries)}
+      setup={Object.fromEntries(setup)}
+      pastResults={Object.fromEntries(pastResults)}
+      pastWeekly={Object.fromEntries(pastWeekly)}
+      attention={attention}
+    />
+  );
 }

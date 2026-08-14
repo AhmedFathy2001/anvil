@@ -9,12 +9,38 @@ import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
+import DateRangeField from '@/components/DateRangeField';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 
 interface EventFormProps {
   presets?: EventPreset[];
   suggestedName?: string;
+}
+
+/** One "this costs you" row in the panel. */
+function SpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 py-1 border-b border-gold/10 last:border-b-0">
+      <dt className="text-text-muted">{label}</dt>
+      <dd className="text-right text-foreground/90">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * The coming Saturday at 18:00 local, through the Sunday night after it.
+ * `weeksAhead` shifts it whole weeks for the longer presets.
+ */
+function weekendSlot(weeksAhead: number): { start: string; end: string } {
+  const start = new Date();
+  const daysUntilSaturday = (6 - start.getDay() + 7) % 7 || 7;
+  start.setDate(start.getDate() + daysUntilSaturday + weeksAhead * 7);
+  start.setHours(18, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setHours(22, 0, 0, 0);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 /** A titled block of related controls — the form is long enough that flat stacking stopped reading. */
@@ -63,6 +89,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [presetCsv, setPresetCsv] = useState<{ rows: TileCsvRow[]; labels: string[]; source: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Schedule, set here rather than after the fact. An event created without dates lands in the
+  // events list as "no dates yet" — legitimate for a draft, a nuisance when you knew the dates all
+  // along and had to open Settings to say so.
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [customDates, setCustomDates] = useState(false);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
   // a random draw from the clan's task library.
   const [startFrom, setStartFrom] = useState<'blank' | 'template' | 'generate'>('blank');
@@ -76,6 +108,21 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   // How many tiles this board will actually have — N² for a square grid, N otherwise. The generator
   // draws against this number, and the create API rejects a mismatch.
   const expectedTiles = meta.square ? size * size : size;
+
+  // The three things you'll do after pressing create, in this format's terms.
+  const nextSteps = [
+    presetCsv || presetLabels || drawn
+      ? `Check the ${expectedTiles} tiles that came with it`
+      : expectedTiles > 40
+        ? `Author ${expectedTiles} tiles — the spreadsheet round-trip is faster past forty`
+        : `Author ${expectedTiles} tiles — paste a list, or draw from your library`,
+    meta.chips[0] === 'individual'
+      ? 'Set the rotation — how many tasks are open, and for how long'
+      : effectivePolicy && effectivePolicy !== 'all'
+        ? 'Set when tiles open, then build teams'
+        : 'Build teams — draft with an order, or assign from the roster',
+    startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
+  ];
 
   function changeMode(next: Mode) {
     const m = MODES.find((x) => x.key === next)!;
@@ -143,6 +190,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           maxAccountsPerPerson: maxAccounts,
           accountSlotMode,
           feeMode,
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
           ...(effectivePolicy
             ? {
                 rules: {
@@ -594,28 +643,117 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
 
         {/* Live preview — what the choices above actually produce. Sticky on wide screens so it
             stays in view while the config scrolls past it. */}
-        <aside className="lg:sticky lg:top-4">
+        <aside className="lg:sticky lg:top-4 space-y-3">
           <div className="border border-gold/25 rounded-xl bg-gold/5 p-4">
             <h3 className="text-[11px] uppercase tracking-widest text-text-muted mb-3">You&apos;ll get</h3>
-            <div className="flex justify-center py-2 mb-3">
+            <div className="flex justify-center py-1 mb-3">
               <BoardShape mode={mode} size={size} variant="panel" />
             </div>
             <p className="text-sm font-medium text-gold">{meta.label}</p>
             <p className="text-xs text-text-muted mt-0.5">
               {presetCsv ? `${presetCsv.labels.length} tiles from ${presetCsv.source}` : meta.sizeHelp(size)}
             </p>
-            <p className="text-xs text-text-muted mt-0.5">
-              {meta.chips.join(' · ')}
-              {maxAccounts > 1 ? ` · up to ${maxAccounts} accounts each` : ' · 1 account each'}
-            </p>
-            <ul className="mt-3 space-y-1.5 border-t border-gold/15 pt-3">
-              {meta.how.map((line) => (
-                <li key={line} className="text-xs text-text-muted leading-relaxed flex gap-1.5">
-                  <span aria-hidden className="text-gold/60">•</span>
-                  <span>{line}</span>
+
+            {/* What this format actually costs you in work — the thing you find out the hard way
+                otherwise. Read off the same mode metadata the picker uses. */}
+            <dl className="mt-3 border-t border-gold/15 pt-3 text-xs">
+              <SpecRow label="Tiles to author" value={presetCsv ? 'already written' : String(expectedTiles)} />
+              <SpecRow label="Scoring" value={meta.chips[1]} />
+              <SpecRow
+                label="Teams"
+                value={meta.chips[0] === 'individual' ? 'none needed — no draft' : 'draft, or assign by hand'}
+              />
+              <SpecRow label="Tiles open" value={meta.chips[2]} />
+              <SpecRow label="Entries" value={maxAccounts > 1 ? `up to ${maxAccounts} accounts each` : '1 account each'} />
+            </dl>
+
+            <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
+              {nextSteps.map((step, i) => (
+                <li key={step} className="text-xs text-text-muted leading-relaxed flex gap-2">
+                  <span aria-hidden className="text-gold/70 font-mono">{i + 1}</span>
+                  <span>{step}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
+          </div>
+
+          <div className="border border-card-border rounded-xl bg-card-bg p-4">
+            <h3 className="text-[11px] uppercase tracking-widest text-text-muted mb-2">Runs</h3>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const { start, end } = weekendSlot(0);
+                  setStartDate(start);
+                  setEndDate(end);
+                  setCustomDates(false);
+                }}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                  !customDates && startDate ? 'border-gold/50 text-gold bg-gold/10' : 'border-card-border text-text-muted hover:text-foreground'
+                }`}
+              >
+                This weekend
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { start } = weekendSlot(0);
+                  setStartDate(start);
+                  setEndDate(new Date(Date.parse(start) + 14 * 86_400_000).toISOString());
+                  setCustomDates(false);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
+              >
+                Two weeks
+              </button>
+              <button
+                type="button"
+                onClick={() => setCustomDates((v) => !v)}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                  customDates ? 'border-gold/50 text-gold bg-gold/10' : 'border-card-border text-text-muted hover:text-foreground'
+                }`}
+              >
+                Pick dates…
+              </button>
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setCustomDates(false);
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-lg text-text-muted hover:text-foreground transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {customDates && (
+              <div className="mt-3">
+                <DateRangeField
+                  startIso={startDate}
+                  endIso={endDate}
+                  onChange={({ startIso, endIso }) => {
+                    setStartDate(startIso);
+                    setEndDate(endIso);
+                  }}
+                  allowOpenEnded
+                />
+              </div>
+            )}
+
+            <p className="text-xs text-text-muted mt-2">
+              {startDate ? (
+                <span suppressHydrationWarning>
+                  {new Date(startDate).toLocaleString()}
+                  {endDate ? ` → ${new Date(endDate).toLocaleString()}` : ' → open-ended'}
+                </span>
+              ) : (
+                'No dates — it starts when you say so.'
+              )}
+            </p>
           </div>
         </aside>
       </div>

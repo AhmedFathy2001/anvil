@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { events, tiles, teams } from '@/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { events } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
@@ -9,7 +9,10 @@ import { isEventEditor } from '@/lib/eventEditors';
 import EventTabNav from './EventTabNav';
 import EventTitle from './EventTitle';
 import EventLockBanner from './EventLockBanner';
+import EventLifecycleBar from './EventLifecycleBar';
 import { isEventOver, eventEditLocked } from '@/lib/eventLock';
+import { lifecycleSteps } from '@/lib/eventStage';
+import { getStageCounts } from '@/lib/eventStageCounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,10 +38,11 @@ export default async function EventLayout({
     if (!(await isEventEditor(session.userId, id))) redirect('/admin/events');
   }
 
-  const [[tileCount], [teamCount]] = await Promise.all([
-    db.select({ c: count() }).from(tiles).where(eq(tiles.eventId, id)),
-    db.select({ c: count() }).from(teams).where(eq(teams.eventId, id)),
-  ]);
+  // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
+  const stageCounts = await getStageCounts(id);
+  const steps = lifecycleSteps(event, stageCounts);
+  const tileCount = { c: stageCounts.tileCount };
+  const teamCount = { c: stageCounts.teamCount };
 
   const now = new Date();
   const isForceEnded = !!event.forceEndedAt;
@@ -94,7 +98,22 @@ export default async function EventLayout({
         <span>{teamCount.c} team{teamCount.c !== 1 ? 's' : ''}</span>
       </div>
 
-      <EventTabNav eventId={id} tilesOnly={isEditor} />
+      {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
+          answers the other question — where the event is in its life, and what moves it forward. */}
+      {!isEditor && (
+        <EventLifecycleBar
+          steps={steps}
+          hrefFor={{
+            built: `/admin/events/${id}/settings`,
+            tiles: `/admin/events/${id}/tiles`,
+            teams: `/admin/events/${id}/teams`,
+            running: `/admin/events/${id}`,
+            results: `/admin/events/${id}/stats`,
+            payouts: `/admin/events/${id}/payouts`,
+          }}
+        />
+      )}
+      {isEditor && <EventTabNav eventId={id} tilesOnly />}
 
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
           give admins the explicit unlock/re-lock control. */}

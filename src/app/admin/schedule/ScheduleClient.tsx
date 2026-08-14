@@ -3,29 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
-interface BingoItem {
-  kind: 'bingo';
+// One shape for boards and weeklies alike — see lib/eventIndex.
+interface Item {
+  kind: 'board' | 'weekly';
   id: number;
   title: string;
-  startDate: string;
-  endDate: string;
-  forceEndedAt: string | null;
-  href: string;
-}
-
-interface WeeklyItem {
-  kind: 'weekly';
-  id: number;
-  title: string;
-  type: string;
-  metric: string;
-  status: string;
+  badge: string;
+  status: 'draft' | 'upcoming' | 'running' | 'ended';
   startDate: string;
   endDate: string;
   href: string;
+  headline: string;
 }
-
-type Item = BingoItem | WeeklyItem;
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -50,12 +39,9 @@ function formatMonthYear(d: Date): string {
 }
 
 function classForItem(item: Item): string {
-  if (item.kind === 'bingo') {
-    if (item.forceEndedAt) return 'bg-red-500/20 text-red-300 border-red-500/40';
-    return 'bg-gold/20 text-gold border-gold/40';
-  }
-  if (item.status === 'active') return 'bg-accent-green/20 text-accent-green-light border-accent-green/40';
+  if (item.status === 'running') return 'bg-accent-green/20 text-accent-green-light border-accent-green/40';
   if (item.status === 'upcoming') return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+  if (item.kind === 'weekly') return 'bg-purple-400/20 text-purple-300 border-purple-400/40';
   return 'bg-text-muted/20 text-text-muted border-text-muted/40';
 }
 
@@ -66,14 +52,8 @@ export default function ScheduleClient() {
 
   useEffect(() => {
     fetch('/api/admin/schedule')
-      .then((r) => (r.ok ? r.json() : { bingos: [], weeklies: [] }))
-      .then((data) => {
-        const combined: Item[] = [
-          ...(data.bingos as BingoItem[]),
-          ...(data.weeklies as WeeklyItem[]),
-        ];
-        setItems(combined);
-      })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data) => setItems((data.items ?? []) as Item[]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -208,7 +188,7 @@ export default function ScheduleClient() {
                     href={it.href}
                     className={`block truncate px-1.5 py-0.5 border rounded text-[10px] ${classForItem(it)}`}
                   >
-                    {it.kind === 'bingo' ? '🎯 ' : '🏆 '}
+                    {it.kind === 'board' ? '🎯 ' : '🏆 '}
                     {it.title}
                   </Link>
                 ))}
@@ -242,7 +222,9 @@ export default function ScheduleClient() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">{it.kind === 'bingo' ? '🎯 Bingo' : '🏆 Weekly'}</span>
+                    <span className="text-xs text-text-muted">
+                      {it.kind === 'board' ? '🎯' : '🏆'} {it.badge} · {it.headline}
+                    </span>
                     <span className="font-semibold">{it.title}</span>
                     {it.kind === 'weekly' && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded border ${classForItem(it)}`}>
