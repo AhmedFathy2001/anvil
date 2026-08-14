@@ -7,6 +7,7 @@ import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventStage } from '@/lib/eventStage';
 import { getRecordedTeamResults } from '@/lib/adminEventsOverview';
+import { getEventRecap } from '@/lib/eventRecap';
 import { getStageCounts } from '@/lib/eventStageCounts';
 
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,17 @@ export default async function EventOverviewPage({
   // A finished event shows what was BANKED, not what recomputes today — the same rows a member's
   // trophies read from, so the two can never disagree about who won.
   const recorded = stage === 'wrap' ? await getRecordedTeamResults(id) : [];
+  // The superlatives already exist for the Discord recap post — a finished event's own page is the
+  // one place they were never shown.
+  const recap = stage === 'wrap' ? await getEventRecap(id).catch(() => null) : null;
+  const awards = (recap?.awards ?? []).slice(0, 4).map((a) => ({
+    key: a.key,
+    emoji: a.emoji,
+    title: a.title,
+    winner: a.winner.name,
+    value: a.winner.valueLabel,
+    team: a.winner.teamName,
+  }));
 
   // "Held" is narrower than "not ready": the scheduled start has actually come and gone while the
   // event was unstartable, and the cron has been pushing the date forward. The Build checklist
@@ -75,6 +87,7 @@ export default async function EventOverviewPage({
         stage={stage}
         counts={counts}
         recorded={recorded}
+        awards={awards}
         tierBands={tierBands}
       />
     </>

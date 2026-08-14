@@ -17,6 +17,16 @@ import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
 
+/** One superlative, flattened for display — see lib/eventRecap. */
+export interface RecapAwardSummary {
+  key: string;
+  emoji: string;
+  title: string;
+  winner: string;
+  value: string;
+  team: string | null;
+}
+
 interface Props {
   event: Event;
   tiles: Tile[];
@@ -26,6 +36,8 @@ interface Props {
   counts: StageCounts;
   /** Finished events only: the standings as recorded when the event ended (lib/adminEventsOverview). */
   recorded?: RecordedTeamResult[];
+  /** Finished events only: the top superlatives (lib/eventRecap), already formatted. */
+  awards?: RecapAwardSummary[];
   tierBands?: TierBand[];
 }
 
@@ -47,6 +59,7 @@ export default function OverviewClient({
   stage,
   counts,
   recorded = [],
+  awards = [],
   tierBands = DEFAULT_TIER_BANDS,
 }: Props) {
   const router = useRouter();
@@ -172,6 +185,7 @@ export default function OverviewClient({
           counts={counts}
           standings={standings}
           recorded={recorded}
+          awards={awards}
           pointsMode={pointsMode}
           onEventChange={(e) => {
             setCurrentEvent(e);
@@ -606,6 +620,7 @@ function WrapHome({
   counts,
   standings,
   recorded,
+  awards,
   pointsMode,
   onEventChange,
 }: {
@@ -613,6 +628,7 @@ function WrapHome({
   counts: StageCounts;
   standings: { team: Team; score: number; tiles: number }[];
   recorded: RecordedTeamResult[];
+  awards: RecapAwardSummary[];
   pointsMode: boolean;
   onEventChange: (e: Event) => void;
 }) {
@@ -707,9 +723,38 @@ function WrapHome({
         <NextStep
           href={`${base}/stats`}
           title="The story"
-          detail="MVP, biggest drop and the per-member breakdown behind the result."
+          detail={
+            awards.length > 0
+              ? `${awards.length} award${awards.length === 1 ? '' : 's'} worked out — plus the per-member breakdown.`
+              : 'The per-member breakdown behind the result.'
+          }
         />
       </div>
+
+      {awards.length > 0 && (
+        <section className="border border-card-border rounded-xl bg-card-bg p-5">
+          <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
+            <span className="w-1 h-5 bg-violet-400 rounded-full" />
+            Worth telling people
+          </h2>
+          <p className="text-sm text-text-muted mb-3">
+            Worked out from what actually happened — the same awards the recap post uses.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {awards.map((a) => (
+              <div key={a.key} className="flex items-center gap-3 p-3 rounded-lg border border-card-border bg-black/15">
+                <span aria-hidden className="text-lg flex-shrink-0">{a.emoji}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] uppercase tracking-wider text-text-muted/70">{a.title}</span>
+                  <span className="block text-sm font-medium truncate">{a.winner}</span>
+                  {a.team && <span className="block text-[11px] text-text-muted truncate">{a.team}</span>}
+                </span>
+                <span className="text-xs tabular-nums text-gold flex-shrink-0">{a.value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5">
         <h2 className="text-lg font-bold flex items-center gap-2 mb-3">
