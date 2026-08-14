@@ -30,6 +30,8 @@ interface Props {
   endIso: string;
   onChange: (next: { startIso: string; endIso: string }) => void;
   required?: boolean;
+  /** Offer "No end date" — for events that may legitimately run until someone ends them. */
+  allowOpenEnded?: boolean;
 }
 
 function isoToLocalInput(iso: string): string {
@@ -66,7 +68,7 @@ function diffDays(startIso: string, endIso: string): number | null {
   return Math.abs(days - Math.round(days)) < 0.001 ? Math.round(days) : null;
 }
 
-export default function DateRangeField({ startIso, endIso, onChange, required }: Props) {
+export default function DateRangeField({ startIso, endIso, onChange, required, allowOpenEnded = false }: Props) {
   // Default to "duration" when the caller already has a clean whole-day delta, otherwise
   // assume the user is editing precise dates and start in "range" mode.
   const initialMode: 'range' | 'duration' = diffDays(startIso, endIso) != null ? 'duration' : 'range';
@@ -158,7 +160,20 @@ export default function DateRangeField({ startIso, endIso, onChange, required }:
 
       {mode === 'range' ? (
         <div>
-          <label className="block text-xs text-text-muted mb-1">End</label>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <label className="text-xs text-text-muted">End</label>
+            {/* An open-ended run is a real setup (a ladder that cycles monthly), not a mistake to
+                block — so it's one click away, with the consequence spelled out below. */}
+            {allowOpenEnded && (
+              <button
+                type="button"
+                onClick={() => onChange({ startIso, endIso: endIso ? '' : addDays(startIso || new Date().toISOString(), 7) })}
+                className="text-[11px] text-text-muted hover:text-gold underline-offset-2 hover:underline"
+              >
+                {endIso ? 'No end date' : 'Set an end date'}
+              </button>
+            )}
+          </div>
           <DateTimePicker
             value={endIso}
             onChange={(iso) => onChange({ startIso, endIso: iso })}
@@ -166,6 +181,12 @@ export default function DateRangeField({ startIso, endIso, onChange, required }:
             ariaLabel="End date and time"
             required={required}
           />
+          {allowOpenEnded && !endIso && (
+            <p className="text-[11px] text-gold/90 mt-1.5 leading-relaxed">
+              No end date — this runs until you end it yourself. Nothing closes it automatically, and
+              end-of-event posts, payouts and the recap wait for that.
+            </p>
+          )}
         </div>
       ) : (
         <div>
