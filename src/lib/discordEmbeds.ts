@@ -163,20 +163,40 @@ export function clipEmbed(opts: {
   seconds?: number | null;
 }): DiscordEmbed {
   const { rsn, moment, eventName, seconds } = opts;
+  // The moment arrives newest-first, one per line. Its FIRST line is the headline — that's what the
+  // clip is of — so it becomes the title, where a generic "Clip saved" used to sit telling nobody
+  // anything. Remaining lines stay as the description: context for what else the window caught.
+  const lines = (moment ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const [headline, ...rest] = lines;
+
   const embed: DiscordEmbed = {
-    title: '🎬 Clip saved',
+    title: clamp(headline ?? '🎬 Clip saved', LIMIT.title),
     color: EMBED_COLOR.violet,
   };
-  if (moment && moment.trim()) {
-    embed.description = clamp(moment.trim(), LIMIT.description);
-  } else if (eventName) {
-    embed.description = `Clipped during ${clamp(eventName, 200)}.`;
-  }
   if (rsn) embed.author = { name: clamp(rsn, LIMIT.author) };
-  const fields: DiscordEmbedField[] = [];
-  if (eventName && moment) fields.push(field('Event', clamp(eventName, LIMIT.fieldValue)));
-  if (seconds && seconds > 0) fields.push(statField('Length', `${seconds}s`));
-  if (fields.length) embed.fields = fields;
+
+  // Context line: the event and the footage length, italicised and folded into the description
+  // rather than each taking a field. Both are secondary to what happened — and length especially,
+  // since Discord's own player already shows it under the embed. A whole field row for "30s" was
+  // the single emptiest thing in the post.
+  const body: string[] = [...rest];
+  // Nothing notable happened: name the event in a sentence instead of leaving a bare title — and
+  // then keep it OUT of the context line below, so it isn't said twice.
+  const noMoment = !headline;
+  if (noMoment && eventName) body.push(`Clipped during ${clamp(eventName.trim(), 200)}.`);
+  const context = [
+    noMoment ? null : eventName?.trim(),
+    seconds && seconds > 0 ? `${seconds}s` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  if (context) body.push(`-# ${context}`); // Discord subtext — smaller and muted
+
+  const description = body.join('\n').trim();
+  if (description) embed.description = clamp(description, LIMIT.description);
   return embed;
 }
 
