@@ -2036,7 +2036,23 @@ export default function TileTrackingConfig({
               members were in is worth, and whether it counts at all. Meaningless on an individual
               board — there are no teammates to share a kill with. */}
           {teamPlay && (
-          <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
+          <details
+            open={coopPerKill || !!coopMinMembers}
+            className="group rounded-lg border border-card-border/60"
+          >
+            {/* Collapsed by default: the defaults are right for almost every kill tile, and shown
+                open they read as decisions the author has to make. Opens itself when either is
+                actually set, so a configured tile never hides its own rules. */}
+            <summary className="cursor-pointer select-none list-none px-2.5 py-2 flex items-center gap-1.5 text-[11px] text-text-muted hover:text-foreground">
+              <span className="transition-transform group-open:rotate-90">▸</span>
+              Shared kills
+              <span className="text-text-muted/70">
+                {coopPerKill || coopMinMembers
+                  ? '— customised'
+                  : '— every member in the kill credits it'}
+              </span>
+            </summary>
+            <div className="px-2.5 pb-2.5 space-y-2">
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -2071,7 +2087,8 @@ export default function TileTrackingConfig({
                 Blank = a solo kill counts. Set 3 for &ldquo;only kills you did with 2+ teammates&rdquo;.
               </p>
             </div>
-          </div>
+            </div>
+          </details>
           )}
         </div>
       )}
