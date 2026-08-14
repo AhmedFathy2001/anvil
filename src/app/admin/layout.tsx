@@ -6,6 +6,9 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
+import { eventRailGroups } from '@/lib/eventRail';
+import { eventStage } from '@/lib/eventStage';
+import { getEventRow, getStageCounts } from '@/lib/eventStageCounts';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -49,7 +52,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (pathname && !pathname.startsWith('/admin/events')) {
       redirect('/admin/events');
     }
-    const scopedGroups: SidebarGroup[] = [
+    // Inside one of their boards, even a scoped editor gets the event rail (board only) — same
+    // swap everyone else gets, minus the surfaces their role can't open.
+    const scopedGroups: SidebarGroup[] = (await eventRailFor(pathname, session.role)) ?? [
       {
         label: 'Events',
         items: [{ href: '/admin/events', label: 'My boards', icon: '🎯', matchPrefix: true }],
@@ -141,10 +146,51 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
   };
 
+  // Inside a specific event, the rail becomes THAT EVENT's — its surfaces, its counts, ordered by
+  // the stage it's at (lib/eventRail). The clan-wide nav is one click away under "Elsewhere". The
+  // counts are shared with the event layout's lifecycle bar via a per-request cache, so swapping
+  // the rail costs no extra queries.
+  const eventRail = await eventRailFor(await currentPathname(), session.role);
+  if (eventRail) {
+    return (
+      <div className="lg:flex lg:gap-6">
+        <AdminSidebar groups={eventRail} user={user} />
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="lg:flex lg:gap-6">
       <AdminSidebar groups={groups} user={user} />
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
+}
+
+async function currentPathname(): Promise<string> {
+  return (await headers()).get('x-anvil-pathname') ?? '';
+}
+
+/**
+ * The event rail for `/admin/events/{id}/...`, or null anywhere else.
+ *
+ * Returns null for an id that doesn't resolve to an event too, so a stale link falls back to the
+ * clan-wide nav rather than rendering a rail for nothing.
+ */
+async function eventRailFor(pathname: string, role: string): Promise<SidebarGroup[] | null> {
+  const match = /^\/admin\/events\/(\d+)(\/|$)/.exec(pathname);
+  if (!match) return null;
+  const eventId = parseInt(match[1], 10);
+
+  const event = await getEventRow(eventId);
+  if (!event) return null;
+
+  const counts = await getStageCounts(eventId);
+  return eventRailGroups({
+    eventId,
+    stage: eventStage(event),
+    counts,
+    tilesOnly: role === 'editor',
+  });
 }

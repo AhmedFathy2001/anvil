@@ -530,6 +530,50 @@ export async function getPastEventResults(eventIds: number[]): Promise<Map<numbe
   return out;
 }
 
+export interface RecordedTeamResult {
+  teamId: number;
+  name: string;
+  color: string;
+  points: number;
+  rank: number;
+}
+
+/**
+ * A finished event's standings as they were RECORDED, not as they'd recompute.
+ *
+ * `player_event_facts` is written once when an event ends and is what a member's trophies read
+ * from. Recomputing from completions afterwards can drift — a tile edited during cleanup, a
+ * submission deleted months later — and then the admin page and the member's profile disagree
+ * about who won. Empty when the event predates the facts machinery; callers fall back to the live
+ * computation and the "Rebuild results" action fills it in.
+ */
+export async function getRecordedTeamResults(eventId: number): Promise<RecordedTeamResult[]> {
+  const rows = await db
+    .select({
+      teamId: playerEventFacts.teamId,
+      rank: playerEventFacts.teamRank,
+      points: playerEventFacts.teamPoints,
+      name: teams.name,
+      color: teams.color,
+    })
+    .from(playerEventFacts)
+    .innerJoin(teams, eq(playerEventFacts.teamId, teams.id))
+    .where(eq(playerEventFacts.eventId, eventId));
+
+  const byTeam = new Map<number, RecordedTeamResult>();
+  for (const row of rows) {
+    if (row.teamId == null || byTeam.has(row.teamId)) continue;
+    byTeam.set(row.teamId, {
+      teamId: row.teamId,
+      name: row.name,
+      color: row.color,
+      points: row.points ?? 0,
+      rank: row.rank ?? 999,
+    });
+  }
+  return [...byTeam.values()].sort((a, b) => a.rank - b.rank || b.points - a.points);
+}
+
 /** Participation for finished weekly competitions, so their row in the table isn't a blank. */
 export async function getPastWeeklyResults(
   competitionIds: number[],
