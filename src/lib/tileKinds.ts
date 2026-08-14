@@ -1,5 +1,5 @@
 import { activityFor } from '@/lib/hiscoresActivities';
-import { BOSSES, SKILL_LABELS } from './constants';
+import { BOSSES, SKILL_LABELS, lapUnitNoun } from './constants';
 
 // Structural subset of a tile row that the kind/target helpers need — board clients keep
 // their own narrowed Tile interfaces, so we type against the shape, not the shared Tile.
@@ -8,6 +8,8 @@ export interface TileKindLike {
   trackedStat?: string | null;
   statType?: string | null;
   itemRequirements?: string | null;
+  // Lap tiles only: the courses / Sepulchre floors, which decide the tile's countable noun.
+  targetNpcs?: string | string[] | null;
 }
 
 // Human label for a tile's tracking kind — mirrors the kind picker in TileTrackingConfig.
@@ -18,6 +20,9 @@ export function tileKindLabel(tile: TileKindLike): string {
       return tile.itemRequirements ? 'Collection' : 'Drop';
     case 'kill':
       return 'Kill count';
+    case 'lap':
+      return lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) === 'lap'
+        ? 'Agility laps' : 'Hallowed Sepulchre';
     case 'pvp':
       return 'PvP kill';
     case 'gain':
@@ -48,6 +53,10 @@ export function tileCountNoun(tile: TileKindLike): string {
     case 'kill':
     case 'pvp':
       return 'kill';
+    // Agility tiles count laps on a course but FLOORS (or full runs) in the Sepulchre, so the
+    // noun comes off the targets rather than the kind. targetNpcs may arrive parsed or raw.
+    case 'lap':
+      return lapUnitNoun(parseJsonArray<string>(tile.targetNpcs));
     case 'diary':
     case 'ca':
       return 'completion';

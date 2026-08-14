@@ -10,7 +10,8 @@ import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
 import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { boardTiles, missionTiles, parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
+import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
@@ -116,7 +117,8 @@ interface TeamGains {
 }
 
 export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
-  const ladder = isLadderFormat(event.format);
+  // Standings rank people, not teams — that's the individuals axis, not "is this a ladder".
+  const ladder = eventAxes(event).competitors === 'individuals';
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -218,11 +220,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // folding one into the tile list moves the denominator under everyone the moment it's announced.
   const board = useMemo(() => boardTiles(tiles), [tiles]);
   const eventRules = useMemo(() => parseEventRules(event.rules), [event.rules]);
+  const axes = useMemo(() => eventAxes({ ...event, rules: eventRules }), [event, eventRules]);
   // A board whose tasks open and close on a clock is a different surface from a bingo grid: two
   // things are open, one is losing value, the next drops in eleven minutes. Search and tier filters
-  // are furniture at that size — the clock is the content. Covers every reveal policy, so a lucky
-  // draw and a bounty rotation get it too, not just a ladder.
-  const liveDropBoard = hasRevealPolicy(eventRules);
+  // are furniture at that size — the clock is the content. `live` covers every reveal policy, so a
+  // lucky draw and a bounty rotation get it too, not just a ladder.
+  const liveDropBoard = axes.live;
   // Only ANNOUNCED missions are worth a section — an unannounced one is either invisible (members)
   // or already flagged staff-only on the board (staff).
   const missions = useMemo(() => missionTiles(tiles).filter((t) => t.revealedAt), [tiles]);
@@ -442,7 +445,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               pointsMode={pointsMode}
               completedTileIds={new Set(completions.map((c) => c.tileId))}
               onTileClick={setSelectedTileId}
-              noun={ladder ? 'task' : 'tile'}
+              noun={taskNoun(axes)}
             />
           ) : (
           <>

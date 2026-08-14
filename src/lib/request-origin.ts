@@ -18,8 +18,17 @@ function originOf(u: string | undefined): string | null {
 }
 
 export function publicOrigin(request: Request): string {
-  const configured = originOf(process.env.APP_URL) || originOf(process.env.DISCORD_REDIRECT_URI);
+  const configured = configuredOrigin();
   if (configured) return configured;
   // No proxy, no config (local dev): the server's own origin is correct.
   return new URL(request.url).origin;
+}
+
+/**
+ * The same canonical origin, for code with no Request in hand (cron sweeps, background reconciles).
+ * Null when nothing is configured — a self-hoster running without APP_URL has no way for us to know
+ * the public URL, and guessing one is worse than skipping the work that needed it.
+ */
+export function configuredOrigin(): string | null {
+  return originOf(process.env.APP_URL) || originOf(process.env.DISCORD_REDIRECT_URI);
 }

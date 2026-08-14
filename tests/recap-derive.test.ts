@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { biggestGain, isEarlyHour, isNightHour, localHour } from '../src/lib/recapDerive.ts';
+import { biggestGain, clueGain, isEarlyHour, isNightHour, localHour } from '../src/lib/recapDerive.ts';
 
 test('localHour: a bare SQLite timestamp is read as UTC, not local time', () => {
   // datetime('now') writes no zone marker; reading it as local time would shift every bucket.
@@ -77,4 +77,54 @@ test('biggestGain: missing or malformed snapshots are silent, not fatal', () => 
   assert.equal(biggestGain(snap({ zulrah: 5 }), null, 'bosses'), null);
   assert.equal(biggestGain('{not json', snap({ zulrah: 5 }), 'bosses'), null);
   assert.equal(biggestGain('{}', '{}', 'bosses'), null);
+});
+
+// ── clueGain ─────────────────────────────────────────────────────────────────────────────────────
+
+const clueSnap = (tiers: Record<string, number>, all?: number) =>
+  JSON.stringify({
+    clues: {
+      ...Object.fromEntries(Object.entries(tiers).map(([k, score]) => [k, { rank: 1, score }])),
+      ...(all != null ? { all: { rank: 1, score: all } } : {}),
+    },
+  });
+
+test('clueGain: sums the tiers and names the one they did most of', () => {
+  const before = clueSnap({ beginner: 10, hard: 40, elite: 5 });
+  const after = clueSnap({ beginner: 12, hard: 95, elite: 9 });
+  assert.deepEqual(clueGain(before, after), { total: 61, topTier: 'hard', topTierGained: 55 });
+});
+
+test('clueGain: reads the tiers, not the `all` total', () => {
+  // `all` is unranked (-1) for accounts with only a few clues while the tiers still chart, so
+  // trusting it would report nothing for exactly the players a beginner-clue tile is aimed at.
+  assert.deepEqual(clueGain(clueSnap({ easy: 3 }, -1), clueSnap({ easy: 21 }, -1)), {
+    total: 18,
+    topTier: 'easy',
+    topTierGained: 18,
+  });
+});
+
+test('clueGain: unranked counts from zero, and a flat account wins nothing', () => {
+  assert.deepEqual(clueGain(clueSnap({ master: -1 }), clueSnap({ master: 4 })), {
+    total: 4,
+    topTier: 'master',
+    topTierGained: 4,
+  });
+  assert.equal(clueGain(clueSnap({ master: -1 }), clueSnap({ master: -1 })), null);
+  assert.equal(clueGain(clueSnap({ hard: 40 }), clueSnap({ hard: 40 })), null);
+});
+
+test('clueGain: a tier going DOWN never subtracts from the total', () => {
+  // Shouldn't happen, but a rollback or a renamed account re-reading someone else's hiscores
+  // must not turn "opened 30 hard" into a negative score.
+  const gain = clueGain(clueSnap({ hard: 40, elite: 20 }), clueSnap({ hard: 70, elite: 2 }));
+  assert.deepEqual(gain, { total: 30, topTier: 'hard', topTierGained: 30 });
+});
+
+test('clueGain: missing or malformed snapshots are silent, not fatal', () => {
+  assert.equal(clueGain(null, clueSnap({ hard: 5 })), null);
+  assert.equal(clueGain(clueSnap({ hard: 5 }), null), null);
+  assert.equal(clueGain('{not json', clueSnap({ hard: 5 })), null);
+  assert.equal(clueGain('{}', '{}'), null);
 });

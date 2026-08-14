@@ -497,6 +497,8 @@ export interface ClanAnalytics {
   /** Who gained the most efficient hours over the last 7 days. */
   topWeek: { rsn: string; hours: number }[];
   activeThisWeek: number;
+  /** Members with any gain on today's row — "playing today", as far as the sweep can tell. */
+  activeToday: number;
 }
 
 /**
@@ -518,20 +520,24 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
     .groupBy(memberDailyStats.day)
     .orderBy(memberDailyStats.day);
 
+  const today = new Date().toISOString().slice(0, 10);
   const weekRows = await db
     .select({
       clanMemberId: memberDailyStats.clanMemberId,
       hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
+      // Today's slice of the same scan — one aggregate instead of a second round trip.
+      todayHours: sql<number>`SUM(CASE WHEN ${memberDailyStats.day} = ${today} THEN ${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained} ELSE 0 END)`,
     })
     .from(memberDailyStats)
     .where(gte(memberDailyStats.day, since7))
     .groupBy(memberDailyStats.clanMemberId);
 
   const nameById = new Map(members.map((m) => [m.id, m.rsn]));
+  // Eight, not five: three go on the podium and the rest are the chasing pack under it.
   const topWeek = weekRows
     .filter((r) => nameById.has(r.clanMemberId) && r.hours > 0)
     .sort((a, b) => b.hours - a.hours)
-    .slice(0, 5)
+    .slice(0, 8)
     .map((r) => ({ rsn: nameById.get(r.clanMemberId) as string, hours: r.hours / EFFICIENCY_SCALE }));
 
   // Walk the calendar, not the rows: a day nobody played has no row, and a pulse chart that skipped
@@ -551,7 +557,99 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
     activity,
     topWeek,
     activeThisWeek: weekRows.filter((r) => r.hours > 0).length,
+    // Today's row only exists once the sweep has seen a gain today, so this is "played today" as
+    // well as we can know it without a live heartbeat — and it reads as zero early in the morning,
+    // which is honest rather than wrong.
+    activeToday: weekRows.filter((r) => nameById.has(r.clanMemberId) && Number(r.todayHours) > 0).length,
   };
+}
+
+/**
+ * Per-member movement for the roster: the last week as a sparkline, the streak, and how many places
+ * they've climbed since last week.
+ *
+ * One grouped scan of the same daily rows the pulse chart already reads — no per-member query, so a
+ * 400-member clan costs one statement. The position delta is DERIVED rather than stored: last week's
+ * standing is this week's totals minus this week's gains, which the daily rows give us exactly. That
+ * avoids a snapshot table whose only job would be remembering an ordering we can recompute.
+ */
+export interface RosterMovement {
+  /** Efficient hours per day for the last 7 days, oldest first. */
+  spark: number[];
+  /** Hours gained across those 7 days. */
+  week: number;
+  /** Consecutive days with any gain, counting back from the last day that could have one. */
+  streak: number;
+  /** Places gained since last week on combined EHP + EHB. Positive = climbed, 0 = unchanged. */
+  delta: number;
+}
+
+const SPARK_DAYS = 7;
+const STREAK_LOOKBACK = 60;
+
+export async function getRosterMovement(members: MemberListRow[]): Promise<Record<number, RosterMovement>> {
+  const since = new Date(Date.now() - STREAK_LOOKBACK * 86_400_000).toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({
+      clanMemberId: memberDailyStats.clanMemberId,
+      day: memberDailyStats.day,
+      gained: sql<number>`${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained}`,
+    })
+    .from(memberDailyStats)
+    .where(gte(memberDailyStats.day, since));
+
+  const byMember = new Map<number, Map<string, number>>();
+  for (const r of rows) {
+    const hours = Number(r.gained) / EFFICIENCY_SCALE;
+    if (!(hours > 0)) continue;
+    let days = byMember.get(r.clanMemberId);
+    if (!days) byMember.set(r.clanMemberId, (days = new Map()));
+    days.set(r.day, hours);
+  }
+
+  const dayAt = (back: number) => new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10);
+
+  // Today's row is written by the sweep, so at 00:30 nobody has one yet. Anchoring the streak on
+  // yesterday in that case stops every streak in the clan reading 0 for the first hours of the day.
+  const anyToday = [...byMember.values()].some((days) => days.has(dayAt(0)));
+  const anchor = anyToday ? 0 : 1;
+
+  const out: Record<number, RosterMovement> = {};
+  const weekByMember = new Map<number, number>();
+
+  for (const m of members) {
+    const days = byMember.get(m.id) ?? new Map<string, number>();
+
+    const spark: number[] = [];
+    for (let i = SPARK_DAYS - 1; i >= 0; i--) spark.push(days.get(dayAt(i)) ?? 0);
+    const week = spark.reduce((sum, h) => sum + h, 0);
+    weekByMember.set(m.id, week);
+
+    let streak = 0;
+    for (let i = anchor; i < STREAK_LOOKBACK; i++) {
+      if (!days.has(dayAt(i))) break;
+      streak++;
+    }
+
+    out[m.id] = { spark, week, streak, delta: 0 };
+  }
+
+  // Rank now and rank a week ago over the same set, then diff. Members we've never swept (no EHP)
+  // sit out entirely — they have no position to move between.
+  const ranked = members.filter((m) => m.ehp != null || m.ehb != null);
+  const total = (m: MemberListRow) => (m.ehp ?? 0) + (m.ehb ?? 0);
+  const positions = (score: (m: MemberListRow) => number) => {
+    const order = [...ranked].sort((a, b) => score(b) - score(a) || a.rsn.localeCompare(b.rsn));
+    return new Map(order.map((m, i) => [m.id, i + 1]));
+  };
+  const now = positions(total);
+  const before = positions((m) => total(m) - (weekByMember.get(m.id) ?? 0));
+  for (const m of ranked) {
+    out[m.id].delta = (before.get(m.id) ?? 0) - (now.get(m.id) ?? 0);
+  }
+
+  return out;
 }
 
 // ── Activity analytics ───────────────────────────────────────────────────────────────────────────
@@ -608,12 +706,28 @@ const ACTIVITY_TITLES: { key: string; emoji: string; title: string; blurb: strin
   { key: 'riftsClosed', emoji: '🌀', title: 'Rift Closer', blurb: 'Most rifts closed' },
   { key: 'soulWarsZeal', emoji: '💀', title: 'Zealot', blurb: 'Most Soul Wars zeal' },
   { key: 'lastManStanding', emoji: '🎯', title: 'Last One Standing', blurb: 'Best LMS rank' },
+  { key: 'bhHunter', emoji: '🩸', title: 'Bounty Hunter', blurb: 'Best Bounty Hunter rank' },
 ];
 
-/** Boards worth showing in full, as opposed to just naming a winner. */
-const ACTIVITY_BOARD_KEYS = ['cluesAll', 'collectionsLogged', 'cluesMaster', 'riftsClosed'];
+/**
+ * Boards worth showing in full, as opposed to just naming a winner.
+ *
+ * `label` overrides the activity's own name where the picker-friendly one reads badly as a heading —
+ * "Bounty Hunter (hunter)" is precise in a tile dropdown and clumsy as a leaderboard title.
+ *
+ * Boards with no qualifying member are dropped downstream, so listing both Bounty Hunter modes costs
+ * a clan that only plays one of them exactly nothing.
+ */
+const ACTIVITY_BOARDS: { key: string; label?: string }[] = [
+  { key: 'cluesAll' },
+  { key: 'collectionsLogged' },
+  { key: 'cluesMaster' },
+  { key: 'riftsClosed' },
+  { key: 'bhHunter', label: 'Bounty Hunter' },
+  { key: 'bhRogue', label: 'Bounty Hunter — Rogue' },
+];
 
-const BOARD_SIZE = 5;
+const BOARD_SIZE = 8;
 
 /** Every non-departed member's activity map, with their name. One query, small blobs. */
 async function readClanActivities(): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
@@ -680,11 +794,11 @@ export async function getClanActivityAnalytics(): Promise<ClanActivityAnalytics>
     });
   }
 
-  const boards: ActivityBoard[] = ACTIVITY_BOARD_KEYS.map((key) => {
+  const boards: ActivityBoard[] = ACTIVITY_BOARDS.map(({ key, label }) => {
     const activity = activityFor(key);
     return {
       key,
-      label: activity?.label ?? key,
+      label: label ?? activity?.label ?? key,
       unit: activity?.unit ?? null,
       scale: activity?.scale ?? 'count',
       rows: rankFor(rows, key).slice(0, BOARD_SIZE),

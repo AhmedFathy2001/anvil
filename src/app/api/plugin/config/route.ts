@@ -23,6 +23,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { lapUnitNoun } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { isIndividualMode } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
@@ -825,8 +826,14 @@ export async function GET(request: Request) {
     // Kill-count tiles — the plugin counts kills of the named NPC(s) (not hiscores-backed)
     // and submits a baked screenshot toward `requiredAmount`. `currentAmount` is the team's
     // submitted kill total so the side panel can show progress.
+    //
+    // Agility-lap tiles ride this same array on purpose. The plugin's kill counter is driven by
+    // the Jagex "Your <X> ... count is: N" line, whose parser already strips the "lap" counter
+    // word — so a lap tile is exactly a kill tile whose target names are course names, and it
+    // credits on every client build, including ones released before laps existed. Only the SITE
+    // needs to know the difference (it says "laps", not "kills").
     trackedKills: allEventTiles
-      .filter((t) => t.tileType === 'kill')
+      .filter((t) => t.tileType === 'kill' || t.tileType === 'lap')
       .map((t) => {
         let targetNpcs: string[] = [];
         if (t.targetNpcs) {
@@ -846,6 +853,10 @@ export async function GET(request: Request) {
           targetNpcs,
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: currentFor(t),
+          // What one credit is, for the plugin's in-game wording only ("Tracked lap: …"). Reads off
+          // the targets, since a Sepulchre tile counts floors rather than laps. Clients that predate
+          // agility tiles ignore the field and say "kill", which is the old behaviour.
+          unit: t.tileType === 'lap' ? lapUnitNoun(targetNpcs) : 'kill',
           trackingMode: t.trackingMode ?? 'team',
           // Shared kills: 'per-kill' collapses one kill several members were in, and
           // coopMinMembers gates it on how many of the team were there. Either one makes the plugin

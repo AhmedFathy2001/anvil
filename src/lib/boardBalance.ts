@@ -53,7 +53,8 @@ function kindFamily(t: Tile): 'RNG drops' | 'Grind' | 'Execution' | 'Manual' {
   if (type === 'ca') return 'Execution';
   // PvP kills are a mechanics (and bravery) test — hunting players, not a grind.
   if (type === 'pvp') return 'Execution';
-  if (type === 'kill' || type === 'gain' || type === 'diary' || type === 'valuetotal') return 'Grind';
+  // Agility laps are the purest grind on the board — no roll, no mechanics check, just time.
+  if (type === 'kill' || type === 'lap' || type === 'gain' || type === 'diary' || type === 'valuetotal') return 'Grind';
   if (t.trackedStat) return 'Grind'; // hiscores-polled skill/boss tiles store tileType 'standard'
   return 'Manual';
 }

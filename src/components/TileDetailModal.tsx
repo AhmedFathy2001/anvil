@@ -11,7 +11,8 @@ import { formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
-import { statLabel } from '@/lib/tileKinds';
+import { statLabel, parseJsonArray } from '@/lib/tileKinds';
+import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection, groupModeHint } from '@/lib/collectionSets';
 import { submissionHasProof } from '@/lib/submissionProof';
@@ -179,6 +180,7 @@ export default function TileDetailModal({
   const isCompleted = completedBy.length > 0;
   const isDrop = tile.tileType === 'drop';
   const isKill = tile.tileType === 'kill';
+  const isLap = tile.tileType === 'lap';
   const isPvp = tile.tileType === 'pvp';
   const isTimed = tile.tileType === 'timed';
   const isDiary = tile.tileType === 'diary';
@@ -190,7 +192,7 @@ export default function TileDetailModal({
   const manualOnly = isManualOnlyDropTile(tile);
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
-  const isCount = isDrop || isKill || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
+  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   const perUnitProof = isDrop;
@@ -209,9 +211,9 @@ export default function TileDetailModal({
   })();
   const isCollection = isDrop && itemReqs.length > 0;
   const isStatTile = !!tile.trackedStat;
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isKill || isPvp ? 'kill' : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
+  const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
+  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isLap ? (countNoun === 'lap' ? 'Agility laps' : 'Hallowed Sepulchre') : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
 
   // Kill/count tiles land one auto submission per kill (no screenshot), so a 500-kill tile is 500
   // identical rows. List only submissions with real proof (a screenshot or a human note) and roll
@@ -525,7 +527,7 @@ export default function TileDetailModal({
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
                   </span>
                 )}
-                {(isKill || isPvp) && tile.requiredAmount && (
+                {(isKill || isLap || isPvp) && tile.requiredAmount && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.requiredAmount.toLocaleString()} kill{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>

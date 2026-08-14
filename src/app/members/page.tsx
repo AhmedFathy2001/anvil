@@ -1,5 +1,11 @@
 import type { Metadata } from 'next';
-import { getClanActivityAnalytics, getClanAnalytics, getRosterLog, listMembers } from '@/lib/memberProfile';
+import {
+  getClanActivityAnalytics,
+  getClanAnalytics,
+  getRosterLog,
+  getRosterMovement,
+  listMembers,
+} from '@/lib/memberProfile';
 import MembersTabs from './MembersTabs';
 
 export const metadata: Metadata = {
@@ -15,10 +21,11 @@ export default async function MembersPage() {
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
-  const [analytics, rosterLog, activities] = await Promise.all([
+  const [analytics, rosterLog, activities, movement] = await Promise.all([
     getClanAnalytics(members),
     getRosterLog(20),
     getClanActivityAnalytics(),
+    getRosterMovement(members),
   ]);
 
   return (
@@ -36,6 +43,7 @@ export default async function MembersPage() {
         analytics={analytics}
         rosterLog={rosterLog}
         activities={activities}
+        movement={movement}
       />
     </main>
   );
