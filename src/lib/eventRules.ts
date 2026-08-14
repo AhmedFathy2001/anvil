@@ -254,6 +254,27 @@ export function isTileRevealed(rules: EventRules, tile: RevealStateTile): boolea
   return !hasRevealPolicy(rules) || tile.revealedAt != null;
 }
 
+/**
+ * The BOARD: the tiles an event is actually scored on, missions excluded.
+ *
+ * A mission is not a board tile that happens to be hidden — it's a separate kind of thing. It drops
+ * mid-event from its own pool, carries its own scoring (lockout, first-clear bonus, decay), can
+ * expire unclaimed, and is a bonus on top of the board rather than part of it. Counting one toward
+ * "14 / 25 tiles" or "116 pts on the board" moves the denominator under everyone the moment it's
+ * announced, and quietly changes what a completion percentage means mid-event.
+ *
+ * So every board total, progress bar and tile count runs through this; missions are surfaced and
+ * scored on their own.
+ */
+export function boardTiles<T extends { mission?: boolean | number | null }>(tiles: T[]): T[] {
+  return tiles.filter((t) => !isMissionTile(t));
+}
+
+/** The mission subset — the other half of {@link boardTiles}. */
+export function missionTiles<T extends { mission?: boolean | number | null }>(tiles: T[]): T[] {
+  return tiles.filter(isMissionTile);
+}
+
 /** The member-visible subset of an event's tiles. Closed (claimed/expired) tiles stay visible. */
 export function visibleTiles<T extends RevealStateTile>(rules: EventRules, tiles: T[]): T[] {
   // Fast path: classic board with no mission tiles → everything is visible (bit-identical to before).
