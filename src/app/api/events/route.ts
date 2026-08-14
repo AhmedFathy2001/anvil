@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules, startDate, endDate } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
@@ -78,6 +78,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'boardSize must be a positive integer' }, { status: 400 });
   }
 
+  // A schedule at creation time. Optional — an event with no dates is a legitimate draft, and the
+  // one that stays undated is exactly what the events list calls out as still being set up. Both
+  // are ISO UTC strings, like every other date column.
+  const parseWhen = (value: unknown, field: string): string | null | { error: string } => {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+      return { error: `${field} must be a date` };
+    }
+    return new Date(value).toISOString();
+  };
+  const resolvedStart = parseWhen(startDate, 'startDate');
+  if (resolvedStart && typeof resolvedStart === 'object') {
+    return NextResponse.json({ error: resolvedStart.error }, { status: 400 });
+  }
+  const resolvedEnd = parseWhen(endDate, 'endDate');
+  if (resolvedEnd && typeof resolvedEnd === 'object') {
+    return NextResponse.json({ error: resolvedEnd.error }, { status: 400 });
+  }
+  if (resolvedStart && resolvedEnd && Date.parse(resolvedEnd) <= Date.parse(resolvedStart)) {
+    return NextResponse.json({ error: 'The end has to come after the start.' }, { status: 400 });
+  }
+
   // Three event shapes, all keyed off (format, scoringMode):
   //   • Classic bingo  (bingo + tiles)  → a square N×N grid, so boardSize is N and tiles = N².
   //   • Leagues bingo  (bingo + points) → an arbitrary-length task list, boardSize IS the tile count.
@@ -123,6 +145,8 @@ export async function POST(request: Request) {
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
       maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
       rules: resolvedRules,
+      startDate: resolvedStart as string | null,
+      endDate: resolvedEnd as string | null,
     }).returning();
     const tileValues = resolvedLabels.map((label: string, index: number) => ({
       eventId: created.id,
