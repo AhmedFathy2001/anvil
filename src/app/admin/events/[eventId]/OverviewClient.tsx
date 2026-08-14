@@ -8,7 +8,9 @@ import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import DateRangeField from '@/components/DateRangeField';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel } from '@/lib/utils';
+import { isTileRaceFormat, isLadderFormat, isPointsMode, eventModeLabel, eventNoun } from '@/lib/utils';
+import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import RevealRulesPanel from './RevealRulesPanel';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import Input from '@/components/Input';
@@ -80,10 +82,42 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   const raceFormat = isTileRaceFormat(currentEvent.format);
   const ladderFormat = isLadderFormat(currentEvent.format);
   const pointsMode = isPointsMode(currentEvent.scoringMode);
+  const noun = eventNoun(currentEvent.format);
+  const eventRules = useMemo(() => parseEventRules(currentEvent.rules), [currentEvent.rules]);
+  const revealPolicyMode = hasRevealPolicy(eventRules);
   // Type can only change before the event goes live; delete is allowed before start or
   // once it's over — i.e. any time it isn't actively running. Mirrors the API gates.
   const canChangeType = !eventStarted && !isForceEnded;
   const canDelete = !isActive;
+
+  // Where the event sits in its lifecycle, in words. The header badge says the same thing in one
+  // token — this spells out what it means for members, next to the buttons that change it.
+  const lifecycle = isForceEnded
+    ? { tone: 'muted' as const, text: `Force-ended — no further completions count towards this ${noun}.` }
+    : eventEnded
+      ? { tone: 'muted' as const, text: 'Ended — the board is read-only for members.' }
+      : !currentEvent.startDate
+        ? { tone: 'warn' as const, text: `Not started — set a start date, or start the ${noun} now.` }
+        : !eventStarted
+          ? { tone: 'info' as const, text: `Starts ${new Date(currentEvent.startDate).toLocaleString()} — not running yet.` }
+          : {
+              tone: 'good' as const,
+              text: currentEvent.endDate
+                ? `Running until ${new Date(currentEvent.endDate).toLocaleString()}.`
+                : 'Running with no end date — it keeps going until you end it.',
+            };
+  const lifecycleCls = {
+    good: 'border-accent-green/30 text-accent-green-light bg-accent-green/10',
+    warn: 'border-gold/30 text-gold bg-gold/10',
+    info: 'border-blue-500/30 text-blue-300 bg-blue-500/10',
+    muted: 'border-card-border text-text-muted bg-brown-dark/30',
+  }[lifecycle.tone];
+  const lifecycleDot = {
+    good: 'bg-accent-green',
+    warn: 'bg-gold',
+    info: 'bg-blue-400',
+    muted: 'bg-text-muted',
+  }[lifecycle.tone];
 
   // All-teams submission management from the board: click a tile to see/manage every team's proofs.
   const teamNameById = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t.name])), [teams]);
@@ -285,7 +319,14 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
   }
 
   async function startBingoNow(force = false) {
-    if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+    // A reveal-policy board doesn't show everything on start — it arms the engine and the first
+    // draw fires. Promising "reveals all tiles" there would be a lie.
+    if (!force && !confirm(
+      `Start the ${noun} now? This marks the event live, announces the start in Discord, and ` +
+      (revealPolicyMode
+        ? 'arms the board — tiles then open on the rotation you configured.'
+        : 'reveals all tiles to members.'),
+    )) return;
     setStartingBingo(true);
     try {
       const res = await fetch(`/api/events/${event.id}`, {
@@ -308,7 +349,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             return;
           }
         } else {
-          alert(data.error || 'Could not start the bingo.');
+          alert(data.error || `Could not start the ${noun}.`);
         }
       }
     } finally {
@@ -353,12 +394,18 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
             <span className="w-1 h-5 bg-gold rounded-full" />
             Event Details
           </h2>
+          {/* This is the DATA connection, not the event's state — it used to just say "Live", which
+              read as "the event is live" right next to a Draft badge and a Start button. */}
           <span
-            className={`flex items-center gap-1.5 text-xs ${streamConnected ? 'text-accent-green-light' : 'text-text-muted'}`}
-            title={streamConnected ? 'Real-time updates connected' : 'Connecting to live updates…'}
+            className="flex items-center gap-1.5 text-xs text-text-muted"
+            title={
+              streamConnected
+                ? 'This page is streaming updates — completions appear without a refresh.'
+                : 'Reconnecting to the update stream. This says nothing about whether the event is running.'
+            }
           >
             <span className={`w-1.5 h-1.5 rounded-full ${streamConnected ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
-            {streamConnected ? 'Live' : 'Connecting…'}
+            {streamConnected ? 'Auto-updating' : 'Reconnecting…'}
           </span>
         </div>
 
@@ -423,6 +470,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
                 setStartDate(startIso);
                 setEndDate(endIso);
               }}
+              allowOpenEnded
             />
             <p className="text-xs text-text-muted mt-2">
               Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
@@ -449,15 +497,25 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           </div>
         )}
 
-        <div className={`mb-3 flex items-center gap-2 text-xs rounded-lg border px-3 py-2 ${
-          currentEvent.tilesRevealed
-            ? 'border-accent-green/30 text-accent-green-light bg-accent-green/10'
-            : 'border-gold/30 text-gold bg-gold/10'
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${currentEvent.tilesRevealed ? 'bg-accent-green' : 'bg-gold'}`} />
-          {currentEvent.tilesRevealed
-            ? 'Tiles are revealed — members can see the board.'
-            : 'Tiles are hidden — only staff can see the board until you reveal them.'}
+        {/* Two separate facts that used to be conflated: is the EVENT running, and can members see
+            the TILES. A reveal-policy board can be armed and still be showing almost nothing. */}
+        <div className="mb-3 space-y-2">
+          <div className={`flex items-center gap-2 text-xs rounded-lg border px-3 py-2 ${lifecycleCls}`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${lifecycleDot}`} />
+            {lifecycle.text}
+          </div>
+          <div className={`flex items-center gap-2 text-xs rounded-lg border px-3 py-2 ${
+            currentEvent.tilesRevealed
+              ? 'border-accent-green/30 text-accent-green-light bg-accent-green/10'
+              : 'border-gold/30 text-gold bg-gold/10'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${currentEvent.tilesRevealed ? 'bg-accent-green' : 'bg-gold'}`} />
+            {!currentEvent.tilesRevealed
+              ? 'Tiles are hidden — only staff can see the board until you reveal them.'
+              : revealPolicyMode
+                ? 'Board is armed — tiles open on the schedule below, not all at once.'
+                : 'Tiles are revealed — members can see the board.'}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -494,7 +552,7 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
               disabled={startingBingo}
               className="text-xs font-bold px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
             >
-              {startingBingo ? 'Starting...' : 'Start Bingo Now'}
+              {startingBingo ? 'Starting...' : `Start ${noun === 'bingo' ? 'Bingo' : noun === 'race' ? 'Race' : 'Ladder'} Now`}
             </button>
           )}
           {isActive && !isForceEnded && (
@@ -595,6 +653,9 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
           )}
         </div>
       </div>
+
+        {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}
+        <RevealRulesPanel event={currentEvent} tiles={localTiles} />
 
         {canManageEditors && <EventEditorsPanel eventId={event.id} />}
       </div>
