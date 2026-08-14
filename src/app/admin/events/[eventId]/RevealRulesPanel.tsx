@@ -47,6 +47,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
   const [lockout, setLockout] = useState(stored.lockout);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [opening, setOpening] = useState(false);
 
   // Who gets this panel. Anything already ON a reveal policy, plus any points-scored board that
   // COULD take one — a ladder whose rules are still NULL (cloned, templated, or made before the
@@ -64,6 +65,47 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
     { ...stored, revealPolicy: policy, revealIntervalMinutes: intervalMinutes },
     tiles,
   );
+
+  /**
+   * Open the next `count` hidden tiles right now.
+   *
+   * Draw order decides which ones: sequential takes them in board order, random shuffles — the same
+   * choice the engine would have made, just without waiting for the clock.
+   */
+  async function openNow(count: number) {
+    const pool = tiles.filter((t) => !t.revealedAt);
+    if (pool.length === 0) return;
+    const picked =
+      order === 'random'
+        ? [...pool].sort(() => Math.random() - 0.5).slice(0, count)
+        : [...pool].sort((a, b) => a.position - b.position).slice(0, count);
+    if (
+      picked.length > 1 &&
+      !confirm(`Open ${picked.length} ${isLadder ? 'tasks' : 'tiles'} now? Members can start scoring them immediately.`)
+    ) {
+      return;
+    }
+    setOpening(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles/bulk`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileIds: picked.map((t) => t.id), set: { revealState: 'live' } }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMsg({ type: 'success', text: `Opened ${data.updated ?? picked.length}.` });
+        router.refresh();
+      } else {
+        setMsg({ type: 'error', text: data.error ?? 'That did not open.' });
+      }
+    } catch {
+      setMsg({ type: 'error', text: 'That did not open.' });
+    } finally {
+      setOpening(false);
+    }
+  }
 
   async function save() {
     // Turning a rotation ON mid-event pulls every not-yet-drawn tile off the members' board (a
@@ -200,8 +242,9 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
 
         {policy === 'scheduled' && (
           <p className="text-xs text-text-muted leading-relaxed rounded-lg border border-card-border bg-brown-dark/30 px-3 py-2">
-            Set each task&apos;s reveal time on the <span className="text-foreground/80">Tiles</span> tab. A task with
-            no time set stays hidden until you give it one.
+            This one is per-tile: each task opens at the time set on its own editor, and a task with no time
+            stays hidden until you give it one — or until you open it from here. Every other option above
+            drives the whole board, which is usually what you want.
           </p>
         )}
 
@@ -351,6 +394,34 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
                 First finisher locks the task for everyone else
               </label>
             )}
+          </div>
+        )}
+
+        {/* Open things by hand. The policy above decides what opens on its own; this is for the
+            night you want the next one NOW — or all of them, because something's gone wrong and the
+            schedule is no longer the plan. Only on a started board: nothing opens before that. */}
+        {eventStarted && hidden > 0 && (
+          <div className="rounded-lg border border-card-border bg-brown-dark/30 px-3 py-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-text-muted flex-1 min-w-[12rem]">
+                {hidden} {isLadder ? 'task' : 'tile'}
+                {hidden === 1 ? '' : 's'} still hidden.
+              </span>
+              <button
+                onClick={() => openNow(Math.max(1, batchSize))}
+                disabled={opening}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+              >
+                Open next {Math.max(1, batchSize)} now
+              </button>
+              <button
+                onClick={() => openNow(hidden)}
+                disabled={opening}
+                className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                Open everything
+              </button>
+            </div>
           </div>
         )}
 

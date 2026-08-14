@@ -74,6 +74,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     patch[field] = value;
   }
 
+  // revealState is not a column — it's the host's manual override of what the reveal engine decided,
+  // written as revealedAt/closedAt exactly like the single-tile route does. Board-wide 'open these
+  // now' is the mid-event control a staggered board otherwise lacks, so it lives here; admin-only,
+  // because it changes what members can score right now rather than authoring a tile.
+  const revealState = set.revealState;
+  if (revealState !== undefined) {
+    if (revealState !== 'live' && revealState !== 'hidden') {
+      return NextResponse.json({ error: "revealState must be 'live' or 'hidden'." }, { status: 400 });
+    }
+    if (editor.role !== 'admin') {
+      return NextResponse.json({ error: 'Revealing or hiding tiles is admin-only.' }, { status: 403 });
+    }
+    Object.assign(
+      patch,
+      revealState === 'live'
+        ? { revealedAt: new Date().toISOString(), closedAt: null }
+        : { revealedAt: null, closedAt: null },
+    );
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });
   }

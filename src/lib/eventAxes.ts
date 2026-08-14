@@ -91,12 +91,15 @@ export function eventAxes(event: AxesInput): EventAxes {
 /**
  * Can this board carry missions?
  *
- * No on a ladder: its whole board is already a rotating pool of announced objectives, so a mission
- * inside it would be a mission inside a mission. Missions are the way to get that behaviour on a
- * board that doesn't otherwise have it.
+ * Missions exist to give a board something it doesn't otherwise have: objectives that appear
+ * mid-event, announced, on their own clock. A board whose tiles ALREADY open that way — showdown,
+ * lucky draw, bounty, and the ladder's rotation — has that behaviour built in, so offering to
+ * "enable mission drops" there is offering a thing it already is.
+ *
+ * So: team boards where every tile is visible from the start (classic bingo, leagues, tile race).
  */
 export function supportsMissions(axes: EventAxes): boolean {
-  return axes.competitors === 'teams';
+  return axes.competitors === 'teams' && !axes.live;
 }
 
 /**

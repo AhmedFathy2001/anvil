@@ -810,6 +810,44 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
+  // One editor, rendered in one of two places: a column beside the board when there's room, a
+  // covering drawer when there isn't.
+  const inspectorPane = editingTile ? (
+    <TileConfigDrawer
+    docked={inspectorDocked}
+    key={editingTile.id}
+    tile={editingTile}
+    eventId={event.id}
+    eventStarted={eventStarted}
+    isAdmin={isAdmin}
+    pointsMode={pointsMode}
+    tierBands={tierBands}
+    lockHolder={lockHolder}
+    categorySuggestions={categories}
+    teamPlay={teamPlay}
+    missionsAllowed={missionsAllowed}
+    canDelete={canEditTileSet}
+    revealEditor={
+      revealMode ? (
+        <RevealAtEditor
+          tile={editingTile}
+          eventId={event.id}
+          scheduled={scheduledMode}
+          isAdmin={isAdmin}
+          onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+          onStateChanged={handleRevealStateChanged}
+        />
+      ) : null
+    }
+    onClose={() => setEditingTileId(null)}
+    onDelete={() => handleDeleteTile(editingTile.id, true)}
+    onSaved={(updated) => {
+      handleTileConfigSaved(editingTile.id, updated);
+      setEditingTileId(null);
+    }}
+        />
+  ) : null;
+
   return (
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
@@ -1239,96 +1277,106 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         ) : (
           <>
 
-        {/* Search + kind filter */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
-          <div className="relative flex-1">
+        {/* One filter bar: a search you can actually see, and the three narrowings behind it.
+            The kind filter used to be fourteen chips in a horizontal scroller beside a small box —
+            a wall to read every time you wanted to type a tile's name. */}
+        <div className="mb-3 space-y-2">
+          <div className="relative">
+            <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/70">⌕</span>
             <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tiles by label, category, stat, or #position…"
-              className="w-full pl-3 pr-8 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
+              placeholder="Search tiles — name, category, stat, or #position"
+              className="w-full pl-9 pr-9 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 grid place-items-center rounded text-text-muted hover:text-foreground"
               >
                 &times;
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            {KIND_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setKindFilter(f.key)}
-                className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  kindFilter === f.key
-                    ? 'bg-gold/20 border-gold text-gold'
-                    : 'border-card-border text-text-muted hover:border-gold/40'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Category + difficulty-tier filters */}
-        {(categories.length > 0 || showTierFilter) && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={kindFilter}
+              onChange={(v) => setKindFilter(v as KindFilter)}
+              options={KIND_FILTERS.map((f) => ({ value: f.key, label: f.key === 'all' ? 'All kinds' : f.label }))}
+              ariaLabel="Filter by tile kind"
+              className="w-40"
+            />
             {categories.length > 0 && (
               <Select
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 options={[{ value: 'all', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]}
                 ariaLabel="Filter by category"
-                className="shrink-0 sm:w-48"
+                className="w-44"
               />
             )}
             {showTierFilter && (
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-                <button
-                  onClick={() => setTierFilter('all')}
-                  className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                    tierFilter === 'all'
-                      ? 'bg-gold/20 border-gold text-gold'
-                      : 'border-card-border text-text-muted hover:border-gold/40'
-                  }`}
-                >
-                  All tiers
-                </button>
-                {tierBands.map((t, i) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTierFilter(t.key)}
-                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-                      tierFilter === t.key
-                        ? 'bg-gold/20 border-gold text-gold'
-                        : 'border-card-border text-text-muted hover:border-gold/40'
-                    }`}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: tierColor(i, tierBands.length) }}
-                      aria-hidden
-                    />
-                    {t.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1 flex-wrap">
+                {[{ key: 'all', label: 'All tiers' }, ...tierBands.map((t) => ({ key: t.key, label: t.label }))].map(
+                  (t, i) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTierFilter(t.key)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
+                        tierFilter === t.key
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/40'
+                      }`}
+                    >
+                      {t.key !== 'all' && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: tierColor(i - 1, tierBands.length) }}
+                          aria-hidden
+                        />
+                      )}
+                      {t.label}
+                    </button>
+                  ),
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        <p className="text-xs text-text-muted mb-3">
-          {filteredTiles.length === localTiles.length
-            ? `Showing all ${localTiles.length} tile${localTiles.length !== 1 ? 's' : ''}`
-            : `${filteredTiles.length} of ${localTiles.length} tiles match`}
-          {filteredTiles.length > visibleTiles.length && ` · displaying first ${visibleTiles.length}`}
-        </p>
+            <span className="ml-auto text-xs text-text-muted whitespace-nowrap">
+              {filteredTiles.length === localTiles.length
+                ? `${localTiles.length} tile${localTiles.length !== 1 ? 's' : ''}`
+                : `${filteredTiles.length} of ${localTiles.length} match`}
+              {filteredTiles.length > visibleTiles.length && ` · showing ${visibleTiles.length}`}
+            </span>
+            {(search || kindFilter !== 'all' || categoryFilter !== 'all' || tierFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setKindFilter('all');
+                  setCategoryFilter('all');
+                  setTierFilter('all');
+                }}
+                className="text-xs px-2.5 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Two real columns: the board on the left, its editor on the right. Not an overlay —
+            the thing you're editing stays visible, and picking another tile just moves the pane. */}
+        <div
+          className={
+            editingTile && inspectorDocked
+              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5 xl:items-start'
+              : ''
+          }
+        >
+        <div className="min-w-0">
 
         {selectedIds.size > 0 && (
           <div className="sticky top-2 z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
@@ -1412,8 +1460,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         ) : (
         <div
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 transition-[padding] ${
-            editingTile && inspectorDocked ? 'xl:grid-cols-3 xl:pr-[26rem]' : 'xl:grid-cols-4'
+          // Fewer, wider cards when the editor is open beside them — a tile clipped to "Til e…" is
+          // no use for finding the one you want.
+          className={`grid gap-2.5 ${
+            editingTile && inspectorDocked
+              ? 'grid-cols-1 sm:grid-cols-2'
+              : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
           }`}
         >
           {visibleTiles.map((tile) => {
@@ -1478,46 +1530,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             </button>
           </div>
         )}
+        </div>
+
+        {editingTile && inspectorDocked && (
+          <div className="hidden xl:block">{inspectorPane}</div>
+        )}
+        </div>
           </>
         )}
       </div>
 
-      {/* Configuration drawer — Cards view only. In Quick Build the editor is the right pane. */}
-      {viewMode === 'cards' && editingTile && (
-        <TileConfigDrawer
-          docked={inspectorDocked}
-          key={editingTile.id}
-          tile={editingTile}
-          eventId={event.id}
-          eventStarted={eventStarted}
-          isAdmin={isAdmin}
-          pointsMode={pointsMode}
-          tierBands={tierBands}
-          lockHolder={lockHolder}
-          categorySuggestions={categories}
-          teamPlay={teamPlay}
-          missionsAllowed={missionsAllowed}
-          canDelete={canEditTileSet}
-          revealEditor={
-            revealMode ? (
-              <RevealAtEditor
-                tile={editingTile}
-                eventId={event.id}
-                scheduled={scheduledMode}
-                isAdmin={isAdmin}
-                onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
-                onStateChanged={handleRevealStateChanged}
-              />
-            ) : null
-          }
-          onClose={() => setEditingTileId(null)}
-          onDelete={() => handleDeleteTile(editingTile.id, true)}
-          onSaved={(updated) => {
-            handleTileConfigSaved(editingTile.id, updated);
-            setEditingTileId(null);
-          }}
-        />
-      )}
+      {/* Narrow screens keep the covering drawer — there's no room for two panes. */}
+      {viewMode === 'cards' && editingTile && !inspectorDocked && inspectorPane}
 
       {/* Paste-labels bulk create (Quick Build) */}
       {pasteOpen && (
@@ -1914,28 +1938,20 @@ function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  return (
-    <div className={`fixed inset-0 z-40 flex justify-end ${docked ? 'pointer-events-none' : ''}`}>
-      {/* Only a covering drawer needs a backdrop. Docked, the board stays visible AND clickable:
-          picking another tile moves the inspector rather than making you close it first. */}
-      {!docked && (
-        <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
+  // The editor itself. Docked it's an ordinary sticky column in the page; narrow, it's a modal
+  // drawer over a backdrop. Same panel either way — only the wrapper differs.
+  const panel = (
       <div
         ref={ref}
-        role="dialog"
+        role={docked ? undefined : 'dialog'}
         aria-modal={docked ? undefined : 'true'}
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative w-full max-w-md bg-card-bg border-card-border shadow-2xl flex flex-col focus:outline-none pointer-events-auto ${
+        className={
           docked
-            ? 'my-4 mr-4 max-h-[calc(100vh-2rem)] rounded-xl border'
-            : 'h-full border-l animate-drawer-slide'
-        }`}
+            ? 'sticky top-4 max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
+            : 'relative w-full max-w-md h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
+        }
       >
         {/* Header */}
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
@@ -2012,6 +2028,18 @@ function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin
           )}
         </div>
       </div>
+  );
+
+  if (docked) return panel;
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {panel}
     </div>
   );
 }
