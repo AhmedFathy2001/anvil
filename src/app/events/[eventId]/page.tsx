@@ -231,6 +231,17 @@ export default async function EventScoreboardPage({
     : [];
   const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
 
+  // A SHOWDOWN advertises its schedule: every slot's time and value are public from the start, and
+  // only the content is hidden. Members can't be sent the hidden tiles themselves (that would leak
+  // exactly what the format is built to withhold), so they get placeholders carrying nothing but
+  // when it lands and what it's worth. Staff already receive the real tiles.
+  const hiddenSchedule =
+    rules.revealPolicy === 'scheduled' && !isStaff
+      ? eventTiles
+          .filter((t) => !isTileRevealed(rules, t))
+          .map((t) => ({ revealAt: t.revealAt, points: t.points }))
+      : [];
+
   // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
   // exists and they haven't responded yet. Cheap guarded queries (only when they're eligible).
   let showSurveyCta = false;
@@ -418,6 +429,8 @@ export default async function EventScoreboardPage({
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
           staffOnlyTileIds={staffOnlyTileIds}
+          hiddenSchedule={hiddenSchedule}
+          boardPointsTotal={pointsOnBoard}
         />
       )}
     </>

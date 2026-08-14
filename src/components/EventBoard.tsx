@@ -64,6 +64,11 @@ interface EventBoardProps {
    * should not read as "this is what everyone sees".
    */
   staffOnlyTileIds?: Set<number> | null;
+  /** Classic boards only: the line overlay for whichever team the viewer is looking at. */
+  linePositions?: Set<number> | null;
+  neededPositions?: Set<number> | null;
+  /** Difficulty bands, so a long points list can group under them. */
+  tierBands?: import('@/lib/tileFilter').TierBand[];
 }
 
 /**

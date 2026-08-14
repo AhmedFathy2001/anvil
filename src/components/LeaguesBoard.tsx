@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { TileStatus } from './BoardStatusTabs';
 
 interface Tile {
@@ -46,6 +47,8 @@ interface LeaguesBoardProps {
   statusById?: Map<number, TileStatus>;
   /** Tiles only THIS viewer (staff) can see — members get a board without them. */
   staffOnlyTileIds?: Set<number> | null;
+  /** Difficulty bands (admin-configured). A long board groups under them instead of running flat. */
+  tierBands?: TierBand[];
 }
 
 // Plugin parity: in-progress first, then not-started, then completed. Within a status group the
@@ -69,14 +72,39 @@ export default function LeaguesBoard({
   matchedTileIds,
   statusById,
   staffOnlyTileIds,
+  tierBands = DEFAULT_TIER_BANDS,
 }: LeaguesBoardProps) {
-  const sorted = [...tiles]
-    .filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true))
-    .sort((a, b) => {
-      const sa = statusById ? STATUS_ORDER[statusById.get(a.id) ?? 'not_started'] : 0;
-      const sb = statusById ? STATUS_ORDER[statusById.get(b.id) ?? 'not_started'] : 0;
-      return sa - sb || a.position - b.position;
-    });
+  const visibleTiles = [...tiles].filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true));
+
+  // A 200-task board is a document, not a list: without a spine you scroll it looking for where the
+  // 250-pointers start. Long boards group under their difficulty band (hardest first — that's where
+  // the event is decided); short ones keep the plugin's incomplete-first order exactly as it was.
+  const bandOrder = [...tierBands].sort((a, b) => b.min - a.min);
+  const bandIndex = new Map(bandOrder.map((b, i) => [b.key, i]));
+  const grouped = visibleTiles.length > 40 && bandOrder.length > 1;
+
+  const sorted = visibleTiles.sort((a, b) => {
+    if (grouped) {
+      const ta = bandIndex.get(tileTierKey(a.points, tierBands) ?? '') ?? 99;
+      const tb = bandIndex.get(tileTierKey(b.points, tierBands) ?? '') ?? 99;
+      if (ta !== tb) return ta - tb;
+    }
+    const sa = statusById ? STATUS_ORDER[statusById.get(a.id) ?? 'not_started'] : 0;
+    const sb = statusById ? STATUS_ORDER[statusById.get(b.id) ?? 'not_started'] : 0;
+    return sa - sb || a.position - b.position;
+  });
+
+  // Per-band totals for the headers — counted over the WHOLE board, not just the page in view, so
+  // "12 of 30 done" doesn't change as you scroll.
+  const bandStats = new Map<string, { done: number; total: number; points: number }>();
+  for (const t of tiles) {
+    const key = tileTierKey(t.points, tierBands) ?? '';
+    const row = bandStats.get(key) ?? { done: 0, total: 0, points: 0 };
+    row.total++;
+    if (statusById?.get(t.id) === 'completed') row.done++;
+    else row.points += t.points ?? 0;
+    bandStats.set(key, row);
+  }
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -122,7 +150,13 @@ export default function LeaguesBoard({
   return (
     <div className={`w-full ${wide ? 'max-w-5xl' : 'max-w-3xl'} mx-auto`}>
       <div className="bg-brown-dark/50 rounded-xl border border-card-border divide-y divide-card-border overflow-hidden">
-      {visible.map((tile) => {
+      {visible.map((tile, visibleIndex) => {
+        const bandKey = tileTierKey(tile.points, tierBands) ?? '';
+        const prevBandKey =
+          visibleIndex > 0 ? tileTierKey(visible[visibleIndex - 1].points, tierBands) ?? '' : null;
+        const bandHeader =
+          grouped && bandKey !== prevBandKey ? bandOrder.find((b) => b.key === bandKey) ?? null : null;
+        const stats = bandStats.get(bandKey);
         const tileCompletions = completions
           .filter((c) => c.tileId === tile.id)
           .filter((c) => (activeTeamId ? c.teamId === activeTeamId : true))
@@ -144,6 +178,22 @@ export default function LeaguesBoard({
 
         return (
           <div key={tile.id} className={`${done ? 'bg-accent-green/5' : ''} ${staffOnly ? 'bg-brown-dark/40' : ''}`}>
+            {bandHeader && (
+              <div className="sticky top-0 z-[1] flex items-center gap-2.5 border-b border-card-border bg-brown-dark/95 px-3 py-1.5 backdrop-blur">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: tierColor(bandOrder.length - 1 - (bandIndex.get(bandHeader.key) ?? 0), bandOrder.length) }}
+                  aria-hidden
+                />
+                <span className="text-xs font-bold">{bandHeader.label}</span>
+                {stats && (
+                  <span className="ml-auto text-[11px] text-text-muted">
+                    {stats.done}/{stats.total} done
+                    {stats.points > 0 && <> · {stats.points.toLocaleString()} pts left</>}
+                  </span>
+                )}
+              </div>
+            )}
             <div className={`flex items-center gap-3 px-3 py-2.5 ${staffOnly ? 'opacity-60' : ''}`}>
               {/* Icon */}
               <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded bg-brown-dark/60 border border-card-border">
