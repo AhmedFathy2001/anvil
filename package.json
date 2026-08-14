@@ -27,7 +27,8 @@
     "test:sets": "node --experimental-strip-types --test tests/collection-sets.test.ts && npx tsx --test tests/tile-csv-sets.test.ts",
     "test:coop": "node --experimental-strip-types --test tests/coop-runs.test.ts",
     "test:counters": "npx tsx --test tests/ingame-counters.test.ts",
-    "test:ladder": "node --experimental-strip-types --test tests/ladder-insights.test.ts && npx tsx --test tests/member-breakdown.test.ts"
+    "test:ladder": "node --experimental-strip-types --test tests/ladder-insights.test.ts && npx tsx --test tests/member-breakdown.test.ts",
+    "test:weekly": "node --experimental-strip-types --test tests/competition-insights.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",

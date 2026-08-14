@@ -1,0 +1,282 @@
+'use client';
+
+import type { CompetitionType } from '@/lib/competitionInsights';
+import type { CompetitionEntry, CompetitionMilestone, CompetitionRecord } from '@/lib/competitionView';
+import { dateLabel, exactValue, shortValue } from './format';
+
+/**
+ * The standings, the viewer's own place in them, and the week's superlatives.
+ *
+ * The board keeps everyone — a competition nobody signed up for is one where everyone in the clan
+ * is already entered — but each row now carries what it did TODAY and the shape of its week, so the
+ * table answers "who's actually still going" without anyone opening a profile.
+ */
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+export function YouStrip({
+  me,
+  type,
+  unit,
+  elapsed,
+}: {
+  me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null };
+  type: CompetitionType;
+  unit: string;
+  elapsed: number;
+}) {
+  const { entry, behind, rank } = me;
+  const max = Math.max(...entry.days.slice(0, elapsed), 1);
+  const activeDays = entry.days.slice(0, elapsed).filter((d) => d > 0).length;
+  const share = behind ? entry.gained / Math.max(1, entry.gained + behind.amount) : 1;
+
+  return (
+    <div className="sticky top-[var(--nav-height)] z-10 mb-6 grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
+      <div className="font-mono text-3xl font-bold leading-none tabular-nums">
+        <span className="text-base text-text-muted">#</span>
+        {rank}
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 font-semibold">
+          <span className="truncate">{entry.rsn}</span>
+          {entry.today > 0 ? (
+            <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
+          ) : (
+            <span className="font-mono text-[11px] font-bold text-text-muted">quiet today</span>
+          )}
+        </div>
+        <div className="text-xs text-text-muted">
+          {shortValue(entry.gained, type)} {unit} · {activeDays} of {elapsed} days
+          {entry.streak >= 3 && entry.streak === elapsed && <> · 🔥 every day</>}
+        </div>
+      </div>
+
+      <div className="col-span-2 sm:col-span-1">
+        <div className="mb-1.5 text-xs text-text-muted">
+          {behind ? (
+            <>
+              <span className="font-semibold text-foreground">{shortValue(behind.amount, type)} {unit}</span> behind {behind.rsn}
+            </>
+          ) : (
+            <span className="font-semibold text-gold">You are winning this one.</span>
+          )}
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full border border-card-border bg-brown-dark">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-accent-green to-accent-green-light"
+            style={{ width: `${Math.max(4, Math.min(99, share * 100))}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="col-span-2 flex h-9 items-end gap-[3px] sm:col-span-1" title="your day by day">
+        {entry.days.slice(0, elapsed).map((v, i) => (
+          <i
+            key={i}
+            className={`block w-[7px] rounded-sm ${i === elapsed - 1 ? 'bg-gold-light' : 'bg-accent-green/60'}`}
+            style={{ height: `${Math.max(3, (v / max) * 34)}px` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function Podium({
+  entries,
+  days,
+  elapsed,
+  type,
+  unit,
+}: {
+  entries: CompetitionEntry[];
+  days: string[];
+  elapsed: number;
+  type: CompetitionType;
+  unit: string;
+}) {
+  const top = entries.slice(0, 3).filter((e) => e.gained > 0);
+  if (top.length === 0) return null;
+
+  return (
+    <div className="mb-7 grid items-end gap-3 sm:grid-cols-3">
+      {top.map((e, i) => {
+        const first = i === 0;
+        const max = Math.max(...e.days.slice(0, elapsed), 1);
+        const bestIdx = e.days.slice(0, elapsed).indexOf(max);
+        return (
+          <div
+            key={e.rsn}
+            className={`relative overflow-hidden rounded-xl border p-4 ${
+              first
+                ? 'border-gold/45 bg-card-bg bg-[radial-gradient(120%_100%_at_50%_0%,rgba(212,175,55,0.18),transparent_66%)] py-6'
+                : 'border-card-border bg-card-bg'
+            } ${e.isMe ? 'ring-1 ring-accent-green/40' : ''}`}
+          >
+            <span className="absolute right-3.5 top-3.5 text-xl leading-none" aria-hidden>{MEDALS[i]}</span>
+            <div className={`font-mono text-xs font-bold tracking-widest ${first ? 'text-gold' : 'text-text-muted'}`}>
+              {first ? 'LEADER' : `#${i + 1}`}
+            </div>
+            <div className={`mt-2 break-words font-extrabold leading-tight ${first ? 'text-xl text-gold-light sm:text-2xl' : 'text-lg'}`}>
+              {e.rsn}
+            </div>
+            <div className="mt-2.5 flex items-baseline gap-2">
+              <span className={`font-mono font-bold leading-none tabular-nums ${first ? 'text-4xl text-gold-light' : i === 1 ? 'text-3xl text-[#cfd3d8]' : 'text-3xl text-[#c8916a]'}`}>
+                {shortValue(e.gained, type)}
+              </span>
+              <span className="text-xs text-text-muted">{unit}</span>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2.5 text-xs text-text-muted">
+              {max > 0 && (
+                <span>
+                  best day {days[bestIdx] ? dateLabel(days[bestIdx]) : '—'} · {shortValue(max, type)}
+                </span>
+              )}
+              {e.streak >= 3 && e.streak === elapsed && <span title={`Every day so far (${e.streak})`}>🔥</span>}
+              <span className="ml-auto flex h-6 items-end gap-[3px]">
+                {e.days.slice(0, elapsed).map((v, k) => (
+                  <i
+                    key={k}
+                    className="block w-2 rounded-sm"
+                    style={{ height: `${Math.max(3, (v / max) * 24)}px`, backgroundColor: first ? '#f0c940' : 'rgba(138,126,108,0.6)' }}
+                  />
+                ))}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Board({
+  entries,
+  elapsed,
+  type,
+  unit,
+  showDaily,
+}: {
+  entries: CompetitionEntry[];
+  elapsed: number;
+  type: CompetitionType;
+  unit: string;
+  showDaily: boolean;
+}) {
+  const max = Math.max(...entries.flatMap((e) => e.days.slice(0, elapsed)), 1);
+
+  return (
+    <div>
+      <h2 className="mb-4 flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
+        <span className="h-5 w-1 rounded-full bg-gold" />
+        Leaderboard
+        <span className="text-xs font-normal text-text-muted">
+          {entries.length} entered{showDaily && " · today's gain beside each"}
+        </span>
+      </h2>
+
+      {entries.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-card-border py-10 text-center text-sm text-text-muted">
+          No participants yet.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-card-border">
+          {entries.map((e, i) => (
+            <div
+              key={e.rsn}
+              className={`grid items-center gap-3 border-b border-card-border/60 px-3 py-2 last:border-b-0 ${
+                e.isMe ? 'bg-gradient-to-r from-accent-green/20 to-card-bg shadow-[inset_3px_0_0_#34d058]' : 'bg-card-bg'
+              }`}
+              style={{ gridTemplateColumns: showDaily ? '34px minmax(0,1fr) auto auto 34px' : '34px minmax(0,1fr) auto' }}
+            >
+              <span className={`font-mono text-xs ${i < 3 ? 'text-gold' : 'text-text-muted'}`}>
+                {i < 3 ? MEDALS[i] : `#${i + 1}`}
+              </span>
+              <span className="min-w-0 truncate text-sm font-medium">
+                {e.rsn}
+                {e.flagged && (
+                  <span className="ml-1.5 text-[11px] text-amber-300" title={e.flagReason ?? 'Baseline looks stale — an admin should check it'}>
+                    ⚠
+                  </span>
+                )}
+                {e.streak >= 3 && e.streak === elapsed && (
+                  <span className="ml-1.5 text-[11px]" title={`Scored every day of the competition so far (${e.streak})`}>
+                    🔥
+                  </span>
+                )}
+              </span>
+              {showDaily && (
+                <span className={`text-right font-mono text-[11.5px] ${e.today > 0 ? 'text-accent-green-light' : 'text-text-muted'}`}>
+                  {e.today > 0 ? `+${shortValue(e.today, type)}` : '—'}
+                </span>
+              )}
+              <span className="text-right font-mono text-sm font-bold tabular-nums text-accent-green-light" title={`${exactValue(e.gained, type)} ${unit}`}>
+                {shortValue(e.gained, type)}
+              </span>
+              {showDaily && (
+                <span className="flex h-4 items-end gap-[1.5px]">
+                  {e.days.slice(0, elapsed).map((v, k) => (
+                    <i
+                      key={k}
+                      className={`block w-[3px] rounded-[1px] ${e.isMe ? 'bg-accent-green/70' : 'bg-text-muted/55'}`}
+                      style={{ height: `${Math.max(2, (v / max) * 16)}px` }}
+                    />
+                  ))}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SidePanels({
+  milestones,
+  records,
+}: {
+  milestones: CompetitionMilestone[];
+  records: CompetitionRecord[];
+}) {
+  return (
+    <>
+      {milestones.length > 0 && (
+        <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
+          <h3 className="text-sm font-bold">Milestones this week</h3>
+          <p className="mt-0.5 text-xs text-text-muted">levels and thresholds crossed while the competition ran</p>
+          <div className="mt-2.5">
+            {milestones.map((m, i) => (
+              <div key={i} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
+                <span className="text-base leading-none">{m.emoji}</span>
+                <span className="min-w-0 flex-1 text-text-muted">
+                  <b className="font-semibold text-foreground">{m.rsn}</b> {m.action}{' '}
+                  <b className="font-semibold text-foreground">{m.highlight}</b>
+                </span>
+                <span className="shrink-0 font-mono text-[11px] text-text-muted">{dateLabel(m.day)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {records.length > 0 && (
+        <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
+          <h3 className="text-sm font-bold">Records &amp; streaks</h3>
+          <div className="mt-2.5">
+            {records.map((r) => (
+              <div key={r.label} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
+                <span className="text-base leading-none">{r.emoji}</span>
+                <span className="min-w-0 flex-1 text-text-muted">
+                  {r.label} — <b className="font-semibold text-foreground">{r.who}</b>
+                </span>
+                <span className="shrink-0 font-mono text-xs font-bold text-gold-light">{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

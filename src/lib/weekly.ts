@@ -649,6 +649,11 @@ export async function getEffectiveParticipants(competitionId: number) {
       rsn: weeklyParticipants.rsn,
       baselineValue: weeklyParticipants.baselineValue,
       currentValue: weeklyParticipants.currentValue,
+      // Carried so a board can join a participant to their daily history and mark a stale baseline.
+      // computeLeaderboard ignores the extra columns.
+      clanMemberId: weeklyParticipants.clanMemberId,
+      flagged: weeklyParticipants.flagged,
+      flagReason: weeklyParticipants.flagReason,
     })
     .from(weeklyParticipants)
     .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
