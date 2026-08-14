@@ -1352,8 +1352,8 @@ export default function TileTrackingConfig({
                 Unlock this tile’s label, kind and required amount to fix a misconfigured tile on the
                 running board. The change is recorded as a{' '}
                 <span className="font-semibold">live override</span> in the tile history. If you lower a
-                required amount, run <span className="font-semibold">Recompute Completions</span> on the
-                Overview tab afterwards to heal teams already at the new target.
+                required amount, press <span className="font-semibold">Heal the board</span> on the
+                event&rsquo;s home page afterwards — teams already at the new target complete retroactively.
               </span>
             </span>
           </label>
