@@ -45,6 +45,15 @@ interface Props {
    * cleared, so a board that later gains real teams keeps whatever was configured.
    */
   teamPlay?: boolean;
+  /**
+   * Can a tile on THIS board be a mission?
+   *
+   * False on a ladder, where the whole board is already a rotating pool of announced objectives —
+   * flagging one of them "mission" would be a mission inside a mission. Also false until the host
+   * turns missions on for the event, so the flag isn't offered on boards that have no announce
+   * policy to drop it with.
+   */
+  missionsAllowed?: boolean;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -424,6 +433,7 @@ export default function TileTrackingConfig({
   tierBands,
   categorySuggestions,
   teamPlay = true,
+  missionsAllowed = true,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -2626,7 +2636,11 @@ export default function TileTrackingConfig({
         <span className="text-xs text-text-muted">Optional tile (doesn&apos;t count towards total)</span>
       </div>
 
-      {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ---- */}
+      {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ----
+           Hidden entirely where a mission is meaningless (a ladder) or not enabled for the event.
+           An already-flagged tile keeps its panel so its config is never silently stranded. */}
+      {(missionsAllowed || mission) && (
+      <>
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
         <div className="flex items-center gap-2">
           <button
@@ -2743,6 +2757,9 @@ export default function TileTrackingConfig({
           </div>
         )}
       </div>
+
+      </>
+      )}
 
       {/* Auto-tracking kill-switch — only meaningful for kinds the site would otherwise
           auto-credit. 'standard' tiles are already manual, so hiding it there avoids noise. */}

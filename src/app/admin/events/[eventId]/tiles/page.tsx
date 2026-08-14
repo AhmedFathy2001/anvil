@@ -7,6 +7,7 @@ import { getTierBands } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { eventEditLocked } from '@/lib/eventLock';
 import { isLadderFormat } from '@/lib/utils';
+import { parseEventRules, hasMissions } from '@/lib/eventRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,11 @@ export default async function EventTilesPage({
   }
   const teamPlay = !isLadderFormat(event.format) || [...playersPerTeam.values()].some((n) => n > 1);
 
+  // Missions are a board-level opt-in, and a contradiction on a ladder — that format's whole board
+  // is already a pool of announced objectives, so a "mission" inside it would be a mission inside a
+  // mission. Elsewhere the flag only appears once the host has turned missions on for the event.
+  const missionsAllowed = !isLadderFormat(event.format) && hasMissions(parseEventRules(event.rules));
+
   return (
     <TilesClient
       event={event}
@@ -46,6 +52,7 @@ export default async function EventTilesPage({
       isAdmin={user?.role === 'admin'}
       editLocked={eventEditLocked(event)}
       teamPlay={teamPlay}
+      missionsAllowed={missionsAllowed}
     />
   );
 }

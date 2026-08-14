@@ -15,9 +15,12 @@ import type { Tile } from '@/lib/types';
 export default function MissionAdminPanel({
   event,
   tiles,
+  allowed = true,
 }: {
   event: { id: number; rules?: string | null; tilesRevealed?: number | null };
   tiles: Tile[];
+  /** False where missions are a contradiction — a ladder's whole board is already announced pool. */
+  allowed?: boolean;
 }) {
   const router = useRouter();
   const rules = parseEventRules(event.rules);
@@ -31,7 +34,10 @@ export default function MissionAdminPanel({
   const [announcing, setAnnouncing] = useState(false);
   const [msg, setMsg] = useState('');
 
-  if (missionTiles.length === 0) return null;
+  // Renders BEFORE any mission tile exists, because this is where missions get turned on and the
+  // tile editor only offers its Mission flag once they are — gating this panel on mission tiles
+  // existing made the two wait on each other forever.
+  if (!allowed) return null;
 
   const hidden = missionTiles.filter((t) => !t.revealedAt).length;
   const live = missionTiles.filter((t) => t.revealedAt && !t.closedAt).length;
@@ -89,9 +95,20 @@ export default function MissionAdminPanel({
         Missions
       </h2>
       <p className="text-sm text-text-muted mb-3">
-        Hidden objectives you drop mid-event. {missionTiles.length} mission{missionTiles.length === 1 ? '' : 's'}:{' '}
-        <span className="text-gold">{hidden} hidden</span> · <span className="text-accent-green-light">{live} live</span>
-        {done > 0 && <> · {done} done</>}.
+        {missionTiles.length === 0 ? (
+          <>
+            Hidden objectives you drop mid-event, scored separately from the board.{' '}
+            {enabled
+              ? 'Now flag the tiles you want as missions on the Tiles tab.'
+              : 'Turn them on here, then flag tiles as missions on the Tiles tab.'}
+          </>
+        ) : (
+          <>
+            Hidden objectives you drop mid-event. {missionTiles.length} mission{missionTiles.length === 1 ? '' : 's'}:{' '}
+            <span className="text-gold">{hidden} hidden</span> · <span className="text-accent-green-light">{live} live</span>
+            {done > 0 && <> · {done} done</>}.
+          </>
+        )}
       </p>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-4 space-y-4">

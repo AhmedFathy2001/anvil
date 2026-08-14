@@ -84,12 +84,14 @@ interface Props {
   isAdmin?: boolean;
   /** Event has real multi-person teams — false on an individual ladder (see the tiles page). */
   teamPlay?: boolean;
+  /** Missions are enabled for this event and meaningful on this format (see the tiles page). */
+  missionsAllowed?: boolean;
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself, so the header's Quick build shortcut can jump straight to it.
@@ -1046,6 +1048,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     tierBands={tierBands}
                     categorySuggestions={categories}
                     teamPlay={teamPlay}
+                    missionsAllowed={missionsAllowed}
                   />
                 </div>
               ) : editingLoading ? (
@@ -1230,6 +1233,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           lockHolder={lockHolder}
           categorySuggestions={categories}
           teamPlay={teamPlay}
+          missionsAllowed={missionsAllowed}
           canDelete={canEditTileSet}
           revealEditor={
             revealMode ? (
@@ -1614,11 +1618,13 @@ interface DrawerProps {
   categorySuggestions?: string[];
   /** Event has real multi-person teams — false on an individual ladder. */
   teamPlay?: boolean;
+  /** Missions are enabled for this event and meaningful on this format. */
+  missionsAllowed?: boolean;
   /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
   revealEditor?: React.ReactNode;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1676,6 +1682,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}
             teamPlay={teamPlay}
+            missionsAllowed={missionsAllowed}
           />
 
           {canDelete && onDelete && (
