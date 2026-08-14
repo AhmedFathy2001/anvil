@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -89,6 +89,11 @@ interface Props {
   // Reveal-policy events (lib/eventRules): tiles the viewer can't see yet + when the next lands.
   hiddenTileCount?: number;
   nextRevealAt?: string | null;
+  /**
+   * Staff viewing a reveal-policy board see EVERY tile, including ones members can't. Without this
+   * the page looked identical to a fully-revealed board while its own banner said tiles were hidden.
+   */
+  staffOnlyTileIds?: number[];
   // Ladder events: the event-wide individual leaderboard (primary standings). `ladderHasTeams` = the
   // event runs real multi-person teams, so rows carry a team label and the team board also shows.
   individualStandings?: IndividualStanding[];
@@ -102,7 +107,7 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], individualStandings = [], individualStandingsMonthly = [], ladderHasTeams = false }: Props) {
   const ladder = isLadderFormat(event.format);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -111,6 +116,11 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const staffOnlySet = useMemo(
+    () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
+    [staffOnlyTileIds],
+  );
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
   const selectedTileCompletions = selectedTileId
@@ -291,7 +301,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </h2>
             {ladder ? (
               <>
-                <LadderStandings standings={individualStandings} monthly={individualStandingsMonthly} showTeam={ladderHasTeams} />
+                <LadderStandings
+                  standings={individualStandings}
+                  monthly={individualStandingsMonthly}
+                  showTeam={ladderHasTeams}
+                  openEnded={!event.endDate}
+                />
                 {ladderHasTeams && (
                   <div className="mt-6">
                     <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
@@ -453,11 +468,24 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </div>
           )}
 
+          {/* Staff-only preview notice. The hidden COUNT is deliberately not shown to members on a
+              mission board (it would leak how many surprises are left), but the host still needs to
+              know their view isn't the public one. */}
+          {staffOnlySet && hiddenTileCount === 0 && (
+            <div className="mb-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-2.5 text-sm text-foreground/90">
+              <span aria-hidden className="mr-1.5">👁</span>
+              <span className="font-semibold">{staffOnlySet.size}</span> tile{staffOnlySet.size === 1 ? '' : 's'} below
+              {' '}<span className="text-text-muted">are marked staff-only — members don&apos;t see them yet.</span>
+            </div>
+          )}
           {hiddenTileCount > 0 && (
             <div className="mb-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
               <span className="text-sm text-foreground/90">
                 <span aria-hidden className="mr-1.5">🙈</span>
                 <span className="font-semibold">{hiddenTileCount}</span> tile{hiddenTileCount === 1 ? '' : 's'} still hidden
+                {staffOnlySet && (
+                  <span className="text-text-muted"> — marked below; you see them because you&apos;re staff</span>
+                )}
               </span>
               <span className="text-xs text-text-muted">
                 {nextRevealAt
@@ -477,6 +505,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             expanded={fullscreen}
             pointsMode={pointsMode}
             matchedTileIds={matchedTileIds}
+            staffOnlyTileIds={staffOnlySet}
           />
         </div>
       </div>

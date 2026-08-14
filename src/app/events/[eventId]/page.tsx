@@ -10,7 +10,7 @@ import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import { isPointsMode, isLadderFormat, eventShapeBadge } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, isTileRevealed, nextRevealAt } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -230,6 +230,12 @@ export default async function EventScoreboardPage({
   const rules = parseEventRules(event.rules);
   const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
+  // Staff keep the full board, so tell the client WHICH of those tiles a member wouldn't see —
+  // otherwise an armed reveal board looks exactly like a fully-revealed one to the host. Not gated
+  // on the reveal policy: an un-announced MISSION is member-hidden on an otherwise classic board too.
+  const staffOnlyTileIds = isStaff
+    ? eventTiles.filter((t) => !isTileRevealed(rules, t)).map((t) => t.id)
+    : [];
   const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
 
   // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
@@ -365,6 +371,7 @@ export default async function EventScoreboardPage({
           teamMvps={teamMvps}
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
+          staffOnlyTileIds={staffOnlyTileIds}
           individualStandings={individualStandings}
           individualStandingsMonthly={individualStandingsMonthly}
           ladderHasTeams={ladderHasTeams}

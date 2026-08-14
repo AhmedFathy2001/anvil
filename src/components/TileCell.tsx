@@ -18,6 +18,8 @@ interface TileCellProps {
   dimmed?: boolean;
   /** Item can't be plugin-drop-tracked (shop/gamble reward) — show a manual-submit marker. */
   manualOnly?: boolean;
+  /** Not revealed to members yet — only staff see it. Marked so a staff preview reads as a preview. */
+  staffOnly?: boolean;
   /**
    * Union / spectator view (no single team selected): instead of painting the tile as one team's
    * completion, keep it neutral and show a team-colour dot per completing team. Prevents the
@@ -26,7 +28,7 @@ interface TileCellProps {
   markersOnly?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, markersOnly }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly }: TileCellProps) {
   const anyCompleted = completedBy.length > 0;
   // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
   const isCompleted = anyCompleted && !markersOnly;
@@ -51,6 +53,9 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         !interactive && onClick && 'cursor-pointer hover:border-gold/40 hover:scale-[1.02]',
         !interactive && !onClick && 'cursor-default',
         dimmed && 'opacity-30 grayscale',
+        // Staff-preview marking: a dashed gold edge says "members don't see this yet" without
+        // hiding it from the person who has to configure it.
+        staffOnly && 'opacity-70 border-dashed !border-gold/50',
       )}
       style={
         isCompleted
