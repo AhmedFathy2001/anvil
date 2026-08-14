@@ -269,8 +269,8 @@ export function SidePanels({
     <>
       {milestones.length > 0 && (
         <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
-          <h3 className="text-sm font-bold">Milestones this week</h3>
-          <p className="mt-0.5 text-xs text-text-muted">levels and thresholds crossed while the competition ran</p>
+          <h3 className="text-sm font-bold">Milestones on this metric</h3>
+          <p className="mt-0.5 text-xs text-text-muted">crossed while the competition ran — the clan&apos;s other milestones are on the home page</p>
           <div className="mt-2.5">
             {milestones.map((m, i) => (
               <div key={i} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
