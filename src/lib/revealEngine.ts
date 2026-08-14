@@ -5,6 +5,7 @@ import {
   parseEventRules,
   hasRevealPolicy,
   hasMissions,
+  nextRevealAt,
   parseTileMissionRules,
   type EventRules,
   type RevealOrder,
@@ -118,7 +119,7 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
       .update(tiles)
       .set({ revealedAt: now })
       .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
-      .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
+      .returning({ id: tiles.id, label: tiles.label, points: tiles.points, icon: tiles.icon });
     if (flipped.length > 0) {
       log.info('reveal-engine.reveal', {
         eventId: event.id,
@@ -126,13 +127,19 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
         count: flipped.length,
         hiddenLeft: hidden.length - flipped.length,
       });
+      // Recompute against the post-flip state so the countdown points at the NEXT batch rather than
+      // the one that just landed.
+      const after = eventTiles.map((t) =>
+        flipped.some((f) => f.id === t.id) ? { ...t, revealedAt: now } : t,
+      );
       notifyTilesRevealed({
         eventName: event.name,
-        tiles: flipped.map((t) => ({ label: t.label, points: t.points })),
+        tiles: flipped.map((t) => ({ label: t.label, points: t.points, icon: t.icon })),
         pointsMode: event.scoringMode === 'points',
         hiddenRemaining: hidden.length - flipped.length,
         bounty: rules.revealPolicy === 'bounty',
         eventId: event.id,
+        nextRevealAt: nextRevealAt(event, rules, after),
       }).catch(() => {});
     }
   }
@@ -211,12 +218,12 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
     .update(tiles)
     .set({ revealedAt: now })
     .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
-    .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
+    .returning({ id: tiles.id, label: tiles.label, points: tiles.points, icon: tiles.icon });
   if (flipped.length > 0) {
     log.info('reveal-engine.mission-announce', { eventId: event.id, count: flipped.length });
     notifyTilesRevealed({
       eventName: event.name,
-      tiles: flipped.map((t) => ({ label: t.label, points: t.points })),
+      tiles: flipped.map((t) => ({ label: t.label, points: t.points, icon: t.icon })),
       pointsMode: event.scoringMode === 'points',
       hiddenRemaining: Math.max(0, hiddenCount - flipped.length),
       mission: true,

@@ -5,7 +5,7 @@ import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
-import { getEventStartReadiness } from '@/lib/eventLifecycle';
+import { getEventStartReadiness, eventBoardSummary } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
@@ -276,6 +276,8 @@ export async function PATCH(
         eventName: updated.name,
         startDate: updated.startDate!,
         endDate: updated.endDate,
+        format: updated.format,
+        ...(await eventBoardSummary(updated)),
       }).catch(() => {});
     }
 
