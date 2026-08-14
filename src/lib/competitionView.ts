@@ -233,7 +233,7 @@ export async function buildCompetitionView(
         }
       : null;
 
-  const milestones = await loadMilestones(memberIds, memberIdByRsn, competition, days);
+  const milestones = await loadMilestones(memberIds, memberIdByRsn, competition, days, type, metric);
 
   return {
     type,
@@ -297,12 +297,21 @@ async function loadPrevious(
   return { title: prev.title, total, deltaPct: Math.round(((pace - total) / total) * 100) };
 }
 
-/** Milestones crossed while the competition was running, newest first. */
+/**
+ * Milestones crossed IN THIS COMPETITION'S METRIC while it ran, newest first.
+ *
+ * Every milestone the clan crossed this week already has a home on the home page. Repeating that
+ * list here made the page longer without making it say anything — but "Minjoll hit 99 Agility"
+ * during an Agility SOTW is not a coincidence, it is the story of the week. So this keeps the ones
+ * that belong to the competition and drops the rest; when none match, the panel doesn't render.
+ */
 async function loadMilestones(
   memberIds: number[],
   memberIdByRsn: Map<string, number>,
   competition: { startDate: string; endDate: string },
   days: string[],
+  type: CompetitionType,
+  metric: string,
 ): Promise<CompetitionMilestone[]> {
   if (memberIds.length === 0 || days.length === 0) return [];
   const rsnByMemberId = new Map<number, string>();
@@ -325,9 +334,14 @@ async function loadMilestones(
       ),
     )
     .orderBy(desc(memberMilestones.noticedAt))
-    .limit(8);
+    .limit(40);
 
-  return rows.map((r) => ({
+  // An efficiency week is account-wide, so its own EHP/EHB marks are the relevant ones.
+  const relevant = rows.filter((r) =>
+    type === 'efficiency' ? r.kind === metric : r.metric === metric,
+  );
+
+  return relevant.slice(0, 6).map((r) => ({
     ...milestoneText(r.kind, r.metric, r.threshold),
     rsn: rsnByMemberId.get(r.clanMemberId) ?? 'Someone',
     day: r.noticedAt.slice(0, 10),

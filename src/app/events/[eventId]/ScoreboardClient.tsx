@@ -143,26 +143,30 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // Stamped with the tile it belongs to rather than cleared on close: that way the modal can only
   // ever show proof for the tile actually open, with no flash of the previous one's while the next
   // is in flight — and the effect never has to setState just to reset.
-  const [tileProof, setTileProof] = useState<{ tileId: number; rows: FullSubmission[] } | null>(null);
+  const [tileProof, setTileProof] = useState<{ tileId: number; teamId: number | null; rows: FullSubmission[] } | null>(null);
   useEffect(() => {
     if (!selectedTileId) return;
     let cancelled = false;
     const tileId = selectedTileId;
     // Capped: a kill tile on a busy board can hold thousands of auto-logs, and the panel only ever
     // shows totals per contributor plus their proof. The API's own ceiling is 500.
-    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}&limit=500`)
+    // The lens scopes the PROOF too: looking at Frost's board and opening a tile has to show
+    // Frost's proof, not every team's. Without this the modal quietly contradicted the board.
+    const teamParam = lensTeamId != null ? `&teamId=${lensTeamId}` : '';
+    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}${teamParam}&limit=500`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: FullSubmission[]) => {
-        if (!cancelled) setTileProof({ tileId, rows: Array.isArray(rows) ? rows : [] });
+        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: Array.isArray(rows) ? rows : [] });
       })
       .catch(() => {
-        if (!cancelled) setTileProof({ tileId, rows: [] });
+        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: [] });
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedTileId, event.id]);
-  const proofForOpenTile = tileProof && tileProof.tileId === selectedTileId ? tileProof.rows : null;
+  }, [selectedTileId, event.id, lensTeamId]);
+  const proofForOpenTile =
+    tileProof && tileProof.tileId === selectedTileId && tileProof.teamId === lensTeamId ? tileProof.rows : null;
 
   const staffOnlySet = useMemo(
     () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
@@ -773,7 +777,9 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           tile={selectedTile as unknown as FullTile}
           submissions={proofForOpenTile ?? []}
           submissionsLoading={proofForOpenTile === null}
-          completedBy={selectedTileCompletions.map((c) => {
+          completedBy={selectedTileCompletions
+            .filter((c) => lensTeamId == null || c.teamId === lensTeamId)
+            .map((c) => {
             const team = teams.find((t) => t.id === c.teamId);
             return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
           })}

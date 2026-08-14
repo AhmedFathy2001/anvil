@@ -32,7 +32,8 @@ export default function SiteNav({ signedIn, isStaff, discordInvite, user }: Prop
   }, [pathname]);
 
   const links = [
-    { href: '/', label: 'Events' },
+    { href: '/', label: 'Home' },
+    { href: '/events', label: 'Events' },
     { href: '/weekly', label: 'Weekly' },
     { href: '/members', label: 'Members' },
     ...(signedIn ? [{ href: '/team', label: 'My Team' }] : []),
