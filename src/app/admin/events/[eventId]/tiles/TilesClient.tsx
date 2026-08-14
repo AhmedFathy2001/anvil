@@ -82,12 +82,14 @@ interface Props {
   tierBands?: TierBand[];
   /** Current user is an admin — gates the admin-only live-event tile override. */
   isAdmin?: boolean;
+  /** Event has real multi-person teams — false on an individual ladder (see the tiles page). */
+  teamPlay?: boolean;
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself, so the header's Quick build shortcut can jump straight to it.
@@ -133,11 +135,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     };
   }
 
-  // Patch a tile's reveal schedule into local state after a RevealAtEditor save (the server is
-  // the only writer of revealedAt/closedAt, so only revealAt moves here).
+  // Patch a tile's reveal schedule into local state after a RevealAtEditor save (this path writes
+  // the PLAN only — the engine still owns when it actually flips).
   function handleRevealAtSaved(tileId: number, revealAt: string | null) {
     setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, revealAt } : t)));
     setEditingFresh((prev) => (prev && prev.id === tileId ? { ...prev, revealAt } : prev));
+  }
+
+  // An admin forced this tile open (or hid it again) — the server returns the whole row, so take
+  // revealedAt/closedAt straight from it rather than guessing at the new state.
+  function handleRevealStateChanged(updated: Tile) {
+    const patch = { revealedAt: updated.revealedAt ?? null, closedAt: updated.closedAt ?? null };
+    setLocalTiles((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...patch } : t)));
+    setEditingFresh((prev) => (prev && prev.id === updated.id ? { ...prev, ...patch } : prev));
   }
 
   // Effort-model refetch trigger + the balance panel's one-click "apply suggested points".
@@ -1016,7 +1026,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       tile={editingTile}
                       eventId={event.id}
                       scheduled={scheduledMode}
+                      isAdmin={isAdmin}
                       onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+                      onStateChanged={handleRevealStateChanged}
                     />
                   )}
                   <TileTrackingConfig
@@ -1033,6 +1045,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     pointsMode={pointsMode}
                     tierBands={tierBands}
                     categorySuggestions={categories}
+                    teamPlay={teamPlay}
                   />
                 </div>
               ) : editingLoading ? (
@@ -1216,6 +1229,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           tierBands={tierBands}
           lockHolder={lockHolder}
           categorySuggestions={categories}
+          teamPlay={teamPlay}
           canDelete={canEditTileSet}
           revealEditor={
             revealMode ? (
@@ -1223,7 +1237,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 tile={editingTile}
                 eventId={event.id}
                 scheduled={scheduledMode}
+                isAdmin={isAdmin}
                 onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+                onStateChanged={handleRevealStateChanged}
               />
             ) : null
           }
@@ -1412,24 +1428,62 @@ function toLocalInputValue(iso: string | null | undefined): string {
 }
 
 /**
- * Reveal-policy status + (scheduled events) the per-tile reveal-time editor. The engine owns
- * revealedAt/closedAt — this only writes the PLAN (tiles.revealAt); the every-minute tick flips
- * the tile live once the time passes, so "Reveal now" is just "set the time to now".
+ * Per-tile reveal state on a reveal-policy board.
+ *
+ * Two different mechanisms, because the policies work differently:
+ *   • 'scheduled' — the host owns the PLAN (tiles.revealAt) and the engine flips the tile when its
+ *     time passes, so the datetime field is the primary control.
+ *   • interval / rotating / bounty — the ENGINE picks which tile is next, so there's no plan to
+ *     edit. Instead an admin can force this specific tile open now, or pull it back to hidden
+ *     (`revealState`, admin-only). Without these the only per-tile control on those boards was a
+ *     status line you couldn't act on.
  */
 function RevealAtEditor({
   tile,
   eventId,
   scheduled,
+  isAdmin = false,
   onSaved,
+  onStateChanged,
 }: {
   tile: Tile;
   eventId: number;
   scheduled: boolean;
+  isAdmin?: boolean;
   onSaved: (revealAt: string | null) => void;
+  /** Force-reveal / re-hide landed — carries the whole tile back so revealedAt/closedAt refresh. */
+  onStateChanged?: (tile: Tile) => void;
 }) {
   const [value, setValue] = useState(() => toLocalInputValue(tile.revealAt));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function setRevealState(next: 'live' | 'hidden') {
+    if (next === 'hidden' && !confirm('Hide this tile from members again? Any progress on it stays, but it stops being playable until it opens again.')) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/tiles`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileId: tile.id, revealState: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ type: 'error', text: data.error || 'Could not change this tile’s reveal state.' });
+        return;
+      }
+      onStateChanged?.(data as Tile);
+      setMsg({
+        type: 'success',
+        text: next === 'live' ? 'Tile is open to members now.' : 'Tile is hidden again.',
+      });
+    } catch {
+      setMsg({ type: 'error', text: 'Could not change this tile’s reveal state.' });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save(revealAt: string | null) {
     setSaving(true);
@@ -1506,6 +1560,37 @@ function RevealAtEditor({
           </p>
         </>
       )}
+      {/* Manual override. On a scheduled board the datetime field above is the normal route, so this
+          only offers the reverse (pull a live tile back); on engine-drawn boards it's the only
+          per-tile control that exists. */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {!tile.revealedAt || tile.closedAt ? (
+            <button
+              onClick={() => setRevealState('live')}
+              disabled={saving}
+              title="Open this exact tile to members right now, ahead of the rotation"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Working…' : tile.closedAt ? 'Re-open now' : 'Open now'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setRevealState('hidden')}
+              disabled={saving}
+              title="Pull this tile back out of the board — the rotation can draw it again later"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Working…' : 'Hide again'}
+            </button>
+          )}
+          <span className="text-[11px] text-text-muted">
+            {scheduled
+              ? 'Overrides the scheduled time for this tile only.'
+              : 'The rotation normally picks tiles for you — this overrides it for this tile.'}
+          </span>
+        </div>
+      )}
       {msg && (
         <p className={`text-[11px] ${msg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>{msg.text}</p>
       )}
@@ -1527,11 +1612,13 @@ interface DrawerProps {
   lockHolder?: string | null;
   /** Categories used elsewhere on the board, for the category tag typeahead. */
   categorySuggestions?: string[];
+  /** Event has real multi-person teams — false on an individual ladder. */
+  teamPlay?: boolean;
   /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
   revealEditor?: React.ReactNode;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, revealEditor }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1588,6 +1675,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
             pointsMode={pointsMode}
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}
+            teamPlay={teamPlay}
           />
 
           {canDelete && onDelete && (

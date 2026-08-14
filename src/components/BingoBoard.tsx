@@ -42,6 +42,8 @@ interface BingoBoardProps {
   expanded?: boolean;
   pointsMode?: boolean;
   matchedTileIds?: Set<number> | null;
+  /** Tiles only THIS viewer (staff) can see — members get a board without them. */
+  staffOnlyTileIds?: Set<number> | null;
 }
 
 export default function BingoBoard({
@@ -57,6 +59,7 @@ export default function BingoBoard({
   expanded,
   pointsMode,
   matchedTileIds,
+  staffOnlyTileIds,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -109,6 +112,7 @@ export default function BingoBoard({
             points={pointsMode && !tile.optional ? (tile.points ?? 1) : undefined}
             dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
             manualOnly={isManualOnlyDropTile(tile)}
+            staffOnly={staffOnlyTileIds?.has(tile.id) ?? false}
             markersOnly={!activeTeamId}
           />
         );

@@ -54,7 +54,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -239,6 +239,34 @@ export async function PUT(
     } else {
       return NextResponse.json({ error: 'partySize must be an integer between 1 and 100' }, { status: 400 });
     }
+  }
+
+  // revealState: the host's manual override of what the engine decided — force a hidden tile OPEN
+  // now, or pull an open one back to hidden. Every non-'scheduled' policy (interval, rotating,
+  // bounty) picks its own tiles, which left hosts with no way to open a specific one; on those
+  // boards this is the only per-tile reveal control there is. Admin-only: it changes what members
+  // can score right now, which is a game decision rather than tile authoring.
+  //   'live'   → revealedAt = now, closedAt cleared (a re-opened bounty/expired task is playable).
+  //   'hidden' → revealedAt + closedAt cleared, so the engine may draw it again later.
+  // Interval/rotating draws are computed from a cumulative target, so a manual reveal is absorbed
+  // by the next draw rather than putting the board permanently ahead.
+  if (revealState !== undefined) {
+    if (revealState !== 'live' && revealState !== 'hidden') {
+      return NextResponse.json({ error: "revealState must be 'live' or 'hidden'" }, { status: 400 });
+    }
+    if (editor.role !== 'admin') {
+      return NextResponse.json({ error: 'Revealing or hiding a tile is admin-only.' }, { status: 403 });
+    }
+    const [updated] = await db
+      .update(tiles)
+      .set(
+        revealState === 'live'
+          ? { revealedAt: new Date().toISOString(), closedAt: null, updatedAt: new Date().toISOString() }
+          : { revealedAt: null, closedAt: null, updatedAt: new Date().toISOString() },
+      )
+      .where(and(eq(tiles.id, tileId), eq(tiles.eventId, eId)))
+      .returning();
+    return NextResponse.json(updated);
   }
 
   // revealAt: planned reveal time for a 'scheduled' reveal-policy event (lib/eventRules). Always

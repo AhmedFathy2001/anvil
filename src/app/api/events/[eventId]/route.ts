@@ -231,25 +231,24 @@ export async function PATCH(
     if (event.forceEndedAt) {
       return NextResponse.json({ error: 'Event is force-ended. Resume it before starting.' }, { status: 400 });
     }
-    // An end date is required so the bingo has a defined finish (see the "Keep end date as-is"
-    // decision) — and it must still be in the future, or the event would start already-ended.
-    if (!event.endDate) {
-      return NextResponse.json({ error: 'Set an end date before starting the bingo.' }, { status: 400 });
-    }
-    if (event.endDate <= now) {
+    // A past end date is still a hard no — the event would start already over.
+    if (event.endDate && event.endDate <= now) {
       return NextResponse.json({ error: 'The end date has already passed. Update it before starting.' }, { status: 400 });
     }
 
-    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned.
-    // 409 + the blocker list so the UI can explain; `force: true` is the explicit admin override
-    // (the UI re-confirms before sending it).
+    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned,
+    // and warn about an open-ended run. 409 + the blocker list so the UI can explain; `force: true`
+    // is the explicit admin override (the UI re-confirms before sending it). A missing end date is
+    // deliberately in this soft lane rather than the hard 400 it used to be — a ladder that cycles
+    // monthly is meant to run until it's ended.
     if (body.force !== true) {
       const readiness = await getEventStartReadiness(event.id, event.draftStatus);
-      if (!readiness.ready) {
+      const blockers = [...readiness.blockers, ...(event.endDate ? [] : ['no-end-date' as const])];
+      if (blockers.length > 0) {
         return NextResponse.json(
           {
-            error: `The bingo isn't ready to start: ${describeStartBlockers(readiness.blockers)}.`,
-            blockers: readiness.blockers,
+            error: `Check this before starting: ${describeStartBlockers(blockers)}.`,
+            blockers,
           },
           { status: 409 },
         );

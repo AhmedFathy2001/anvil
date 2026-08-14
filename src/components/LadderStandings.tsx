@@ -11,19 +11,27 @@ import type { IndividualStanding } from '@/lib/memberBreakdown';
 // `showTeam` labels each row with its team when the event runs real (multi-person) teams; on the
 // default one-team-each ladder every team is a single person, so it's suppressed as noise.
 //
-// `monthly` is the same board windowed to the current UTC month. When present it adds an
-// All-time / This month toggle — the ladder runs forever while the monthly board resets each month.
+// `monthly` is the same board windowed to the current UTC month. When present it adds a
+// whole-run / This month toggle — the ladder runs forever while the monthly board resets each month.
+//
+// Which board opens first depends on how the ladder is set up. An OPEN-ENDED ladder (no end date)
+// is a rolling monthly competition: the current month is the live race, and the running total is
+// the historical view — so it opens on This month. A ladder with an end date is a bounded event
+// whose whole run IS the competition, so that board leads and the label says so.
 export default function LadderStandings({
   standings,
   monthly,
   showTeam = false,
+  openEnded = false,
 }: {
   standings: IndividualStanding[];
   monthly?: IndividualStanding[];
   showTeam?: boolean;
+  /** Ladder with no end date — a rolling board that cycles monthly rather than a fixed run. */
+  openEnded?: boolean;
 }) {
-  const [scope, setScope] = useState<'all' | 'month'>('all');
   const hasMonthly = !!monthly;
+  const [scope, setScope] = useState<'all' | 'month'>(openEnded && hasMonthly ? 'month' : 'all');
   const rows = scope === 'month' && monthly ? monthly : standings;
 
   return (
@@ -39,7 +47,7 @@ export default function LadderStandings({
                 scope === s ? 'bg-gold text-brown-dark' : 'text-text-muted hover:text-foreground'
               }`}
             >
-              {s === 'all' ? 'All-time' : 'This month'}
+              {s === 'month' ? 'This month' : openEnded ? 'All-time' : 'Whole event'}
             </button>
           ))}
         </div>

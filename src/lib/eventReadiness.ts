@@ -8,7 +8,11 @@
 // with Node type-stripping, like lib/eventRules and lib/federationDecisions. Callers fetch the
 // counts (see eventLifecycle.getEventStartReadiness) and pass them in.
 
-export type StartBlockerCode = 'draft-in-progress' | 'no-teams' | 'no-assigned-players';
+// 'no-end-date' is a WARNING, not a state check: an event with no end date runs until someone ends
+// it, which is a legitimate setup (a rolling monthly ladder) but usually a mistake on a bingo. It is
+// never produced by computeStartReadiness — only the admin start-now door raises it, so it prompts
+// once and is overridable, and a scheduled start is never held for it.
+export type StartBlockerCode = 'draft-in-progress' | 'no-teams' | 'no-assigned-players' | 'no-end-date';
 
 export interface StartReadinessCounts {
   draftStatus: string;
@@ -54,6 +58,8 @@ export function startBlockerLabel(code: StartBlockerCode): string {
       return 'no teams have been created yet';
     case 'no-assigned-players':
       return 'no players have been assigned to a team yet';
+    case 'no-end-date':
+      return 'there is no end date, so it will run until you end it manually';
   }
 }
 

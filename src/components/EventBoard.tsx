@@ -58,6 +58,12 @@ interface EventBoardProps {
   matchedTileIds?: Set<number> | null;
   /** Show the complete/incomplete/in-progress status filter (mirrors the plugin). Default on. */
   showStatusFilter?: boolean;
+  /**
+   * Tiles this viewer can see but members can't (staff looking at a reveal-policy board before its
+   * tiles open). Marked rather than hidden — staff still need to configure them, but the board
+   * should not read as "this is what everyone sees".
+   */
+  staffOnlyTileIds?: Set<number> | null;
 }
 
 /**

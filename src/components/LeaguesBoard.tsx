@@ -44,6 +44,8 @@ interface LeaguesBoardProps {
   matchedTileIds?: Set<number> | null;
   /** Per-tile status — when present the list sorts incomplete-first (like the plugin). */
   statusById?: Map<number, TileStatus>;
+  /** Tiles only THIS viewer (staff) can see — members get a board without them. */
+  staffOnlyTileIds?: Set<number> | null;
 }
 
 // Plugin parity: in-progress first, then not-started, then completed. Within a status group the
@@ -66,6 +68,7 @@ export default function LeaguesBoard({
   expanded: wide,
   matchedTileIds,
   statusById,
+  staffOnlyTileIds,
 }: LeaguesBoardProps) {
   const sorted = [...tiles]
     .filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true))
@@ -135,10 +138,13 @@ export default function LeaguesBoard({
             ? Math.min(100, Math.round((stat.current / Math.max(1, stat.goal)) * 100))
             : null;
         const isOpen = expanded.has(tile.id);
+        // Staff see the whole board on a reveal-policy event, which made an armed board look
+        // identical to a fully-revealed one. Mark what members can't see yet.
+        const staffOnly = staffOnlyTileIds?.has(tile.id) ?? false;
 
         return (
-          <div key={tile.id} className={done ? 'bg-accent-green/5' : ''}>
-            <div className="flex items-center gap-3 px-3 py-2.5">
+          <div key={tile.id} className={`${done ? 'bg-accent-green/5' : ''} ${staffOnly ? 'bg-brown-dark/40' : ''}`}>
+            <div className={`flex items-center gap-3 px-3 py-2.5 ${staffOnly ? 'opacity-60' : ''}`}>
               {/* Icon */}
               <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded bg-brown-dark/60 border border-card-border">
                 {tile.icon ? (
@@ -162,6 +168,14 @@ export default function LeaguesBoard({
                     {tile.label}
                   </span>
                   {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
+                  {staffOnly && (
+                    <span
+                      className="shrink-0 text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border border-gold/30 bg-gold/10 text-gold"
+                      title="Not revealed yet — you can see this because you're staff. Members don't."
+                    >
+                      Staff only
+                    </span>
+                  )}
                   {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact className="shrink-0" />}
                 </div>
                 {pct !== null && (

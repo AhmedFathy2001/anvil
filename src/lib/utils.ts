@@ -95,6 +95,16 @@ export function eventModeLabel(
   }
 }
 
+/**
+ * What to CALL this event in a sentence — "Start the ladder now", "the race hasn't started".
+ * A ladder and a race aren't bingos, and admin copy that calls everything a bingo reads as a bug.
+ */
+export function eventNoun(format: string | null | undefined): 'bingo' | 'race' | 'ladder' {
+  if (isTileRaceFormat(format)) return 'race';
+  if (isLadderFormat(format)) return 'ladder';
+  return 'bingo';
+}
+
 /** Compact shape badge, e.g. "5×5", "Race · 12", "Leagues · 30", "Showdown · 12". */
 export function eventShapeBadge(
   format: string | null | undefined,

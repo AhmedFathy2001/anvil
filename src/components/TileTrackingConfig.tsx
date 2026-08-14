@@ -38,6 +38,13 @@ interface Props {
   tierBands?: TierBand[];
   /** Categories already used elsewhere on this board, offered as typeahead in the tag input. */
   categorySuggestions?: string[];
+  /**
+   * Does this event actually have multi-person teams? False on an individual ladder / one-team-each
+   * board, where "Team Total vs Solo", shared-kill credit and minimum-teammate gates describe a
+   * thing that doesn't exist — every team is one player. Those controls are hidden rather than
+   * cleared, so a board that later gains real teams keeps whatever was configured.
+   */
+  teamPlay?: boolean;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -358,12 +365,16 @@ function TrackingModeField({
   onChange,
   unit,
   goal,
+  teamPlay = true,
 }: {
   value: string;
   onChange: (mode: string) => void;
   unit: string;
   goal: string;
+  /** False on individual boards — whose progress counts isn't a question when a team is one person. */
+  teamPlay?: boolean;
 }) {
+  if (!teamPlay) return null;
   const teamHelp = `Team Total — every member's ${unit} add up toward the ${goal}. Three members with 4, 3 and 3 finish a tile that needs 10.`;
   const soloHelp = `Solo — one member has to reach the ${goal} on their own. Three members with 4, 3 and 3 are still at 4 of 10; each member's count is tracked separately and the first to get there completes the tile for the team.`;
   return (
@@ -412,6 +423,7 @@ export default function TileTrackingConfig({
   pointsMode,
   tierBands,
   categorySuggestions,
+  teamPlay = true,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -1443,7 +1455,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -1491,13 +1503,17 @@ export default function TileTrackingConfig({
 
               {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
                   a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
-                  item list plus the cap above, so no new tile kind is needed. */}
-              <div>
-                <p className="text-[10px] text-text-muted mb-1">
-                  Track unique-table rolls:
+                  item list plus the cap above, so no new tile kind is needed.
+
+                  Collapsed: these are one-click presets for four specific bosses, and shown open on
+                  every drop tile they read as settings that belong to the tile you're editing. */}
+              <details className="group">
+                <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                  <span className="transition-transform group-open:rotate-90">▸</span>
+                  Fill from a boss&rsquo;s unique table (DT2 vestige rolls)
                   <FlagHint text={ROLL_TABLE_HELP} />
-                </p>
-                <div className="flex flex-wrap gap-1.5">
+                </summary>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {ROLL_TABLES.map((t) => (
                     <button
                       key={t.boss}
@@ -1514,7 +1530,7 @@ export default function TileTrackingConfig({
                     </button>
                   ))}
                 </div>
-              </div>
+              </details>
             </div>
           )}
 
@@ -1871,7 +1887,7 @@ export default function TileTrackingConfig({
           {/* Gain tiles have always SAVED a tracking mode; the control was just never rendered, so a
               tile that inherited 'individual' (e.g. switched over from a Solo kill tile) got a mode the
               admin couldn't see or change. It's shown here now that the mode is enforced. */}
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gathered items" goal="amount" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gathered items" goal="amount" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -1967,9 +1983,15 @@ export default function TileTrackingConfig({
             </p>
 
             {/* Raid quick-adds — completions credit off the game's kill-count line, which names the
-                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings. */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Raids</span>
+                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings.
+                Collapsed, because most kill tiles aren't raids and eight raid-mode chips under the
+                search box read as required setup rather than the shortcut they are. */}
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▸</span>
+                Add a raid (exact in-game mode names)
+              </summary>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {RAID_KC_NAMES.filter((n) => !targetNpcNames.some((t) => t.toLowerCase() === n.toLowerCase())).map((n) => (
                 <button
                   key={n}
@@ -1981,7 +2003,8 @@ export default function TileTrackingConfig({
                   + {n}
                 </button>
               ))}
-            </div>
+              </div>
+            </details>
           </div>
 
           <div>
@@ -1997,10 +2020,12 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" teamPlay={teamPlay} />
 
           {/* Shared kills. Tracking Mode answers WHOSE kills count; these answer what a kill several
-              members were in is worth, and whether it counts at all. */}
+              members were in is worth, and whether it counts at all. Meaningless on an individual
+              board — there are no teammates to share a kill with. */}
+          {teamPlay && (
           <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
             <label className="flex items-start gap-2 cursor-pointer">
               <input
@@ -2037,6 +2062,7 @@ export default function TileTrackingConfig({
               </p>
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -2133,7 +2159,7 @@ export default function TileTrackingConfig({
             </p>
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="PvP kills" goal="kill count" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="PvP kills" goal="kill count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -2219,7 +2245,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -2345,7 +2371,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="task completions" goal="count" />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="task completions" goal="count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -2573,6 +2599,19 @@ export default function TileTrackingConfig({
         </div>
       )}
 
+      {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
+          on every tile it triples the length of the form for no one's benefit. Opens by default when
+          any of it is actually in use, so an existing tile never hides its own configuration. */}
+      <details open={optional || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
+        <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
+          <span className="transition-transform group-open:rotate-90">▸</span>
+          Advanced
+          <span className="text-[10px] text-text-muted/70 font-normal">
+            optional tile · mission · manual completion
+          </span>
+        </summary>
+        <div className="px-3 pb-3 space-y-3">
+
       {/* Optional toggle */}
       <div className="flex items-center gap-2">
         <button
@@ -2615,7 +2654,9 @@ export default function TileTrackingConfig({
               >
                 <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${missionLockout ? 'translate-x-5' : ''}`} />
               </button>
-              <span className="text-xs text-text-muted">First team to clear locks it (others can&apos;t score it)</span>
+              <span className="text-xs text-text-muted">
+                First {teamPlay ? 'team' : 'player'} to clear locks it (others can&apos;t score it)
+              </span>
             </div>
             {!pointsMode && (
               <p className="text-[10px] text-amber-300/80">
@@ -2624,7 +2665,8 @@ export default function TileTrackingConfig({
             )}
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                First-clear bonus <span className="text-text-muted/60">(extra points for the first team)</span>
+                First-clear bonus{' '}
+                <span className="text-text-muted/60">(extra points for the first {teamPlay ? 'team' : 'player'})</span>
               </label>
               <Input
                 type="number"
@@ -2726,6 +2768,8 @@ export default function TileTrackingConfig({
           </p>
         </div>
       )}
+        </div>
+      </details>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
