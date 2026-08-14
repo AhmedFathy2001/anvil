@@ -8,7 +8,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
-import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules, visibleTiles, isTileRevealed } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
@@ -26,6 +26,31 @@ const START_HOLD_MS = 2 * 60 * 1000;
 
 // Fetch the start-readiness counts for one event and classify them (lib/eventReadiness). Shared by
 // the lifecycle cron, the admin start-now action, and the admin Overview banner.
+/**
+ * Board shape for the start announcement: how many tiles exist, how many are OPEN at that moment
+ * (a reveal-policy board starts with most of them hidden), and the points on offer. Shared by both
+ * start doors — the scheduled cron start and the admin's start-now — so they post the same thing.
+ */
+export async function eventBoardSummary(event: {
+  id: number;
+  scoringMode: string | null;
+  rules: string | null;
+}): Promise<{ tileCount: number; openTileCount: number; totalPoints: number }> {
+  const rules = parseEventRules(event.rules);
+  const eventTiles = await db
+    .select({ points: tiles.points, optional: tiles.optional, revealedAt: tiles.revealedAt, revealAt: tiles.revealAt, closedAt: tiles.closedAt, mission: tiles.mission })
+    .from(tiles)
+    .where(eq(tiles.eventId, event.id));
+  const scored = eventTiles.filter((t) => !t.optional);
+  return {
+    tileCount: scored.length,
+    openTileCount: scored.filter((t) => isTileRevealed(rules, t)).length,
+    totalPoints: event.scoringMode === 'points'
+      ? scored.reduce((sum, t) => sum + (t.points ?? 0), 0)
+      : 0,
+  };
+}
+
 export async function getEventStartReadiness(eventId: number, draftStatus: string): Promise<StartReadiness> {
   const [[teamCount], [assignedCount], [totalCount]] = await Promise.all([
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
@@ -112,6 +137,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         eventName: event.name,
         startDate: event.startDate,
         endDate: event.endDate,
+        format: event.format,
+        ...(await eventBoardSummary(event)),
       });
     }
   }

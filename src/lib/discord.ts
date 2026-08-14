@@ -582,7 +582,8 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
 
 interface TilesRevealedNotifyParams {
   eventName: string;
-  tiles: { label: string; points: number | null }[];
+  /** `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. */
+  tiles: { label: string; points: number | null; icon?: string | null }[];
   /** Show per-tile point values (points-scoring events only). */
   pointsMode: boolean;
   /** Hidden tiles left after this reveal — the "more to come" teaser. */
@@ -593,42 +594,72 @@ interface TilesRevealedNotifyParams {
   mission?: boolean;
   /** Links the author line + title to the board. */
   eventId?: number | null;
+  /** When the next batch is due, for a live countdown. Null on bounty (draws on a claim instead). */
+  nextRevealAt?: string | null;
 }
 
 // Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
 // next-tile, mission announces). One embed per batch, not per tile, so an interval batch of 5 is a
 // single post.
 export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
-  const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId } = params;
+  const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId, nextRevealAt } = params;
   if (tiles.length === 0) return false;
 
   const noun = mission ? 'mission' : 'tile';
-  const lines = tiles
-    .slice(0, 15)
-    .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
-  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
-  const remaining = mission
-    ? '' // missions drop from their own pool; a "still hidden" count would spoil the surprise
-    : hiddenRemaining > 0
-      ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
-      : '';
+  const single = tiles.length === 1;
 
+  // A single reveal is the common case (batch size 1, bounty, most mission drops) and deserves to
+  // read as one thing rather than a bullet list of one: the tile's name IS the headline, its art is
+  // the thumbnail, and its value is a boxed field like every other number Anvil posts.
   const title = mission
-    ? tiles.length === 1
-      ? '⚡ New mission is live!'
+    ? single
+      ? `⚡ New mission: ${tiles[0].label}`
       : `⚡ ${tiles.length} new missions are live!`
     : bounty
-      ? '🎯 New bounty tile is up!'
-      : tiles.length === 1
-        ? '🔓 New tile revealed!'
+      ? `🎯 New bounty: ${tiles[0].label}`
+      : single
+        ? `🔓 Now open: ${tiles[0].label}`
         : `🔓 ${tiles.length} new ${noun}s revealed!`;
 
+  const lines = single
+    ? []
+    : tiles
+        .slice(0, 15)
+        .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
+
+  const description = single
+    ? bounty
+      ? 'First to finish it claims it — nobody else can score it.'
+      : mission
+        ? 'Live now. Go get it.'
+        : 'Live now — it counts from this moment.'
+    : clamp(lines.join('\n'), LIMIT.description);
+
+  const fields: DiscordEmbedField[] = [];
+  if (single && pointsMode && tiles[0].points != null) {
+    fields.push(statField('Worth', `${tiles[0].points} pts`));
+  }
+  // Missions drop from their own pool; a "still hidden" count would spoil the surprise.
+  if (!mission && hiddenRemaining > 0) {
+    fields.push(statField(`Still hidden`, `${hiddenRemaining} ${noun}${hiddenRemaining === 1 ? '' : 's'}`));
+  }
+  // A live countdown beats "more to come" — every client renders it ticking, in its own timezone.
+  if (nextRevealAt) {
+    fields.push(field('Next drop', discordTime(nextRevealAt, 'R')));
+  } else if (bounty) {
+    fields.push(field('Next drop', 'When this one is claimed'));
+  }
+
   const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
+  const icon = single ? tiles[0].icon : null;
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title,
-    description: clamp(`${lines.join('\n')}${remaining}`, LIMIT.description),
+    title: clamp(title, LIMIT.title),
+    description,
     color: EMBED_COLOR.gold,
+    ...(icon ? { thumbnail: { url: icon } } : {}),
+    ...(fields.length ? { fields } : {}),
     ...(boardUrl ? { url: boardUrl } : {}),
   };
 
@@ -809,22 +840,49 @@ interface EventStartNotifyParams {
   eventName: string;
   startDate: string;
   endDate?: string | null;
+  /** What this event IS — a ladder isn't played by teams, so it isn't wished luck as teams. */
+  format?: string | null;
+  /** Tiles/tasks on the board, and how many of them are open right now (reveal-policy boards). */
+  tileCount?: number | null;
+  openTileCount?: number | null;
+  /** Total points on the board, for a points-scored event. */
+  totalPoints?: number | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventId, eventName, startDate, endDate } = params;
+  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints } = params;
+  const ladder = format === 'ladder';
+  const noun = format === 'ladder' ? 'task' : 'tile';
 
   const fields: DiscordEmbedField[] = [field('Started', discordTime(startDate))];
 
   if (endDate) {
     // Exact end time + a live countdown that ticks down in everyone's client.
     fields.push(field('Ends', `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`));
+  } else {
+    // An open-ended run is a deliberate setup (a ladder that cycles monthly), so say so rather
+    // than leaving a conspicuous hole where the end date goes.
+    fields.push(field('Ends', 'No end date — runs until it\u2019s closed'));
+  }
+
+  // What's actually on the board. A start post that says only "it started" makes every event look
+  // identical; the size and shape of the board is the first thing anyone wants to know.
+  if (tileCount && tileCount > 0) {
+    const open = openTileCount != null && openTileCount < tileCount
+      ? `${openTileCount} of ${tileCount} open`
+      : `${tileCount} ${noun}${tileCount === 1 ? '' : 's'}`;
+    fields.push(statField('Board', open));
+  }
+  if (totalPoints && totalPoints > 0) {
+    fields.push(statField('Points up for grabs', totalPoints.toLocaleString()));
   }
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title: '🚀 Event started',
-    description: `**${eventName}** has begun. Good luck to all teams!${boardLinkLine(eventId)}`,
+    title: ladder ? '🚀 Ladder is live' : '🚀 Event started',
+    description: ladder
+      ? `**${eventName}** is live. Climb the board — every task you finish is points on your name.${boardLinkLine(eventId)}`
+      : `**${eventName}** has begun. Good luck to all teams!${boardLinkLine(eventId)}`,
     color: EMBED_COLOR.green,
     fields,
     ...(eventLeaderboardUrl(eventId) ? { url: eventLeaderboardUrl(eventId)! } : {}),

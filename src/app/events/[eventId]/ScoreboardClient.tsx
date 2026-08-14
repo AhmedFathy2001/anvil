@@ -10,7 +10,7 @@ import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
 import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import type { Tile as FullTile } from '@/lib/types';
+import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import LadderStandings from '@/components/LadderStandings';
@@ -116,6 +116,36 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Proof for the tile the viewer opened. The board itself only needs the light projection above,
+  // and a busy event has thousands of submissions, so the full rows (screenshot, note, who credited
+  // it) are fetched per tile on open. Without this the public board passed an empty list and the
+  // modal had no proof to show — which had no workaround at all on a ladder, where "go look at the
+  // team page" isn't a place that exists.
+  const [tileProof, setTileProof] = useState<FullSubmission[]>([]);
+  const [tileProofLoading, setTileProofLoading] = useState(false);
+  useEffect(() => {
+    if (!selectedTileId) {
+      setTileProof([]);
+      return;
+    }
+    let cancelled = false;
+    setTileProofLoading(true);
+    fetch(`/api/events/${event.id}/submissions?tileId=${selectedTileId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: FullSubmission[]) => {
+        if (!cancelled) setTileProof(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTileProof([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTileProofLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTileId, event.id]);
 
   const staffOnlySet = useMemo(
     () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
@@ -516,7 +546,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
-          submissions={[]}
+          submissions={tileProof}
+          submissionsLoading={tileProofLoading}
           completedBy={selectedTileCompletions.map((c) => {
             const team = teams.find((t) => t.id === c.teamId);
             return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };

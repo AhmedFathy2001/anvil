@@ -76,6 +76,8 @@ interface TeamStatProgress {
 interface Props {
   tile: Tile;
   submissions: Submission[];
+  /** Proof is being fetched — show a placeholder rather than "no submissions" while it lands. */
+  submissionsLoading?: boolean;
   completedBy: CompletedByTeam[];
   canSubmit: boolean;
   canManage: boolean;
@@ -101,6 +103,7 @@ interface Props {
 export default function TileDetailModal({
   tile,
   submissions,
+  submissionsLoading = false,
   completedBy,
   canSubmit,
   canManage,
@@ -754,6 +757,11 @@ export default function TileDetailModal({
             >
               {toggling ? '...' : 'Reopen tile (clear completion)'}
             </button>
+          )}
+
+          {/* Proof still in flight — say so, so an empty modal doesn't read as "no proof exists". */}
+          {submissionsLoading && submissions.length === 0 && (
+            <p className="text-xs text-text-muted">Loading proof…</p>
           )}
 
           {/* Submission gallery */}
