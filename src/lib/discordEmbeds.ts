@@ -141,6 +141,45 @@ export function playerEventEmbed(opts: {
   return embed;
 }
 
+/**
+ * A saved OBS clip, posted to the clan's clips channel.
+ *
+ * The plugin used to post these itself as bare text — "<rsn> saved a clip 🎬" — which told nobody
+ * what they were about to watch. `moment` is the plugin's own summary of what happened inside the
+ * clip's capture window (the drop, kill, completion or death it caught); when it has nothing to
+ * report the embed falls back to naming the event, which still beats the bare line.
+ *
+ * The video rides in the same multipart body as an ordinary attachment. Discord renders a player
+ * for it under the embed — an embed cannot host a video the way it hosts an image — so the embed
+ * carries the words and the attachment carries the picture.
+ */
+export function clipEmbed(opts: {
+  rsn: string | null;
+  /** What the clip caught, in the plugin's words. Null when it saw nothing notable. */
+  moment?: string | null;
+  /** Event this was clipped during, for context when the moment is thin. */
+  eventName?: string | null;
+  /** Seconds of footage, from the capture buffer length. */
+  seconds?: number | null;
+}): DiscordEmbed {
+  const { rsn, moment, eventName, seconds } = opts;
+  const embed: DiscordEmbed = {
+    title: '🎬 Clip saved',
+    color: EMBED_COLOR.violet,
+  };
+  if (moment && moment.trim()) {
+    embed.description = clamp(moment.trim(), LIMIT.description);
+  } else if (eventName) {
+    embed.description = `Clipped during ${clamp(eventName, 200)}.`;
+  }
+  if (rsn) embed.author = { name: clamp(rsn, LIMIT.author) };
+  const fields: DiscordEmbedField[] = [];
+  if (eventName && moment) fields.push(field('Event', clamp(eventName, LIMIT.fieldValue)));
+  if (seconds && seconds > 0) fields.push(statField('Length', `${seconds}s`));
+  if (fields.length) embed.fields = fields;
+  return embed;
+}
+
 /** stampBrand across a payload's `embeds` array, leaving a payload with no embeds untouched. */
 export function stampEmbeds<T extends { embeds?: unknown }>(payload: T): T {
   if (!Array.isArray(payload.embeds) || payload.embeds.length === 0) return payload;

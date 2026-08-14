@@ -125,10 +125,10 @@ export async function POST(request: Request) {
       imageFilename: image?.filename ?? null,
     });
     // The message moves into the embed's description, so don't also post it as content.
-    const ok = await forwardPluginNotification(url, { embed: built as unknown as Record<string, unknown>, image });
+    const ok = await forwardPluginNotification(url, { embed: built as unknown as Record<string, unknown>, attachment: image });
     return NextResponse.json({ ok });
   }
 
-  const ok = await forwardPluginNotification(url, { content, embed: embed ?? null, image });
+  const ok = await forwardPluginNotification(url, { content, embed: embed ?? null, attachment: image });
   return NextResponse.json({ ok });
 }

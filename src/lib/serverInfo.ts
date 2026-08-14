@@ -51,6 +51,9 @@ export const PLUGIN_CAPABILITIES = [
   // Live push for the hiscores counters that are neither a boss nor a skill. The wire accepts any
   // key in HISCORES_ACTIVITIES; which of them a client can actually read is the plugin's business.
   'activity-stats',
+  // Server-relayed OBS clips: POST /api/plugin/clip uploads the video and the server posts it to the
+  // clan's clips channel, so members don't each paste a webhook into their plugin config.
+  'clip-relay',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

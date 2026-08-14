@@ -68,7 +68,31 @@ of v1.0.0: `stats-live`, `drop-tiles`, `kill-tiles`, `timed-tiles`, `lms-tiles`,
 (mid-event announced mission tiles on a normal bingo — the plugin gates its mission strip
 on this so it isn't confused by a self-hosted site that predates the feature);
 `activity-stats` (`POST /api/plugin/stats` accepts an `activities: [{key, value}]` array
-alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill).
+alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill);
+`clip-relay` (`POST /api/plugin/clip` uploads a saved OBS clip and the server posts it to
+the clan's clips channel).
+
+### `clip-relay`
+
+Clips are the one thing the plugin historically posted to Discord itself, uploading to a
+webhook URL each user pasted into their own plugin config — a video is megabytes, and the
+plugin may never call a URL a server response handed it. With this capability the plugin
+instead uploads to the site it is already authenticated against (its own configured Site
+URL, which is not a URL we handed it) and the server resolves `webhook_clips` and posts.
+
+`POST /api/plugin/clip`, `multipart/form-data`, plugin-token auth:
+
+- `file` — the video. Max **10MB** (Discord's non-boosted webhook ceiling); `413` above it.
+  Types: `video/mp4`, `video/x-matroska`, `video/quicktime`, `video/webm` (`415` otherwise).
+- `payload_json` — optional `{ moment, eventName, seconds }`. `moment` is the plugin's own
+  one-line summary of what the clip caught; the server composes the embed around it.
+
+Distinct failures the plugin is expected to surface rather than swallow: `501` (the clan
+has no clips channel configured), `413` (too big to post anywhere), `502` (Discord refused).
+Rate limit is 6/min per token holder.
+
+A plugin keeps both fallbacks: the user-pasted webhook when a site lacks this capability,
+and local-only when there is neither.
 
 ### `activity-stats`
 
