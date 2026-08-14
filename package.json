@@ -28,7 +28,7 @@
     "test:coop": "node --experimental-strip-types --test tests/coop-runs.test.ts",
     "test:counters": "npx tsx --test tests/ingame-counters.test.ts",
     "test:boards": "node --experimental-strip-types --test tests/bingo-lines.test.ts",
-    "test:ladder": "node --experimental-strip-types --test tests/ladder-insights.test.ts && npx tsx --test tests/member-breakdown.test.ts"
+    "test:ladder": "node --experimental-strip-types --test tests/ladder-insights.test.ts && npx tsx --test tests/member-breakdown.test.ts",
     "test:weekly": "node --experimental-strip-types --test tests/competition-insights.test.ts"
   },
   "dependencies": {
