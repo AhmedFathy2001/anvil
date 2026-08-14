@@ -1,44 +1,17 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
-import { db } from '@/db';
-import { events, weeklyCompetitions } from '@/db/schema';
+import { listEventIndex } from '@/lib/eventIndex';
 
-// GET — unified list of scheduled items (bingo events + weekly competitions)
-// for the admin schedule calendar. Any admin/moderator can view.
+// GET — everything this clan runs, boards and weeklies together, for the admin schedule calendar.
+// One shape for both (lib/eventIndex) rather than two lists the client has to reconcile; the
+// weekly links land on their admin workspace, not the player page. Any admin/moderator may view.
 export async function GET() {
   const user = await verifyUser();
   if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [allEvents, allWeeklies] = await Promise.all([
-    db.select().from(events),
-    db.select().from(weeklyCompetitions),
-  ]);
-
-  const bingos = allEvents
-    .filter((e) => e.startDate && e.endDate)
-    .map((e) => ({
-      kind: 'bingo' as const,
-      id: e.id,
-      title: e.name,
-      startDate: e.startDate!,
-      endDate: e.endDate!,
-      forceEndedAt: e.forceEndedAt,
-      href: `/admin/events/${e.id}`,
-    }));
-
-  const weeklies = allWeeklies.map((w) => ({
-    kind: 'weekly' as const,
-    id: w.id,
-    title: w.title,
-    type: w.type,
-    metric: w.metric,
-    status: w.status,
-    startDate: w.startDate,
-    endDate: w.endDate,
-    href: `/weekly/${w.id}`,
-  }));
-
-  return NextResponse.json({ bingos, weeklies });
+  const items = await listEventIndex();
+  // The calendar plots date ranges, so anything without both ends can't be placed on it.
+  return NextResponse.json({ items: items.filter((i) => i.startDate && i.endDate) });
 }
