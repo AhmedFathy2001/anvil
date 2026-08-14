@@ -18,6 +18,12 @@ import type { LadderScope } from '@/lib/ladderView';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+// The chase is everyone from 4th down, which on an open ladder is the whole clan. Past this many it
+// scrolls inside its own frame rather than pushing the activity feed off the page. Matches the
+// roster directory's cap (src/app/members/MembersDirectory.tsx).
+const VISIBLE_ROWS = 12;
+const ROW_PX = 38;
+
 function Sparkline({ points, gold }: { points: number[]; gold: boolean }) {
   if (!points.length || points.every((p) => p === 0)) return null;
   const w = 72;
@@ -185,6 +191,10 @@ export function Chase({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-card-border">
+          <div
+            className="overflow-y-auto"
+            style={{ maxHeight: chase.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
+          >
           {chase.map((r, i) => {
             const isMe = r.playerId === mePlayerId;
             return (
@@ -220,6 +230,12 @@ export function Chase({
               </div>
             );
           })}
+          </div>
+          {chase.length > VISIBLE_ROWS && (
+            <div className="border-t border-card-border/60 bg-brown-dark/40 px-3 py-1.5 text-center text-[11px] text-text-muted">
+              scroll for {chase.length - VISIBLE_ROWS} more
+            </div>
+          )}
         </div>
       )}
     </div>

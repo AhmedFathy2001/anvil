@@ -14,6 +14,13 @@ import { dateLabel, exactValue, shortValue } from './format';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+// A competition board is every member of the clan who gained anything, which on a big week is
+// eighty rows. Past this many it scrolls inside its own frame rather than pushing the milestones
+// and records — and everything beside it — off the bottom of the page. Matches the roster
+// directory's cap (src/app/members/MembersDirectory.tsx).
+const VISIBLE_ROWS = 12;
+const ROW_PX = 38;
+
 export function YouStrip({
   me,
   type,
@@ -182,6 +189,10 @@ export function Board({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-card-border">
+          <div
+            className="overflow-y-auto"
+            style={{ maxHeight: entries.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
+          >
           {entries.map((e, i) => (
             <div
               key={e.rsn}
@@ -227,6 +238,12 @@ export function Board({
               )}
             </div>
           ))}
+          </div>
+          {entries.length > VISIBLE_ROWS && (
+            <div className="border-t border-card-border/60 bg-brown-dark/40 px-3 py-1.5 text-center text-[11px] text-text-muted">
+              scroll for {entries.length - VISIBLE_ROWS} more
+            </div>
+          )}
         </div>
       )}
     </div>
