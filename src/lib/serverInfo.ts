@@ -54,6 +54,9 @@ export const PLUGIN_CAPABILITIES = [
   // Server-relayed OBS clips: POST /api/plugin/clip uploads the video and the server posts it to the
   // clan's clips channel, so members don't each paste a webhook into their plugin config.
   'clip-relay',
+  // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
+  // channel (falling back to the normal one), marking the embed as seasonal.
+  'leagues-channel',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

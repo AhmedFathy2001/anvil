@@ -22,6 +22,7 @@ const WEBHOOK_KEYS = new Set([
   'webhook_combat_achievements',
   'webhook_pvp_kills',
   'webhook_clips',
+  'webhook_leagues',
 ]);
 
 // Discord caps webhook names at 80 chars.
