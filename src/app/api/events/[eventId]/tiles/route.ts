@@ -419,6 +419,10 @@ export async function PUT(
   const hasTimedFields = merged.timeThresholdSeconds != null || !!merged.timedActivity;
   const isDrop = merged.tileType === 'drop';
   const isKill = merged.tileType === 'kill';
+  // Agility-lap tiles reuse targetNpcs as the course list (verbatim lap-counter names from
+  // AGILITY_COURSES) and requiredAmount as laps needed — the plugin counts them off the same
+  // "Your <course> lap count is: N" line that drives boss KC.
+  const isLap = merged.tileType === 'lap';
   // PvP-kill tiles reuse targetNpcs as the selector list ('team:other' = any rival team
   // member, 'rsn:<name>' = named bounty) and requiredAmount as kills needed.
   const isPvp = merged.tileType === 'pvp';
@@ -447,9 +451,9 @@ export async function PUT(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -466,8 +470,8 @@ export async function PUT(
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill && !isDiary && !isCa && !isPvp) {
-    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary/CA/PvP tiles, their selectors).' }, { status: 400 });
+  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp) {
+    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or lap/diary/CA/PvP tiles, their selectors).' }, { status: 400 });
   }
   // Min-loot floor is a PvP-only knob — reject it on any other kind so switching kind can't leave a
   // stray value behind (the editor clears it on kind change, but the API is the real guard).
@@ -480,8 +484,8 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return NextResponse.json({ error: 'Only drop, kill, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
   }
 
   const [updated] = await db

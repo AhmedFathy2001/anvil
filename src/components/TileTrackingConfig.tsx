@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS, AGILITY_COURSES, SEPULCHRE_TARGETS, COUNTER_TARGETS, lapUnitNoun, canonicalAgilityCourse } from "@/lib/constants";
 import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -59,7 +59,7 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -68,6 +68,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
   { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
+  { key: 'lap', label: 'Agility laps & floors', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
   { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
@@ -86,6 +87,22 @@ function parseGp(raw: string): number | null {
   const mult = m[2] === 'b' ? 1_000_000_000 : m[2] === 'm' ? 1_000_000 : m[2] === 'k' ? 1_000 : 1;
   const n = Math.round(parseFloat(m[1]) * mult);
   return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
+}
+
+// Everything a lap tile can target: the agility courses, then the Hallowed Sepulchre. The
+// Sepulchre isn't a lap course — it announces floor completions in its own chat line — but it's
+// the same counting mechanism and the same tile kind, so it shares the picker. Prefixed rather
+// than optgrouped because Select renders a flat list.
+const LAP_TARGET_OPTIONS = [
+  ...AGILITY_COURSES.map((c) => ({ value: c.name, label: `${c.label} — lvl ${c.level}` })),
+  ...SEPULCHRE_TARGETS.map((t) => ({ value: t.name, label: `Sepulchre: ${t.label} — lvl ${t.level}` })),
+];
+
+function lapTargetLabel(name: string): string {
+  const course = AGILITY_COURSES.find((c) => c.name === name);
+  if (course) return course.label;
+  const sep = SEPULCHRE_TARGETS.find((t) => t.name === name);
+  return sep ? `Sepulchre: ${sep.label}` : name;
 }
 
 // Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
@@ -261,11 +278,22 @@ const DEATHLESS_ACTIVITY_SUGGESTIONS = RAID_MODE_VARIANTS.flatMap((r) => [r.base
 // line is matched exactly there, so "both normal and CM" means adding both strings).
 const RAID_KC_NAMES = DEATHLESS_ACTIVITY_SUGGESTIONS;
 
+// COUNTER_TARGETS bucketed by their `group`, preserving the order they're declared in.
+const COUNTER_GROUPS: [string, typeof COUNTER_TARGETS][] = (() => {
+  const byGroup = new Map<string, typeof COUNTER_TARGETS>();
+  for (const t of COUNTER_TARGETS) {
+    if (!byGroup.has(t.group)) byGroup.set(t.group, []);
+    byGroup.get(t.group)!.push(t);
+  }
+  return [...byGroup.entries()];
+})();
+
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
   if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'lap') return 'lap';
   if (initial.tileType === 'pvp') return 'pvp';
   if (initial.tileType === 'gain') return 'gain';
   if (initial.tileType === 'timed') return 'timed';
@@ -503,7 +531,12 @@ export default function TileTrackingConfig({
   // column carries diary and CA selectors when the tile is one of those kinds, so scope each
   // state to its own kind here.
   const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
-    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' ? [] : initial.targetNpcs || [],
+    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' || initial.tileType === 'lap'
+      ? [] : initial.targetNpcs || [],
+  );
+  // Agility courses — the same targetNpcs column again, holding verbatim lap-counter names.
+  const [lapCourses, setLapCourses] = useState<string[]>(
+    initial.tileType === 'lap' ? initial.targetNpcs || [] : [],
   );
   // Diary selectors — "<Area> <Tier>" strings, "Any" wildcard on either side.
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
@@ -523,6 +556,8 @@ export default function TileTrackingConfig({
       ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
       : '',
   );
+  // The course currently highlighted in the lap picker's dropdown (Add commits it to lapCourses).
+  const [lapCoursePick, setLapCoursePick] = useState<string>(AGILITY_COURSES[0].name);
   const [diaryArea, setDiaryArea] = useState<string>(DIARY_ANY);
   const [diaryTier, setDiaryTier] = useState<string>('Elite');
   // CA selectors — exact task names ("Whack-a-Mole") or "Any <Tier>" wildcards.
@@ -609,6 +644,11 @@ export default function TileTrackingConfig({
   const [itemResults, setItemResults] = useState<{ id: number; name: string }[]>([]);
   const [itemSearching, setItemSearching] = useState(false);
   const [showItemDropdown, setShowItemDropdown] = useState(false);
+  // Drop tiles search the loot-only slice of the item list by default — searching "sword" over
+  // every item in the game buries the ones anything actually drops. Off = the full catalogue,
+  // for the rare drop the wiki's tables don't cover.
+  const [dropsOnly, setDropsOnly] = useState(true);
+  const [filteredToNothing, setFilteredToNothing] = useState(false);
   const itemSearchRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -685,6 +725,9 @@ export default function TileTrackingConfig({
     return out;
   })();
   const isKill = kind === 'kill';
+  const isLap = kind === 'lap';
+  // "lap" on a course, "floor"/"run" in the Sepulchre — drives every noun in this block.
+  const lapNoun = lapUnitNoun(lapCourses);
   const isPvp = kind === 'pvp';
   const isGain = kind === 'gain';
   const isTimed = kind === 'timed';
@@ -740,22 +783,31 @@ export default function TileTrackingConfig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const searchItems = useCallback(async (query: string) => {
+  // Only drop/collection tiles restrict the list to loot — a gain tile is about items you make
+  // or buy, so filtering those to drops would hide everything the tile is for. The caller can
+  // override the flag to re-run a search the instant the toggle flips, before state settles.
+  const searchItems = useCallback(async (query: string, loot = isDrop && dropsOnly) => {
     if (query.length < 2) {
       setItemResults([]);
+      setFilteredToNothing(false);
       return;
     }
     setItemSearching(true);
+    const filter = loot ? '&dropsOnly=1' : '';
     try {
-      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${filter}`);
       if (res.ok) {
         const results = await res.json();
         const existingIds = new Set(trackedItems.map((i) => i.id));
-        setItemResults(results.filter((r: { id: number }) => !existingIds.has(r.id)));
+        const fresh = results.filter((r: { id: number }) => !existingIds.has(r.id));
+        setItemResults(fresh);
+        // Nothing matched *while filtered* — say so, rather than leaving an empty dropdown that
+        // reads as "no such item".
+        setFilteredToNothing(loot && fresh.length === 0);
       }
     } catch { /* ignore */ }
     setItemSearching(false);
-  }, [trackedItems]);
+  }, [trackedItems, isDrop, dropsOnly]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -836,6 +888,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'drop' || next === 'collection') {
@@ -844,6 +897,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'kill') {
@@ -851,6 +905,18 @@ export default function TileTrackingConfig({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setLapCourses([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'lap') {
+      // Keeps lapCourses + requiredAmount — the lap kind's whole config.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setTimedActivity("");
@@ -864,6 +930,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'gain') {
@@ -874,6 +941,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'deathless') {
@@ -885,6 +953,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
     } else if (next === 'diary') {
@@ -894,6 +963,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'ca') {
@@ -904,6 +974,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'timed') {
@@ -915,6 +986,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setLmsPlacementCap('1');
     } else if (next === 'lms') {
       setTrackedStat("");
@@ -924,6 +996,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setValueGpText("");
@@ -935,6 +1008,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
@@ -948,6 +1022,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     }
@@ -975,6 +1050,11 @@ export default function TileTrackingConfig({
       if (targetNpcNames.length === 0) return 'Add at least one NPC to count kills for.';
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    }
+    if (kind === 'lap') {
+      if (lapCourses.length === 0) return 'Add at least one agility course (or Sepulchre floor) to count.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return `Set a required ${lapNoun} count of at least 1.`;
     }
     if (kind === 'pvp') {
       if (pvpTargetMode === 'rsn' && !pvpRsnsText.split(',').some((s) => s.trim())) {
@@ -1056,7 +1136,7 @@ export default function TileTrackingConfig({
         mission,
         missionRules: buildMissionRules(),
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -1111,6 +1191,12 @@ export default function TileTrackingConfig({
         payload.trackingMode = trackingMode;
         payload.coopCredit = coopPerKill ? 'per-kill' : null;
         payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
+      } else if (kind === 'lap') {
+        // Course names ride the targetNpcs column (the lap tileType reinterprets it), matched
+        // verbatim against the game's lap-counter line — so canonicalise anything hand-typed.
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = lapCourses.map(canonicalAgilityCourse);
+        payload.trackingMode = trackingMode;
       } else if (kind === 'pvp') {
         // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
         // 'rsn:<name>' entries.
@@ -1237,7 +1323,7 @@ export default function TileTrackingConfig({
     let target: number | null = null;
     if (kind === 'skill' || kind === 'boss') target = parseAmountToken(statGoal);
     else if (kind === 'value') target = parseAmountToken(valueGpText);
-    else if (['drop', 'kill', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
+    else if (['drop', 'kill', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
     if (target == null || target <= 0) return null;
     const labelNums = extractCountLikeNumbers(label);
     if (labelNums.length === 0) return null;
@@ -1739,6 +1825,41 @@ export default function TileTrackingConfig({
                 </div>
               )}
             </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <label className="flex items-center gap-1.5 cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={dropsOnly}
+                  onChange={(e) => {
+                    setDropsOnly(e.target.checked);
+                    if (itemSearch.trim().length >= 2) {
+                      setShowItemDropdown(true);
+                      searchItems(itemSearch, e.target.checked);
+                    }
+                  }}
+                  className="accent-gold"
+                />
+                <span className="text-[10px] text-text-muted">
+                  Drops only
+                  <FlagHint text="Search only items something in the game actually drops — monster drop tables, raid and clue chests, and collection log unlocks. Uncheck to search every item in the game, including shop stock and skilling resources." />
+                </span>
+              </label>
+              {dropsOnly && filteredToNothing && !itemSearching && (
+                <span className="text-[10px] text-text-muted/70">
+                  Nothing dropped matches —{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropsOnly(false);
+                      searchItems(itemSearch, false);
+                    }}
+                    className="text-gold hover:underline"
+                  >
+                    search all items
+                  </button>
+                </span>
+              )}
+            </div>
             {trackedItems.length === 0 && (
               <p className="text-[10px] text-text-muted mt-1">
                 {isCollection
@@ -2015,6 +2136,44 @@ export default function TileTrackingConfig({
               ))}
               </div>
             </details>
+
+            {/* Counter quick-adds — activities that keep an in-game count but aren't on the
+                hiscores, so they can only be kill tiles. None of them appear in the monster search
+                above, which is the whole point: without these chips you'd have to already know the
+                exact string. Grouped, because "Herbiboar" and "Larran's big chest" are not the same
+                kind of thing and a flat row of 18 chips reads as noise. */}
+            <details className="group mt-1.5">
+              <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▸</span>
+                Add a counter (tracked in-game, not on the hiscores)
+              </summary>
+              <div className="mt-1.5 space-y-1.5">
+                {COUNTER_GROUPS.map(([group, entries]) => {
+                  const unused = entries.filter(
+                    (e) => !targetNpcNames.some((t) => t.toLowerCase() === e.name.toLowerCase()),
+                  );
+                  if (unused.length === 0) return null;
+                  return (
+                    <div key={group}>
+                      <p className="text-[9px] uppercase tracking-wider text-text-muted/70 mb-0.5">{group}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {unused.map((e) => (
+                          <button
+                            key={e.name}
+                            type="button"
+                            onClick={() => addNpc(e.name)}
+                            className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                            title={e.note}
+                          >
+                            + {e.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
           </div>
 
           <div>
@@ -2090,6 +2249,89 @@ export default function TileTrackingConfig({
             </div>
           </details>
           )}
+        </div>
+      )}
+
+      {/* ---- AGILITY LAP KIND ---- */}
+      {isLap && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Courses that count <span className="text-text-muted/60">(any listed one counts)</span>
+            </label>
+
+            {lapCourses.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {lapCourses.map((course) => (
+                  <span
+                    key={course}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    {lapTargetLabel(course)}
+                    <button
+                      type="button"
+                      onClick={() => setLapCourses((prev) => prev.filter((c) => c !== course))}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                      aria-label={`Remove ${course}`}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Select
+                value={lapCoursePick}
+                onChange={setLapCoursePick}
+                ariaLabel="Agility course"
+                className="flex-1"
+                options={LAP_TARGET_OPTIONS}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setLapCourses((prev) => (prev.includes(lapCoursePick) ? prev : [...prev, lapCoursePick]))
+                }
+                className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded border border-gold/40 bg-gold/15 text-gold hover:bg-gold/25 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Counted live off the in-game counter (&ldquo;Your Ardougne Rooftop lap count is: 1,234&rdquo;), so only
+              laps run <span className="text-foreground/70">during the event, with the plugin open</span> count — laps
+              banked beforehand are worth nothing. Listing several courses lets a team pick whichever they can reach.
+              {' '}Brimhaven Agility Arena counts tickets rather than laps, so it isn&rsquo;t selectable.
+            </p>
+            {lapNoun !== 'lap' && (
+              <p className="text-[10px] text-amber-300/80 mt-1 leading-relaxed">
+                The Sepulchre announces <span className="text-foreground/70">each floor</span> as it&rsquo;s cleared,
+                so a full 1&rarr;5 run ticks an &ldquo;Any floor&rdquo; tile five times — set the target accordingly
+                (20 floors &asymp; 4 full runs). Pick a numbered floor instead for &ldquo;clear floor 5 ten times&rdquo;,
+                or <span className="text-foreground/70">Grand Hallowed Coffin</span> to count only complete runs.
+                Listing &ldquo;Any floor&rdquo; alongside a numbered floor is safe: one clear still counts once.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Required {lapNoun === 'lap' ? 'Laps' : lapNoun === 'floor' ? 'Floors' : 'Runs'}
+            </label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={locked}
+              placeholder="e.g. 100"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit={`${lapNoun}s`} goal={`${lapNoun} count`} teamPlay={teamPlay} />
         </div>
       )}
 

@@ -9,6 +9,7 @@ import type {
   ClanAnalytics,
   MemberListRow,
   RosterEvent,
+  RosterMovement,
 } from '@/lib/memberProfile';
 
 // The roster is what people come here for, so it stays the landing view and keeps the length it
@@ -29,11 +30,13 @@ export default function MembersTabs({
   analytics,
   rosterLog,
   activities,
+  movement,
 }: {
   members: MemberListRow[];
   analytics: ClanAnalytics;
   rosterLog: RosterEvent[];
   activities: ClanActivityAnalytics;
+  movement: Record<number, RosterMovement>;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
 
@@ -59,8 +62,8 @@ export default function MembersTabs({
 
       {tab === 'roster' && (
         <>
-          <ClanPulse analytics={analytics} rosterLog={rosterLog} />
-          <MembersDirectory members={members} />
+          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} />
+          <MembersDirectory members={members} movement={movement} />
         </>
       )}
 

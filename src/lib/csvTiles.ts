@@ -6,17 +6,23 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "lap" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
-//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lms tiles (qualifying games),
+//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lap tiles (laps),
+//                       lms tiles (qualifying games),
 //                       value tiles (gp threshold one haul must meet; "valuetotal" sums hauls toward it)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
+//                       lap tiles — agility course name(s) EXACTLY as the game's lap-counter line
+//                       spells them (see AGILITY_COURSES in lib/constants), pipe-separated
+//                       (e.g. "Ardougne Rooftop|Prifddinas Agility Course"); Hallowed Sepulchre
+//                       targets go here too — "Hallowed Sepulchre" (any floor), "Hallowed
+//                       Sepulchre Floor 1".."Floor 5", or "Grand Hallowed Coffin" (full runs);
 //                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard");
 //                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
 //                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks");
@@ -69,7 +75,7 @@ export const TILE_CSV_COLUMNS = [
 ] as const;
 
 import type { Tile } from '@/lib/types';
-import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 
 export interface TileCsvItem {
@@ -363,7 +369,10 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       // Comma or pipe separated within the cell (comma works when the cell is quoted). CA rows
       // split on pipes ONLY — task names legitimately contain commas ("Nylocas, On the Rocks").
       const sep = row.tileType === 'ca' ? '|' : /[|,]/;
-      const names = get(cells, col.targetNpcs).split(sep).map((s) => s.trim()).filter(Boolean);
+      let names = get(cells, col.targetNpcs).split(sep).map((s) => s.trim()).filter(Boolean);
+      // Lap tiles match the game's counter name verbatim, so snap near-misses ("Ardougne Rooftop
+      // Course", "gnome stronghold") onto the real string rather than importing a dead tile.
+      if (row.tileType === 'lap') names = names.map(canonicalAgilityCourse);
       row.targetNpcs = names.length > 0 ? names : null;
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;

@@ -18,7 +18,10 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
+import { eventAxes } from '@/lib/eventAxes';
+import EventBoard from '@/components/EventBoard';
 import { statLabel } from '@/lib/tileKinds';
+import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -106,7 +109,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   const [adding, setAdding] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
+  // 'cards' = the tile list, 'grid' = the Quick build spreadsheet, 'board' = author directly on the
+  // board being built. A classic bingo IS a square and a race IS an ordered track — editing either
+  // as a vertical list hides the one thing that makes the format what it is — so those open on the
+  // board. A flat pool has no geometry to show, so it stays on the list.
+  const [viewMode, setViewMode] = useState<'cards' | 'grid' | 'board'>(
+    () => (eventAxes(event).shape === 'list' ? 'cards' : 'board'),
+  );
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
@@ -222,6 +231,18 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
   // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
+  const boardShape = eventAxes(event).shape;
+  // Which tiles members can't see yet, so the authoring board marks them the same way the public one
+  // does — a host editing an armed board should see what is and isn't out there.
+  const hiddenTileIds = useMemo(
+    () => (revealMode ? new Set(localTiles.filter((t) => !t.revealedAt).map((t) => t.id)) : null),
+    [revealMode, localTiles],
+  );
+  const poolCounts = useMemo(() => ({
+    open: localTiles.filter((t) => t.revealedAt && !t.closedAt).length,
+    waiting: localTiles.filter((t) => !t.revealedAt).length,
+    closed: localTiles.filter((t) => t.closedAt).length,
+  }), [localTiles]);
   const dynamicBoard = isTileRaceFormat(event.format) || pointsMode;
   const canEditTileSet = dynamicBoard && !eventStarted;
 
@@ -861,6 +882,15 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               </>
             )}
             <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
+              {boardShape !== 'list' && (
+                <button
+                  onClick={() => setViewMode('board')}
+                  title={boardShape === 'grid' ? 'Edit tiles on the grid itself' : 'Edit tiles along the track'}
+                  className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'board' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                >
+                  {boardShape === 'grid' ? 'Grid' : 'Track'}
+                </button>
+              )}
               <button
                 onClick={() => setViewMode('cards')}
                 className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
@@ -887,7 +917,46 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         </div>
 
-        {viewMode === 'grid' ? (
+        {revealMode && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-text-muted">Pool:</span>
+            <span className="rounded-full border border-accent-green/30 bg-accent-green/10 text-accent-green-light px-2.5 py-1">
+              {poolCounts.open} open
+            </span>
+            <span className="rounded-full border border-gold/30 bg-gold/10 text-gold px-2.5 py-1">
+              {poolCounts.waiting} waiting to be drawn
+            </span>
+            {poolCounts.closed > 0 && (
+              <span className="rounded-full border border-card-border text-text-muted px-2.5 py-1">
+                {poolCounts.closed} closed
+              </span>
+            )}
+            <span className="text-text-muted">
+              Open a tile to force it live or pull it back.
+            </span>
+          </div>
+        )}
+
+        {viewMode === 'board' ? (
+          <div className="min-w-0">
+            <p className="text-xs text-text-muted mb-3">
+              {boardShape === 'grid'
+                ? 'Click any square to configure that tile. This is exactly the board members will see.'
+                : 'Click any tile to configure it. Tiles are reached in this order — reorder them from Cards.'}
+            </p>
+            <EventBoard
+              format={event.format}
+              tiles={localTiles}
+              boardSize={event.boardSize}
+              completions={[]}
+              teams={[]}
+              pointsMode={pointsMode}
+              onTileClick={(tileId) => setEditingTileId(tileId)}
+              showStatusFilter={false}
+              staffOnlyTileIds={hiddenTileIds}
+            />
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="flex flex-col lg:flex-row gap-4 items-start">
             {/* Left: tile list + bulk create */}
             <div className="w-full lg:w-72 shrink-0 flex flex-col border border-card-border rounded-xl bg-card-bg overflow-hidden">
@@ -1285,12 +1354,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
+type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
 type KindFilter = 'all' | TileKindKey;
 
 // Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
 function tileKindKey(tile: Tile): TileKindKey {
   if (tile.tileType === 'kill') return 'kill';
+  if (tile.tileType === 'lap') return 'lap';
   if (tile.tileType === 'pvp') return 'pvp';
   if (tile.tileType === 'gain') return 'gain';
   if (tile.tileType === 'timed') return 'timed';
@@ -1317,6 +1387,7 @@ const KIND_META: Record<TileKindKey, { label: string; cls: string; blurb: string
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
   collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
   kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of an NPC — even ones off the hiscores (chickens, cows). Plugin-detected.' },
+  lap: { label: 'Agility laps', cls: 'bg-lime-500/20 text-lime-300', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs — counted live off the in-game counter. Only laps run during the event count.' },
   pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
   gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
   timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
@@ -1337,6 +1408,7 @@ const KIND_FILTERS: { key: KindFilter; label: string }[] = [
   { key: 'drop', label: 'Drop' },
   { key: 'collection', label: 'Item set' },
   { key: 'kill', label: 'Kill' },
+  { key: 'lap', label: 'Laps' },
   { key: 'pvp', label: 'PvP' },
   { key: 'gain', label: 'Gain' },
   { key: 'timed', label: 'Timed' },
@@ -1368,6 +1440,22 @@ function tileMeta(tile: Tile): string {
     }
     case 'kill':
       return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
+    case 'lap': {
+      let courses: string[] = [];
+      try {
+        courses = JSON.parse(tile.targetNpcs || '[]') as string[];
+      } catch {
+        /* ignore */
+      }
+      const noun = lapUnitNoun(courses);
+      const label = (n: string) =>
+        AGILITY_COURSES.find((c) => c.name === n)?.label
+        ?? SEPULCHRE_TARGETS.find((t) => t.name === n)?.label
+        ?? n;
+      const where = courses.length === 1 ? label(courses[0]) : `${courses.length} ${noun === 'lap' ? 'courses' : 'targets'}`;
+      const head = noun === 'lap' ? 'Laps' : noun === 'floor' ? 'Sepulchre' : 'Runs';
+      return `${head} · ${where}${tile.requiredAmount ? ` ×${tile.requiredAmount}` : ''}`;
+    }
     case 'pvp': {
       let sels: string[] = [];
       try {

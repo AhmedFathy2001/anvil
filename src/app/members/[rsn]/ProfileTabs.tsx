@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityHeatmap, Bar, LineChart, ProgressRing } from '@/components/stats/Charts';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
@@ -77,6 +77,75 @@ function Placing({ standing }: { standing?: ActivityStanding }) {
       #{standing.position}
       <span className="text-text-muted/60"> of {standing.of}</span>
     </span>
+  );
+}
+
+/**
+ * The last fortnight as bars — the "are they still playing" answer, before any number is read.
+ *
+ * Deliberately not the heatmap: a year of squares shows a career, and the question a profile is
+ * usually opened to answer is about this week. Zero days keep a stub bar so a gap reads as a day
+ * off rather than a rendering hole.
+ */
+function FormStrip({ series }: { series: DailyPoint[] }) {
+  const days = useMemo(() => {
+    const byDay = new Map(series.map((p) => [p.day, p.ehpGained + p.ehbGained]));
+    const out: { day: string; hours: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      out.push({ day, hours: byDay.get(day) ?? 0 });
+    }
+    return out;
+  }, [series]);
+
+  const max = Math.max(...days.map((d) => d.hours), 0.01);
+  const best = days.reduce((b, d) => (d.hours > b.hours ? d : b), days[0]);
+  const quiet = days.filter((d) => d.hours === 0).length;
+  const weekday = (day: string) =>
+    new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short' });
+
+  return (
+    <div className="border border-card-border rounded-xl bg-card-bg p-4">
+      <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
+        Form · last 14 days
+      </div>
+      <div className="flex items-end gap-1 h-14">
+        {days.map((d) => (
+          <span
+            key={d.day}
+            className={`flex-1 rounded-t-sm ${
+              d.hours === 0 ? 'bg-tile-bg' : d.hours >= max * 0.85 ? 'bg-gold' : 'bg-gold-dark'
+            }`}
+            style={{ height: d.hours === 0 ? '6%' : `${Math.max(10, (d.hours / max) * 100)}%` }}
+            title={`${d.day} · ${d.hours.toFixed(2)}h`}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-text-muted mt-2">
+        <span>{quiet === 0 ? 'played every day' : `${quiet} quiet ${quiet === 1 ? 'day' : 'days'}`}</span>
+        {best && best.hours > 0 && (
+          <span className="tabular-nums">
+            best: {best.hours.toFixed(1)}h on {weekday(best.day)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Rows past this many scroll inside the card instead of stretching the page.
+ *
+ * A profile stacks a 24-row skill table, a 60-row boss table and a milestone log; rendered whole,
+ * reaching the tab under them meant a dozen flicks of the wheel. The header row stays put — it's a
+ * sibling of the scroll container, not inside it — so a scrolled table never loses its labels.
+ */
+function Rows({ children, cap, rowPx = 37 }: { children: React.ReactNode; cap: number; rowPx?: number }) {
+  const count = React.Children.count(children);
+  return (
+    <div className="overflow-y-auto" style={{ maxHeight: count > cap ? cap * rowPx : undefined }}>
+      {children}
+    </div>
   );
 }
 
@@ -228,20 +297,32 @@ export default function ProfileTabs({
 
       {tab === 'stats' && (
         <>
-          {nearest99s.length > 0 && (
-            <Section title="Nearest 99s">
-              <div className="grid sm:grid-cols-3 gap-4 border border-card-border rounded-xl bg-card-bg p-4">
-                {nearest99s.map(({ skill, prog }) => (
-                  <ProgressRing
-                    key={skill.key}
-                    progress={prog.progress}
-                    label={`99 ${SKILL_LABELS[skill.key] ?? skill.key}`}
-                    sub={`${fmtXp(prog.xpToNext)} to go · lvl ${prog.level}`}
-                  />
-                ))}
+          {/* Recent form first, career second — the two questions in the order they're asked. */}
+          <div className="grid lg:grid-cols-2 gap-4 mb-8">
+            <FormStrip series={series} />
+            {nearest99s.length > 0 && (
+              <div className="border border-card-border rounded-xl bg-card-bg p-4">
+                <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
+                  Closest to 99
+                </div>
+                {/* Stacked, not side-by-side: three rings with the label beside them inside a
+                    half-width card truncated every skill name to "99 Stren…". */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  {nearest99s.map(({ skill, prog }) => (
+                    <div key={skill.key}>
+                      <div className="flex justify-center">
+                        <ProgressRing progress={prog.progress} label="" sub="" size={52} />
+                      </div>
+                      <div className="text-sm font-medium mt-2">99 {SKILL_LABELS[skill.key] ?? skill.key}</div>
+                      <div className="text-xs text-text-muted">
+                        {fmtXp(prog.xpToNext)} to go · lvl {prog.level}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </Section>
-          )}
+            )}
+          </div>
 
           <Section title="Activity" aside="efficient hours gained, last 12 months">
             <div className="border border-card-border rounded-xl bg-card-bg p-4">
@@ -265,6 +346,7 @@ export default function ProfileTabs({
                 <span className="text-right">XP</span>
                 <span className="text-right">EHP</span>
               </div>
+              <Rows cap={12}>
               {skillsByHours.map((s, i) => (
                 <div
                   key={s.key}
@@ -281,6 +363,7 @@ export default function ProfileTabs({
                   </span>
                 </div>
               ))}
+              </Rows>
             </div>
             <p className="mt-2 text-xs text-text-muted">
               A skill can read 0.00 with millions of XP — Attack and Strength arrive as bonus XP from
@@ -297,6 +380,7 @@ export default function ProfileTabs({
                   <span className="text-right">KC</span>
                   <span className="text-right">EHB</span>
                 </div>
+                <Rows cap={12}>
                 {profile.bosses.map((b, i) => (
                   <div
                     key={b.key}
@@ -312,6 +396,7 @@ export default function ProfileTabs({
                     </span>
                   </div>
                 ))}
+                </Rows>
               </div>
             </Section>
           )}
@@ -574,27 +659,36 @@ export default function ProfileTabs({
               few days with tracking on.
             </p>
           ) : (
-            <div className="grid sm:grid-cols-3 gap-3">
-              {(['day', 'week', 'month'] as const).map((period) => {
-                const forPeriod = records.filter((r) => r.period === period);
-                if (forPeriod.length === 0) return null;
-                return (
-                  <div key={period} className="border border-card-border rounded-xl bg-card-bg p-4">
-                    <div className="text-[11px] uppercase tracking-widest text-text-muted mb-2">Best {period}</div>
-                    {forPeriod.map((r) => (
-                      <div key={r.metric} className="flex items-baseline justify-between text-sm py-1">
-                        <span className="text-text-muted uppercase text-xs">{r.metric}</span>
-                        <span className="tabular-nums">
-                          {r.metric === 'xp' ? fmtXp(r.value) : `${r.value.toFixed(2)}h`}
-                        </span>
+            // One card per record rather than three cards of stacked rows: a personal best is a
+            // headline number, and burying it as the right-hand side of a label/value pair made the
+            // biggest day this player has ever had look like a table cell.
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {(['day', 'week', 'month'] as const).flatMap((period) =>
+                records
+                  .filter((r) => r.period === period)
+                  .map((r) => (
+                    <div key={`${period}-${r.metric}`} className="border border-card-border rounded-xl bg-card-bg p-4">
+                      <div className="text-[11px] uppercase tracking-widest text-text-muted">
+                        Best {period} · {r.metric}
                       </div>
-                    ))}
-                    <div className="text-[11px] text-text-muted mt-2 pt-2 border-t border-card-border">
-                      ending {forPeriod[0].endedOn}
+                      <div className="text-2xl font-bold text-gold tabular-nums mt-1">
+                        {r.metric === 'xp' ? fmtXp(r.value) : `${r.value.toFixed(1)}h`}
+                      </div>
+                      <div className="text-xs text-text-muted mt-1">ending {r.endedOn}</div>
                     </div>
+                  )),
+              )}
+              {history.totalPoints > 0 && (
+                <div className="border border-card-border rounded-xl bg-card-bg p-4">
+                  <div className="text-[11px] uppercase tracking-widest text-text-muted">Event points</div>
+                  <div className="text-2xl font-bold text-gold tabular-nums mt-1">
+                    {history.totalPoints.toLocaleString()}
                   </div>
-                );
-              })}
+                  <div className="text-xs text-text-muted mt-1">
+                    across {history.events.length} {history.events.length === 1 ? 'event' : 'events'}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Section>
@@ -631,6 +725,7 @@ export default function ProfileTabs({
             </p>
           ) : (
             <div className="border border-card-border rounded-xl overflow-hidden">
+              <Rows cap={12} rowPx={41}>
               {milestones.map((m, i) => (
                 <div
                   key={`${m.kind}-${m.metric}-${m.threshold}`}
@@ -642,6 +737,7 @@ export default function ProfileTabs({
                   </span>
                 </div>
               ))}
+              </Rows>
             </div>
           )}
         </Section>

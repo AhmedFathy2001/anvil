@@ -12,6 +12,7 @@
 // Wiki lacks, lowest-id-wins to prefer the real item over bank-placeholder duplicates.
 
 import clogData from '@/data/clog.json';
+import droppableData from '@/data/droppableItems.json';
 
 export interface MappingItem {
   id: number;
@@ -36,6 +37,35 @@ function getClogItemIds(): Set<number> {
   }
   clogIdSet = ids;
   return ids;
+}
+
+// "Is this item obtainable as loot?" — the filter behind the picker's Drops-only toggle. The
+// merged mapping above is every item that EXISTS (shop stock, skilling resources, quest junk,
+// bank placeholders); a drop tile can only ever be about the small slice something actually
+// drops. Three sources, unioned:
+//   • droppableItems.json .combat — items on a monster's kill drop table
+//   • droppableItems.json .other  — chest/casket rewards, pickpocket and skilling loot, all of
+//     which the plugin still credits as a drop (raid uniques live here — a Twisted bow comes
+//     from the Ancient chest, not from a kill)
+//   • the collection log — catches anything the wiki's drop tables miss, e.g. pets
+// Names are matched alongside ids because a few items are known to the picker under a different
+// id than the wiki lists (bank placeholders, renamed variants); matching either way keeps a real
+// drop from silently vanishing out of the dropdown. Regenerate with `npm run data:drops`.
+let droppableIdSet: Set<number> | null = null;
+let droppableNameSet: Set<string> | null = null;
+function loadDroppable(): { ids: Set<number>; names: Set<string> } {
+  if (!droppableIdSet || !droppableNameSet) {
+    const data = droppableData as { combat?: number[]; other?: number[]; names?: string[] };
+    droppableIdSet = new Set<number>([...(data.combat ?? []), ...(data.other ?? []), ...getClogItemIds()]);
+    droppableNameSet = new Set<string>(data.names ?? []);
+  }
+  return { ids: droppableIdSet, names: droppableNameSet };
+}
+
+/** True when the item is obtainable as loot (monster drop, chest/casket reward, or clog unlock). */
+export function isDroppableItem(item: MappingItem): boolean {
+  const { ids, names } = loadDroppable();
+  return ids.has(item.id) || names.has(item.name.toLowerCase());
 }
 
 const WIKI_MAPPING_URL = 'https://prices.runescape.wiki/api/v1/osrs/mapping';

@@ -6,6 +6,7 @@ import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
+import { lapUnitNoun } from '@/lib/constants';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -97,6 +98,17 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       const npcs = names(t.targetNpcs);
       const who = npcs.length ? join(npcs) : 'the target NPC';
       return amt ? `Kill ${amt}× ${who}` : `Kill ${who}`;
+    }
+    case 'lap': {
+      const courses = names(t.targetNpcs);
+      // Sepulchre targets count floors/runs, not laps, so both the verb and the noun change.
+      const noun = lapUnitNoun(courses);
+      if (noun !== 'lap') {
+        const where = courses.length ? join(courses) : 'the Hallowed Sepulchre';
+        return amt ? `Complete ${amt} ${noun}s — ${where}` : `Complete ${where}`;
+      }
+      const where = courses.length ? join(courses) : 'the agility course';
+      return amt ? `Run ${amt} laps of ${where}` : `Run a lap of ${where}`;
     }
     case 'pvp': {
       const sel = names(t.targetNpcs);

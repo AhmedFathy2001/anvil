@@ -169,8 +169,9 @@ runs. Full policy: [CONTRIBUTING.md](CONTRIBUTING.md#database-changes).
 Run with `npx tsx` (`.ts`) or `node` (`.mjs`); each loads `.env` / `.env.local` itself.
 
 - `npm run db:migrate` — apply the migration chain (this is what the container runs on boot)
-- `npm run data:clog` / `data:ca` / `data:rates` / `data:efficiency` — rebuild the bundled
-  wiki-derived datasets
+- `npm run data:clog` / `data:ca` / `data:drops` / `data:rates` / `data:efficiency` — rebuild the
+  bundled wiki-derived datasets (`data:drops` refreshes both the drop-rate table behind the board
+  balance auditor and the loot-only item list behind the tile picker's "Drops only" filter)
 - `npm run test:events` / `test:embeds` / `test:federation` / `test:recap` — node:test suites
 - `scripts/backfill-clan-members.ts` — populate `clan_members` from legacy `players` /
   `weekly_participants` rows (idempotent)

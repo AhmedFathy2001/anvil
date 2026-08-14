@@ -187,6 +187,9 @@ export function deriveTileIcon(tile: IconableTile): string | null {
       return item != null ? itemIconUrl(item) : null;
     } catch { return null; }
   }
+  // Agility laps: the skill icon. Course-specific art would need a per-course sprite table for a
+  // detail nobody reads off a 48px tile — the Agility icon already says exactly what the tile is.
+  if (type === 'lap') return skillIconUrl('agility');
   if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
   if (type === 'ca') return 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.

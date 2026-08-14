@@ -262,10 +262,14 @@ export function ProgressRing({
           strokeDasharray={`${filled} ${circumference}`}
         />
       </svg>
-      <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{label}</div>
-        <div className="text-xs text-text-muted truncate">{sub}</div>
-      </div>
+      {/* Callers that lay the caption out themselves pass empty strings — rendering the block
+          anyway left an invisible column that pushed the rings off-centre. */}
+      {(label || sub) && (
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{label}</div>
+          <div className="text-xs text-text-muted truncate">{sub}</div>
+        </div>
+      )}
     </div>
   );
 }

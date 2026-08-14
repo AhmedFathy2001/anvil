@@ -33,8 +33,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
   // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
   const isCompleted = anyCompleted && !markersOnly;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
-  // Drop and kill tiles both show a count-based partial-progress indicator.
-  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'pvp';
+  // Drop, kill and lap tiles all show a count-based partial-progress indicator.
+  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'lap' || tileType === 'pvp';
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 

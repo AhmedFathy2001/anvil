@@ -13,7 +13,7 @@ import { log } from '@/lib/logger';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
-const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'loot-goblin', 'pker', 'untouchable'];
+const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'clue-hunter', 'loot-goblin', 'pker', 'untouchable'];
 const RECAP_HIGHLIGHT_COUNT = 5;
 
 // While an event's scheduled start is HELD (start time reached but the event isn't startable —

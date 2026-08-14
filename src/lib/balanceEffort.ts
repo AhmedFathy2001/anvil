@@ -2,7 +2,7 @@
 // per tile as a [fast, average, slow] spread across player capability, then audits points
 // against effort (points per expected hour) and accessibility (skill floors).
 //
-// Server-side only — the drop-rate dataset is ~700KB and lives in src/data. The admin API
+// Server-side only — the drop-rate dataset is ~800KB and lives in src/data. The admin API
 // route runs this and the Tiles-tab panel fetches the result.
 //
 // Every number here is an estimate built from curated defaults (src/data/balanceRates.json,
@@ -14,7 +14,7 @@ import { tileWeight } from '@/lib/utils';
 import { BOSSES } from '@/lib/constants';
 import defaultRates from '@/data/balanceRates.json';
 import sourcedRates from '@/data/activityRates.json';
-import npcDrops from '@/data/npcDrops.json';
+import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import type { BalanceCheck } from '@/lib/boardBalance';
 
 export type Triplet = [number, number, number]; // fast, average, slow
@@ -72,6 +72,10 @@ const LONG_SHOT_P = 0.5;
 
 interface ActivityRate {
   killSeconds?: Triplet;
+  // Agility courses: seconds per lap. Agility is the most deterministic grind in the game — a
+  // course's lap time barely moves with gear or luck, only with attention — so a lap tile prices
+  // far more tightly than a kill tile does.
+  lapSeconds?: Triplet;
   attemptMinutes?: Triplet;
   successRate?: Triplet;
   floor?: Floor;
@@ -87,7 +91,7 @@ interface SkillRate {
 export interface BalanceRates {
   skills: Record<string, SkillRate>;
   activities: Record<string, ActivityRate>;
-  generic: { mobKillSeconds: Triplet; bossKillSeconds: Triplet };
+  generic: { mobKillSeconds: Triplet; bossKillSeconds: Triplet; agilityLapSeconds?: Triplet };
   gated?: { superiorEncounterSeconds?: Triplet };
   lms: { gameMinutes: Triplet; placementMultiplier: Triplet };
 }
@@ -217,7 +221,10 @@ function activityForNames(rates: BalanceRates, names: (string | null | undefined
 
 // ---- Drop-rate lookup ---------------------------------------------------------------
 
-type DropEntry = { i: number; d: number; q: number };
+// One line off a wiki drop table: item id, 1-in-d rate, and the quantity — fixed (q) or a
+// range (m–n). `r` is the number of rolls per kill, present only when the table rolls more
+// than once. Only i and d matter to the model; the rest rides along for future use.
+type DropEntry = { i: number; d: number; q?: number; m?: number; n?: number; r?: number };
 type DropSource = { source: string; d: number };
 
 // itemId → sources that drop it, cheapest (lowest 1-in-d) first. Built once per process.
@@ -474,6 +481,27 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
       return { hours, floor: floorFromHours(hours, act.floor ?? 'mid'), note: 'cap tightness roughly modelled from typical clear times' };
     }
     return { hours: null, floor: 'high', note: `no attempt model for ${tile.timedActivity ?? 'activity'}` };
+  }
+
+  if (type === 'lap') {
+    if (!tile.requiredAmount) return { hours: null, floor: 'anyone', note: 'no required amount' };
+    const courses = parseJsonArray<string>(tile.targetNpcs);
+    // Multi-course tiles let a team run whichever course is cheapest, so price the FASTEST
+    // listed one — the same "player picks the easy path" assumption the kill model makes.
+    const curated = (courses ?? [])
+      .map((c) => activityFor(rates, c)?.lapSeconds)
+      .filter((s): s is Triplet => !!s);
+    const fallback = rates.generic.agilityLapSeconds ?? [45, 58, 75];
+    const sec: Triplet = curated.length
+      ? ([0, 1, 2].map((b) => Math.min(...curated.map((s) => s[b]))) as Triplet)
+      : fallback;
+    return {
+      hours: sec.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
+      // The Agility level gate is the real barrier, not the lap time: the level a course needs
+      // is what decides who can touch the tile, and the curated floors carry it.
+      floor: (courses ?? []).map((c) => activityFor(rates, c)?.floor).find(Boolean) ?? 'anyone',
+      note: curated.length ? null : 'generic agility lap time used',
+    };
   }
 
   if (type === 'lms') {

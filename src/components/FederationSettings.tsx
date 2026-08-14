@@ -18,6 +18,11 @@ const KEY_SHARED_CREDIT = 'federation_shared_credit';
 const KEY_EXCHANGE_POLICY = 'federation_exchange_policy';
 const KEY_ASSOCIATION_PUSH = 'federation_association_push';
 const KEY_BROKER_TRUST = 'federation_broker_trust';
+// Not federation, but the same question ("what does the outside world see of this clan?"): whether
+// the public /api/public/showcase serves this clan's name + aggregate counts to the "clans on Anvil"
+// page. Default ON, stored as explicit 'on'/'off' — '' would be folded to NULL by the settings PUT
+// and read back as the default (mirrors KEY_ACCEPT_WRITES).
+const KEY_PUBLIC_SHOWCASE = 'public_showcase';
 
 // The stored trust entries are { iss, jwksUrl }, but jwksUrl is pure convention off the server
 // address — so the UI speaks "one server URL per line" and derives the rest. A rare custom keys URL
@@ -71,6 +76,7 @@ export default function FederationSettings() {
   const [exchangePolicy, setExchangePolicy] = useState('auto-guest');
   const [associationPush, setAssociationPush] = useState(false);
   const [brokerTrust, setBrokerTrust] = useState('');
+  const [publicShowcase, setPublicShowcase] = useState(true);
   // finding #4: three-state load status. Editable fields default to `enabled=false` etc., so a TRANSIENT
   // load failure must NOT let a Save go through — it would PUT `federation_enabled=false` clan-wide and
   // force-write `accept_writes:'on'` from values that were never actually loaded. We render an error
@@ -94,6 +100,8 @@ export default function FederationSettings() {
           : 'auto-guest',
       );
       setAssociationPush(s[KEY_ASSOCIATION_PUSH] === 'on');
+      // Default ON: only an explicit 'off' opts out (mirrors getPublicShowcase).
+      setPublicShowcase(s[KEY_PUBLIC_SHOWCASE] !== 'off');
       // Present the stored JSON as friendly one-server-per-line text.
       const raw = s[KEY_BROKER_TRUST];
       if (raw) setBrokerTrust(trustJsonToLines(raw));
@@ -137,6 +145,8 @@ export default function FederationSettings() {
           [KEY_EXCHANGE_POLICY]: exchangePolicy,
           [KEY_ASSOCIATION_PUSH]: associationPush ? 'on' : '',
           [KEY_BROKER_TRUST]: brokerTrustValue,
+          // Explicit 'on'/'off' so the opt-out survives the PUT's null-folding.
+          [KEY_PUBLIC_SHOWCASE]: publicShowcase ? 'on' : 'off',
         }),
       });
       if (res.ok) {
@@ -210,6 +220,18 @@ export default function FederationSettings() {
             works; turning it back off leaves the network again.
           </p>
         )}
+      </div>
+
+      {/* Outside the `enabled` gate on purpose: being counted on the public Anvil page has nothing to
+          do with joining the network, and a clan that stays private should still be able to say
+          "yes, you can list us". */}
+      <div className="border-t border-card-border pt-4">
+        <Checkbox
+          checked={publicShowcase}
+          onChange={setPublicShowcase}
+          label="Let Anvil list this clan publicly"
+          description="Shows this clan on the “clans on Anvil” page at anvilosrs.com — clan name, when you started, and totals like members, events run and tiles completed. Never any player names, drops or board details."
+        />
       </div>
 
       {enabled && (

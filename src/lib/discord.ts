@@ -3,6 +3,7 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
+import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
@@ -357,6 +358,7 @@ function submissionTitle(tileType: string | null | undefined, tileLabel: string,
     ? '✅ Tile complete'
     : tileType === 'timed' ? '⏱️ Timed clear'
     : tileType === 'kill' ? '⚔️ Kill'
+    : tileType === 'lap' ? '🏃 Laps'
     : tileType === 'pvp' ? '💀 PvP kill'
     : '🎯 Drop';
   return clamp(`${lead} — ${tileLabel}`, LIMIT.title);
@@ -387,6 +389,8 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push(statField('Clear time', formatClearTime(durationSeconds)));
   } else if (tileType === 'kill' || tileType === 'pvp') {
     fields.push(statField('Kills', requiredAmount ? `+${amount} · ${currentTotal}/${requiredAmount}` : `+${amount}`));
+  } else if (tileType === 'lap') {
+    fields.push(statField('Laps', requiredAmount ? `+${amount} · ${currentTotal}/${requiredAmount}` : `+${amount}`));
   } else if (requiredAmount) {
     fields.push(statField('Progress', `+${amount} · ${currentTotal}/${requiredAmount}`));
   }
@@ -450,7 +454,10 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     ? ` · ${currentTotal}/${requiredAmount}`
     : '';
   fields.push(
-    statField(tileType === 'kill' || tileType === 'pvp' ? 'Kills' : 'Progress', `+${pendingAmount}${progress}`),
+    statField(
+      tileType === 'kill' || tileType === 'pvp' ? 'Kills' : tileType === 'lap' ? 'Laps' : 'Progress',
+      `+${pendingAmount}${progress}`,
+    ),
   );
 
   if (note) {
@@ -851,8 +858,11 @@ interface EventStartNotifyParams {
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
   const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints } = params;
-  const ladder = format === 'ladder';
-  const noun = format === 'ladder' ? 'task' : 'tile';
+  // Wording follows who is competing, not the format name — a board that ranks people can't be
+  // wished luck "to all teams", and its entries are tasks.
+  const axes = eventAxes({ format, scoringMode: 'points', endDate });
+  const ladder = axes.competitors === 'individuals';
+  const noun = taskNoun(axes);
 
   const fields: DiscordEmbedField[] = [field('Started', discordTime(startDate))];
 

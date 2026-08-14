@@ -27,12 +27,12 @@ export const dynamic = 'force-dynamic';
 // Submission-backed tile kinds (the ones the completions pipeline credits from a submission). Stat
 // (hiscores) tiles never flow through here — they're swept by the stats cron.
 const SUBMISSION_TILE_TYPES = new Set([
-  'drop', 'kill', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal',
+  'drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal',
 ]);
 // Count-only tiles the plugin may auto-report without a screenshot (the proof lands on the completing
 // ping). Drops and timed clears always need an image, exactly as on the web submissions route.
 const COUNT_ONLY_TILE_TYPES = new Set([
-  'kill', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal',
+  'kill', 'lap', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal',
 ]);
 
 // POST /api/federation/v1/events — cross-clan event ingest (WIRE §5, decision 1/2).
