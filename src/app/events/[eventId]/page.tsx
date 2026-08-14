@@ -10,7 +10,7 @@ import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import { isPointsMode, isLadderFormat, eventShapeBadge } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy, visibleTiles, isTileRevealed, nextRevealAt } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, isTileRevealed, nextRevealAt, boardTiles as scoredBoardTiles } from '@/lib/eventRules';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -268,7 +268,9 @@ export default async function EventScoreboardPage({
 
   // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
   const pointsMode = isPointsMode(event.scoringMode);
-  const requiredTiles = eventTiles.filter((t) => !t.optional);
+  // Missions are excluded: they're a bonus dropped mid-event from their own pool, so counting them
+  // here would move the advertised board total the moment one is announced (see lib/eventRules).
+  const requiredTiles = scoredBoardTiles(eventTiles).filter((t) => !t.optional);
   const pointsOnBoard = pointsMode
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;

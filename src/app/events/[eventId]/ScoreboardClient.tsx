@@ -10,6 +10,7 @@ import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
 import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { boardTiles, missionTiles } from '@/lib/eventRules';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
@@ -38,6 +39,10 @@ interface Tile {
   targetNpcs?: string | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  // Mission/reveal state — drives the split between the board and its missions.
+  mission?: number | null;
+  revealedAt?: string | null;
+  closedAt?: string | null;
 }
 
 interface Team {
@@ -122,30 +127,27 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // it) are fetched per tile on open. Without this the public board passed an empty list and the
   // modal had no proof to show — which had no workaround at all on a ladder, where "go look at the
   // team page" isn't a place that exists.
-  const [tileProof, setTileProof] = useState<FullSubmission[]>([]);
-  const [tileProofLoading, setTileProofLoading] = useState(false);
+  // Stamped with the tile it belongs to rather than cleared on close: that way the modal can only
+  // ever show proof for the tile actually open, with no flash of the previous one's while the next
+  // is in flight — and the effect never has to setState just to reset.
+  const [tileProof, setTileProof] = useState<{ tileId: number; rows: FullSubmission[] } | null>(null);
   useEffect(() => {
-    if (!selectedTileId) {
-      setTileProof([]);
-      return;
-    }
+    if (!selectedTileId) return;
     let cancelled = false;
-    setTileProofLoading(true);
-    fetch(`/api/events/${event.id}/submissions?tileId=${selectedTileId}`)
+    const tileId = selectedTileId;
+    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: FullSubmission[]) => {
-        if (!cancelled) setTileProof(Array.isArray(rows) ? rows : []);
+        if (!cancelled) setTileProof({ tileId, rows: Array.isArray(rows) ? rows : [] });
       })
       .catch(() => {
-        if (!cancelled) setTileProof([]);
-      })
-      .finally(() => {
-        if (!cancelled) setTileProofLoading(false);
+        if (!cancelled) setTileProof({ tileId, rows: [] });
       });
     return () => {
       cancelled = true;
     };
   }, [selectedTileId, event.id]);
+  const proofForOpenTile = tileProof && tileProof.tileId === selectedTileId ? tileProof.rows : null;
 
   const staffOnlySet = useMemo(
     () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
@@ -206,9 +208,17 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   }, [router, refetchSubmissions, refetchGains]);
   useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
 
+  // The board and the missions are two different things (see lib/eventRules.boardTiles): a mission
+  // drops mid-event from its own pool, scores under its own rules and can expire unclaimed, so
+  // folding one into the tile list moves the denominator under everyone the moment it's announced.
+  const board = useMemo(() => boardTiles(tiles), [tiles]);
+  // Only ANNOUNCED missions are worth a section — an unannounced one is either invisible (members)
+  // or already flagged staff-only on the board (staff).
+  const missions = useMemo(() => missionTiles(tiles).filter((t) => t.revealedAt), [tiles]);
+
   // Exclude optional tiles from completion counts
   const pointsMode = isPointsMode(event.scoringMode);
-  const requiredTiles = tiles.filter((t) => !t.optional);
+  const requiredTiles = board.filter((t) => !t.optional);
   // Weight per tile: its point value in points mode, 1 in classic mode. A team's
   // score is the summed weight of the required tiles it has completed, and the
   // "total" the scoreboard divides against is the summed weight of all required tiles.
@@ -524,9 +534,52 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               </span>
             </div>
           )}
+          {/* Missions sit ABOVE the board and outside it: they're the thing that just dropped, they
+              expire, and they don't count toward the board's totals. Interleaving them with the
+              ordinary tiles buried the urgency and moved the denominator. */}
+          {missions.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
+                <span className="w-1 h-4 bg-gold rounded-full" />
+                Missions
+                <span className="text-xs font-normal text-text-muted">
+                  bonus objectives — not part of the board total
+                </span>
+              </h3>
+              <div className="rounded-xl border border-gold/25 bg-gold/5 divide-y divide-gold/15 overflow-hidden">
+                {missions.map((m) => {
+                  const done = completions.some((c) => c.tileId === m.id);
+                  const closed = !!m.closedAt;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedTileId(m.id)}
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-gold/10 transition-colors"
+                    >
+                      <span aria-hidden className="text-base">⚡</span>
+                      <span className={`flex-1 min-w-0 text-sm font-medium truncate ${done ? 'text-accent-green-light' : closed ? 'text-text-muted line-through' : 'text-foreground'}`}>
+                        {m.label}
+                      </span>
+                      {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
+                      {closed && !done && (
+                        <span className="text-[10px] uppercase tracking-wide text-text-muted shrink-0">closed</span>
+                      )}
+                      {pointsMode && m.points != null && (
+                        <span className="text-xs shrink-0 rounded px-1.5 py-0.5 bg-purple-500/20 text-purple-200 border border-purple-400/30">
+                          {m.points} pts
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <EventBoard
             format={event.format}
-            tiles={tiles}
+            tiles={board}
             boardSize={event.boardSize}
             completions={completions}
             teams={teams}
@@ -546,8 +599,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
-          submissions={tileProof}
-          submissionsLoading={tileProofLoading}
+          submissions={proofForOpenTile ?? []}
+          submissionsLoading={proofForOpenTile === null}
           completedBy={selectedTileCompletions.map((c) => {
             const team = teams.find((t) => t.id === c.teamId);
             return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
