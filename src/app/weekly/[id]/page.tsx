@@ -46,6 +46,9 @@ export default async function WeeklyLeaderboardPage({
   // Everything day-shaped hangs off history the sweep writes. A competition from before that (or a
   // guest-only board) still ranks fine — it just shows the board without the week around it.
   const showDaily = !view.dailyUnavailable;
+  // How much of the week the daily history can actually account for. Per-player shapes are only
+  // drawn when this is high enough for them to mean something (see Podium/Board).
+  const coverage = view.clanTotal > 0 ? view.trackedTotal / view.clanTotal : 1;
 
   return (
     <div>
@@ -77,7 +80,14 @@ export default async function WeeklyLeaderboardPage({
 
       {view.me && <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} />}
 
-      <Podium entries={view.entries} days={view.days} elapsed={view.elapsed} type={view.type} unit={view.unit} />
+      <Podium
+        entries={view.entries}
+        days={view.days}
+        elapsed={view.elapsed}
+        type={view.type}
+        unit={view.unit}
+        coverage={coverage}
+      />
 
       <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="min-w-0">
@@ -127,6 +137,7 @@ export default async function WeeklyLeaderboardPage({
             type={view.type}
             unit={view.unit}
             showDaily={showDaily}
+            coverage={coverage}
           />
           <SidePanels milestones={view.milestones} records={view.records} />
         </div>
