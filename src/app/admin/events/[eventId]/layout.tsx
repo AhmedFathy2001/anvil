@@ -11,8 +11,10 @@ import EventTitle from './EventTitle';
 import EventLockBanner from './EventLockBanner';
 import EventLifecycleBar from './EventLifecycleBar';
 import { isEventOver, eventEditLocked } from '@/lib/eventLock';
-import { lifecycleSteps } from '@/lib/eventStage';
+import { lifecycleSteps, eventStage } from '@/lib/eventStage';
 import { getStageCounts } from '@/lib/eventStageCounts';
+import { eventRailGroups } from '@/lib/eventRail';
+import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,8 +65,24 @@ export default async function EventLayout({
           ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
           : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
+  // The rail lives HERE, not in the admin shell: this layout re-renders when the event id changes,
+  // a parent layout doesn't. Rendering it from the shell meant walking from one event to another
+  // left you looking at the first one's rail.
+  const rail = eventRailGroups({
+    eventId: id,
+    stage: eventStage(event),
+    counts: stageCounts,
+    tilesOnly: isEditor,
+  });
+
   return (
-    <div>
+    <div className="lg:flex lg:gap-6">
+      <AdminSidebar
+        scope="event"
+        groups={rail}
+        header={{ title: event.name, subtitle: eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules) }}
+      />
+      <div className="flex-1 min-w-0">
       <Link
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
@@ -122,6 +140,7 @@ export default async function EventLayout({
       )}
 
       {children}
+      </div>
     </div>
   );
 }
