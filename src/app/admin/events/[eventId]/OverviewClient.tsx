@@ -660,8 +660,9 @@ export default function OverviewClient({ event, tiles, teams, completions, tierB
         {canManageEditors && <EventEditorsPanel eventId={event.id} />}
       </div>
 
-      {/* Missions — mid-event hidden-objective controls (only shows when the board has mission tiles). */}
-      <MissionAdminPanel event={currentEvent} tiles={localTiles} />
+      {/* Missions — mid-event hidden-objective controls. Hidden on a ladder, whose whole board is
+          already a pool of announced objectives. */}
+      <MissionAdminPanel event={currentEvent} tiles={localTiles} allowed={!ladderFormat} />
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">
