@@ -209,3 +209,15 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   }
   return null;
 }
+
+/**
+ * The face of a weekly competition: the skill's wiki icon, the boss's signature drop, or the
+ * stats icon for an efficiency week. Same art the boards already use, so a competition and the
+ * tile that tracks it look like the same thing.
+ */
+export function competitionIconUrl(type: string, metric: string): string | null {
+  if (type === 'skill') return skillIconUrl(metric);
+  if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  const item = bossItemForStatKey(metric);
+  return item != null ? itemIconUrl(item) : null;
+}
