@@ -328,6 +328,37 @@ export function nextRevealAt(
 }
 
 /**
+ * When each currently-open tile will ROTATE OUT, on a 'rotating' board.
+ *
+ * The window holds `revealWindowSize` tiles: every draw opens `revealBatchSize` new ones and closes
+ * the same number of oldest ones to make room. So the oldest open tile expires at the next draw,
+ * the next-oldest one draw later, and so on — which means a member can be told how long a task has
+ * left without the engine having to write an expiry column it would then have to keep in sync.
+ *
+ * Empty for every other policy: a lucky-draw tile stays open forever, a bounty closes on a claim,
+ * and a scheduled board doesn't take anything away.
+ */
+export function rotationExpiries(
+  rules: EventRules,
+  openTiles: { id: number; revealedAt?: string | null }[],
+  nextRevealAt: string | null,
+): Map<number, string> {
+  const out = new Map<number, string>();
+  if (rules.revealPolicy !== 'rotating' || !nextRevealAt) return out;
+  const nextMs = Date.parse(nextRevealAt);
+  if (!Number.isFinite(nextMs)) return out;
+  const stepMs = rules.revealIntervalMinutes * 60_000;
+  const batch = Math.max(1, rules.revealBatchSize);
+  const oldestFirst = [...openTiles]
+    .filter((t) => !!t.revealedAt)
+    .sort((a, b) => (a.revealedAt! < b.revealedAt! ? -1 : a.revealedAt! > b.revealedAt! ? 1 : a.id - b.id));
+  oldestFirst.forEach((t, i) => {
+    out.set(t.id, new Date(nextMs + Math.floor(i / batch) * stepMs).toISOString());
+  });
+  return out;
+}
+
+/**
  * When the next MISSION drops, for the in-game countdown. Mirrors {@link nextRevealAt} but over the
  * mission pool + `rules.mission` announce policy: scheduled → earliest hidden mission's revealAt;
  * interval → one interval after the last announced mission (or event start); manual/none → null.

@@ -17,6 +17,7 @@ import {
   isTileOpen,
   nextRevealAt,
   completionAward,
+  rotationExpiries,
 } from '../src/lib/eventRules.ts';
 
 test('parseEventRules: null/malformed/garbage → defaults', () => {
@@ -150,4 +151,37 @@ test('completionAward: null without modifiers or outside points mode; bonus + li
     50,
     'decay floors, never passes below floorPct',
   );
+});
+
+test('rotationExpiries: the oldest open task rotates out first, one draw apart', () => {
+  const rules = parseEventRules(
+    JSON.stringify({ revealPolicy: 'rotating', revealIntervalMinutes: 60, revealBatchSize: 1, revealWindowSize: 3 }),
+  );
+  const open = [
+    { id: 3, revealedAt: '2026-08-14T10:00:00.000Z' },
+    { id: 1, revealedAt: '2026-08-14T08:00:00.000Z' },
+    { id: 2, revealedAt: '2026-08-14T09:00:00.000Z' },
+  ];
+  const exp = rotationExpiries(rules, open, '2026-08-14T11:00:00.000Z');
+  assert.equal(exp.get(1), '2026-08-14T11:00:00.000Z'); // oldest goes at the next draw
+  assert.equal(exp.get(2), '2026-08-14T12:00:00.000Z');
+  assert.equal(exp.get(3), '2026-08-14T13:00:00.000Z');
+});
+
+test('rotationExpiries: a batch of two retires two at a time, and other policies never expire', () => {
+  const batched = parseEventRules(
+    JSON.stringify({ revealPolicy: 'rotating', revealIntervalMinutes: 30, revealBatchSize: 2 }),
+  );
+  const open = [
+    { id: 1, revealedAt: '2026-08-14T08:00:00.000Z' },
+    { id: 2, revealedAt: '2026-08-14T08:30:00.000Z' },
+    { id: 3, revealedAt: '2026-08-14T09:00:00.000Z' },
+  ];
+  const exp = rotationExpiries(batched, open, '2026-08-14T09:30:00.000Z');
+  assert.equal(exp.get(1), exp.get(2)); // same draw
+  assert.equal(exp.get(3), '2026-08-14T10:00:00.000Z');
+
+  const interval = parseEventRules(JSON.stringify({ revealPolicy: 'interval' }));
+  assert.equal(rotationExpiries(interval, open, '2026-08-14T09:30:00.000Z').size, 0);
+  assert.equal(rotationExpiries(batched, open, null).size, 0);
 });
