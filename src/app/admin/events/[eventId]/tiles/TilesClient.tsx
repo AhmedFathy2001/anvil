@@ -94,6 +94,22 @@ interface Props {
   editLocked?: boolean;
 }
 
+/**
+ * True on screens wide enough to keep the tile list AND its editor on screen at once.
+ * SSR renders false, so the first paint is the phone layout and never a mismatched desktop one.
+ */
+function useHasRoomForInspector(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return wide;
+}
+
 export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +138,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // Multi-select for bulk edits. Shift-click extends from the last tile you touched, so "these
   // twenty are all worth 5" is one gesture rather than twenty drawers. Only the fields that are
   // safe to change on a live board are offered (see the bulk route).
+  const inspectorDocked = useHasRoomForInspector();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lastPickedId, setLastPickedId] = useState<number | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -1394,7 +1411,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             No tiles match your search.
           </div>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 transition-[padding] ${
+            editingTile && inspectorDocked ? 'xl:grid-cols-3 xl:pr-[26rem]' : 'xl:grid-cols-4'
+          }`}
+        >
           {visibleTiles.map((tile) => {
             const k = tileKind(tile);
             const isEditing = editingTileId === tile.id;
@@ -1464,6 +1485,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       {/* Configuration drawer — Cards view only. In Quick Build the editor is the right pane. */}
       {viewMode === 'cards' && editingTile && (
         <TileConfigDrawer
+          docked={inspectorDocked}
           key={editingTile.id}
           tile={editingTile}
           eventId={event.id}
@@ -1864,6 +1886,8 @@ function RevealAtEditor({
 
 interface DrawerProps {
   tile: Tile;
+  /** Wide screens dock the editor beside the board instead of covering it. */
+  docked?: boolean;
   eventId: number;
   eventStarted: boolean;
   isAdmin?: boolean;
@@ -1884,26 +1908,34 @@ interface DrawerProps {
   revealEditor?: React.ReactNode;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+    <div className={`fixed inset-0 z-40 flex justify-end ${docked ? 'pointer-events-none' : ''}`}>
+      {/* Only a covering drawer needs a backdrop. Docked, the board stays visible AND clickable:
+          picking another tile moves the inspector rather than making you close it first. */}
+      {!docked && (
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
       <div
         ref={ref}
         role="dialog"
-        aria-modal="true"
+        aria-modal={docked ? undefined : 'true'}
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative h-full w-full max-w-md bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide"
+        className={`relative w-full max-w-md bg-card-bg border-card-border shadow-2xl flex flex-col focus:outline-none pointer-events-auto ${
+          docked
+            ? 'my-4 mr-4 max-h-[calc(100vh-2rem)] rounded-xl border'
+            : 'h-full border-l animate-drawer-slide'
+        }`}
       >
         {/* Header */}
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
