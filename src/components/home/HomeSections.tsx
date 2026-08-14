@@ -396,7 +396,7 @@ export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
   return (
     <>
       <SectionHead
-        title="The weeklies"
+        title="Weekly events"
         note="live, next up, and everything already run"
         more={{ href: '/weekly', label: 'All competitions →' }}
       />
