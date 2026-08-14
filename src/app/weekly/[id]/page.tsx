@@ -89,6 +89,8 @@ export default async function WeeklyLeaderboardPage({
                 elapsed={view.elapsed}
                 type={view.type}
                 unit={view.unit}
+                clanTotal={view.clanTotal}
+                trackedTotal={view.trackedTotal}
               />
               <DayStrip
                 days={view.days}
