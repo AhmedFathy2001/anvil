@@ -15,6 +15,7 @@ import { statLabel } from '@/lib/tileKinds';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection, groupModeHint } from '@/lib/collectionSets';
 import { submissionHasProof } from '@/lib/submissionProof';
+import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
@@ -100,6 +101,9 @@ interface Props {
   teamNameById?: Record<number, string>;
 }
 
+/** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
+const CONTRIBUTOR_PREVIEW = 8;
+
 export default function TileDetailModal({
   tile,
   submissions,
@@ -137,6 +141,9 @@ export default function TileDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [toggling, setToggling] = useState(false);
+  // Which proof is open full-size, and the set to arrow through (one contributor's shots).
+  const [viewer, setViewer] = useState<{ shots: ProofShot[]; index: number } | null>(null);
+  const [showAllContributors, setShowAllContributors] = useState(false);
   const [error, setError] = useState('');
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -212,16 +219,68 @@ export default function TileDetailModal({
   // distinct clear time and there are never many.
   const proofSubs = submissions.filter(submissionHasProof);
   const individualSubs = isTimed ? submissions : proofSubs;
-  const bareGroups = (() => {
+
+  // Proof rows carry only what the gallery needs, so the delete gate looks the original submission
+  // back up rather than duplicating (or weakening) canDeleteSubmission's rule.
+  const submissionById = new Map(submissions.map((sub) => [sub.id, sub]));
+  const canDeleteShot = (id: number) => {
+    const sub = submissionById.get(id);
+    return sub ? canDeleteSubmission(sub) : false;
+  };
+
+  // ONE row per contributor, not one card per submission.
+  //
+  // A tile on a 40-person clan collects hundreds of submissions, and rendering each as a card with a
+  // full-width screenshot made the panel unreadable at about six. The thing a reader actually wants
+  // is who contributed and how much; the screenshots are evidence you open when you doubt a number.
+  //
+  // Auto-logs and proof submissions are merged here for the same reason they were separate before —
+  // a kill tile lands one bare log per kill — but split across two lists a player who had both
+  // appeared twice with two partial totals. Keyed exactly as the old bare-log rollup was, so the
+  // halves can't disagree about who is who.
+  const contributors = (() => {
     if (isTimed) return [];
-    const m = new Map<string, { key: string; teamId: number | null; playerName: string | null; count: number; amount: number }>();
-    for (const s of submissions) {
-      if (submissionHasProof(s)) continue;
-      const key = `${s.teamId ?? ''}|${s.creditPlayerId ?? s.creditPlayerName ?? ''}`;
-      const g = m.get(key) ?? { key, teamId: s.teamId ?? null, playerName: s.creditPlayerName ?? null, count: 0, amount: 0 };
-      g.count += 1;
-      g.amount += s.amount;
-      m.set(key, g);
+    type Row = {
+      key: string;
+      teamId: number | null;
+      playerName: string | null;
+      amount: number;
+      autoLogs: number;
+      shots: ProofShot[];
+    };
+    const m = new Map<string, Row>();
+    for (const sub of submissions) {
+      const key = `${sub.teamId ?? ''}|${sub.creditPlayerId ?? sub.creditPlayerName ?? ''}`;
+      const row = m.get(key) ?? {
+        key,
+        teamId: sub.teamId ?? null,
+        playerName: sub.creditPlayerName ?? null,
+        amount: 0,
+        autoLogs: 0,
+        shots: [],
+      };
+      row.amount += sub.amount;
+      if (submissionHasProof(sub)) {
+        if (sub.imageUrl) {
+          row.shots.push({
+            id: sub.id,
+            imageUrl: sub.imageUrl,
+            credit: sub.creditPlayerName ?? sub.uploaderName ?? null,
+            note: sub.note ?? null,
+            createdAt: sub.createdAt,
+            amountLabel: isValue
+              ? `${sub.amount.toLocaleString()} gp`
+              : `${sub.amount} ${countNoun}${sub.amount !== 1 ? 's' : ''}`,
+          });
+        }
+      } else {
+        row.autoLogs += 1;
+      }
+      m.set(key, row);
+    }
+    for (const row of m.values()) {
+      // Newest proof first — the most recent evidence is the one being questioned.
+      row.shots.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
     return [...m.values()].sort((a, b) => b.amount - a.amount);
   })();
@@ -764,95 +823,144 @@ export default function TileDetailModal({
             <p className="text-xs text-text-muted">Loading proof…</p>
           )}
 
-          {/* Submission gallery */}
+          {/* Proof, grouped by who earned it. Timed tiles keep the per-run list — each run is a
+              distinct clear time and there are never many of them. */}
           {(isCount || isTimed || isValue) && submissions.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
-                Submissions ({submissions.length})
+                {isTimed ? `Runs (${submissions.length})` : `Contributors (${contributors.length})`}
               </h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {individualSubs.map((s) => (
-                  <div
-                    key={s.id}
-                    className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                          {teamNameById && s.teamId != null && teamNameById[s.teamId] && (
-                            <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
-                              {teamNameById[s.teamId]}
-                            </span>
-                          )}
-                          {s.creditPlayerName && (
-                            <span className="font-medium text-accent-green-light">
-                              {s.creditPlayerName}
-                            </span>
-                          )}
-                          <span className="text-gold font-medium">
-                            {isTimed
-                              ? (s.durationSeconds != null ? secondsToClock(s.durationSeconds) : '—')
-                              : isValue
-                                ? `${s.amount.toLocaleString()} gp`
-                                : `${s.amount} ${countNoun}${s.amount !== 1 ? 's' : ''}`}
-                          </span>
-                          {s.uploaderName && s.uploaderName !== s.creditPlayerName && (
-                            <span className="text-text-muted">
-                              (uploaded by {s.uploaderName})
-                            </span>
-                          )}
-                          <span className="text-text-muted">
-                            <LocalTime date={s.createdAt} format="date" />
-                          </span>
-                        </div>
-                        {s.note && (
-                          <p className="text-xs text-text-muted mt-1">{s.note}</p>
+
+              {isTimed ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {individualSubs.map((s) => (
+                    <div key={s.id} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                        {s.creditPlayerName && (
+                          <span className="font-medium text-accent-green-light">{s.creditPlayerName}</span>
+                        )}
+                        <span className="text-gold font-medium">
+                          {s.durationSeconds != null ? secondsToClock(s.durationSeconds) : '—'}
+                        </span>
+                        <span className="text-text-muted">
+                          <LocalTime date={s.createdAt} format="date" />
+                        </span>
+                        {canDeleteSubmission(s) && onDelete && (
+                          <button
+                            onClick={() => openDeleteModal(s.id)}
+                            disabled={deletingId === s.id}
+                            className="ml-auto text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            {deletingId === s.id ? '...' : 'Delete'}
+                          </button>
                         )}
                       </div>
-                      {canDeleteSubmission(s) && onDelete && (
+                      {s.note && <p className="text-xs text-text-muted mt-1">{s.note}</p>}
+                      {s.imageUrl && (
                         <button
-                          onClick={() => openDeleteModal(s.id)}
-                          disabled={deletingId === s.id}
-                          className="text-xs text-red-400 hover:text-red-300 transition-colors flex-shrink-0 px-2 py-1.5 -my-1"
+                          type="button"
+                          onClick={() =>
+                            setViewer({
+                              shots: [{
+                                id: s.id,
+                                imageUrl: s.imageUrl!,
+                                credit: s.creditPlayerName ?? null,
+                                note: s.note ?? null,
+                                createdAt: s.createdAt,
+                                amountLabel: null,
+                              }],
+                              index: 0,
+                            })
+                          }
+                          className="mt-2 block w-full"
                         >
-                          {deletingId === s.id ? '...' : 'Delete'}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={s.imageUrl}
+                            alt="Proof"
+                            className="w-full max-h-40 object-cover rounded border border-card-border"
+                          />
                         </button>
                       )}
                     </div>
-                    {s.imageUrl && (
-                      <div className="mt-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={s.imageUrl}
-                          alt="Evidence"
-                          className="w-full max-h-40 object-cover rounded border border-card-border cursor-pointer"
-                          onClick={() => window.open(s.imageUrl!, '_blank')}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {contributors.slice(0, showAllContributors ? undefined : CONTRIBUTOR_PREVIEW).map((g) => (
+                      <div key={g.key} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                          {teamNameById && g.teamId != null && teamNameById[g.teamId] && (
+                            <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
+                              {teamNameById[g.teamId]}
+                            </span>
+                          )}
+                          <span className="font-medium text-accent-green-light">
+                            {g.playerName ?? 'Unattributed'}
+                          </span>
+                          <span className="text-gold font-medium">
+                            {isValue
+                              ? `${g.amount.toLocaleString()} gp`
+                              : `${g.amount} ${countNoun}${g.amount !== 1 ? 's' : ''}`}
+                          </span>
+                          {g.autoLogs > 0 && (
+                            <span className="text-text-muted">
+                              · {g.autoLogs} auto log{g.autoLogs !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
 
-                {/* Auto count logs (one per kill, no screenshot) rolled up per player. */}
-                {bareGroups.map((g) => (
-                  <div key={`bare-${g.key}`} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      {teamNameById && g.teamId != null && teamNameById[g.teamId] && (
-                        <span className="font-semibold px-1.5 py-0.5 rounded bg-brown-light text-foreground/80">
-                          {teamNameById[g.teamId]}
-                        </span>
-                      )}
-                      {g.playerName && <span className="font-medium text-accent-green-light">{g.playerName}</span>}
-                      <span className="text-gold font-medium">
-                        {isValue
-                          ? `${g.amount.toLocaleString()} gp`
-                          : `${g.amount} ${countNoun}${g.amount !== 1 ? 's' : ''}`}
-                      </span>
-                      <span className="text-text-muted">· {g.count} auto log{g.count !== 1 ? 's' : ''}</span>
-                    </div>
+                        {/* Contact sheet: proof is evidence you open, not a feed you scroll. */}
+                        {g.shots.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {g.shots.map((shot, i) => (
+                              <button
+                                key={shot.id}
+                                type="button"
+                                onClick={() => setViewer({ shots: g.shots, index: i })}
+                                title={shot.note || 'View proof'}
+                                className="rounded border border-card-border overflow-hidden hover:border-gold/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold transition-colors"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={shot.imageUrl} alt="" className="w-14 h-14 object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Deleting is per-submission, so it lives with the proof it removes — and
+                            stays gated by the same rule as before: staff can remove anyone's, a
+                            player only their own. */}
+                        {onDelete && g.shots.some((shot) => canDeleteShot(shot.id)) && (
+                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                            {g.shots.filter((shot) => canDeleteShot(shot.id)).map((shot) => (
+                              <button
+                                key={`del-${shot.id}`}
+                                onClick={() => openDeleteModal(shot.id)}
+                                disabled={deletingId === shot.id}
+                                className="text-[10px] text-red-400/80 hover:text-red-300 transition-colors"
+                              >
+                                {deletingId === shot.id ? '...' : `Delete ${shot.amountLabel ?? 'proof'}`}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+
+                  {contributors.length > CONTRIBUTOR_PREVIEW && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllContributors((v) => !v)}
+                      className="mt-2 text-xs text-gold hover:underline"
+                    >
+                      {showAllContributors ? 'Show fewer' : `Show all ${contributors.length} contributors`}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -1194,6 +1302,14 @@ export default function TileDetailModal({
             </div>
           </div>
         </div>
+      )}
+      {viewer && (
+        <ProofGallery
+          shots={viewer.shots}
+          index={viewer.index}
+          onIndex={(next) => setViewer((v) => (v ? { ...v, index: next } : v))}
+          onClose={() => setViewer(null)}
+        />
       )}
     </div>
   );

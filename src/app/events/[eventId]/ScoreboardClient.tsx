@@ -138,7 +138,9 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     if (!selectedTileId) return;
     let cancelled = false;
     const tileId = selectedTileId;
-    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}`)
+    // Capped: a kill tile on a busy board can hold thousands of auto-logs, and the panel only ever
+    // shows totals per contributor plus their proof. The API's own ceiling is 500.
+    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}&limit=500`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: FullSubmission[]) => {
         if (!cancelled) setTileProof({ tileId, rows: Array.isArray(rows) ? rows : [] });
