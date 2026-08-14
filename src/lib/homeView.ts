@@ -15,10 +15,10 @@ import { and, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { competitionIconUrl } from '@/lib/tileIcons';
-import { eventShapeBadge, isPointsMode, tileWeight } from '@/lib/utils';
-import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules } from '@/lib/eventRules';
 import { eventAxes } from '@/lib/eventAxes';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
+import { loadEventCards, type EventCard } from '@/lib/eventCards';
 import { computeIndividualStandings } from '@/lib/memberBreakdown';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -58,16 +58,8 @@ export interface HomeWeekly {
   days: number[];
 }
 
-export interface HomeEvent {
-  id: number;
-  name: string;
-  shape: string;
-  chips: string[];
-  status: 'live' | 'past';
-  /** Leading (live) or winning (past) team, with their score against the board total. */
-  top: { name: string; color: string; score: number; total: number; unit: string } | null;
-  foot: string;
-}
+/** The home page draws the same card as the events index (lib/eventCards). */
+export type HomeEvent = EventCard;
 
 export interface HomeYou {
   rsn: string;
@@ -222,80 +214,17 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
   });
 
   // ---- Events: what's live and what it came to --------------------------------------------------
-  const allEvents = await db.select().from(events).orderBy(desc(events.createdAt));
-  const isDraft = (e: (typeof allEvents)[number]) => !e.forceEndedAt && !e.startDate;
-  const liveEvents = allEvents.filter(
-    (e) => !e.forceEndedAt && !isDraft(e) && !(e.endDate && e.endDate < nowIso),
+  // Shared with the events index so the two pages can never disagree about who is leading.
+  const homeEvents = await loadEventCards({ pastLimit: 6 }, now);
+  const liveEvents = await db.select().from(events).orderBy(desc(events.createdAt)).then((rows) =>
+    rows.filter(
+      (e) =>
+        !e.forceEndedAt &&
+        !(!e.forceEndedAt && !e.startDate) &&
+        !(e.endDate && e.endDate < nowIso) &&
+        !(e.startDate && e.startDate > nowIso),
+    ),
   );
-  const pastEvents = allEvents.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < nowIso)).slice(0, 6);
-  const shownEvents = [...liveEvents, ...pastEvents];
-
-  const teamCounts = new Map<number, number>();
-  for (const row of await db.select({ eventId: teams.eventId, c: count() }).from(teams).groupBy(teams.eventId)) {
-    teamCounts.set(row.eventId, row.c);
-  }
-
-  const eventTeams = shownEvents.length
-    ? await db.select().from(teams).where(inArray(teams.eventId, shownEvents.map((e) => e.id)))
-    : [];
-  const eventTiles = shownEvents.length
-    ? await db.select().from(tiles).where(inArray(tiles.eventId, shownEvents.map((e) => e.id)))
-    : [];
-  const tileEvent = new Map(eventTiles.map((t) => [t.id, t.eventId]));
-  const eventCompletions = eventTiles.length
-    ? await db.select().from(completions).where(inArray(completions.tileId, eventTiles.map((t) => t.id)))
-    : [];
-
-  const homeEvents: HomeEvent[] = shownEvents.map((event) => {
-    const isLive = liveEvents.some((e) => e.id === event.id);
-    const rules = parseEventRules(event.rules);
-    // The DENOMINATOR is the whole board, including tiles that have not dropped yet: a reveal board
-    // scored against only its open tiles reads as near-complete when it has barely started. The
-    // event page does the same (ScoreboardClient's boardPointsTotal).
-    const all = eventTiles.filter((t) => t.eventId === event.id && !t.optional);
-    const scored = visibleTiles(rules, all);
-    const weightById = new Map(scored.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
-    const total = all.reduce((s, t) => s + tileWeight(event.scoringMode, t.points), 0);
-    const unit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
-    const evCompletions = eventCompletions.filter((c) => tileEvent.get(c.tileId) === event.id);
-
-    let top: HomeEvent['top'] = null;
-    for (const team of eventTeams.filter((t) => t.eventId === event.id)) {
-      const score = evCompletions
-        .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-        .reduce(
-          (s, c) =>
-            s + (isPointsMode(event.scoringMode) && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) ?? 0),
-          0,
-        );
-      if (!top || score > top.score) top = { name: team.name, color: team.color, score, total, unit };
-    }
-
-    const teamCount = teamCounts.get(event.id) ?? 0;
-    const axes = eventAxes({ ...event, rules });
-    const chips: string[] = [];
-    if (axes.competitors === 'individuals') chips.push(`${teamCount} player${teamCount === 1 ? '' : 's'}`);
-    else if (teamCount > 0) chips.push(`${teamCount} team${teamCount === 1 ? '' : 's'}`);
-    if (evCompletions.length > 0) chips.push(`${evCompletions.length} claimed`);
-
-    return {
-      id: event.id,
-      name: event.name,
-      shape: eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules),
-      chips,
-      status: isLive ? 'live' : 'past',
-      top: top && top.score > 0 ? top : null,
-      foot: isLive
-        ? event.endDate
-          ? `ends ${new Date(event.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-          : 'no end date — runs until it is ended'
-        : event.forceEndedAt
-          ? 'ended early'
-          : event.endDate
-            ? `ended ${new Date(event.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-            : 'finished',
-    };
-  });
 
   // ---- The clan's own week ----------------------------------------------------------------------
   const weekStart = dayKey(new Date(now.getTime() - 6 * 86_400_000));
@@ -383,7 +312,14 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
           ladderPlayers.filter((p) => p.clanMemberId != null && myIds.has(p.clanMemberId)).map((p) => p.id),
         );
         if (myPlayerIds.size > 0) {
-          const ladderTileIds = eventTiles.filter((t) => t.eventId === ladderEvent.id).map((t) => t.id);
+          // Loaded here rather than shared: this only runs when a ladder is live AND the viewer is
+          // on it, so it costs nothing on an ordinary page load.
+          const ladderTiles = await db.select().from(tiles).where(eq(tiles.eventId, ladderEvent.id));
+          const ladderTeams = await db.select().from(teams).where(eq(teams.eventId, ladderEvent.id));
+          const ladderTileIds = ladderTiles.map((t) => t.id);
+          const ladderCompletions = ladderTileIds.length
+            ? await db.select().from(completions).where(inArray(completions.tileId, ladderTileIds))
+            : [];
           const ladderSubs = ladderTileIds.length
             ? await db
                 .select({
@@ -401,17 +337,13 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
           const seasonWindow = lifecycle === 'bounded' ? null : monthWindow(now);
           const standings = computeIndividualStandings({
             scoringMode: ladderEvent.scoringMode,
-            teams: eventTeams.filter((t) => t.eventId === ladderEvent.id),
+            teams: ladderTeams,
             players: ladderPlayers,
-            tiles: eventTiles.filter((t) => t.eventId === ladderEvent.id),
+            tiles: ladderTiles,
             // The frozen KC/XP split is stored as JSON text; the breakdown wants it parsed, or a
             // completed stat tile would score for nobody.
-            completions: eventCompletions
-              .filter(
-                (c) =>
-                  ladderTileIds.includes(c.tileId) &&
-                  (!seasonWindow || (c.completedAt >= seasonWindow.start && c.completedAt < seasonWindow.end)),
-              )
+            completions: ladderCompletions
+              .filter((c) => !seasonWindow || (c.completedAt >= seasonWindow.start && c.completedAt < seasonWindow.end))
               .map((c) => ({ ...c, statContributions: parseContributionSnapshot(c.statContributions) })),
             submissions: ladderSubs,
             ownerByPlayerId: await loadPlayerOwners(ladderPlayers),

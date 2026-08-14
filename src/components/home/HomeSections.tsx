@@ -281,7 +281,7 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
             <i
               key={i}
               className={`block flex-1 rounded-sm ${d === max ? 'bg-gold-light' : 'bg-blue-400/50'}`}
-              style={{ height: `${Math.max(4, (d / max) * 36)}px` }}
+              style={{ height: `${d > 0 ? Math.max(1, (d / max) * 36) : 1}px` }}
             />
           ))}
         </div>
@@ -396,8 +396,8 @@ export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
   return (
     <>
       <SectionHead
-        title="Weekly events"
-        note="live, next up, and everything already run"
+        title="Weekly events, past and present"
+        note="Skill and Boss of the Week"
         more={{ href: '/weekly', label: 'All competitions →' }}
       />
       <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(232px,1fr))]">
@@ -465,7 +465,7 @@ export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
                             ? 'bg-accent-green/50'
                             : 'bg-text-muted/40'
                     }`}
-                    style={{ height: `${w.days.length === 0 ? 4 : Math.max(3, (d / max) * 30)}px` }}
+                    style={{ height: `${w.days.length === 0 ? 3 : d > 0 ? Math.max(1, (d / max) * 30) : 1}px` }}
                   />
                 ))}
               </div>
@@ -588,7 +588,7 @@ export function ClanWeek({ view }: { view: HomeView }) {
                         ? 'bg-gradient-to-b from-gold-light to-gold-dark/30'
                         : 'bg-gradient-to-b from-accent-green/75 to-accent-green/25'
                     }`}
-                    style={{ height: `${d.xp === 0 ? 2 : Math.max(4, (d.xp / max) * 100)}%`, opacity: d.xp === 0 ? 0.25 : 1 }}
+                    style={{ height: `${d.xp === 0 ? 2 : Math.max(2, (d.xp / max) * 100)}%`, opacity: d.xp === 0 ? 0.25 : 1 }}
                   />
                 </span>
                 <span className="text-center text-[10px] text-text-muted">{weekday(d.day)}</span>

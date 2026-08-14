@@ -35,10 +35,23 @@ export function RaceChart({
   const H = 210;
   const PAD_L = 46;
   const PAD_B = 22;
+  /** Right-hand gutter the end-of-line names live in. */
+  const PAD_R = 96;
   const series = top.map((e) => cumulative(e.days, elapsed));
   const max = Math.max(...series.flat(), 1);
-  const x = (i: number) => PAD_L + (i / Math.max(1, elapsed - 1)) * (W - PAD_L - 10);
+  const x = (i: number) => PAD_L + (i / Math.max(1, elapsed - 1)) * (W - PAD_L - PAD_R);
   const y = (v: number) => H - PAD_B - (v / max) * (H - PAD_B - 12);
+
+  // End-of-line label positions, spread so two close finishers stay readable.
+  const MIN_GAP = 12;
+  const labelled = series
+    .map((s, i) => ({ i, y: y(s[s.length - 1]) }))
+    .sort((a, b) => a.y - b.y)
+    .map((row, k, arr) => {
+      const prev = arr[k - 1];
+      return prev && row.y - prev.y < MIN_GAP ? { ...row, y: prev.y + MIN_GAP } : row;
+    })
+    .sort((a, b) => a.i - b.i);
 
   return (
     <div className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
@@ -49,7 +62,7 @@ export function RaceChart({
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 block w-full overflow-visible" role="img" aria-label="Cumulative gains per day">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
-            <line x1={PAD_L} y1={y(max * f)} x2={W - 10} y2={y(max * f)} stroke="rgba(61,50,38,0.85)" strokeWidth={1} />
+            <line x1={PAD_L} y1={y(max * f)} x2={W - PAD_R + 4} y2={y(max * f)} stroke="rgba(61,50,38,0.85)" strokeWidth={1} />
             <text x={PAD_L - 8} y={y(max * f) + 4} textAnchor="end" fontSize="10" fill="#8a7e6c" fontFamily="ui-monospace, monospace">
               {shortValue(Math.round(max * f), type)}
             </text>
@@ -72,6 +85,20 @@ export function RaceChart({
         {days.slice(0, elapsed).map((day, k) => (
           <text key={day} x={x(k)} y={H - 6} textAnchor="middle" fontSize="10" fill="#8a7e6c">
             {weekdayLabel(day)}
+          </text>
+        ))}
+        {/* Names at the end of each line. Nudged apart when two players finish within a few pixels
+            of each other, so a tight race doesn't stack its labels on top of one another. */}
+        {labelled.map((l, i) => (
+          <text
+            key={top[i].rsn}
+            x={x(elapsed - 1) + 7}
+            y={l.y + 3.5}
+            fontSize="10.5"
+            fontWeight="600"
+            fill={LINE_COLORS[i]}
+          >
+            {top[i].rsn}
           </text>
         ))}
       </svg>

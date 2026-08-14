@@ -82,7 +82,7 @@ export function YouStrip({
           <i
             key={i}
             className={`block w-[7px] rounded-sm ${i === elapsed - 1 ? 'bg-gold-light' : 'bg-accent-green/60'}`}
-            style={{ height: `${Math.max(3, (v / max) * 34)}px` }}
+            style={{ height: `${v > 0 ? Math.max(1, (v / max) * 34) : 1}px` }}
           />
         ))}
       </div>
@@ -106,12 +106,17 @@ export function Podium({
   const top = entries.slice(0, 3).filter((e) => e.gained > 0);
   if (top.length === 0) return null;
 
+  // ONE scale across the three cards. Normalising each card to its own best day made every podium
+  // look the same shape, so a 1M week and an 870K week drew identical bars — and the reader, quite
+  // reasonably, read height as size. Shared scale means the bars mean what they look like.
+  const scale = Math.max(...top.flatMap((e) => e.days.slice(0, elapsed)), 1);
+
   return (
     <div className="mb-7 grid items-end gap-3 sm:grid-cols-3">
       {top.map((e, i) => {
         const first = i === 0;
-        const max = Math.max(...e.days.slice(0, elapsed), 1);
-        const bestIdx = e.days.slice(0, elapsed).indexOf(max);
+        const own = Math.max(...e.days.slice(0, elapsed), 0);
+        const bestIdx = e.days.slice(0, elapsed).indexOf(own);
         return (
           <div
             key={e.rsn}
@@ -135,9 +140,9 @@ export function Podium({
               <span className="text-xs text-text-muted">{unit}</span>
             </div>
             <div className="mt-2.5 flex items-center gap-2.5 text-xs text-text-muted">
-              {max > 0 && (
+              {own > 0 && (
                 <span>
-                  best day {days[bestIdx] ? dateLabel(days[bestIdx]) : '—'} · {shortValue(max, type)}
+                  best day {days[bestIdx] ? dateLabel(days[bestIdx]) : '—'} · {shortValue(own, type)}
                 </span>
               )}
               {e.streak >= 3 && e.streak === elapsed && <span title={`Every day so far (${e.streak})`}>🔥</span>}
@@ -146,7 +151,10 @@ export function Podium({
                   <i
                     key={k}
                     className="block w-2 rounded-sm"
-                    style={{ height: `${Math.max(3, (v / max) * 24)}px`, backgroundColor: first ? '#f0c940' : 'rgba(138,126,108,0.6)' }}
+                    style={{
+                      height: `${v > 0 ? Math.max(1, (v / scale) * 24) : 1}px`,
+                      backgroundColor: v > 0 ? (first ? '#f0c940' : 'rgba(138,126,108,0.6)') : 'rgba(61,50,38,0.9)',
+                    }}
                   />
                 ))}
               </span>
@@ -231,7 +239,7 @@ export function Board({
                     <i
                       key={k}
                       className={`block w-[3px] rounded-[1px] ${e.isMe ? 'bg-accent-green/70' : 'bg-text-muted/55'}`}
-                      style={{ height: `${Math.max(2, (v / max) * 16)}px` }}
+                      style={{ height: `${v > 0 ? Math.max(1, (v / max) * 16) : 1}px` }}
                     />
                   ))}
                 </span>
