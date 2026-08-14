@@ -148,30 +148,36 @@ export async function forwardPluginNotification(
   payload: {
     content?: string;
     embed?: Record<string, unknown> | null;
-    image?: { bytes: ArrayBuffer; filename: string } | null;
+    /**
+     * File to upload alongside the post. Usually a screenshot the embed references via
+     * "attachment://<filename>"; clips ride the same path as a video Discord renders its own
+     * player for (an embed can host an image but not a video).
+     */
+    attachment?: { bytes: ArrayBuffer; filename: string } | null;
   },
 ): Promise<boolean> {
-  const { content, embed, image } = payload;
+  const { content, embed, attachment } = payload;
   const embeds = embed ? [embed as unknown as DiscordEmbed] : undefined;
   // content/embed are plugin-supplied and reach here from anyone holding a plugin token, so neutralize
   // mentions: these clan notifications never legitimately ping, and without this a tampered plugin
   // could blast @everyone/@here/role pings through the webhook.
   const allowed_mentions: DiscordWebhookPayload['allowed_mentions'] = { parse: [] };
 
-  if (!image) {
+  if (!attachment) {
     return sendToWebhook(webhookUrl, { content: content || undefined, embeds, allowed_mentions });
   }
 
-  // Multipart upload so the screenshot rides along; Discord renders it inline via the embed's
-  // attachment:// reference. sendToWebhook is JSON-only, so this path posts directly — which means
-  // it also has to stamp the brand footer itself (postWebhook does it for every other exit).
+  // Multipart upload so the file rides along; Discord renders an image inline via the embed's
+  // attachment:// reference, and gives a video its own player. sendToWebhook is JSON-only, so this
+  // path posts directly — which means it also has to stamp the brand footer itself (postWebhook
+  // does it for every other exit).
   try {
     const form = new FormData();
     form.append(
       'payload_json',
       JSON.stringify(stampEmbeds({ content: content || undefined, embeds, allowed_mentions })),
     );
-    form.append('files[0]', new Blob([image.bytes]), image.filename);
+    form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
     const response = await fetch(webhookUrl, { method: 'POST', body: form });
     if (!response.ok) {
       const text = await response.text().catch(() => '');
