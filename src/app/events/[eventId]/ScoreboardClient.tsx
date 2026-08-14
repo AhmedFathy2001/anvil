@@ -10,7 +10,8 @@ import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
 import { formatNumber, tileWeight, isPointsMode, isLadderFormat } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { boardTiles, missionTiles } from '@/lib/eventRules';
+import { boardTiles, missionTiles, parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import LiveDropBoard from '@/components/LiveDropBoard';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp, IndividualStanding } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
@@ -73,6 +74,8 @@ interface Event {
   forceEndedAt?: string | null;
   scoringMode?: string;
   format?: string;
+  /** Per-event rules JSON (lib/eventRules) — reveal policy + decay drive the live board. */
+  rules?: string | null;
 }
 
 interface Submission {
@@ -212,6 +215,12 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // drops mid-event from its own pool, scores under its own rules and can expire unclaimed, so
   // folding one into the tile list moves the denominator under everyone the moment it's announced.
   const board = useMemo(() => boardTiles(tiles), [tiles]);
+  const eventRules = useMemo(() => parseEventRules(event.rules), [event.rules]);
+  // A board whose tasks open and close on a clock is a different surface from a bingo grid: two
+  // things are open, one is losing value, the next drops in eleven minutes. Search and tier filters
+  // are furniture at that size — the clock is the content. Covers every reveal policy, so a lucky
+  // draw and a bounty rotation get it too, not just a ladder.
+  const liveDropBoard = hasRevealPolicy(eventRules);
   // Only ANNOUNCED missions are worth a section — an unannounced one is either invisible (members)
   // or already flagged staff-only on the board (staff).
   const missions = useMemo(() => missionTiles(tiles).filter((t) => t.revealedAt), [tiles]);
@@ -418,10 +427,23 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         <div className="min-w-0">
           <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            Board Overview
+            {liveDropBoard ? 'Live board' : 'Board Overview'}
             <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
           </h2>
 
+          {liveDropBoard ? (
+            <LiveDropBoard
+              tiles={board}
+              rules={eventRules}
+              nextRevealAt={nextRevealAt}
+              hiddenCount={hiddenTileCount}
+              pointsMode={pointsMode}
+              completedTileIds={new Set(completions.map((c) => c.tileId))}
+              onTileClick={setSelectedTileId}
+              noun={ladder ? 'task' : 'tile'}
+            />
+          ) : (
+          <>
           <div className="relative mb-3">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none"
@@ -590,6 +612,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             matchedTileIds={matchedTileIds}
             staffOnlyTileIds={staffOnlySet}
           />
+          </>
+          )}
         </div>
       </div>
 

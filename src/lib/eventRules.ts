@@ -380,18 +380,46 @@ export function completionAward(args: {
   if (args.scoringMode !== 'points') return null;
   const { rules } = args;
   if (rules.firstBonus <= 0 && rules.decay == null) return null;
-  let pts = args.tilePoints ?? 0;
-  if (rules.decay && args.tileRevealedAt) {
-    const revealedMs = Date.parse(args.tileRevealedAt);
-    const nowMs = args.nowMs ?? Date.now();
-    if (Number.isFinite(revealedMs) && nowMs > revealedMs) {
-      const frac = Math.min(1, (nowMs - revealedMs) / (rules.decay.hours * 3_600_000));
-      const target = rules.decay.targetPct / 100; // < 1 decays toward it, > 1 grows toward it
-      pts = Math.max(0, Math.round(pts * (1 - (1 - target) * frac)));
-    }
-  }
+  let pts = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
   return pts;
+}
+
+/**
+ * What a tile is worth RIGHT NOW under a decay/growth ramp — linear from 100% at reveal to
+ * `targetPct%` after `hours`, then held.
+ *
+ * Split out of {@link completionAward} because the board shows this number live, ticking, while a
+ * task is open. Anything that displays a value has to compute it the same way the award does, or
+ * the site advertises a number it won't pay out.
+ */
+export function decayedPoints(
+  points: number | null | undefined,
+  revealedAt: string | null | undefined,
+  decay: EventRules['decay'],
+  nowMs?: number,
+): number {
+  const base = points ?? 0;
+  if (!decay || !revealedAt) return base;
+  const revealedMs = Date.parse(revealedAt);
+  const now = nowMs ?? Date.now();
+  if (!Number.isFinite(revealedMs) || now <= revealedMs) return base;
+  const frac = Math.min(1, (now - revealedMs) / (decay.hours * 3_600_000));
+  const target = decay.targetPct / 100; // < 1 decays toward it, > 1 grows toward it
+  return Math.max(0, Math.round(base * (1 - (1 - target) * frac)));
+}
+
+/** How far through its decay/growth ramp a tile is, 0–1. 0 when nothing ramps. */
+export function decayProgress(
+  revealedAt: string | null | undefined,
+  decay: EventRules['decay'],
+  nowMs?: number,
+): number {
+  if (!decay || !revealedAt) return 0;
+  const revealedMs = Date.parse(revealedAt);
+  const now = nowMs ?? Date.now();
+  if (!Number.isFinite(revealedMs) || now <= revealedMs) return 0;
+  return Math.min(1, (now - revealedMs) / (decay.hours * 3_600_000));
 }
 
 // ---- Per-mission scoring (tiles.rules) --------------------------------------------------------
