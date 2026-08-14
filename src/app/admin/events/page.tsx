@@ -107,7 +107,14 @@ export default async function AdminEventsPage() {
 
   const all: ListItem[] = [...eventItems, ...weeklyItems];
   const running = all.filter(isRunning).sort(byDateAsc);
-  const upcoming = all.filter((i) => !isPast(i) && !isRunning(i)).sort(byDateAsc);
+  // Scheduled things first, soonest first; undated drafts fall to the end — a board with a date on
+  // it is the one with a deadline attached.
+  const upcoming = all
+    .filter((i) => !isPast(i) && !isRunning(i))
+    .sort((a, b) => {
+      if (!!a.startDate !== !!b.startDate) return a.startDate ? -1 : 1;
+      return byDateAsc(a, b);
+    });
   const past = all.filter(isPast).sort(byDateDesc);
 
   const canManage = session?.role === 'admin';

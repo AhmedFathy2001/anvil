@@ -35,6 +35,8 @@ import { formatGp, SPARK_DAYS } from '@/lib/adminEventsFormat';
 
 /** A player counts as "active" if they've been credited inside this window. */
 const ACTIVE_WINDOW_DAYS = 7;
+/** A team is "idle" once it goes this long without a credit — long enough not to flag a sleep. */
+const IDLE_TEAM_DAYS = 2;
 
 export interface StandingRow {
   teamId: number;
@@ -53,6 +55,9 @@ export interface RunningEventSummary {
   submissionsToday: number;
   activePlayers: number;
   playersTotal: number;
+  /** Teams with nothing credited in the last two days — the "who's gone quiet" signal. */
+  idleTeams: number;
+  teamsTotal: number;
   /** Oldest-first, one entry per day, always SPARK_DAYS long. */
   dailySubmissions: number[];
   standings: StandingRow[];
@@ -135,7 +140,9 @@ export async function getRunningEventSummaries(
   const activeSince = isoDaysAgo(ACTIVE_WINDOW_DAYS);
   const today = dayKey(new Date());
 
-  const [scoredTiles, cleared, byDay, activeCounts, playerCounts, latestRows] = await Promise.all([
+  const idleSince = isoDaysAgo(IDLE_TEAM_DAYS);
+
+  const [scoredTiles, cleared, byDay, activeCounts, playerCounts, latestRows, teamCounts, busyTeams] = await Promise.all([
     // Denominator: tiles that count toward a score. Optional tiles are excluded the same way
     // lib/statStandings excludes them, so "62 / 150" matches the scoreboard's own total.
     db
@@ -191,6 +198,17 @@ export async function getRunningEventSummaries(
       .where(inArray(tiles.eventId, ids))
       .orderBy(desc(completions.completedAt))
       .limit(8 * ids.length),
+    db
+      .select({ eventId: teams.eventId, n: count() })
+      .from(teams)
+      .where(inArray(teams.eventId, ids))
+      .groupBy(teams.eventId),
+    db
+      .select({ eventId: tiles.eventId, n: sql<number>`count(distinct ${submissions.teamId})` })
+      .from(submissions)
+      .innerJoin(tiles, eq(submissions.tileId, tiles.id))
+      .where(and(inArray(tiles.eventId, ids), gte(submissions.createdAt, idleSince)))
+      .groupBy(tiles.eventId),
   ]);
 
   const standingsByEvent = new Map<number, StandingRow[]>();
@@ -216,6 +234,8 @@ export async function getRunningEventSummaries(
 
   for (const e of running) {
     const perDay = new Map(byDay.filter((r) => r.eventId === e.id).map((r) => [r.day, r.n]));
+    const teamsTotal = teamCounts.find((r) => r.eventId === e.id)?.n ?? 0;
+    const busy = busyTeams.find((r) => r.eventId === e.id)?.n ?? 0;
     out.set(e.id, {
       eventId: e.id,
       tilesCleared: cleared.find((r) => r.eventId === e.id)?.n ?? 0,
@@ -223,6 +243,8 @@ export async function getRunningEventSummaries(
       submissionsToday: perDay.get(today) ?? 0,
       activePlayers: activeCounts.find((r) => r.eventId === e.id)?.n ?? 0,
       playersTotal: playerCounts.find((r) => r.eventId === e.id)?.n ?? 0,
+      teamsTotal,
+      idleTeams: Math.max(0, teamsTotal - busy),
       dailySubmissions: days.map((d) => perDay.get(d) ?? 0),
       standings: standingsByEvent.get(e.id) ?? [],
       latest: latestRows

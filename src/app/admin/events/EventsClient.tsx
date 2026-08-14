@@ -92,6 +92,8 @@ export default function EventsClient({
   // The first running thing gets the hero; anything else running gets a one-line strip under it.
   // Two boards at once is normal (a bingo plus a weekly); five hero cards would not be.
   const [hero, ...alsoRunning] = running;
+  // "Next opens" means the next SCHEDULED thing — an undated draft sits in the list but isn't a date.
+  const nextScheduled = upcoming.find((i) => i.startDate);
 
   return (
     <div>
@@ -100,11 +102,11 @@ export default function EventsClient({
           <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Events</h1>
           <p className="text-text-muted text-sm">
             {running.length} running · {upcoming.length} being set up · {past.length} finished
-            {upcoming.length > 0 && upcoming[0].startDate && (
+            {nextScheduled?.startDate && (
               <>
                 {' · next opens '}
                 <span className="text-foreground">
-                  <LocalTime date={upcoming[0].startDate} format="date" />
+                  <LocalTime date={nextScheduled.startDate} format="date" />
                 </span>
               </>
             )}
@@ -298,18 +300,32 @@ function RunningEventHero({
             )}
           </span>
         </div>
-        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-          <div className="h-full rounded-full bg-gold" style={{ width: `${elapsed.pct}%` }} />
+        {/* Two different journeys, stacked: how much of the WINDOW has gone (gold) against how much
+            of the BOARD is done (green). A board 20% cleared on day 12 is the thing you want to see. */}
+        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden relative">
+          <div className="h-full rounded-full bg-gold/70" style={{ width: `${elapsed.pct}%` }} />
+          <div
+            className="absolute inset-y-0 left-0 border-r-2 border-accent-green/80"
+            style={{ width: `${pct}%` }}
+            title={`${pct}% of the board cleared`}
+          />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
           <Stat value={`${cleared}`} suffix={`/${tilesTotal}`} label="Tiles cleared" />
           <Stat value={String(summary?.submissionsToday ?? 0)} label="Drops today" />
-          <Stat value={`${pct}%`} label="Board done" />
           <Stat
             value={String(summary?.activePlayers ?? 0)}
-            label="Active this week"
+            suffix={summary ? `/${summary.playersTotal}` : undefined}
+            label="Active players"
             tone={summary && summary.playersTotal > 0 && summary.activePlayers === 0 ? 'warn' : undefined}
+          />
+          {/* Who's gone quiet is the one number here you'd actually act on — a team with nothing
+              credited in two days is usually a team that needs a nudge, not a team that's losing. */}
+          <Stat
+            value={String(summary?.idleTeams ?? 0)}
+            label="Idle teams"
+            tone={summary && summary.idleTeams > 0 ? 'warn' : undefined}
           />
         </div>
 
