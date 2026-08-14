@@ -53,7 +53,8 @@ export interface StageCounts {
 export type StepState = 'done' | 'now' | 'todo';
 
 export interface LifecycleStep {
-  key: 'built' | 'tiles' | 'teams' | 'running' | 'results' | 'payouts';
+  /** Stable id for the step — also what the bar looks up to find where the step links. */
+  key: string;
   label: string;
   /** One short line under the label — a count, a date, or what's missing. */
   detail: string;

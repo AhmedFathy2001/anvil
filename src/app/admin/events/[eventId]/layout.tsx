@@ -100,7 +100,19 @@ export default async function EventLayout({
 
       {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
           answers the other question — where the event is in its life, and what moves it forward. */}
-      {!isEditor && <EventLifecycleBar steps={steps} eventId={id} />}
+      {!isEditor && (
+        <EventLifecycleBar
+          steps={steps}
+          hrefFor={{
+            built: `/admin/events/${id}/settings`,
+            tiles: `/admin/events/${id}/tiles`,
+            teams: `/admin/events/${id}/teams`,
+            running: `/admin/events/${id}`,
+            results: `/admin/events/${id}/stats`,
+            payouts: `/admin/events/${id}/payouts`,
+          }}
+        />
+      )}
       {isEditor && <EventTabNav eventId={id} tilesOnly />}
 
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and

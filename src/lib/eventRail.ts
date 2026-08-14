@@ -10,6 +10,7 @@
 
 import type { SidebarGroup } from '@/app/admin/_components/AdminSidebar';
 import type { EventStage, StageCounts } from '@/lib/eventStage';
+import type { WeeklyCounts } from '@/lib/weeklyStage';
 
 export function eventRailGroups(opts: {
   eventId: number;
@@ -131,5 +132,54 @@ export function eventRailGroups(opts: {
       ],
     },
     elsewhere,
+  ];
+}
+
+/**
+ * The same rail, for a weekly competition.
+ *
+ * A weekly's surfaces are narrower — there's nothing to author and nobody to draft — so it gets the
+ * three that exist (the leaderboard, the roster, the baselines that decide whether a gain counts)
+ * and the same way back out. The point is that walking into one feels like walking into an event.
+ */
+export function weeklyRailGroups(opts: {
+  weeklyId: number;
+  stage: EventStage;
+  counts: WeeklyCounts;
+}): SidebarGroup[] {
+  const { weeklyId, stage, counts } = opts;
+  const base = `/admin/events/weekly/${weeklyId}`;
+  const missingBaselines = Math.max(0, counts.participants - counts.withBaseline);
+
+  return [
+    {
+      label: stage === 'build' ? 'Getting ready' : stage === 'run' ? 'Live' : 'Wrapping up',
+      items: [
+        { href: base, label: stage === 'wrap' ? 'Results' : stage === 'run' ? 'Now' : 'Setup', icon: '◉' },
+        {
+          href: `${base}/participants`,
+          label: 'Participants',
+          icon: '👥',
+          badge: counts.participants,
+          matchPrefix: true,
+        },
+        {
+          href: `${base}/baselines`,
+          label: 'Baselines',
+          icon: '◷',
+          badge: counts.flagged > 0 ? `${counts.flagged} flagged` : missingBaselines > 0 ? `${missingBaselines} missing` : undefined,
+          attn: counts.flagged > 0 || missingBaselines > 0,
+          matchPrefix: true,
+        },
+      ],
+    },
+    {
+      label: 'Elsewhere',
+      items: [
+        { href: '/admin/events', label: 'All events', icon: '↩' },
+        { href: '/admin/weekly', label: 'New competition', icon: '＋' },
+        { href: `/weekly/${weeklyId}`, label: 'Player view', icon: '↗' },
+      ],
+    },
   ];
 }

@@ -6,9 +6,11 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
-import { eventRailGroups } from '@/lib/eventRail';
+import { eventRailGroups, weeklyRailGroups } from '@/lib/eventRail';
 import { eventStage } from '@/lib/eventStage';
 import { getEventRow, getStageCounts } from '@/lib/eventStageCounts';
+import { weeklyStage } from '@/lib/weeklyStage';
+import { getWeeklyCounts, getWeeklyRow } from '@/lib/weeklyWorkspace';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -179,6 +181,19 @@ async function currentPathname(): Promise<string> {
  * clan-wide nav rather than rendering a rail for nothing.
  */
 async function eventRailFor(pathname: string, role: string): Promise<SidebarGroup[] | null> {
+  // A weekly competition is an event too — same shell, narrower rail (lib/eventRail).
+  const weekly = /^\/admin\/events\/weekly\/(\d+)(\/|$)/.exec(pathname);
+  if (weekly) {
+    const weeklyId = parseInt(weekly[1], 10);
+    const comp = await getWeeklyRow(weeklyId);
+    if (!comp) return null;
+    return weeklyRailGroups({
+      weeklyId,
+      stage: weeklyStage(comp),
+      counts: await getWeeklyCounts(weeklyId),
+    });
+  }
+
   const match = /^\/admin\/events\/(\d+)(\/|$)/.exec(pathname);
   if (!match) return null;
   const eventId = parseInt(match[1], 10);

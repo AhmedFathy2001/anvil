@@ -9,22 +9,18 @@ import type { LifecycleStep } from '@/lib/eventStage';
  */
 export default function EventLifecycleBar({
   steps,
-  eventId,
+  hrefFor,
 }: {
   steps: LifecycleStep[];
-  eventId: number;
+  /** Where each step goes when clicked, by step key. A weekly's steps differ from a board's. */
+  hrefFor: Record<string, string>;
 }) {
-  const hrefFor: Record<LifecycleStep['key'], string> = {
-    built: `/admin/events/${eventId}/settings`,
-    tiles: `/admin/events/${eventId}/tiles`,
-    teams: `/admin/events/${eventId}/teams`,
-    running: `/admin/events/${eventId}`,
-    results: `/admin/events/${eventId}/stats`,
-    payouts: `/admin/events/${eventId}/payouts`,
-  };
-
   return (
-    <ol className="grid grid-cols-3 sm:grid-cols-6 rounded-xl border border-card-border bg-brown-dark/30 overflow-hidden mb-6">
+    <ol
+      className={`grid grid-cols-3 ${
+        steps.length > 4 ? 'sm:grid-cols-6' : 'sm:grid-cols-4'
+      } rounded-xl border border-card-border bg-brown-dark/30 overflow-hidden mb-6`}
+    >
       {steps.map((step) => (
         <li
           key={step.key}
@@ -36,7 +32,7 @@ export default function EventLifecycleBar({
                 : ''
           }`}
         >
-          <Link href={hrefFor[step.key]} className="block px-3 py-2.5 hover:bg-white/[0.03] transition-colors">
+          <Link href={hrefFor[step.key] ?? '#'} className="block px-3 py-2.5 hover:bg-white/[0.03] transition-colors">
             <div
               className={`text-[10px] uppercase tracking-wider truncate ${
                 step.state === 'now'

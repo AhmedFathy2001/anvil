@@ -148,7 +148,7 @@ export default function EventsClient({
                 ) : (
                   <AlsoRunningRow
                     key={`w${item.id}`}
-                    href="/admin/weekly"
+                    href={`/admin/events/weekly/${item.id}`}
                     title={item.title}
                     detail={`${item.type === 'boss' ? 'BOTW' : item.type === 'efficiency' ? 'Efficiency' : 'SOTW'} · ${
                       item.participantCount
@@ -432,7 +432,7 @@ function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
         <span>·</span>
         <span>{comp.participantCount} players</span>
       </div>
-      <Link href="/admin/weekly" className="block group">
+      <Link href={`/admin/events/weekly/${comp.id}`} className="block group">
         <h3 className="text-xl font-bold group-hover:text-purple-300 transition-colors">{comp.title}</h3>
       </Link>
       <div className="flex items-baseline gap-2 mt-3 mb-1.5">
@@ -446,10 +446,10 @@ function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
       </div>
       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-card-border">
         <Link
-          href="/admin/weekly"
+          href={`/admin/events/weekly/${comp.id}`}
           className="px-3 py-1.5 text-xs font-semibold bg-purple-400/20 text-purple-200 hover:bg-purple-400/30 rounded-lg transition-colors"
         >
-          Manage competition
+          Open competition
         </Link>
         <Link
           href={`/weekly/${comp.id}`}
@@ -668,7 +668,7 @@ function WeeklyCard({ comp }: { comp: WeeklyRow }) {
   const badge = comp.type === 'boss' ? 'BOTW' : comp.type === 'efficiency' ? 'Efficiency' : 'SOTW';
   return (
     <Link
-      href="/admin/weekly"
+      href={`/admin/events/weekly/${comp.id}`}
       className="group relative block p-4 border border-card-border rounded-xl bg-card-bg hover:border-purple-400/40 hover:bg-card-bg-hover transition-colors"
     >
       <div className="flex items-start justify-between mb-2 gap-2">
@@ -881,7 +881,7 @@ function PastWeeklyRow({
   return (
     <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
       <td className="px-4 py-2.5">
-        <Link href="/admin/weekly" className="font-medium hover:text-purple-300 transition-colors">
+        <Link href={`/admin/events/weekly/${comp.id}`} className="font-medium hover:text-purple-300 transition-colors">
           {comp.title}
         </Link>
       </td>
