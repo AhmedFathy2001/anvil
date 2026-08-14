@@ -80,11 +80,27 @@ export async function POST(request: Request) {
   let moment: string | null = null;
   let eventName: string | null = null;
   let seconds: number | null = null;
+  // Where the clipper stands, as the plugin already computed it for its own sidebar — cheaper and
+  // more consistent than re-deriving the board here on the upload path.
+  let standing: { rank: number; points: number; monthly: boolean } | null = null;
   try {
     const form = await request.formData();
     const raw = form.get('payload_json');
     if (typeof raw === 'string') {
-      const parsed = JSON.parse(raw) as { moment?: unknown; eventName?: unknown; seconds?: unknown };
+      const parsed = JSON.parse(raw) as {
+        moment?: unknown;
+        eventName?: unknown;
+        seconds?: unknown;
+        rank?: unknown;
+        points?: unknown;
+      };
+      if (typeof parsed.rank === 'number' && parsed.rank > 0 && typeof parsed.points === 'number') {
+        standing = {
+          rank: Math.min(100000, Math.round(parsed.rank)),
+          points: Math.max(0, Math.round(parsed.points)),
+          monthly: true,
+        };
+      }
       // Plugin-supplied strings reach Discord, so clamp them here as well as in the embed builder.
       if (typeof parsed.moment === 'string') moment = parsed.moment.slice(0, 500);
       if (typeof parsed.eventName === 'string') eventName = parsed.eventName.slice(0, 200);
@@ -116,7 +132,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No clips channel is configured for this clan' }, { status: 501 });
   }
 
-  const embed = clipEmbed({ rsn: await posterRsn(request, auth.userId), moment, eventName, seconds });
+  const embed = clipEmbed({
+    rsn: await posterRsn(request, auth.userId),
+    moment,
+    eventName,
+    seconds,
+    standing,
+  });
   const ok = await forwardPluginNotification(url, {
     embed: embed as unknown as Record<string, unknown>,
     attachment: { bytes: await file.arrayBuffer(), filename: file.name || 'clip.mp4' },

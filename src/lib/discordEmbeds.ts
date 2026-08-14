@@ -161,8 +161,16 @@ export function clipEmbed(opts: {
   eventName?: string | null;
   /** Seconds of footage, from the capture buffer length. */
   seconds?: number | null;
+  /**
+   * Where the clipper stands on the board right now — the one thing the SERVER knows and the
+   * plugin doesn't. A clip is a brag, and "#1 this month · 116 pts" is the part of the brag the
+   * footage can't show.
+   */
+  standing?: { rank: number; points: number; monthly: boolean } | null;
+  /** Board link, so the title goes somewhere. */
+  boardUrl?: string | null;
 }): DiscordEmbed {
-  const { rsn, moment, eventName, seconds } = opts;
+  const { rsn, moment, eventName, seconds, standing, boardUrl } = opts;
   // The moment arrives newest-first, one per line. Its FIRST line is the headline — that's what the
   // clip is of — so it becomes the title, where a generic "Clip saved" used to sit telling nobody
   // anything. Remaining lines stay as the description: context for what else the window caught.
@@ -177,6 +185,7 @@ export function clipEmbed(opts: {
     color: EMBED_COLOR.violet,
   };
   if (rsn) embed.author = { name: clamp(rsn, LIMIT.author) };
+  if (boardUrl) embed.url = boardUrl;
 
   // Context line: the event and the footage length, italicised and folded into the description
   // rather than each taking a field. Both are secondary to what happened — and length especially,
@@ -189,6 +198,11 @@ export function clipEmbed(opts: {
   if (noMoment && eventName) body.push(`Clipped during ${clamp(eventName.trim(), 200)}.`);
   const context = [
     noMoment ? null : eventName?.trim(),
+    // Their standing goes in the subtext beside the event, not a field: it's context for the brag,
+    // not a statistic anyone reads on its own.
+    standing && standing.rank > 0
+      ? `#${standing.rank}${standing.monthly ? ' this month' : ''} · ${standing.points.toLocaleString()} pts`
+      : null,
     seconds && seconds > 0 ? `${seconds}s` : null,
   ]
     .filter(Boolean)
