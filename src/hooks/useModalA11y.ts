@@ -6,6 +6,16 @@ interface Options {
   onClose: () => void;
   /** Optional: disables the focus trap + initial focus (keeps ESC + scroll lock). */
   skipFocusManagement?: boolean;
+  /**
+   * Is this actually a modal? Default true.
+   *
+   * A docked side panel uses the same component as the drawer it replaces on narrow screens, and
+   * inherited the drawer's modal behaviour with it — so opening a tile in the two-pane layout
+   * locked the page's scroll and trapped Tab inside the panel, while the list it sits beside was
+   * still right there to be scrolled and clicked. Pass false for a panel that lives IN the page:
+   * Escape still closes it, and nothing else about the page changes.
+   */
+  modal?: boolean;
 }
 
 /**
@@ -23,7 +33,9 @@ interface Options {
 export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
   onClose,
   skipFocusManagement,
+  modal = true,
 }: Options) {
+  const trapped = modal && !skipFocusManagement;
   const ref = useRef<T | null>(null);
 
   useEffect(() => {
@@ -40,7 +52,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
       ).filter((node) => !node.hasAttribute('disabled') && !node.getAttribute('aria-hidden'));
     };
 
-    if (!skipFocusManagement) {
+    if (trapped) {
       const focusables = getFocusable();
       (focusables[0] ?? el).focus({ preventScroll: true });
     }
@@ -51,7 +63,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
         onClose();
         return;
       }
-      if (e.key !== 'Tab' || skipFocusManagement) return;
+      if (e.key !== 'Tab' || !trapped) return;
 
       const focusables = getFocusable();
       if (focusables.length === 0) {
@@ -71,16 +83,17 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
       }
     };
 
+    // Only a real modal takes the page's scroll away — an in-page panel leaves it alone.
     const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    if (modal) document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = originalOverflow;
-      previouslyFocused?.focus?.();
+      if (modal) document.body.style.overflow = originalOverflow;
+      if (trapped) previouslyFocused?.focus?.();
     };
-  }, [onClose, skipFocusManagement]);
+  }, [onClose, skipFocusManagement, modal, trapped]);
 
   return ref;
 }
