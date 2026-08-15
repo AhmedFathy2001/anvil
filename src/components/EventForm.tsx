@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
+import { BOSSES, EFFICIENCY_METRICS, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
@@ -17,6 +18,41 @@ interface EventFormProps {
   presets?: EventPreset[];
   suggestedName?: string;
 }
+
+/**
+ * The four modes that are one board.
+ *
+ * Showdown, Lucky draw, Bounty and Ladder all store a points-scored task pool; what separates them
+ * is `rules.revealPolicy` and, for the ladder, whether people compete as teams or individuals. They
+ * stay as named presets because that's what people call them — but they're presets of one format,
+ * not four formats.
+ */
+const POOL_MODES: Mode[] = ['showdown', 'luckydraw', 'bounty', 'ladder'];
+
+const POOL_PRESETS: { mode: Mode; label: string; blurb: string }[] = [
+  { mode: 'luckydraw', label: 'Lucky draw', blurb: 'Teams · a random draw opens tasks on a timer' },
+  { mode: 'showdown', label: 'Showdown', blurb: 'Teams · each task opens at a time you set' },
+  { mode: 'bounty', label: 'Bounty hunt', blurb: 'Teams · one task at a time, first to finish claims it' },
+  { mode: 'ladder', label: 'Ladder', blurb: 'Individuals · a rotating pool ranked on one leaderboard' },
+];
+
+/** 'SOTW: Agility' — what a competition calls itself when you don't rename it. */
+function defaultWeeklyTitle(type: 'skill' | 'boss' | 'efficiency', metric: string): string {
+  const label =
+    type === 'skill'
+      ? SKILL_LABELS[metric] ?? metric
+      : type === 'boss'
+        ? BOSSES.find((b) => b.key === metric)?.label ?? metric
+        : EFFICIENCY_METRICS.find((m) => m.key === metric)?.label ?? metric.toUpperCase();
+  return `${type === 'boss' ? 'BOTW' : type === 'efficiency' ? 'Efficiency' : 'SOTW'}: ${label}`;
+}
+
+/** The weekly competitions, offered beside the board formats — same page, different table. */
+const WEEKLY_KINDS = [
+  { type: 'skill' as const, label: 'Skill of the Week', emoji: '📈', chips: 'everyone · xp gained', defaultMetric: 'attack' },
+  { type: 'boss' as const, label: 'Boss of the Week', emoji: '💀', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
+  { type: 'efficiency' as const, label: 'Efficiency race', emoji: '⏱', chips: 'everyone · EHP / EHB', defaultMetric: 'ehp' },
+];
 
 /** One "this costs you" row in the panel. */
 function SpecRow({ label, value }: { label: string; value: string }) {
@@ -95,6 +131,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [customDates, setCustomDates] = useState(false);
+  // A weekly competition is an event too — same page, same name field, same schedule. It just
+  // stores itself in the competition tables, so picking one of these switches where we POST.
+  const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(null);
+  const [weeklyMetric, setWeeklyMetric] = useState('attack');
+  const [includeGuests, setIncludeGuests] = useState(true);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
   // a random draw from the clan's task library.
   const [startFrom, setStartFrom] = useState<'blank' | 'template' | 'generate'>('blank');
@@ -124,7 +165,35 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
   ];
 
+  const isPool = POOL_MODES.includes(mode);
+  // Which pool preset the card lands on when you pick it cold — the most-used one.
+  const poolMode: Mode = isPool ? mode : 'luckydraw';
+
+  /**
+   * Change how tasks open without leaving the pool. On a ladder the policy rides on the same mode;
+   * on a team board each policy has its own preset key, which is all that key ever meant.
+   */
+  function setPoolPolicy(next: 'scheduled' | 'interval' | 'bounty' | 'rotating') {
+    if (mode === 'ladder') {
+      setLadderRotation(next === 'scheduled' ? 'interval' : next);
+      return;
+    }
+    changeMode(next === 'scheduled' ? 'showdown' : next === 'bounty' ? 'bounty' : 'luckydraw');
+  }
+
+  /** Choosing a weekly parks the board config; choosing a board format clears the weekly. */
+  function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
+    setWeeklyType(type);
+    setWeeklyMetric(metric);
+    setError('');
+    setStartFrom('blank');
+    setPresetCsv(null);
+    setPresetLabels(null);
+    setDrawn(null);
+  }
+
   function changeMode(next: Mode) {
+    setWeeklyType(null);
     const m = MODES.find((x) => x.key === next)!;
     setMode(next);
     setSize(m.default);
@@ -165,6 +234,43 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+
+    // A weekly competition stores itself in its own tables, so it has its own endpoint — but from
+    // here it's the same act: name it, say when it runs, press create.
+    if (weeklyType) {
+      if (!startDate || !endDate) {
+        setError('A competition needs a start and an end — pick a window on the right.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch('/api/admin/weekly', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: weeklyType,
+            metric: weeklyMetric,
+            title: name.trim() || defaultWeeklyTitle(weeklyType, weeklyMetric),
+            startDate,
+            endDate,
+            includeGuests,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || 'Could not create the competition.');
+          setLoading(false);
+          return;
+        }
+        router.push(`/admin/events/weekly/${data.id ?? data.competition?.id ?? ''}`);
+        return;
+      } catch {
+        setError('Could not create the competition.');
+        setLoading(false);
+        return;
+      }
+    }
+
     // A generated board must line up with the board's tile count before we create anything —
     // the create API rejects a mismatch, and failing here says why in the user's own terms.
     if (startFrom === 'generate') {
@@ -353,8 +459,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               diagram of the board it produces, because the names alone never said enough. */}
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {MODES.map((m) => {
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {MODES.filter((m) => !POOL_MODES.includes(m.key)).map((m) => {
                 const active = mode === m.key;
                 return (
                   <button
@@ -380,10 +486,157 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                   </button>
                 );
               })}
+
+              {/* Showdown, Lucky draw, Bounty and Ladder are the same board — a points-scored pool of
+                  tasks — differing only in who competes and when tasks open. They were four cards
+                  pretending to be four formats; now they're one with those two knobs. */}
+              <button
+                type="button"
+                onClick={() => changeMode(poolMode)}
+                aria-pressed={isPool}
+                className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                  isPool ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                }`}
+              >
+                <span className="flex items-center justify-center h-8 mb-2">
+                  <BoardShape mode={isPool ? mode : 'luckydraw'} size={isPool ? size : undefined} />
+                </span>
+                <span className={`block text-sm font-medium leading-tight ${isPool ? 'text-gold' : ''}`}>
+                  Task pool
+                </span>
+                <span className="block text-[10px] text-text-muted mt-1 leading-tight">
+                  points · tasks open over time
+                </span>
+              </button>
+            </div>
+
+            {isPool && (
+              <div className="mt-2 rounded-lg border border-gold/25 bg-gold/[0.04] p-3 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {POOL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.mode}
+                      type="button"
+                      onClick={() => changeMode(preset.mode)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        mode === preset.mode
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                      title={preset.blurb}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Who competes</label>
+                    <Select
+                      value={mode === 'ladder' ? 'individuals' : 'teams'}
+                      onChange={(v) => changeMode(v === 'individuals' ? 'ladder' : 'luckydraw')}
+                      ariaLabel="Who competes"
+                      options={[
+                        { value: 'teams', label: 'Teams — drafted, scored together' },
+                        { value: 'individuals', label: 'Individuals — one leaderboard, no draft' },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">How tasks open</label>
+                    <Select
+                      value={effectivePolicy ?? 'interval'}
+                      onChange={(v) => setPoolPolicy(v as 'scheduled' | 'interval' | 'bounty' | 'rotating')}
+                      ariaLabel="How tasks open"
+                      options={
+                        mode === 'ladder'
+                          ? [
+                              { value: 'interval', label: 'On a timer — new tasks open and stay open' },
+                              { value: 'rotating', label: 'Rotating window — new draws expire the oldest' },
+                              { value: 'bounty', label: 'One at a time — first to finish claims it' },
+                            ]
+                          : [
+                              { value: 'interval', label: 'On a timer — new tasks open and stay open' },
+                              { value: 'bounty', label: 'One at a time — first to finish claims it' },
+                              { value: 'scheduled', label: 'Per-tile times — you set each one on the Tiles tab' },
+                            ]
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Both are changeable after it exists, from the event&rsquo;s Rules &amp; dates — without
+                  rebuilding the board.
+                </p>
+              </div>
+            )}
+
+            <p className="text-[11px] uppercase tracking-widest text-text-muted mt-4 mb-1.5">
+              Whole clan · no sign-up
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {WEEKLY_KINDS.map((w) => {
+                const active = weeklyType === w.type;
+                return (
+                  <button
+                    key={w.type}
+                    type="button"
+                    onClick={() => pickWeekly(w.type, w.defaultMetric)}
+                    aria-pressed={active}
+                    className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                      active ? 'bg-purple-400/15 border-purple-400' : 'border-card-border hover:border-purple-400/50 bg-brown-dark/30'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center h-8 mb-2 text-lg" aria-hidden>
+                      {w.emoji}
+                    </span>
+                    <span className={`block text-sm font-medium leading-tight ${active ? 'text-purple-300' : ''}`}>
+                      {w.label}
+                    </span>
+                    <span className="block text-[10px] text-text-muted mt-1 leading-tight">{w.chips}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <Section title="Board">
+          {weeklyType && (
+            <Section title="Competition">
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1.5">
+                  {weeklyType === 'boss' ? 'Boss' : weeklyType === 'efficiency' ? 'Measure' : 'Skill'}
+                </label>
+                <Select
+                  value={weeklyMetric}
+                  onChange={setWeeklyMetric}
+                  ariaLabel="What the competition ranks by"
+                  options={
+                    weeklyType === 'skill'
+                      ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
+                      : weeklyType === 'boss'
+                        ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
+                        : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }))
+                  }
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={includeGuests}
+                  onChange={(e) => setIncludeGuests(e.target.checked)}
+                  className="accent-[var(--gold,#d4af37)]"
+                />
+                Guests race too
+              </label>
+              <p className="text-xs text-text-muted">
+                Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
+                no sign-up. Baselines come from the hiscores at the start time.
+              </p>
+            </Section>
+          )}
+
+          {!weeklyType && <Section title="Board">
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">{meta.sizeLabel}</label>
               <div className="flex items-center gap-2">
@@ -407,7 +660,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </span>
               </div>
             </div>
-          </Section>
+          </Section>}
 
           {/* Reveal-policy config — modes that hide tiles (showdown / lucky draw / bounty) and the
               ladder's rotation sub-choice. */}
@@ -764,10 +1017,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         disabled={loading}
         className="w-full bg-gold hover:bg-gold-light text-brown-dark font-bold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50"
       >
-        {loading ? 'Creating…' : 'Create Event'}
+        {loading ? 'Creating…' : weeklyType ? 'Create competition' : 'Create Event'}
       </button>
       <p className="text-xs text-text-muted text-center">
-        Next you&apos;ll add tiles on the event&apos;s Tiles tab — with a spreadsheet (dropdowns + examples) or a quick paste.
+        {weeklyType
+          ? 'Everyone on the roster is entered when it starts — nothing else to set up.'
+          : "Next you'll add tiles on the event's Tiles tab — with a spreadsheet (dropdowns + examples) or a quick paste."}
       </p>
     </form>
   );

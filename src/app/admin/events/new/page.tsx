@@ -59,13 +59,9 @@ export default async function NewEventPage() {
       </header>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 shadow-lg shadow-black/20 max-w-4xl">
+        {/* Weekly competitions are a format on this page now, so there's nothing to send people
+            elsewhere for. */}
         <EventForm presets={presets} suggestedName={suggestedName} />
-        <p className="text-xs text-text-muted/70 mt-4 pt-4 border-t border-card-border">
-          Looking to start a Skill/Boss of the Week instead?{' '}
-          <Link href="/admin/weekly" className="text-gold hover:underline">
-            Manage weekly competitions →
-          </Link>
-        </p>
       </div>
     </div>
   );

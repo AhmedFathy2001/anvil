@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import EventLifecycleBar from '../../[eventId]/EventLifecycleBar';
 import { getWeeklyCounts, getWeeklyRow } from '@/lib/weeklyWorkspace';
 import { weeklyLifecycleSteps, weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
+import { weeklyRailGroups } from '@/lib/eventRail';
+import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 
 export const dynamic = 'force-dynamic';
@@ -38,8 +40,16 @@ export default async function WeeklyLayout({
         ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
         : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
+  const rail = weeklyRailGroups({ weeklyId: id, stage, counts });
+
   return (
-    <div>
+    <div className="lg:flex lg:gap-6">
+      <AdminSidebar
+        scope="event"
+        groups={rail}
+        header={{ title: comp.title, subtitle: `${WEEKLY_BADGE[comp.type] ?? 'Weekly'} · ${weeklyMetricLabel(comp.type, comp.metric)}` }}
+      />
+      <div className="flex-1 min-w-0">
       <Link
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
@@ -75,6 +85,7 @@ export default async function WeeklyLayout({
       />
 
       {children}
+      </div>
     </div>
   );
 }

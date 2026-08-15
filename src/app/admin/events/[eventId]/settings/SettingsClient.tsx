@@ -100,6 +100,41 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       setTypeError(`${typeMeta.label} supports ${typeMeta.min}–${typeMeta.max}.`);
       return;
     }
+
+    // Showdown → Lucky draw → Bounty is one JSON field, not a new board: same format, same scoring,
+    // same tiles. Rebuilding for that was destroying per-tile config to change a rule. When nothing
+    // structural moves, save the rule and leave the board alone.
+    const sameShape =
+      typeMeta.format === currentEvent.format &&
+      typeMeta.scoringMode === currentEvent.scoringMode &&
+      typeSize === currentEvent.boardSize;
+    if (sameShape) {
+      setSavingType(true);
+      setTypeError('');
+      try {
+        const res = await fetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rules: typeMeta.revealPolicy
+              ? { ...JSON.parse(currentEvent.rules ?? '{}'), revealPolicy: typeMeta.revealPolicy }
+              : { ...JSON.parse(currentEvent.rules ?? '{}'), revealPolicy: 'all' },
+          }),
+        });
+        if (res.ok) {
+          setCurrentEvent(await res.json());
+          setEditType(false);
+          router.refresh();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setTypeError(data.error || 'Could not change how tasks open.');
+        }
+      } finally {
+        setSavingType(false);
+      }
+      return;
+    }
+
     const tileCount = typeMeta.square ? typeSize * typeSize : typeSize;
     if (
       !confirm(

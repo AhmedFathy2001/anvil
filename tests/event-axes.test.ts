@@ -65,10 +65,17 @@ test('run length is the end date, which is what makes a ladder long-lived', () =
   assert.equal(eventAxes({ ...PRESETS.classic, endDate: null }).runLength, 'rolling');
 });
 
-test('missions are for team boards; a ladder is already a mission pool', () => {
-  assert.equal(supportsMissions(eventAxes(PRESETS.ladder)), false);
+test('missions are for boards that open every tile at once — the rest already drop objectives', () => {
+  // Every tile visible from the start: missions are the only way to get a mid-event drop.
   assert.equal(supportsMissions(eventAxes(PRESETS.classic)), true);
   assert.equal(supportsMissions(eventAxes(PRESETS.leagues)), true);
+  assert.equal(supportsMissions(eventAxes(PRESETS.race)), true);
+
+  // These already ARE mission drops — offering to enable them would be offering what they are.
+  assert.equal(supportsMissions(eventAxes(PRESETS.showdown)), false);
+  assert.equal(supportsMissions(eventAxes(PRESETS.luckydraw)), false);
+  assert.equal(supportsMissions(eventAxes(PRESETS.bounty)), false);
+  assert.equal(supportsMissions(eventAxes(PRESETS.ladder)), false);
 });
 
 test('reveal policies need point scoring to be worth anything', () => {
