@@ -11,6 +11,7 @@ import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
 import DateRangeField from '@/components/DateRangeField';
+import { formatLocalDateTime } from '@/lib/eventTime';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 
@@ -79,6 +80,30 @@ function weekendSlot(weeksAhead: number): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+/** The same Saturday start, running for N whole days instead of a weekend. */
+function runOfDays(days: number): { start: string; end: string } {
+  const { start } = weekendSlot(0);
+  return { start, end: new Date(Date.parse(start) + days * 86_400_000).toISOString() };
+}
+
+/**
+ * Which run preset the current dates ARE, rather than which button was pressed last.
+ *
+ * The buttons used to light up on `!customDates && startDate` — true for any preset — so choosing
+ * "Two weeks" lit "This weekend" and the fortnight looked like it hadn't taken. Deriving it from
+ * the dates also means editing them by hand correctly un-highlights both.
+ */
+function activeRunPreset(startIso: string, endIso: string): 'weekend' | 'week' | 'fortnight' | null {
+  if (!startIso || !endIso) return null;
+  const weekend = weekendSlot(0);
+  if (startIso === weekend.start && endIso === weekend.end) return 'weekend';
+  const week = runOfDays(7);
+  if (startIso === week.start && endIso === week.end) return 'week';
+  const fortnight = runOfDays(14);
+  if (startIso === fortnight.start && endIso === fortnight.end) return 'fortnight';
+  return null;
+}
+
 /** A titled block of related controls — the form is long enough that flat stacking stopped reading. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -92,6 +117,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function EventForm({ presets = [], suggestedName = '' }: EventFormProps) {
   const router = useRouter();
   const [name, setName] = useState(suggestedName);
+  // Until the admin types their own, the name follows the choice. Otherwise picking Skill of the
+  // Week on a form that opened as "The AFK Spot Bingo #7" creates a competition CALLED that.
+  const [nameTouched, setNameTouched] = useState(false);
   const [mode, setMode] = useState<Mode>('classic');
   const [size, setSize] = useState(5);
   // Reveal-policy config (showdown / lucky draw / bounty modes — see lib/eventRules). Only sent
@@ -166,6 +194,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   ];
 
   const isPool = POOL_MODES.includes(mode);
+  const runPreset = activeRunPreset(startDate, endDate);
+  /** The pool card is only "on" when a board is being made at all. */
+  const poolActive = isPool && !weeklyType;
   // Which pool preset the card lands on when you pick it cold — the most-used one.
   const poolMode: Mode = isPool ? mode : 'luckydraw';
 
@@ -185,6 +216,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
     setWeeklyType(type);
     setWeeklyMetric(metric);
+    if (!nameTouched) setName(defaultWeeklyTitle(type, metric));
     setError('');
     setStartFrom('blank');
     setPresetCsv(null);
@@ -193,6 +225,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   }
 
   function changeMode(next: Mode) {
+    if (weeklyType && !nameTouched) setName(suggestedName);
     setWeeklyType(null);
     const m = MODES.find((x) => x.key === next)!;
     setMode(next);
@@ -356,7 +389,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
         <div className="space-y-5 min-w-0">
           {/* Where the tiles come from. Blank stays the default — most boards are authored by hand
-              on the Tiles tab, and the other two are opt-in. */}
+              on the Tiles tab, and the other two are opt-in. A whole-clan competition has no tiles
+              to come from anywhere, so the row goes away rather than offering three no-ops. */}
+          {!weeklyType && (
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Start from</label>
             <div className="flex flex-wrap gap-2">
@@ -389,8 +424,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               ))}
             </div>
           </div>
+          )}
 
-          {startFrom === 'generate' && (
+          {startFrom === 'generate' && !weeklyType && (
             <Section title="Draw from the task library">
               <TileLibraryDraw target={expectedTiles} drawn={drawn} onDrawn={setDrawn} />
             </Section>
@@ -444,11 +480,16 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         )}
 
           <div>
-            <label className="block text-sm font-medium text-foreground/70 mb-1.5">Event name</label>
+            <label className="block text-sm font-medium text-foreground/70 mb-1.5">
+              {weeklyType ? 'Competition name' : 'Event name'}
+            </label>
             <Input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameTouched(true);
+              }}
               required
               className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
               placeholder="Summer Bingo 2026"
@@ -461,7 +502,10 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {MODES.filter((m) => !POOL_MODES.includes(m.key)).map((m) => {
-                const active = mode === m.key;
+                // A whole-clan competition and a board format are mutually exclusive, so while a
+                // weekly is chosen NO format is selected — the picker used to leave the last board
+                // lit next to it, which read as "both".
+                const active = !weeklyType && mode === m.key;
                 return (
                   <button
                     key={m.key}
@@ -493,15 +537,15 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               <button
                 type="button"
                 onClick={() => changeMode(poolMode)}
-                aria-pressed={isPool}
+                aria-pressed={poolActive}
                 className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                  isPool ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                  poolActive ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
                 }`}
               >
                 <span className="flex items-center justify-center h-8 mb-2">
-                  <BoardShape mode={isPool ? mode : 'luckydraw'} size={isPool ? size : undefined} />
+                  <BoardShape mode={poolActive ? mode : 'luckydraw'} size={poolActive ? size : undefined} />
                 </span>
-                <span className={`block text-sm font-medium leading-tight ${isPool ? 'text-gold' : ''}`}>
+                <span className={`block text-sm font-medium leading-tight ${poolActive ? 'text-gold' : ''}`}>
                   Task pool
                 </span>
                 <span className="block text-[10px] text-text-muted mt-1 leading-tight">
@@ -510,7 +554,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               </button>
             </div>
 
-            {isPool && (
+            {poolActive && (
               <div className="mt-2 rounded-lg border border-gold/25 bg-gold/[0.04] p-3 space-y-3">
                 <div className="flex flex-wrap gap-1.5">
                   {POOL_PRESETS.map((preset) => (
@@ -609,7 +653,10 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </label>
                 <Select
                   value={weeklyMetric}
-                  onChange={setWeeklyMetric}
+                  onChange={(v) => {
+                    setWeeklyMetric(v);
+                    if (!nameTouched && weeklyType) setName(defaultWeeklyTitle(weeklyType, v));
+                  }}
                   ariaLabel="What the competition ranks by"
                   options={
                     weeklyType === 'skill'
@@ -843,6 +890,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             </Section>
           )}
 
+          {/* Accounts-per-person is a sign-up concept; a whole-clan competition enters the roster
+              as it stands, so the section contradicted its own footer. */}
+          {!weeklyType && (
           <Section title="Entries">
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">Accounts per person</label>
@@ -892,6 +942,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               </div>
             )}
           </Section>
+          )}
         </div>
 
         {/* Live preview — what the choices above actually produce. Sticky on wide screens so it
@@ -899,6 +950,49 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         <aside className="lg:sticky lg:top-4 space-y-3">
           <div className="border border-gold/25 rounded-xl bg-gold/5 p-4">
             <h3 className="text-[11px] uppercase tracking-widest text-text-muted mb-3">You&apos;ll get</h3>
+
+            {/* A whole-clan competition has no board, no tiles and no teams, so the panel that
+                describes one is simply the wrong answer — it used to keep showing the last board
+                format's diagram, its tile count and its draft steps next to a competition that has
+                none of them. */}
+            {weeklyType ? (
+              <>
+                <div className="flex justify-center py-1 mb-3 text-3xl" aria-hidden>
+                  {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.emoji}
+                </div>
+                <p className="text-sm font-medium text-purple-300">
+                  {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.label}
+                </p>
+                <p className="text-xs text-text-muted mt-0.5">{defaultWeeklyTitle(weeklyType, weeklyMetric)}</p>
+
+                <dl className="mt-3 border-t border-gold/15 pt-3 text-xs">
+                  <SpecRow label="Tiles to author" value="none — it scores itself" />
+                  <SpecRow
+                    label="Scoring"
+                    value={weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'EHP / EHB gained'}
+                  />
+                  <SpecRow label="Teams" value="none — one leaderboard" />
+                  <SpecRow label="Who's in" value={includeGuests ? 'roster + guests' : 'full members only'} />
+                  <SpecRow label="Sign-up" value="none — entered at start" />
+                </dl>
+
+                <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
+                  {[
+                    'Nothing to author — baselines come from the hiscores when it starts',
+                    includeGuests
+                      ? 'Everyone on the roster is entered, guests included'
+                      : 'Every full member is entered; guests sit this one out',
+                    startDate ? 'Leave it — it starts on schedule by itself' : 'Give it a window on the right',
+                  ].map((step, i) => (
+                    <li key={step} className="text-xs text-text-muted leading-relaxed flex gap-2">
+                      <span aria-hidden className="text-gold/70 font-mono">{i + 1}</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            ) : (
+              <>
             <div className="flex justify-center py-1 mb-3">
               <BoardShape mode={mode} size={size} variant="panel" />
             </div>
@@ -928,6 +1022,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </li>
               ))}
             </ol>
+              </>
+            )}
           </div>
 
           <div className="border border-card-border rounded-xl bg-card-bg p-4">
@@ -941,8 +1037,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                   setEndDate(end);
                   setCustomDates(false);
                 }}
+                aria-pressed={runPreset === 'weekend'}
                 className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                  !customDates && startDate ? 'border-gold/50 text-gold bg-gold/10' : 'border-card-border text-text-muted hover:text-foreground'
+                  runPreset === 'weekend'
+                    ? 'border-gold/50 text-gold bg-gold/10'
+                    : 'border-card-border text-text-muted hover:text-foreground'
                 }`}
               >
                 This weekend
@@ -950,12 +1049,34 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               <button
                 type="button"
                 onClick={() => {
-                  const { start } = weekendSlot(0);
+                  const { start, end } = runOfDays(7);
                   setStartDate(start);
-                  setEndDate(new Date(Date.parse(start) + 14 * 86_400_000).toISOString());
+                  setEndDate(end);
                   setCustomDates(false);
                 }}
-                className="text-xs px-2.5 py-1 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
+                aria-pressed={runPreset === 'week'}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                  runPreset === 'week'
+                    ? 'border-gold/50 text-gold bg-gold/10'
+                    : 'border-card-border text-text-muted hover:text-foreground'
+                }`}
+              >
+                One week
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { start, end } = runOfDays(14);
+                  setStartDate(start);
+                  setEndDate(end);
+                  setCustomDates(false);
+                }}
+                aria-pressed={runPreset === 'fortnight'}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                  runPreset === 'fortnight'
+                    ? 'border-gold/50 text-gold bg-gold/10'
+                    : 'border-card-border text-text-muted hover:text-foreground'
+                }`}
               >
                 Two weeks
               </button>
@@ -997,14 +1118,19 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               </div>
             )}
 
+            {/* One statement of the window, not three. With the picker open it already prints its
+                own "Ends …" line, so repeating the whole range underneath in a different date
+                format just made the panel look like it disagreed with itself. */}
             <p className="text-xs text-text-muted mt-2">
-              {startDate ? (
+              {!startDate ? (
+                weeklyType
+                  ? 'Pick a window — a competition needs one to score against.'
+                  : 'No dates — it starts when you say so.'
+              ) : customDates ? null : (
                 <span suppressHydrationWarning>
-                  {new Date(startDate).toLocaleString()}
-                  {endDate ? ` → ${new Date(endDate).toLocaleString()}` : ' → open-ended'}
+                  {formatLocalDateTime(startDate)}
+                  {endDate ? ` → ${formatLocalDateTime(endDate)}` : ' → open-ended'}
                 </span>
-              ) : (
-                'No dates — it starts when you say so.'
               )}
             </p>
           </div>

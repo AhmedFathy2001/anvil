@@ -52,9 +52,12 @@ export default async function NewEventPage() {
 
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Create Event</h1>
+        {/* Both kinds of thing are made here — a board you author, and a whole-clan competition
+            that scores itself — so the blurb can't promise tiles and teams. The panel on the right
+            says what the CHOSEN one actually needs. */}
         <p className="text-text-muted text-sm">
-          Pick a template to get going fast, or tweak the details below. You&apos;ll land on the
-          event&apos;s tabs to configure tiles, teams, sign-ups and stats.
+          A board to author, or a whole-clan competition that scores itself. Pick one below — the
+          panel on the right says what it will need from you.
         </p>
       </header>
 

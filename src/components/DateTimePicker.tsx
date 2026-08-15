@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatUtcHint } from '@/lib/eventTime';
+import { formatLocalDateTime, formatUtcHint } from '@/lib/eventTime';
 
 // Self-contained custom date+time picker. Renders a button showing the current value
 // (or a placeholder) and opens a popover with a month-grid calendar plus HH:MM inputs.
@@ -46,15 +46,9 @@ function partsToIso(y: number, m: number, d: number, hh: number, mm: number): st
   return new Date(y, m, d, hh, mm, 0, 0).toISOString();
 }
 
-function formatDisplay(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  // Locale-friendly: "Jan 5, 2026 · 14:30"
-  const date = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  return `${date} · ${time}`;
-}
+// One shared formatter (lib/eventTime) so the picker, the range field and the create panel
+// can't describe the same instant three different ways.
+const formatDisplay = formatLocalDateTime;
 
 function daysInMonth(y: number, m: number): number {
   return new Date(y, m + 1, 0).getDate();
