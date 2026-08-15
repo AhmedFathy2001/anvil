@@ -18,13 +18,15 @@ export function eventRailGroups(opts: {
   counts: StageCounts;
   /** Tile-authoring editors get the board and nothing else — the rest reject them anyway. */
   tilesOnly?: boolean;
+  /** What this board calls its entries, lower-case (lib/tileAuthoring). */
+  taskNounPlural?: string;
 }): SidebarGroup[] {
-  const { eventId, stage, counts, tilesOnly } = opts;
+  const { eventId, stage, counts, tilesOnly, taskNounPlural = 'tiles' } = opts;
   const base = `/admin/events/${eventId}`;
 
   const tiles = {
     href: `${base}/tiles`,
-    label: 'Board & tiles',
+    label: `Board & ${taskNounPlural}`,
     icon: '▦',
     badge: counts.expectedTiles > 0 && counts.tileCount < counts.expectedTiles
       ? `${counts.tileCount}/${counts.expectedTiles}`

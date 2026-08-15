@@ -69,7 +69,9 @@ export interface LifecycleStep {
  * still outstanding.
  */
 export function lifecycleSteps(
-  event: StageEvent & { name?: string },
+  // taskNounPlural: what this board calls its entries (lib/tileAuthoring). A ladder's are Tasks,
+  // and a lifecycle bar that says "Tiles" over a ladder is the bingo assumption leaking again.
+  event: StageEvent & { name?: string; taskNounPlural?: string },
   counts: StageCounts,
   now: number = Date.now(),
 ): LifecycleStep[] {
@@ -88,7 +90,7 @@ export function lifecycleSteps(
     },
     {
       key: 'tiles',
-      label: 'Tiles',
+      label: event.taskNounPlural ?? 'Tiles',
       detail: tilesDone
         ? `${counts.tileCount} authored`
         : `${counts.tileCount} of ${counts.expectedTiles || '—'}`,
