@@ -99,10 +99,34 @@ test('a fully covered window has no gaps', () => {
   assert.deepEqual(gaps, []);
 });
 
+test('a gap that runs off the window edge is marked open-ended', () => {
+  // Its length measures how far we looked, not the schedule: the same empty calendar reads
+  // "33 days" over six weeks and "47 days" over eight, so callers must not quote it as a fact.
+  const gaps = findGaps([span('2026-08-01', '2026-08-10')], d('2026-08-01'), d('2026-09-12'));
+  assert.equal(gaps.length, 1);
+  assert.equal(gaps[0].openEnded, true);
+  assert.equal(isoDay(gaps[0].start), '2026-08-11');
+
+  const wider = findGaps([span('2026-08-01', '2026-08-10')], d('2026-08-01'), d('2026-09-30'));
+  assert.equal(wider[0].openEnded, true);
+  assert.notEqual(wider[0].days, gaps[0].days, 'the length moves with the window — that is the point');
+});
+
+test('a gap with an event on both sides has a real, window-independent length', () => {
+  const spans = [span('2026-08-01', '2026-08-10'), span('2026-08-18', '2026-08-20')];
+  const narrow = findGaps(spans, d('2026-08-01'), d('2026-08-25'));
+  const wide = findGaps(spans, d('2026-08-01'), d('2026-09-30'));
+  const bounded = (gs: ReturnType<typeof findGaps>) => gs.filter((g) => !g.openEnded);
+  assert.equal(bounded(narrow).length, 1);
+  assert.equal(bounded(narrow)[0].days, 7);
+  assert.equal(bounded(wide)[0].days, 7, 'a bounded gap must not move with the window');
+});
+
 test('an empty window is one big gap', () => {
   const gaps = findGaps([], d('2026-09-01'), d('2026-09-30'));
   assert.equal(gaps.length, 1);
   assert.equal(gaps[0].days, 30);
+  assert.equal(gaps[0].openEnded, true);
 });
 
 test('overlapping events do not double-count coverage', () => {

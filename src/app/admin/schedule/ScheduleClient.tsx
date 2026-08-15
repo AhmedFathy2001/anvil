@@ -381,7 +381,10 @@ function CoverageRibbon({
         {worst ? (
           <>
             <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 whitespace-nowrap">
-              ⚠ {worst.days} empty day{worst.days === 1 ? '' : 's'} · {shortDate(worst.start)}–{shortDate(worst.end)}
+              {/* A gap running to the edge of the view has no honest length — only a start. */}
+              {worst.openEnded
+                ? `⚠ Nothing scheduled after ${shortDate(addDays(worst.start, -1))}`
+                : `⚠ ${worst.days} empty day${worst.days === 1 ? '' : 's'} · ${shortDate(worst.start)}–${shortDate(worst.end)}`}
             </span>
             <Link
               href={

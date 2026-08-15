@@ -252,7 +252,18 @@ export default async function AdminDashboardPage() {
     oldestFeeDays: daysSince(oldestHeldFee, now),
     feeEvents,
     pendingVerifications: provisionalCount,
-    gap: gap ? { days: gap.days, startsInDays: Math.max(0, daysBetween(today, gap.start)) } : null,
+    gap: gap
+      ? {
+          days: gap.days,
+          startsInDays: Math.max(0, daysBetween(today, gap.start)),
+          openEnded: gap.openEnded,
+          // The last day something IS on, which is what "nothing after X" means to a reader.
+          startsOn: addDays(gap.start, -1).toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'long',
+          }),
+        }
+      : null,
     unscheduled,
   });
 
@@ -604,6 +615,9 @@ const LABEL_INSIDE_MIN = 0.16;
 
 const RUNWAY_ROW = 30;
 
+/** A one-day event is a hairline at six weeks' zoom; give every bar something to grab. */
+const MIN_BAR_WIDTH = 2.5;
+
 function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date; weeks: number }) {
   const from = today;
   const to = addDays(today, weeks * 7);
@@ -683,23 +697,27 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
             />
           ))}
 
-          {/* Gaps, before the bars so bars sit on top */}
+          {/* Where coverage stops.
+              An outlined box, and then a hatched fill, both made emptiness the loudest object on
+              the strip — when what it is is nothing being there. The bars already show that; all
+              this has to do is name the boundary. A hairline where cover ends, and a label. */}
           {gaps.map((g, i) => {
             const left = pct(daysBetween(from, g.start));
-            const width = pct(g.days);
+            if (left > 96) return null;
             return (
               <Link
                 key={`gap-${i}`}
                 href="/admin/schedule"
-                title={`Nothing scheduled for ${g.days} days`}
-                style={{ left: `${left}%`, width: `${width}%` }}
-                className="absolute inset-y-0 rounded-md border border-dashed border-yellow-500/25 bg-yellow-500/[0.04] hover:bg-yellow-500/10 transition-colors flex items-center justify-center"
+                title={
+                  g.openEnded
+                    ? `Nothing scheduled after ${addDays(g.start, -1).toLocaleDateString()}`
+                    : `Nothing scheduled for ${g.days} days`
+                }
+                style={{ left: `${left}%` }}
+                className="absolute inset-y-0 flex items-center gap-2 pl-2 border-l border-dashed border-yellow-500/30 text-[9px] text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap"
               >
-                {width > 22 && (
-                  <span className="text-[9px] text-yellow-500/70 whitespace-nowrap px-1">
-                    nothing scheduled · {g.days}d
-                  </span>
-                )}
+                {/* An open-ended gap has no honest length — only a start. */}
+                {g.openEnded ? 'nothing scheduled beyond here' : `${g.days}d clear`}
               </Link>
             );
           })}
@@ -718,7 +736,10 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
               const realEnd = dayOf(l.item.endDate!);
               const rawLeft = pct(daysBetween(from, realStart));
               const left = Math.max(0, rawLeft);
-              const width = Math.min(100 - left, pct(daysBetween(realStart, realEnd) + 1) + Math.min(0, rawLeft));
+              const width = Math.max(
+                MIN_BAR_WIDTH,
+                Math.min(100 - left, pct(daysBetween(realStart, realEnd) + 1) + Math.min(0, rawLeft)),
+              );
               // Already under way when the window opens: flatten the left edge rather than
               // pretending it starts today.
               const clipped = rawLeft < 0;
