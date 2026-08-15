@@ -39,7 +39,17 @@ interface ClanMember {
 type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
 type PendingRoleValue = PendingRole | 'none';
 
-type FilterMode = 'active' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+type FilterMode = 'active' | 'review' | 'idle' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+
+// A member the roster sync hasn't seen for this long has, in practice, stopped playing — the one
+// question the old filter row could not ask at all.
+const IDLE_DAYS = 7;
+
+function daysSinceSeen(m: { lastSeenInClan: string | null }, now: number): number | null {
+  if (!m.lastSeenInClan) return null;
+  const ms = Date.parse(m.lastSeenInClan);
+  return Number.isFinite(ms) ? Math.floor((now - ms) / 86_400_000) : null;
+}
 
 // Site roles a member can hold (or be queued for). 'staff' is the catch-all — anything above a
 // plain member — because "show me everyone with power" is the question staff actually ask.
@@ -77,6 +87,93 @@ const SOURCE_LABEL: Record<string, string> = {
 
 // Shared badges — used by BOTH the desktop table and the mobile card list so the two
 // stay in lockstep. Kept at module scope (pure, member-only) to avoid remount churn.
+/**
+ * Who is on the roster, as one bar.
+ *
+ * "135 members · 45 guests · 69 departed" was three numbers with no relationship to each other.
+ * The same figures as proportions of one bar show the shape of the clan at a glance — and every
+ * segment is the filter for itself.
+ */
+function Composition({
+  counts,
+  onPick,
+}: {
+  counts: {
+    active: number;
+    guests: number;
+    left: number;
+    linked: number;
+    unlinked: number;
+    review: number;
+    idle: number;
+    staff: number;
+    total: number;
+  };
+  onPick: (f: FilterMode) => void;
+}) {
+  const segments: { key: FilterMode; label: string; count: number; bar: string; dot: string }[] = [
+    { key: 'active', label: 'Members', count: counts.active, bar: 'bg-accent-green', dot: 'bg-accent-green' },
+    { key: 'guests', label: 'Guests', count: counts.guests, bar: 'bg-blue-500', dot: 'bg-blue-500' },
+    { key: 'left', label: 'Departed', count: counts.left, bar: 'bg-card-border', dot: 'bg-card-border' },
+  ];
+  const total = segments.reduce((n, s) => n + s.count, 0);
+
+  return (
+    <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3 mb-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted/70">
+          Who is on the roster
+        </div>
+        <div className="flex gap-0.5 h-2.5 rounded-full overflow-hidden mt-2 bg-brown-dark">
+          {total === 0 ? (
+            <span className="flex-1 bg-brown-light" />
+          ) : (
+            segments
+              .filter((s) => s.count > 0)
+              .map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => onPick(s.key)}
+                  title={`${s.label}: ${s.count}`}
+                  aria-label={`Show ${s.label}`}
+                  style={{ width: `${(s.count / total) * 100}%` }}
+                  className={`${s.bar} hover:brightness-125 transition-[filter]`}
+                />
+              ))
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-text-muted">
+          {segments.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => onPick(s.key)}
+              className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+            >
+              <span className={`w-2 h-2 rounded-sm ${s.dot}`} />
+              {s.label}
+              <span className="tabular-nums text-foreground font-semibold">{s.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-start sm:items-end gap-1.5">
+        {counts.review > 0 && (
+          <button
+            onClick={() => onPick('review')}
+            className="text-xs px-2.5 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/25 transition-colors whitespace-nowrap"
+          >
+            {counts.review} waiting on review
+          </button>
+        )}
+        <span className="text-[11px] text-text-muted tabular-nums">
+          {counts.linked} linked · {counts.unlinked} roster-only · {counts.idle} idle {IDLE_DAYS}d+
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function AccountBadge({ m }: { m: ClanMember }) {
   return m.userId ? (
     <span
@@ -117,6 +214,32 @@ function StatusBadge({ m }: { m: ClanMember }) {
   );
 }
 
+/**
+ * How long ago the roster sync last saw them, as an age rather than a date.
+ *
+ * Every row used to read "8/15/2026" — technically the answer, but you had to do the subtraction
+ * yourself on 135 rows to find the people who had stopped playing. The dot carries the same
+ * judgement without being read at all.
+ */
+function LastSeen({ m, now }: { m: { lastSeenInClan: string | null }; now: number }) {
+  const days = daysSinceSeen(m, now);
+  if (days === null) return <span className="text-text-muted">—</span>;
+
+  const tone = days >= 30 ? 'bg-accent-red' : days >= IDLE_DAYS ? 'bg-yellow-500' : 'bg-accent-green';
+  const label =
+    days === 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+
+  return (
+    <span
+      className="inline-flex items-center gap-2 text-text-muted tabular-nums"
+      title={m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleString() : undefined}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
+      {label}
+    </span>
+  );
+}
+
 function PendingRoleBadge({ m }: { m: ClanMember }) {
   if (!m.pendingRole) return null;
   return (
@@ -139,6 +262,10 @@ function PendingRoleBadge({ m }: { m: ClanMember }) {
 }
 
 export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
+  // One reading of the clock for the page's lifetime, so "6d ago" and the Idle view can never
+  // disagree with each other across a re-render.
+  const [nowMs] = useState(() => Date.now());
+  const [showSettings, setShowSettings] = useState(false);
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -227,6 +354,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const q = search.trim().toLowerCase();
     return members.filter((m) => {
       if (filter === 'active' && (m.leftAt || m.isGuest)) return false;
+      // Everyone the plugin reported but no mod has confirmed yet — the queue this page exists
+      // to clear, previously only reachable from another route entirely.
+      if (filter === 'review' && (m.leftAt || !m.provisional)) return false;
+      if (filter === 'idle') {
+        if (m.leftAt || m.isGuest) return false;
+        const days = daysSinceSeen(m, nowMs);
+        if (days === null || days < IDLE_DAYS) return false;
+      }
       if (filter === 'guests' && (!m.isGuest || m.leftAt)) return false;
       if (filter === 'left' && !m.leftAt) return false;
       // linked/unlinked cut across the current roster (exclude left members) by whether the RSN
@@ -243,7 +378,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       if (!matchesRole(m, roleFilter)) return false;
       return true;
     });
-  }, [members, search, filter, rankFilter, roleFilter]);
+  }, [members, search, filter, rankFilter, roleFilter, nowMs]);
 
   // Rank options come from the roster itself — in-game ranks are free text pushed by the plugin,
   // so there's no fixed list to hardcode. Counted over the status-filtered set the chips describe.
@@ -269,7 +404,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }, [members]);
 
   const counts = useMemo(() => {
-    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0;
+    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, idle = 0, staff = 0;
     for (const m of members) {
       if (m.leftAt) left++;
       else if (m.isGuest) guests++;
@@ -277,10 +412,16 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       if (!m.leftAt) {
         if (m.userId) linked++;
         else unlinked++;
+        if (m.provisional) review++;
+        if (STAFF_ROLES.has(m.userRole ?? '')) staff++;
+        if (!m.isGuest) {
+          const days = daysSinceSeen(m, nowMs);
+          if (days !== null && days >= IDLE_DAYS) idle++;
+        }
       }
     }
-    return { active, guests, left, linked, unlinked, total: members.length };
-  }, [members]);
+    return { active, guests, left, linked, unlinked, review, idle, staff, total: members.length };
+  }, [members, nowMs]);
 
   // ── Bulk selection ────────────────────────────────────────────────────────
   // Selection is by id and survives filter changes, so you can stage a few names from one filter,
@@ -597,24 +738,41 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     return items;
   }
 
-  const filterDefs: { key: FilterMode; label: string; count: number }[] = [
+  // Ordered by how often staff actually need them, with the queue that wants a decision first.
+  const filterDefs: { key: FilterMode; label: string; count: number; attn?: boolean }[] = [
+    { key: 'review', label: 'Needs review', count: counts.review, attn: true },
     { key: 'active', label: 'Active', count: counts.active },
+    { key: 'idle', label: `Idle ${IDLE_DAYS}d+`, count: counts.idle },
     { key: 'guests', label: 'Guests', count: counts.guests },
-    { key: 'left', label: 'Left', count: counts.left },
-    { key: 'linked', label: 'Has account', count: counts.linked },
     { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
+    { key: 'linked', label: 'Has account', count: counts.linked },
+    { key: 'left', label: 'Departed', count: counts.left },
     { key: 'all', label: 'All', count: counts.total },
   ];
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gold">Clan Roster</h1>
-          <p className="text-text-muted text-sm mt-1">
-            {counts.active} member{counts.active === 1 ? '' : 's'} · {counts.guests} guest
-            {counts.guests === 1 ? '' : 's'} · {counts.left} departed
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        {/* No second <h1>: the hub layout already titles the page "Clan" and the tab above says
+            "Members". "Clan / Clan Roster" was the same word twice before you reached a member.
+            Identity is a line, not a form — the names change about once a year; the roster is read
+            every day, and the settings card used to sit on top of it regardless. */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <span className="inline-flex items-center gap-2 border border-card-border rounded-full bg-card-bg px-3 py-1">
+              <span className="font-semibold">{clanName || 'Unnamed clan'}</span>
+              {inGameClanName && inGameClanName !== clanName && (
+                <span className="text-[11px] text-text-muted">in-game: {inGameClanName}</span>
+              )}
+            </span>
+            <button
+              onClick={() => setShowSettings((v) => !v)}
+              aria-expanded={showSettings}
+              className="text-xs text-gold hover:text-gold-light underline underline-offset-2"
+            >
+              {showSettings ? 'Hide clan settings' : 'Edit clan settings'}
+            </button>
+          </div>
         </div>
         <div className="flex gap-2">
           <Link
@@ -632,8 +790,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
-      {/* Clan settings */}
-      <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
+      {/* Who is on the roster — the shape of it, before the 249 rows of it. */}
+      <Composition counts={counts} onPick={setFilter} />
+
+      {/* Clan settings — folded away by default; see the header disclosure. */}
+      <div className={`border border-card-border rounded-xl bg-card-bg p-5 mb-6 ${showSettings ? '' : 'hidden'}`}>
         <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
           <span className="w-1 h-5 bg-gold rounded-full" />
           Clan Settings
@@ -966,8 +1127,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-4 py-3 text-text-muted">{m.rank || '—'}</td>
                   <td className="px-4 py-3"><StatusBadge m={m} /></td>
                   <td className="px-4 py-3 text-text-muted text-xs">{SOURCE_LABEL[m.source] ?? m.source}</td>
-                  <td className="px-4 py-3 text-text-muted text-xs">
-                    {m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleDateString() : '—'}
+                  <td className="px-4 py-3 text-xs">
+                    <LastSeen m={m} now={nowMs} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
