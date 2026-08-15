@@ -26,11 +26,14 @@ export function YouStrip({
   type,
   unit,
   elapsed,
+  showDaily,
 }: {
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null };
   type: CompetitionType;
   unit: string;
   elapsed: number;
+  /** Whether the week's daily history is complete enough to say anything about your days. */
+  showDaily: boolean;
 }) {
   const { entry, behind, rank } = me;
   const max = Math.max(...entry.days.slice(0, elapsed), 1);
@@ -47,15 +50,21 @@ export function YouStrip({
       <div className="min-w-0">
         <div className="flex items-center gap-2 font-semibold">
           <span className="truncate">{entry.rsn}</span>
-          {entry.today > 0 ? (
-            <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
-          ) : (
-            <span className="font-mono text-[11px] font-bold text-text-muted">quiet today</span>
-          )}
+          {showDaily &&
+            (entry.today > 0 ? (
+              <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
+            ) : (
+              <span className="font-mono text-[11px] font-bold text-text-muted">quiet today</span>
+            ))}
         </div>
         <div className="text-xs text-text-muted">
-          {shortValue(entry.gained, type)} {unit} · {activeDays} of {elapsed} days
-          {entry.streak >= 3 && entry.streak === elapsed && <> · 🔥 every day</>}
+          {shortValue(entry.gained, type)} {unit}
+          {showDaily && (
+            <>
+              {' '}· {activeDays} of {elapsed} days
+              {entry.streak >= 3 && entry.streak === elapsed && <> · 🔥 every day</>}
+            </>
+          )}
         </div>
       </div>
 
@@ -77,6 +86,7 @@ export function YouStrip({
         </div>
       </div>
 
+      {showDaily && (
       <div className="col-span-2 flex h-9 items-end gap-[3px] sm:col-span-1" title="your day by day">
         {entry.days.slice(0, elapsed).map((v, i) => (
           <i
@@ -86,6 +96,7 @@ export function YouStrip({
           />
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -96,12 +107,16 @@ export function Podium({
   elapsed,
   type,
   unit,
+  showShape,
 }: {
   entries: CompetitionEntry[];
   days: string[];
   elapsed: number;
   type: CompetitionType;
   unit: string;
+  /** Share of the week's gains the daily history can account for, 0–1. */
+  /** Whether the week's history is complete enough to draw per-player shapes (see lib/competitionInsights). */
+  showShape: boolean;
 }) {
   const top = entries.slice(0, 3).filter((e) => e.gained > 0);
   if (top.length === 0) return null;
@@ -110,6 +125,10 @@ export function Podium({
   // look the same shape, so a 1M week and an 870K week drew identical bars — and the reader, quite
   // reasonably, read height as size. Shared scale means the bars mean what they look like.
   const scale = Math.max(...top.flatMap((e) => e.days.slice(0, elapsed)), 1);
+
+  // …but a shape drawn from a fraction of the week doesn't just say little, it says the WRONG thing:
+  // at 12% coverage third place can own the biggest tracked day and out-draw the leader, flatly
+  // contradicting the ranking directly above it. `showShape` is the page's one judgement about that.
 
   return (
     <div className="mb-7 grid items-end gap-3 sm:grid-cols-3">
@@ -140,24 +159,26 @@ export function Podium({
               <span className="text-xs text-text-muted">{unit}</span>
             </div>
             <div className="mt-2.5 flex items-center gap-2.5 text-xs text-text-muted">
-              {own > 0 && (
+              {showShape && own > 0 && (
                 <span>
                   best day {days[bestIdx] ? dateLabel(days[bestIdx]) : '—'} · {shortValue(own, type)}
                 </span>
               )}
               {e.streak >= 3 && e.streak === elapsed && <span title={`Every day so far (${e.streak})`}>🔥</span>}
-              <span className="ml-auto flex h-6 items-end gap-[3px]">
-                {e.days.slice(0, elapsed).map((v, k) => (
-                  <i
-                    key={k}
-                    className="block w-2 rounded-sm"
-                    style={{
-                      height: `${v > 0 ? Math.max(1, (v / scale) * 24) : 1}px`,
-                      backgroundColor: v > 0 ? (first ? '#f0c940' : 'rgba(138,126,108,0.6)') : 'rgba(61,50,38,0.9)',
-                    }}
-                  />
-                ))}
-              </span>
+              {showShape && (
+                <span className="ml-auto flex h-6 items-end gap-[3px]">
+                  {e.days.slice(0, elapsed).map((v, k) => (
+                    <i
+                      key={k}
+                      className="block w-2 rounded-sm"
+                      style={{
+                        height: `${v > 0 ? Math.max(1, (v / scale) * 24) : 1}px`,
+                        backgroundColor: v > 0 ? (first ? '#f0c940' : 'rgba(138,126,108,0.6)') : 'rgba(61,50,38,0.9)',
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -207,7 +228,11 @@ export function Board({
               className={`grid items-center gap-3 border-b border-card-border/60 px-3 py-2 last:border-b-0 ${
                 e.isMe ? 'bg-gradient-to-r from-accent-green/20 to-card-bg shadow-[inset_3px_0_0_#34d058]' : 'bg-card-bg'
               }`}
-              style={{ gridTemplateColumns: showDaily ? '34px minmax(0,1fr) auto auto 34px' : '34px minmax(0,1fr) auto' }}
+              style={{
+                gridTemplateColumns: showDaily
+                  ? '34px minmax(0,1fr) auto auto 34px'
+                  : '34px minmax(0,1fr) auto',
+              }}
             >
               <span className={`font-mono text-xs ${i < 3 ? 'text-gold' : 'text-text-muted'}`}>
                 {i < 3 ? MEDALS[i] : `#${i + 1}`}

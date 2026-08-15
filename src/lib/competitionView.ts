@@ -279,7 +279,10 @@ export async function buildCompetitionView(
     previous,
     me,
     milestones,
-    records: buildRecords(entries, series, elapsed, type),
+    // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
+    // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
+    // week whose leader gained 1.0M), so it produces nothing instead.
+    records: trust === 'ok' ? buildRecords(entries, series, elapsed, type) : [],
     trust,
     coverage,
   };

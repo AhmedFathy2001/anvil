@@ -17,7 +17,7 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { parseEventRules } from '@/lib/eventRules';
 import { eventAxes } from '@/lib/eventAxes';
-import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
+import { dailyTrust, dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
 import { loadEventCards, type EventCard } from '@/lib/eventCards';
 import { computeIndividualStandings } from '@/lib/memberBreakdown';
 import { parseContributionSnapshot } from '@/lib/statTracking';
@@ -194,7 +194,12 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
       }
       const today = dayKey(now);
       days = range.filter((d) => d <= today).map((d) => byDay.get(d) ?? 0);
-      if (days.every((d) => d === 0)) days = [];
+      // Same judgement the competition page makes: a shape assembled from a fraction of the week
+      // isn't a rough version of it, it's a biased one. A card too small to caption is the worst
+      // place to show a chart that needs an asterisk, so it just doesn't get one.
+      const tracked = days.reduce((a, b) => a + b, 0);
+      const clanTotal = ranked.reduce((a, b) => a + b.value, 0);
+      if (dailyTrust(tracked, clanTotal, days.some((d) => d > 0)) !== 'ok') days = [];
     }
 
     return {

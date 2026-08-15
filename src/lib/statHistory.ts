@@ -82,6 +82,41 @@ export function computeDeltas(before: HiscoresSnapshot | null, after: HiscoresSn
   return deltas;
 }
 
+/**
+ * Add one tick's deltas onto the day's running ones.
+ *
+ * WHY THIS EXISTS. A day is many ticks, and each one only reports what moved SINCE THE LAST FETCH.
+ * The row's numeric columns accumulate in SQL, but this JSON used to be overwritten every tick, so a
+ * day's per-metric detail collapsed to whatever happened in its final 15 minutes. That biased the
+ * data against exactly the people it was meant to celebrate: an idle member polled once every two
+ * hours had a whole session land in one delta and kept it, while someone playing all evening — polled
+ * every tick, because gaining XP resets the backoff — kept only their last slice. Their per-skill
+ * totals came out SMALLER than a quieter member's, which is how a competition leader ends up drawn
+ * underneath the people he's beating.
+ */
+export function mergeDeltas(before: StatDeltas | null, add: StatDeltas): StatDeltas {
+  const out: StatDeltas = {};
+  for (const group of ['skills', 'bosses'] as const) {
+    const merged = { ...(before?.[group] ?? {}) };
+    for (const [key, value] of Object.entries(add[group] ?? {})) {
+      merged[key] = (merged[key] ?? 0) + value;
+    }
+    if (Object.keys(merged).length > 0) out[group] = merged;
+  }
+  return out;
+}
+
+/** A stored deltas blob, or null if it's missing or corrupt (a bad row must not fail the tick). */
+function parseStoredDeltas(raw: string | null | undefined): StatDeltas | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as StatDeltas;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface DailyRollupInput {
   clanMemberId: number;
   snapshot: HiscoresSnapshot;
@@ -125,22 +160,32 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
   }
 
   const nothingMoved = xpGained === 0 && ehbMilliGained === 0 && ehpMilliGained === 0;
+  const hasDeltas = !!(deltas.skills || deltas.bosses);
+
+  // The day's row is read when there's per-metric detail to merge into, and when nothing moved (to
+  // decide whether a first row is still owed). An idle tick with no gains reads nothing.
+  const existing =
+    hasDeltas || nothingMoved
+      ? await db.query.memberDailyStats.findFirst({
+          where: and(eq(memberDailyStats.clanMemberId, input.clanMemberId), eq(memberDailyStats.day, day)),
+          columns: { id: true, deltas: true },
+        })
+      : null;
+
   // A member with no row yet still gets one the first time we see them with XP, so the chart has a
   // starting point; after that, an idle tick writes nothing.
-  if (nothingMoved) {
-    const existing = await db.query.memberDailyStats.findFirst({
-      where: and(eq(memberDailyStats.clanMemberId, input.clanMemberId), eq(memberDailyStats.day, day)),
-      columns: { id: true },
-    });
-    if (existing || overallXp === 0) {
-      return { wrote: false, day, xpGained: 0, ehpMilliGained: 0, ehbMilliGained: 0 };
-    }
+  if (nothingMoved && (existing || overallXp === 0)) {
+    return { wrote: false, day, xpGained: 0, ehpMilliGained: 0, ehbMilliGained: 0 };
   }
 
-  const deltaJson = deltas.skills || deltas.bosses ? JSON.stringify(deltas) : null;
+  const deltaJson = hasDeltas
+    ? JSON.stringify(mergeDeltas(parseStoredDeltas(existing?.deltas), deltas))
+    : null;
 
-  // One statement, no read-modify-write: totals overwrite (they're absolutes) while gains accumulate
-  // across the day's ticks. Concurrent sweeps can't lose an update, and there's no row to fetch first.
+  // Totals overwrite (they're absolutes) while gains accumulate across the day's ticks. The numeric
+  // gains still add in SQL rather than from the row read above, so two overlapping sweeps can't lose
+  // one — the merged JSON is the only part that reads first, and losing a merge there is no worse
+  // than the unconditional overwrite it replaced.
   await db
     .insert(memberDailyStats)
     .values({

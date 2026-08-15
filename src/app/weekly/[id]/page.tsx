@@ -8,7 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import CompetitionHero from '@/components/weekly/CompetitionHero';
-import { RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
+import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
 
 export const dynamic = 'force-dynamic';
@@ -46,7 +46,8 @@ export default async function WeeklyLeaderboardPage({
   // Everything day-shaped hangs off history the sweep writes. A competition from before that (or a
   // guest-only board) still ranks fine — it just shows the board without the week around it. So does
   // one whose history is too thin to be honest about: a partial account isn't a rough version of the
-  // week, it's a biased one, and drawing it puts the leader underneath people he's beating.
+  // week, it's a biased one, and drawing it puts the leader underneath people he's beating. One
+  // judgement gates every daily surface on the page, so they can't disagree about what's drawable.
   const showDaily = view.trust === 'ok';
 
   return (
@@ -67,7 +68,7 @@ export default async function WeeklyLeaderboardPage({
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
         clanTotal={view.clanTotal}
-        todayTotal={view.todayTotal}
+        todayTotal={showDaily ? view.todayTotal : null}
         scoring={view.scoring}
         entered={view.entries.length}
         leader={leader}
@@ -77,9 +78,18 @@ export default async function WeeklyLeaderboardPage({
         totalDays={view.days.length}
       />
 
-      {view.me && <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} />}
+      {view.me && (
+        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} />
+      )}
 
-      <Podium entries={view.entries} days={view.days} elapsed={view.elapsed} type={view.type} unit={view.unit} />
+      <Podium
+        entries={view.entries}
+        days={view.days}
+        elapsed={view.elapsed}
+        type={view.type}
+        unit={view.unit}
+        showShape={showDaily}
+      />
 
       <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="min-w-0">

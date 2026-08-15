@@ -23,6 +23,10 @@ const short = (n: number) =>
 const weekday = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
 
+/** The UTC day key `i` days into a competition — the sparkline's bars are aligned to its day range. */
+const dayAt = (startIso: string, i: number) =>
+  new Date(Date.parse(startIso) + i * 86_400_000).toISOString().slice(0, 10);
+
 const dateShort = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
@@ -276,15 +280,21 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
       )}
 
       {w.days.length > 0 && (
-        <div className="mt-4 flex h-9 items-end gap-1">
-          {w.days.map((d, i) => (
-            <i
-              key={i}
-              className={`block flex-1 rounded-sm ${d === max ? 'bg-gold-light' : 'bg-blue-400/50'}`}
-              style={{ height: `${d > 0 ? Math.max(1, (d / max) * 36) : 1}px` }}
-            />
-          ))}
-        </div>
+        <>
+          <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+            the whole clan, day by day
+          </p>
+          <div className="mt-1.5 flex h-9 items-end gap-1">
+            {w.days.map((d, i) => (
+              <i
+                key={i}
+                title={`${weekday(dayAt(w.startDate, i))} · ${d > 0 ? `${short(d)} ${unitFor(w)}` : 'nothing'}`}
+                className={`block flex-1 rounded-sm ${d === max ? 'bg-gold-light' : d > 0 ? 'bg-blue-400/50' : 'bg-card-border'}`}
+                style={{ height: `${d > 0 ? Math.max(2, (d / max) * 36) : 2}px` }}
+              />
+            ))}
+          </div>
+        </>
       )}
     </CardShell>
   );
