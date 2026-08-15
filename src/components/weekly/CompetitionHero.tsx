@@ -23,7 +23,8 @@ interface Props {
   endDate: string;
   iconUrl: string | null;
   clanTotal: number;
-  todayTotal: number;
+  /** Today's clan gain, or null when the week's daily history isn't complete enough to claim one. */
+  todayTotal: number | null;
   scoring: number;
   entered: number;
   leader: { rsn: string; gained: number; margin: number } | null;
@@ -100,7 +101,7 @@ export default function CompetitionHero({
               {shortValue(clanTotal, type)}
             </div>
             <div className="mt-1.5 text-[11.5px] text-text-muted">
-              {unit} gained{!ended && todayTotal > 0 && <> · {shortValue(todayTotal, type)} today</>}
+              {unit} gained{!ended && todayTotal != null && todayTotal > 0 && <> · {shortValue(todayTotal, type)} today</>}
             </div>
           </div>
 

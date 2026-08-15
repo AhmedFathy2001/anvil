@@ -26,11 +26,14 @@ export function YouStrip({
   type,
   unit,
   elapsed,
+  showDaily,
 }: {
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null };
   type: CompetitionType;
   unit: string;
   elapsed: number;
+  /** Whether the week's daily history is complete enough to say anything about your days. */
+  showDaily: boolean;
 }) {
   const { entry, behind, rank } = me;
   const max = Math.max(...entry.days.slice(0, elapsed), 1);
@@ -47,15 +50,21 @@ export function YouStrip({
       <div className="min-w-0">
         <div className="flex items-center gap-2 font-semibold">
           <span className="truncate">{entry.rsn}</span>
-          {entry.today > 0 ? (
-            <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
-          ) : (
-            <span className="font-mono text-[11px] font-bold text-text-muted">quiet today</span>
-          )}
+          {showDaily &&
+            (entry.today > 0 ? (
+              <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
+            ) : (
+              <span className="font-mono text-[11px] font-bold text-text-muted">quiet today</span>
+            ))}
         </div>
         <div className="text-xs text-text-muted">
-          {shortValue(entry.gained, type)} {unit} · {activeDays} of {elapsed} days
-          {entry.streak >= 3 && entry.streak === elapsed && <> · 🔥 every day</>}
+          {shortValue(entry.gained, type)} {unit}
+          {showDaily && (
+            <>
+              {' '}· {activeDays} of {elapsed} days
+              {entry.streak >= 3 && entry.streak === elapsed && <> · 🔥 every day</>}
+            </>
+          )}
         </div>
       </div>
 
@@ -77,6 +86,7 @@ export function YouStrip({
         </div>
       </div>
 
+      {showDaily && (
       <div className="col-span-2 flex h-9 items-end gap-[3px] sm:col-span-1" title="your day by day">
         {entry.days.slice(0, elapsed).map((v, i) => (
           <i
@@ -86,6 +96,7 @@ export function YouStrip({
           />
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -96,7 +107,7 @@ export function Podium({
   elapsed,
   type,
   unit,
-  coverage,
+  showShape,
 }: {
   entries: CompetitionEntry[];
   days: string[];
@@ -104,7 +115,8 @@ export function Podium({
   type: CompetitionType;
   unit: string;
   /** Share of the week's gains the daily history can account for, 0–1. */
-  coverage: number;
+  /** Whether the week's history is complete enough to draw per-player shapes (see lib/competitionInsights). */
+  showShape: boolean;
 }) {
   const top = entries.slice(0, 3).filter((e) => e.gained > 0);
   if (top.length === 0) return null;
@@ -116,9 +128,7 @@ export function Podium({
 
   // …but a shape drawn from a fraction of the week doesn't just say little, it says the WRONG thing:
   // at 12% coverage third place can own the biggest tracked day and out-draw the leader, flatly
-  // contradicting the ranking directly above it. Below half a week accounted for, the per-player
-  // shape comes off and the clan-level chart (which carries the coverage note) stands alone.
-  const showShape = coverage >= 0.5;
+  // contradicting the ranking directly above it. `showShape` is the page's one judgement about that.
 
   return (
     <div className="mb-7 grid items-end gap-3 sm:grid-cols-3">
@@ -183,18 +193,13 @@ export function Board({
   type,
   unit,
   showDaily,
-  coverage,
 }: {
   entries: CompetitionEntry[];
   elapsed: number;
   type: CompetitionType;
   unit: string;
   showDaily: boolean;
-  /** Share of the week the daily history accounts for — below half, the row shape is dropped. */
-  coverage: number;
 }) {
-  // "Today" is a real observation whatever the coverage; the seven-day shape is not.
-  const showShape = showDaily && coverage >= 0.5;
   const max = Math.max(...entries.flatMap((e) => e.days.slice(0, elapsed)), 1);
 
   return (
@@ -224,11 +229,9 @@ export function Board({
                 e.isMe ? 'bg-gradient-to-r from-accent-green/20 to-card-bg shadow-[inset_3px_0_0_#34d058]' : 'bg-card-bg'
               }`}
               style={{
-                gridTemplateColumns: showShape
+                gridTemplateColumns: showDaily
                   ? '34px minmax(0,1fr) auto auto 34px'
-                  : showDaily
-                    ? '34px minmax(0,1fr) auto auto'
-                    : '34px minmax(0,1fr) auto',
+                  : '34px minmax(0,1fr) auto',
               }}
             >
               <span className={`font-mono text-xs ${i < 3 ? 'text-gold' : 'text-text-muted'}`}>
@@ -255,7 +258,7 @@ export function Board({
               <span className="text-right font-mono text-sm font-bold tabular-nums text-accent-green-light" title={`${exactValue(e.gained, type)} ${unit}`}>
                 {shortValue(e.gained, type)}
               </span>
-              {showShape && (
+              {showDaily && (
                 <span className="flex h-4 items-end gap-[1.5px]">
                   {e.days.slice(0, elapsed).map((v, k) => (
                     <i

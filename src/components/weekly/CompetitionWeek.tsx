@@ -15,6 +15,39 @@ import { dateLabel, exactValue, shortValue, weekdayLabel } from './format';
 
 const LINE_COLORS = ['#f0c940', '#4aa3d4', '#5cbf7a', '#e0603f', '#a78bfa'];
 
+/**
+ * What stands in for the week when its shape can't be drawn.
+ *
+ * Two different absences, and conflating them reads as a bug either way: a competition that predates
+ * the daily sweep never had a shape, while one whose rows explain a sliver of the standings has a
+ * shape that would actively mislead — the sliver leans toward whoever the sweep happened to catch,
+ * so drawing it ranks people wrongly against the exact standings sitting right next to it.
+ */
+export function DailyUnavailable({ trust, coverage }: { trust: 'thin' | 'none' | 'ok'; coverage: number }) {
+  const thin = trust === 'thin';
+  return (
+    <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
+      <p className="mb-1.5 font-semibold text-foreground">
+        {thin ? "Not enough of this week was recorded to chart it" : 'No day-by-day history for this one'}
+      </p>
+      {thin ? (
+        <p className="leading-relaxed">
+          The daily breakdown can only account for{' '}
+          <b className="font-semibold text-foreground">{Math.round(coverage * 100)}%</b> of the totals below,
+          and that slice leans toward whoever the stat sweep happened to catch — so charting it would put
+          people in the wrong order. Days recorded from now on are complete, so the week&apos;s shape returns
+          as they build up. The standings are exact and unaffected.
+        </p>
+      ) : (
+        <p className="leading-relaxed">
+          The daily breakdown is built from the stat sweep&apos;s history, which only covers members of this
+          clan and only from the day tracking started. The standings below are unaffected.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function RaceChart({
   entries,
   days,
@@ -122,9 +155,9 @@ export function RaceChart({
           The day-by-day accounts for{' '}
           <b className="font-semibold text-foreground">{shortValue(trackedTotal, type)}</b> of the{' '}
           <b className="font-semibold text-foreground">{shortValue(clanTotal, type)}</b> gained this week
-          {coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. The rest was already banked by the time the
-          stat sweep first saw each member — a gain only lands on a day once there is an earlier snapshot to
-          compare it against, so the standings are complete and the shape is what was watched.
+          {coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. A gain only lands on a day once the sweep
+          has an earlier snapshot to compare against, so the days before it first saw a member aren&apos;t in
+          here. The standings are exact either way — they come from the competition&apos;s own totals.
         </p>
       )}
     </div>

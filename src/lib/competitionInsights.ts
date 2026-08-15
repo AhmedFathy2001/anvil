@@ -190,3 +190,36 @@ export function mostConsistent(series: DaySeries[], upto: number): DaySeries | n
   }
   return best?.s ?? null;
 }
+
+// ── Can the day-by-day be trusted? ───────────────────────────────────────────────────────────────
+
+/**
+ * How much of the week the daily rows have to explain before the shape is worth drawing.
+ *
+ * Standings come from `weekly_participants` and are always exact. The day-by-day is assembled from
+ * `member_daily_stats`, which can hold LESS than the standings do — a member's history only starts
+ * the day the sweep first saw them, and (until it was fixed) each day's per-metric detail was
+ * overwritten by its final tick instead of accumulated. A partial account is not a small version of
+ * the truth: it is biased toward whoever the sweep happened to catch, which is how a leader gets
+ * drawn beneath the people he is beating. Below this bar the honest thing is to say so and draw
+ * nothing.
+ */
+export const DAILY_TRUST_THRESHOLD = 0.5;
+
+export type DailyTrust = 'ok' | 'thin' | 'none';
+
+/** What fraction of the real total the daily rows account for. 0 when there is nothing to compare. */
+export function dailyCoverage(trackedTotal: number, clanTotal: number): number {
+  if (clanTotal <= 0) return 0;
+  return Math.max(0, Math.min(1, trackedTotal / clanTotal));
+}
+
+/**
+ * Whether to draw the week's shape: 'none' when no daily rows exist at all, 'thin' when they exist
+ * but explain too little to be honest about, 'ok' otherwise.
+ */
+export function dailyTrust(trackedTotal: number, clanTotal: number, hasRows: boolean): DailyTrust {
+  if (!hasRows || trackedTotal <= 0) return 'none';
+  if (clanTotal <= 0) return 'ok'; // nothing gained by anyone — an empty week draws as empty, not broken
+  return dailyCoverage(trackedTotal, clanTotal) >= DAILY_TRUST_THRESHOLD ? 'ok' : 'thin';
+}

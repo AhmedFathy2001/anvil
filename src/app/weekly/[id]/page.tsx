@@ -8,7 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import CompetitionHero from '@/components/weekly/CompetitionHero';
-import { RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
+import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
 
 export const dynamic = 'force-dynamic';
@@ -44,11 +44,11 @@ export default async function WeeklyLeaderboardPage({
       }
     : null;
   // Everything day-shaped hangs off history the sweep writes. A competition from before that (or a
-  // guest-only board) still ranks fine — it just shows the board without the week around it.
-  const showDaily = !view.dailyUnavailable;
-  // How much of the week the daily history can actually account for. Per-player shapes are only
-  // drawn when this is high enough for them to mean something (see Podium/Board).
-  const coverage = view.clanTotal > 0 ? view.trackedTotal / view.clanTotal : 1;
+  // guest-only board) still ranks fine — it just shows the board without the week around it. So does
+  // one whose history is too thin to be honest about: a partial account isn't a rough version of the
+  // week, it's a biased one, and drawing it puts the leader underneath people he's beating. One
+  // judgement gates every daily surface on the page, so they can't disagree about what's drawable.
+  const showDaily = view.trust === 'ok';
 
   return (
     <div>
@@ -68,7 +68,7 @@ export default async function WeeklyLeaderboardPage({
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
         clanTotal={view.clanTotal}
-        todayTotal={view.todayTotal}
+        todayTotal={showDaily ? view.todayTotal : null}
         scoring={view.scoring}
         entered={view.entries.length}
         leader={leader}
@@ -78,7 +78,9 @@ export default async function WeeklyLeaderboardPage({
         totalDays={view.days.length}
       />
 
-      {view.me && <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} />}
+      {view.me && (
+        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} />
+      )}
 
       <Podium
         entries={view.entries}
@@ -86,7 +88,7 @@ export default async function WeeklyLeaderboardPage({
         elapsed={view.elapsed}
         type={view.type}
         unit={view.unit}
-        coverage={coverage}
+        showShape={showDaily}
       />
 
       <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
@@ -120,13 +122,7 @@ export default async function WeeklyLeaderboardPage({
               />
             </>
           ) : (
-            <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
-              <p className="mb-1 font-semibold text-foreground">No day-by-day history for this one</p>
-              <p>
-                The daily breakdown is built from the stat sweep&apos;s history, which only covers members of
-                this clan and only from the day tracking started. The standings below are unaffected.
-              </p>
-            </div>
+            <DailyUnavailable trust={view.trust} coverage={view.coverage} />
           )}
         </div>
 
@@ -137,7 +133,6 @@ export default async function WeeklyLeaderboardPage({
             type={view.type}
             unit={view.unit}
             showDaily={showDaily}
-            coverage={coverage}
           />
           <SidePanels milestones={view.milestones} records={view.records} />
         </div>

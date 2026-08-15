@@ -169,11 +169,14 @@ export function Chase({
   streaks,
   mePlayerId,
   showTeam,
+  finished,
 }: {
   scope: LadderScope;
   streaks: Record<number, number>;
   mePlayerId: number | null;
   showTeam: boolean;
+  /** A finished run's empty states are results, not invitations. */
+  finished: boolean;
 }) {
   const chase = scope.rows.slice(3);
   return (
@@ -182,12 +185,14 @@ export function Chase({
         <span className="h-5 w-1 rounded-full bg-gold" />
         The chase
         <span className="text-xs font-normal text-text-muted">
-          {chase.length > 0 ? `ranks 4–${scope.rows.length}` : 'nobody else on the board yet'}
+          {chase.length > 0 ? `ranks 4–${scope.rows.length}` : finished ? 'nobody else made the board' : 'nobody else on the board yet'}
         </span>
       </h2>
       {chase.length === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-xs text-text-muted">
-          The rest of the ladder shows up here as people start claiming.
+          {finished
+            ? 'Nobody outside the top three scored on this one.'
+            : 'The rest of the ladder shows up here as people start claiming.'}
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-card-border">

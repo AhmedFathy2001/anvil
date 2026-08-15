@@ -85,10 +85,15 @@ export default function LadderHero({
 
   const state = now === null ? null : eventTimeState({ startDate, endDate, forceEndedAt, now });
   const phase = state?.phase ?? 'none';
-  const finished = phase === 'ended' || phase === 'force-ended';
+  // Derived from the dates, not the clock: the clock is null until mount, so a clock-derived
+  // `finished` made the server render the LIVE header for a run that ended days ago, and the
+  // countdown label flashed "Ladder ends in" over 00:00:00 before hydration corrected it.
+  const finished = !!forceEndedAt || (!!endDate && Date.parse(endDate) <= (now ?? Date.now()));
   const hasPrize = prizePool > 0;
   const prizes = placementPrizes.filter((p) => p > 0);
 
+  // A finished ladder has nothing to count down to. Leaving the countdown in place ran it to
+  // 00:00:00 under the label "Ladder ends in", which reads as a bug rather than a result.
   let clockLabel = 'Season resets in';
   let target: number | null = season ? Date.parse(season.resetAt) : null;
   let countUp = false;
@@ -120,7 +125,11 @@ export default function LadderHero({
     ) : lifecycle === 'endless' ? (
       <>This ladder never resets — every point ever earned still counts. The monthly and 7-day boards are how you see who is moving <em>now</em>.</>
     ) : (
-      <>This one has a finish line, so there are no seasons and nothing to reset — final standings lock at the end.</>
+      <>
+        {finished
+          ? 'This one had a finish line, so there were no seasons and nothing to reset — these standings are final.'
+          : 'This one has a finish line, so there are no seasons and nothing to reset — final standings lock at the end.'}
+      </>
     );
 
   return (
@@ -176,8 +185,16 @@ export default function LadderHero({
           )}
 
           <div className="mt-6">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">{clockLabel}</div>
-            <Clock now={now} target={target} countUp={countUp} />
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">
+              {finished ? 'Ended' : clockLabel}
+            </div>
+            {finished ? (
+              <div className="mt-1.5 text-2xl font-bold text-foreground sm:text-3xl">
+                {forceEndedAt ?? endDate ? formatExactTime(Date.parse((forceEndedAt ?? endDate)!)) : 'Closed'}
+              </div>
+            ) : (
+              <Clock now={now} target={target} countUp={countUp} />
+            )}
             <p className="mt-3 max-w-xl text-xs leading-relaxed text-text-muted">{subline}</p>
           </div>
 

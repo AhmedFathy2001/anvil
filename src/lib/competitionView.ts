@@ -5,6 +5,9 @@ import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { BOSSES, SKILL_LABELS, EFFICIENCY_LABELS, EFFICIENCY_SCALE } from '@/lib/constants';
 import {
   activeStreak,
+  dailyCoverage,
+  dailyTrust,
+  type DailyTrust,
   buildSeries,
   dailyLeaders,
   dailyTotals,
@@ -30,9 +33,11 @@ export interface CompetitionEntry {
   /** The competition's own number: currentValue − baselineValue. Authoritative. */
   gained: number;
   /**
-   * How much of that the daily history actually accounts for. Lower than `gained` whenever the
-   * sweep started watching this member after the competition's baseline was taken — a gain only
-   * lands on a day once there is an earlier snapshot to diff against (lib/statHistory).
+   * How much of that the daily history actually accounts for. Lower than `gained` when the sweep
+   * started watching this member after the competition's baseline was taken (a gain only lands on a
+   * day once there is an earlier snapshot to diff against), and — for every week recorded before the
+   * fix in lib/statHistory — because each day's per-metric detail was overwritten by its last tick
+   * rather than accumulated. Those weeks can't be repaired, so the page gates on it instead.
    */
   trackedGain: number;
   /** Gain per day, index-aligned with {@link CompetitionView.days}. */
@@ -91,8 +96,13 @@ export interface CompetitionView {
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null } | null;
   milestones: CompetitionMilestone[];
   records: CompetitionRecord[];
-  /** True when nothing daily could be loaded (guest-only board, or pre-history competition). */
-  dailyUnavailable: boolean;
+  /**
+   * Whether the week's shape is worth drawing: 'none' (guest-only board or pre-history competition),
+   * 'thin' (rows exist but explain too little of the standings to be honest about), or 'ok'.
+   */
+  trust: DailyTrust;
+  /** Fraction of clanTotal the daily rows account for, for the copy that explains a thin week. */
+  coverage: number;
 }
 
 function metricLabel(type: CompetitionType, metric: string): string {
@@ -224,8 +234,12 @@ export async function buildCompetitionView(
   const scoring = entries.filter((e) => e.gained > 0).length;
 
   // Daily history only started when the sweep did, so an older competition can legitimately have a
-  // board and no shape. Say so rather than drawing an empty chart.
-  const dailyUnavailable = dailyRows.length === 0 || totals.slice(0, elapsed).every((t) => t === 0);
+  // board and no shape — and a competition whose rows explain only a sliver of the standings has a
+  // shape that is worse than none, because the sliver is biased toward whoever the sweep caught.
+  // Say which of the two it is rather than drawing either one.
+  const hasRows = dailyRows.length > 0 && !totals.slice(0, elapsed).every((t) => t === 0);
+  const trust = dailyTrust(trackedTotal, clanTotal, hasRows);
+  const coverage = dailyCoverage(trackedTotal, clanTotal);
 
   const projected = projectTotal(clanTotal, elapsed, days.length);
   const previous = await loadPrevious(competition, projected ?? clanTotal);
@@ -265,8 +279,12 @@ export async function buildCompetitionView(
     previous,
     me,
     milestones,
-    records: buildRecords(entries, series, elapsed, type),
-    dailyUnavailable,
+    // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
+    // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
+    // week whose leader gained 1.0M), so it produces nothing instead.
+    records: trust === 'ok' ? buildRecords(entries, series, elapsed, type) : [],
+    trust,
+    coverage,
   };
 }
 

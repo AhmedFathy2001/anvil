@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   activeStreak,
   buildSeries,
+  dailyCoverage,
+  dailyTrust,
   cumulative,
   dailyLeaders,
   dailyTotals,
@@ -111,4 +113,37 @@ test('most consistent rewards steadiness, not volume', () => {
   ];
   assert.equal(mostConsistent(series, 4)?.rsn, 'Steady');
   assert.equal(mostConsistent([{ rsn: 'Nobody', days: [0, 0] }], 2), null);
+});
+
+// ── Daily trust ──────────────────────────────────────────────────────────────────────────────────
+
+test('a week the daily rows fully explain is drawable', () => {
+  assert.equal(dailyTrust(4_000_000, 4_200_000, true), 'ok');
+  assert.equal(dailyCoverage(4_000_000, 4_200_000) > 0.95, true);
+});
+
+test('the live clan week that started this — 786.8K of 4.5M — is too thin to draw', () => {
+  assert.equal(dailyTrust(786_800, 4_500_000, true), 'thin');
+  assert.equal(Math.round(dailyCoverage(786_800, 4_500_000) * 100), 17);
+});
+
+test('exactly at the threshold counts as drawable', () => {
+  assert.equal(dailyTrust(50, 100, true), 'ok');
+  assert.equal(dailyTrust(49, 100, true), 'thin');
+});
+
+test('no rows, or rows that total nothing, is "none" rather than "thin"', () => {
+  assert.equal(dailyTrust(0, 4_500_000, false), 'none');
+  assert.equal(dailyTrust(0, 4_500_000, true), 'none');
+});
+
+test('a week where nobody gained anything draws as empty, not broken', () => {
+  assert.equal(dailyTrust(0, 0, true), 'none');
+  assert.equal(dailyTrust(10, 0, true), 'ok');
+  assert.equal(dailyCoverage(10, 0), 0);
+});
+
+test('coverage is clamped — a stale total can never read over 100%', () => {
+  assert.equal(dailyCoverage(9_000, 4_000), 1);
+  assert.equal(dailyCoverage(-5, 4_000), 0);
 });
