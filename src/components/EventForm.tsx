@@ -19,6 +19,23 @@ interface EventFormProps {
   suggestedName?: string;
 }
 
+/**
+ * The four modes that are one board.
+ *
+ * Showdown, Lucky draw, Bounty and Ladder all store a points-scored task pool; what separates them
+ * is `rules.revealPolicy` and, for the ladder, whether people compete as teams or individuals. They
+ * stay as named presets because that's what people call them — but they're presets of one format,
+ * not four formats.
+ */
+const POOL_MODES: Mode[] = ['showdown', 'luckydraw', 'bounty', 'ladder'];
+
+const POOL_PRESETS: { mode: Mode; label: string; blurb: string }[] = [
+  { mode: 'luckydraw', label: 'Lucky draw', blurb: 'Teams · a random draw opens tasks on a timer' },
+  { mode: 'showdown', label: 'Showdown', blurb: 'Teams · each task opens at a time you set' },
+  { mode: 'bounty', label: 'Bounty hunt', blurb: 'Teams · one task at a time, first to finish claims it' },
+  { mode: 'ladder', label: 'Ladder', blurb: 'Individuals · a rotating pool ranked on one leaderboard' },
+];
+
 /** 'SOTW: Agility' — what a competition calls itself when you don't rename it. */
 function defaultWeeklyTitle(type: 'skill' | 'boss' | 'efficiency', metric: string): string {
   const label =
@@ -147,6 +164,22 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         : 'Build teams — draft with an order, or assign from the roster',
     startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
   ];
+
+  const isPool = POOL_MODES.includes(mode);
+  // Which pool preset the card lands on when you pick it cold — the most-used one.
+  const poolMode: Mode = isPool ? mode : 'luckydraw';
+
+  /**
+   * Change how tasks open without leaving the pool. On a ladder the policy rides on the same mode;
+   * on a team board each policy has its own preset key, which is all that key ever meant.
+   */
+  function setPoolPolicy(next: 'scheduled' | 'interval' | 'bounty' | 'rotating') {
+    if (mode === 'ladder') {
+      setLadderRotation(next === 'scheduled' ? 'interval' : next);
+      return;
+    }
+    changeMode(next === 'scheduled' ? 'showdown' : next === 'bounty' ? 'bounty' : 'luckydraw');
+  }
 
   /** Choosing a weekly parks the board config; choosing a board format clears the weekly. */
   function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
@@ -426,8 +459,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               diagram of the board it produces, because the names alone never said enough. */}
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {MODES.map((m) => {
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {MODES.filter((m) => !POOL_MODES.includes(m.key)).map((m) => {
                 const active = mode === m.key;
                 return (
                   <button
@@ -453,7 +486,91 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                   </button>
                 );
               })}
+
+              {/* Showdown, Lucky draw, Bounty and Ladder are the same board — a points-scored pool of
+                  tasks — differing only in who competes and when tasks open. They were four cards
+                  pretending to be four formats; now they're one with those two knobs. */}
+              <button
+                type="button"
+                onClick={() => changeMode(poolMode)}
+                aria-pressed={isPool}
+                className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                  isPool ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                }`}
+              >
+                <span className="flex items-center justify-center h-8 mb-2">
+                  <BoardShape mode={isPool ? mode : 'luckydraw'} size={isPool ? size : undefined} />
+                </span>
+                <span className={`block text-sm font-medium leading-tight ${isPool ? 'text-gold' : ''}`}>
+                  Task pool
+                </span>
+                <span className="block text-[10px] text-text-muted mt-1 leading-tight">
+                  points · tasks open over time
+                </span>
+              </button>
             </div>
+
+            {isPool && (
+              <div className="mt-2 rounded-lg border border-gold/25 bg-gold/[0.04] p-3 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {POOL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.mode}
+                      type="button"
+                      onClick={() => changeMode(preset.mode)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        mode === preset.mode
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                      title={preset.blurb}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Who competes</label>
+                    <Select
+                      value={mode === 'ladder' ? 'individuals' : 'teams'}
+                      onChange={(v) => changeMode(v === 'individuals' ? 'ladder' : 'luckydraw')}
+                      ariaLabel="Who competes"
+                      options={[
+                        { value: 'teams', label: 'Teams — drafted, scored together' },
+                        { value: 'individuals', label: 'Individuals — one leaderboard, no draft' },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">How tasks open</label>
+                    <Select
+                      value={effectivePolicy ?? 'interval'}
+                      onChange={(v) => setPoolPolicy(v as 'scheduled' | 'interval' | 'bounty' | 'rotating')}
+                      ariaLabel="How tasks open"
+                      options={
+                        mode === 'ladder'
+                          ? [
+                              { value: 'interval', label: 'On a timer — new tasks open and stay open' },
+                              { value: 'rotating', label: 'Rotating window — new draws expire the oldest' },
+                              { value: 'bounty', label: 'One at a time — first to finish claims it' },
+                            ]
+                          : [
+                              { value: 'interval', label: 'On a timer — new tasks open and stay open' },
+                              { value: 'bounty', label: 'One at a time — first to finish claims it' },
+                              { value: 'scheduled', label: 'Per-tile times — you set each one on the Tiles tab' },
+                            ]
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Both are changeable after it exists, from the event&rsquo;s Rules &amp; dates — without
+                  rebuilding the board.
+                </p>
+              </div>
+            )}
 
             <p className="text-[11px] uppercase tracking-widest text-text-muted mt-4 mb-1.5">
               Whole clan · no sign-up
