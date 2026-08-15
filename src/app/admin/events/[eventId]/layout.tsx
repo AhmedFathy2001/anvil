@@ -14,6 +14,7 @@ import { isEventOver, eventEditLocked } from '@/lib/eventLock';
 import { lifecycleSteps, eventStage } from '@/lib/eventStage';
 import { getStageCounts } from '@/lib/eventStageCounts';
 import { eventRailGroups } from '@/lib/eventRail';
+import { authoringModel } from '@/lib/tileAuthoring';
 import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,9 @@ export default async function EventLayout({
 
   // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
   const stageCounts = await getStageCounts(id);
-  const steps = lifecycleSteps(event, stageCounts);
+  // What this board calls its entries, so the lifecycle step and the tab agree with the page.
+  const { NounPlural, noun, nounPlural } = authoringModel(event);
+  const steps = lifecycleSteps({ ...event, taskNounPlural: NounPlural }, stageCounts);
   const tileCount = { c: stageCounts.tileCount };
   const teamCount = { c: stageCounts.teamCount };
 
@@ -73,6 +76,7 @@ export default async function EventLayout({
     stage: eventStage(event),
     counts: stageCounts,
     tilesOnly: isEditor,
+    taskNounPlural: nounPlural,
   });
 
   return (
@@ -111,7 +115,7 @@ export default async function EventLayout({
             Points
           </span>
         )}
-        <span>{tileCount.c} tiles</span>
+        <span>{tileCount.c} {tileCount.c === 1 ? noun : nounPlural}</span>
         <span>·</span>
         <span>{teamCount.c} team{teamCount.c !== 1 ? 's' : ''}</span>
       </div>
@@ -131,7 +135,7 @@ export default async function EventLayout({
           }}
         />
       )}
-      {isEditor && <EventTabNav eventId={id} tilesOnly />}
+      {isEditor && <EventTabNav eventId={id} tilesOnly taskNounPlural={NounPlural} />}
 
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
           give admins the explicit unlock/re-lock control. */}
