@@ -27,6 +27,7 @@ export function YouStrip({
   unit,
   elapsed,
   showDaily,
+  started,
 }: {
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null };
   type: CompetitionType;
@@ -34,11 +35,16 @@ export function YouStrip({
   elapsed: number;
   /** Whether the week's daily history is complete enough to say anything about your days. */
   showDaily: boolean;
+  /** Whether the competition has begun — an unstarted one has no standings to narrate. */
+  started: boolean;
 }) {
   const { entry, behind, rank } = me;
   const max = Math.max(...entry.days.slice(0, elapsed), 1);
   const activeDays = entry.days.slice(0, elapsed).filter((d) => d > 0).length;
-  const share = behind ? entry.gained / Math.max(1, entry.gained + behind.amount) : 1;
+  // A scoreless board has no leader and no gap to draw. Before this, everyone enrolled in a
+  // competition that had not started yet was told "You are winning this one" over a full green bar.
+  const scored = entry.gained > 0;
+  const share = !scored ? 0 : behind ? entry.gained / Math.max(1, entry.gained + behind.amount) : 1;
 
   return (
     <div className="sticky top-[var(--nav-height)] z-10 mb-6 grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
@@ -70,7 +76,9 @@ export function YouStrip({
 
       <div className="col-span-2 sm:col-span-1">
         <div className="mb-1.5 text-xs text-text-muted">
-          {behind ? (
+          {!scored ? (
+            <span>{started ? 'Nothing scored yet — first one on the board leads.' : 'Not started yet. You are entered.'}</span>
+          ) : behind ? (
             <>
               <span className="font-semibold text-foreground">{shortValue(behind.amount, type)} {unit}</span> behind {behind.rsn}
             </>
@@ -235,7 +243,7 @@ export function Board({
               }}
             >
               <span className={`font-mono text-xs ${i < 3 ? 'text-gold' : 'text-text-muted'}`}>
-                {i < 3 ? MEDALS[i] : `#${i + 1}`}
+                {i < 3 && e.gained > 0 ? MEDALS[i] : `#${i + 1}`}
               </span>
               <span className="min-w-0 truncate text-sm font-medium">
                 {e.rsn}

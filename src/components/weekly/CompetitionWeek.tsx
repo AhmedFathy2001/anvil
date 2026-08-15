@@ -23,8 +23,28 @@ const LINE_COLORS = ['#f0c940', '#4aa3d4', '#5cbf7a', '#e0603f', '#a78bfa'];
  * shape that would actively mislead — the sliver leans toward whoever the sweep happened to catch,
  * so drawing it ranks people wrongly against the exact standings sitting right next to it.
  */
-export function DailyUnavailable({ trust, coverage }: { trust: 'thin' | 'none' | 'ok'; coverage: number }) {
+export function DailyUnavailable({
+  trust,
+  coverage,
+  started,
+}: {
+  trust: 'thin' | 'none' | 'ok';
+  coverage: number;
+  /** An unstarted competition has no history because there is no week yet — say that, not "none". */
+  started: boolean;
+}) {
   const thin = trust === 'thin';
+  if (!started) {
+    return (
+      <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
+        <p className="mb-1.5 font-semibold text-foreground">This one has not started yet</p>
+        <p className="leading-relaxed">
+          The day-by-day fills in as the week runs — who moved on which day, who is on a streak, and how the
+          clan is pacing against its last run at this metric. Everyone below is already entered.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
       <p className="mb-1.5 font-semibold text-foreground">
