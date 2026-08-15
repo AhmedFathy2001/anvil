@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { eventSignups, signupFees } from '@/db/schema';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
-import { applyFeeConfirmation } from '@/lib/feeConfirmations';
+import { applyFeeConfirmation, getRequiredConfirmations, settlesOnCollect } from '@/lib/feeConfirmations';
 
 /**
  * Sign off on every fee this admin is allowed to sign off on.
@@ -32,13 +32,22 @@ export async function POST(request: Request) {
     /* no body — every event */
   }
 
+  // With no second signature required there is nobody to be separate from, so the caller's own
+  // collections are settleable too — which is the only way a one-person treasury clears the
+  // backlog it built up while the rule was in force.
+  const noSignature = settlesOnCollect(await getRequiredConfirmations());
+
   const scope = (forCaller: boolean) =>
     and(
       eq(signupFees.status, 'collected'),
-      // Never the caller's own collections: separation of duties is the point of this step.
-      forCaller
-        ? eq(signupFees.collectedByUserId, session.userId)
-        : ne(signupFees.collectedByUserId, session.userId),
+      // Otherwise never the caller's own collections: separation of duties is the point of this step.
+      ...(noSignature
+        ? []
+        : [
+            forCaller
+              ? eq(signupFees.collectedByUserId, session.userId)
+              : ne(signupFees.collectedByUserId, session.userId),
+          ]),
       // A withdrawn/rejected sign-up's fee is dead money, not something to settle.
       notInArray(eventSignups.status, ['withdrawn', 'rejected']),
       ...(eventId != null ? [eq(eventSignups.eventId, eventId)] : []),
@@ -63,11 +72,15 @@ export async function POST(request: Request) {
   }
 
   // How many are left that only SOMEONE ELSE can clear — the honest answer to "why isn't it zero?"
-  const mine = await db
-    .select({ id: signupFees.id })
-    .from(signupFees)
-    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
-    .where(scope(true));
+  // With no second signature required nothing is waiting on anyone else, and scope(true) would
+  // match every collected fee, so reporting it would invent a blocker that doesn't exist.
+  const mine = noSignature
+    ? []
+    : await db
+        .select({ id: signupFees.id })
+        .from(signupFees)
+        .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+        .where(scope(true));
 
   return NextResponse.json({ confirmed, recorded, skipped, awaitingOtherAdmin: mine.length });
 }

@@ -2,22 +2,25 @@ import { db } from '@/db';
 import { clanAuditLog, eventSignups, settings, signupFees } from '@/db/schema';
 import { and, eq, notInArray } from 'drizzle-orm';
 import { del } from '@/lib/storage';
+import {
+  clampRequiredConfirmations,
+  decideConfirmation,
+  settlesOnCollect,
+  type ConfirmOutcome,
+  type FeeConfirmation,
+} from '@/lib/feeRules';
 
-// How many distinct staff confirmations a paid fee needs before it's settled. Admin-set via
-// the `fee_confirmations_required` setting; defaults to 1 (single confirm, today's behaviour).
-// Clamped to a sane 1–5.
+export { settlesOnCollect };
+export type { ConfirmOutcome, FeeConfirmation };
+
+// How many distinct staff confirmations a paid fee needs before it's settled. Admin-set via the
+// `fee_confirmations_required` setting; defaults to 1 (a single second pair of eyes). 0 means the
+// clan has turned the second signature off — see lib/feeRules for why that exists.
 export async function getRequiredConfirmations(): Promise<number> {
   const row = await db.query.settings.findFirst({
     where: eq(settings.key, 'fee_confirmations_required'),
   });
-  const n = parseInt(row?.value || '1', 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(n, 5);
-}
-
-export interface FeeConfirmation {
-  userId: number;
-  at: string;
+  return clampRequiredConfirmations(row?.value);
 }
 
 export function parseConfirmations(json: string | null | undefined): FeeConfirmation[] {
@@ -38,18 +41,6 @@ export function parseConfirmations(json: string | null | undefined): FeeConfirma
 // action and the end-of-event auto-close, so the separation-of-duties rule can't drift between them.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type ConfirmOutcome =
-  /** Vote recorded and the fee settled — proof deleted, status 'confirmed'. */
-  | 'confirmed'
-  /** Vote recorded, still short of the required count. Fee stays 'collected'. */
-  | 'recorded'
-  /** Nothing to do: already settled, or this admin already voted. */
-  | 'noop'
-  /** Refused: the collector can't sign off on their own collection. */
-  | 'own-collection'
-  /** Refused: nobody has marked this fee paid yet. */
-  | 'not-collected';
-
 export interface ConfirmResult {
   outcome: ConfirmOutcome;
   confirmations: number;
@@ -69,66 +60,89 @@ export async function applyFeeConfirmation(
   actorUserId: number,
   opts: { auto?: boolean } = {},
 ): Promise<ConfirmResult> {
-  const auto = opts.auto === true;
   const required = await getRequiredConfirmations();
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, feeId) });
   if (!fee) return { outcome: 'noop', confirmations: 0, required };
-  if (fee.status === 'confirmed') return { outcome: 'noop', confirmations: 0, required };
-  if (!fee.collectedByUserId) return { outcome: 'not-collected', confirmations: 0, required };
-  // Separation of duties — the person who collected can't also sign off on it.
-  if (!auto && fee.collectedByUserId === actorUserId) {
-    return { outcome: 'own-collection', confirmations: 0, required };
-  }
-
-  const confirmations = parseConfirmations(fee.confirmations);
-  if (!auto && confirmations.some((c) => c.userId === actorUserId)) {
-    return { outcome: 'noop', confirmations: confirmations.length, required };
-  }
 
   const now = new Date().toISOString();
-  // The auto path settles outright rather than casting a vote it can't attribute to anyone.
-  const nextConfirmations = auto
-    ? confirmations
-    : [...confirmations, { userId: actorUserId, at: now }];
-  const met = auto || nextConfirmations.length >= required;
+  const decision = decideConfirmation(
+    {
+      status: fee.status,
+      collectedByUserId: fee.collectedByUserId,
+      confirmations: parseConfirmations(fee.confirmations),
+    },
+    actorUserId,
+    required,
+    now,
+    opts,
+  );
 
-  if (fee.proofBlobUrl && met) {
+  if (decision.outcome === 'own-collection' || decision.outcome === 'not-collected') {
+    return { outcome: decision.outcome, confirmations: 0, required };
+  }
+  if (decision.outcome === 'noop') {
+    return { outcome: 'noop', confirmations: decision.confirmations.length, required };
+  }
+
+  if (fee.proofBlobUrl && decision.dropProof) {
     del(fee.proofBlobUrl).catch(() => {});
   }
 
   await db
     .update(signupFees)
     .set({
-      confirmations: JSON.stringify(nextConfirmations),
-      status: met ? 'confirmed' : fee.status,
-      confirmedByUserId: met && actorUserId > 0 ? actorUserId : null,
-      confirmedAt: met ? now : null,
-      proofBlobUrl: met ? null : fee.proofBlobUrl,
+      confirmations: JSON.stringify(decision.confirmations),
+      status: decision.settled ? 'confirmed' : fee.status,
+      confirmedByUserId: decision.settled && actorUserId > 0 ? actorUserId : null,
+      confirmedAt: decision.settled ? now : null,
+      proofBlobUrl: decision.dropProof ? null : fee.proofBlobUrl,
     })
     .where(eq(signupFees.id, feeId));
 
-  if (met) {
-    const signup = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId) });
-    db.insert(clanAuditLog)
-      .values({
-        clanMemberId: signup?.clanMemberId ?? null,
-        eventType: 'fee_confirmed',
-        newValue: JSON.stringify({
-          feeId,
-          amount: fee.amount,
-          collectedByUserId: fee.collectedByUserId,
-          ...(auto ? { auto: true } : {}),
-        }),
-        actorUserId: actorUserId > 0 ? actorUserId : null,
-      })
-      .catch(() => {});
+  if (decision.settled) {
+    await recordFeeSettled(feeId, fee.signupId, fee.amount, fee.collectedByUserId, actorUserId, {
+      auto: opts.auto === true,
+      noSignature: settlesOnCollect(required),
+    });
   }
 
   return {
-    outcome: met ? 'confirmed' : 'recorded',
-    confirmations: nextConfirmations.length,
+    outcome: decision.outcome,
+    confirmations: decision.confirmations.length,
     required,
   };
+}
+
+/**
+ * One audit entry per settled fee, whoever settled it and however.
+ *
+ * `noSignature` marks the ones a clan settled with the second signature turned off, so a later read
+ * of the trail can tell "an admin signed this off" from "this clan does not require one" — the
+ * difference matters if anyone ever asks where the money went.
+ */
+export async function recordFeeSettled(
+  feeId: number,
+  signupId: number,
+  amount: number,
+  collectedByUserId: number | null,
+  actorUserId: number,
+  flags: { auto?: boolean; noSignature?: boolean } = {},
+): Promise<void> {
+  const signup = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, signupId) });
+  db.insert(clanAuditLog)
+    .values({
+      clanMemberId: signup?.clanMemberId ?? null,
+      eventType: 'fee_confirmed',
+      newValue: JSON.stringify({
+        feeId,
+        amount,
+        collectedByUserId,
+        ...(flags.auto ? { auto: true } : {}),
+        ...(flags.noSignature ? { noSignature: true } : {}),
+      }),
+      actorUserId: actorUserId > 0 ? actorUserId : null,
+    })
+    .catch(() => {});
 }
 
 /**
