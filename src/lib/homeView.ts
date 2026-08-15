@@ -164,7 +164,11 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
     const type = (['skill', 'boss', 'efficiency'].includes(c.type) ? c.type : 'skill') as CompetitionType;
     const parts = partRows.filter((p) => p.competitionId === c.id);
     const ranked = parts
-      .map((p) => ({ rsn: p.rsn, value: (p.currentValue ?? 0) - (p.baselineValue ?? 0) }))
+      .map((p) => ({
+        rsn: p.rsn,
+        value: (p.currentValue ?? 0) - (p.baselineValue ?? 0),
+        trackable: p.clanMemberId != null,
+      }))
       .filter((p) => p.value > 0)
       .sort((a, b) => b.value - a.value);
 
@@ -198,8 +202,10 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
       // isn't a rough version of it, it's a biased one. A card too small to caption is the worst
       // place to show a chart that needs an asterisk, so it just doesn't get one.
       const tracked = days.reduce((a, b) => a + b, 0);
-      const clanTotal = ranked.reduce((a, b) => a + b.value, 0);
-      if (dailyTrust(tracked, clanTotal, days.some((d) => d > 0)) !== 'ok') days = [];
+      // Guests can never appear in the day-by-day, so they don't count against it (competitionView
+      // scores the same way — the two surfaces must agree about whether a week is drawable).
+      const trackable = ranked.reduce((a, b) => a + (b.trackable ? b.value : 0), 0);
+      if (dailyTrust(tracked, trackable, days.some((d) => d > 0)) !== 'ok') days = [];
     }
 
     return {

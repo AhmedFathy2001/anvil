@@ -45,6 +45,12 @@ export interface CompetitionEntry {
   /** Today's gain (the last elapsed day). */
   today: number;
   streak: number;
+  /**
+   * Whether daily history is even possible for this person. Guests rank on the board but have no
+   * clan member row, so they have no `member_daily_stats` — counting them against the day-by-day
+   * would make a guest-heavy competition look permanently broken rather than partly untrackable.
+   */
+  trackable: boolean;
   /** Baseline looks stale (weekly_participants.flagged) — say so rather than rank a bad number. */
   flagged: boolean;
   flagReason: string | null;
@@ -85,8 +91,12 @@ export interface CompetitionView {
   dailyTotals: number[];
   dailyLeaders: (string | null)[];
   clanTotal: number;
-  /** Clan total the day-by-day can explain. Below clanTotal = the shape is a partial account. */
+  /** Clan total the day-by-day can explain. Below trackableTotal = the shape is a partial account. */
   trackedTotal: number;
+  /** Total gained by people who CAN have daily history — clanTotal minus the guests. */
+  trackableTotal: number;
+  /** How much of clanTotal came from guests, who rank but are never in the day-by-day. */
+  guestGain: number;
   todayTotal: number;
   scoring: number;
   /** Where the clan lands at this pace, and how that compares to the last competition on this metric. */
@@ -101,7 +111,7 @@ export interface CompetitionView {
    * 'thin' (rows exist but explain too little of the standings to be honest about), or 'ok'.
    */
   trust: DailyTrust;
-  /** Fraction of clanTotal the daily rows account for, for the copy that explains a thin week. */
+  /** Fraction of trackableTotal the daily rows account for, for the copy that explains a thin week. */
   coverage: number;
 }
 
@@ -220,6 +230,7 @@ export async function buildCompetitionView(
       days: s.days,
       today: s.days[elapsed - 1] ?? 0,
       streak: activeStreak(s.days, elapsed),
+      trackable: memberIdByRsn.has(b.rsn),
       flagged: flag?.flagged ?? false,
       flagReason: flag?.reason ?? null,
       isMe: myRsns.has(b.rsn),
@@ -230,6 +241,11 @@ export async function buildCompetitionView(
   const leaders = dailyLeaders(series, days.length);
   const clanTotal = entries.reduce((s, e) => s + Math.max(0, e.gained), 0);
   const trackedTotal = entries.reduce((s, e) => s + Math.max(0, e.trackedGain), 0);
+  // The denominator for "did we watch this week" is what COULD have been watched. A guest has no
+  // daily history by construction, so scoring the day-by-day against a total that includes them
+  // punishes the page for something no fix can change.
+  const trackableTotal = entries.reduce((s, e) => s + (e.trackable ? Math.max(0, e.gained) : 0), 0);
+  const guestGain = clanTotal - trackableTotal;
   const todayTotal = totals[elapsed - 1] ?? 0;
   const scoring = entries.filter((e) => e.gained > 0).length;
 
@@ -238,8 +254,8 @@ export async function buildCompetitionView(
   // shape that is worse than none, because the sliver is biased toward whoever the sweep caught.
   // Say which of the two it is rather than drawing either one.
   const hasRows = dailyRows.length > 0 && !totals.slice(0, elapsed).every((t) => t === 0);
-  const trust = dailyTrust(trackedTotal, clanTotal, hasRows);
-  const coverage = dailyCoverage(trackedTotal, clanTotal);
+  const trust = dailyTrust(trackedTotal, trackableTotal, hasRows);
+  const coverage = dailyCoverage(trackedTotal, trackableTotal);
 
   const projected = projectTotal(clanTotal, elapsed, days.length);
   const previous = await loadPrevious(competition, projected ?? clanTotal);
@@ -273,6 +289,8 @@ export async function buildCompetitionView(
     dailyLeaders: leaders,
     clanTotal,
     trackedTotal,
+    trackableTotal,
+    guestGain,
     todayTotal,
     scoring,
     projected,
