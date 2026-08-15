@@ -1,30 +1,33 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import {
-  clanMembers,
-  detectedAccounts,
-  events,
-  eventSignups,
-  players,
-  teams,
-  users,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { clanMembers, detectedAccounts, users } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
-import { signupWindowState } from '@/lib/signup';
-import LinkAccountClient from './LinkAccountClient';
-import PluginPlayerTokenClient from './PluginPlayerTokenClient';
-import ConnectedPluginsClient from './ConnectedPluginsClient';
 import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
-import DetectedAccountsClient from './DetectedAccountsClient';
-import IgnoredAccountsClient from './IgnoredAccountsClient';
+import { buildLocker } from '@/lib/profileLocker';
+import PlayerCard from './PlayerCard';
+import ConnectCard from './ConnectCard';
+import LiveForYou from './LiveForYou';
+import RunSoFar from './RunSoFar';
+import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail';
 import LinkedAccountsClient from './LinkedAccountsClient';
-import GettingStarted, { type GettingStartedProps } from './GettingStarted';
+import DetectedAccountsClient from './DetectedAccountsClient';
+import SecurityDrawer from './SecurityDrawer';
 
+export const dynamic = 'force-dynamic';
+
+/**
+ * /profile — the member's locker.
+ *
+ * This page used to be a settings form: link an account, copy a token, and never open it again. It
+ * is now the surface a member checks between sessions — what's running for them, what they've won,
+ * what they're close to — with the setup it replaces kept to one card that removes itself once it's
+ * done, and every form folded into the drawer at the bottom.
+ *
+ * All the assembly lives in lib/profileLocker; this file is layout.
+ */
 export default async function ProfilePage({
   searchParams,
 }: {
@@ -35,399 +38,181 @@ export default async function ProfilePage({
     redirect('/login?return=/profile');
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.userId),
-  });
+  const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
   if (!user) {
     redirect('/login');
   }
 
-  // The "Connected plugins" panel is a federation-only surface (cross-clan tokens, minted for the
-  // broker Sign-in flow). Until this clan turns federation on it has no home in the plugin — the
-  // plugin connects to one clan via its Account Token — so don't show a multi-clan token UI at all.
-  const federationEnabled = await getFederationEnabled();
+  const welcome = (await searchParams).welcome === '1';
+  const [locker, federationEnabled, clanName] = await Promise.all([
+    buildLocker(user.id),
+    getFederationEnabled(),
+    getClanDisplayName(),
+  ]);
 
-  const linkedRows = await db.query.clanMembers.findMany({
+  // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
+  // they already own through another path so we never suggest an account that's on the list above.
+  const owned = await db.query.clanMembers.findMany({
     where: and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)),
-    orderBy: (m, { desc }) => [desc(m.isPrimary), desc(m.verifiedAt)],
+    columns: { rsnNormalized: true, accountHash: true },
   });
-  // Federation anchors are not accounts. An inbound /exchange creates a placeholder row named
-  // `guest:<discordId>` (see api/federation/v1/exchange — rsn is NOT NULL, and an assertion carries
-  // no RSN, so the discord_id keys the row). It exists to hang a visiting member's relationship on,
-  // and it was rendering here as a linked RuneScape account: unverified, undeletable-looking, and
-  // named after a number the member has never seen. Colons can't occur in an OSRS name, so the
-  // prefix is an unambiguous test.
-  const linkedAccounts = linkedRows.filter((m) => !m.rsn.startsWith('guest:'));
-
-  // Plugin-detected accounts awaiting an opt-in decision. Filter out any that are already
-  // linked (owned by this user) so we never suggest an account that's on the list above.
-  const ownedRsns = new Set(linkedAccounts.map((m) => m.rsnNormalized));
-  const ownedHashes = new Set(linkedAccounts.map((m) => m.accountHash).filter(Boolean) as string[]);
-  const detectedPending = await db.query.detectedAccounts.findMany({
-    where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
+  const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));
+  const ownedHashes = new Set(owned.map((m) => m.accountHash).filter(Boolean) as string[]);
+  const detectedRows = await db.query.detectedAccounts.findMany({
+    where: eq(detectedAccounts.userId, user.id),
     orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
   });
-  const detectedForClient = detectedPending
-    .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
+  const notOwned = detectedRows.filter(
+    (d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)),
+  );
+  const detected = notOwned
+    .filter((d) => d.status === 'pending')
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
-
-  // Ignored accounts — ones the user removed / opted out of. Shown in a collapsed section, re-addable.
-  const dismissed = await db.query.detectedAccounts.findMany({
-    where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'dismissed')),
-    orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
-  });
-  const ignoredForClient = dismissed
-    .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
+  const ignored = notOwned
+    .filter((d) => d.status === 'dismissed')
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
-
-  // Player participations: events the user is signed up for via any of their linked accounts.
-  const linkedIds = linkedAccounts.map((m) => m.id);
-  const playerRows = linkedIds.length
-    ? await db
-        .select({
-          id: players.id,
-          name: players.name,
-          clanMemberId: players.clanMemberId,
-          teamId: players.teamId,
-          eventId: players.eventId,
-          playerToken: players.playerToken,
-          eventName: events.name,
-          eventEndDate: events.endDate,
-          eventForceEndedAt: events.forceEndedAt,
-          teamName: teams.name,
-          teamColor: teams.color,
-        })
-        .from(players)
-        .innerJoin(events, eq(players.eventId, events.id))
-        .leftJoin(teams, eq(players.teamId, teams.id))
-        .where(inArray(players.clanMemberId, linkedIds))
-    : [];
-
-  // Server component — Date.now() runs once per request, not on client renders.
-  // eslint-disable-next-line react-hooks/purity
-  const nowMs = Date.now();
-  const myActiveEvents = playerRows.filter((p) => {
-    if (p.eventForceEndedAt) return false;
-    if (p.eventEndDate && new Date(p.eventEndDate).getTime() < nowMs) return false;
-    return true;
-  });
-
-  // Accounts currently in a live event can't be removed (the Remove button is disabled, and
-  // the API rejects it). Mirrors the live-event check in /api/profile/accounts/[id].
-  const activeMemberIds = new Set(myActiveEvents.map((p) => p.clanMemberId));
-  const linkedForClient = linkedAccounts.map((m) => ({
-    id: m.id,
-    rsn: m.rsn,
-    isPrimary: m.isPrimary === 1,
-    verified: Boolean(m.verifiedAt),
-    verificationMethod: m.verificationMethod,
-    provisional: Boolean(m.provisional),
-    inActiveEvent: activeMemberIds.has(m.id),
-  }));
-
-  // Getting-started checklist. Shown on first login (?welcome=1 from the OAuth callback)
-  // and organically until the user has at least one verified account — the gate for
-  // event sign-ups. The extra queries only run while the checklist is visible.
-  const welcomeParam = (await searchParams).welcome === '1';
-  const hasVerifiedAccount = linkedAccounts.some((m) => m.verifiedAt);
-  let gettingStarted: GettingStartedProps | null = null;
-  if (welcomeParam || !hasVerifiedAccount) {
-    const clanName = await getClanDisplayName();
-
-    // Weekly: roster members are enrolled automatically by the cron, so this step is
-    // informational — "you're tracked" / "you will be once you're on the roster".
-    const activeWeeklyRows = await db.query.weeklyCompetitions.findMany({
-      where: eq(weeklyCompetitions.status, 'active'),
-    });
-    const enrolledCompIds = new Set<number>();
-    if (activeWeeklyRows.length > 0 && linkedIds.length > 0) {
-      const rows = await db
-        .select({ competitionId: weeklyParticipants.competitionId })
-        .from(weeklyParticipants)
-        .where(
-          and(
-            inArray(weeklyParticipants.competitionId, activeWeeklyRows.map((w) => w.id)),
-            inArray(weeklyParticipants.clanMemberId, linkedIds),
-          ),
-        );
-      for (const r of rows) enrolledCompIds.add(r.competitionId);
-    }
-    const nextWeekly = activeWeeklyRows.length
-      ? null
-      : (await db.query.weeklyCompetitions.findMany({
-          where: eq(weeklyCompetitions.status, 'upcoming'),
-          orderBy: (w, { asc }) => [asc(w.startDate)],
-          limit: 1,
-        }))[0] ?? null;
-
-    // Bingo: same public-visibility rules as the home page (drafts hidden, force-ended
-    // and past events excluded), split into signup-open vs already-underway.
-    const allEvents = await db.select().from(events);
-    const visibleEvents = allEvents.filter((e) => {
-      if (e.forceEndedAt) return false;
-      if (!e.startDate) return false;
-      if (e.endDate && new Date(e.endDate).getTime() < nowMs) return false;
-      return true;
-    });
-    const signupOpen = visibleEvents.filter((e) => signupWindowState(e).open);
-    const liveEvents = visibleEvents.filter(
-      (e) => e.startDate && new Date(e.startDate).getTime() <= nowMs,
-    );
-    const mySignupStatus = new Map<number, string>();
-    if (signupOpen.length > 0) {
-      const rows = await db
-        .select({ eventId: eventSignups.eventId, status: eventSignups.status })
-        .from(eventSignups)
-        .where(
-          and(
-            eq(eventSignups.userId, user.id),
-            inArray(eventSignups.eventId, signupOpen.map((e) => e.id)),
-          ),
-        );
-      for (const r of rows) mySignupStatus.set(r.eventId, r.status);
-    }
-
-    const verifiedRsns = linkedAccounts.filter((m) => m.verifiedAt).map((m) => m.rsn);
-    const unverifiedRsns = linkedAccounts.filter((m) => !m.verifiedAt).map((m) => m.rsn);
-    gettingStarted = {
-      clanName,
-      welcomeParam,
-      accountState: hasVerifiedAccount ? 'verified' : linkedAccounts.length > 0 ? 'unverified' : 'none',
-      verifiedRsns,
-      unverifiedRsns,
-      isRosterMember: linkedAccounts.some((m) => m.isGuest === 0),
-      activeWeeklies: activeWeeklyRows.map((w) => ({
-        id: w.id,
-        title: w.title,
-        enrolled: enrolledCompIds.has(w.id),
-      })),
-      nextWeekly: nextWeekly
-        ? { id: nextWeekly.id, title: nextWeekly.title, startDate: nextWeekly.startDate }
-        : null,
-      signupOpenEvents: signupOpen.map((e) => ({
-        id: e.id,
-        name: e.name,
-        mySignupStatus: mySignupStatus.get(e.id) ?? null,
-      })),
-      liveEvents: liveEvents.map((e) => ({ id: e.id, name: e.name })),
-    };
-  }
-
-  // Captain seats this user holds.
-  const captainSeats = await db
-    .select({
-      teamId: teams.id,
-      teamName: teams.name,
-      teamColor: teams.color,
-      eventId: events.id,
-      eventName: events.name,
-      eventEndDate: events.endDate,
-      eventForceEndedAt: events.forceEndedAt,
-    })
-    .from(teams)
-    .innerJoin(events, eq(teams.eventId, events.id))
-    .where(eq(teams.captainUserId, user.id));
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   const isStaff = user.role === 'admin' || user.role === 'moderator';
+  // Server component — Date.now() runs once per request, not on client renders.
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
+  const daysIn = locker.memberSince
+    ? Math.max(0, Math.floor((nowMs - Date.parse(locker.memberSince)) / 86_400_000))
+    : null;
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <span className="w-1 h-7 bg-gold rounded-full" />
-        <h1 className="text-3xl font-bold text-gold">Profile</h1>
+    <div className="max-w-6xl mx-auto">
+      <div className="flex items-baseline gap-3 flex-wrap mb-4">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
+          <span className="w-1 h-7 bg-gold rounded-full" />
+          Your locker
+        </h1>
+        <span className="text-sm text-text-muted">
+          {clanName}
+          {daysIn != null && daysIn > 0 && <> · {daysIn} day{daysIn === 1 ? '' : 's'} in the clan</>}
+        </span>
       </div>
 
-      {gettingStarted && <GettingStarted {...gettingStarted} />}
+      <PlayerCard
+        displayName={user.displayName}
+        discordUsername={user.discordUsername}
+        avatar={avatar}
+        role={user.role}
+        isStaff={isStaff}
+        accounts={locker.accounts}
+        connection={locker.connection}
+        career={locker.career}
+        nowMs={nowMs}
+      />
 
-      <section className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-        <div className="flex items-center gap-4">
-          {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="" width={64} height={64} className="rounded-full" />
-          ) : (
-            <span className="w-16 h-16 rounded-full bg-gold/20 text-gold text-2xl flex items-center justify-center font-semibold">
-              {(user.displayName || '?').charAt(0).toUpperCase()}
-            </span>
-          )}
-          <div className="flex-1">
-            <div className="text-xl font-semibold">{user.displayName}</div>
-            {user.discordUsername && (
-              <div className="text-sm text-text-muted">@{user.discordUsername}</div>
-            )}
-            <div className="mt-1 inline-flex items-center px-2 py-0.5 text-xs rounded-md bg-brown-light text-foreground/80 capitalize">
-              {user.role}
-            </div>
-          </div>
-          {isStaff && (
-            <Link
-              href="/admin/dashboard"
-              className="text-sm px-3 py-1.5 border border-gold/40 text-gold rounded-lg hover:bg-gold/10 transition-colors"
-            >
-              Admin →
-            </Link>
-          )}
-        </div>
-      </section>
-
-      {/* Captain seats */}
-      {captainSeats.length > 0 && (
-        <section className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              <h2 className="text-lg font-semibold">Captain seats</h2>
-            </div>
-            <span className="text-xs text-text-muted">{captainSeats.length}</span>
-          </div>
-          <div className="space-y-2">
-            {captainSeats.map((s) => {
-              const ended = !!s.eventForceEndedAt || (s.eventEndDate ? new Date(s.eventEndDate).getTime() < nowMs : false);
-              return (
-                <Link
-                  key={s.teamId}
-                  href="/captain"
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 border border-card-border rounded-lg bg-brown-dark/40 hover:border-gold/40 hover:bg-card-bg-hover transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.teamColor }} />
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{s.teamName}</div>
-                      <div className="text-xs text-text-muted truncate">
-                        {s.eventName} {ended && '· ended'}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gold shrink-0">Enter →</span>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+      {locker.setupNeeded && (
+        <ConnectCard
+          welcomeTo={welcome ? clanName : null}
+          discordUsername={user.discordUsername}
+          linkedCount={locker.accounts.length}
+          verifiedCount={locker.accounts.filter((a) => a.verified).length}
+          detectedCount={detected.length}
+          connected={locker.connection.connected}
+        />
       )}
 
-      {/* Player participations */}
-      {myActiveEvents.length > 0 && (
-        <section className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-1 h-5 bg-accent-green rounded-full" />
-              <h2 className="text-lg font-semibold">My events</h2>
-            </div>
-            <span className="text-xs text-text-muted">{myActiveEvents.length} active</span>
-          </div>
-          <div className="space-y-2">
-            {myActiveEvents.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between gap-3 px-3 py-2.5 border border-card-border rounded-lg bg-brown-dark/40"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {p.teamColor && (
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: p.teamColor }} />
-                  )}
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">
-                      {p.eventName}
-                      {p.teamName && <span className="text-text-muted text-sm ml-1.5">· {p.teamName}</span>}
-                    </div>
-                    <div className="text-xs text-text-muted truncate">Playing as {p.name}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Link
-                    href={`/events/${p.eventId}`}
-                    className="text-xs text-text-muted hover:text-foreground underline-offset-2 hover:underline"
-                  >
-                    Board
-                  </Link>
-                  {p.playerToken && (
-                    <Link
-                      href={`/player/${p.playerToken}`}
-                      className="text-xs px-2 py-1 border border-gold/30 text-gold hover:bg-gold/10 rounded transition-colors"
-                    >
-                      Dashboard →
-                    </Link>
-                  )}
-                </div>
+      <div className="grid gap-5 mt-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="grid gap-5 content-start">
+          <LiveForYou
+            events={locker.liveEvents}
+            weeklies={locker.liveWeeklies}
+            signups={locker.openSignups}
+            connected={locker.connection.connected}
+          />
+
+          {locker.captainSeats.length > 0 && (
+            <section className="border border-card-border rounded-xl bg-card-bg p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-1 h-5 bg-gold rounded-full" />
+                <h2 className="text-lg font-semibold">Captain&rsquo;s deck</h2>
+                <span className="ml-auto text-xs text-text-muted">
+                  {locker.captainSeats.length} seat{locker.captainSeats.length === 1 ? '' : 's'}
+                </span>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+              <div className="space-y-2.5">
+                {locker.captainSeats.map((s) => (
+                  <Link
+                    key={s.teamId}
+                    href={`/team/${s.teamId}`}
+                    className={`flex items-center gap-2.5 flex-wrap border border-card-border rounded-lg bg-brown-dark/40 px-3.5 py-3 hover:border-gold/40 hover:bg-card-bg-hover transition-colors ${
+                      s.ended ? 'opacity-60' : ''
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.teamColor }} />
+                    <span className="font-semibold">{s.teamName}</span>
+                    <span className="text-sm text-text-muted truncate">
+                      · {s.eventName} · {s.players} player{s.players === 1 ? '' : 's'}
+                      {s.ended && ' · ended'}
+                    </span>
+                    <span className="ml-auto text-xs text-gold shrink-0">Open deck →</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
 
-      {/* Linked accounts — status list */}
-      <section className="border border-card-border rounded-xl bg-card-bg p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            <h2 className="text-lg font-semibold">RuneScape Accounts</h2>
-          </div>
-          <span className="text-xs text-text-muted">
-            {linkedAccounts.length === 0
-              ? 'No accounts linked yet'
-              : `${linkedAccounts.length} linked`}
-          </span>
+          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={locker.focusRsn} />
+
+          <section className="border border-card-border rounded-xl bg-card-bg p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              <h2 className="text-lg font-semibold">Your accounts</h2>
+              <span className="ml-auto text-xs text-text-muted">
+                {locker.accounts.length === 0
+                  ? 'none linked'
+                  : `${locker.accounts.length} linked · ${
+                      locker.accounts.every((a) => a.verified)
+                        ? 'all verified'
+                        : `${locker.accounts.filter((a) => a.verified).length} verified`
+                    }`}
+              </span>
+            </div>
+
+            <DetectedAccountsClient initial={detected} />
+
+            {locker.accounts.length === 0 ? (
+              <div className="border border-dashed border-card-border rounded-lg bg-brown-dark/40 px-4 py-6 text-center text-sm text-text-muted">
+                <div className="font-medium text-foreground mb-1">Accounts add themselves.</div>
+                Paste the token above, log in, and every character you play shows up here to keep or dismiss.
+              </div>
+            ) : (
+              <LinkedAccountsClient
+                accounts={locker.accounts.map((a) => ({
+                  id: a.id,
+                  rsn: a.rsn,
+                  isPrimary: a.isPrimary,
+                  verified: a.verified,
+                  verificationMethod: a.verificationMethod,
+                  provisional: a.provisional,
+                  inActiveEvent: a.inActiveEvent,
+                  playingIn: a.playingIn,
+                  lastPingAt: a.lastPingAt,
+                }))}
+              />
+            )}
+          </section>
         </div>
 
-        {linkedAccounts.length === 0 ? (
-          <div className="text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
-            No account linked yet. On RuneLite, add your token below and play — the accounts you play
-            show up here for you to add with one click. On mobile or the official client, use the
-            manual options.
-          </div>
-        ) : (
-          <LinkedAccountsClient accounts={linkedForClient} />
-        )}
-      </section>
-
-      {/* Opt-in inbox — only the cases the auto-link can't safely claim on its own (an established
-          account matched by name alone) land here for a manual, hash-checked Add. */}
-      <DetectedAccountsClient initial={detectedForClient} />
-
-      {/* Collapsed list of accounts the user removed — re-addable, and won't auto-re-add on play. */}
-      <IgnoredAccountsClient initial={ignoredForClient} />
-
-      {/* PRIMARY path: RuneLite plugin token */}
-      <section id="plugin-token" className="border border-gold/30 bg-gold/5 rounded-xl p-5 mt-6">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="w-1 h-5 bg-gold rounded-full" />
-          <h2 className="text-lg font-semibold">RuneLite plugin</h2>
-          <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
-            recommended
-          </span>
+        <div className="grid gap-5 content-start">
+          <TrophyCase trophies={locker.trophies} />
+          {locker.bests && <PersonalBests bests={locker.bests} focusRsn={locker.focusRsn} />}
+          <InReach milestones={locker.milestones} />
+          {locker.focusRsn && <PublicProfile rsn={locker.focusRsn} />}
         </div>
-        <p className="text-sm text-text-muted mb-4">
-          The easiest way in: paste this token into the Anvil plugin and play. It tracks your bingo
-          drops, and any account you play shows up above under &ldquo;Accounts we noticed you
-          playing&rdquo; for you to add with one click — no manual verification needed.
-        </p>
-        <PluginPlayerTokenClient />
-        <p className="text-sm text-text-muted mt-4">
-          First time?{' '}
-          <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
-            Read the plugin setup guide
-          </Link>{' '}
-          — install, sign-in, notification toggles and OBS clips, with screenshots.
-        </p>
-      </section>
+      </div>
 
-      {/* Federation: connected plugins (cross-clan tokens). Only meaningful once federation is on —
-          otherwise the plugin has nowhere to use them (single-clan Account Token), so it's hidden. */}
-      {federationEnabled && <ConnectedPluginsClient />}
-
-      {/* Secondary path: no plugin */}
-      <section className="border border-card-border rounded-xl bg-card-bg p-5 mt-6">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="w-1 h-5 bg-text-muted rounded-full" />
-          <h2 className="text-lg font-semibold">Not using RuneLite?</h2>
-        </div>
-        <p className="text-sm text-text-muted mb-4">
-          On mobile or the official client? Link your account here instead — verify by gaining a bit
-          of XP, or request a manual review.
-        </p>
-        <LinkAccountClient />
-      </section>
+      <SecurityDrawer
+        accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}
+        ignored={ignored}
+        federationEnabled={federationEnabled}
+        defaultOpen={locker.setupNeeded && locker.accounts.length > 0}
+      />
     </div>
   );
 }

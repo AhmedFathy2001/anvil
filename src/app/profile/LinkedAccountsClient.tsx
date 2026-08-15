@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type LinkedAccount = {
@@ -11,17 +11,29 @@ export type LinkedAccount = {
   verificationMethod: string | null;
   provisional: boolean;
   inActiveEvent: boolean;
+  /** Live event this account is playing, if any — the reason Remove is disabled. */
+  playingIn: string | null;
+  /** Last plugin push for this account. */
+  lastPingAt: string | null;
 };
 
-// The "RuneScape Accounts" list with per-account Make primary / Remove. Removing unlinks the
-// account from the profile; it's blocked (button disabled) while the account is in a live event —
-// the server enforces the same rule. After a successful action we refresh so the server-rendered
-// list and the detected-accounts inbox both reflect the change.
+const METHOD_LABEL: Record<string, string> = {
+  plugin: 'Verified by the plugin',
+  stat_delta: 'Verified by XP gain',
+  manual: 'Verified by a moderator',
+};
+
+// The account list with per-account Make primary / Remove. Removing unlinks the account from the
+// profile; it's blocked (button disabled) while the account is in a live event — the server
+// enforces the same rule. After a successful action we refresh so the server-rendered list and the
+// detected-accounts inbox both reflect the change.
 export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAccount[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => setNowMs(Date.now()), []);
 
   // Promote to primary — the account that names your team in per-person events and leads your
   // Discord nickname. Reversible, so no confirm step.
@@ -71,33 +83,45 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
       {accounts.map((m) => (
         <div
           key={m.id}
-          className="flex items-center justify-between gap-3 border border-card-border rounded-lg p-3 bg-brown-dark/40"
+          className="flex items-center gap-3 flex-wrap border border-card-border rounded-lg px-3.5 py-3 bg-brown-dark/40"
         >
           <div className="min-w-0">
-            <div className="font-medium flex items-center gap-2">
+            <div className="font-semibold flex items-center gap-2 flex-wrap">
               {m.rsn}
               {m.isPrimary && (
                 <span
-                  className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded"
+                  className="text-[10px] uppercase tracking-wider font-bold bg-gold/15 text-gold-light border border-gold/40 px-1.5 py-0.5 rounded"
                   title="Names your team in per-person events and leads your Discord nickname"
                 >
-                  primary
+                  ★ primary
                 </span>
               )}
               {m.provisional && (
                 <span
-                  className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded"
+                  className="text-[10px] uppercase tracking-wider font-bold bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded"
                   title="Verified via stat-delta — awaiting moderator confirmation"
                 >
                   provisional
                 </span>
               )}
             </div>
-            <div className="text-xs text-text-muted">
-              {m.verified ? `Verified via ${m.verificationMethod}` : 'Not verified'}
+            <div className="text-xs text-text-muted mt-0.5">
+              {m.verified ? (
+                <>
+                  <span className="text-accent-green-light">✓</span>{' '}
+                  {METHOD_LABEL[m.verificationMethod ?? ''] ?? `Verified via ${m.verificationMethod ?? 'link'}`}
+                </>
+              ) : (
+                <span className="text-yellow-400">Not verified yet</span>
+              )}
+              {m.playingIn ? (
+                <> · playing {m.playingIn}</>
+              ) : m.lastPingAt && nowMs !== null ? (
+                <> · last seen {ago(m.lastPingAt, nowMs)}</>
+              ) : null}
             </div>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="ml-auto shrink-0 flex items-center gap-2">
             {/* Only offered when there's something to switch to — a lone account is already primary. */}
             {!m.isPrimary && accounts.length > 1 && (
               <button
@@ -125,4 +149,14 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
       {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
     </div>
   );
+}
+
+function ago(iso: string, nowMs: number): string {
+  const ms = nowMs - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 60_000) return 'just now';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
