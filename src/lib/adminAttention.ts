@@ -62,8 +62,13 @@ export interface AttentionFacts {
    */
   feeEvents: { name: string; ended: boolean; count: number; href: string }[];
   pendingVerifications: number;
-  /** Days with nothing running at all, starting from the first such day ahead of now. */
-  gap: { days: number; startsInDays: number } | null;
+  /**
+   * The next stretch with nothing running at all.
+   *
+   * `openEnded` means it runs past the end of the window we looked at, so `days` measures how far
+   * we looked rather than the schedule — say when it starts, never how long it lasts.
+   */
+  gap: { days: number; startsInDays: number; openEnded: boolean; startsOn: string } | null;
   /** Boards that exist but have no dates. */
   unscheduled: { id: number; name: string; href: string }[];
 }
@@ -204,9 +209,13 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     items.push({
       key: 'gap',
       severity: 'info',
-      title: `Nothing runs for ${plural(facts.gap.days, 'day')}${
-        facts.gap.startsInDays > 0 ? `, starting ${inDays(facts.gap.startsInDays * DAY)}` : ''
-      }`,
+      // An open-ended gap gets a date, not a duration: "33 days" was only ever the distance to the
+      // edge of a six-week window, and would have read 47 over eight.
+      title: facts.gap.openEnded
+        ? `Nothing is scheduled after ${facts.gap.startsOn}`
+        : `Nothing runs for ${plural(facts.gap.days, 'day')}${
+            facts.gap.startsInDays > 0 ? `, starting ${inDays(facts.gap.startsInDays * DAY)}` : ''
+          }`,
       detail: waiting
         ? `${waiting.name} is written but has no dates — it would fill this.`
         : 'No board or competition covers that stretch.',

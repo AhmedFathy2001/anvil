@@ -168,7 +168,7 @@ test('owed and held fees are different jobs and stay separate', () => {
 });
 
 test('a short seam in the schedule is not reported as a gap', () => {
-  const q = attentionQueue(facts({ gap: { days: 3, startsInDays: 4 } }));
+  const q = attentionQueue(facts({ gap: { days: 3, startsInDays: 4, openEnded: false, startsOn: '19 August' } }));
   assert.equal(q.find((i) => i.key === 'gap'), undefined);
   assert.equal(openCount(q), 0);
 });
@@ -176,7 +176,7 @@ test('a short seam in the schedule is not reported as a gap', () => {
 test('a real gap points at the undated board that would fill it', () => {
   const q = attentionQueue(
     facts({
-      gap: { days: 7, startsInDays: 9 },
+      gap: { days: 7, startsInDays: 9, openEnded: false, startsOn: '24 August' },
       unscheduled: [{ id: 9, name: 'September Bingo', href: '/admin/events/9' }],
     }),
   );
@@ -187,8 +187,19 @@ test('a real gap points at the undated board that would fill it', () => {
   assert.equal(gap?.action, 'Give it dates');
 });
 
+test('an open-ended gap is dated, never given a made-up length', () => {
+  // "Nothing runs for 33 days" was the distance to the edge of a six-week window, not a fact about
+  // the calendar — widen the window and the same empty schedule claims 47.
+  const q = attentionQueue(
+    facts({ gap: { days: 33, startsInDays: 10, openEnded: true, startsOn: '24 August' } }),
+  );
+  const gap = q.find((i) => i.key === 'gap')!;
+  assert.equal(gap.title, 'Nothing is scheduled after 24 August');
+  assert.doesNotMatch(gap.title, /33/);
+});
+
 test('a gap with nothing waiting sends you to the schedule instead', () => {
-  const q = attentionQueue(facts({ gap: { days: 10, startsInDays: 2 } }));
+  const q = attentionQueue(facts({ gap: { days: 10, startsInDays: 2, openEnded: false, startsOn: '17 August' } }));
   assert.equal(q.find((i) => i.key === 'gap')?.action, 'Open schedule');
 });
 

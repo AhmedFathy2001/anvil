@@ -29,6 +29,15 @@ export interface Gap {
   start: Date;
   end: Date;
   days: number;
+  /**
+   * True when the gap runs off the end of the window rather than stopping at the next event.
+   *
+   * Its `days` is then an artifact of how far we happened to look, not a fact about the schedule:
+   * the same empty calendar reads "33 days" over six weeks and "47 days" over eight. Callers must
+   * say "nothing after the 24th" for these, and only quote a length for a gap with an event on
+   * both sides of it.
+   */
+  openEnded: boolean;
 }
 
 /**
@@ -139,14 +148,15 @@ export function findGaps(spans: Span[], from: Date, to: Date, minDays = 1): Gap[
     if (covered.has(isoDay(d))) {
       if (run) {
         const end = addDays(d, -1);
-        gaps.push({ start: run, end, days: daysBetween(run, end) + 1 });
+        gaps.push({ start: run, end, days: daysBetween(run, end) + 1, openEnded: false });
         run = null;
       }
     } else if (!run) {
       run = new Date(d);
     }
   }
-  if (run) gaps.push({ start: run, end: to, days: daysBetween(run, to) + 1 });
+  // A run still open at the window edge doesn't end there — we simply stopped looking.
+  if (run) gaps.push({ start: run, end: to, days: daysBetween(run, to) + 1, openEnded: true });
 
   return gaps.filter((g) => g.days >= minDays);
 }
