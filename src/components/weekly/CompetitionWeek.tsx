@@ -76,7 +76,7 @@ export function RaceChart({
   unit,
   trackableTotal,
   trackedTotal,
-  guestGain,
+  unlinkedGain,
 }: {
   entries: CompetitionEntry[];
   days: string[];
@@ -85,13 +85,14 @@ export function RaceChart({
   unit: string;
   /**
    * The total gained by people who can HAVE daily history, and the part of it the history accounts
-   * for. Guests are excluded from the denominator (`guestGain` is what they contributed) — they rank
-   * on the board but have no clan member row, so counting them here would blame the sweep for a gap
-   * it can never close.
+   * for. Participants with no roster row are excluded from the denominator (`unlinkedGain` is what
+   * they contributed) — they rank on the board but the sweep has nothing to write against, so
+   * counting them here would blame it for a gap it can never close. Guests enrolled through the
+   * competition's own flag are NOT in this bucket: they have roster rows and are tracked normally.
    */
   trackableTotal: number;
   trackedTotal: number;
-  guestGain: number;
+  unlinkedGain: number;
 }) {
   const top = entries.slice(0, 5).filter((e) => e.gained > 0);
   if (top.length === 0 || elapsed < 2) return null;
@@ -185,11 +186,11 @@ export function RaceChart({
           members{coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. A gain only lands on a day once the
           sweep has an earlier snapshot to compare against, so the days before it first saw a member
           aren&apos;t in here.
-          {guestGain > 0 && (
+          {unlinkedGain > 0 && (
             <>
               {' '}
-              A further <b className="font-semibold text-foreground">{shortValue(guestGain, type)}</b> came
-              from guests, who rank but have no daily history at all.
+              A further <b className="font-semibold text-foreground">{shortValue(unlinkedGain, type)}</b> came
+              from players who aren&apos;t on the clan roster, so there is nothing to track them against.
             </>
           )}{' '}
           The standings are exact either way — they come from the competition&apos;s own totals.

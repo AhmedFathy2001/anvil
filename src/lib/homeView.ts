@@ -202,8 +202,9 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
       // isn't a rough version of it, it's a biased one. A card too small to caption is the worst
       // place to show a chart that needs an asterisk, so it just doesn't get one.
       const tracked = days.reduce((a, b) => a + b, 0);
-      // Guests can never appear in the day-by-day, so they don't count against it (competitionView
-      // scores the same way — the two surfaces must agree about whether a week is drawable).
+      // A participant with no roster row can never appear in the day-by-day, so they don't count
+      // against it (competitionView scores the same way — the two surfaces must agree about whether
+      // a week is drawable). Guests enrolled via includeGuests DO have roster rows and are tracked.
       const trackable = ranked.reduce((a, b) => a + (b.trackable ? b.value : 0), 0);
       if (dailyTrust(tracked, trackable, days.some((d) => d > 0)) !== 'ok') days = [];
     }

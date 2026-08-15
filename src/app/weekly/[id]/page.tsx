@@ -106,7 +106,7 @@ export default async function WeeklyLeaderboardPage({
                 unit={view.unit}
                 trackableTotal={view.trackableTotal}
                 trackedTotal={view.trackedTotal}
-                guestGain={view.guestGain}
+                unlinkedGain={view.unlinkedGain}
               />
               <DayStrip
                 days={view.days}

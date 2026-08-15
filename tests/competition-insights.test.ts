@@ -148,10 +148,11 @@ test('coverage is clamped — a stale total can never read over 100%', () => {
   assert.equal(dailyCoverage(-5, 4_000), 0);
 });
 
-test('guests do not count against the day-by-day', () => {
-  // A week where clan members gained 900K (fully recorded) and guests gained another 3M. Scored
-  // against everyone it reads as 23% and the charts vanish forever; scored against who CAN be
-  // tracked it reads as complete, which is what it is.
+test('players with no roster row do not count against the day-by-day', () => {
+  // A week where rostered players gained 900K (fully recorded) and unrostered participants gained
+  // another 3M. Scored against everyone it reads as 23% and the charts vanish forever; scored
+  // against who CAN be tracked it reads as complete, which is what it is. Guests enrolled through
+  // includeGuests are NOT this case — they have roster rows, so the sweep tracks them normally.
   assert.equal(dailyTrust(900_000, 3_900_000, true), 'thin');
   assert.equal(dailyTrust(900_000, 900_000, true), 'ok');
 });

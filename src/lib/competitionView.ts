@@ -46,9 +46,12 @@ export interface CompetitionEntry {
   today: number;
   streak: number;
   /**
-   * Whether daily history is even possible for this person. Guests rank on the board but have no
-   * clan member row, so they have no `member_daily_stats` — counting them against the day-by-day
-   * would make a guest-heavy competition look permanently broken rather than partly untrackable.
+   * Whether daily history is even possible for this person: they have a `clan_members` row, so the
+   * sweep writes `member_daily_stats` for them. NOTE this is not about guests — a guest
+   * (`clan_members.is_guest`) enrolled via the competition's `includeGuests` flag has a member row
+   * and IS tracked like anyone else. What's untrackable is a participant with no member row at all,
+   * and counting those against the day-by-day would make the page look permanently broken over a
+   * gap no amount of correct sweeping can close.
    */
   trackable: boolean;
   /** Baseline looks stale (weekly_participants.flagged) — say so rather than rank a bad number. */
@@ -95,8 +98,8 @@ export interface CompetitionView {
   trackedTotal: number;
   /** Total gained by people who CAN have daily history — clanTotal minus the guests. */
   trackableTotal: number;
-  /** How much of clanTotal came from guests, who rank but are never in the day-by-day. */
-  guestGain: number;
+  /** How much of clanTotal came from participants with no roster row, who can never be tracked. */
+  unlinkedGain: number;
   todayTotal: number;
   scoring: number;
   /** Where the clan lands at this pace, and how that compares to the last competition on this metric. */
@@ -241,11 +244,11 @@ export async function buildCompetitionView(
   const leaders = dailyLeaders(series, days.length);
   const clanTotal = entries.reduce((s, e) => s + Math.max(0, e.gained), 0);
   const trackedTotal = entries.reduce((s, e) => s + Math.max(0, e.trackedGain), 0);
-  // The denominator for "did we watch this week" is what COULD have been watched. A guest has no
-  // daily history by construction, so scoring the day-by-day against a total that includes them
-  // punishes the page for something no fix can change.
+  // The denominator for "did we watch this week" is what COULD have been watched. A participant
+  // with no clan_members row has no daily history by construction, so scoring the day-by-day
+  // against a total that includes them punishes the page for something no fix can change.
   const trackableTotal = entries.reduce((s, e) => s + (e.trackable ? Math.max(0, e.gained) : 0), 0);
-  const guestGain = clanTotal - trackableTotal;
+  const unlinkedGain = clanTotal - trackableTotal;
   const todayTotal = totals[elapsed - 1] ?? 0;
   const scoring = entries.filter((e) => e.gained > 0).length;
 
@@ -290,7 +293,7 @@ export async function buildCompetitionView(
     clanTotal,
     trackedTotal,
     trackableTotal,
-    guestGain,
+    unlinkedGain,
     todayTotal,
     scoring,
     projected,
