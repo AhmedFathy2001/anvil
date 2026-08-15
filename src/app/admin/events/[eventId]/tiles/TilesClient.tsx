@@ -9,6 +9,8 @@ import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
 import LibraryTileGenerator from './LibraryTileGenerator';
+import ScheduleView from './ScheduleView';
+import RotationView from './RotationView';
 import ActionMenu from '@/components/ActionMenu';
 import Link from 'next/link';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
@@ -18,11 +20,16 @@ import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
-import { eventAxes } from '@/lib/eventAxes';
 import EventBoard from '@/components/EventBoard';
-import { statLabel } from '@/lib/tileKinds';
+import {
+  TILE_KIND_FILTERS,
+  tileConfigSummary,
+  tileKindBadge,
+  tileKindKey,
+  type TileKindKey,
+} from '@/lib/tileKinds';
+import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/tileAuthoring';
 import { findBoardProblems } from '@/lib/boardMisconfig';
-import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -126,13 +133,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   const [adding, setAdding] = useState(false);
   const [reordering, setReordering] = useState(false);
-  // 'cards' = the tile list, 'grid' = the Quick build spreadsheet, 'board' = author directly on the
-  // board being built. A classic bingo IS a square and a race IS an ordered track — editing either
-  // as a vertical list hides the one thing that makes the format what it is — so those open on the
-  // board. A flat pool has no geometry to show, so it stays on the list.
-  const [viewMode, setViewMode] = useState<'cards' | 'grid' | 'board'>(
-    () => (eventAxes(event).shape === 'list' ? 'cards' : 'board'),
-  );
+  // What authoring THIS board involves — which views it offers, what its entries are called, and
+  // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
+  // rather than re-deriving "is this a bingo?" from the columns.
+  const model = useMemo(() => authoringModel(event), [event]);
+  // views[0] is the format's home: a square and a track carry their meaning in their layout, so
+  // editing them as a vertical list hides the one thing that makes them what they are. A pool has
+  // no geometry to show, so it opens on the list.
+  const [viewMode, setViewMode] = useState<AuthoringView>(() => model.views[0]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
@@ -330,8 +338,21 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         setBulkMsg(data.error || 'That did not save.');
         return;
       }
+      // revealState is a verb, not a column — the server turns it into revealedAt/closedAt, so the
+      // local patch has to as well or the cards keep showing the old state until a refresh lands.
+      const { revealState, ...columns } = set;
+      const stateColumns =
+        revealState === 'live'
+          ? { revealedAt: data.updatedAt as string, closedAt: null }
+          : revealState === 'hidden'
+            ? { revealedAt: null, closedAt: null }
+            : {};
       setLocalTiles((prev) =>
-        prev.map((t) => (selectedIds.has(t.id) ? ({ ...t, ...set, updatedAt: data.updatedAt } as Tile) : t)),
+        prev.map((t) =>
+          selectedIds.has(t.id)
+            ? ({ ...t, ...columns, ...stateColumns, updatedAt: data.updatedAt } as Tile)
+            : t,
+        ),
       );
       setBulkMsg(`${describe} on ${data.updated} tile${data.updated === 1 ? '' : 's'}.`);
       router.refresh();
@@ -346,13 +367,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
   // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
-  const boardShape = eventAxes(event).shape;
+  const boardShape = model.axes.shape;
   // Which tiles members can't see yet, so the authoring board marks them the same way the public one
   // does — a host editing an armed board should see what is and isn't out there.
   const hiddenTileIds = useMemo(
     () => (revealMode ? new Set(localTiles.filter((t) => !t.revealedAt).map((t) => t.id)) : null),
     [revealMode, localTiles],
   );
+  // The format's own unfinished business — distinct from lib/boardMisconfig, which asks whether a
+  // tile can credit at all. This asks whether the board will behave the way its format promises.
+  const formatJob = useMemo(() => unfinishedFormatJob(model, localTiles), [model, localTiles]);
   const poolCounts = useMemo(() => ({
     open: localTiles.filter((t) => t.revealedAt && !t.closedAt).length,
     waiting: localTiles.filter((t) => !t.revealedAt).length,
@@ -820,11 +844,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
-  // One editor, rendered in one of two places: a column beside the board when there's room, a
-  // covering drawer when there isn't.
-  const inspectorPane = editingTile ? (
+  // One editor, rendered in one of two places: a column beside the cards when there's room, a
+  // covering drawer everywhere else. Every view opens it — the grid, the track, the schedule and
+  // the rotation all pick tiles, and until now only Cards rendered anything when they did.
+  const renderInspector = (docked: boolean) => editingTile ? (
     <TileConfigDrawer
-    docked={inspectorDocked}
+    docked={docked}
+    noun={model.Noun}
     key={editingTile.id}
     tile={editingTile}
     eventId={event.id}
@@ -865,18 +891,22 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       {/* Per-tile configuration */}
       <div ref={boardRef}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Tile Configuration
-            <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              {model.NounPlural}
+              <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
+            </h2>
+            {/* What this format wants from you, said once, at the top. */}
+            <p className="text-xs text-text-muted mt-1 max-w-2xl">{model.brief}</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {!eventStarted && localTiles.length > 1 && (
               <>
                 <button
                   onClick={handleShuffle}
                   disabled={reordering}
-                  title="Randomize the board order"
+                  title={model.ordering === 'draw-order' ? 'Randomize the order the pool is drawn in' : 'Randomize the board order'}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
                 >
                   🎲 Shuffle
@@ -893,28 +923,22 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 )}
               </>
             )}
+            {/* The views this board actually has, in the model's order — a Showdown gets Schedule,
+                a draw board gets Rotation, and neither shows up where it would mean nothing. */}
             <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
-              {boardShape !== 'list' && (
-                <button
-                  onClick={() => setViewMode('board')}
-                  title={boardShape === 'grid' ? 'Edit tiles on the grid itself' : 'Edit tiles along the track'}
-                  className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'board' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-                >
-                  {boardShape === 'grid' ? 'Grid' : 'Track'}
-                </button>
-              )}
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                Cards
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                ⚡ Quick build
-              </button>
+              {model.views.map((v) => {
+                const meta = VIEW_LABELS[v](boardShape);
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setViewMode(v)}
+                    title={meta.title}
+                    className={`text-xs px-3 py-1.5 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                  >
+                    {meta.label}
+                  </button>
+                );
+              })}
             </div>
             {dynamicBoard && viewMode === 'cards' && (
               <button
@@ -923,7 +947,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
                 className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {adding ? 'Adding…' : '+ Add tile'}
+                {adding ? 'Adding…' : `+ Add ${model.noun}`}
               </button>
             )}
             <input
@@ -936,7 +960,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             {/* Everything that isn't Quick build lives in one menu: generators first (what people
                 reach for), then the file and library round-trips. */}
             <ActionMenu
-              label="＋ Add tiles"
+              label={`＋ Add ${model.nounPlural}`}
               items={[
                 { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
                 { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
@@ -1018,18 +1042,67 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 {poolCounts.closed} closed
               </span>
             )}
-            <span className="text-text-muted">
-              Open a tile to force it live or pull it back.
-            </span>
           </div>
         )}
 
-        {viewMode === 'board' ? (
+        {/* The format's own unfinished business — an unscheduled Showdown tile is a tile that never
+            opens, which is invisible on a card list and fatal on the night. */}
+        {formatJob && viewMode !== formatJob.view && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-3 py-2.5">
+            <span className="text-sm text-amber-100">{formatJob.message}</span>
+            <button
+              type="button"
+              onClick={() => setViewMode(formatJob.view)}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-400/50 text-amber-100 hover:bg-amber-400/15 transition-colors"
+            >
+              {VIEW_LABELS[formatJob.view](boardShape).label} →
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'schedule' ? (
+          <ScheduleView
+            eventId={event.id}
+            tiles={localTiles}
+            model={model}
+            eventStartDate={event.startDate}
+            editingTileId={editingTileId}
+            onPick={(id) => setEditingTileId(id)}
+            onRevealAtSaved={handleRevealAtSaved}
+            onScheduled={(schedule) => {
+              const byId = new Map(schedule.map((s) => [s.tileId, s.revealAt]));
+              setLocalTiles((prev) =>
+                prev.map((t) => (byId.has(t.id) ? { ...t, revealAt: byId.get(t.id)! } : t)),
+              );
+              router.refresh();
+            }}
+          />
+        ) : viewMode === 'rotation' ? (
+          <RotationView
+            eventId={event.id}
+            tiles={localTiles}
+            rules={eventRules}
+            model={model}
+            isAdmin={isAdmin}
+            eventStarted={eventStarted}
+            reordering={reordering}
+            editingTileId={editingTileId}
+            onPick={(id) => setEditingTileId(id)}
+            onReorder={(ids, describe) => {
+              setLocalTiles((prev) => {
+                const byId = new Map(prev.map((t) => [t.id, t]));
+                return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
+              });
+              void applyOrder(ids, describe);
+            }}
+            onRevealStateChanged={handleRevealStateChanged}
+          />
+        ) : viewMode === 'board' ? (
           <div className="min-w-0">
             <p className="text-xs text-text-muted mb-3">
               {boardShape === 'grid'
-                ? 'Click any square to configure that tile. This is exactly the board members will see.'
-                : 'Click any tile to configure it. Tiles are reached in this order — reorder them from Cards.'}
+                ? `Click any square to configure that ${model.noun}. This is exactly the board members will see.`
+                : `Click any ${model.noun} to configure it. They are reached in this order — drag to change it from Cards.`}
             </p>
             <EventBoard
               format={event.format}
@@ -1066,7 +1139,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search tiles…"
+                      placeholder={`Search ${model.nounPlural}…`}
                       className="w-full pl-3 pr-8 py-1.5 text-sm"
                     />
                     {search && (
@@ -1083,7 +1156,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               )}
               <ul className="overflow-y-auto max-h-[72vh]">
                 {gridTiles.map((t) => {
-                  const k = tileKind(t);
+                  const k = tileKindBadge(t);
                   const sel = editingTileId === t.id;
                   // Reordering a filtered list would move tiles by absolute slot while showing a
                   // non-contiguous subset — confusing. Disable drag while a search is active.
@@ -1141,10 +1214,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   );
                 })}
                 {localTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
                 )}
                 {localTiles.length > 0 && gridTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles match your search.</li>
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} match your search.</li>
                 )}
               </ul>
             </div>
@@ -1168,13 +1241,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                         >
                           {adding ? 'Duplicating…' : 'Duplicate'}
                         </button>
-                        <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
+                        <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete {model.noun}</button>
                       </div>
                     )}
                   </div>
                   {lockHolder && (
                     <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
+                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this {model.noun} right now — if you both
                       save, the second save is rejected instead of overwriting.
                     </p>
                   )}
@@ -1209,11 +1282,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 </div>
               ) : editingLoading ? (
                 <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Loading tile…
+                  Loading {model.noun}…
                 </div>
               ) : (
                 <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Select a tile on the left to edit it — full config with item &amp; NPC autocomplete.
+                  Select a {model.noun} on the left to edit it — full config with item &amp; NPC autocomplete.
                 </div>
               )}
             </div>
@@ -1231,7 +1304,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tiles — name, category, stat, or #position"
+              placeholder={`Search ${model.nounPlural} — name, category, stat, or #position`}
               className="w-full pl-9 pr-9 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
             />
             {search && (
@@ -1249,7 +1322,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <Select
               value={kindFilter}
               onChange={(v) => setKindFilter(v as KindFilter)}
-              options={KIND_FILTERS.map((f) => ({ value: f.key, label: f.key === 'all' ? 'All kinds' : f.label }))}
+              options={TILE_KIND_FILTERS.map((f) => ({ value: f.key, label: f.key === 'all' ? 'All kinds' : f.label }))}
               ariaLabel="Filter by tile kind"
               className="w-40"
             />
@@ -1291,7 +1364,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
             <span className="ml-auto text-xs text-text-muted whitespace-nowrap">
               {filteredTiles.length === localTiles.length
-                ? `${localTiles.length} tile${localTiles.length !== 1 ? 's' : ''}`
+                ? `${localTiles.length} ${localTiles.length === 1 ? model.noun : model.nounPlural}`
                 : `${filteredTiles.length} of ${localTiles.length} match`}
               {filteredTiles.length > visibleTiles.length && ` · showing ${visibleTiles.length}`}
             </span>
@@ -1383,6 +1456,61 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               Complete by hand
             </button>
 
+            {/* Reveal is a bulk edit on any staggered board — the API has taken it since the bulk
+                route was written, and nothing had ever offered it. On a scheduled board the whole
+                selection shares one time ("this wave opens at 8"); the Schedule view is where a
+                spread-out run gets laid out. */}
+            {scheduledMode && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => {
+                  const raw = prompt(
+                    `Reveal all ${selectedIds.size} at the same moment. Date and time (YYYY-MM-DD HH:MM), or blank to clear:`,
+                  );
+                  if (raw === null) return;
+                  const trimmed = raw.trim();
+                  if (!trimmed) {
+                    void bulkSet({ revealAt: null }, 'Cleared the reveal time');
+                    return;
+                  }
+                  const when = new Date(trimmed.replace(' ', 'T'));
+                  if (Number.isNaN(when.getTime())) {
+                    setBulkMsg("That didn't read as a date — try 2026-08-16 20:00.");
+                    return;
+                  }
+                  void bulkSet({ revealAt: when.toISOString() }, `Set to open ${when.toLocaleString()}`);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg border border-blue-400/40 bg-blue-500/10 text-blue-200 hover:border-blue-300 transition-colors disabled:opacity-50"
+              >
+                Set reveal time
+              </button>
+            )}
+            {revealMode && isAdmin && (
+              <>
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => void bulkSet({ revealState: 'live' }, 'Opened to members')}
+                  title="Open all of these to members right now, ahead of the schedule or rotation"
+                  className="text-xs px-2.5 py-1 rounded-lg border border-accent-green/40 bg-accent-green/10 text-accent-green-light hover:border-accent-green transition-colors disabled:opacity-50"
+                >
+                  Open now
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => {
+                    if (!confirm(`Hide ${selectedIds.size} from members again? Progress stays, but they stop being playable.`)) return;
+                    void bulkSet({ revealState: 'hidden' }, 'Hidden again');
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+                >
+                  Hide again
+                </button>
+              </>
+            )}
+
             <span className="flex-1" />
             {bulkMsg && <span className="text-xs text-text-muted">{bulkMsg}</span>}
             <button
@@ -1400,7 +1528,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
         {filteredTiles.length === 0 ? (
           <div className="border border-card-border rounded-xl p-8 bg-card-bg text-center text-sm text-text-muted">
-            No tiles match your search.
+            No {model.nounPlural} match your search.
           </div>
         ) : (
         <div
@@ -1413,7 +1541,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           }`}
         >
           {visibleTiles.map((tile) => {
-            const k = tileKind(tile);
+            const k = tileKindBadge(tile);
             const isEditing = editingTileId === tile.id;
             const isSelected = selectedIds.has(tile.id);
             return (
@@ -1475,7 +1603,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     {tile.label}
                   </span>
                   <span className={`text-xs truncate ${problemTileIds.has(tile.id) ? 'text-amber-300/90' : 'text-text-muted'}`}>
-                    {problemTileIds.get(tile.id) ?? tileMeta(tile)}
+                    {problemTileIds.get(tile.id) ?? tileConfigSummary(tile, model.noun)}
                   </span>
                 </span>
               </button>
@@ -1497,7 +1625,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
 
         {editingTile && inspectorDocked && (
-          <div className="hidden xl:block">{inspectorPane}</div>
+          <div className="hidden xl:block">{renderInspector(true)}</div>
         )}
         </div>
           </>
@@ -1546,15 +1674,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
       </details>
 
-      {/* Narrow screens keep the covering drawer — there's no room for two panes. */}
-      {viewMode === 'cards' && editingTile && !inspectorDocked && inspectorPane}
+      {/* The covering drawer: narrow screens (no room for two panes) and every view that isn't the
+          card list, which is the only one with a column to dock into. */}
+      {editingTile && (viewMode !== 'cards' ? viewMode !== 'grid' : !inspectorDocked) && renderInspector(false)}
 
       {/* Paste-labels bulk create (Quick Build) */}
       {pasteOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPasteOpen(false)}>
           <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-foreground">Paste labels</h3>
-            <p className="text-xs text-text-muted">One tile per line. Each becomes a new tile you can configure on the right.</p>
+            <p className="text-xs text-text-muted">One per line. Each becomes a new {model.noun} you can configure on the right.</p>
             <textarea
               autoFocus
               value={pasteText}
@@ -1578,161 +1707,23 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
-type KindFilter = 'all' | TileKindKey;
-
-// Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
-function tileKindKey(tile: Tile): TileKindKey {
-  if (tile.tileType === 'kill') return 'kill';
-  if (tile.tileType === 'lap') return 'lap';
-  if (tile.tileType === 'pvp') return 'pvp';
-  if (tile.tileType === 'gain') return 'gain';
-  if (tile.tileType === 'timed') return 'timed';
-  if (tile.tileType === 'deathless') return 'deathless';
-  if (tile.tileType === 'lms') return 'lms';
-  if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
-  if (tile.tileType === 'diary') return 'diary';
-  if (tile.tileType === 'ca') return 'ca';
-  if (tile.tileType === 'drop') {
-    const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
-    return isCollection ? 'collection' : 'drop';
-  }
-  if (tile.statType === 'skill') return 'skill';
-  if (tile.statType === 'boss') return 'boss';
-  return 'standard';
-}
-
-// `blurb` is the hover explanation shown on each tile's kind badge — a one-liner on what the kind
-// tracks and how it credits. Mirrors the pickers' blurbs in TileTrackingConfig.
-const KIND_META: Record<TileKindKey, { label: string; cls: string; blurb: string }> = {
-  standard: { label: 'Standard', cls: 'bg-gold/15 text-gold', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
-  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
-  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
-  drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
-  collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
-  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of an NPC — even ones off the hiscores (chickens, cows). Plugin-detected.' },
-  lap: { label: 'Agility laps', cls: 'bg-lime-500/20 text-lime-300', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs — counted live off the in-game counter. Only laps run during the event count.' },
-  pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
-  gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
-  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
-  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
-  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
-  value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
-  diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
-  ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
+// What each view is called on the tab strip. The board tab renames itself after the shape it's
+// showing, because "Board" is not what anyone calls a 5×5 square or a race track.
+const VIEW_LABELS: Record<AuthoringView, (shape: 'grid' | 'track' | 'list') => { label: string; title: string }> = {
+  board: (shape) =>
+    shape === 'grid'
+      ? { label: 'Grid', title: 'Edit tiles on the grid itself' }
+      : { label: 'Track', title: 'Edit tiles along the track, in running order' },
+  cards: () => ({ label: 'Cards', title: 'Every task as a card — search, filter and bulk edits' }),
+  schedule: () => ({ label: '🕑 Schedule', title: 'The reveal plan: when each one opens' }),
+  rotation: () => ({ label: '🎲 Rotation', title: 'The draw pool, in the order the engine pulls from it' }),
+  grid: () => ({ label: '⚡ Quick build', title: 'Spreadsheet-style bulk authoring' }),
 };
 
-const tileKind = (tile: Tile) => KIND_META[tileKindKey(tile)];
-
-const KIND_FILTERS: { key: KindFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'standard', label: 'Standard' },
-  { key: 'skill', label: 'Skill' },
-  { key: 'boss', label: 'Boss' },
-  { key: 'drop', label: 'Drop' },
-  { key: 'collection', label: 'Item set' },
-  { key: 'kill', label: 'Kill' },
-  { key: 'lap', label: 'Laps' },
-  { key: 'pvp', label: 'PvP' },
-  { key: 'gain', label: 'Gain' },
-  { key: 'timed', label: 'Timed' },
-  { key: 'deathless', label: 'Deathless' },
-  { key: 'lms', label: 'LMS' },
-  { key: 'value', label: 'Value' },
-  { key: 'diary', label: 'Diary' },
-  { key: 'ca', label: 'Combat task' },
-];
-
-/** One-line summary of a tile's current configuration, shown under the label on each card. */
-function tileMeta(tile: Tile): string {
-  switch (tileKindKey(tile)) {
-    case 'collection': {
-      let count = 0;
-      try {
-        count = (JSON.parse(tile.itemRequirements || '[]') as unknown[]).length;
-      } catch {
-        /* ignore */
-      }
-      return `Item set · ${count} item${count !== 1 ? 's' : ''}`;
-    }
-    case 'drop':
-      return tile.requiredAmount ? `Required: ${tile.requiredAmount}` : 'Item drop';
-    case 'skill':
-    case 'boss': {
-      const goal = tile.statGoal ? ` · goal ${tile.statGoal.toLocaleString()}` : '';
-      return `${statLabel(tile.trackedStat, tile.statType)}${goal} · ${tile.trackingMode}`;
-    }
-    case 'kill':
-      return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
-    case 'lap': {
-      let courses: string[] = [];
-      try {
-        courses = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const noun = lapUnitNoun(courses);
-      const label = (n: string) =>
-        AGILITY_COURSES.find((c) => c.name === n)?.label
-        ?? SEPULCHRE_TARGETS.find((t) => t.name === n)?.label
-        ?? n;
-      const where = courses.length === 1 ? label(courses[0]) : `${courses.length} ${noun === 'lap' ? 'courses' : 'targets'}`;
-      const head = noun === 'lap' ? 'Laps' : noun === 'floor' ? 'Sepulchre' : 'Runs';
-      return `${head} · ${where}${tile.requiredAmount ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'pvp': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const bounties = sels.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
-      const who = bounties.length > 0 ? bounties.join(', ') : 'rival team';
-      return `PvP kill · ${who}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'gain':
-      return tile.requiredAmount ? `Item gain · ${tile.requiredAmount}` : 'Item gain';
-    case 'deathless': {
-      const party = tile.timeThresholdSeconds ? ` · ${tile.timeThresholdSeconds}-man` : '';
-      return `Deathless · ${tile.timedActivity || 'raid'}${party}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'timed':
-      return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
-    case 'lms': {
-      const cap = tile.timeThresholdSeconds ?? 1;
-      const games = tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : '';
-      return cap <= 1 ? `LMS · win${games}` : `LMS · top ${cap}${games}`;
-    }
-    case 'value':
-      if (!tile.requiredAmount) return 'Loot value';
-      return tile.tileType === 'valuetotal'
-        ? `Loot value · ${tile.requiredAmount.toLocaleString()} gp total`
-        : `Loot value · ≥${tile.requiredAmount.toLocaleString()} gp haul`;
-    case 'diary': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
-      return `Diary · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'ca': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
-      return `Combat task · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    default:
-      return 'Manual tile — no auto-tracking';
-  }
-}
+// The kind badge, its one-line config summary and the kind filter's options all live in
+// lib/tileKinds, next to the kind derivation they read — every authoring view needs the same
+// answers about the same tile, and a second copy here would be a second copy to drift.
+type KindFilter = 'all' | TileKindKey;
 
 // ISO → the local wall-clock string a <input type="datetime-local"> wants.
 function toLocalInputValue(iso: string | null | undefined): string {
@@ -1936,10 +1927,14 @@ interface DrawerProps {
   missionsAllowed?: boolean;
   /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
   revealEditor?: React.ReactNode;
+  /** What one entry on this board is called — a ladder's are tasks (lib/tileAuthoring). */
+  noun?: string;
 }
 
-function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
-  const ref = useModalA11y<HTMLDivElement>({ onClose });
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
+  // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
+  // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
+  const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1962,7 +1957,7 @@ function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin
         {/* Header */}
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-text-muted">Tile #{tile.position + 1}</p>
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">{noun} #{tile.position + 1}</p>
             <h3 id={titleId} className="text-base font-bold text-foreground line-clamp-2 break-words">
               {tile.label}
             </h3>
@@ -2039,7 +2034,9 @@ function TileConfigDrawer({ tile, docked = false, eventId, eventStarted, isAdmin
   if (docked) return panel;
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+    // Above the site nav (z-50), not under it — the drawer's own header and close button live in
+    // that top strip, and a modal the page's chrome overlaps is a modal you can't close.
+    <div className="fixed inset-0 z-[60] flex justify-end">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
         onClick={onClose}
