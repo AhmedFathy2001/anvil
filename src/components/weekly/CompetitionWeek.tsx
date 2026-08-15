@@ -23,8 +23,28 @@ const LINE_COLORS = ['#f0c940', '#4aa3d4', '#5cbf7a', '#e0603f', '#a78bfa'];
  * shape that would actively mislead — the sliver leans toward whoever the sweep happened to catch,
  * so drawing it ranks people wrongly against the exact standings sitting right next to it.
  */
-export function DailyUnavailable({ trust, coverage }: { trust: 'thin' | 'none' | 'ok'; coverage: number }) {
+export function DailyUnavailable({
+  trust,
+  coverage,
+  started,
+}: {
+  trust: 'thin' | 'none' | 'ok';
+  coverage: number;
+  /** An unstarted competition has no history because there is no week yet — say that, not "none". */
+  started: boolean;
+}) {
   const thin = trust === 'thin';
+  if (!started) {
+    return (
+      <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
+        <p className="mb-1.5 font-semibold text-foreground">This one has not started yet</p>
+        <p className="leading-relaxed">
+          The day-by-day fills in as the week runs — who moved on which day, who is on a streak, and how the
+          clan is pacing against its last run at this metric. Everyone below is already entered.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
       <p className="mb-1.5 font-semibold text-foreground">
@@ -54,17 +74,24 @@ export function RaceChart({
   elapsed,
   type,
   unit,
-  clanTotal,
+  trackableTotal,
   trackedTotal,
+  guestGain,
 }: {
   entries: CompetitionEntry[];
   days: string[];
   elapsed: number;
   type: CompetitionType;
   unit: string;
-  /** The competition's own total, and the part the daily history can account for. */
-  clanTotal: number;
+  /**
+   * The total gained by people who can HAVE daily history, and the part of it the history accounts
+   * for. Guests are excluded from the denominator (`guestGain` is what they contributed) — they rank
+   * on the board but have no clan member row, so counting them here would blame the sweep for a gap
+   * it can never close.
+   */
+  trackableTotal: number;
   trackedTotal: number;
+  guestGain: number;
 }) {
   const top = entries.slice(0, 5).filter((e) => e.gained > 0);
   if (top.length === 0 || elapsed < 2) return null;
@@ -76,7 +103,7 @@ export function RaceChart({
   /** Right-hand gutter the end-of-line names live in. */
   const PAD_R = 96;
   const series = top.map((e) => cumulative(e.days, elapsed));
-  const coverage = clanTotal > 0 ? trackedTotal / clanTotal : 1;
+  const coverage = trackableTotal > 0 ? trackedTotal / trackableTotal : 1;
   const max = Math.max(...series.flat(), 1);
   const x = (i: number) => PAD_L + (i / Math.max(1, elapsed - 1)) * (W - PAD_L - PAD_R);
   const y = (v: number) => H - PAD_B - (v / max) * (H - PAD_B - 12);
@@ -154,10 +181,18 @@ export function RaceChart({
         <p className="mt-3 border-t border-card-border/60 pt-3 text-[11.5px] leading-relaxed text-text-muted">
           The day-by-day accounts for{' '}
           <b className="font-semibold text-foreground">{shortValue(trackedTotal, type)}</b> of the{' '}
-          <b className="font-semibold text-foreground">{shortValue(clanTotal, type)}</b> gained this week
-          {coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. A gain only lands on a day once the sweep
-          has an earlier snapshot to compare against, so the days before it first saw a member aren&apos;t in
-          here. The standings are exact either way — they come from the competition&apos;s own totals.
+          <b className="font-semibold text-foreground">{shortValue(trackableTotal, type)}</b> gained by clan
+          members{coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. A gain only lands on a day once the
+          sweep has an earlier snapshot to compare against, so the days before it first saw a member
+          aren&apos;t in here.
+          {guestGain > 0 && (
+            <>
+              {' '}
+              A further <b className="font-semibold text-foreground">{shortValue(guestGain, type)}</b> came
+              from guests, who rank but have no daily history at all.
+            </>
+          )}{' '}
+          The standings are exact either way — they come from the competition&apos;s own totals.
         </p>
       )}
     </div>

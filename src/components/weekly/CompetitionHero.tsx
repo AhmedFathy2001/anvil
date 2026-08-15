@@ -163,13 +163,13 @@ export default function CompetitionHero({
         <div className="mt-5 max-w-lg">
           <div className="mb-1.5 flex justify-between text-[10px] uppercase tracking-wider text-text-muted">
             <span>{new Date(startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-            <span>{ended ? 'complete' : `day ${elapsed} of ${totalDays}`}</span>
+            <span>{ended ? 'complete' : upcoming ? `${totalDays} days, not started` : `day ${elapsed} of ${totalDays}`}</span>
             <span>{new Date(endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full border border-card-border bg-brown-dark">
             <div
               className="h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
-              style={{ width: `${Math.round((elapsed / Math.max(1, totalDays)) * 100)}%` }}
+              style={{ width: upcoming ? '0%' : `${Math.round((elapsed / Math.max(1, totalDays)) * 100)}%` }}
             />
           </div>
         </div>

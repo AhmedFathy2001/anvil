@@ -49,6 +49,9 @@ export default async function WeeklyLeaderboardPage({
   // week, it's a biased one, and drawing it puts the leader underneath people he's beating. One
   // judgement gates every daily surface on the page, so they can't disagree about what's drawable.
   const showDaily = view.trust === 'ok';
+  // An upcoming competition has standings-shaped rows full of zeroes. Narrating them as a race ("day
+  // 1 of 7", "you are winning this one", medals on 0 KC) reads as a broken page rather than a lobby.
+  const started = Date.parse(competition.startDate) <= Date.now();
 
   return (
     <div>
@@ -79,7 +82,7 @@ export default async function WeeklyLeaderboardPage({
       />
 
       {view.me && (
-        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} />
+        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
       )}
 
       <Podium
@@ -101,8 +104,9 @@ export default async function WeeklyLeaderboardPage({
                 elapsed={view.elapsed}
                 type={view.type}
                 unit={view.unit}
-                clanTotal={view.clanTotal}
+                trackableTotal={view.trackableTotal}
                 trackedTotal={view.trackedTotal}
+                guestGain={view.guestGain}
               />
               <DayStrip
                 days={view.days}
@@ -122,7 +126,7 @@ export default async function WeeklyLeaderboardPage({
               />
             </>
           ) : (
-            <DailyUnavailable trust={view.trust} coverage={view.coverage} />
+            <DailyUnavailable trust={view.trust} coverage={view.coverage} started={started} />
           )}
         </div>
 
