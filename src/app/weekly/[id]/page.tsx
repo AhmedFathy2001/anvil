@@ -44,8 +44,10 @@ export default async function WeeklyLeaderboardPage({
       }
     : null;
   // Everything day-shaped hangs off history the sweep writes. A competition from before that (or a
-  // guest-only board) still ranks fine — it just shows the board without the week around it.
-  const showDaily = !view.dailyUnavailable;
+  // guest-only board) still ranks fine — it just shows the board without the week around it. So does
+  // one whose history is too thin to be honest about: a partial account isn't a rough version of the
+  // week, it's a biased one, and drawing it puts the leader underneath people he's beating.
+  const showDaily = view.trust === 'ok';
 
   return (
     <div>
@@ -110,13 +112,7 @@ export default async function WeeklyLeaderboardPage({
               />
             </>
           ) : (
-            <div className="rounded-xl border border-dashed border-card-border px-5 py-8 text-sm text-text-muted">
-              <p className="mb-1 font-semibold text-foreground">No day-by-day history for this one</p>
-              <p>
-                The daily breakdown is built from the stat sweep&apos;s history, which only covers members of
-                this clan and only from the day tracking started. The standings below are unaffected.
-              </p>
-            </div>
+            <DailyUnavailable trust={view.trust} coverage={view.coverage} />
           )}
         </div>
 
