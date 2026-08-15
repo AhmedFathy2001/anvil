@@ -57,11 +57,32 @@ export default function BoardShape({
   size,
   variant = 'card',
 }: {
-  mode: EventMode;
+  /**
+   * 'competition' isn't an EventMode — a weekly competition has no board and no tiles row, it's a
+   * different table entirely. It draws here anyway because it's offered as a fifth card in the same
+   * picker, and a card in that row without a diagram reads as the odd one out.
+   */
+  mode: EventMode | 'competition';
   size?: number;
   variant?: Variant;
 }) {
   const gap = GAP[variant];
+
+  if (mode === 'competition') {
+    // Everyone on the roster, ranked by one number. No board to draw — the standings ARE the thing,
+    // so the diagram is the podium: a full bar, then the field falling away behind it.
+    return (
+      <Rows
+        variant={variant}
+        rows={[
+          { kind: DONE, width: 'w-full', badge: '1st' },
+          { kind: OPEN, width: 'w-3/4', badge: '2nd' },
+          { kind: IDLE, width: 'w-1/2', badge: '3rd' },
+          { kind: IDLE, width: 'w-1/3', badge: '4th' },
+        ]}
+      />
+    );
+  }
 
   if (mode === 'classic') {
     // Square grid at the real N when it's small enough to read, else a 5x5 stand-in.

@@ -47,11 +47,22 @@ function defaultWeeklyTitle(type: 'skill' | 'boss' | 'efficiency', metric: strin
   return `${type === 'boss' ? 'BOTW' : type === 'efficiency' ? 'Efficiency' : 'SOTW'}: ${label}`;
 }
 
-/** The weekly competitions, offered beside the board formats — same page, different table. */
+/**
+ * The three weekly competitions — which are one competition.
+ *
+ * SOTW, BOTW and the efficiency race all do the same thing: enter the whole roster, take a
+ * hiscores baseline at the start, rank everyone by what they gained. The only difference is which
+ * number that is. They sat as three cards below the format picker, in their own colour, with an
+ * emoji where every other card had a diagram — three formats by appearance, one by behaviour, and
+ * visibly a footnote to the real list.
+ *
+ * So they're a fifth format card with the metric as a knob, exactly like Task pool. The names stay
+ * as presets, because SOTW is what people call it.
+ */
 const WEEKLY_KINDS = [
-  { type: 'skill' as const, label: 'Skill of the Week', emoji: '📈', chips: 'everyone · xp gained', defaultMetric: 'attack' },
-  { type: 'boss' as const, label: 'Boss of the Week', emoji: '💀', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
-  { type: 'efficiency' as const, label: 'Efficiency race', emoji: '⏱', chips: 'everyone · EHP / EHB', defaultMetric: 'ehp' },
+  { type: 'skill' as const, label: 'Skill of the Week', short: 'Skill', defaultMetric: 'attack', ranks: 'XP gained in one skill' },
+  { type: 'boss' as const, label: 'Boss of the Week', short: 'Boss', defaultMetric: 'zulrah', ranks: 'kills gained on one boss' },
+  { type: 'efficiency' as const, label: 'Efficiency race', short: 'Efficiency', defaultMetric: 'ehp', ranks: 'EHP or EHB gained' },
 ];
 
 /** One "this costs you" row in the panel. */
@@ -92,6 +103,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function EventForm({ presets = [], suggestedName = '' }: EventFormProps) {
   const router = useRouter();
   const [name, setName] = useState(suggestedName);
+  // Has anyone typed in the name field? Until they have, the name follows what's being made — the
+  // page suggests "Bingo #8", and leaving that on a Skill of the Week creates a competition called
+  // Bingo #8. Once it's been edited it's theirs, and nothing overwrites it.
+  const [nameTouched, setNameTouched] = useState(false);
   const [mode, setMode] = useState<Mode>('classic');
   const [size, setSize] = useState(5);
   // Reveal-policy config (showdown / lucky draw / bounty modes — see lib/eventRules). Only sent
@@ -150,22 +165,38 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   // draws against this number, and the create API rejects a mismatch.
   const expectedTiles = meta.square ? size * size : size;
 
+  // The competition preset in play, and the human name of the number it ranks by.
+  const weeklyKind = WEEKLY_KINDS.find((w) => w.type === weeklyType) ?? WEEKLY_KINDS[0];
+  const weeklyMetricLabel =
+    weeklyType === 'boss'
+      ? BOSSES.find((b) => b.key === weeklyMetric)?.label ?? weeklyMetric
+      : weeklyType === 'efficiency'
+        ? EFFICIENCY_METRICS.find((m) => m.key === weeklyMetric)?.label ?? weeklyMetric.toUpperCase()
+        : SKILL_LABELS[weeklyMetric] ?? weeklyMetric;
+
   // The three things you'll do after pressing create, in this format's terms.
-  const nextSteps = [
-    presetCsv || presetLabels || drawn
-      ? `Check the ${expectedTiles} tiles that came with it`
-      : expectedTiles > 40
-        ? `Author ${expectedTiles} tiles — the spreadsheet round-trip is faster past forty`
-        : `Author ${expectedTiles} tiles — paste a list, or draw from your library`,
-    meta.chips[0] === 'individual'
-      ? 'Set the rotation — how many tasks are open, and for how long'
-      : effectivePolicy && effectivePolicy !== 'all'
-        ? 'Set when tiles open, then build teams'
-        : 'Build teams — draft with an order, or assign from the roster',
-    startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
-  ];
+  const nextSteps = weeklyType
+    ? [
+        `Nothing to author — it ranks everyone by ${weeklyKind.ranks}`,
+        includeGuests ? 'Everyone on the roster is entered, guests included' : 'Every member is entered; guests sit it out',
+        startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
+      ]
+    : [
+        presetCsv || presetLabels || drawn
+          ? `Check the ${expectedTiles} tiles that came with it`
+          : expectedTiles > 40
+            ? `Author ${expectedTiles} tiles — the spreadsheet round-trip is faster past forty`
+            : `Author ${expectedTiles} tiles — paste a list, or draw from your library`,
+        meta.chips[0] === 'individual'
+          ? 'Set the rotation — how many tasks are open, and for how long'
+          : effectivePolicy && effectivePolicy !== 'all'
+            ? 'Set when tiles open, then build teams'
+            : 'Build teams — draft with an order, or assign from the roster',
+        startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
+      ];
 
   const isPool = POOL_MODES.includes(mode);
+  const poolActive = isPool && !weeklyType;
   // Which pool preset the card lands on when you pick it cold — the most-used one.
   const poolMode: Mode = isPool ? mode : 'luckydraw';
 
@@ -185,6 +216,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
     setWeeklyType(type);
     setWeeklyMetric(metric);
+    if (!nameTouched) setName(defaultWeeklyTitle(type, metric));
     setError('');
     setStartFrom('blank');
     setPresetCsv(null);
@@ -193,6 +225,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   }
 
   function changeMode(next: Mode) {
+    if (weeklyType && !nameTouched) setName(suggestedName);
     setWeeklyType(null);
     const m = MODES.find((x) => x.key === next)!;
     setMode(next);
@@ -448,7 +481,10 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             <Input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameTouched(true);
+              }}
               required
               className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
               placeholder="Summer Bingo 2026"
@@ -459,9 +495,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               diagram of the board it produces, because the names alone never said enough. */}
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {MODES.filter((m) => !POOL_MODES.includes(m.key)).map((m) => {
-                const active = mode === m.key;
+                // A board mode is only the selected one while a competition isn't — `mode` keeps its
+                // value underneath so switching back doesn't lose it, but showing two lit cards
+                // would say you'd picked two things.
+                const active = !weeklyType && mode === m.key;
                 return (
                   <button
                     key={m.key}
@@ -493,24 +532,48 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               <button
                 type="button"
                 onClick={() => changeMode(poolMode)}
-                aria-pressed={isPool}
+                aria-pressed={poolActive}
                 className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                  isPool ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                  poolActive ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
                 }`}
               >
                 <span className="flex items-center justify-center h-8 mb-2">
                   <BoardShape mode={isPool ? mode : 'luckydraw'} size={isPool ? size : undefined} />
                 </span>
-                <span className={`block text-sm font-medium leading-tight ${isPool ? 'text-gold' : ''}`}>
+                <span className={`block text-sm font-medium leading-tight ${poolActive ? 'text-gold' : ''}`}>
                   Task pool
                 </span>
                 <span className="block text-[10px] text-text-muted mt-1 leading-tight">
                   points · tasks open over time
                 </span>
               </button>
+
+              {/* A weekly competition is not a board — no tiles, no draft, no sign-up — but it IS
+                  one of the things this page makes, so it's a card in the same row rather than a
+                  differently-coloured footnote under it. What it isn't is carried by its chips. */}
+              <button
+                type="button"
+                onClick={() => pickWeekly(weeklyType ?? 'skill', weeklyType ? weeklyMetric : 'attack')}
+                aria-pressed={!!weeklyType}
+                className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                  weeklyType ? 'bg-gold/15 border-gold' : 'border-card-border hover:border-gold/50 bg-brown-dark/30'
+                }`}
+              >
+                <span className="flex items-center justify-center h-8 mb-2">
+                  <BoardShape mode="competition" />
+                </span>
+                <span className={`block text-sm font-medium leading-tight ${weeklyType ? 'text-gold' : ''}`}>
+                  Competition
+                </span>
+                <span className="block text-[10px] text-text-muted mt-1 leading-tight">
+                  everyone · no sign-up
+                </span>
+              </button>
             </div>
 
-            {isPool && (
+            {/* Same anatomy as the pool panel above: the named presets first, then the one thing
+                that actually varies between them. */}
+            {poolActive && (
               <div className="mt-2 rounded-lg border border-gold/25 bg-gold/[0.04] p-3 space-y-3">
                 <div className="flex flex-wrap gap-1.5">
                   {POOL_PRESETS.map((preset) => (
@@ -572,69 +635,67 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               </div>
             )}
 
-            <p className="text-[11px] uppercase tracking-widest text-text-muted mt-4 mb-1.5">
-              Whole clan · no sign-up
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {WEEKLY_KINDS.map((w) => {
-                const active = weeklyType === w.type;
-                return (
-                  <button
-                    key={w.type}
-                    type="button"
-                    onClick={() => pickWeekly(w.type, w.defaultMetric)}
-                    aria-pressed={active}
-                    className={`px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                      active ? 'bg-purple-400/15 border-purple-400' : 'border-card-border hover:border-purple-400/50 bg-brown-dark/30'
-                    }`}
-                  >
-                    <span className="flex items-center justify-center h-8 mb-2 text-lg" aria-hidden>
-                      {w.emoji}
-                    </span>
-                    <span className={`block text-sm font-medium leading-tight ${active ? 'text-purple-300' : ''}`}>
+            {weeklyType && (
+              <div className="mt-2 rounded-lg border border-gold/25 bg-gold/[0.04] p-3 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKLY_KINDS.map((w) => (
+                    <button
+                      key={w.type}
+                      type="button"
+                      onClick={() => pickWeekly(w.type, w.defaultMetric)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        weeklyType === w.type
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                      title={`Ranks everyone by ${w.ranks}`}
+                    >
                       {w.label}
-                    </span>
-                    <span className="block text-[10px] text-text-muted mt-1 leading-tight">{w.chips}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    </button>
+                  ))}
+                </div>
 
-          {weeklyType && (
-            <Section title="Competition">
-              <div>
-                <label className="block text-sm font-medium text-foreground/70 mb-1.5">
-                  {weeklyType === 'boss' ? 'Boss' : weeklyType === 'efficiency' ? 'Measure' : 'Skill'}
-                </label>
-                <Select
-                  value={weeklyMetric}
-                  onChange={setWeeklyMetric}
-                  ariaLabel="What the competition ranks by"
-                  options={
-                    weeklyType === 'skill'
-                      ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
-                      : weeklyType === 'boss'
-                        ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
-                        : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }))
-                  }
-                />
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">
+                      {weeklyType === 'boss' ? 'Which boss' : weeklyType === 'efficiency' ? 'Which measure' : 'Which skill'}
+                    </label>
+                    <Select
+                      value={weeklyMetric}
+                      onChange={(v) => {
+                        setWeeklyMetric(v);
+                        if (!nameTouched && weeklyType) setName(defaultWeeklyTitle(weeklyType, v));
+                      }}
+                      ariaLabel="What the competition ranks by"
+                      options={
+                        weeklyType === 'skill'
+                          ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
+                          : weeklyType === 'boss'
+                            ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
+                            : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Who's entered</label>
+                    <Select
+                      value={includeGuests ? 'guests' : 'members'}
+                      onChange={(v) => setIncludeGuests(v === 'guests')}
+                      ariaLabel="Who is entered"
+                      options={[
+                        { value: 'guests', label: 'The whole roster, guests included' },
+                        { value: 'members', label: 'Members only — guests sit it out' },
+                      ]}
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Everyone is entered automatically when it starts — nothing to draft, no sign-up.
+                  Baselines come from the hiscores at the start time.
+                </p>
               </div>
-              <label className="flex items-center gap-2 text-sm text-foreground/80">
-                <input
-                  type="checkbox"
-                  checked={includeGuests}
-                  onChange={(e) => setIncludeGuests(e.target.checked)}
-                  className="accent-[var(--gold,#d4af37)]"
-                />
-                Guests race too
-              </label>
-              <p className="text-xs text-text-muted">
-                Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
-                no sign-up. Baselines come from the hiscores at the start time.
-              </p>
-            </Section>
-          )}
+            )}
+          </div>
 
           {!weeklyType && <Section title="Board">
             <div>
@@ -843,7 +904,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
             </Section>
           )}
 
-          <Section title="Entries">
+          {!weeklyType && <Section title="Entries">
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">Accounts per person</label>
               <div className="flex items-center gap-2">
@@ -891,7 +952,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </div>
               </div>
             )}
-          </Section>
+          </Section>}
         </div>
 
         {/* Live preview — what the choices above actually produce. Sticky on wide screens so it
@@ -899,25 +960,44 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         <aside className="lg:sticky lg:top-4 space-y-3">
           <div className="border border-gold/25 rounded-xl bg-gold/5 p-4">
             <h3 className="text-[11px] uppercase tracking-widest text-text-muted mb-3">You&apos;ll get</h3>
+            {/* Describe what's actually being made. Picking a competition used to leave this panel
+                describing the board format underneath it — "25 tiles to author, draft or assign by
+                hand" about an event with no tiles and no teams. */}
             <div className="flex justify-center py-1 mb-3">
-              <BoardShape mode={mode} size={size} variant="panel" />
+              <BoardShape mode={weeklyType ? 'competition' : mode} size={size} variant="panel" />
             </div>
-            <p className="text-sm font-medium text-gold">{meta.label}</p>
+            <p className="text-sm font-medium text-gold">{weeklyType ? weeklyKind.label : meta.label}</p>
             <p className="text-xs text-text-muted mt-0.5">
-              {presetCsv ? `${presetCsv.labels.length} tiles from ${presetCsv.source}` : meta.sizeHelp(size)}
+              {weeklyType
+                ? `Ranked by ${weeklyMetricLabel}`
+                : presetCsv
+                  ? `${presetCsv.labels.length} tiles from ${presetCsv.source}`
+                  : meta.sizeHelp(size)}
             </p>
 
             {/* What this format actually costs you in work — the thing you find out the hard way
                 otherwise. Read off the same mode metadata the picker uses. */}
             <dl className="mt-3 border-t border-gold/15 pt-3 text-xs">
-              <SpecRow label="Tiles to author" value={presetCsv ? 'already written' : String(expectedTiles)} />
-              <SpecRow label="Scoring" value={meta.chips[1]} />
-              <SpecRow
-                label="Teams"
-                value={meta.chips[0] === 'individual' ? 'none needed — no draft' : 'draft, or assign by hand'}
-              />
-              <SpecRow label="Tiles open" value={meta.chips[2]} />
-              <SpecRow label="Entries" value={maxAccounts > 1 ? `up to ${maxAccounts} accounts each` : '1 account each'} />
+              {weeklyType ? (
+                <>
+                  <SpecRow label="Tiles to author" value="none — there's no board" />
+                  <SpecRow label="Scoring" value={weeklyKind.ranks} />
+                  <SpecRow label="Teams" value="none needed — no draft" />
+                  <SpecRow label="Entered" value={includeGuests ? 'the whole roster' : 'members only'} />
+                  <SpecRow label="Baselines" value="hiscores, at the start time" />
+                </>
+              ) : (
+                <>
+                  <SpecRow label="Tiles to author" value={presetCsv ? 'already written' : String(expectedTiles)} />
+                  <SpecRow label="Scoring" value={meta.chips[1]} />
+                  <SpecRow
+                    label="Teams"
+                    value={meta.chips[0] === 'individual' ? 'none needed — no draft' : 'draft, or assign by hand'}
+                  />
+                  <SpecRow label="Tiles open" value={meta.chips[2]} />
+                  <SpecRow label="Entries" value={maxAccounts > 1 ? `up to ${maxAccounts} accounts each` : '1 account each'} />
+                </>
+              )}
             </dl>
 
             <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
