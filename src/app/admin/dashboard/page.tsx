@@ -62,7 +62,7 @@ export default async function AdminDashboardPage() {
     teamCountRows,
     provisionalCount,
     activeMembers,
-    seenThisWeek,
+    playedThisWeek,
     joined7d,
     left7d,
     completions7d,
@@ -70,6 +70,7 @@ export default async function AdminDashboardPage() {
     rawRecentAudit,
     feeCounts,
     oldestHeldFee,
+    feeEvents,
   ] = await Promise.all([
     listEventIndex(),
     db.select().from(events).orderBy(desc(events.createdAt)),
@@ -87,6 +88,10 @@ export default async function AdminDashboardPage() {
       // count — guests are plugin-pinged non-members. Unranked non-guests stay counted.
       .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
       .then((r) => r[0]?.c ?? 0),
+    // NOT lastSeenInClan. That column is bumped for EVERY member on every roster sync, so it
+    // measures "still in the clan", not "played" — it read 135 of 135 and 0 idle, every day.
+    // liveStatsAt is only ever written by the plugin's stat push, which happens while the member
+    // is actually in game.
     db
       .select({ c: count() })
       .from(clanMembers)
@@ -94,7 +99,7 @@ export default async function AdminDashboardPage() {
         and(
           isNull(clanMembers.leftAt),
           eq(clanMembers.isGuest, 0),
-          sinceDay(clanMembers.lastSeenInClan, now, 7),
+          sinceDay(clanMembers.liveStatsAt, now, 7),
         ),
       )
       .then((r) => r[0]?.c ?? 0),
@@ -175,6 +180,34 @@ export default async function AdminDashboardPage() {
       .orderBy(signupFees.collectedAt)
       .limit(1)
       .then((r) => r[0]?.at ?? null),
+    // Which events the held fees belong to. Without this the card could only say "34 fees" — it
+    // couldn't name the board or tell a live one from a July one nobody has closed out.
+    db
+      .select({
+        eventId: events.id,
+        name: events.name,
+        endDate: events.endDate,
+        forceEndedAt: events.forceEndedAt,
+        c: count(),
+      })
+      .from(signupFees)
+      .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+      .innerJoin(events, eq(eventSignups.eventId, events.id))
+      .where(
+        and(
+          eq(signupFees.status, 'collected'),
+          notInArray(eventSignups.status, ['withdrawn', 'rejected']),
+        ),
+      )
+      .groupBy(events.id)
+      .then((rows) =>
+        rows.map((r) => ({
+          name: r.name,
+          ended: !!r.forceEndedAt || (!!r.endDate && Date.parse(r.endDate) < Date.now()),
+          count: r.c,
+          href: `/admin/events/${r.eventId}/signups`,
+        })),
+      ),
   ]);
 
   const tilesById = new Map(tileCountRows.map((r) => [r.eventId, r.n]));
@@ -217,6 +250,7 @@ export default async function AdminDashboardPage() {
     feesOwed: feeCounts.owed,
     feesToSign: feeCounts.toSign,
     oldestFeeDays: daysSince(oldestHeldFee, now),
+    feeEvents,
     pendingVerifications: provisionalCount,
     gap: gap ? { days: gap.days, startsInDays: Math.max(0, daysBetween(today, gap.start)) } : null,
     unscheduled,
@@ -304,10 +338,10 @@ export default async function AdminDashboardPage() {
             href="/admin/clan"
           />
           <PulseTile
-            label="Seen this week"
-            value={seenThisWeek}
-            share={activeMembers > 0 ? seenThisWeek / activeMembers : 0}
-            sub={`of ${activeMembers} · ${Math.max(0, activeMembers - seenThisWeek)} idle`}
+            label="Played this week"
+            value={playedThisWeek}
+            share={activeMembers > 0 ? playedThisWeek / activeMembers : 0}
+            sub={`of ${activeMembers} · only members running the plugin report in`}
             href="/admin/clan"
           />
           <PulseTile
@@ -552,17 +586,62 @@ function PulseTile({
 
 /* ---------------------------------------------------------------------------
    Runway — six weeks of bars, so overlap and holes are visible at a glance.
+
+   The first cut drew bars into an unlabelled strip that started a week in the
+   past, which put every event in the left third of a void: no dates to read a
+   position against, bars too narrow to hold their own titles ("Boss of the
+   W..."), and a large empty right-hand side that read as a rendering fault
+   rather than as the thing it actually was — nothing scheduled.
+
+   So: the window starts today (a dashboard looks forward, and that reclaims a
+   seventh of the width), there is a real week axis to read against, a title
+   that doesn't fit inside its bar is written beside it instead of being
+   truncated, and empty stretches are drawn AS gaps, labelled.
    --------------------------------------------------------------------------- */
 
+/** Below this share of the width a bar cannot hold a readable title, so it goes outside. */
+const LABEL_INSIDE_MIN = 0.16;
+
+const RUNWAY_ROW = 30;
+
 function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date; weeks: number }) {
-  const from = addDays(today, -7);
+  const from = today;
   const to = addDays(today, weeks * 7);
   const total = daysBetween(from, to) + 1;
+  const pct = (days: number) => (days / total) * 100;
 
   const inWindow = items.filter((i) => dayOf(i.endDate!) >= from && dayOf(i.startDate!) <= to);
-  const laid = packLanes(inWindow, (i) => ({ start: dayOf(i.startDate!), end: dayOf(i.endDate!) }));
+
+  // Lane packing reserves room for the LABEL, not just the bar.
+  //
+  // A two-day event is far too narrow to hold its title, so the title is written beside it — but
+  // pack on the bar alone and the next event in that lane starts right where the label goes, and
+  // the words land on top of a bar. Padding each span to at least label width means anything that
+  // would collide gets its own lane instead, and the collision can't occur at all.
+  const labelDays = Math.max(1, Math.ceil(total * LABEL_INSIDE_MIN));
+  const laid = packLanes(inWindow, (i) => {
+    const start = dayOf(i.startDate!);
+    const end = dayOf(i.endDate!);
+    // Measure the VISIBLE extent, not the whole event: something already under way is clipped at
+    // today, so a week-long competition three days from its end draws as a three-day sliver and
+    // still needs label room beside it.
+    const visibleStart = start < from ? from : start;
+    const needsLabel = daysBetween(visibleStart, end) < labelDays;
+    return { start, end: needsLabel ? addDays(visibleStart, labelDays) : end };
+  });
   const lanes = Math.max(1, Math.max(0, ...laid.map((l) => l.lane)) + 1);
-  const todayPct = (daysBetween(from, today) / total) * 100;
+
+  // Week ticks to read a bar's position against. Without these the strip is a void.
+  const ticks: Date[] = [];
+  for (let d = new Date(from); d <= to; d = addDays(d, 7)) ticks.push(new Date(d));
+
+  // Empty stretches, drawn as what they are. Two days of nothing isn't news; a fortnight is.
+  const gaps = findGaps(
+    inWindow.map((i) => ({ start: dayOf(i.startDate!), end: dayOf(i.endDate!) })),
+    from,
+    to,
+    3,
+  );
 
   return (
     <section>
@@ -577,46 +656,108 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
         </Link>
       </div>
 
-      <div className="border border-card-border rounded-xl bg-card-bg p-4">
-        {inWindow.length === 0 ? (
-          <p className="text-sm text-text-muted text-center py-4">
-            Nothing runs in the next {weeks} weeks.{' '}
-            <Link href="/admin/events/new" className="text-gold hover:underline">
-              Schedule something →
-            </Link>
-          </p>
-        ) : (
-          <div className="relative" style={{ height: `${lanes * 26}px` }}>
-            {laid.map((l) => {
-              const left = Math.max(0, (daysBetween(from, l.start) / total) * 100);
-              const width = Math.min(100 - left, ((daysBetween(l.start, l.end) + 1) / total) * 100);
-              const tone =
-                l.item.status === 'running'
-                  ? 'bg-accent-green/15 text-accent-green-light border-accent-green/40'
-                  : l.item.status === 'upcoming'
-                    ? l.item.kind === 'board'
-                      ? 'bg-gold/15 text-gold-light border-gold/40'
-                      : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
-                    : 'bg-text-muted/10 text-text-muted border-text-muted/30';
-              return (
-                <Link
-                  key={`${l.item.kind}-${l.item.id}`}
-                  href={l.item.href}
-                  title={`${l.item.title} · ${l.item.headline}`}
-                  style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * 26}px` }}
-                  className={`absolute h-[22px] rounded-md border flex items-center px-2 text-[10px] font-semibold overflow-hidden whitespace-nowrap hover:brightness-125 transition-[filter] ${tone}`}
-                >
-                  <span className="truncate">{l.item.title}</span>
-                </Link>
-              );
-            })}
+      <div className="border border-card-border rounded-xl bg-card-bg p-4 overflow-hidden">
+        {/* Axis */}
+        <div className="relative h-4 mb-1.5">
+          {ticks.map((t, i) => (
             <span
-              className="absolute top-0 bottom-0 w-px bg-gold/60 pointer-events-none"
-              style={{ left: `${todayPct}%` }}
+              key={i}
+              className="absolute top-0 text-[9px] text-text-muted/70 tabular-nums whitespace-nowrap"
+              style={{ left: `${pct(daysBetween(from, t))}%` }}
+            >
+              {i === 0 ? 'today' : t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative" style={{ height: `${lanes * RUNWAY_ROW}px` }}>
+          {/* Week gridlines, behind everything */}
+          {ticks.map((t, i) => (
+            <span
+              key={i}
+              className={`absolute top-0 bottom-0 w-px pointer-events-none ${
+                i === 0 ? 'bg-gold/40' : 'bg-card-border/60'
+              }`}
+              style={{ left: `${pct(daysBetween(from, t))}%` }}
               aria-hidden
             />
-          </div>
-        )}
+          ))}
+
+          {/* Gaps, before the bars so bars sit on top */}
+          {gaps.map((g, i) => {
+            const left = pct(daysBetween(from, g.start));
+            const width = pct(g.days);
+            return (
+              <Link
+                key={`gap-${i}`}
+                href="/admin/schedule"
+                title={`Nothing scheduled for ${g.days} days`}
+                style={{ left: `${left}%`, width: `${width}%` }}
+                className="absolute inset-y-0 rounded-md border border-dashed border-yellow-500/25 bg-yellow-500/[0.04] hover:bg-yellow-500/10 transition-colors flex items-center justify-center"
+              >
+                {width > 22 && (
+                  <span className="text-[9px] text-yellow-500/70 whitespace-nowrap px-1">
+                    nothing scheduled · {g.days}d
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+
+          {inWindow.length === 0 ? (
+            <p className="absolute inset-0 grid place-items-center text-sm text-text-muted">
+              Nothing runs in the next {weeks} weeks.{' '}
+              <Link href="/admin/events/new" className="text-gold hover:underline ml-1">
+                Schedule something →
+              </Link>
+            </p>
+          ) : (
+            laid.map((l) => {
+              // Real dates for drawing; l.end carries the label padding and would overstate it.
+              const realStart = dayOf(l.item.startDate!);
+              const realEnd = dayOf(l.item.endDate!);
+              const rawLeft = pct(daysBetween(from, realStart));
+              const left = Math.max(0, rawLeft);
+              const width = Math.min(100 - left, pct(daysBetween(realStart, realEnd) + 1) + Math.min(0, rawLeft));
+              // Already under way when the window opens: flatten the left edge rather than
+              // pretending it starts today.
+              const clipped = rawLeft < 0;
+              const tone =
+                l.item.status === 'running'
+                  ? 'bg-accent-green/20 text-accent-green-light border-accent-green/50'
+                  : l.item.status === 'upcoming'
+                    ? l.item.kind === 'board'
+                      ? 'bg-gold/20 text-gold-light border-gold/50'
+                      : 'bg-blue-500/20 text-blue-300 border-blue-500/50'
+                    : 'bg-text-muted/10 text-text-muted border-text-muted/30';
+              const inside = width / 100 >= LABEL_INSIDE_MIN;
+              return (
+                <div key={`${l.item.kind}-${l.item.id}`}>
+                  <Link
+                    href={l.item.href}
+                    title={`${l.item.title} · ${l.item.headline}`}
+                    style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * RUNWAY_ROW}px` }}
+                    className={`absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
+                      clipped ? 'rounded-r-md border-l-0' : 'rounded-md'
+                    }`}
+                  >
+                    {inside && <span className="truncate">{l.item.title}</span>}
+                  </Link>
+                  {/* A bar too narrow to hold its title gets it alongside, rather than as "Bo…". */}
+                  {!inside && (
+                    <Link
+                      href={l.item.href}
+                      style={{ left: `calc(${left + width}% + 6px)`, top: `${l.lane * RUNWAY_ROW}px` }}
+                      className="absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden"
+                    >
+                      <span className="truncate">{l.item.title}</span>
+                    </Link>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </section>
   );

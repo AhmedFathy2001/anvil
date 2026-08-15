@@ -53,6 +53,14 @@ export interface AttentionFacts {
   feesToSign: number;
   /** Age in days of the oldest fee still waiting, or null if none are. */
   oldestFeeDays: number | null;
+  /**
+   * Which events the waiting fees belong to, and whether those events are over.
+   *
+   * A count alone couldn't tell "someone is holding cash for the board that opens Tuesday" from
+   * "a July board nobody has closed out". Both are real, but only the first is urgent, and the
+   * second needs the event NAMED or you can't act on it at all.
+   */
+  feeEvents: { name: string; ended: boolean; count: number; href: string }[];
   pendingVerifications: number;
   /** Days with nothing running at all, starting from the first such day ahead of now. */
   gap: { days: number; startsInDays: number } | null;
@@ -132,18 +140,37 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   // Fees a mod is already holding. Nobody chases these because the money has arrived — which is
   // exactly why they rot.
   if (facts.feesToSign > 0) {
-    const old = facts.oldestFeeDays != null && facts.oldestFeeDays >= 14;
+    const live = facts.feeEvents.filter((e) => !e.ended);
+    const finished = facts.feeEvents.filter((e) => e.ended);
+    // Money moving for an event that hasn't happened yet is a live problem. Money left over from a
+    // board that finished weeks ago is bookkeeping — real, but it should not be the loudest thing
+    // on the dashboard every morning for the rest of the year.
+    const onlyOldEvents = live.length === 0 && finished.length > 0;
+    const named = facts.feeEvents.length === 1 ? facts.feeEvents[0] : null;
+
     items.push({
       key: 'fees-sign',
-      severity: old ? 'warn' : 'info',
-      title: `${plural(facts.feesToSign, 'collected fee')} waiting on a second signature`,
-      detail:
-        facts.oldestFeeDays != null
-          ? `A mod has the money; nobody has signed it off. Oldest: ${plural(facts.oldestFeeDays, 'day')}.`
-          : 'A mod has the money; nobody has signed it off.',
-      href: '/admin/fees',
-      action: 'Review fees',
-      at: -(facts.oldestFeeDays ?? 0) * DAY,
+      severity: onlyOldEvents ? 'info' : facts.oldestFeeDays != null && facts.oldestFeeDays >= 14 ? 'warn' : 'info',
+      title: onlyOldEvents
+        ? `${plural(facts.feesToSign, 'fee')} left unsigned from ${
+            named ? named.name : `${plural(finished.length, 'finished event')}`
+          }`
+        : `${plural(facts.feesToSign, 'collected fee')} waiting on a second signature`,
+      detail: onlyOldEvents
+        ? `The event is over and a mod still holds the money${
+            facts.oldestFeeDays != null ? `, ${plural(facts.oldestFeeDays, 'day')} ago` : ''
+          } — sign them off or write them off.`
+        : named
+          ? `A mod has the money for ${named.name}; nobody has signed it off.${
+              facts.oldestFeeDays != null ? ` Oldest: ${plural(facts.oldestFeeDays, 'day')}.` : ''
+            }`
+          : `A mod has the money; nobody has signed it off.${
+              facts.oldestFeeDays != null ? ` Oldest: ${plural(facts.oldestFeeDays, 'day')}.` : ''
+            }`,
+      href: named ? named.href : '/admin/fees',
+      action: onlyOldEvents ? 'Close them out' : 'Review fees',
+      // Stale bookkeeping sorts below anything live, however old it is.
+      at: onlyOldEvents ? Number.MAX_SAFE_INTEGER : -(facts.oldestFeeDays ?? 0) * DAY,
     });
   }
 

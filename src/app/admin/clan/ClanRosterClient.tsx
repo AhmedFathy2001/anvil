@@ -17,6 +17,9 @@ interface ClanMember {
   joinedAt: string;
   leftAt: string | null;
   lastSeenInClan: string | null;
+  // Only ever written by the plugin's stat push, which happens while the member is in game — so
+  // unlike lastSeenInClan this really does mean "played". Null for anyone without the plugin.
+  liveStatsAt: string | null;
   notes: string | null;
   userId: number | null;
   // 1 = this account is the person's primary (main). Only meaningful when userId is set (a person
@@ -39,15 +42,24 @@ interface ClanMember {
 type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
 type PendingRoleValue = PendingRole | 'none';
 
-type FilterMode = 'active' | 'review' | 'idle' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+type FilterMode = 'active' | 'review' | 'quiet' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
 
-// A member the roster sync hasn't seen for this long has, in practice, stopped playing — the one
-// question the old filter row could not ask at all.
-const IDLE_DAYS = 7;
+const QUIET_DAYS = 7;
 
-function daysSinceSeen(m: { lastSeenInClan: string | null }, now: number): number | null {
-  if (!m.lastSeenInClan) return null;
-  const ms = Date.parse(m.lastSeenInClan);
+/**
+ * Days since the member last PLAYED.
+ *
+ * Deliberately not lastSeenInClan: clan-sync bumps that column for every member of the roster on
+ * every sync, so it answers "are they still in the clan" and reads as today for everyone — as a
+ * "last seen" column it showed the same value on all 135 rows. liveStatsAt is written only by the
+ * plugin's stat push, which happens while someone is actually in game.
+ *
+ * Null means no plugin data at all, which is a different thing from being inactive and must not be
+ * counted as either.
+ */
+function daysSincePlayed(m: { liveStatsAt: string | null }, now: number): number | null {
+  if (!m.liveStatsAt) return null;
+  const ms = Date.parse(m.liveStatsAt);
   return Number.isFinite(ms) ? Math.floor((now - ms) / 86_400_000) : null;
 }
 
@@ -105,8 +117,9 @@ function Composition({
     linked: number;
     unlinked: number;
     review: number;
-    idle: number;
+    quiet: number;
     staff: number;
+    noPluginData: number;
     total: number;
   };
   onPick: (f: FilterMode) => void;
@@ -167,7 +180,7 @@ function Composition({
           </button>
         )}
         <span className="text-[11px] text-text-muted tabular-nums">
-          {counts.linked} linked · {counts.unlinked} roster-only · {counts.idle} idle {IDLE_DAYS}d+
+          {counts.linked} linked · {counts.quiet} quiet {QUIET_DAYS}d+ · {counts.noPluginData} no plugin data
         </span>
       </div>
     </div>
@@ -215,24 +228,43 @@ function StatusBadge({ m }: { m: ClanMember }) {
 }
 
 /**
- * How long ago the roster sync last saw them, as an age rather than a date.
+ * How long ago the member last played, as an age rather than a date.
  *
- * Every row used to read "8/15/2026" — technically the answer, but you had to do the subtraction
- * yourself on 135 rows to find the people who had stopped playing. The dot carries the same
- * judgement without being read at all.
+ * This column used to show lastSeenInClan, which clan-sync bumps for the whole roster at once — so
+ * every row read the same value and the column carried no information at all. It now reads the
+ * plugin's stat push, and says plainly when there is no plugin data rather than implying absence.
  */
-function LastSeen({ m, now }: { m: { lastSeenInClan: string | null }; now: number }) {
-  const days = daysSinceSeen(m, now);
-  if (days === null) return <span className="text-text-muted">—</span>;
+function LastPlayed({
+  m,
+  now,
+}: {
+  m: { liveStatsAt: string | null; lastSeenInClan: string | null };
+  now: number;
+}) {
+  const days = daysSincePlayed(m, now);
+  if (days === null) {
+    return (
+      <span
+        className="text-text-muted/50"
+        title={
+          m.lastSeenInClan
+            ? `No plugin data. Last roster sync: ${new Date(m.lastSeenInClan).toLocaleString()}`
+            : 'No plugin data.'
+        }
+      >
+        no plugin data
+      </span>
+    );
+  }
 
-  const tone = days >= 30 ? 'bg-accent-red' : days >= IDLE_DAYS ? 'bg-yellow-500' : 'bg-accent-green';
+  const tone = days >= 30 ? 'bg-accent-red' : days >= QUIET_DAYS ? 'bg-yellow-500' : 'bg-accent-green';
   const label =
     days === 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
 
   return (
     <span
       className="inline-flex items-center gap-2 text-text-muted tabular-nums"
-      title={m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleString() : undefined}
+      title={m.liveStatsAt ? `Last played ${new Date(m.liveStatsAt).toLocaleString()}` : undefined}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
       {label}
@@ -357,10 +389,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       // Everyone the plugin reported but no mod has confirmed yet — the queue this page exists
       // to clear, previously only reachable from another route entirely.
       if (filter === 'review' && (m.leftAt || !m.provisional)) return false;
-      if (filter === 'idle') {
+      // "Quiet", not "idle": someone who has never run the plugin isn't inactive, we simply have
+      // no evidence either way, so they belong in neither bucket.
+      if (filter === 'quiet') {
         if (m.leftAt || m.isGuest) return false;
-        const days = daysSinceSeen(m, nowMs);
-        if (days === null || days < IDLE_DAYS) return false;
+        const days = daysSincePlayed(m, nowMs);
+        if (days === null || days < QUIET_DAYS) return false;
       }
       if (filter === 'guests' && (!m.isGuest || m.leftAt)) return false;
       if (filter === 'left' && !m.leftAt) return false;
@@ -404,7 +438,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }, [members]);
 
   const counts = useMemo(() => {
-    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, idle = 0, staff = 0;
+    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, quiet = 0, staff = 0, noPluginData = 0;
     for (const m of members) {
       if (m.leftAt) left++;
       else if (m.isGuest) guests++;
@@ -415,12 +449,13 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         if (m.provisional) review++;
         if (STAFF_ROLES.has(m.userRole ?? '')) staff++;
         if (!m.isGuest) {
-          const days = daysSinceSeen(m, nowMs);
-          if (days !== null && days >= IDLE_DAYS) idle++;
+          const days = daysSincePlayed(m, nowMs);
+          if (days === null) noPluginData++;
+          else if (days >= QUIET_DAYS) quiet++;
         }
       }
     }
-    return { active, guests, left, linked, unlinked, review, idle, staff, total: members.length };
+    return { active, guests, left, linked, unlinked, review, quiet, staff, noPluginData, total: members.length };
   }, [members, nowMs]);
 
   // ── Bulk selection ────────────────────────────────────────────────────────
@@ -742,7 +777,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const filterDefs: { key: FilterMode; label: string; count: number; attn?: boolean }[] = [
     { key: 'review', label: 'Needs review', count: counts.review, attn: true },
     { key: 'active', label: 'Active', count: counts.active },
-    { key: 'idle', label: `Idle ${IDLE_DAYS}d+`, count: counts.idle },
+    { key: 'quiet', label: `Quiet ${QUIET_DAYS}d+`, count: counts.quiet },
     { key: 'guests', label: 'Guests', count: counts.guests },
     { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
     { key: 'linked', label: 'Has account', count: counts.linked },
@@ -1092,7 +1127,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 <th className="px-4 py-3 font-medium">Rank</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Source</th>
-                <th className="px-4 py-3 font-medium">Last seen</th>
+                <th className="px-4 py-3 font-medium">Last played</th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -1128,7 +1163,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   <td className="px-4 py-3"><StatusBadge m={m} /></td>
                   <td className="px-4 py-3 text-text-muted text-xs">{SOURCE_LABEL[m.source] ?? m.source}</td>
                   <td className="px-4 py-3 text-xs">
-                    <LastSeen m={m} now={nowMs} />
+                    <LastPlayed m={m} now={nowMs} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
@@ -1212,9 +1247,9 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   <dd className="mt-0.5">{SOURCE_LABEL[m.source] ?? m.source}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-text-muted">Last seen</dt>
+                  <dt className="text-text-muted">Last played</dt>
                   <dd className="mt-0.5">
-                    {m.lastSeenInClan ? new Date(m.lastSeenInClan).toLocaleDateString() : '—'}
+                    <LastPlayed m={m} now={nowMs} />
                   </dd>
                 </div>
               </dl>

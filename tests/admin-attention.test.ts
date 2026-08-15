@@ -38,6 +38,7 @@ const QUIET: AttentionFacts = {
   feesOwed: 0,
   feesToSign: 0,
   oldestFeeDays: null,
+  feeEvents: [],
   pendingVerifications: 0,
   gap: null,
   unscheduled: [],
@@ -109,14 +110,55 @@ test('weeklies are never in the queue — nothing about them is manual', () => {
   assert.equal(openCount(q), 0);
 });
 
-test('held fees escalate once they have sat a fortnight', () => {
-  const fresh = attentionQueue(facts({ feesToSign: 34, oldestFeeDays: 3 }));
+const liveFees = [{ name: 'Bingo #6', ended: false, count: 34, href: '/admin/events/1/fees' }];
+const oldFees = [{ name: 'July Bingo', ended: true, count: 34, href: '/admin/events/9/fees' }];
+
+test('held fees for a live event escalate once they have sat a fortnight', () => {
+  const fresh = attentionQueue(facts({ feesToSign: 34, oldestFeeDays: 3, feeEvents: liveFees }));
   assert.equal(fresh.find((i) => i.key === 'fees-sign')?.severity, 'info');
 
-  const stale = attentionQueue(facts({ feesToSign: 34, oldestFeeDays: 19 }));
+  const stale = attentionQueue(facts({ feesToSign: 34, oldestFeeDays: 19, feeEvents: liveFees }));
   const item = stale.find((i) => i.key === 'fees-sign');
   assert.equal(item?.severity, 'warn');
   assert.match(item!.detail, /Oldest: 19 days/);
+});
+
+test('fees left over from a finished event are bookkeeping, not an alarm', () => {
+  // The complaint this fixes: a 50-day-old fee from a board that ended in July was the loudest
+  // card on the dashboard every morning, and never said which event it meant.
+  const q = attentionQueue(facts({ feesToSign: 34, oldestFeeDays: 50, feeEvents: oldFees }));
+  const item = q.find((i) => i.key === 'fees-sign')!;
+  assert.equal(item.severity, 'info', 'a finished event must not escalate on age alone');
+  assert.match(item.title, /left unsigned from July Bingo/);
+  assert.match(item.detail, /The event is over/);
+  assert.equal(item.action, 'Close them out');
+  assert.equal(item.href, '/admin/events/9/fees');
+});
+
+test('stale bookkeeping sorts below anything live, however old it is', () => {
+  const q = attentionQueue(
+    facts({
+      feesToSign: 34,
+      oldestFeeDays: 50,
+      feeEvents: oldFees,
+      pendingVerifications: 2,
+    }),
+  );
+  assert.deepEqual(q.map((i) => i.key), ['verifications', 'fees-sign']);
+});
+
+test('a live event among the waiting fees keeps the card urgent and names it', () => {
+  const q = attentionQueue(
+    facts({ feesToSign: 34, oldestFeeDays: 20, feeEvents: [...oldFees, ...liveFees] }),
+  );
+  const item = q.find((i) => i.key === 'fees-sign')!;
+  assert.equal(item.severity, 'warn');
+  assert.match(item.title, /waiting on a second signature/);
+});
+
+test('a single live event is named in the detail', () => {
+  const q = attentionQueue(facts({ feesToSign: 3, oldestFeeDays: 2, feeEvents: liveFees }));
+  assert.match(q.find((i) => i.key === 'fees-sign')!.detail, /the money for Bingo #6/);
 });
 
 test('owed and held fees are different jobs and stay separate', () => {
@@ -159,6 +201,7 @@ test('critical work outranks everything, and ties break on what bites first', ()
       ],
       feesToSign: 3,
       oldestFeeDays: 20,
+      feeEvents: liveFees,
       pendingVerifications: 12,
     }),
   );
