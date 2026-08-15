@@ -10,6 +10,7 @@ import YouStrip from '@/components/ladder/YouStrip';
 import YourSeason from '@/components/ladder/YourSeason';
 import { ScopeBar, Podium, Chase } from '@/components/ladder/LadderBoard';
 import { HallOfLadder, ActivityFeed } from '@/components/ladder/LadderExtras';
+import { eventTimeState } from '@/lib/eventTime';
 import { parseEventRules } from '@/lib/eventRules';
 import { isPointsMode } from '@/lib/utils';
 import type { LadderScope, LadderView } from '@/lib/ladderView';
@@ -81,6 +82,18 @@ export default function LadderClient({
   const scope = view.scopes.find((s) => s.key === scopeKey) ?? view.scopes[0];
   const openNow = tiles.filter((t) => t.revealedAt && !t.closedAt).length;
 
+  // Whether the run is over. Every "open now" / "next drop" / "as people start claiming" phrase on
+  // this page is written for a ladder that is still running; on a finished one they read as a
+  // broken page — a countdown sitting at 00:00:00 above five tasks nobody can claim.
+  const finished = useMemo(() => {
+    const phase = eventTimeState({
+      startDate: event.startDate,
+      endDate: event.endDate,
+      forceEndedAt: event.forceEndedAt,
+    }).phase;
+    return phase === 'ended' || phase === 'force-ended';
+  }, [event.startDate, event.endDate, event.forceEndedAt]);
+
   // Relative timestamps in the feed need a client clock, and rendering them on the server would
   // hydrate to a different string a second later.
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -139,7 +152,7 @@ export default function LadderClient({
         chaser={view.chaser}
       />
 
-      {view.me && <YouStrip me={view.me} openNow={openNow} />}
+      {view.me && <YouStrip me={view.me} openNow={openNow} finished={finished} />}
 
       <ScopeBar scopes={view.scopes} value={scopeKey} onChange={setScopeKey} note={scope.note} />
       <div className="mb-8">
@@ -156,11 +169,13 @@ export default function LadderClient({
         <div className="min-w-0">
           <h2 className="mb-4 flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
             <span className="h-5 w-1 rounded-full bg-gold" />
-            Open now
+            {finished ? 'How it finished' : 'Open now'}
             <span className="text-xs font-normal text-text-muted">
-              {rules.revealPolicy === 'rotating'
-                ? 'the board rotates — the oldest task expires as the next drops'
-                : 'click a task for details'}
+              {finished
+                ? 'the final task list — nothing here can still be claimed'
+                : rules.revealPolicy === 'rotating'
+                  ? 'the board rotates — the oldest task expires as the next drops'
+                  : 'click a task for details'}
             </span>
           </h2>
           <LiveDropBoard
@@ -174,12 +189,19 @@ export default function LadderClient({
             noun="task"
             expiryByTile={expiryByTile}
             claimsByTile={view.claimsByTile}
+            finished={finished}
           />
           {view.me && <YourSeason me={view.me} word={word} />}
         </div>
 
         <div className="min-w-0">
-          <Chase scope={scope} streaks={view.streaks} mePlayerId={view.me?.playerId ?? null} showTeam={showTeam} />
+          <Chase
+            scope={scope}
+            streaks={view.streaks}
+            mePlayerId={view.me?.playerId ?? null}
+            showTeam={showTeam}
+            finished={finished}
+          />
           {nowMs !== null && <ActivityFeed feed={view.feed} nowMs={nowMs} />}
         </div>
       </div>

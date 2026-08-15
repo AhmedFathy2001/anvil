@@ -10,7 +10,7 @@ import type { LadderMe } from '@/lib/ladderView';
  * you have to find yourself in a table. It's sticky because it has to still be true after you've
  * scrolled past your row.
  */
-export default function YouStrip({ me, openNow }: { me: LadderMe; openNow: number }) {
+export default function YouStrip({ me, openNow, finished }: { me: LadderMe; openNow: number; finished: boolean }) {
   // Your points as a share of theirs — a bar that fills as you close on them, and reads honestly
   // (75% full means you have three quarters of what the person above you has).
   const gapPct = me.gap
@@ -61,7 +61,7 @@ export default function YouStrip({ me, openNow }: { me: LadderMe; openNow: numbe
         href="#open-now"
         className="col-span-2 justify-self-start whitespace-nowrap rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-xs font-bold text-gold transition-colors hover:bg-gold/20 sm:col-span-1 sm:justify-self-end"
       >
-        {openNow} task{openNow === 1 ? '' : 's'} open now →
+        {finished ? 'See the final board →' : `${openNow} task${openNow === 1 ? '' : 's'} open now →`}
       </a>
     </div>
   );

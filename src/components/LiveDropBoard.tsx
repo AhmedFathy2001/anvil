@@ -63,6 +63,7 @@ export default function LiveDropBoard({
   noun = 'task',
   expiryByTile,
   claimsByTile,
+  finished = false,
 }: {
   /** Every tile on the board — this splits them into open / claimed / still to come itself. */
   tiles: OpenTile[];
@@ -78,6 +79,8 @@ export default function LiveDropBoard({
   expiryByTile?: Record<number, string>;
   /** How many teams/players have already claimed each tile. */
   claimsByTile?: Record<number, number>;
+  /** The run is over: the board is a result to read, not a set of tasks to go and do. */
+  finished?: boolean;
 }) {
   const open = tiles.filter((t) => t.revealedAt && !t.closedAt);
   const closed = tiles.filter((t) => t.closedAt);
@@ -191,9 +194,11 @@ export default function LiveDropBoard({
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
           <div>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-gold/80">
-              {rotating ? 'Next rotation' : 'Next drop'}
+              {finished ? 'Final board' : rotating ? 'Next rotation' : 'Next drop'}
             </p>
-            {nextRevealAt ? (
+            {finished ? (
+              <p className="text-2xl font-bold leading-none text-foreground">Nothing more drops</p>
+            ) : nextRevealAt ? (
               <p
                 className="font-mono text-4xl font-bold leading-none tabular-nums text-foreground sm:text-5xl"
                 suppressHydrationWarning
@@ -208,11 +213,15 @@ export default function LiveDropBoard({
           </div>
           <div className="flex items-center gap-6 text-sm">
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">Open now</p>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+                {finished ? 'On the board' : 'Open now'}
+              </p>
               <p className="text-2xl font-bold leading-none text-accent-green-light">{open.length}</p>
             </div>
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">In the pool</p>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+                {finished ? 'Never opened' : 'In the pool'}
+              </p>
               <p className="text-2xl font-bold leading-none text-text-muted">{hiddenCount}</p>
             </div>
             {rotatingOut > 0 && (
@@ -236,7 +245,7 @@ export default function LiveDropBoard({
         <div>
           <h3 className="mb-2.5 flex items-center gap-2 text-sm font-bold">
             <span className="h-4 w-1 rounded-full bg-accent-green" />
-            Open now
+            {finished ? 'On the board at the end' : 'Open now'}
           </h3>
 
           {featured && (() => {
