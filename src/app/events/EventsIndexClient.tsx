@@ -26,20 +26,30 @@ const FORMATS: { key: 'all' | EventCard['format']; label: string }[] = [
   { key: 'tilerace', label: 'Tile race' },
 ];
 
-export default function EventsIndexClient({ events }: { events: EventCard[] }) {
+export default function EventsIndexClient({
+  events,
+  pastTotal,
+}: {
+  events: EventCard[];
+  /** How many finished events exist in total — the page only loads a page of them. */
+  pastTotal?: number;
+}) {
   const [status, setStatus] = useState<(typeof STATUS)[number]['key']>('all');
   const [format, setFormat] = useState<(typeof FORMATS)[number]['key']>('all');
   const [query, setQuery] = useState('');
 
-  const counts = useMemo(
-    () => ({
-      all: events.length,
+  // The archive is paged, so "Finished" counts what EXISTS, not what happens to be loaded —
+  // a chip reading 24 next to a page that says "24 of 291" would just be wrong.
+  const counts = useMemo(() => {
+    const loadedPast = events.filter((e) => e.status === 'past').length;
+    const past = pastTotal ?? loadedPast;
+    return {
+      all: events.length - loadedPast + past,
       live: events.filter((e) => e.status === 'live').length,
       upcoming: events.filter((e) => e.status === 'upcoming').length,
-      past: events.filter((e) => e.status === 'past').length,
-    }),
-    [events],
-  );
+      past,
+    };
+  }, [events, pastTotal]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();

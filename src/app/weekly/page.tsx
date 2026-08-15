@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { desc, count } from 'drizzle-orm';
+import { desc, count, eq, inArray } from 'drizzle-orm';
 import { SKILL_LABELS, BOSSES, EFFICIENCY_LABELS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -38,19 +38,57 @@ function getStatusBadge(status: string) {
   }
 }
 
-export default async function WeeklyPage() {
-  const comps = await db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.createdAt));
+/**
+ * Finished weeks come a page at a time. A clan running one a week has fifty-two a year — three a
+ * week is over a hundred and fifty — and every one of them is a card with a participant count
+ * behind it. Active and upcoming are never capped: several can run at once and those are the ones
+ * the page exists for.
+ */
+const PAGE = 24;
 
-  const participantCounts = await db
-    .select({ competitionId: weeklyParticipants.competitionId, count: count() })
-    .from(weeklyParticipants)
-    .groupBy(weeklyParticipants.competitionId);
+export default async function WeeklyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ show?: string }>;
+}) {
+  const { show } = await searchParams;
+  const requested = Number.parseInt(show ?? '', 10);
+  const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
+
+  // Four bounded queries rather than one that reads every week the clan has ever run: the archive
+  // only needs a page of itself and a total.
+  const byStatus = (status: string, take?: number) => {
+    const q = db
+      .select()
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, status))
+      .orderBy(desc(weeklyCompetitions.createdAt));
+    return take != null ? q.limit(take) : q;
+  };
+  const [active, upcoming, completed, finishedTotal] = await Promise.all([
+    byStatus('active'),
+    byStatus('upcoming'),
+    byStatus('completed', limit),
+    db
+      .select({ c: count() })
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, 'completed'))
+      .then((r) => r[0]?.c ?? 0),
+  ]);
+  const moreFinished = finishedTotal - completed.length;
+
+  // Only the competitions actually on the page need their entrant count — the group-by used to
+  // sweep every participant row the clan has ever recorded.
+  const shownIds = [...active, ...upcoming, ...completed].map((c) => c.id);
+  const participantCounts = shownIds.length
+    ? await db
+        .select({ competitionId: weeklyParticipants.competitionId, count: count() })
+        .from(weeklyParticipants)
+        .where(inArray(weeklyParticipants.competitionId, shownIds))
+        .groupBy(weeklyParticipants.competitionId)
+    : [];
 
   const countMap = new Map(participantCounts.map((p) => [p.competitionId, p.count]));
-
-  const active = comps.filter((c) => c.status === 'active');
-  const upcoming = comps.filter((c) => c.status === 'upcoming');
-  const completed = comps.filter((c) => c.status === 'completed');
 
   return (
     <div>
@@ -59,7 +97,7 @@ export default async function WeeklyPage() {
         <p className="text-text-muted text-sm mt-1">Skill of the Week & Boss of the Week</p>
       </div>
 
-      {comps.length === 0 && (
+      {active.length + upcoming.length + completed.length === 0 && (
         <div className="text-center py-12 border border-dashed border-card-border rounded-xl">
           <p className="text-text-muted">No weekly competitions yet. Check back soon!</p>
         </div>
@@ -107,6 +145,21 @@ export default async function WeeklyPage() {
             </div>
           </div>
         ) : null,
+      )}
+
+      {moreFinished > 0 && (
+        <div className="text-center">
+          <Link
+            href={`/weekly?show=${limit + PAGE}`}
+            scroll={false}
+            className="inline-block rounded-lg border border-card-border px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
+          >
+            Show {Math.min(PAGE, moreFinished)} more
+            <span className="ml-2 text-text-muted/70">
+              {completed.length} of {finishedTotal} finished
+            </span>
+          </Link>
+        </div>
       )}
     </div>
   );

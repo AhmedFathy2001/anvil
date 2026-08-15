@@ -11,7 +11,7 @@ import {
   weeklyCompetitions,
   weeklyParticipants,
 } from '@/db/schema';
-import { and, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { competitionIconUrl } from '@/lib/tileIcons';
@@ -111,13 +111,34 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
     .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
     .then((r) => r[0]?.c ?? 0);
 
-  // ---- Weeklies: every one, newest first, capped for the rail ------------------------------------
-  const allComps = await db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate));
-  const competitionsRun = allComps.filter((c) => c.status === 'completed').length;
+  // ---- Weeklies: the rail, and a count for the rest ----------------------------------------------
   // Live and next always make the rail; the rest of the slots go to the most recent finished ones.
-  const live = allComps.filter((c) => c.status === 'active');
-  const upcoming = allComps.filter((c) => c.status === 'upcoming').slice(0, 2);
-  const finished = allComps.filter((c) => c.status === 'completed');
+  // Fetched as three bounded queries rather than one unbounded one: a clan running three weeklies a
+  // week has a hundred and fifty a year, and the home page needs eight of them and a number.
+  const [live, upcoming, finished, competitionsRun] = await Promise.all([
+    db
+      .select()
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, 'active'))
+      .orderBy(desc(weeklyCompetitions.startDate)),
+    db
+      .select()
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, 'upcoming'))
+      .orderBy(desc(weeklyCompetitions.startDate))
+      .limit(2),
+    db
+      .select()
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, 'completed'))
+      .orderBy(desc(weeklyCompetitions.startDate))
+      .limit(RAIL_LIMIT),
+    db
+      .select({ c: count() })
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.status, 'completed'))
+      .then((r) => r[0]?.c ?? 0),
+  ]);
   const railComps = [...live, ...upcoming, ...finished].slice(0, RAIL_LIMIT);
 
   const railIds = railComps.map((c) => c.id);
@@ -227,15 +248,21 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
   // ---- Events: what's live and what it came to --------------------------------------------------
   // Shared with the events index so the two pages can never disagree about who is leading.
   const homeEvents = await loadEventCards({ pastLimit: 6 }, now);
-  const liveEvents = await db.select().from(events).orderBy(desc(events.createdAt)).then((rows) =>
-    rows.filter(
-      (e) =>
-        !e.forceEndedAt &&
-        !(!e.forceEndedAt && !e.startDate) &&
-        !(e.endDate && e.endDate < nowIso) &&
-        !(e.startDate && e.startDate > nowIso),
-    ),
-  );
+  // The same predicate the events index uses for "live", asked of SQLite instead of read out of
+  // every event the clan has ever run: started, not force-ended, and not past its end date.
+  // Several boards can be live at once, so this is a list, not a lookup.
+  const liveEvents = await db
+    .select()
+    .from(events)
+    .where(
+      and(
+        isNull(events.forceEndedAt),
+        isNotNull(events.startDate),
+        lte(events.startDate, nowIso),
+        or(isNull(events.endDate), gte(events.endDate, nowIso)),
+      ),
+    )
+    .orderBy(desc(events.createdAt));
 
   // ---- The clan's own week ----------------------------------------------------------------------
   const weekStart = dayKey(new Date(now.getTime() - 6 * 86_400_000));
