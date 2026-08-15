@@ -33,8 +33,9 @@ export default function SiteNav({ signedIn, isStaff, discordInvite, user }: Prop
 
   const links = [
     { href: '/', label: 'Home' },
+    // One entry for competitions. A Skill of the Week is an event, and having two links meant
+    // knowing which table the clan filed something under before you could find it.
     { href: '/events', label: 'Events' },
-    { href: '/weekly', label: 'Weekly' },
     { href: '/members', label: 'Members' },
     ...(signedIn ? [{ href: '/team', label: 'My Team' }] : []),
   ];

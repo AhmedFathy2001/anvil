@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { completions, events, teams, tiles } from '@/db/schema';
 import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { eventAxes } from '@/lib/eventAxes';
+import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
 
@@ -33,6 +34,12 @@ export interface EventCard {
   endDate: string | null;
   /** Which surface it is — the index filters on this. */
   format: 'bingo' | 'ladder' | 'tilerace';
+  /** The named mode (classic, leagues, showdown, lucky draw, bounty, race, ladder) — what a
+      person calls it, and what the hub groups and draws by. See lib/eventModes. */
+  mode: EventMode;
+  /** How many tiles the board has, and how many have been claimed by anyone. The hub's glyph
+      draws the share; on a points board `top.total` is a point total and says nothing about it. */
+  board: { tiles: number; claimed: number };
 }
 
 export interface LoadEventCardsOptions {
@@ -231,6 +238,8 @@ export async function loadEventCards(opts: LoadEventCardsOptions = {}, now: Date
       startDate: event.startDate,
       endDate: event.endDate,
       format: (event.format === 'ladder' ? 'ladder' : event.format === 'tilerace' ? 'tilerace' : 'bingo') as EventCard['format'],
+      mode: modeKeyFor(event.format, event.scoringMode, rules),
+      board: { tiles: tileCounts.get(event.id) ?? 0, claimed },
       foot:
         status === 'upcoming'
           ? event.startDate

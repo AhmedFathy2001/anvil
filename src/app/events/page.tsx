@@ -1,21 +1,24 @@
-import Link from 'next/link';
-import { countPastEvents, loadEventCards } from '@/lib/eventCards';
-import EventsIndexClient from './EventsIndexClient';
+import { loadHubView } from '@/lib/eventsHub';
+import { hubKind } from '@/lib/hubKinds';
+import CompetitionCard, { boardGlyphFor } from '@/components/events/CompetitionCard';
+import WeekFrame from '@/components/events/WeekFrame';
+import HubRecord from './HubRecord';
+import EventTimer from '@/components/EventTimer';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Every event the clan has run.
+ * The Events hub — every competition the clan runs, in one place.
  *
- * There was no such page: "Events" in the nav pointed at the home page, because the home page was
- * the event list. Now that home is the clan's dashboard, this is where the list lives — and it
- * carries the same card, from the same derivation, so the two can't disagree about who's winning.
+ * Weekly competitions used to have their own page, because they have their own table. They are
+ * events by every definition this site uses — a start, an end, entrants, a leaderboard, a winner —
+ * so this is the page for both, and `/weekly` redirects here.
  *
- * PAGED. Live and upcoming events are always all of them — a clan can run several boards at once
- * and every one of them is the point of the page. The archive is not: a clan two years in has
- * hundreds of finished events, and rendering all of them costs a query over the whole history and
- * a card wall nobody scrolls. So finished events come a page at a time, newest first.
+ * Three questions, in order: what's on now, what's next, and what has the clan ever run. Boards and
+ * weeks are peers throughout: several of each can be live at once, and the weeks that share a
+ * window share a frame and a countdown rather than being demoted to a list.
  */
+
 const PAGE = 24;
 
 export default async function EventsIndexPage({
@@ -27,37 +30,151 @@ export default async function EventsIndexPage({
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
 
-  const [events, pastTotal] = await Promise.all([
-    loadEventCards({ includeUpcoming: true, pastLimit }),
-    countPastEvents(),
-  ]);
-  const shownPast = events.filter((e) => e.status === 'past').length;
-  const more = pastTotal - shownPast;
+  const view = await loadHubView({ pastLimit });
+  const liveCount = view.live.boards.length + view.live.weeks.length;
+  const nextUp = [
+    ...view.upcoming.boards.map((b) => ({
+      key: `e${b.id}`,
+      kind: b.mode,
+      name: b.name,
+      href: `/events/${b.id}`,
+      startDate: b.startDate,
+      endDate: b.endDate,
+      foot: b.foot,
+    })),
+    ...view.upcoming.weeks.map((w) => ({
+      key: `w${w.id}`,
+      kind: w.kind,
+      name: w.name,
+      href: `/weekly/${w.id}`,
+      startDate: w.startDate,
+      endDate: w.endDate,
+      foot: `${w.metricLabel} · everyone on the roster`,
+    })),
+  ].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
+
+  const more = view.record.pastTotal - view.record.items.length;
 
   return (
     <div>
-      <div className="mb-6">
+      <header className="mb-6">
         <h1 className="text-2xl font-bold text-gold sm:text-3xl">Events</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Bingos, ladders and tile races — running now and everything already finished.
+          Bingos, ladders, tile races and every Skill and Boss of the Week — running now, coming up,
+          and everything already finished.
         </p>
-      </div>
-      <EventsIndexClient events={events} pastTotal={pastTotal} />
+      </header>
 
-      {more > 0 && (
-        <div className="mt-5 text-center">
-          <Link
-            href={`/events?show=${pastLimit + PAGE}`}
-            scroll={false}
-            className="inline-block rounded-lg border border-card-border px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
-          >
-            Show {Math.min(PAGE, more)} more
-            <span className="ml-2 text-text-muted/70">
-              {shownPast} of {pastTotal} finished
-            </span>
-          </Link>
+      {/* ---- on now ------------------------------------------------------------------ */}
+      <SectionHead
+        title="On now"
+        note={
+          liveCount === 0
+            ? 'nothing running'
+            : `${view.live.boards.length} board${view.live.boards.length === 1 ? '' : 's'} · ${view.live.weeks.length} week${
+                view.live.weeks.length === 1 ? '' : 's'
+              }`
+        }
+      />
+
+      {liveCount === 0 ? (
+        <div className="rounded-xl border border-dashed border-card-border p-6 text-sm text-text-muted">
+          {nextUp.length > 0 ? (
+            <>
+              Nothing is running. Next up is <b className="text-foreground">{nextUp[0].name}</b>
+              {nextUp[0].startDate ? ` on ${new Date(nextUp[0].startDate).toLocaleDateString()}` : ''}.
+            </>
+          ) : (
+            'Nothing is running, and nothing is scheduled — an admin can start something from the Admin tab.'
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {view.live.boards.length > 0 && (
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(272px,1fr))]">
+              {view.live.boards.map((b) => (
+                <CompetitionCard
+                  key={b.id}
+                  kind={b.mode}
+                  href={`/events/${b.id}`}
+                  name={b.name}
+                  shape={b.shape}
+                  state="live"
+                  startDate={b.startDate}
+                  endDate={b.endDate}
+                  entrants={b.chips[0] ?? 'no teams yet'}
+                  top={
+                    b.top
+                      ? {
+                          name: b.top.name,
+                          text: `${b.top.score.toLocaleString()} ${b.top.unit}`,
+                          color: b.top.color,
+                          pct: b.top.total > 0 ? (b.top.score / b.top.total) * 100 : 0,
+                        }
+                      : null
+                  }
+                  chips={b.chips.slice(1)}
+                  glyph={boardGlyphFor(b, hubKind(b.mode).accent)}
+                />
+              ))}
+            </div>
+          )}
+          <WeekFrame weeks={view.live.weeks} />
         </div>
       )}
+
+      {/* ---- up next ----------------------------------------------------------------- */}
+      {nextUp.length > 0 && (
+        <>
+          <SectionHead title="Up next" note={`${nextUp.length} scheduled`} />
+          <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
+            {nextUp.slice(0, 8).map((n) => {
+              const meta = hubKind(n.kind);
+              return (
+                <li key={n.key}>
+                  <a href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
+                    <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.accent }} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{n.name}</span>
+                      <span className="block truncate text-[11.5px] text-text-muted">
+                        {meta.short} · {n.foot}
+                      </span>
+                    </span>
+                    <span className="ml-auto shrink-0 text-[11.5px]">
+                      <EventTimer startDate={n.startDate} endDate={n.endDate} className="text-[11.5px] text-text-muted" />
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {/* ---- the record -------------------------------------------------------------- */}
+      <SectionHead
+        title="The record"
+        note={`${view.record.boardsTotal} boards · ${view.record.weeksTotal} weeks`}
+      />
+      <HubRecord
+        items={view.record.items}
+        pastTotal={view.record.pastTotal}
+        boardsTotal={view.record.boardsTotal}
+        weeksTotal={view.record.weeksTotal}
+        showMoreHref={more > 0 ? `/events?show=${pastLimit + PAGE}` : null}
+      />
+    </div>
+  );
+}
+
+function SectionHead({ title, note }: { title: string; note?: string }) {
+  return (
+    <div className="mb-3 mt-8 flex flex-wrap items-center gap-3 first:mt-0">
+      <h2 className="flex items-center gap-2 text-[17px] font-bold">
+        <span aria-hidden className="h-5 w-1 rounded-full bg-gold" />
+        {title}
+      </h2>
+      {note && <span className="text-xs text-text-muted">{note}</span>}
     </div>
   );
 }
