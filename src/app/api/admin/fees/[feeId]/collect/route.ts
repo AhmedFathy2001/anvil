@@ -4,6 +4,7 @@ import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyFeeCollector } from '@/lib/auth';
 import { del } from '@/lib/storage';
+import { getRequiredConfirmations, recordFeeSettled, settlesOnCollect } from '@/lib/feeConfirmations';
 
 // A treasurer/admin claims they collected the fee in-game and uploads proof.
 //
@@ -54,8 +55,14 @@ export async function POST(
 
   // Status: dispute when player's reported collector disagrees; collected otherwise.
   const playerReport = fee.reportedCollectorUserId;
-  const status =
-    playerReport !== null && playerReport !== session.userId ? 'disputed' : 'collected';
+  const disputed = playerReport !== null && playerReport !== session.userId;
+
+  // A clan that requires no second signature is saying "marking it paid IS the sign-off", so the
+  // fee settles here rather than landing in a queue nobody else can clear. A dispute still stops
+  // it: that is a disagreement about who took the money, and it needs a human either way.
+  const required = await getRequiredConfirmations();
+  const settleNow = !disputed && settlesOnCollect(required);
+  const status = disputed ? 'disputed' : settleNow ? 'confirmed' : 'collected';
 
   const now = new Date().toISOString();
   const [updated] = await db
@@ -63,17 +70,24 @@ export async function POST(
     .set({
       collectedByUserId: session.userId,
       collectedAt: now,
-      // Keep any existing proof when marking paid without a new upload.
+      // Keep any existing proof when marking paid without a new upload. Note it is NOT dropped on
+      // settling here: with no reviewer, the screenshot is the only record the money moved.
       proofBlobUrl: proofUrl ?? fee.proofBlobUrl,
       status,
       // Re-marking paid resets any confirmation tally — the fee changed hands again.
       confirmations: null,
-      confirmedByUserId: null,
-      confirmedAt: null,
+      confirmedByUserId: settleNow ? session.userId : null,
+      confirmedAt: settleNow ? now : null,
       notes: body?.notes ?? fee.notes,
     })
     .where(eq(signupFees.id, id))
     .returning();
 
-  return NextResponse.json({ fee: updated });
+  if (settleNow) {
+    await recordFeeSettled(id, fee.signupId, fee.amount, session.userId, session.userId, {
+      noSignature: true,
+    });
+  }
+
+  return NextResponse.json({ fee: updated, settled: settleNow });
 }

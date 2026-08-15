@@ -57,6 +57,9 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   const isDisputed = fee.status === 'disputed';
   const collectedByViewer = fee.collectedByUserId === viewerId;
   const confirmsLeft = Math.max(0, confirmationsRequired - fee.confirmationsCount);
+  // A clan that requires no second signature has nobody for the collector to be separate from, so
+  // "you collected this — needs another admin" would be a dead end rather than a control.
+  const needsSecondSignature = confirmationsRequired > 0;
 
   async function act(url: string, key: string, body?: unknown) {
     setBusy(key);
@@ -158,7 +161,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
 
         {/* Confirm vote */}
         {canConfirm && isPaid && (
-          collectedByViewer ? (
+          collectedByViewer && needsSecondSignature ? (
             <span className="text-xs text-text-muted px-2 py-1">You collected this — needs another admin</span>
           ) : (
             <button
@@ -170,7 +173,9 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
                 ? '…'
                 : confirmsLeft > 1
                   ? `Confirm (${fee.confirmationsCount}/${confirmationsRequired})`
-                  : 'Confirm'}
+                  : needsSecondSignature
+                    ? 'Confirm'
+                    : 'Settle'}
             </button>
           )
         )}

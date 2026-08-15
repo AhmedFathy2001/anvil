@@ -281,7 +281,7 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             settingKey="fee_confirmations_required"
             label="Confirmations required to settle a fee"
             placeholder="1"
-            helpText="How many different staff must confirm a paid fee before it's marked settled. 1 = a single admin confirm (default). Set 2+ to require multiple sign-offs. The collector can never confirm their own."
+            helpText="How many different staff must confirm a paid fee before it's marked settled. 1 = a single admin confirm (default); the collector can never confirm their own. Set 2+ to require several sign-offs. Set 0 if you are the only person handling money — marking a fee paid then settles it outright, with no second signature to wait for."
           />
           <div className="border-t border-card-border pt-4 mt-4">
             <ToggleSetting
