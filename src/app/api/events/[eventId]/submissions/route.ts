@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { submissions, tiles, teams, players, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
+import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
 import { countProgress, memberProgress } from '@/lib/countProgress';
 import { parseCoopCredit } from '@/lib/coopRuns';
@@ -490,8 +491,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
   }
 
-  const membership =
-    !isAdmin && !captain && !player ? await resolveTeamMembership(eId, submission.teamId) : null;
+  // Team staff hold the same moderation powers as the captain on their own team (lib/teamStaff),
+  // which is how a visiting clan's moderator can pull a bad submission from their own side. The
+  // resolver keys on the team alone, so re-check the team is in THIS event — the submission id came
+  // from the caller.
+  const resolved =
+    !isAdmin && !captain && !player ? await resolveTeamManagement(submission.teamId) : null;
+  const membership = resolved && resolved.eventId === eId ? resolved : null;
   if (!isAdmin && !captain && !player && !membership) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -545,9 +551,12 @@ export async function DELETE(
       deletedByRole = 'player';
     }
     if (membership) {
-      if (membership.isCaptain) {
-        deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
-        deletedByRole = 'captain';
+      if (membership.canManage) {
+        // Say which it was: "Emberfall Staff" removing a drop reads differently from the captain
+        // doing it, and the team channel should be able to tell.
+        const seat = membership.isCaptain ? 'Captain' : 'Staff';
+        deletedByName = team?.name ? `${team.name} ${seat}` : seat;
+        deletedByRole = membership.isCaptain ? 'captain' : 'team staff';
       } else if (membership.playerId) {
         const playerRecord = await db.query.players.findFirst({ where: eq(players.id, membership.playerId) });
         deletedByName = playerRecord?.name || 'Player';
@@ -559,7 +568,7 @@ export async function DELETE(
   // Auth checks: admin can delete any, captain their team, player their own.
   // Captaincy and player-ownership come from either the legacy cookies or the web session.
   if (!isAdmin) {
-    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.isCaptain ?? false);
+    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.canManage ?? false);
     if (captainOfTeam) {
       // Allowed — captain can delete any of their team's submissions.
     } else {
