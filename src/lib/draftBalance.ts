@@ -1,4 +1,5 @@
 import { computePlayerProfiles, type PlayerProfile } from '@/lib/playerProfile';
+import { STRENGTH_EXPONENT } from '@/lib/draftMath';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Draft-side balance helpers (balance-engine plan, Part C). One profile engine underneath every
@@ -12,7 +13,7 @@ import { computePlayerProfiles, type PlayerProfile } from '@/lib/playerProfile';
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 export type Tier = 'S' | 'A' | 'B' | 'C';
-const SHARPEN = 1.5;
+const SHARPEN = STRENGTH_EXPONENT;
 /** Tiers whose stacking the tiered-snake mode polices. B/C picks stay pure captain agency. */
 const COVERAGE_TIERS: Tier[] = ['S', 'A'];
 

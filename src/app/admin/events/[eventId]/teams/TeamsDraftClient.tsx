@@ -10,6 +10,7 @@ import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import BalancePanel from '@/components/BalancePanel';
+import DraftControlPanel from '@/components/DraftControlPanel';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
@@ -1005,7 +1006,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       <div className={activeStep === 0 || format === null ? 'hidden' : ''}>
         {/* Profile-driven balance advisory + modes (classic draft format only): strength bars,
             tiered pool, the balanceMode selector and the admin auto-balance action. */}
-        {!nonDraft && (activeStep === 2 || activeStep === 3) && (
+        {/* Pre-draft only: once the draft is live, DraftControlPanel below carries the same numbers
+            (measured against the average rather than the leader) plus the levers. Two spreads on one
+            screen is two answers to one question. */}
+        {!nonDraft && (activeStep === 2 || activeStep === 3) && !isDraftInProgress && (
           <div className="mb-6">
             <BalancePanel
               eventId={event.id}
@@ -1014,6 +1018,20 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               ratings={ratings}
               draftStatus={draft.status}
               editLocked={editLocked}
+              onChanged={() => {
+                fetchDraft();
+                router.refresh();
+              }}
+            />
+          </div>
+        )}
+        {/* Running-draft steering: live power, the swap the engine already knows about, the
+            per-captain filter, mid-draft moves and resume-from. Renders itself away unless the
+            draft is actually active or paused. */}
+        {!nonDraft && (activeStep === 2 || activeStep === 3) && isDraftInProgress && (
+          <div className="mb-6">
+            <DraftControlPanel
+              eventId={event.id}
               onChanged={() => {
                 fetchDraft();
                 router.refresh();
