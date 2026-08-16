@@ -1,8 +1,10 @@
 import { loadHubView } from '@/lib/eventsHub';
+import { loadCalendar } from '@/lib/eventsCalendar';
 import { hubKind } from '@/lib/hubKinds';
 import CompetitionCard, { boardGlyphFor } from '@/components/events/CompetitionCard';
 import WeekFrame from '@/components/events/WeekFrame';
 import HubRecord from './HubRecord';
+import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +32,7 @@ export default async function EventsIndexPage({
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
 
-  const view = await loadHubView({ pastLimit });
+  const [view, calendar] = await Promise.all([loadHubView({ pastLimit }), loadCalendar()]);
   const liveCount = view.live.boards.length + view.live.weeks.length;
   const nextUp = [
     ...view.upcoming.boards.map((b) => ({
@@ -148,6 +150,17 @@ export default async function EventsIndexPage({
               );
             })}
           </ul>
+        </>
+      )}
+
+      {/* ---- the season ---------------------------------------------------------------
+          Boards and weeks on one axis. This is the merge made visible: a three-week bingo running
+          through three Skill weeks is the actual shape of a clan's summer, and nothing showed it
+          while the two lived on separate pages. */}
+      {calendar.items.length > 1 && (
+        <>
+          <SectionHead title="The season" note="everything on one axis" />
+          <SeasonCalendar items={calendar.items} />
         </>
       )}
 
