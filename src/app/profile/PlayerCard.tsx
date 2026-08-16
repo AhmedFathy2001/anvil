@@ -138,6 +138,15 @@ export default function PlayerCard({
                   </span>
                 ))
               )}
+              {/* The chips are where a member looks for their characters, so it's where they look
+                  to add one. It lands on the drawer, which is where the token and the by-name path
+                  actually live. */}
+              <Link
+                href="#account-security"
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-card-border px-3 py-1 text-sm text-text-muted hover:text-gold-light hover:border-gold/40 transition-colors"
+              >
+                + Add a character
+              </Link>
             </div>
           </div>
 

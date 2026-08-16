@@ -224,6 +224,11 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         </div>
       </div>
 
+      {/* One human, several accounts. getPersona returns null for a member with a single linked
+          account, so this only appears when there IS something behind the name — and it was
+          computed but never rendered until now, which is why nobody could see who owned an alt. */}
+      {persona && <Persona persona={persona} currentMemberId={profile.id} />}
+
       <ProfileTabs
         profile={profile}
         series={series}

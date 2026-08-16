@@ -163,6 +163,12 @@ export default async function ProfilePage({
             <div className="flex items-center gap-2 mb-4">
               <span className="w-1 h-5 bg-gold rounded-full" />
               <h2 className="text-lg font-semibold">Your accounts</h2>
+              <Link
+                href="#account-security"
+                className="text-xs font-semibold px-2.5 py-1 border border-card-border rounded-lg hover:border-gold/40 hover:text-gold-light transition-colors"
+              >
+                + Add a character
+              </Link>
               <span className="ml-auto text-xs text-text-muted">
                 {locker.accounts.length === 0
                   ? 'none linked'
