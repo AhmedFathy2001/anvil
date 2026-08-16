@@ -12,6 +12,7 @@ import {
 } from '@/lib/draftBalance';
 import { rotateOrderSoNextIs, spreadPct, strengthOf } from '@/lib/draftMath';
 import { parseEventRules } from '@/lib/eventRules';
+import { parseStamp } from '@/lib/dbTime';
 
 /**
  * What an admin needs to steer a draft while it's running.
@@ -62,6 +63,12 @@ export interface DraftControl {
   balanceMode: string;
   /** 'spread-cap' mode: the configured ceiling above the average roster, in pct. */
   balanceSpreadCapPct: number;
+  /** Seconds a captain gets per pick. 0 = no clock. */
+  pickSeconds: number;
+  /** When the current pick is due, or null with no clock (or before the first pick lands). */
+  pickDueAt: string | null;
+  /** True once the current pick is past due — the host may take it. Never auto-picks. */
+  pickOverdue: boolean;
   teamOrder: number[];
   currentTeamId: number | null;
   currentPickNumber: number;
@@ -209,11 +216,30 @@ export async function buildDraftControl(eventId: number): Promise<DraftControl |
       ? getTeamForPick(teamOrder, currentPickNumber)
       : null;
 
+  // The clock runs from the previous pick. Before the first one there's nothing to count from, so
+  // the opening pick is untimed rather than counted from an invented start.
+  const lastPickAt = pickedRows
+    .map((r) => r.pickedAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1) ?? null;
+  const pickSeconds = rules.pickSeconds;
+  // parseStamp, not Date.parse: this column holds both JS ISO and SQLite's zone-less
+  // "YYYY-MM-DD HH:MM:SS", and V8 reads the latter as LOCAL time — a deadline hours out (lib/dbTime).
+  const lastPickMs = parseStamp(lastPickAt);
+  const pickDueAt =
+    pickSeconds > 0 && lastPickMs != null && event.draftStatus === 'active'
+      ? new Date(lastPickMs + pickSeconds * 1000).toISOString()
+      : null;
+
   return {
     eventId,
     draftStatus: event.draftStatus,
     balanceMode,
     balanceSpreadCapPct: rules.balanceSpreadCapPct,
+    pickSeconds,
+    pickDueAt,
+    pickOverdue: pickDueAt != null && Date.parse(pickDueAt) <= Date.now(),
     teamOrder,
     currentTeamId,
     currentPickNumber,

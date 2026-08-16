@@ -52,6 +52,12 @@ export default function DraftControlPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [moving, setMoving] = useState<{ personKey: string; playerIds: number[]; rsn: string } | null>(null);
+  // Ticks so the countdown moves between polls; the server still decides what's overdue.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -229,6 +235,36 @@ export default function DraftControlPanel({
           >
             {busy === 'swap' ? 'Applying…' : 'Apply swap'}
           </button>
+        </div>
+      )}
+
+      {/* ── The pick clock ─────────────────────────────────────────────────────────────────── */}
+      {data.pickSeconds > 0 && data.draftStatus === 'active' && onTheClock && (
+        <div
+          className={`rounded-xl border px-3.5 py-3 flex items-center gap-3 flex-wrap ${
+            data.pickOverdue ? 'border-red-500/40 bg-red-500/[0.07]' : 'border-card-border bg-brown-dark/40'
+          }`}
+        >
+          <div className="text-sm min-w-0">
+            <b>{onTheClock.name}</b> {data.pickOverdue ? 'is out of time' : 'is on the clock'}
+            <div className="text-xs text-text-muted mt-0.5">
+              {data.pickDueAt
+                ? data.pickOverdue
+                  ? 'You can take their pick — it uses their own shortlist, not your judgement.'
+                  : `${Math.max(0, Math.ceil((Date.parse(data.pickDueAt) - now) / 1000))}s left of ${data.pickSeconds}s`
+                : `${data.pickSeconds}s per pick — the clock starts once the first pick lands.`}
+            </div>
+          </div>
+          {data.pickOverdue && (
+            <button
+              type="button"
+              disabled={busy === 'pick-for'}
+              onClick={() => void act('pick-for', { action: 'pick-for' })}
+              className="ml-auto shrink-0 text-xs font-semibold px-3 py-1.5 bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+            >
+              {busy === 'pick-for' ? 'Picking…' : 'Pick for them'}
+            </button>
+          )}
         </div>
       )}
 

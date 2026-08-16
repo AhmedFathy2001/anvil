@@ -96,6 +96,12 @@ export interface EventRules {
   balanceMode: BalanceMode;
   /** 'spread-cap' mode: how far above the average roster a team may go, in pct. */
   balanceSpreadCapPct: number;
+  /**
+   * Seconds a captain gets per pick before the host may take it for them. 0 = no clock, which is
+   * the default: a draft where nobody has agreed a time limit shouldn't grow one silently.
+   * Expiring never auto-picks — it unlocks the admin's action and says so on both screens.
+   */
+  pickSeconds: number;
   /** Mission announce policy (how/when hidden mission tiles drop). Null = no missions on this event. */
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
@@ -113,6 +119,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   lockout: false,
   balanceMode: 'off',
   balanceSpreadCapPct: 10,
+  pickSeconds: 0,
   mission: null,
   startProof: null,
 };
@@ -217,6 +224,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       : 'off',
     // A cap under ~5% is unhittable once ratings differ at all, and one over 50% never binds.
     balanceSpreadCapPct: clampInt(obj.balanceSpreadCapPct, 5, 50, 10),
+    // 0 = off. Below half a minute is a misconfiguration, not a fast draft.
+    pickSeconds: obj.pickSeconds === 0 ? 0 : clampInt(obj.pickSeconds, 30, 3600, 0),
     mission,
     startProof,
   };
@@ -268,6 +277,13 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.balanceMode !== undefined && !BALANCE_MODES.includes(o.balanceMode as BalanceMode)) {
     return { error: "rules.balanceMode must be 'off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', or 'auto'" };
   }
+  if (
+    o.pickSeconds !== undefined &&
+    (typeof o.pickSeconds !== 'number' || !Number.isInteger(o.pickSeconds) ||
+      (o.pickSeconds !== 0 && (o.pickSeconds < 30 || o.pickSeconds > 3600)))
+  ) {
+    return { error: 'rules.pickSeconds must be 0 (off) or an integer between 30 and 3600' };
+  }
   if (o.mission !== undefined && o.mission !== null) {
     const m = o.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown };
     if (typeof m !== 'object' || Array.isArray(m)) {
@@ -308,6 +324,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.lockout &&
     canonical.balanceMode === 'off' &&
     canonical.balanceSpreadCapPct === 10 &&
+    canonical.pickSeconds === 0 &&
     canonical.mission === null &&
     canonical.startProof === null;
   return { rules: isDefault ? null : JSON.stringify(canonical) };

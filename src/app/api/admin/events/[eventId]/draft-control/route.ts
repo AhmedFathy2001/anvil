@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { buildDraftControl, rotateOrderSoNextIs } from '@/lib/draftControl';
+import { draftShortlists, teams as teamsTable } from '@/db/schema';
+import { buildDraftBalance } from '@/lib/draftBalance';
+import { notifyDraftComplete } from '@/lib/discord';
+import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { parseEventRules, validateEventRules } from '@/lib/eventRules';
 
 /**
@@ -171,6 +175,93 @@ export async function POST(
       }
       await db.update(events).set({ draftStatus: 'active' }).where(eq(events.id, eId));
       return NextResponse.json({ ok: true, resumedFrom: fromTeamId });
+    }
+
+    // ── Take the pick for a captain who has gone quiet ────────────────────────────────────────
+    // Only once the clock has actually run out, and it takes THEIR pick, not the host's opinion:
+    // the top of that captain's own shortlist if they left one, else the best rated player left.
+    //
+    // Written here rather than through the pick route (which authenticates a captain, not a host
+    // acting for one), so the two things that route does at the end are mirrored below: every
+    // account of the person travels together — profiles are already per-person — and emptying the
+    // pool completes the draft and posts the roster, exactly once.
+    case 'pick-for': {
+      const control = await buildDraftControl(eId);
+      if (!control) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      if (control.draftStatus !== 'active') {
+        return NextResponse.json({ error: 'The draft is not running' }, { status: 400 });
+      }
+      if (control.currentTeamId == null) {
+        return NextResponse.json({ error: 'Nobody is on the clock' }, { status: 400 });
+      }
+      if (!control.pickOverdue) {
+        return NextResponse.json(
+          { error: 'That pick is not overdue yet — let them have their time.' },
+          { status: 409 },
+        );
+      }
+
+      const balance = await buildDraftBalance(eId);
+      const pool = balance.profiles.filter((p) => p.teamId == null && p.playerIds.length > 0);
+      if (pool.length === 0) return NextResponse.json({ error: 'Nobody left to pick' }, { status: 400 });
+
+      const team = await db.query.teams.findFirst({
+        where: and(eq(teamsTable.id, control.currentTeamId), eq(teamsTable.eventId, eId)),
+      });
+      let chosen = pool[0]; // pool is rating-desc from the profile engine
+      let source = 'best available';
+      if (team?.captainUserId != null) {
+        const list = await db
+          .select({ personKey: draftShortlists.personKey })
+          .from(draftShortlists)
+          .where(and(eq(draftShortlists.eventId, eId), eq(draftShortlists.userId, team.captainUserId)))
+          .orderBy(draftShortlists.position);
+        const wanted = list
+          .map((row) => pool.find((p) => p.personKey === row.personKey))
+          .find((p): p is (typeof pool)[number] => !!p);
+        if (wanted) {
+          chosen = wanted;
+          source = 'their shortlist';
+        }
+      }
+
+      const now = new Date().toISOString();
+      await db
+        .update(players)
+        .set({ teamId: control.currentTeamId, pickNumber: control.currentPickNumber, pickedAt: now })
+        .where(and(eq(players.eventId, eId), inArray(players.id, chosen.playerIds)));
+
+      // Was that the last one? Then the draft is over, and the roster post has to fire here too —
+      // otherwise a draft finished by a host-made pick ends silently.
+      const stillInPool = await db
+        .select({ id: players.id })
+        .from(players)
+        .where(and(eq(players.eventId, eId), isNull(players.teamId)));
+      if (stillInPool.length === 0) {
+        await db.update(events).set({ draftStatus: 'completed' }).where(eq(events.id, eId));
+        // Atomic 0→1 flip, the same exactly-once guard the pick route and "End draft" both use.
+        const flipped = await db
+          .update(events)
+          .set({ draftNotified: 1 })
+          .where(and(eq(events.id, eId), eq(events.draftNotified, 0)))
+          .returning({ id: events.id });
+        if (flipped.length > 0) {
+          const eventTeams = await db.select().from(teamsTable).where(eq(teamsTable.eventId, eId));
+          const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+          notifyDraftComplete({
+            eventName: event.name,
+            teams: eventTeams.map((t) => ({
+              name: t.name,
+              color: t.color,
+              players: allPlayers.filter((p) => p.teamId === t.id).map((p) => p.name),
+            })),
+            eventId: eId,
+          }).catch(() => {});
+          syncTeamDiscordOnDraftCompleteFireAndForget(eId);
+        }
+      }
+
+      return NextResponse.json({ ok: true, picked: chosen.rsn, source, teamId: control.currentTeamId });
     }
 
     default:

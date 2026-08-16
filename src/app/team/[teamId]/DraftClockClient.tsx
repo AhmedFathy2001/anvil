@@ -27,6 +27,16 @@ interface DraftState {
   totalPicked: number;
   poolRemaining: number;
   balanceMode?: string;
+  /** Seconds per pick (0 = no clock) and when the current one is due. */
+  pickSeconds?: number;
+  pickDueAt?: string | null;
+}
+
+/** Time left, floored at zero — an overrun reads as 0:00 rather than counting up past the limit. */
+function countdown(dueIso: string, nowMs: number): string {
+  const ms = Math.max(0, Date.parse(dueIso) - nowMs);
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function elapsed(sinceIso: string, nowMs: number): string {
@@ -74,7 +84,6 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
   }, [eventId, fetchPool]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- polling an external system
     void fetchDraft();
     const id = setInterval(fetchDraft, DRAFT_POLL_MS);
     return () => clearInterval(id);
@@ -256,9 +265,23 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
             </button>
           )}
 
-          {/* Counts from the last pick. Before the first one there's nothing to count from — an
-              empty clock is better than a dash pretending to be a time. */}
-          {lastPickAt && (
+          {/* With a per-pick clock the honest number is time REMAINING, and a captain must see it —
+              a deadline only the host can see is a trap. Without one it counts up from the last
+              pick, and before the first pick there's nothing to count from at all. */}
+          {draft.pickSeconds && draft.pickSeconds > 0 && draft.pickDueAt ? (
+            <div
+              className={`ml-auto font-mono text-2xl font-bold tabular-nums ${
+                Date.parse(draft.pickDueAt) - now <= 0
+                  ? 'text-red-400'
+                  : isMyTurn
+                    ? 'text-accent-green-light'
+                    : 'text-text-muted'
+              }`}
+              title={`${draft.pickSeconds}s per pick`}
+            >
+              {countdown(draft.pickDueAt, now)}
+            </div>
+          ) : lastPickAt ? (
             <div
               className={`ml-auto font-mono text-2xl font-bold tabular-nums ${
                 isMyTurn ? 'text-accent-green-light' : 'text-text-muted'
@@ -267,7 +290,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
             >
               {elapsed(lastPickAt, now)}
             </div>
-          )}
+          ) : null}
         </section>
 
         {error && (
