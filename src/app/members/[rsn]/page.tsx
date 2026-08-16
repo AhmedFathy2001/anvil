@@ -16,6 +16,7 @@ import {
 } from '@/lib/memberProfile';
 import ProfileTabs from './ProfileTabs';
 import { SKILLS } from '@/lib/constants';
+import { verifyUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,13 +104,21 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   if (!profile) notFound();
 
   // Every tab's data in one round trip — every query is small and the tabs then switch instantly.
+  // This page is public — no auth check here, and middleware doesn't cover /members. Everything
+  // else on it is game data the hiscores already publish, but the persona is not: it ties an RSN to
+  // a Discord identity and names that person's other accounts. In OSRS that linkage is exactly what
+  // people keep private (ironman and PK alts especially), and the avatar URL carries their Discord
+  // ID for good measure. So it resolves only for a signed-in viewer — the clan can see who owns an
+  // alt; the open internet and search engines can't.
+  const viewer = await verifyUser();
+
   const [milestones, records, series, standings, history, persona, activityStandings] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
     getStandings(profile.id),
     getCompetitionHistory(profile.id, profile.rsn),
-    getPersona(profile.id),
+    viewer ? getPersona(profile.id) : Promise.resolve(null),
     getActivityStandings(profile.rsn),
   ]);
   const upcoming = getUpcomingMilestones(profile);
@@ -224,9 +233,8 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {/* One human, several accounts. getPersona returns null for a member with a single linked
-          account, so this only appears when there IS something behind the name — and it was
-          computed but never rendered until now, which is why nobody could see who owned an alt. */}
+      {/* One human, several accounts. Null for a member with a single linked account, and null for
+          a signed-out visitor — see the note above the query. */}
       {persona && <Persona persona={persona} currentMemberId={profile.id} />}
 
       <ProfileTabs
