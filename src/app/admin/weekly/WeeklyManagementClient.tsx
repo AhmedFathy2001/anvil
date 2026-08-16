@@ -313,7 +313,7 @@ export default function WeeklyManagementClient() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/weekly"
+            href="/events"
             className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Public View

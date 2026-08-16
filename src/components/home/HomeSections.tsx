@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
+import { hubKind } from '@/lib/hubKinds';
+import type { HubKind } from '@/lib/eventsHub';
 import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
 
 /**
@@ -29,6 +32,9 @@ const dayAt = (startIso: string, i: number) =>
 
 const dateShort = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** Home draws the same card as the hub, so it speaks the hub's vocabulary of kinds. */
+const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
 
 function unitFor(w: HomeWeekly): string {
   return w.type === 'skill' ? 'XP' : w.type === 'boss' ? 'KC' : 'h';
@@ -408,88 +414,25 @@ export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
       <SectionHead
         title="Weekly events, past and present"
         note="Skill and Boss of the Week"
-        more={{ href: '/weekly', label: 'All competitions →' }}
+        more={{ href: '/events', label: 'All competitions →' }}
       />
-      <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(232px,1fr))]">
-        {weeklies.map((w) => {
-          const max = Math.max(...w.days, 1);
-          const state = w.status === 'active' ? 'live' : w.status === 'upcoming' ? 'next' : 'done';
-          return (
-            <Link
-              key={w.id}
-              href={`/weekly/${w.id}`}
-              className={`block rounded-xl border p-4 transition-colors ${
-                state === 'live'
-                  ? 'border-accent-green/40 bg-gradient-to-b from-accent-green/10 to-card-bg'
-                  : state === 'next'
-                    ? 'border-blue-400/35 bg-card-bg'
-                    : 'border-card-border bg-card-bg opacity-90 hover:opacity-100'
-              } hover:border-gold/45`}
-            >
-              <div className="flex items-center gap-2.5">
-                {w.iconUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={w.iconUrl} alt="" className="h-7 w-7 shrink-0 object-contain" />
-                )}
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.13em] text-text-muted">{w.kind}</div>
-                  <div className="truncate text-[14.5px] font-bold">{w.metricLabel}</div>
-                </div>
-                <span
-                  className={`ml-auto shrink-0 rounded-full px-2 py-[3px] text-[9.5px] font-bold uppercase tracking-wider ${
-                    state === 'live'
-                      ? 'bg-accent-green/20 text-accent-green-light'
-                      : state === 'next'
-                        ? 'bg-blue-500/15 text-blue-400'
-                        : 'bg-card-border/70 text-text-muted'
-                  }`}
-                >
-                  {state === 'live' ? 'Live' : state === 'next' ? 'Next up' : 'Finished'}
-                </span>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 text-[12.5px]">
-                {w.top ? (
-                  <>
-                    <span aria-hidden>{state === 'live' ? '👑' : '🥇'}</span>
-                    <span className="truncate font-bold">{w.top.rsn}</span>
-                    <span className="ml-auto shrink-0 font-mono font-bold text-gold-light">
-                      {weeklyValue(w, w.top.value)}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-text-muted">nobody has scored yet</span>
-                )}
-              </div>
-
-              <div className="mt-2.5 flex h-[30px] items-end gap-[3px]">
-                {(w.days.length > 0 ? w.days : new Array(7).fill(0)).map((d, i) => (
-                  <i
-                    key={i}
-                    className={`block flex-1 rounded-t-[3px] ${
-                      w.days.length === 0
-                        ? 'bg-card-border/40'
-                        : d === max
-                          ? 'bg-gold/60'
-                          : state === 'live'
-                            ? 'bg-accent-green/50'
-                            : 'bg-text-muted/40'
-                    }`}
-                    style={{ height: `${w.days.length === 0 ? 3 : d > 0 ? Math.max(1, (d / max) * 30) : 1}px` }}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-2.5 flex flex-wrap gap-x-2.5 text-[11.5px] text-text-muted">
-                <span>{w.entrants} entered</span>
-                <span aria-hidden>·</span>
-                <span>
-                  {dateShort(w.startDate)} – {dateShort(w.endDate)}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
+      <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(258px,1fr))]">
+        {weeklies.map((w) => (
+          <CompetitionCard
+            key={w.id}
+            kind={WEEK_KIND[w.type] ?? 'sotw'}
+            href={`/weekly/${w.id}`}
+            name={w.title}
+            shape={`${w.metricLabel} · ${unitFor(w)}`}
+            state={w.status === 'active' ? 'live' : w.status === 'upcoming' ? 'upcoming' : 'past'}
+            startDate={w.startDate}
+            endDate={w.endDate}
+            entrants={`${w.entrants} entered`}
+            top={w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
+            glyph={<WeekGlyph days={w.days} accent={hubKind(WEEK_KIND[w.type] ?? 'sotw').accent} />}
+            iconUrl={w.iconUrl}
+          />
+        ))}
       </div>
     </>
   );
@@ -504,59 +447,29 @@ export function EventGrid({ events }: { events: HomeEvent[] }) {
       <SectionHead title="Events" note="bingos, ladders and races" more={{ href: '/events', label: 'All events →' }} />
       <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
         {events.map((e) => (
-          <Link
+          <CompetitionCard
             key={e.id}
+            kind={e.mode}
             href={`/events/${e.id}`}
-            className={`block rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/45 ${
-              e.status === 'past' ? 'opacity-85 hover:opacity-100' : ''
-            }`}
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="truncate text-[15px] font-bold">{e.name}</span>
-              <span
-                className={`ml-auto shrink-0 rounded-full px-2 py-[3px] text-[9.5px] font-bold uppercase tracking-wider ${
-                  e.status === 'live' ? 'bg-accent-green/20 text-accent-green-light' : 'bg-card-border/70 text-text-muted'
-                }`}
-              >
-                {e.status === 'live' ? 'Live' : 'Done'}
-              </span>
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className="rounded-full border border-gold/20 bg-gold/15 px-2 py-[2.5px] text-[10.5px] text-gold-light">
-                {e.shape}
-              </span>
-              {e.chips.map((c) => (
-                <span key={c} className="rounded-full border border-card-border bg-brown-dark/50 px-2 py-[2.5px] text-[10.5px] text-text-muted">
-                  {c}
-                </span>
-              ))}
-            </div>
-
-            {e.top && (
-              <>
-                <div className="mt-3 flex items-center gap-2 text-[12.5px]">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: e.top.color }} />
-                  <span className="min-w-0 truncate">
-                    {e.status === 'live' ? 'leading' : 'won by'} <b className="font-bold">{e.top.name}</b>
-                  </span>
-                  <span className="ml-auto shrink-0 whitespace-nowrap font-mono font-bold" style={{ color: e.top.color }}>
-                    {e.top.score.toLocaleString()}
-                    <span className="font-normal text-text-muted">
-                      /{e.top.total.toLocaleString()} {e.top.unit}
-                    </span>
-                  </span>
-                </div>
-                <div className="mt-2 h-[5px] overflow-hidden rounded-full bg-brown-dark">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${pct(e.top.score, e.top.total)}%`, backgroundColor: e.top.color }}
-                  />
-                </div>
-              </>
-            )}
-            <p className="mt-2.5 text-[11.5px] text-text-muted">{e.foot}</p>
-          </Link>
+            name={e.name}
+            shape={e.shape}
+            state={e.status}
+            startDate={e.startDate}
+            endDate={e.endDate}
+            entrants={e.chips[0] ?? 'no teams yet'}
+            top={
+              e.top
+                ? {
+                    name: e.top.name,
+                    text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
+                    color: e.top.color,
+                    pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
+                  }
+                : null
+            }
+            chips={e.chips.slice(1)}
+            glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
+          />
         ))}
       </div>
     </>

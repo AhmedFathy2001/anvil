@@ -34,7 +34,7 @@ export default async function HomePage() {
       <ClanWeek view={view} />
 
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-        <QuickLink href="/weekly" emoji="🏆" label="Weekly" />
+        <QuickLink href="/events" emoji="🏆" label="Competitions" />
         {myTeams > 0 && <QuickLink href="/team" emoji="🎯" label={myTeams > 1 ? 'My Teams' : 'My Team'} />}
         <QuickLink href="/profile" emoji="👤" label="My Profile" />
         {view.discordInvite && <QuickLink href={view.discordInvite} emoji="💬" label="Discord" external />}

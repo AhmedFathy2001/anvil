@@ -68,6 +68,7 @@ export default function WeekFrame({ weeks }: { weeks: WeeklyCard[] }) {
                   entrants={`${w.entrants} entered`}
                   top={w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null}
                   glyph={<WeekGlyph days={w.days} accent={hubKind(w.kind).accent} />}
+                  iconUrl={w.iconUrl}
                   hideTimer
                 />
               ))}

@@ -57,7 +57,7 @@ export default async function WeeklyLeaderboardPage({
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
 
-      <Link href="/weekly" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
+      <Link href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
         ← All competitions
       </Link>
 

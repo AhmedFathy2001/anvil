@@ -32,6 +32,8 @@ interface Props {
   top: { name: string; text: string; color?: string; pct?: number } | null;
   chips?: string[];
   glyph?: React.ReactNode;
+  /** The metric's own icon (a skill or boss sprite). Beats the kind's emoji when there is one. */
+  iconUrl?: string | null;
   /** Hide the countdown — the week frame carries one for all of its cards. */
   hideTimer?: boolean;
 }
@@ -54,6 +56,7 @@ export default function CompetitionCard({
   top,
   chips = [],
   glyph,
+  iconUrl,
   hideTimer,
 }: Props) {
   const meta = hubKind(kind);
@@ -79,7 +82,12 @@ export default function CompetitionCard({
               borderColor: `color-mix(in srgb, ${meta.accent} 38%, transparent)`,
             }}
           >
-            {meta.emoji}
+            {iconUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={iconUrl} alt="" className="h-5 w-5 object-contain" />
+            ) : (
+              meta.emoji
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-[0.13em]" style={{ color: meta.accent }}>
