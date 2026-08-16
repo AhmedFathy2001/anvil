@@ -139,7 +139,7 @@ export async function POST(
     // route, which is worse than a 400 here.
     case 'balance-mode': {
       const mode = String(body.mode ?? '');
-      const allowed = ['off', 'advisory', 'tiered-snake', 'dynamic-order'];
+      const allowed = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap'];
       if (!allowed.includes(mode)) {
         return NextResponse.json({ error: `mode must be one of ${allowed.join(', ')}` }, { status: 400 });
       }

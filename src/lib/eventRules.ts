@@ -68,8 +68,12 @@ export interface StartProofConfig {
 // 'off' = current behaviour. 'advisory' = staff see strength bars / badges, nothing enforced.
 // 'tiered-snake' = the draft blocks stacking top-tier players while another team has none.
 // 'dynamic-order' = the weakest projected team picks next each round instead of fixed serpentine.
+// 'spread-cap' = a captain may only take someone whose rating wouldn't push their team further than
+//                `balanceSpreadCapPct` above the average roster. The strongest team gets the
+//                shortest list; the weakest can take anyone. Strictly stronger than tiered-snake,
+//                which only polices the top two tiers.
 // 'auto' = teams are built by the greedy balancer ("Balance teams" button); the draft is skipped.
-export type BalanceMode = 'off' | 'advisory' | 'tiered-snake' | 'dynamic-order' | 'auto';
+export type BalanceMode = 'off' | 'advisory' | 'tiered-snake' | 'dynamic-order' | 'spread-cap' | 'auto';
 
 export interface EventRules {
   revealPolicy: RevealPolicy;
@@ -90,6 +94,8 @@ export interface EventRules {
   lockout: boolean;
   /** Team-formation steering from player profiles. Never blocks event start; 'off' = classic. */
   balanceMode: BalanceMode;
+  /** 'spread-cap' mode: how far above the average roster a team may go, in pct. */
+  balanceSpreadCapPct: number;
   /** Mission announce policy (how/when hidden mission tiles drop). Null = no missions on this event. */
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
@@ -106,6 +112,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   decay: null,
   lockout: false,
   balanceMode: 'off',
+  balanceSpreadCapPct: 10,
   mission: null,
   startProof: null,
 };
@@ -123,7 +130,7 @@ const MAX_START_LOCATION_LEN = 80;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
 const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
-const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'auto'];
+const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
 
 /** Trim + de-dupe a host location pool down to the stored shape. Bad entries drop, never throw. */
@@ -208,6 +215,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     balanceMode: BALANCE_MODES.includes(obj.balanceMode as BalanceMode)
       ? (obj.balanceMode as BalanceMode)
       : 'off',
+    // A cap under ~5% is unhittable once ratings differ at all, and one over 50% never binds.
+    balanceSpreadCapPct: clampInt(obj.balanceSpreadCapPct, 5, 50, 10),
     mission,
     startProof,
   };
@@ -235,6 +244,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     ['revealBatchSize', 1, 50],
     ['revealWindowSize', 1, 50],
     ['firstBonus', 0, 100000],
+    ['balanceSpreadCapPct', 5, 50],
   ] as const) {
     const v = o[key];
     if (v !== undefined && (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max)) {
@@ -256,7 +266,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     return { error: 'rules.lockout must be a boolean' };
   }
   if (o.balanceMode !== undefined && !BALANCE_MODES.includes(o.balanceMode as BalanceMode)) {
-    return { error: "rules.balanceMode must be 'off', 'advisory', 'tiered-snake', 'dynamic-order', or 'auto'" };
+    return { error: "rules.balanceMode must be 'off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', or 'auto'" };
   }
   if (o.mission !== undefined && o.mission !== null) {
     const m = o.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown };
@@ -297,6 +307,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.decay === null &&
     !canonical.lockout &&
     canonical.balanceMode === 'off' &&
+    canonical.balanceSpreadCapPct === 10 &&
     canonical.mission === null &&
     canonical.startProof === null;
   return { rules: isDefault ? null : JSON.stringify(canonical) };

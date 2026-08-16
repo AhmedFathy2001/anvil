@@ -5,6 +5,7 @@ import { getTeamForPick } from '@/lib/draft';
 import {
   bestBalancingSwap,
   buildDraftBalance,
+  spreadCapBlockReason,
   tierPickBlockReason,
   type DraftBalance,
   type Tier,
@@ -59,6 +60,8 @@ export interface DraftControl {
   eventId: number;
   draftStatus: string;
   balanceMode: string;
+  /** 'spread-cap' mode: the configured ceiling above the average roster, in pct. */
+  balanceSpreadCapPct: number;
   teamOrder: number[];
   currentTeamId: number | null;
   currentPickNumber: number;
@@ -111,7 +114,8 @@ export async function buildDraftControl(eventId: number): Promise<DraftControl |
   const strengths = eventTeams.map((t) => strengthByTeam.get(t.id) ?? 0);
   const mean = strengths.length > 0 ? strengths.reduce((a, b) => a + b, 0) / strengths.length : 0;
 
-  const balanceMode = parseEventRules(event.rules).balanceMode;
+  const rules = parseEventRules(event.rules);
+  const balanceMode = rules.balanceMode;
   const pool = balance.profiles.filter((p) => p.teamId == null);
 
   const controlTeams: ControlTeam[] = eventTeams.map((t) => {
@@ -127,9 +131,12 @@ export async function buildDraftControl(eventId: number): Promise<DraftControl |
     // otherwise nothing is locked and the question doesn't arise.
     let lockedCount = 0;
     let lockedReason: string | null = null;
-    if (balanceMode === 'tiered-snake') {
+    if (balanceMode === 'tiered-snake' || balanceMode === 'spread-cap') {
       for (const p of pool) {
-        const reason = tierPickBlockReason(balance, p.playerIds[0], t.id, teamOrder);
+        const reason =
+          balanceMode === 'tiered-snake'
+            ? tierPickBlockReason(balance, p.playerIds[0], t.id, teamOrder)
+            : spreadCapBlockReason(balance, p.playerIds[0], t.id, teamOrder, rules.balanceSpreadCapPct);
         if (reason) {
           lockedCount += 1;
           lockedReason ??= reason;
@@ -206,6 +213,7 @@ export async function buildDraftControl(eventId: number): Promise<DraftControl |
     eventId,
     draftStatus: event.draftStatus,
     balanceMode,
+    balanceSpreadCapPct: rules.balanceSpreadCapPct,
     teamOrder,
     currentTeamId,
     currentPickNumber,

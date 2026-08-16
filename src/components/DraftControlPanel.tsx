@@ -242,6 +242,11 @@ export default function DraftControlPanel({
           {[
             { mode: 'off', label: 'Off', hint: 'No steering.' },
             { mode: 'tiered-snake', label: 'Tier coverage', hint: 'No second S or A while another team has none.' },
+            {
+              mode: 'spread-cap',
+              label: `Cap the spread at ${data.balanceSpreadCapPct}%`,
+              hint: 'A captain may only take someone who keeps their team within the cap of the average roster, measured per pick so picking first in a round is not penalised. A team already past it may only take from the lowest-rated left.',
+            },
             { mode: 'dynamic-order', label: 'Weakest picks next', hint: 'Reorders turns instead of filtering.' },
           ].map((m) => (
             <button
@@ -260,7 +265,7 @@ export default function DraftControlPanel({
             </button>
           ))}
         </div>
-        {data.balanceMode === 'tiered-snake' && (
+        {(data.balanceMode === 'tiered-snake' || data.balanceMode === 'spread-cap') && (
           <div className="mt-2.5 text-xs text-text-muted">
             {data.teams.some((t) => t.lockedCount > 0) ? (
               <>
@@ -269,8 +274,10 @@ export default function DraftControlPanel({
                   .filter((t) => t.lockedCount > 0)
                   .map((t) => `${t.name} (${t.lockedCount})`)
                   .join(', ')}
-                . Captains are told which tier and why, not handed a silently shorter list.
+                . Captains are told which rule and why, not handed a silently shorter list.
               </>
+            ) : data.balanceMode === 'spread-cap' ? (
+              'Armed — nobody is locked at the moment, because no team is far enough ahead for the cap to bite.'
             ) : (
               'Armed — nobody is locked at the moment, because no team is ahead on S or A yet.'
             )}
