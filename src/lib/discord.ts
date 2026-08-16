@@ -854,10 +854,12 @@ interface EventStartNotifyParams {
   openTileCount?: number | null;
   /** Total points on the board, for a points-scored event. */
   totalPoints?: number | null;
+  /** Starting shot required (lib/startProof): where everyone has to be for their proof screenshot. */
+  startProofLocation?: string | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints } = params;
+  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation } = params;
   // Wording follows who is competing, not the format name — a board that ranks people can't be
   // wished luck "to all teams", and its entries are tasks.
   const axes = eventAxes({ format, scoringMode: 'points', endDate });
@@ -885,6 +887,19 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
   }
   if (totalPoints && totalPoints > 0) {
     fields.push(statField('Points up for grabs', totalPoints.toLocaleString()));
+  }
+
+  // Starting shot: the location is drawn at this exact moment, so this post is the first place
+  // anyone can learn it. Each player's keyword is personal and lives on the site, never here.
+  if (startProofLocation) {
+    fields.push(
+      field(
+        '📸 Starting shot required',
+        `Go to **${startProofLocation}** and take your shot before you play.\n` +
+          'Plugin users: press **Take starting shot** in the Anvil panel. ' +
+          'Everyone else: grab your keyword on the site and type it in-game.',
+      ),
+    );
   }
 
   const embed: DiscordEmbed = {

@@ -8,6 +8,7 @@ import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import MissionAdminPanel from '@/components/MissionAdminPanel';
+import StartProofAdminPanel from '@/components/StartProofAdminPanel';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode, eventNoun } from '@/lib/utils';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
@@ -203,6 +204,10 @@ export default function OverviewClient({
           allowed={supportsMissions(eventAxes(currentEvent))}
         />
       )}
+
+      {/* Starting shot — the anti-stack proof everyone files at the start (lib/startProof). Turned
+          on while building; becomes the review list once the event is live. */}
+      {stage !== 'wrap' && <StartProofAdminPanel event={currentEvent} />}
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">

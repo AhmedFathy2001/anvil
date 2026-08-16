@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, players, completions, clanMembers } from '@/db/schema';
+import { events, tiles, teams, submissions, players, completions, clanMembers, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
@@ -32,6 +32,7 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
 import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
+import { startProofState } from '@/lib/startProof';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
 import crypto from 'crypto';
@@ -238,6 +239,8 @@ export async function GET(request: Request) {
         // linked to it — the plugin surfaces a "verify your RSN" warning so tracking isn't silently off.
         unlinkedActiveEvent,
         codeword: null,
+        // No event resolved → nothing to prove (lib/startProof). Present for shape parity.
+        startProof: null,
         trackedStats: [],
         // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
         trackedKcNames: weeklyNames.kc,
@@ -303,6 +306,18 @@ export async function GET(request: Request) {
     : [];
   const rules = parseEventRules(event.rules);
   const revealMode = hasRevealPolicy(rules);
+
+  // STARTING SHOT (lib/startProof): what this player still owes, plus the keyword only they get.
+  // Null on every event that doesn't ask for one, so an older plugin sees nothing new and a newer
+  // one hides its button. The keyword is stable for the whole event, so it never churns the ETag.
+  const startProofRow = rules.startProof
+    ? await db.query.eventStartProofs.findFirst({
+        where: and(eq(eventStartProofs.eventId, event.id), eq(eventStartProofs.playerId, auth.playerId)),
+      })
+    : null;
+  const startProof = rules.startProof
+    ? startProofState({ cfg: rules.startProof, event, playerId: auth.playerId, proof: startProofRow })
+    : null;
   // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
   // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
   // into the tracked lists even on a classic board.
@@ -744,6 +759,9 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    // Null unless this event requires a starting shot (lib/startProof). Carries the drawn location,
+    // this player's keyword and whether they've filed one — the plugin's button keys off it.
+    startProof,
     // Bosses whose vestige is on a fixed rotation (lib/rollTables). Server-side data so a cadence
     // change or a corrected item list is an edit here, not a plugin release.
     rollTables: pluginRollTables,

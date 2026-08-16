@@ -97,6 +97,13 @@ export const events = sqliteTable('events', {
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
   // again. NULL = locked once finished (the default for every event).
   editUnlockedAt: text('edit_unlocked_at'),
+  // STARTING SHOT (lib/startProof) — drawn exactly once, inside the start transaction, when
+  // `rules.startProof` is set. `startProofLocation` is where everyone must be standing for their
+  // proof screenshot; `startProofDrawnAt` is both the "the draw has happened" latch and the salt
+  // every per-player keyword is HMAC'd over — so no keyword exists, for anyone, until start.
+  // NULL/NULL on every event that doesn't require a starting shot.
+  startProofLocation: text('start_proof_location'),
+  startProofDrawnAt: text('start_proof_drawn_at'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -406,6 +413,11 @@ export const submissions = sqliteTable('submissions', {
   // bounded credit proceeds off the token + content. NULL for native submissions and the origin's own
   // (managed-media) proof, which continues to use `imageUrl`.
   federatedProofUrl: text('federated_proof_url'),
+  // Why this credit wants a human look. Currently only 'no_start_proof' (lib/startProof): the event
+  // requires a starting shot and this player hadn't uploaded one when the credit landed. The
+  // submission still counts — flagging is deliberately softer than refusing, since the drop really
+  // happened and refusing would lose it. NULL on everything unremarkable.
+  flaggedReason: text('flagged_reason'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
@@ -1359,4 +1371,38 @@ export const draftShortlists = sqliteTable('draft_shortlists', {
 }, (table) => [
   uniqueIndex('draft_shortlists_unique').on(table.eventId, table.userId, table.personKey),
   index('draft_shortlists_owner_idx').on(table.eventId, table.userId, table.position),
+]);
+
+// STARTING SHOT proofs — one row per enrolled player per event (lib/startProof). The image is the
+// same managed-media upload every other proof uses (/api/upload → WebP), so a full roster costs
+// about as much storage as a handful of drop screenshots.
+export const eventStartProofs = sqliteTable('event_start_proofs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The ENROLMENT, not the person: a two-account player owes a shot per account they entered, which
+  // is the point — the gate is per credit, and credits are per player row.
+  playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  // Denormalised so the admin panel groups by team without a join through players.
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  // The account the shot was taken on, as the client saw it. Audit only — the gate keys on playerId.
+  rsn: text('rsn'),
+  imageUrl: text('image_url').notNull(),
+  // 'plugin' = captured by the RuneLite button (authenticated, banner baked in), 'web' = uploaded on
+  // the site by hand (desktop or mobile).
+  source: text('source').notNull(),
+  // What the client says was on screen, and whether the server recomputed it to a match. A plugin
+  // capture with keywordOk can be auto-accepted; a hand-typed web one never is (see autoAcceptDecision).
+  keyword: text('keyword'),
+  keywordOk: integer('keyword_ok', { mode: 'boolean' }).notNull().default(false),
+  // Client-claimed capture time (the plugin's own UTC stamp). Advisory; createdAt is ours.
+  capturedAt: text('captured_at'),
+  // pending = on file, awaiting a look; accepted = counted; rejected = player must re-take.
+  status: text('status').notNull().default('pending'),
+  reviewNote: text('review_note'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: text('reviewed_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('event_start_proof_player_unique').on(table.eventId, table.playerId),
+  index('event_start_proof_event_status_idx').on(table.eventId, table.status),
 ]);

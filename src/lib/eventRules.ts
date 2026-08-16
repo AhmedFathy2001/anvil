@@ -46,6 +46,24 @@ export interface MissionConfig {
   intervalMinutes: number;
 }
 
+// STARTING SHOT — the anti-stack start proof. When required, every enrolled player must upload a
+// screenshot taken AFTER the event went live: the in-game Anvil overlay (plugin) or a per-player
+// keyword typed in-game (mobile), taken at a location drawn at the start moment. See lib/startProof.
+// The keyword is derived from `events.startProofDrawnAt`, a value that does not exist until start,
+// so nothing about the shot can be staged in advance.
+export type StartProofMissing = 'flag' | 'reject';
+export interface StartProofConfig {
+  /** What happens to a submission from a player with no accepted starting shot.
+   *  'flag'   — take the submission, stamp submissions.flaggedReason for admin review (default;
+   *             never loses evidence for a drop that really happened).
+   *  'reject' — 409 `start_proof_required`; the plugin keeps the drop in its pending store. */
+  onMissing: StartProofMissing;
+  /** Accept a plugin capture outright when the server recomputes its keyword to a match. */
+  autoAcceptPlugin: boolean;
+  /** Host-supplied location pool to draw the start spot from. Empty = the built-in START_LOCATIONS. */
+  locations: string[];
+}
+
 // How much the player-profile engine steers team formation (balance-engine plan, Part C).
 // 'off' = current behaviour. 'advisory' = staff see strength bars / badges, nothing enforced.
 // 'tiered-snake' = the draft blocks stacking top-tier players while another team has none.
@@ -74,6 +92,8 @@ export interface EventRules {
   balanceMode: BalanceMode;
   /** Mission announce policy (how/when hidden mission tiles drop). Null = no missions on this event. */
   mission: MissionConfig | null;
+  /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
+  startProof: StartProofConfig | null;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -87,11 +107,42 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   lockout: false,
   balanceMode: 'off',
   mission: null,
+  startProof: null,
 };
+
+/** A starting-shot policy with nothing configured — what "just turn it on" stores. */
+export const DEFAULT_START_PROOF: StartProofConfig = {
+  onMissing: 'flag',
+  autoAcceptPlugin: true,
+  locations: [],
+};
+
+/** Host location pools stay small — this is a list to draw one line from, not a dataset. */
+const MAX_START_LOCATIONS = 40;
+const MAX_START_LOCATION_LEN = 80;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
 const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'auto'];
+const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
+
+/** Trim + de-dupe a host location pool down to the stored shape. Bad entries drop, never throw. */
+function cleanLocations(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const trimmed = entry.trim().slice(0, MAX_START_LOCATION_LEN);
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+    if (out.length >= MAX_START_LOCATIONS) break;
+  }
+  return out;
+}
 
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : NaN;
@@ -132,6 +183,18 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       intervalMinutes: clampInt(m.intervalMinutes, 5, 10080, 60),
     };
   }
+  let startProof: EventRules['startProof'] = null;
+  const sp = obj.startProof as { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown } | null | undefined;
+  if (sp && typeof sp === 'object' && !Array.isArray(sp)) {
+    startProof = {
+      onMissing: START_PROOF_MISSING.includes(sp.onMissing as StartProofMissing)
+        ? (sp.onMissing as StartProofMissing)
+        : 'flag',
+      // Only an explicit false turns auto-accept off — an older/partial object keeps the default.
+      autoAcceptPlugin: sp.autoAcceptPlugin !== false,
+      locations: cleanLocations(sp.locations),
+    };
+  }
   return {
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
@@ -146,6 +209,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       ? (obj.balanceMode as BalanceMode)
       : 'off',
     mission,
+    startProof,
   };
 }
 
@@ -210,6 +274,21 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.mission.intervalMinutes must be an integer between 5 and 10080' };
     }
   }
+  if (o.startProof !== undefined && o.startProof !== null) {
+    const s = o.startProof as { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown };
+    if (typeof s !== 'object' || Array.isArray(s)) {
+      return { error: 'rules.startProof must be an object or null' };
+    }
+    if (s.onMissing !== undefined && !START_PROOF_MISSING.includes(s.onMissing as StartProofMissing)) {
+      return { error: "rules.startProof.onMissing must be 'flag' or 'reject'" };
+    }
+    if (s.autoAcceptPlugin !== undefined && typeof s.autoAcceptPlugin !== 'boolean') {
+      return { error: 'rules.startProof.autoAcceptPlugin must be a boolean' };
+    }
+    if (s.locations !== undefined && !Array.isArray(s.locations)) {
+      return { error: 'rules.startProof.locations must be an array of strings' };
+    }
+  }
   // Canonicalise through the parser so what we store is exactly what reads produce.
   const canonical = parseEventRules(JSON.stringify(o));
   const isDefault =
@@ -218,7 +297,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.decay === null &&
     !canonical.lockout &&
     canonical.balanceMode === 'off' &&
-    canonical.mission === null;
+    canonical.mission === null &&
+    canonical.startProof === null;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 
@@ -230,6 +310,11 @@ export function hasRevealPolicy(rules: EventRules): boolean {
 /** True when this event has a mission announce policy configured. */
 export function hasMissions(rules: EventRules): boolean {
   return rules.mission != null;
+}
+
+/** True when players must upload a starting shot before their credits count (lib/startProof). */
+export function requiresStartProof(rules: EventRules): boolean {
+  return rules.startProof != null;
 }
 
 type RevealStateTile = {

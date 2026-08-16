@@ -386,6 +386,13 @@
       "when": 1786821692438,
       "tag": "0054_faulty_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1786848942752,
+      "tag": "0055_start-proof",
+      "breakpoints": true
     }
   ]
 }

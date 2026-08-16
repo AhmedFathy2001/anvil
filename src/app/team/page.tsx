@@ -1,11 +1,14 @@
 import { db } from '@/db';
-import { events, teams, players, clanMembers, eventSignups, signupFees } from '@/db/schema';
+import { events, teams, players, clanMembers, eventSignups, signupFees, eventStartProofs } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
 import { isTileRaceFormat } from '@/lib/utils';
+import { parseEventRules } from '@/lib/eventRules';
+import { startProofState } from '@/lib/startProof';
+import StartProofCard from '@/components/StartProofCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +45,20 @@ export default async function MyTeamsHubPage() {
     .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
   const memberIds = myMembers.map((m) => m.id);
 
+  // Kept aside from the team-card fold: the starting-shot card needs the ENROLMENT (player row),
+  // not the team, and a captain who isn't playing owes nothing.
+  let myPlayerRows: {
+    playerId: number;
+    playerName: string;
+    rules: string | null;
+    startProofLocation: string | null;
+    startProofDrawnAt: string | null;
+    eventId: number;
+    eventName: string;
+    endDate: string | null;
+    forceEndedAt: string | null;
+  }[] = [];
+
   const involvements = new Map<number, Involvement>();
   const add = (row: Omit<Involvement, 'isCaptain' | 'isPlayer'>, role: 'captain' | 'player') => {
     const existing = involvements.get(row.teamId);
@@ -56,6 +73,11 @@ export default async function MyTeamsHubPage() {
   if (memberIds.length > 0) {
     const playerRows = await db
       .select({
+        playerId: players.id,
+        playerName: players.name,
+        rules: events.rules,
+        startProofLocation: events.startProofLocation,
+        startProofDrawnAt: events.startProofDrawnAt,
         teamId: teams.id,
         teamName: teams.name,
         teamColor: teams.color,
@@ -71,6 +93,7 @@ export default async function MyTeamsHubPage() {
       .innerJoin(events, eq(players.eventId, events.id))
       .where(and(inArray(players.clanMemberId, memberIds), isNotNull(players.teamId)));
     for (const r of playerRows) add(r, 'player');
+    myPlayerRows = playerRows;
   }
 
   const captainRows = await db
@@ -124,10 +147,84 @@ export default async function MyTeamsHubPage() {
     return true;
   });
 
+  // STARTING SHOT (lib/startProof) — the one thing on this page that's genuinely time-critical, so
+  // it sits above everything else. Only live enrolments on an event that has drawn, and only until
+  // the shot is accepted.
+  const liveEnrolments = myPlayerRows.filter(
+    (r) => !r.forceEndedAt && (!r.endDate || r.endDate >= now) && r.startProofDrawnAt,
+  );
+  const startProofCards: {
+    key: string;
+    eventId: number;
+    eventName: string;
+    playerId: number;
+    rsn: string;
+    location: string;
+    keyword: string;
+    status: 'pending' | 'rejected' | null;
+    reviewNote: string | null;
+  }[] = [];
+  if (liveEnrolments.length > 0) {
+    const proofRows = await db
+      .select()
+      .from(eventStartProofs)
+      .where(inArray(eventStartProofs.playerId, liveEnrolments.map((r) => r.playerId)));
+    const byPlayer = new Map(proofRows.map((p) => [p.playerId, p]));
+    for (const r of liveEnrolments) {
+      const cfg = parseEventRules(r.rules).startProof;
+      if (!cfg) continue;
+      const proof = byPlayer.get(r.playerId);
+      if (proof?.status === 'accepted') continue; // settled — nothing to nag about
+      const state = startProofState({
+        cfg,
+        event: { id: r.eventId, startProofLocation: r.startProofLocation, startProofDrawnAt: r.startProofDrawnAt },
+        playerId: r.playerId,
+        proof,
+      });
+      if (!state.location || !state.keyword) continue;
+      startProofCards.push({
+        key: `${r.eventId}-${r.playerId}`,
+        eventId: r.eventId,
+        eventName: r.eventName,
+        playerId: r.playerId,
+        rsn: r.playerName,
+        location: state.location,
+        keyword: state.keyword,
+        status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
+        reviewNote: proof?.reviewNote ?? null,
+      });
+    }
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">My Teams</h1>
       <p className="text-text-muted text-sm mb-8">Your events, teams, sign-ups and fees in one place.</p>
+
+      {startProofCards.length > 0 && (
+        <section className="mb-10">
+          <h2 className="font-semibold flex items-center gap-2 mb-3">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Before you play
+          </h2>
+          <div className="grid gap-3">
+            {startProofCards.map((c) => (
+              <StartProofCard
+                key={c.key}
+                eventId={c.eventId}
+                eventName={c.eventName}
+                playerId={c.playerId}
+                rsn={c.rsn}
+                location={c.location}
+                keyword={c.keyword}
+                status={c.status}
+                reviewNote={c.reviewNote}
+                pluginHint
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mb-10">
         <h2 className="font-semibold flex items-center gap-2 mb-3">

@@ -248,6 +248,8 @@ export default function TileDetailModal({
       playerName: string | null;
       amount: number;
       autoLogs: number;
+      /** Credits that landed without a starting shot on file (lib/startProof) — staff should look. */
+      flagged: number;
       shots: ProofShot[];
     };
     const m = new Map<string, Row>();
@@ -259,9 +261,11 @@ export default function TileDetailModal({
         playerName: sub.creditPlayerName ?? null,
         amount: 0,
         autoLogs: 0,
+        flagged: 0,
         shots: [],
       };
       row.amount += sub.amount;
+      if (sub.flaggedReason) row.flagged += 1;
       if (submissionHasProof(sub)) {
         if (sub.imageUrl) {
           row.shots.push({
@@ -847,6 +851,14 @@ export default function TileDetailModal({
                         <span className="text-text-muted">
                           <LocalTime date={s.createdAt} format="date" />
                         </span>
+                        {s.flaggedReason === 'no_start_proof' && (
+                          <span
+                            title="Landed before this player filed their starting shot"
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            no starting shot
+                          </span>
+                        )}
                         {canDeleteSubmission(s) && onDelete && (
                           <button
                             onClick={() => openDeleteModal(s.id)}
@@ -909,6 +921,14 @@ export default function TileDetailModal({
                           {g.autoLogs > 0 && (
                             <span className="text-text-muted">
                               · {g.autoLogs} auto log{g.autoLogs !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {g.flagged > 0 && (
+                            <span
+                              title="Landed before this player filed their starting shot"
+                              className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                            >
+                              {g.flagged} no starting shot
                             </span>
                           )}
                         </div>

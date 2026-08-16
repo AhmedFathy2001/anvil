@@ -57,6 +57,9 @@ export const PLUGIN_CAPABILITIES = [
   // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
   // channel (falling back to the normal one), marking the embed as seasonal.
   'leagues-channel',
+  // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
+  // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
+  'start-proof',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

@@ -403,6 +403,28 @@ export default async function PluginGuidePage() {
                 },
               ]}
             />
+
+            <h3 className="text-foreground font-medium mt-6">Starting shot</h3>
+            <p className="text-text-muted">
+              Some events ask everyone for a <span className="text-foreground font-medium">starting
+              shot</span>: one screenshot taken after the event goes live, at a location drawn at the
+              start moment. It stops anyone from spending the week before the event stockpiling
+              clues, caskets and kills to dump on the first day.
+            </p>
+            <p className="text-text-muted">
+              If you run the plugin there is nothing to prepare. When the event starts you get a chat
+              line telling you where to go, and the Anvil side panel shows a{' '}
+              <span className="text-foreground font-medium">Take starting shot</span> button. Stand
+              where it says, press it once, and you&rsquo;re done — the plugin captures the frame,
+              stamps your RSN, team, the location and a keyword only your account gets onto it, and
+              files it for you.
+            </p>
+            <p className="text-text-muted">
+              On mobile, or without the plugin: open{' '}
+              <span className="text-foreground font-medium">My Team</span> on this site, read your
+              keyword off the starting-shot card, type it into the in-game chatbox, screenshot the
+              game with your character and the keyword visible, and upload it on that same card.
+            </p>
           </Section>
 
           {/* ---------------------------------------------------------------- 6 */}

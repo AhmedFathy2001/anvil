@@ -71,7 +71,8 @@ on this so it isn't confused by a self-hosted site that predates the feature);
 alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill);
 `clip-relay` (`POST /api/plugin/clip` uploads a saved OBS clip and the server posts it to
 the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
-`seasonal: true`).
+`seasonal: true`); `start-proof` (the anti-stack starting shot — a `startProof` block on
+`/api/plugin/config` and `POST /api/events/:id/start-proof`).
 
 ### `leagues-channel`
 
@@ -133,6 +134,36 @@ The site sends every activity key the board tracks and lets the plugin filter do
 it can read, so growing the readable set is a plugin release rather than a wire change.
 Values are absolute and the server keeps `max(hiscores, pushed)`, so a counter the client
 hasn't synced yet can never walk a tile backwards.
+
+### `start-proof`
+
+The anti-stack "starting shot": on an event that requires one, every enrolled player files a
+screenshot taken **after** the event went live, at a location drawn in the start transaction.
+
+`/api/plugin/config` (enrolled shape) carries a `startProof` object, or `null` when the event
+doesn't require one — which is also what a plugin sees on a site without this capability, so
+the button simply never appears:
+
+```json
+{ "required": true, "drawn": true, "location": "Edgeville bank",
+  "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null }
+```
+
+`keyword` is per PLAYER and derived from the event's draw stamp — a value that does not exist
+until the event starts — so it cannot be precomputed, by anyone. `location`/`keyword` are null
+before the draw. Both are stable for the event's lifetime, so the block never churns the config
+ETag.
+
+Filing one: upload the PNG through `POST /api/upload` as usual, then
+`POST /api/events/:eventId/start-proof` with plugin-token auth and
+`{ imageUrl, keyword, capturedAt }`. The server recomputes the keyword; a plugin capture that
+matches is accepted outright (the host can turn that off), anything else lands `pending` for
+staff review. `409` means the event hasn't drawn yet or the player's shot is already accepted.
+
+The gate is on submissions, not on the plugin: a credit from a player with no shot on file is
+either flagged for review or refused with `409 { code: "start_proof_required" }`, per the
+host's setting. A plugin that sees that code should KEEP the pending submission on disk and
+retry after the player files their shot, rather than dropping the drop.
 
 ## Checklist: shipping a new plugin-facing feature
 

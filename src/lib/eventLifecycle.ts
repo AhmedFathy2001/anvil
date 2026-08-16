@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { events, teams, tiles, completions, players } from '@/db/schema';
-import { eq, and, inArray, isNotNull, count } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
 import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
 import { computeStartReadiness, type StartReadiness } from '@/lib/eventReadiness';
@@ -9,6 +9,7 @@ import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
 import { parseEventRules, visibleTiles, isTileRevealed } from '@/lib/eventRules';
+import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
@@ -23,6 +24,45 @@ const RECAP_HIGHLIGHT_COUNT = 5;
 // exceed the 1-minute flush-notifications cadence so the date can't lapse between ticks; once the
 // blockers clear, the event starts within one tick.
 const START_HOLD_MS = 2 * 60 * 1000;
+
+/**
+ * STARTING SHOT draw (lib/startProof). Picks the location everyone must be standing at and stamps
+ * the moment — which is also the salt every per-player keyword is derived from, so until this row
+ * is written there is no keyword in existence for anyone to stage a screenshot against.
+ *
+ * Guarded by `start_proof_drawn_at IS NULL` in the WHERE, so both start doors (the lifecycle cron
+ * and the admin's start-now) can call it unconditionally and only the first one draws. Returns the
+ * drawn values either way — a caller that lost the race still gets what to announce. Null when the
+ * event doesn't require a starting shot.
+ */
+export async function drawStartProof(
+  event: { id: number; rules: string | null },
+): Promise<{ location: string; drawnAt: string } | null> {
+  const rules = parseEventRules(event.rules);
+  if (!rules.startProof) return null;
+
+  const drawn = await db
+    .update(events)
+    .set({
+      startProofLocation: drawStartLocation(rules.startProof.locations),
+      startProofDrawnAt: new Date().toISOString(),
+    })
+    .where(and(eq(events.id, event.id), isNull(events.startProofDrawnAt)))
+    .returning({ location: events.startProofLocation, drawnAt: events.startProofDrawnAt });
+
+  if (drawn.length > 0) {
+    log.info('event-lifecycle.start-proof-drawn', { eventId: event.id, location: drawn[0].location });
+    return { location: drawn[0].location!, drawnAt: drawn[0].drawnAt! };
+  }
+
+  // Already drawn (a retried start, or the other door won) — read back what's on file.
+  const existing = await db
+    .select({ location: events.startProofLocation, drawnAt: events.startProofDrawnAt })
+    .from(events)
+    .where(eq(events.id, event.id));
+  const row = existing[0];
+  return row?.location && row.drawnAt ? { location: row.location, drawnAt: row.drawnAt } : null;
+}
 
 // Fetch the start-readiness counts for one event and classify them (lib/eventReadiness). Shared by
 // the lifecycle cron, the admin start-now action, and the admin Overview banner.
@@ -132,12 +172,15 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       .returning({ id: events.id });
     if (flipped.length > 0) {
       log.info('event-lifecycle.start', { eventId: event.id });
+      // Draw BEFORE announcing so the embed can carry the location players have to be at.
+      const startProof = await drawStartProof(event).catch(() => null);
       await notifyEventStart({
         eventId: event.id,
         eventName: event.name,
         startDate: event.startDate,
         endDate: event.endDate,
         format: event.format,
+        startProofLocation: startProof?.location ?? null,
         ...(await eventBoardSummary(event)),
       });
     }

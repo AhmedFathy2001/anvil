@@ -150,6 +150,8 @@ export interface Submission {
   creditPlayerName?: string | null;
   itemId?: number | null;
   durationSeconds?: number | null; // timed-tile clear time in seconds
+  /** Why this credit wants a human look — currently only 'no_start_proof' (lib/startProof). */
+  flaggedReason?: string | null;
 }
 
 export interface ItemRequirement {

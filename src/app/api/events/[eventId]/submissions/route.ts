@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { submissions, tiles, teams, players, events, users } from '@/db/schema';
+import { submissions, tiles, teams, players, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
@@ -13,6 +13,8 @@ import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/no
 import { isManagedMediaUrl } from '@/lib/storage';
 import { isDraftInProgress } from '@/lib/eventReadiness';
 import { assertEventEditable } from '@/lib/eventLock';
+import { parseEventRules } from '@/lib/eventRules';
+import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
 
 export async function GET(
   request: Request,
@@ -258,6 +260,35 @@ export async function POST(
   // Who this submission counts FOR (lib/countProgress owns the same rule server-side).
   const submitterCreditId = resolvedCreditPlayerId ?? uploaderId;
 
+  // STARTING SHOT belt (lib/startProof). On an event that requires one, a credit from a player who
+  // never filed a shot is either flagged for review or refused outright, per the host's setting.
+  //
+  // Only drop/kill/timed-shaped credits pass through here — stat and KC tiles are swept by the
+  // stats engine against a baseline taken at start, so pre-stacking is already neutralised for
+  // them and there is nothing for this gate to add.
+  let flaggedReason: string | null = null;
+  if (!isAdmin) {
+    const startProofCfg = parseEventRules(event.rules).startProof;
+    if (startProofCfg && event.startProofDrawnAt) {
+      const proof = submitterCreditId
+        ? await db.query.eventStartProofs.findFirst({
+            where: and(eq(eventStartProofs.eventId, eId), eq(eventStartProofs.playerId, submitterCreditId)),
+          })
+        : null;
+      const gate = startProofGate(startProofCfg, event, proof);
+      if (gate === 'reject') {
+        return NextResponse.json(
+          {
+            error: 'Upload your starting shot first — open the Anvil site (My Team) and follow the starting-shot card.',
+            code: START_PROOF_REQUIRED_CODE,
+          },
+          { status: 409 },
+        );
+      }
+      if (gate === 'flag') flaggedReason = NO_START_PROOF_FLAG;
+    }
+  }
+
   // Per-item tracking validation
   const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[] : null;
 
@@ -358,6 +389,7 @@ export async function POST(
       durationSeconds: durationSecondsValue,
       coopGroup: coopGroupJson,
       coopPartySize: coopPartySizeValue,
+      flaggedReason,
     })
     .returning();
 

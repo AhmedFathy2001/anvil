@@ -185,3 +185,55 @@ test('rotationExpiries: a batch of two retires two at a time, and other policies
   assert.equal(rotationExpiries(interval, open, '2026-08-14T09:30:00.000Z').size, 0);
   assert.equal(rotationExpiries(batched, open, null).size, 0);
 });
+
+test('parseEventRules: startProof is off by default and tolerant when present', () => {
+  assert.equal(parseEventRules(JSON.stringify({ revealPolicy: 'all' })).startProof, null);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: null })).startProof, null);
+  // "Just turn it on" — an empty object still gets the safe defaults.
+  assert.deepEqual(parseEventRules(JSON.stringify({ startProof: {} })).startProof, {
+    onMissing: 'flag',
+    autoAcceptPlugin: true,
+    locations: [],
+  });
+  // Garbage inside falls back rather than throwing.
+  assert.deepEqual(
+    parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope' } }))
+      .startProof,
+    { onMissing: 'flag', autoAcceptPlugin: true, locations: [] },
+  );
+  assert.equal(
+    parseEventRules(JSON.stringify({ startProof: { autoAcceptPlugin: false } })).startProof?.autoAcceptPlugin,
+    false,
+  );
+});
+
+test('parseEventRules: startProof locations are trimmed, de-duped and capped', () => {
+  const rules = parseEventRules(
+    JSON.stringify({
+      startProof: { locations: ['  Varrock fountain  ', 'varrock FOUNTAIN', '', 42, 'Edgeville bank'] },
+    }),
+  );
+  assert.deepEqual(rules.startProof?.locations, ['Varrock fountain', 'Edgeville bank']);
+
+  const many = parseEventRules(
+    JSON.stringify({ startProof: { locations: Array.from({ length: 60 }, (_, i) => `Spot ${i}`) } }),
+  );
+  assert.equal(many.startProof?.locations.length, 40);
+});
+
+test('validateEventRules: startProof shape is enforced and round-trips', () => {
+  assert.deepEqual(validateEventRules({ startProof: 'yes' }), {
+    error: 'rules.startProof must be an object or null',
+  });
+  assert.deepEqual(validateEventRules({ startProof: { onMissing: 'ignore' } }), {
+    error: "rules.startProof.onMissing must be 'flag' or 'reject'",
+  });
+  assert.deepEqual(validateEventRules({ startProof: { locations: 'Varrock' } }), {
+    error: 'rules.startProof.locations must be an array of strings',
+  });
+
+  // Requiring a starting shot is on its own enough to stop being a "default" (NULL) rules column.
+  const stored = validateEventRules({ startProof: { onMissing: 'reject' } });
+  assert.ok('rules' in stored && stored.rules !== null);
+  assert.equal(parseEventRules((stored as { rules: string }).rules).startProof?.onMissing, 'reject');
+});

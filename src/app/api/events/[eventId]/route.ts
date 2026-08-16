@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, completions, submissions } from '@/db/schema';
+import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
-import { getEventStartReadiness, eventBoardSummary } from '@/lib/eventLifecycle';
+import { getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
@@ -271,12 +271,15 @@ export async function PATCH(
       .returning();
 
     if (flipped.length > 0) {
+      // Starting shot (lib/startProof): draw the location now, before the announcement that carries it.
+      const startProof = await drawStartProof(updated).catch(() => null);
       notifyEventStart({
         eventId: updated.id,
         eventName: updated.name,
         startDate: updated.startDate!,
         endDate: updated.endDate,
         format: updated.format,
+        startProofLocation: startProof?.location ?? null,
         ...(await eventBoardSummary(updated)),
       }).catch(() => {});
     }
@@ -574,6 +577,15 @@ export async function DELETE(
     for (let i = 0; i < urls.length; i += 100) {
       await del(urls.slice(i, i + 100)).catch(() => {});
     }
+  }
+
+  // Starting shots are stored the same way and cascade the same way — free their images too.
+  const startShots = await db
+    .select({ imageUrl: eventStartProofs.imageUrl })
+    .from(eventStartProofs)
+    .where(eq(eventStartProofs.eventId, id));
+  for (let i = 0; i < startShots.length; i += 100) {
+    await del(startShots.slice(i, i + 100).map((s) => s.imageUrl)).catch(() => {});
   }
 
   await db.delete(events).where(eq(events.id, id));

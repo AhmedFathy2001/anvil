@@ -298,6 +298,23 @@ export default async function AdminGuidePage() {
             It&rsquo;s the cheapest way to wake a board up on day five.
           </p>
         </Note>
+        <Note tag="Stopping pre-event stacking">
+          <p>
+            Turn on <span className="text-foreground">Starting shot</span> (event → Overview) and every
+            player has to file one screenshot taken after the event goes live, at a location Anvil draws
+            at the start moment — so nobody can be sat on a week of banked clues and caskets at T0. The
+            location is announced with the start; each player&rsquo;s keyword is personal, derived from
+            the draw, and doesn&rsquo;t exist until the event starts, so it can&rsquo;t be staged in
+            advance by anyone.
+          </p>
+          <p>
+            Plugin users press one button. Everyone else types their keyword in-game and uploads on My
+            Team. You choose what happens to a credit from someone who hasn&rsquo;t filed: flag it for
+            review (default) or refuse it until they do. The same Overview panel is the review list —
+            plugin captures with a verified keyword arrive already accepted, so in practice you&rsquo;re
+            only eyeballing the phone players.
+          </p>
+        </Note>
       </Section>
 
       {/* ------------------------------------------------------------------ 9 */}
