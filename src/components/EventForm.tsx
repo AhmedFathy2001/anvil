@@ -50,9 +50,9 @@ function defaultWeeklyTitle(type: 'skill' | 'boss' | 'efficiency', metric: strin
 
 /** The weekly competitions, offered beside the board formats — same page, different table. */
 const WEEKLY_KINDS = [
-  { type: 'skill' as const, label: 'Skill of the Week', emoji: '📈', chips: 'everyone · xp gained', defaultMetric: 'attack' },
-  { type: 'boss' as const, label: 'Boss of the Week', emoji: '💀', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
-  { type: 'efficiency' as const, label: 'Efficiency race', emoji: '⏱', chips: 'everyone · EHP / EHB', defaultMetric: 'ehp' },
+  { type: 'skill' as const, label: 'Skill of the Week', chips: 'everyone · xp gained', defaultMetric: 'attack' },
+  { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
+  { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · EHP / EHB', defaultMetric: 'ehp' },
 ];
 
 /** One "this costs you" row in the panel. */
@@ -632,8 +632,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                       active ? 'bg-purple-400/15 border-purple-400' : 'border-card-border hover:border-purple-400/50 bg-brown-dark/30'
                     }`}
                   >
-                    <span className="flex items-center justify-center h-8 mb-2 text-lg" aria-hidden>
-                      {w.emoji}
+                    <span className="flex items-center justify-center h-8 mb-2">
+                      <BoardShape mode="competition" />
                     </span>
                     <span className={`block text-sm font-medium leading-tight ${active ? 'text-purple-300' : ''}`}>
                       {w.label}
@@ -957,8 +957,8 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 none of them. */}
             {weeklyType ? (
               <>
-                <div className="flex justify-center py-1 mb-3 text-3xl" aria-hidden>
-                  {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.emoji}
+                <div className="flex justify-center py-1 mb-3">
+                  <BoardShape mode="competition" variant="panel" />
                 </div>
                 <p className="text-sm font-medium text-purple-300">
                   {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.label}
