@@ -1406,3 +1406,29 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
   uniqueIndex('event_start_proof_player_unique').on(table.eventId, table.playerId),
   index('event_start_proof_event_status_idx').on(table.eventId, table.status),
 ]);
+
+/**
+ * Extra people who can run one team, alongside its captain.
+ *
+ * `teams.captainUserId` is a single column, so a clan-v-clan event where the visiting side's
+ * moderator needs to police their own roster had exactly one seat to give — and giving it to them
+ * cost the playing captain theirs. Staff are that second seat, and the fifth.
+ *
+ * Scoped to ONE team on purpose: a staff row grants nothing anywhere else, which is what makes it
+ * safe to hand to someone from another clan. What it grants is deliberately short of admin — see
+ * lib/teamStaff for the list, and note that subbing a player out mid-event stays with the host.
+ */
+export const teamStaff = sqliteTable('team_staff', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The admin who handed it over — audit only, and nullable so a deleted account doesn't take the
+  // grant with it.
+  grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // Free-text for the host: "Ironforge's mod", "runs their side of the 25v25".
+  note: text('note'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('team_staff_team_user_unique').on(table.teamId, table.userId),
+  index('team_staff_user_idx').on(table.userId),
+]);

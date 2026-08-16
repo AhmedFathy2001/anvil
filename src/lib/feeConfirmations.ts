@@ -187,3 +187,57 @@ export async function autoConfirmEventFees(eventId: number): Promise<number> {
   }
   return closed;
 }
+
+/**
+ * Mark a fee paid, whoever is doing it.
+ *
+ * Extracted so the admin route and the team-staff route can't drift: the dispute rule ("the player
+ * says they paid someone else"), the settle-on-collect rule, and the audit line are one behaviour
+ * with two callers, not two implementations that agree today.
+ *
+ * The caller owns AUTHORISATION — this only knows how a fee moves, not who may move it.
+ */
+export async function markFeeCollected(
+  fee: typeof signupFees.$inferSelect,
+  actorUserId: number,
+  opts: { proofUrl?: string | null; notes?: string | null } = {},
+): Promise<{ fee: typeof signupFees.$inferSelect; settled: boolean }> {
+  const proofUrl = opts.proofUrl ?? null;
+
+  // Replacing a proof leaves the old blob orphaned otherwise. Best-effort: a failed delete must not
+  // block the money being recorded.
+  if (fee.proofBlobUrl && proofUrl && fee.proofBlobUrl !== proofUrl) {
+    del(fee.proofBlobUrl).catch(() => {});
+  }
+
+  // A dispute is the player naming a different collector — that needs a human either way.
+  const disputed = fee.reportedCollectorUserId !== null && fee.reportedCollectorUserId !== actorUserId;
+  const required = await getRequiredConfirmations();
+  const settleNow = !disputed && settlesOnCollect(required);
+  const status = disputed ? 'disputed' : settleNow ? 'confirmed' : 'collected';
+
+  const now = new Date().toISOString();
+  const [updated] = await db
+    .update(signupFees)
+    .set({
+      collectedByUserId: actorUserId,
+      collectedAt: now,
+      proofBlobUrl: proofUrl ?? fee.proofBlobUrl,
+      status,
+      // Re-marking paid resets any tally — the fee changed hands again.
+      confirmations: null,
+      confirmedByUserId: settleNow ? actorUserId : null,
+      confirmedAt: settleNow ? now : null,
+      notes: opts.notes ?? fee.notes,
+    })
+    .where(eq(signupFees.id, fee.id))
+    .returning();
+
+  if (settleNow) {
+    await recordFeeSettled(fee.id, fee.signupId, fee.amount, actorUserId, actorUserId, {
+      noSignature: true,
+    });
+  }
+
+  return { fee: updated, settled: settleNow };
+}

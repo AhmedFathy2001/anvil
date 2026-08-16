@@ -3,8 +3,10 @@ import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { verifyUser, resolveTeamMembership } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
+import { resolveTeamManagement } from '@/lib/teamStaff';
 import MyTeamClient from './MyTeamClient';
+import TeamManageClient from './TeamManageClient';
 import DraftClockClient from './DraftClockClient';
 import DraftWatchClient from './DraftWatchClient';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -39,8 +41,10 @@ export default async function MyTeamPage({
   const backHref = from === 'scoreboard' ? `/events/${event.id}` : '/team';
   const backLabel = from === 'scoreboard' ? 'Back to scoreboard' : 'My teams';
 
-  // Discord-session membership is the single auth gate — captain and/or player on this team.
-  const membership = await resolveTeamMembership(event.id, tId);
+  // Discord-session standing on this team is the single auth gate: captain, staff seat, or a player
+  // row. Staff are people the host gave this one team to — a visiting clan's moderator, typically —
+  // so the gate can't be "captain or player" any more.
+  const membership = await resolveTeamManagement(tId);
   if (!membership) redirect('/team');
 
   const { captainPassword: _p, ...safeTeam } = team;
@@ -149,6 +153,11 @@ export default async function MyTeamPage({
           >
             Open the war room &rarr;
           </Link>
+        </div>
+      )}
+      {membership.canManage && (
+        <div className="mb-6">
+          <TeamManageClient teamId={tId} />
         </div>
       )}
       <MyTeamClient

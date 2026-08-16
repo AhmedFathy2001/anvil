@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, players, teams } from '@/db/schema';
+import { clanMembers, eventSignups, events, players, teams, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 
 /**
@@ -20,12 +20,20 @@ export async function countLiveTeamInvolvements(userId: number, now: Date = new 
   const live = or(isNull(events.endDate), gt(events.endDate, nowIso));
   const notForceEnded = isNull(events.forceEndedAt);
 
-  const [captainRows, playerRows, signupRows] = await Promise.all([
+  const [captainRows, staffRows, playerRows, signupRows] = await Promise.all([
     db
       .select({ teamId: teams.id })
       .from(teams)
       .innerJoin(events, eq(teams.eventId, events.id))
       .where(and(eq(teams.captainUserId, userId), notForceEnded, live)),
+    // A staff seat is a reason to reach a team even when you neither captain nor play on it —
+    // which is exactly the visiting-clan moderator case the seat exists for.
+    db
+      .select({ teamId: teamStaff.teamId })
+      .from(teamStaff)
+      .innerJoin(teams, eq(teamStaff.teamId, teams.id))
+      .innerJoin(events, eq(teams.eventId, events.id))
+      .where(and(eq(teamStaff.userId, userId), notForceEnded, live)),
     db
       .select({ teamId: players.teamId })
       .from(players)
@@ -56,6 +64,7 @@ export async function countLiveTeamInvolvements(userId: number, now: Date = new 
 
   const teamIds = new Set<number>();
   for (const r of captainRows) teamIds.add(r.teamId);
+  for (const r of staffRows) teamIds.add(r.teamId);
   for (const r of playerRows) if (r.teamId != null) teamIds.add(r.teamId);
 
   // A sign-up for an event you're already on a team for is the same involvement, but a sign-up

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, players, clanMembers, eventSignups, signupFees, eventStartProofs } from '@/db/schema';
+import { events, teams, players, clanMembers, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -24,6 +24,7 @@ interface Involvement {
   forceEndedAt: string | null;
   isCaptain: boolean;
   isPlayer: boolean;
+  isStaff: boolean;
 }
 
 const FEE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -60,13 +61,19 @@ export default async function MyTeamsHubPage() {
   }[] = [];
 
   const involvements = new Map<number, Involvement>();
-  const add = (row: Omit<Involvement, 'isCaptain' | 'isPlayer'>, role: 'captain' | 'player') => {
+  const add = (row: Omit<Involvement, 'isCaptain' | 'isPlayer' | 'isStaff'>, role: 'captain' | 'player' | 'staff') => {
     const existing = involvements.get(row.teamId);
     if (existing) {
       if (role === 'captain') existing.isCaptain = true;
+      else if (role === 'staff') existing.isStaff = true;
       else existing.isPlayer = true;
     } else {
-      involvements.set(row.teamId, { ...row, isCaptain: role === 'captain', isPlayer: role === 'player' });
+      involvements.set(row.teamId, {
+        ...row,
+        isCaptain: role === 'captain',
+        isPlayer: role === 'player',
+        isStaff: role === 'staff',
+      });
     }
   };
 
@@ -112,6 +119,26 @@ export default async function MyTeamsHubPage() {
     .innerJoin(events, eq(teams.eventId, events.id))
     .where(eq(teams.captainUserId, user.userId));
   for (const r of captainRows) add(r, 'captain');
+
+  // Teams this user was given a staff seat on — typically a moderator from the other clan in a
+  // clan-v-clan, who neither captains nor plays but has to run their own half.
+  const staffRows = await db
+    .select({
+      teamId: teams.id,
+      teamName: teams.name,
+      teamColor: teams.color,
+      eventId: events.id,
+      eventName: events.name,
+      format: events.format,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
+    .from(teamStaff)
+    .innerJoin(teams, eq(teamStaff.teamId, teams.id))
+    .innerJoin(events, eq(teams.eventId, events.id))
+    .where(eq(teamStaff.userId, user.userId));
+  for (const r of staffRows) add(r, 'staff');
 
   const now = new Date().toISOString();
   const all = [...involvements.values()];
@@ -307,6 +334,9 @@ function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {i.isCaptain && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">Captain</span>}
+          {i.isStaff && !i.isCaptain && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">Staff</span>
+          )}
           {i.isPlayer && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">Player</span>}
         </div>
       </div>
