@@ -1432,3 +1432,125 @@ export const teamStaff = sqliteTable('team_staff', {
   uniqueIndex('team_staff_team_user_unique').on(table.teamId, table.userId),
   index('team_staff_user_idx').on(table.userId),
 ]);
+
+
+// ── Profile sync (collection log, personal bests, quests / diaries / combat achievements) ────────
+//
+// Everything below is a PLAYER fact, not a clan one: a collection log belongs to a person, and the
+// only reason these rows hang off clan_members is that today a clan is a database. They're shaped so
+// that stays true if it ever isn't — narrow integer rows keyed by id, no catalogue text, and a
+// stable account identity on the header so one player's log across several clans can be merged by
+// something better than their name.
+//
+// The catalogue itself (which items are on which page, and how pages group into tabs) ships in the
+// repo as src/data/clog.json — 125 pages, 1,712 items. Writing it into every clan's database would
+// be a megabyte of duplicated reference data that goes stale on the next game update.
+//
+// Fed by the plugin: the game only hands the client a collection-log page once it has DRAWN it, so
+// this fills in as members open their log rather than arriving whole. `pagesSynced` on the header is
+// what lets the UI say "68 of 125" instead of pretending a partial log is a complete one.
+
+/** One row per member: how much of the log we have, and the identity to merge it by later. */
+export const memberClog = sqliteTable('member_clog', {
+  clanMemberId: integer('clan_member_id')
+    .primaryKey()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Distinct pages we've ever received for this member, and the catalogue total at sync time. */
+  pagesSynced: integer('pages_synced').notNull().default(0),
+  pagesTotal: integer('pages_total').notNull().default(0),
+  /** Slots filled / slots that exist, summed across synced pages only. */
+  obtained: integer('obtained').notNull().default(0),
+  total: integer('total').notNull().default(0),
+  /**
+   * The account hash the plugin authenticated with, denormalized on purpose: it's the key a future
+   * identity merge would dedupe on, and it must survive a rename that changes the RSN.
+   */
+  accountHash: text('account_hash'),
+  syncedAt: text('synced_at').notNull(),
+  /** Plugin build that last wrote here — the first question when a page reads wrong. */
+  pluginVersion: text('plugin_version'),
+}, (t) => [index('member_clog_synced_idx').on(t.syncedAt)]);
+
+/**
+ * One row per obtained item. ONLY obtained items are stored — the missing half is derivable from the
+ * shipped catalogue, and storing it would triple the table to record absence.
+ *
+ * `pageName` is the log's own entry name ("Chambers of Xeric: Challenge Mode"), which is the join key
+ * into clog.json. Kept as text rather than an id because the catalogue is a file, not a table: an id
+ * would have to be minted and kept stable across dataset rebuilds, and the name already is.
+ */
+export const memberClogItems = sqliteTable('member_clog_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  itemId: integer('item_id').notNull(),
+  pageName: text('page_name').notNull(),
+  /** How many the log says they've had. At least 1 — a 0 would read as "not obtained". */
+  quantity: integer('quantity').notNull().default(1),
+  /**
+   * When WE first saw it, not when they got it — the log doesn't record that. Null for everything
+   * present at the first sync, which is exactly the set whose real date is unknowable.
+   */
+  firstSeenAt: text('first_seen_at'),
+  /**
+   * Killcount at the moment the unlock fired, when the plugin caught it live. This is what makes a
+   * spoon measurable ("Magic fang at 12 KC"); null for anything that arrived as part of a bulk sync,
+   * because the log doesn't say which kill produced it.
+   */
+  kcAtUnlock: integer('kc_at_unlock'),
+}, (t) => [
+  uniqueIndex('member_clog_items_unique').on(t.clanMemberId, t.itemId),
+  index('member_clog_items_item_idx').on(t.itemId),
+  index('member_clog_items_page_idx').on(t.clanMemberId, t.pageName),
+]);
+
+/**
+ * The counter lines a log page prints under its title ("Abyssal Sire kills: 1,204").
+ *
+ * Exact, and it covers content the hiscores never lists. Display and luck maths only — crediting a
+ * kill tile from this would double-count against the chat line that already credits it.
+ */
+export const memberClogKc = sqliteTable('member_clog_kc', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  pageName: text('page_name').notNull(),
+  /** The label as the game prints it — pages count kills, chests, completions, laps. */
+  label: text('label').notNull(),
+  count: integer('count').notNull(),
+}, (t) => [uniqueIndex('member_clog_kc_unique').on(t.clanMemberId, t.pageName, t.label)]);
+
+/**
+ * Best times, in CENTISECONDS. The game separates runs by hundredths, so seconds would tie times the
+ * game itself doesn't.
+ *
+ * `teamSize` is part of the key because a solo Chambers PB and a five-man one are different records;
+ * null means the activity doesn't have team sizes (or the client didn't say).
+ */
+export const memberPersonalBests = sqliteTable('member_personal_bests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Lowercased activity name as the game's kill-count line names it. */
+  activity: text('activity').notNull(),
+  /**
+   * 0 means "this activity has no team sizes", NOT null. SQLite counts NULLs as distinct in a
+   * unique index, so a nullable column here would let one member accumulate a new row per push for
+   * every activity that doesn't report a size — which is nearly all of them.
+   */
+  teamSize: integer('team_size').notNull().default(0),
+  centis: integer('centis').notNull(),
+  achievedAt: text('achieved_at'),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  uniqueIndex('member_pb_unique').on(t.clanMemberId, t.activity, t.teamSize),
+  index('member_pb_activity_idx').on(t.activity, t.centis),
+]);
+
+export type MemberClog = typeof memberClog.$inferSelect;
+export type MemberClogItem = typeof memberClogItems.$inferSelect;
+export type MemberClogKc = typeof memberClogKc.$inferSelect;
+export type MemberPersonalBest = typeof memberPersonalBests.$inferSelect;
