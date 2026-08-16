@@ -5,7 +5,8 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { verifyUser, resolveTeamMembership } from '@/lib/auth';
 import MyTeamClient from './MyTeamClient';
-import DraftBoardClient from '@/app/captain/[teamId]/DraftBoardClient';
+import DraftClockClient from './DraftClockClient';
+import DraftWatchClient from './DraftWatchClient';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
@@ -49,7 +50,7 @@ export default async function MyTeamPage({
   // While the draft is live: captains get the live pick board; everyone else waits.
   if (event.draftStatus === 'active' || event.draftStatus === 'paused') {
     return (
-      <div>
+      <div className={membership.isCaptain ? 'max-w-6xl mx-auto' : undefined}>
         <div className="flex items-center justify-between gap-3 mb-4">
           <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
             &larr; {backLabel}
@@ -59,19 +60,32 @@ export default async function MyTeamPage({
               href={`/team/${tId}/applicants`}
               className="text-sm text-gold hover:text-gold/80 transition-colors"
             >
-              View applicants &rarr;
+              War room &rarr;
             </Link>
           )}
         </div>
         {membership.isCaptain ? (
-          <DraftBoardClient event={event} team={safeTeam} />
+          <>
+            <div className="flex items-center gap-2.5 flex-wrap mb-1">
+              <span className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: safeTeam.color }} />
+              <h1 className="text-2xl font-bold">{safeTeam.name}</h1>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">
+                Captain
+              </span>
+            </div>
+            <p className="text-text-muted text-sm mb-5">{event.name} &middot; player draft</p>
+            <DraftClockClient teamId={tId} eventId={event.id} />
+          </>
         ) : (
           <>
             <h1 className="text-2xl font-bold text-gold mb-1">{safeTeam.name}</h1>
-            <p className="text-text-muted text-sm mb-6">{event.name}</p>
-            <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-text-muted">
-              The draft is currently in progress. Your team board opens here once the draft wraps up.
-            </div>
+            <p className="text-text-muted text-sm mb-6">{event.name} &middot; draft in progress</p>
+            <DraftWatchClient
+              eventId={event.id}
+              teamId={tId}
+              teamName={safeTeam.name}
+              myPlayerId={membership.playerId}
+            />
           </>
         )}
       </div>
@@ -117,7 +131,7 @@ export default async function MyTeamPage({
             href={`/team/${tId}/applicants`}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
           >
-            View applicants &amp; answers &rarr;
+            Open the war room &rarr;
           </Link>
         )}
       </div>
@@ -126,14 +140,14 @@ export default async function MyTeamPage({
           <div className="min-w-0">
             <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>
             <p className="text-sm text-text-muted">
-              Scout everyone who signed up — their answers, hours, timezone and stats — to plan your picks.
+              Scout the pool, read their sign-up answers, and put your picks in the order you want them.
             </p>
           </div>
           <Link
             href={`/team/${tId}/applicants`}
             className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
           >
-            View applicants &amp; answers &rarr;
+            Open the war room &rarr;
           </Link>
         </div>
       )}

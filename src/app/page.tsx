@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
+import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { ClanWeek, EventGrid, Hero, LiveNow, WeeklyRail, YouStrip } from '@/components/home/HomeSections';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ export default async function HomePage() {
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(session?.userId ?? null);
   const view = await buildHomeView(myMemberIds);
+  // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
+  const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
 
   return (
     <div>
@@ -32,7 +35,7 @@ export default async function HomePage() {
 
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
         <QuickLink href="/weekly" emoji="🏆" label="Weekly" />
-        <QuickLink href="/team" emoji="🎯" label="My Team" />
+        {myTeams > 0 && <QuickLink href="/team" emoji="🎯" label={myTeams > 1 ? 'My Teams' : 'My Team'} />}
         <QuickLink href="/profile" emoji="👤" label="My Profile" />
         {view.discordInvite && <QuickLink href={view.discordInvite} emoji="💬" label="Discord" external />}
       </section>

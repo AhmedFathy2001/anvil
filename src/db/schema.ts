@@ -1331,3 +1331,32 @@ export const memberMilestones = sqliteTable('member_milestones', {
   uniqueIndex('member_milestones_unique').on(table.clanMemberId, table.kind, table.metric, table.threshold),
   index('member_milestones_member_idx').on(table.clanMemberId, table.noticedAt),
 ]);
+
+/**
+ * A captain's private draft shortlist: who they mean to take, in what order, with their own notes.
+ *
+ * Private by construction — every read is filtered to the calling captain's own userId, and nothing
+ * on any public or admin surface joins it. It exists because a draft is fast and a captain's plan
+ * currently lives in a Discord DM or a notepad: by the time they're on the clock, the list they made
+ * while scouting is somewhere else. Rows survive the draft (they're a record of intent, and cost
+ * nothing) and are keyed on the person, not the account, so an alt row never splits a plan.
+ */
+export const draftShortlists = sqliteTable('draft_shortlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The captain. Not the team: a captain who changes teams keeps their own list, and a team with a
+  // new captain doesn't inherit the old one's opinions.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // lib/playerProfile's personKey — one entry per PERSON, so a two-account player is one line.
+  personKey: text('person_key').notNull(),
+  // Rank in the list, 0-based and dense after every write. Ties never matter: the client sends the
+  // whole order, so there's no drift to reconcile.
+  position: integer('position').notNull(),
+  // The captain's own note on this person, e.g. "take before pick 22, wants raids".
+  note: text('note'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('draft_shortlists_unique').on(table.eventId, table.userId, table.personKey),
+  index('draft_shortlists_owner_idx').on(table.eventId, table.userId, table.position),
+]);

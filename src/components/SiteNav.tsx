@@ -11,6 +11,8 @@ interface NavUser {
 
 interface Props {
   signedIn: boolean;
+  /** Live teams / captain seats / open sign-ups. 0 hides the My Team item entirely. */
+  myTeams: number;
   isStaff: boolean;
   discordInvite: string | null;
   user: NavUser | null;
@@ -22,7 +24,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, isStaff, discordInvite, user }: Props) {
+export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, user }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -37,7 +39,9 @@ export default function SiteNav({ signedIn, isStaff, discordInvite, user }: Prop
     // knowing which table the clan filed something under before you could find it.
     { href: '/events', label: 'Events' },
     { href: '/members', label: 'Members' },
-    ...(signedIn ? [{ href: '/team', label: 'My Team' }] : []),
+    ...(signedIn && myTeams > 0
+      ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
+      : []),
   ];
 
   const avatar = user?.avatarUrl ? (

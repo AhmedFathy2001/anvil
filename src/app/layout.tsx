@@ -9,6 +9,7 @@ import { avatarUrl } from "@/lib/discord-oauth";
 import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
+import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,6 +42,11 @@ export default async function RootLayout({
     });
     if (found) userRow = found;
   }
+  // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
+  // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
+  // a team" isn't navigation.
+  const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
+
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
   // Any staff role gets the Admin link — it lands on /admin/dashboard, which every staff role can
   // reach; middleware + the admin sidebar scope what each sees from there. Must mirror the role set
@@ -70,6 +76,7 @@ export default async function RootLayout({
             </Link>
             <SiteNav
               signedIn={!!session}
+              myTeams={myTeams}
               isStaff={isStaff}
               discordInvite={discordInvite}
               user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
