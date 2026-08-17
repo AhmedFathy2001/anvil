@@ -17,7 +17,6 @@ import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
 import RoleSetting from '@/components/RoleSetting';
-import FederationSettings from '@/components/FederationSettings';
 
 interface SettingsTabsProps {
   channels: BroadcastChannel[];
@@ -31,7 +30,6 @@ const TABS = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'fees', label: 'Fees' },
   { id: 'board', label: 'Board' },
-  { id: 'federation', label: 'Federation' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -310,18 +308,6 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
         </div>
       )}
 
-      {tab === 'federation' && (
-        <Card>
-          <div>
-            <p className="text-sm text-text-muted mb-3">
-              Federation connects your clan with other Anvil clans. A member who plays in several of them shows up
-              (and can earn) across all of them, and the plugin lists the clans they belong to. Everything here is
-              optional — leave it off to keep this clan fully private.
-            </p>
-            <FederationSettings />
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

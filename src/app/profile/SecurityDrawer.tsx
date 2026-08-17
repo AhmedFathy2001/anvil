@@ -5,7 +5,6 @@ import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import LinkAccountClient from './LinkAccountClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
 import RenameRequestClient from './RenameRequestClient';
-import ConnectedPluginsClient from './ConnectedPluginsClient';
 
 // Everything that used to BE this page: the token, the manual linking paths, the accounts you told
 // us weren't yours, and name changes. None of it is gone — it's just no longer what a member sees
@@ -18,12 +17,10 @@ const HASH = '#account-security';
 export default function SecurityDrawer({
   accounts,
   ignored,
-  federationEnabled,
   defaultOpen,
 }: {
   accounts: { id: number; rsn: string }[];
   ignored: { id: number; rsn: string; lastSeenAt: string }[];
-  federationEnabled: boolean;
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -92,9 +89,6 @@ export default function SecurityDrawer({
           </>
         )}
 
-        {/* Federation-only: cross-clan tokens minted for the broker sign-in flow. Until this clan
-            turns federation on the plugin has nowhere to use them, so it isn't shown at all. */}
-        {federationEnabled && <ConnectedPluginsClient />}
       </div>
     </details>
   );

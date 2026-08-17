@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers, federationBans, users } from '@/db/schema';
+import { clanMembers, users } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -18,8 +18,7 @@ export async function GET() {
     .orderBy(desc(clanMembers.joinedAt));
 
   // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
-  // clan_members.discordId column) so the roster can show/toggle both the site ban and the
-  // federation ban.
+  // clan_members.discordId column) so the roster can show/toggle the site ban.
   const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is number => v != null))];
   // users.role rides along so the roster can filter by site role without a second round-trip.
   const userRows = userIds.length
@@ -32,22 +31,9 @@ export async function GET() {
   const userDiscordId = new Map(userRows.map((u) => [u.id, u.discordId]));
   const userRole = new Map(userRows.map((u) => [u.id, u.role]));
 
-  // Effective Discord id per member (federation bans are keyed on discord_id, WIRE §4).
+  // Effective Discord id per member: users.discordId beats the legacy clan_members.discordId column.
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
     (r.userId != null ? userDiscordId.get(r.userId) : null) ?? r.discordId ?? null;
-
-  // Which of those discord ids are federation-banned.
-  const discordIds = [...new Set(rows.map(effectiveDiscordId).filter((v): v is string => !!v))];
-  const fedBanned = discordIds.length
-    ? new Set(
-        (
-          await db
-            .select({ discordId: federationBans.discordId })
-            .from(federationBans)
-            .where(inArray(federationBans.discordId, discordIds))
-        ).map((b) => b.discordId),
-      )
-    : new Set<string>();
 
   return NextResponse.json(
     rows.map((r) => {
@@ -57,7 +43,6 @@ export async function GET() {
         userBanned: r.userId != null && bannedIds.has(r.userId),
         userRole: r.userId != null ? userRole.get(r.userId) ?? null : null,
         effectiveDiscordId: did,
-        federationBanned: did != null && fedBanned.has(did),
       };
     }),
   );

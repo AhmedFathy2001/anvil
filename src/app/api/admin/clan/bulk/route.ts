@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, federationBans, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -19,9 +19,7 @@ type BulkAction =
   | 'remove'
   | 'rejoin'
   | 'ban'
-  | 'unban'
-  | 'fed-ban'
-  | 'fed-unban';
+  | 'unban';
 
 const PENDING_ROLES = new Set(['admin', 'moderator', 'editor', 'treasurer']);
 const ACTIONS = new Set<BulkAction>([
@@ -32,8 +30,6 @@ const ACTIONS = new Set<BulkAction>([
   'rejoin',
   'ban',
   'unban',
-  'fed-ban',
-  'fed-unban',
 ]);
 
 // A selection is a hand-made list from one screen; this only exists to keep a malformed/hostile body
@@ -44,7 +40,7 @@ const MAX_IDS = 500;
 // from it. What's deliberately absent is 'set-role', 'promote' and 'demote': those change what
 // someone can DO on the site, and a moderator handing out roles (including their own) is how a
 // moderation account becomes an admin account.
-const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin', 'ban', 'unban', 'fed-ban', 'fed-unban']);
+const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin', 'ban', 'unban']);
 
 export async function POST(request: Request) {
   const actor = await verifyAdminOrModerator();
@@ -86,11 +82,11 @@ export async function POST(request: Request) {
   const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, ids));
   if (!members.length) return NextResponse.json({ error: 'No matching members' }, { status: 404 });
 
-  // Linked users, for the ban guards + the authoritative Discord id federation bans key on.
+  // Linked users, for the ban guards.
   const userIds = [...new Set(members.map((m) => m.userId).filter((v): v is number => v != null))];
   const userRows = userIds.length
     ? await db
-        .select({ id: users.id, isOwner: users.isOwner, discordId: users.discordId, role: users.role })
+        .select({ id: users.id, isOwner: users.isOwner, role: users.role })
         .from(users)
         .where(inArray(users.id, userIds))
     : [];
@@ -105,7 +101,6 @@ export async function POST(request: Request) {
 
   for (const m of members) {
     const linked = m.userId != null ? userById.get(m.userId) ?? null : null;
-    const discordId = linked?.discordId ?? m.discordId ?? null;
 
     switch (action) {
       case 'set-role': {
@@ -188,37 +183,6 @@ export async function POST(request: Request) {
             actorUserId: actor.userId,
           })
           .catch(() => {});
-        applied++;
-        break;
-      }
-      case 'fed-ban':
-      case 'fed-unban': {
-        if (!discordId) {
-          skipped.push({ id: m.id, rsn: m.rsn, reason: 'no Discord identity' });
-          break;
-        }
-        if (action === 'fed-unban') {
-          await db.delete(federationBans).where(eq(federationBans.discordId, discordId));
-          applied++;
-          break;
-        }
-        if (linked?.isOwner) {
-          skipped.push({ id: m.id, rsn: m.rsn, reason: 'clan owner' });
-          break;
-        }
-        const existing = await db.query.federationBans.findFirst({
-          where: eq(federationBans.discordId, discordId),
-        });
-        if (existing) {
-          await db
-            .update(federationBans)
-            .set({ reason, byUserId: actor.userId, at: nowIso })
-            .where(eq(federationBans.id, existing.id));
-        } else {
-          await db
-            .insert(federationBans)
-            .values({ discordId, reason, byUserId: actor.userId, at: nowIso });
-        }
         applied++;
         break;
       }

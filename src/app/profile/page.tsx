@@ -5,7 +5,7 @@ import { clanMembers, detectedAccounts, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
-import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
+import { getClanDisplayName } from '@/lib/pluginConfig';
 import { buildLocker } from '@/lib/profileLocker';
 import PlayerCard from './PlayerCard';
 import ConnectCard from './ConnectCard';
@@ -44,9 +44,8 @@ export default async function ProfilePage({
   }
 
   const welcome = (await searchParams).welcome === '1';
-  const [locker, federationEnabled, clanName] = await Promise.all([
+  const [locker, clanName] = await Promise.all([
     buildLocker(user.id),
-    getFederationEnabled(),
     getClanDisplayName(),
   ]);
 
@@ -216,7 +215,6 @@ export default async function ProfilePage({
       <SecurityDrawer
         accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}
         ignored={ignored}
-        federationEnabled={federationEnabled}
         defaultOpen={locker.setupNeeded && locker.accounts.length > 0}
       />
     </div>

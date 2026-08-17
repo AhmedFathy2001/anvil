@@ -29,10 +29,8 @@ interface ClanMember {
   // Live site role of the linked account ('admin' | 'treasurer' | 'moderator' | 'editor' |
   // 'member'), null when the RSN has no site login yet. Drives the role filter.
   userRole?: string | null;
-  // Federation (WIRE §4): the authoritative Discord id + whether it's on the sticky federation
-  // denylist. federationBanned members are blocked from re-joining via a broker /exchange (L2).
+  // Authoritative Discord id for the member (users.discordId beats the legacy column).
   effectiveDiscordId?: string | null;
-  federationBanned?: boolean;
   provisional: number;
   pendingRole: PendingRole | null;
 }
@@ -496,7 +494,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const confirmText: Record<string, string> = {
       remove: `Mark ${n} member${n === 1 ? '' : 's'} as left the clan?`,
       ban: `Ban the site accounts of ${n} selected member${n === 1 ? '' : 's'}? They lose all access immediately.`,
-      'fed-ban': `Federation-ban ${n} selected member${n === 1 ? '' : 's'}? This blocks those Discord identities from re-joining via another clan.`,
       demote: `Demote ${n} member${n === 1 ? '' : 's'} to guest?`,
     };
     if (confirmText[bulkAction] && !confirm(confirmText[bulkAction])) return;
@@ -626,35 +623,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
   }
 
-  // Federation ban (decision 4, WIRE §4): a sticky denylist keyed on the member's Discord id that
-  // blocks a future cross-clan broker /exchange from re-creating them as a guest. Distinct from the
-  // site-account "Ban" above (which revokes THIS site's login) — this one travels with the identity.
-  async function federationBan(member: ClanMember) {
-    if (!member.effectiveDiscordId) return;
-    const banning = !member.federationBanned;
-    let reason: string | undefined;
-    if (banning) {
-      const input = prompt(
-        `Federation-ban ${member.rsn}? Blocks this Discord identity from re-joining via a broker exchange (cross-clan). Does not touch their current site access.\nOptional reason:`,
-      );
-      if (input === null) return; // cancelled
-      reason = input.trim() || undefined;
-    } else if (!confirm(`Lift the federation ban on ${member.rsn}?`)) {
-      return;
-    }
-    const res = banning
-      ? await fetch('/api/admin/federation/bans', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ discordId: member.effectiveDiscordId, reason }),
-        })
-      : await fetch(`/api/admin/federation/bans?discordId=${encodeURIComponent(member.effectiveDiscordId)}`, {
-          method: 'DELETE',
-        });
-    if (res.ok) fetchAll();
-    else alert((await res.json().catch(() => ({}))).error || 'Could not update federation ban');
-  }
-
   function openRename(member: ClanMember) {
     setRenameTarget(member);
     setRenameValue(member.rsn);
@@ -758,16 +726,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         onClick: () => banUser(m),
         variant: m.userBanned ? 'default' : 'danger',
         title: m.userBanned ? 'This site account is banned' : 'Ban this member’s site account',
-      });
-    }
-    if (isAdmin && m.effectiveDiscordId) {
-      items.push({
-        label: m.federationBanned ? 'Fed unban' : 'Fed ban',
-        onClick: () => federationBan(m),
-        variant: m.federationBanned ? 'default' : 'danger',
-        title: m.federationBanned
-          ? 'On the federation denylist — blocked from re-joining via a broker exchange'
-          : 'Federation-ban: block this Discord identity from re-joining via a broker exchange (cross-clan)',
       });
     }
     return items;
@@ -990,8 +948,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   { value: 'remove', label: 'Remove from roster' },
                   { value: 'ban', label: 'Ban site accounts' },
                   { value: 'unban', label: 'Unban site accounts' },
-                  { value: 'fed-ban', label: 'Federation ban' },
-                  { value: 'fed-unban', label: 'Federation unban' },
                 ]}
               />
               {bulkAction === 'set-role' && (
