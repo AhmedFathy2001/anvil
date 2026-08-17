@@ -156,11 +156,26 @@ function coreName(value: string): string {
   return normalizeActivity(value).replace(/^the /, '');
 }
 
-/** Party size out of a label, so "5 players" sorts after "3 players" and both after a solo. */
+/**
+ * Party size out of a label, so scales sort in the order a player thinks in.
+ *
+ * "Solo" is 1. A bucket takes its lower bound ("11-15 players" → 11), which keeps it in the right
+ * place among the exact sizes. The bare, unqualified best across every scale sorts FIRST, because
+ * it's the headline number rather than one of the scales.
+ */
 function partySizeOf(label: string, fallback: number): number {
-  const match = /(\d+)\s*players?/.exec(label);
+  if (label === ANY_SCALE) return 0;
+  if (/^solo/i.test(label)) return 1;
+  const match = /(\d+)/.exec(label);
   return match ? parseInt(match[1], 10) : fallback;
 }
+
+/**
+ * What RuneLite's unqualified "<boss>" key means: the best across ALL scales, which it writes
+ * alongside the per-scale ones. Calling it "Solo" — as this did — hid the real solo time behind a
+ * number that usually came from a team.
+ */
+const ANY_SCALE = 'Best overall';
 
 /**
  * Attach best times to the log pages they belong to.
@@ -196,8 +211,9 @@ export function matchBestsToPages(
     );
     if (!page) continue;
 
-    // Whatever isn't the page's own name describes the run: a mode, a party size, or both.
-    const label = activity.replace(page.core, ' ').replace(/\s+/g, ' ').trim() || 'Solo';
+    // Whatever isn't the page's own name describes the run: a mode, a party size, or both. Nothing
+    // left over means RuneLite's cross-scale best, not a solo.
+    const label = activity.replace(page.core, ' ').replace(/\s+/g, ' ').trim() || ANY_SCALE;
     const list = out.get(page.name) ?? [];
     list.push({
       label: label.charAt(0).toUpperCase() + label.slice(1),

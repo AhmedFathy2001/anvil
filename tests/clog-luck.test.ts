@@ -189,18 +189,22 @@ test('matchBestsToPages: a raid has one page and many times', () => {
   const matched = matchBestsToPages(
     [
       { activity: 'chambers of xeric', teamSize: 0, time: '33:38.00' },
+      { activity: 'chambers of xeric solo', teamSize: 0, time: '41:20.00' },
       { activity: 'chambers of xeric 3 players', teamSize: 3, time: '22:15.00' },
-      { activity: 'chambers of xeric challenge mode', teamSize: 0, time: '55:10.00' },
-      { activity: 'chambers of xeric challenge mode 5 players', teamSize: 5, time: '38:02.00' },
+      { activity: 'chambers of xeric 11-15 players', teamSize: 0, time: '18:40.00' },
     ],
     ['Chambers of Xeric', 'Vorkath'],
   );
   const cox = matched.get('Chambers of Xeric')!;
   assert.equal(cox.length, 4, 'every scale lands on the one page');
   assert.equal(matched.has('Vorkath'), false);
-  // Ordered by scale, not by clock: a trio being faster than a solo is not a ranking.
-  assert.deepEqual(cox.map((b) => b.partySize), [1, 1, 3, 5]);
-  assert.deepEqual(cox.map((b) => b.label), ['Challenge mode', 'Solo', '3 players', 'Challenge mode 5 players']);
+  // The bare key is RuneLite's best across every scale — it leads, and it is NOT the solo time.
+  assert.equal(cox[0].label, 'Best overall');
+  assert.equal(cox[0].time, '33:38.00');
+  assert.equal(cox[1].label, 'Solo', 'a solo raid is stored as the word, not "1 players"');
+  assert.equal(cox[1].time, '41:20.00');
+  // Ordered by scale, not by clock, and a bucket sits at its lower bound.
+  assert.deepEqual(cox.map((b) => b.partySize), [0, 1, 3, 11]);
 });
 
 test('matchBestsToPages: a qualifier in front still finds its page', () => {
@@ -215,7 +219,7 @@ test('matchBestsToPages: a qualifier in front still finds its page', () => {
   const list = matched.get('The Gauntlet')!;
   assert.equal(list.length, 2);
   assert.ok(list.some((b) => b.label === 'Corrupted'));
-  assert.ok(list.some((b) => b.label === 'Solo'));
+  assert.ok(list.some((b) => b.label === 'Best overall'));
 });
 
 test('matchBestsToPages: punctuation on either side never blocks a match', () => {
