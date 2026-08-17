@@ -153,25 +153,38 @@ export default function CollectionLog({
       {(showcase.length > 0 || valuable.length > 0) && (
         <div className="border border-gold/30 rounded-xl bg-gradient-to-b from-gold/[0.07] to-transparent p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              {(['rarest', 'valuable'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setShelf(mode)}
-                  disabled={mode === 'rarest' ? showcase.length === 0 : valuable.length === 0}
-                  className={`text-[11px] uppercase tracking-widest transition-colors disabled:opacity-30 ${
-                    shelf === mode ? 'text-gold' : 'text-text-muted hover:text-foreground'
-                  }`}
-                >
-                  {mode === 'rarest' ? 'Rarest drops' : 'Most valuable'}
-                </button>
-              ))}
+            {/* A segmented control, not two words that happen to respond to clicks. The first
+                version was styled like the heading beside it, so the value view may as well not
+                have existed unless you thought to poke at the title. */}
+            <div className="inline-flex rounded-lg border border-card-border overflow-hidden">
+              {(['rarest', 'valuable'] as const).map((mode) => {
+                const empty = mode === 'rarest' ? showcase.length === 0 : valuable.length === 0;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setShelf(mode)}
+                    disabled={empty}
+                    title={empty ? 'Nothing here yet' : undefined}
+                    className={`px-3 py-1 text-xs font-medium transition-colors disabled:opacity-30 ${
+                      shelf === mode
+                        ? 'bg-gold/20 text-gold'
+                        : 'text-text-muted hover:text-foreground hover:bg-card-bg-hover'
+                    }`}
+                  >
+                    {mode === 'rarest' ? 'Rarest drops' : 'Most valuable'}
+                  </button>
+                );
+              })}
             </div>
-            <span className="text-[10px] text-text-muted">
-              {shelf === 'rarest'
-                ? 'by drop rate, not by effort'
-                : `${formatGp(totalValue)} of tradeables in this log`}
+            <span className="text-xs text-text-muted">
+              {shelf === 'rarest' ? (
+                'by drop rate, not by effort'
+              ) : (
+                <>
+                  <span className="font-mono text-gold">{formatGp(totalValue)}</span> of tradeables in this log
+                </>
+              )}
             </span>
           </div>
 
