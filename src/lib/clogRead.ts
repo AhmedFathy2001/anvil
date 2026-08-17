@@ -3,6 +3,8 @@ import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { buildClogProfile, matchBestsToPages, type BestTime } from '@/lib/clogProfile';
+import { buildShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
+import { BOSSES } from '@/lib/constants';
 import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
 
 // Reading a member's synced log for their profile page. One place, because the catalogue slice the
@@ -81,6 +83,26 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
   const quantities: Record<number, number> = {};
   for (const item of items) if (item.quantity > 1) quantities[item.itemId] = item.quantity;
 
+  // The shelf: what they own that was hard to get. Leading with this rather than a completion bar
+  // is the whole point — a log's meaning is its rarest slot, not the fraction of a list it fills.
+  const showcase = buildShowcase(items);
+
+  // Rates for the grid's rarity emphasis. Only the ~150 log items that HAVE a meaningful rate
+  // travel, so this costs a couple of KB rather than shipping the drop dataset to a browser.
+  const rarityById: Record<number, number> = {};
+  for (const [itemId, rate] of clogItemRarity()) rarityById[itemId] = rate.denominator;
+
+  // 125 flat pages is a scroll, not navigation.
+  const bossLabels = new Set(BOSSES.map((b) => b.label.toLowerCase()));
+  const groups: Record<string, PageGroup> = {};
+  for (const page of pages) groups[page.name] = groupOf(page.name, bossLabels);
+
+  // The nearest finish line, which is the one thing that reliably sends someone back to the game.
+  const closest = pages
+    .filter((p) => p.total > 0 && p.obtained > 0 && p.obtained < p.total)
+    .map((p) => ({ page: p.name, remaining: p.total - p.obtained }))
+    .sort((a, b) => a.remaining - b.remaining)[0] ?? null;
+
   const formatted = bests.map((b) => ({
     activity: b.activity,
     teamSize: b.teamSize,
@@ -96,6 +118,10 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
     pages,
     catalogue,
     quantities,
+    showcase,
+    rarityById,
+    groups,
+    closest,
     recent: view.recent,
     bestsByPage: Object.fromEntries(byPage) as Record<string, BestTime[]>,
     bests: formatted

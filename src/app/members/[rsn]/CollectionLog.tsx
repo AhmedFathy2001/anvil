@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
+import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem } from '@/lib/clogRarity';
 
 // A member's synced collection log. The game's own shape — pages down the side, the chosen page's
 // items in a grid, obtained lit and the rest dimmed — because that is the only layout anyone will
@@ -35,13 +36,34 @@ export interface CollectionLogProps {
   catalogue: Record<string, { id: number; name: string }[]>;
   quantities: Record<number, number>;
   recent: RecentUnlock[];
+  /** The rarest things they own, hardest first. The page opens on these. */
+  showcase: ShowcaseItem[];
+  /** Item id → 1-in-N, for the grid's rarity weighting. Only items with a meaningful rate. */
+  rarityById: Record<number, number>;
+  /** Page name → which shelf it belongs on, so 125 pages navigate as six groups. */
+  groups: Record<string, PageGroup>;
+  /** The page nearest to finished — the one thing that sends someone back to the game. */
+  closest: { page: string; remaining: number } | null;
   /** Best times filed under the log page they belong to — every scale of a raid on its own page. */
   bestsByPage: Record<string, BestTime[]>;
   /** The same times as one flat list, for the searchable table. */
   bests: { activity: string; time: string }[];
 }
 
-export default function CollectionLog({ rsn, synced, pages, catalogue, quantities, recent, bests, bestsByPage }: CollectionLogProps) {
+export default function CollectionLog({
+  rsn,
+  synced,
+  pages,
+  catalogue,
+  quantities,
+  recent,
+  bests,
+  bestsByPage,
+  showcase,
+  rarityById,
+  groups,
+  closest,
+}: CollectionLogProps) {
   // Open on the fullest page — someone's log is most interesting where they've actually played.
   const initial = useMemo(() => {
     const withItems = [...pages].sort((a, b) => b.obtained - a.obtained || a.name.localeCompare(b.name));
@@ -50,10 +72,13 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
   const [selected, setSelected] = useState(initial);
   const [filter, setFilter] = useState('');
   const [bestFilter, setBestFilter] = useState('');
+  const [show, setShow] = useState<'all' | 'owned' | 'missing'>('all');
 
   const page = pages.find((p) => p.name === selected) ?? pages[0];
   const owned = useMemo(() => new Set(page?.ownedIds ?? []), [page]);
-  const items = catalogue[page?.name ?? ''] ?? [];
+  // Memoised because the grid filter depends on it: a fresh array literal each render would make
+  // that recompute on every keystroke in the search box.
+  const items = useMemo(() => catalogue[page?.name ?? ''] ?? [], [catalogue, page]);
 
   const shownBests = useMemo(() => {
     const q = bestFilter.trim().toLowerCase();
@@ -64,6 +89,34 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
     const q = filter.trim().toLowerCase();
     return q ? pages.filter((p) => p.name.toLowerCase().includes(q)) : pages;
   }, [pages, filter]);
+
+  // Grouped navigation. Six named shelves beat one 125-row scroll, and the order runs from the
+  // content people brag about to the miscellany.
+  const grouped = useMemo(() => {
+    const buckets = new Map<PageGroup, PageData[]>();
+    for (const p of shownPages) {
+      const group = groups[p.name] ?? 'Other';
+      const list = buckets.get(group) ?? [];
+      list.push(p);
+      buckets.set(group, list);
+    }
+    return GROUP_ORDER.filter((g) => buckets.has(g)).map((g) => {
+      const list = buckets.get(g)!;
+      return {
+        group: g,
+        pages: list,
+        done: list.filter((p) => p.complete).length,
+      };
+    });
+  }, [shownPages, groups]);
+
+  const gridItems = useMemo(() => {
+    if (show === 'owned') return items.filter((i) => owned.has(i.id));
+    if (show === 'missing') return items.filter((i) => !owned.has(i.id));
+    return items;
+  }, [items, owned, show]);
+
+  const pagesComplete = pages.filter((p) => p.complete).length;
 
   if (!synced) {
     return (
@@ -83,6 +136,34 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
 
   return (
     <div className="space-y-6">
+      {/* The shelf. A log's meaning is its rarest slot, not the fraction of a list it fills, so the
+          page opens on what was hard to get and puts the percentage beside it. */}
+      {showcase.length > 0 && (
+        <div className="border border-gold/30 rounded-xl bg-gradient-to-b from-gold/[0.07] to-transparent p-4">
+          <div className="text-[11px] uppercase tracking-widest text-gold/80 mb-3">Hardest earned</div>
+          <div className="flex flex-wrap gap-3">
+            {showcase.map((item) => (
+              <div key={item.itemId} className="flex items-center gap-2.5 min-w-0">
+                <div className="relative w-14 h-14 rounded-lg border border-gold/50 bg-brown-dark/60 flex items-center justify-center shadow-[0_0_18px_-6px] shadow-gold/60">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={itemIconUrl(item.itemId)} alt="" className="w-10 h-10 object-contain" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
+                  <div className="text-[11px] font-mono text-gold">
+                    1 in {Math.round(item.denominator).toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-text-muted truncate max-w-[11rem]">
+                    {item.page}
+                    {item.kcAtUnlock != null && <> · at {item.kcAtUnlock.toLocaleString()} KC</>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header: the one number everybody wants, and how fresh it is. */}
       <div className="border border-card-border rounded-xl bg-card-bg p-4">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
@@ -91,7 +172,14 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
               {synced.obtained.toLocaleString()}
               <span className="text-text-muted text-base font-normal"> / {synced.total.toLocaleString()}</span>
             </div>
-            <div className="text-xs text-text-muted">collection log slots · {pct}%</div>
+            <div className="text-xs text-text-muted">
+              collection log slots · {pct}% · {pagesComplete} page{pagesComplete === 1 ? '' : 's'} finished
+            </div>
+            {closest && (
+              <div className="text-xs text-accent-green-light mt-1">
+                {closest.remaining} item{closest.remaining === 1 ? '' : 's'} from finishing {closest.page}
+              </div>
+            )}
           </div>
           <div className="text-xs text-text-muted text-right">
             {synced.at && (
@@ -151,9 +239,17 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
             />
           </div>
           <div className="max-h-[28rem] overflow-y-auto">
-            {shownPages.map((p) => {
-              const active = p.name === page?.name;
-              return (
+            {grouped.map(({ group, pages: groupPages, done }) => (
+              <div key={group}>
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-3 py-1 bg-brown-dark/95 border-y border-card-border text-[10px] uppercase tracking-widest text-text-muted">
+                  <span>{group}</span>
+                  <span>
+                    {done}/{groupPages.length}
+                  </span>
+                </div>
+                {groupPages.map((p) => {
+                  const active = p.name === page?.name;
+                  return (
                 <button
                   key={p.name}
                   type="button"
@@ -174,9 +270,11 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
                   <span className={p.complete ? 'text-accent-green-light shrink-0' : 'text-text-muted shrink-0'}>
                     {p.obtained}/{p.total}
                   </span>
-                </button>
-              );
-            })}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -186,9 +284,25 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
             <h3 className={`font-semibold text-sm ${page?.complete ? 'text-accent-green-light' : ''}`}>
               {page?.name}
             </h3>
-            <span className={`text-xs ${page?.complete ? 'text-accent-green-light' : 'text-text-muted'}`}>
-              {page?.obtained}/{page?.total}
-            </span>
+            <div className="flex items-center gap-2">
+              {(['all', 'owned', 'missing'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setShow(mode)}
+                  className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border transition-colors ${
+                    show === mode
+                      ? 'border-gold/50 text-gold bg-gold/10'
+                      : 'border-card-border text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+              <span className={`text-xs ${page?.complete ? 'text-accent-green-light' : 'text-text-muted'}`}>
+                {page?.obtained}/{page?.total}
+              </span>
+            </div>
           </div>
           {/* This page's times, every scale of it. A raid has one log page and many personal bests,
               so they belong here rather than only in a table somewhere else. */}
@@ -208,16 +322,30 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
           )}
 
           <div className="flex flex-wrap gap-1.5">
-            {items.map((item) => {
+            {gridItems.map((item) => {
               const has = owned.has(item.id);
               const qty = quantities[item.id] ?? 0;
+              const denominator = rarityById[item.id];
+              const tier = tierFor(denominator);
+              // Rarity is worn only by what someone actually has: a missing megarare glowing on
+              // every profile would say nothing about the person whose page this is.
+              const emphasis = !has
+                ? 'border-card-border bg-brown-dark/40'
+                : tier === 'ultra'
+                  ? 'border-gold bg-gold/10 shadow-[0_0_16px_-4px] shadow-gold/70'
+                  : tier === 'rare'
+                    ? 'border-gold/70 bg-gold/[0.07]'
+                    : tier === 'notable'
+                      ? 'border-gold/40 bg-gold/5'
+                      : 'border-card-border/80 bg-brown-dark/20';
               return (
                 <div
                   key={item.id}
-                  title={has ? `${item.name}${qty > 1 ? ` ×${qty}` : ''}` : `${item.name} — not obtained`}
-                  className={`relative w-11 h-11 rounded border flex items-center justify-center ${
-                    has ? 'border-gold/40 bg-gold/5' : 'border-card-border bg-brown-dark/40'
-                  }`}
+                  title={
+                    (has ? `${item.name}${qty > 1 ? ` ×${qty}` : ''}` : `${item.name} — not obtained`) +
+                    (denominator ? ` · 1 in ${Math.round(denominator).toLocaleString()}` : '')
+                  }
+                  className={`relative w-11 h-11 rounded border flex items-center justify-center ${emphasis}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -233,6 +361,11 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
                 </div>
               );
             })}
+            {gridItems.length === 0 && (
+              <p className="text-xs text-text-muted py-4">
+                {show === 'owned' ? 'Nothing from this page yet.' : 'This page is finished.'}
+              </p>
+            )}
           </div>
         </div>
       </div>
