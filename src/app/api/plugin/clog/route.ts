@@ -277,6 +277,7 @@ async function ingestWholeLog(
     .select({
       pageName: memberClogItems.pageName,
       itemId: memberClogItems.itemId,
+      quantity: memberClogItems.quantity,
       firstSeenAt: memberClogItems.firstSeenAt,
       kcAtUnlock: memberClogItems.kcAtUnlock,
     })
@@ -312,18 +313,52 @@ async function ingestWholeLog(
     }),
   );
 
-  await db.delete(memberClogItems).where(eq(memberClogItems.clanMemberId, member.clanMemberId));
-  // SQLite takes a bounded number of bound parameters per statement, and a full log is ~1,700 rows
-  // across six columns — chunked so one insert can't blow the limit. The conflict clause is belt to
-  // the delete's braces: one bad row must not throw away a whole sync.
-  for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+  // Write only what actually changed.
+  //
+  // The client has to send the whole log — the transmit hands it everything at once and it can't
+  // know what we already hold — but that is no reason for us to rewrite 1,700 rows because somebody
+  // got one pet. A re-sync after a single drop is now one insert; an unchanged one is no writes at
+  // all, which matters because opening the collection log re-sends it.
+  const desired = new Map(rows.map((r) => [r.itemId, r]));
+  const held = new Map(existing.map((r) => [r.itemId, r]));
+
+  const gone = [...held.keys()].filter((id) => !desired.has(id));
+  const added = rows.filter((r) => !held.has(r.itemId));
+  // An item can move page between game updates, and a stackable one's count grows.
+  const changed = rows.filter((r) => {
+    const before = held.get(r.itemId);
+    return before && (before.pageName !== r.pageName || before.quantity !== r.quantity);
+  });
+
+  for (let i = 0; i < gone.length; i += INSERT_CHUNK) {
+    await db
+      .delete(memberClogItems)
+      .where(
+        and(
+          eq(memberClogItems.clanMemberId, member.clanMemberId),
+          inArray(memberClogItems.itemId, gone.slice(i, i + INSERT_CHUNK)),
+        ),
+      );
+  }
+  // SQLite takes a bounded number of bound parameters per statement, so a first sync — the one case
+  // that really is ~1,700 rows — still goes up in chunks. The conflict clause covers a row we didn't
+  // know we held: one duplicate must not throw away the whole sync.
+  for (let i = 0; i < added.length; i += INSERT_CHUNK) {
     await db
       .insert(memberClogItems)
-      .values(rows.slice(i, i + INSERT_CHUNK))
+      .values(added.slice(i, i + INSERT_CHUNK))
       .onConflictDoUpdate({
         target: [memberClogItems.clanMemberId, memberClogItems.itemId],
         set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
       });
+  }
+  for (const row of changed) {
+    await db
+      .update(memberClogItems)
+      .set({ pageName: row.pageName, quantity: row.quantity })
+      .where(
+        and(eq(memberClogItems.clanMemberId, member.clanMemberId), eq(memberClogItems.itemId, row.itemId)),
+      );
   }
 
   const index = clogPageIndex();
@@ -347,6 +382,11 @@ async function ingestWholeLog(
     mode: 'full',
     pages: index.size,
     items: rows.length,
+    // What the push actually changed, so a client (and a person reading logs) can tell a real sync
+    // from a no-op.
+    added: added.length,
+    removed: gone.length,
+    updated: changed.length,
     // Non-zero means the game has items our catalogue doesn't: re-run `npm run data:clog`.
     unknown,
   });
