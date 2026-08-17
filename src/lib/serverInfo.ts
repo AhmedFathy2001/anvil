@@ -65,6 +65,10 @@ export const PLUGIN_CAPABILITIES = [
   // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
   // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
   'start-proof',
+  // Highlight feed: POST /api/plugin/moments takes pets/drops/deaths as the client saw them and the
+  // server decides which competition week or board they belong to (lib/moments). Gated because a
+  // plugin that pushed these at a site without the endpoint would just collect 404s.
+  'moments',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

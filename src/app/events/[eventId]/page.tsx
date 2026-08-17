@@ -11,6 +11,8 @@ import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
+import EventMoments from '@/components/events/EventMoments';
+import { momentsForEvent } from '@/lib/momentsStore';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import {
@@ -226,6 +228,9 @@ export default async function EventScoreboardPage({
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
   const firsts = await loadEventFirsts(event.id);
+  // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
+  // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
+  const eventMoments = await momentsForEvent(event.id, 12);
   const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
   // Staff keep the full board, so tell the client WHICH of those tiles a member wouldn't see —
@@ -426,6 +431,7 @@ export default async function EventScoreboardPage({
         {/* Who got it moving, and who drew first blood. Above the board because they're the part
             that stops being true the moment someone else claims one. */}
         <EventFirsts firsts={firsts} />
+        <EventMoments moments={eventMoments} />
         <ScoreboardClient
           event={event}
           tiles={boardTiles}

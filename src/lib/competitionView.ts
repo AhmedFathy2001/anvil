@@ -3,7 +3,9 @@ import { memberDailyStats, memberMilestones, weeklyCompetitions, clanMembers } f
 import { and, eq, gte, inArray, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
-import { BOSSES, SKILL_LABELS, EFFICIENCY_LABELS, EFFICIENCY_SCALE } from '@/lib/constants';
+import { momentsForCompetition } from '@/lib/momentsStore';
+import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
+import { EFFICIENCY_SCALE, weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import {
   activeStreak,
   dailyCoverage,
@@ -56,6 +58,17 @@ export interface CompetitionEntry {
   isMe: boolean;
 }
 
+export interface CompetitionHighlight {
+  id: number;
+  emoji: string;
+  rsn: string;
+  /** "got Rift guardian from Guardians of the Rift" — built by lib/moments.momentSentence. */
+  sentence: string;
+  /** "1 in 3,600 · 210 KC" — the supporting line, absent when we couldn't price it. */
+  detail: string | null;
+  day: string;
+}
+
 export interface CompetitionMilestone {
   emoji: string;
   /** Who crossed it. */
@@ -99,6 +112,11 @@ export interface CompetitionView {
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null } | null;
   milestones: CompetitionMilestone[];
   /**
+   * Pets, uniques and deaths this competition's own content produced while it ran (lib/moments).
+   * Plugin-reported and never scored — the colour around the standings.
+   */
+  highlights: CompetitionHighlight[];
+  /**
    * The week's superlatives. Every one is decided by the SHAPE of the days rather than by when a
    * number arrived, because the plugin reports in seconds and the sweep can be hours behind — see
    * lib/competitionAwards.
@@ -111,12 +129,6 @@ export interface CompetitionView {
   trust: DailyTrust;
   /** Fraction of trackableTotal the daily rows account for, for the copy that explains a thin week. */
   coverage: number;
-}
-
-function metricLabel(type: CompetitionType, metric: string): string {
-  if (type === 'skill') return SKILL_LABELS[metric] || metric;
-  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label || metric;
 }
 
 const UNIT: Record<CompetitionType, string> = { skill: 'XP', boss: 'KC', efficiency: 'hours' };
@@ -273,6 +285,7 @@ export async function buildCompetitionView(
       : null;
 
   const milestones = await loadMilestones(memberIds, memberIdByRsn, competition, days, type, metric);
+  const highlights = await loadHighlights(competition.id);
 
   return {
     type,
@@ -295,6 +308,7 @@ export async function buildCompetitionView(
     previous,
     me,
     milestones,
+    highlights,
     // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
     // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
     // week whose leader gained 1.0M), so it produces nothing instead.
@@ -406,6 +420,34 @@ async function loadMilestones(
     rsn: rsnByMemberId.get(r.clanMemberId) ?? 'Someone',
     day: r.noticedAt.slice(0, 10),
   }));
+}
+
+/**
+ * The competition's own highlight feed — a pet from the skill being trained, a unique off the boss
+ * being raced, a death to that same boss.
+ *
+ * No filtering happens here: the ingest already decided that each of these belongs to THIS
+ * competition (lib/moments), because that judgement needs the drop tables and the pet map and this
+ * page needs neither. It's a read of rows that were already scoped.
+ */
+async function loadHighlights(competitionId: number): Promise<CompetitionHighlight[]> {
+  const rows = await momentsForCompetition(competitionId, 8);
+  return rows.map((m) => {
+    const bits: string[] = [];
+    if (m.rarityDenominator && m.rarityDenominator >= 100) {
+      bits.push(`1 in ${m.rarityDenominator.toLocaleString()}`);
+    }
+    if (m.kc && m.kc > 0) bits.push(`${m.kc.toLocaleString()} KC`);
+    if (m.valueGp && m.valueGp >= 1_000_000) bits.push(`${(m.valueGp / 1_000_000).toFixed(1)}M`);
+    return {
+      id: m.id,
+      emoji: MOMENT_EMOJI[m.kind] ?? '⭐',
+      rsn: m.rsn,
+      sentence: momentSentence(m),
+      detail: bits.length > 0 ? bits.join(' · ') : null,
+      day: m.occurredAt.slice(0, 10),
+    };
+  });
 }
 
 function fmtUnit(value: number, type: CompetitionType): string {

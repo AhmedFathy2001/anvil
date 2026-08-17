@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, completions, submissions } from '@/db/schema';
+import { events, tiles, completions, submissions, moments } from '@/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { cachedPulseToken } from '@/lib/pulseCache';
@@ -64,6 +64,13 @@ async function computeEventToken(eId: number): Promise<string> {
     sub = { count: Number(s?.count ?? 0), max: s?.max ?? null };
   }
 
+  // The highlight feed moves without any completion or submission behind it — a pet, a death, a
+  // drop for a tile nobody has — so an open tab would never learn about one otherwise.
+  const [feed] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(moments)
+    .where(eq(moments.eventId, eId));
+
   // Any change to these moves the token → the ETag → a 200 (else 304). Event lifecycle flips
   // (reveal, force-end) are included so the board updates when they happen too.
   const token = [
@@ -77,6 +84,7 @@ async function computeEventToken(eId: number): Promise<string> {
     comp.max ?? '',
     sub.count,
     sub.max ?? '',
+    Number(feed?.count ?? 0),
   ].join('|');
 
   return token;

@@ -141,7 +141,7 @@ export default async function WeeklyLeaderboardPage({
             unit={view.unit}
             showDaily={showDaily}
           />
-          <SidePanels milestones={view.milestones} />
+          <SidePanels milestones={view.milestones} highlights={view.highlights} />
         </div>
       </div>
     </div>

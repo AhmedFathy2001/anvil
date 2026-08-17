@@ -73,7 +73,9 @@ alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a 
 the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 `seasonal: true`); `profile-sync` (a member's collection log + personal bests, pushed to
 `POST /api/plugin/clog` and `/api/plugin/pb`); `start-proof` (the anti-stack starting shot
-— a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`).
+— a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`);
+`moments` (`POST /api/plugin/moments` — the pets/uniques/deaths highlight feed for a
+competition week or a running board).
 
 ### `leagues-channel`
 
@@ -188,6 +190,42 @@ The gate is on submissions, not on the plugin: a credit from a player with no sh
 either flagged for review or refused with `409 { code: "start_proof_required" }`, per the
 host's setting. A plugin that sees that code should KEEP the pending submission on disk and
 retry after the player files their shot, rather than dropping the drop.
+
+### `moments`
+
+The highlight feed: pets, uniques, big hauls and deaths that happen while a competition week or a
+bingo is running. `POST /api/plugin/moments`:
+
+```json
+{ "moments": [
+  { "kind": "pet", "itemId": 20693, "itemName": "Rift guardian", "source": "Guardians of the Rift",
+    "kc": 210, "at": "2026-08-17T10:00:00Z", "key": "pet-1755420000000" },
+  { "kind": "drop", "itemId": 12922, "itemName": "Tanzanite fang", "quantity": 1,
+    "valueGp": 3100000, "source": "Zulrah", "sourceKind": "npc", "kc": 1204, "at": "...", "key": "..." },
+  { "kind": "death", "source": "Great Olm", "at": "...", "key": "death-1755420100000" }
+] }
+```
+
+**The client reports what it saw; the server decides what it meant.** The plugin does not know which
+competition is running, what counts as a unique, or which pets belong to which skill — it sends
+everything plausible and the server (`src/lib/moments.ts`) keeps what belongs to an active scope:
+
+- a **boss week** keeps uniques off that boss's own collection-log page, and deaths to it (including
+  to a raid's rooms — nobody dies to "Chambers of Xeric", they die to Olm);
+- a **skill week** keeps the pets that skill produces (`src/data/skillPets.json` — boss pets are
+  absent by design, they match through their log page);
+- a **bingo** keeps every pet and death, plus any haul the board recognises (a source or item one of
+  its tiles names — including when nothing was credited) or that clears `moments_min_loot_gp`.
+
+`key` is the client's idempotency key and is **required**: one pet fires three chat lines, one kill
+fires two loot events, and a retry after a timeout arrives again on purpose. The server scopes the
+key per board, so an observation may legitimately store on both a week and an event. `at` is
+clamped — a client clock claiming next week, or more than a day ago, becomes "now".
+
+Rarity is priced server-side from the shipped drop dataset and never read from the request.
+
+**Never scoring.** Nothing here completes a tile, awards a point or moves a standing: no hiscores
+read can confirm a drop. It is the colour around the numbers.
 
 ## Checklist: shipping a new plugin-facing feature
 
