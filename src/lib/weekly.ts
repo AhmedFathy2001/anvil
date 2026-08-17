@@ -664,6 +664,11 @@ export async function getEffectiveParticipants(competitionId: number) {
 
 /**
  * Compute a sorted leaderboard from participants.
+ *
+ * Ties break by name. A boss week's top is regularly a tie — 4, 4, 1, 1 — and with only the gain to
+ * sort on, two identical numbers keep whatever order the rows arrived in, so the same board can
+ * name a different leader on the next load. Alphabetical isn't fairer than any other rule, but it
+ * is the same every time, which is what a leaderboard has to be.
  */
 export function computeLeaderboard(
   participants: { rsn: string; baselineValue: number | null; currentValue: number | null }[],
@@ -675,5 +680,5 @@ export function computeLeaderboard(
       currentValue: p.currentValue,
       gained: (p.currentValue ?? 0) - (p.baselineValue ?? 0),
     }))
-    .sort((a, b) => b.gained - a.gained);
+    .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn));
 }

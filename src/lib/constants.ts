@@ -404,6 +404,23 @@ export function weeklyKindLabel(type: string): string {
   return type === 'efficiency' ? 'Efficiency of the Week' : 'Boss of the Week';
 }
 
+/**
+ * What a weekly competition tracks, spelled the way a person writes it: `phosanisNightmare` →
+ * "Phosani's Nightmare", `ehb` → "EHB".
+ *
+ * <p>The keys are hiscores keys, and no amount of client-side de-camel-casing recovers an
+ * apostrophe or a name like "CoX: CM" — so anything that shows a metric to somebody (including the
+ * plugin, over the API) has to take the label from here rather than prettify the key itself. Three
+ * copies of this function had already grown in lib/; the API routes couldn't see any of them, which
+ * is why the in-game banner read "PhosanisNightmare".
+ */
+export function weeklyMetricLabel(type: string, metric: string): string {
+  if (!metric) return '';
+  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
+  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
+  return BOSSES.find((b) => b.key === metric)?.label ?? metric;
+}
+
 /** Milli-hours → a display string. Two decimals: a week's honest gain is often under 10 hours. */
 export function formatEfficiencyHours(milli: number): string {
   const hours = milli / EFFICIENCY_SCALE;

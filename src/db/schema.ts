@@ -1451,7 +1451,63 @@ export const memberPersonalBests = pgTable('member_personal_bests', {
   index('member_pb_activity_idx').on(t.activity, t.centis),
 ]);
 
+/**
+ * Something that happened worth telling the clan about — a pet, a unique off the boss everyone is
+ * racing, a death to that same boss — filed against whatever was running at the time.
+ *
+ * WHY A TABLE AND NOT A DISCORD POST. All of this already flies past in a webhook and is gone. The
+ * week it belongs to is exactly the context that makes it a story ("Rift guardian, during Runecrafting
+ * week, at 41k XP in"), and that context only exists here.
+ *
+ * NEVER SCORES ANYTHING. Every row is client-reported: the plugin says it saw a drop, and no
+ * hiscores read can confirm that. Standings stay on the sweep's numbers; this is the colour around
+ * them. Read `lib/moments.ts` before wiring one of these into anything that awards a point.
+ *
+ * Both scopes are nullable and BOTH may be set: a pet during a Runecrafting SOTW that is also
+ * mid-bingo belongs to both, and forcing a choice would lose one of them. A row with neither is
+ * never written — nothing was running, so nobody is looking.
+ */
+export const moments = pgTable('moments', {
+  id: serial('id').primaryKey(),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
+  rsn: text('rsn').notNull(),
+  /** 'pet' | 'unique' | 'death' | 'loot' — see MOMENT_KINDS in lib/moments.ts. */
+  kind: text('kind').notNull(),
+  weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
+  /** The item, when there is one. Deaths have none; a pet whose name we couldn't resolve has a name only. */
+  itemId: integer('item_id'),
+  itemName: text('item_name'),
+  quantity: integer('quantity').notNull().default(1),
+  /** GE value of the item (or the whole haul, for a 'loot' moment), as the client priced it. */
+  valueGp: integer('value_gp'),
+  /** What it came from / what killed them — an NPC, a chest, an activity. Null when unknown. */
+  source: text('source'),
+  /** 'npc' | 'event' | 'pvp' | 'pickpocket' | 'skill' — the plugin's own loot-source taxonomy. */
+  sourceKind: text('source_kind'),
+  /** Killcount at the moment, when the client knew it. What makes a spoon measurable. */
+  kc: integer('kc'),
+  /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
+  rarityDenominator: integer('rarity_denominator'),
+  /** When it happened in game (client clock, clamped server-side) vs when we stored it. */
+  occurredAt: text('occurred_at').notNull(),
+  noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /**
+   * The client's own idempotency key for this moment. A pet fires three chat lines and a kill fires
+   * two loot events, so the same thing arrives more than once by design — and a retry after a
+   * timeout arrives again on purpose. Unique per member, so all of them collapse to one row.
+   */
+  dedupKey: text('dedup_key').notNull(),
+}, (t) => [
+  uniqueIndex('moments_member_dedup_idx').on(t.clanMemberId, t.dedupKey),
+  index('moments_weekly_idx').on(t.weeklyCompetitionId, t.occurredAt),
+  index('moments_event_idx').on(t.eventId, t.occurredAt),
+  index('moments_member_idx').on(t.clanMemberId, t.occurredAt),
+]);
+
 export type MemberClog = typeof memberClog.$inferSelect;
 export type MemberClogItem = typeof memberClogItems.$inferSelect;
 export type MemberClogKc = typeof memberClogKc.$inferSelect;
 export type MemberPersonalBest = typeof memberPersonalBests.$inferSelect;
+export type Moment = typeof moments.$inferSelect;

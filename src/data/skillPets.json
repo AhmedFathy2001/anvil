@@ -1,0 +1,25 @@
+{
+  "_comment": "Which pets belong to which SKILL, for a skill-of-the-week's highlight feed. BOSS pets are NOT listed here and must not be: a pet sits on its boss's own collection-log page, so a boss-of-the-week finds its own pet with no map at all (lib/moments.ts). Skilling pets have no such page — the log files them under 'All Pets' and nowhere else — which is the entire reason this file exists. Names are matched case-insensitively against src/data/clog.json and a test fails the build if one stops matching, so a dataset rebuild that renames a pet can't silently empty a skill. Slayer lists the pets of monsters you get ASSIGNED, which is what a Slayer week is actually about. Add to it freely: an unknown name is inert, not an error.",
+  "skills": {
+    "woodcutting": ["Beaver"],
+    "fishing": ["Heron", "Tiny tempor"],
+    "mining": ["Rock golem", "Smolcano"],
+    "smithing": ["Smolcano"],
+    "firemaking": ["Phoenix"],
+    "farming": ["Tangleroot"],
+    "thieving": ["Rocky"],
+    "agility": ["Giant squirrel"],
+    "runecraft": ["Rift guardian", "Abyssal protector"],
+    "hunter": ["Baby chinchompa", "Herbi", "Quetzin", "Mr mcgroot"],
+    "ranged": ["Chompy chick"],
+    "sailing": ["Soup"],
+    "slayer": [
+      "Abyssal orphan",
+      "Hellpuppy",
+      "Ikkle hydra",
+      "Noon",
+      "Pet kraken",
+      "Pet smoke devil"
+    ]
+  }
+}

@@ -15,6 +15,13 @@
       "when": 1786979036495,
       "tag": "0001_clan_entity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786997829522,
+      "tag": "0002_moments",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import type { CompetitionType } from '@/lib/competitionInsights';
-import type { CompetitionEntry, CompetitionMilestone } from '@/lib/competitionView';
+import type { CompetitionEntry, CompetitionHighlight, CompetitionMilestone } from '@/lib/competitionView';
 import { dateLabel, exactValue, shortValue } from './format';
 
 /**
@@ -291,9 +291,38 @@ export function Board({
   );
 }
 
-export function SidePanels({ milestones }: { milestones: CompetitionMilestone[] }) {
+export function SidePanels({
+  milestones,
+  highlights,
+}: {
+  milestones: CompetitionMilestone[];
+  highlights: CompetitionHighlight[];
+}) {
   return (
     <>
+      {/* The week's luck, above its milestones: a pet is the thing people open the page for, and a
+          milestone is still true tomorrow. */}
+      {highlights.length > 0 && (
+        <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
+          <h3 className="text-sm font-bold">Moments</h3>
+          <p className="mt-0.5 text-xs text-text-muted">
+            pets, uniques and deaths from this competition&apos;s own content — reported by the plugin, never scored
+          </p>
+          <div className="mt-2.5">
+            {highlights.map((h) => (
+              <div key={h.id} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
+                <span className="text-base leading-none">{h.emoji}</span>
+                <span className="min-w-0 flex-1 text-text-muted">
+                  <b className="font-semibold text-foreground">{h.rsn}</b> {h.sentence}
+                  {h.detail && <span className="ml-1.5 text-[11px] text-text-muted/80">{h.detail}</span>}
+                </span>
+                <span className="shrink-0 font-mono text-[11px] text-text-muted">{dateLabel(h.day)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {milestones.length > 0 && (
         <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
           <h3 className="text-sm font-bold">Milestones on this metric</h3>

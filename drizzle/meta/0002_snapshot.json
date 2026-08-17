@@ -1,6 +1,6 @@
 {
-  "id": "1de5aa25-8b7f-4297-b704-d30af731b72d",
-  "prevId": "875e289a-ff4e-459c-9471-229f42705b2e",
+  "id": "5452ea79-293e-4b32-95f3-71015c11bfbc",
+  "prevId": "1de5aa25-8b7f-4297-b704-d30af731b72d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2731,6 +2731,248 @@
           "tableTo": "clan_members",
           "columnsFrom": [
             "clan_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.moments": {
+      "name": "moments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "clan_member_id": {
+          "name": "clan_member_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rsn": {
+          "name": "rsn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weekly_competition_id": {
+          "name": "weekly_competition_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_name": {
+          "name": "item_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "value_gp": {
+          "name": "value_gp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_kind": {
+          "name": "source_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kc": {
+          "name": "kc",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rarity_denominator": {
+          "name": "rarity_denominator",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "noticed_at": {
+          "name": "noticed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')"
+        },
+        "dedup_key": {
+          "name": "dedup_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "moments_member_dedup_idx": {
+          "name": "moments_member_dedup_idx",
+          "columns": [
+            {
+              "expression": "clan_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dedup_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "moments_weekly_idx": {
+          "name": "moments_weekly_idx",
+          "columns": [
+            {
+              "expression": "weekly_competition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "moments_event_idx": {
+          "name": "moments_event_idx",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "moments_member_idx": {
+          "name": "moments_member_idx",
+          "columns": [
+            {
+              "expression": "clan_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "moments_clan_member_id_clan_members_id_fk": {
+          "name": "moments_clan_member_id_clan_members_id_fk",
+          "tableFrom": "moments",
+          "tableTo": "clan_members",
+          "columnsFrom": [
+            "clan_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "moments_weekly_competition_id_weekly_competitions_id_fk": {
+          "name": "moments_weekly_competition_id_weekly_competitions_id_fk",
+          "tableFrom": "moments",
+          "tableTo": "weekly_competitions",
+          "columnsFrom": [
+            "weekly_competition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "moments_event_id_events_id_fk": {
+          "name": "moments_event_id_events_id_fk",
+          "tableFrom": "moments",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
           ],
           "columnsTo": [
             "id"
