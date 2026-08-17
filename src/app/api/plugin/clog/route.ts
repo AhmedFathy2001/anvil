@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberClog, memberClogItems, memberClogKc } from '@/db/schema';
 import { resolvePluginMember } from '@/lib/auth';
-import { clogPageIndex } from '@/lib/clogDataset';
+import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -20,6 +20,10 @@ import { clogPageIndex } from '@/lib/clogDataset';
 const MAX_PAGES_PER_PUSH = 40;
 const MAX_ITEMS_PER_PAGE = 200;
 const MAX_COUNT = 100_000_000;
+/** A whole-log push carries every obtained item at once — the catalogue is ~1,700 slots today. */
+const MAX_ITEMS_PER_LOG = 5_000;
+/** Rows per insert. SQLite caps bound parameters per statement; a full log needs several passes. */
+const INSERT_CHUNK = 200;
 
 interface IncomingItem {
   id?: unknown;
@@ -47,14 +51,27 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { pages?: unknown; syncedPages?: unknown };
+  let body: { pages?: unknown; items?: unknown; syncedPages?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+
+  // WHOLE-LOG push. The plugin can have the server transmit every entry at once instead of the
+  // player paging through the log, and what arrives is a flat obtained-item list with no pages.
+  // It's authoritative by construction — everything they own, in one shot — so it replaces the
+  // stored log rather than merging into it.
+  if (Array.isArray(body?.items)) {
+    return ingestWholeLog(body.items as IncomingItem[], member, {
+      nowIso: new Date().toISOString(),
+      pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
+      accountHash: request.headers.get('X-Account-Hash')?.slice(0, 128) ?? null,
+    });
+  }
+
   if (!Array.isArray(body?.pages) || body.pages.length === 0) {
-    return NextResponse.json({ error: 'pages[] required' }, { status: 400 });
+    return NextResponse.json({ error: 'pages[] or items[] required' }, { status: 400 });
   }
   if (body.pages.length > MAX_PAGES_PER_PUSH) {
     return NextResponse.json({ error: `At most ${MAX_PAGES_PER_PUSH} pages per push` }, { status: 400 });
@@ -201,6 +218,100 @@ export async function POST(request: Request) {
     .onConflictDoUpdate({ target: memberClog.clanMemberId, set: header });
 
   return NextResponse.json({ ok: true, pages: pagesWritten, items: itemsWritten, skipped: skippedPages, syncedPages });
+}
+
+/**
+ * Store a WHOLE-LOG push: the complete set of obtained items, mapped onto our own page catalogue.
+ *
+ * Unlike the page path this is a full replace — every page is rewritten, including to empty, because
+ * the payload can answer for the whole log and a leftover row would be a claim we can no longer
+ * support. Kill-count lines are left alone: they only ever arrive with a drawn page, and wiping them
+ * because a different sync route ran would lose data this push can't replace.
+ */
+async function ingestWholeLog(
+  rawItems: IncomingItem[],
+  member: { clanMemberId: number },
+  meta: { nowIso: string; pluginVersion: string | null; accountHash: string | null },
+) {
+  if (rawItems.length > MAX_ITEMS_PER_LOG) {
+    return NextResponse.json({ error: `At most ${MAX_ITEMS_PER_LOG} items per push` }, { status: 400 });
+  }
+  // An empty transmit is indistinguishable from a broken one, and acting on it would delete a good
+  // log. A player with genuinely nothing obtained loses nothing by us doing this.
+  if (rawItems.length === 0) {
+    return NextResponse.json({ error: 'items[] was empty — refusing to replace a stored log with nothing' }, { status: 400 });
+  }
+
+  const parsed: { id: number; quantity: number }[] = [];
+  for (const item of rawItems) {
+    const itemId = int(item?.id, 100_000_000);
+    if (itemId == null) continue;
+    parsed.push({ id: itemId, quantity: Math.max(1, int(item?.q, MAX_COUNT) ?? 1) });
+  }
+
+  const { pages, unknown } = groupObtainedItems(parsed);
+
+  // Keep the unlock dates we already hold: a re-sync is not a re-unlock. Keyed per (page, item)
+  // exactly as the table is.
+  const existing = await db
+    .select({
+      pageName: memberClogItems.pageName,
+      itemId: memberClogItems.itemId,
+      firstSeenAt: memberClogItems.firstSeenAt,
+      kcAtUnlock: memberClogItems.kcAtUnlock,
+    })
+    .from(memberClogItems)
+    .where(eq(memberClogItems.clanMemberId, member.clanMemberId));
+  const previous = new Map(existing.map((r) => [`${r.pageName} ${r.itemId}`, r]));
+  // Whether we held ANY log before decides how a new row is dated: on a first-ever sync we can't
+  // know when anything was obtained, so it stays NULL rather than dating years-old items to today.
+  const hadLog = existing.length > 0;
+
+  const rows = [...pages.entries()].flatMap(([pageName, items]) =>
+    items.map((r) => {
+      const before = previous.get(`${pageName} ${r.itemId}`);
+      return {
+        clanMemberId: member.clanMemberId,
+        itemId: r.itemId,
+        pageName,
+        quantity: r.quantity,
+        firstSeenAt: before ? before.firstSeenAt : hadLog ? meta.nowIso : null,
+        kcAtUnlock: before?.kcAtUnlock ?? null,
+      };
+    }),
+  );
+
+  await db.delete(memberClogItems).where(eq(memberClogItems.clanMemberId, member.clanMemberId));
+  // SQLite takes a bounded number of bound parameters per statement, and a full log is ~1,700 rows
+  // across six columns — chunked so one insert can't blow the limit.
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+    await db.insert(memberClogItems).values(rows.slice(i, i + INSERT_CHUNK));
+  }
+
+  const index = clogPageIndex();
+  const header = {
+    // A whole-log transmit covers the catalogue, not just the pages someone opened.
+    pagesSynced: index.size,
+    pagesTotal: index.size,
+    obtained: rows.length,
+    total: clogTotalSlots(),
+    accountHash: meta.accountHash,
+    syncedAt: meta.nowIso,
+    pluginVersion: meta.pluginVersion,
+  };
+  await db
+    .insert(memberClog)
+    .values({ clanMemberId: member.clanMemberId, ...header })
+    .onConflictDoUpdate({ target: memberClog.clanMemberId, set: header });
+
+  return NextResponse.json({
+    ok: true,
+    mode: 'full',
+    pages: index.size,
+    items: rows.length,
+    // Non-zero means the game has items our catalogue doesn't: re-run `npm run data:clog`.
+    unknown,
+  });
 }
 
 /** Slots that EXIST on the pages this member has synced — the denominator that isn't a lie. */

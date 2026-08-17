@@ -71,8 +71,9 @@ on this so it isn't confused by a self-hosted site that predates the feature);
 alongside `stats` / `skills`, for the hiscores counters that aren't a boss or a skill);
 `clip-relay` (`POST /api/plugin/clip` uploads a saved OBS clip and the server posts it to
 the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
-`seasonal: true`); `start-proof` (the anti-stack starting shot — a `startProof` block on
-`/api/plugin/config` and `POST /api/events/:id/start-proof`).
+`seasonal: true`); `profile-sync` (a member's collection log + personal bests, pushed to
+`POST /api/plugin/clog` and `/api/plugin/pb`); `start-proof` (the anti-stack starting shot
+— a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`).
 
 ### `leagues-channel`
 
@@ -134,6 +135,29 @@ The site sends every activity key the board tracks and lets the plugin filter do
 it can read, so growing the readable set is a plugin release rather than a wire change.
 Values are absolute and the server keeps `max(hiscores, pushed)`, so a counter the client
 hasn't synced yet can never walk a tile backwards.
+
+### `profile-sync`
+
+A member's collection log and personal bests, pushed by the plugin — the hiscores carry a clog slot
+COUNT and no best times at all, so the client is the only possible source.
+
+`POST /api/plugin/pb` takes best times. `POST /api/plugin/clog` takes the log, in either of two
+shapes, because the game offers two very different ways to read it:
+
+- **`{ pages: [{ name, obtained, total, items: [{id, q}], counts }] }`** — what the player has drawn.
+  The client holds ONE page at a time, so this arrives in pieces as they browse. Each page replaces
+  independently; a page whose item count disagrees with our catalogue is skipped rather than
+  committed, so a game update can't delete someone's page. This is the only route that carries the
+  kill-count lines (`counts`).
+- **`{ items: [{id, q}] }`** — the WHOLE log at once, with no page names. Opening the collection log
+  and toggling its Search makes the server transmit every entry (one `COLLECTION_DELAYED_TRANSMIT`
+  script fire per item — the technique is WikiSync's). The site maps ids onto pages from its own
+  catalogue, so the plugin never ships one. Authoritative by construction, so it REPLACES the stored
+  log; an empty `items[]` is refused rather than treated as "they own nothing", and `unknown` in the
+  reply counts ids our catalogue lacks (i.e. `npm run data:clog` is due). Kill-count lines are left
+  untouched — they can only come from a drawn page.
+
+Both are idempotent, and `firstSeenAt` survives a re-sync: a resync is not a re-unlock.
 
 ### `start-proof`
 
