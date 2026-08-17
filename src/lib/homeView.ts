@@ -12,7 +12,7 @@ import {
   weeklyParticipants,
 } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
-import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
+import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { parseEventRules } from '@/lib/eventRules';
@@ -53,7 +53,7 @@ export interface HomeWeekly {
   endDate: string;
   entrants: number;
   /** Winner (completed) or current leader (active), with their gain. Null before anyone scores. */
-  top: { rsn: string; value: number } | null;
+  top: { rsn: string; value: number; tied: boolean } | null;
   /** Clan-wide gain per day across the competition, for the card's shape. Empty when out of window. */
   days: number[];
 }
@@ -90,12 +90,6 @@ export interface HomeView {
 }
 
 const KIND: Record<string, HomeWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', efficiency: 'EOTW' };
-
-function metricLabel(type: string, metric: string): string {
-  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
-  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label ?? metric;
-}
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -191,7 +185,9 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
         trackable: p.clanMemberId != null,
       }))
       .filter((p) => p.value > 0)
-      .sort((a, b) => b.value - a.value);
+      // Name as the second key: a tie at the top is common on a boss week, and without it home and
+      // the hub can name different "leaders" from identical numbers.
+      .sort((a, b) => b.value - a.value || a.rsn.localeCompare(b.rsn));
 
     let days: number[] = [];
     if (shapeComps.some((s) => s.id === c.id)) {
@@ -240,7 +236,9 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
       startDate: c.startDate,
       endDate: c.endDate,
       entrants: parts.length,
-      top: ranked[0] ?? null,
+      // A tie at the top is said out loud rather than resolved behind the scenes — see
+      // computeLeaderboard on why the pick itself is alphabetical.
+      top: ranked[0] ? { rsn: ranked[0].rsn, value: ranked[0].value, tied: ranked[1]?.value === ranked[0].value } : null,
       days,
     };
   });
@@ -329,7 +327,7 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
         const ranked = partRows
           .filter((p) => p.competitionId === liveComp.id)
           .map((p) => ({ ...p, gained: (p.currentValue ?? 0) - (p.baselineValue ?? 0) }))
-          .sort((a, b) => b.gained - a.gained);
+          .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn));
         const idx = ranked.findIndex((p) => p.clanMemberId != null && myIds.has(p.clanMemberId));
         if (idx >= 0) {
           weekly = {

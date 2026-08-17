@@ -1,6 +1,7 @@
 import EventTimer from '@/components/EventTimer';
 import CompetitionCard, { WeekGlyph } from '@/components/events/CompetitionCard';
 import { hubKind } from '@/lib/hubKinds';
+import { totalDays } from '@/lib/competitionInsights';
 import { weeklyValueText } from '@/lib/eventsHub';
 import type { WeeklyCard } from '@/lib/weeklyCards';
 
@@ -66,8 +67,15 @@ export default function WeekFrame({ weeks }: { weeks: WeeklyCard[] }) {
                   startDate={w.startDate}
                   endDate={w.endDate}
                   entrants={`${w.entrants} entered`}
-                  top={w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null}
-                  glyph={<WeekGlyph days={w.days} accent={hubKind(w.kind).accent} />}
+                  top={
+                    w.top
+                      ? {
+                          name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn,
+                          text: weeklyValueText(w.unit, w.top.value),
+                        }
+                      : null
+                  }
+                  glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(w.kind).accent} />}
                   iconUrl={w.iconUrl}
                   hideTimer
                 />

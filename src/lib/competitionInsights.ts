@@ -51,6 +51,11 @@ export function dayRange(startIso: string, endIso: string, maxDays = 31): string
   return out.length > 0 ? out : [dayKey(new Date(start))];
 }
 
+/** How many days the competition covers in total — the width of a full day-by-day chart. */
+export function totalDays(startIso: string, endIso: string): number {
+  return dayRange(startIso, endIso).length;
+}
+
 /** How many of those days have actually happened. A finished competition is all of them. */
 export function daysElapsed(days: string[], now: Date = new Date()): number {
   const today = dayKey(now);

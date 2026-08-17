@@ -61,6 +61,7 @@ export default function CompetitionCard({
 }: Props) {
   const meta = hubKind(kind);
   const badge = STATE[state];
+  const showTimer = !hideTimer && Boolean(startDate || endDate);
 
   return (
     <Link
@@ -142,8 +143,11 @@ export default function CompetitionCard({
           </div>
         )}
 
+        {/* Only when it has something to say. Inside the week frame the countdown lives on the
+            frame and a weekly carries no chips, which left an empty ruled strip on every card. */}
+        {(showTimer || chips.length > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-card-border pt-2.5 text-[11.5px] text-text-muted">
-          {!hideTimer && (startDate || endDate) && (
+          {showTimer && (
             <EventTimer startDate={startDate} endDate={endDate} className="text-[11.5px] text-text-muted" />
           )}
           {chips.map((c) => (
@@ -155,6 +159,7 @@ export default function CompetitionCard({
             Open →
           </span>
         </div>
+        )}
       </div>
     </Link>
   );
@@ -222,13 +227,20 @@ export function boardGlyphFor(e: EventCard, accent: string) {
   return <BoardGlyph e={e} />;
 }
 
-/** Seven day-bars — what the clan did on each day of the week so far. */
-export function WeekGlyph({ days, accent }: { days: number[]; accent: string }) {
-  if (days.length === 0) return null;
+/**
+ * A day-bar per day of the week so far.
+ *
+ * Nothing is drawn on day one. A single bar is always its own maximum, so it renders full height —
+ * a chart claiming the clan is at 100% of something on the first morning. A week has no shape until
+ * there are two days to compare, and saying which day it is beats drawing a shape that isn't there.
+ */
+export function WeekGlyph({ days, totalDays, accent }: { days: number[]; totalDays: number; accent: string }) {
+  if (days.length < 2) return null;
   const max = Math.max(...days, 1);
+  const slots = Math.max(days.length, totalDays || days.length);
   return (
     <div aria-hidden className="flex h-10 shrink-0 items-end gap-[3px]">
-      {Array.from({ length: 7 }, (_, i) => {
+      {Array.from({ length: slots }, (_, i) => {
         const v = days[i];
         const height = v == null ? 3 : Math.max(3, Math.round((v / max) * 40));
         return (

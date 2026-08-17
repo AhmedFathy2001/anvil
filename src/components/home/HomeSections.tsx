@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
 import { hubKind } from '@/lib/hubKinds';
+import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
 import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
 
@@ -280,28 +281,43 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
       {w.top && (
         <div className="mt-4 flex items-center gap-2.5 text-sm">
           <span aria-hidden>🥇</span>
-          <span className="truncate font-semibold text-gold-light">{w.top.rsn}</span>
+          <span className="truncate font-semibold text-gold-light">
+            {w.top.rsn}
+            {w.top.tied && <span className="ml-1 font-normal text-text-muted">(tied)</span>}
+          </span>
           <span className="ml-auto font-mono font-bold text-accent-green-light">{weeklyValue(w, w.top.value)}</span>
         </div>
       )}
 
-      {w.days.length > 0 && (
+      {/* Day one has no shape to draw: one bar is its own maximum, so it renders full height and
+          full width — a chart insisting the clan is at 100% of something on the first morning. Say
+          which day it is instead, and let the chart start when there are two days to compare. */}
+      {w.days.length === 1 ? (
+        <p className="mt-4 text-[11.5px] text-text-muted">
+          Day 1 of {totalDays(w.startDate, w.endDate)} —{' '}
+          <b className="font-semibold text-foreground">{weeklyValue(w, w.days[0])}</b> so far. The day-by-day
+          shape starts tomorrow.
+        </p>
+      ) : w.days.length > 1 ? (
         <>
           <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
             the whole clan, day by day
           </p>
           <div className="mt-1.5 flex h-9 items-end gap-1">
-            {w.days.map((d, i) => (
-              <i
-                key={i}
-                title={`${weekday(dayAt(w.startDate, i))} · ${d > 0 ? `${short(d)} ${unitFor(w)}` : 'nothing'}`}
-                className={`block flex-1 rounded-sm ${d === max ? 'bg-gold-light' : d > 0 ? 'bg-blue-400/50' : 'bg-card-border'}`}
-                style={{ height: `${d > 0 ? Math.max(2, (d / max) * 36) : 2}px` }}
-              />
-            ))}
+            {Array.from({ length: Math.max(w.days.length, totalDays(w.startDate, w.endDate)) }, (_, i) => {
+              const d = w.days[i];
+              return (
+                <i
+                  key={i}
+                  title={`${weekday(dayAt(w.startDate, i))} · ${d == null ? 'not yet' : d > 0 ? `${short(d)} ${unitFor(w)}` : 'nothing'}`}
+                  className={`block flex-1 rounded-sm ${d != null && d === max ? 'bg-gold-light' : d ? 'bg-blue-400/50' : 'bg-card-border'}`}
+                  style={{ height: `${d ? Math.max(2, (d / max) * 36) : 2}px` }}
+                />
+              );
+            })}
           </div>
         </>
-      )}
+      ) : null}
     </CardShell>
   );
 }
@@ -397,7 +413,10 @@ function JustFinishedCard({ w }: { w: HomeWeekly }) {
       {w.top && (
         <div className="mt-4 flex items-center gap-2.5 text-sm">
           <span aria-hidden>🥇</span>
-          <span className="truncate font-semibold text-gold-light">{w.top.rsn}</span>
+          <span className="truncate font-semibold text-gold-light">
+            {w.top.rsn}
+            {w.top.tied && <span className="ml-1 font-normal text-text-muted">(tied)</span>}
+          </span>
           <span className="ml-auto font-mono font-bold text-accent-green-light">{weeklyValue(w, w.top.value)}</span>
         </div>
       )}
@@ -428,8 +447,12 @@ export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
             startDate={w.startDate}
             endDate={w.endDate}
             entrants={`${w.entrants} entered`}
-            top={w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
-            glyph={<WeekGlyph days={w.days} accent={hubKind(WEEK_KIND[w.type] ?? 'sotw').accent} />}
+            top={
+              w.top
+                ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) }
+                : null
+            }
+            glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(WEEK_KIND[w.type] ?? 'sotw').accent} />}
             iconUrl={w.iconUrl}
           />
         ))}
