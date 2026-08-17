@@ -89,6 +89,8 @@ export default function SignupAdminPanel({
   const [configSaved, setConfigSaved] = useState(false);
 
   const [signups, setSignups] = useState<SignupRow[]>([]);
+  const [settlingFees, setSettlingFees] = useState(false);
+  const [feeNotice, setFeeNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [actingId, setActingId] = useState<number | null>(null);
@@ -149,6 +151,51 @@ export default function SignupAdminPanel({
       setActionError(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setActingId(null);
+    }
+  }
+
+  /**
+   * Settle every fee on this board that the viewer is allowed to settle.
+   *
+   * Fees moved to the Sign-ups tab but the bulk action didn't come with them — it stayed on the
+   * retired standalone queue, so clearing a board's worth of collected fees was one click per
+   * player. Scoped to THIS event, so "close out the July bingo" can't touch a board still running.
+   */
+  async function settleFees() {
+    const n = settleableFees;
+    if (
+      !confirm(
+        confirmationsRequired <= 0
+          ? `Settle ${n} collected fee${n === 1 ? '' : 's'} on this board?`
+          : `Sign off ${n} collected fee${n === 1 ? '' : 's'} on this board? Fees you collected yourself are left for another admin.`,
+      )
+    ) {
+      return;
+    }
+    setSettlingFees(true);
+    setActionError(null);
+    try {
+      const res = await fetch('/api/admin/fees/confirm-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not settle those fees.');
+      const parts: string[] = [];
+      if (data.confirmed) parts.push(`${data.confirmed} settled`);
+      if (data.recorded) parts.push(`${data.recorded} awaiting more confirmations`);
+      // Named explicitly, because "why is it still not zero?" is otherwise a mystery.
+      if (data.awaitingOtherAdmin) {
+        parts.push(`${data.awaitingOtherAdmin} you collected — another admin must sign those off`);
+      }
+      setFeeNotice(parts.length ? parts.join(' · ') : 'Nothing to settle.');
+      await load();
+      router.refresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not settle those fees.');
+    } finally {
+      setSettlingFees(false);
     }
   }
 
@@ -262,6 +309,15 @@ export default function SignupAdminPanel({
 
   const activeSignups = signups.filter((s) => s.status !== 'withdrawn');
   const withdrawnCount = signups.length - activeSignups.length;
+
+  // Collected fees this viewer may sign off. With a second signature required, their own
+  // collections are excluded — offering "Settle (34)" and then settling none would be a lie.
+  const settleableFees = activeSignups.filter(
+    (s) =>
+      s.fee?.status === 'collected' &&
+      s.fee.collectedByUserId !== null &&
+      (confirmationsRequired <= 0 || s.fee.collectedByUserId !== viewerId),
+  ).length;
 
   // Filtered view for the roster list. Search matches name / RSN / discord; the status
   // filter accepts the four sign-up statuses plus a 'captain' pseudo-status; the fee
@@ -459,6 +515,17 @@ export default function SignupAdminPanel({
                 Add member
               </button>
             )}
+            {!loading && viewerRole === 'admin' && settleableFees > 0 && (
+              <button
+                onClick={settleFees}
+                disabled={settlingFees}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+              >
+                {settlingFees
+                  ? 'Settling…'
+                  : `${confirmationsRequired <= 0 ? 'Settle' : 'Sign off'} ${settleableFees} fee${settleableFees === 1 ? '' : 's'}`}
+              </button>
+            )}
             {!loading && activeSignups.length > 0 && (
               <button
                 onClick={promoteToPool}
@@ -513,8 +580,13 @@ export default function SignupAdminPanel({
           </div>
         )}
 
-        {(actionError || poolMessage) && (
+        {(actionError || poolMessage || feeNotice) && (
           <div className="mb-3">
+            {feeNotice && (
+              <div className="text-xs text-accent-green-light border border-accent-green/30 bg-accent-green/10 rounded p-2 mb-1">
+                {feeNotice}
+              </div>
+            )}
             {actionError && (
               <div className="text-xs text-red-400 border border-red-500/30 bg-red-500/10 rounded p-2 mb-1">
                 {actionError}
