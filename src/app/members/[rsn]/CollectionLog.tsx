@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
-import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem } from '@/lib/clogRarity';
+import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem, type ValuedItem } from '@/lib/clogRarity';
+import { formatGp } from '@/lib/itemPrices';
 
 // A member's synced collection log. The game's own shape — pages down the side, the chosen page's
 // items in a grid, obtained lit and the rest dimmed — because that is the only layout anyone will
@@ -38,6 +39,10 @@ export interface CollectionLogProps {
   recent: RecentUnlock[];
   /** The rarest things they own, hardest first. The page opens on these. */
   showcase: ShowcaseItem[];
+  /** The most valuable, by GE mid price × how many they have. Tradeables only. */
+  valuable: ValuedItem[];
+  /** What the whole log is worth, gp — the number the value view is really answering. */
+  totalValue: number;
   /** Item id → 1-in-N, for the grid's rarity weighting. Only items with a meaningful rate. */
   rarityById: Record<number, number>;
   /** Page name → which shelf it belongs on, so 125 pages navigate as six groups. */
@@ -60,6 +65,8 @@ export default function CollectionLog({
   bests,
   bestsByPage,
   showcase,
+  valuable,
+  totalValue,
   rarityById,
   groups,
   closest,
@@ -74,6 +81,9 @@ export default function CollectionLog({
   const [bestFilter, setBestFilter] = useState('');
   const [show, setShow] = useState<'all' | 'owned' | 'missing'>('all');
   const [bestsOpen, setBestsOpen] = useState(false);
+  // Rarity and value rank almost nothing the same, and people brag about both. One shelf, two ways
+  // of reading it, rather than two stacked panels competing for the top of the page.
+  const [shelf, setShelf] = useState<'rarest' | 'valuable'>('rarest');
 
   const page = pages.find((p) => p.name === selected) ?? pages[0];
   const owned = useMemo(() => new Set(page?.ownedIds ?? []), [page]);
@@ -140,31 +150,69 @@ export default function CollectionLog({
     <div className="space-y-6">
       {/* The shelf. A log's meaning is its rarest slot, not the fraction of a list it fills, so the
           page opens on what was hard to get and puts the percentage beside it. */}
-      {showcase.length > 0 && (
+      {(showcase.length > 0 || valuable.length > 0) && (
         <div className="border border-gold/30 rounded-xl bg-gradient-to-b from-gold/[0.07] to-transparent p-4">
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-[11px] uppercase tracking-widest text-gold/80">Rarest drops</span>
-            <span className="text-[10px] text-text-muted">by drop rate, not by effort</span>
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              {(['rarest', 'valuable'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setShelf(mode)}
+                  disabled={mode === 'rarest' ? showcase.length === 0 : valuable.length === 0}
+                  className={`text-[11px] uppercase tracking-widest transition-colors disabled:opacity-30 ${
+                    shelf === mode ? 'text-gold' : 'text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  {mode === 'rarest' ? 'Rarest drops' : 'Most valuable'}
+                </button>
+              ))}
+            </div>
+            <span className="text-[10px] text-text-muted">
+              {shelf === 'rarest'
+                ? 'by drop rate, not by effort'
+                : `${formatGp(totalValue)} of tradeables in this log`}
+            </span>
           </div>
+
           <div className="flex flex-wrap gap-3">
-            {showcase.map((item) => (
-              <div key={item.itemId} className="flex items-center gap-2.5 min-w-0">
-                <div className="relative w-14 h-14 rounded-lg border border-gold/50 bg-brown-dark/60 flex items-center justify-center shadow-[0_0_18px_-6px] shadow-gold/60">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={itemIconUrl(item.itemId)} alt="" className="w-10 h-10 object-contain" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
-                  <div className="text-[11px] font-mono text-gold">
-                    1 in {Math.round(item.denominator).toLocaleString()}
+            {shelf === 'rarest'
+              ? showcase.map((item) => (
+                  <div key={item.itemId} className="flex items-center gap-2.5 min-w-0">
+                    <div className="relative w-14 h-14 rounded-lg border border-gold/50 bg-brown-dark/60 flex items-center justify-center shadow-[0_0_18px_-6px] shadow-gold/60">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={itemIconUrl(item.itemId)} alt="" className="w-10 h-10 object-contain" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
+                      <div className="text-[11px] font-mono text-gold">
+                        1 in {Math.round(item.denominator).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-text-muted truncate max-w-[11rem]">
+                        {item.page}
+                        {item.kcAtUnlock != null && <> · at {item.kcAtUnlock.toLocaleString()} KC</>}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-text-muted truncate max-w-[11rem]">
-                    {item.page}
-                    {item.kcAtUnlock != null && <> · at {item.kcAtUnlock.toLocaleString()} KC</>}
+                ))
+              : valuable.map((item) => (
+                  <div key={item.itemId} className="flex items-center gap-2.5 min-w-0">
+                    <div className="relative w-14 h-14 rounded-lg border border-gold/50 bg-brown-dark/60 flex items-center justify-center shadow-[0_0_18px_-6px] shadow-gold/60">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={itemIconUrl(item.itemId)} alt="" className="w-10 h-10 object-contain" />
+                      {item.quantity > 1 && (
+                        <span className="absolute -top-1 -right-1 text-[9px] font-mono px-1 rounded bg-brown-dark border border-card-border text-gold">
+                          {item.quantity}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
+                      <div className="text-[11px] font-mono text-gold">{formatGp(item.value)}</div>
+                      <div className="text-[10px] text-text-muted truncate max-w-[11rem]">{item.page}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))}
           </div>
         </div>
       )}

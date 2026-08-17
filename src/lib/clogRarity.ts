@@ -79,6 +79,51 @@ export function clogItemRarity(): Map<number, ItemRarity> {
   return out;
 }
 
+export interface ValuedItem {
+  itemId: number;
+  name: string;
+  /** GE mid price, gp. Only tradeable items appear. */
+  value: number;
+  page: string;
+  quantity: number;
+}
+
+/**
+ * The most valuable things a member owns, and what a log is worth in total.
+ *
+ * Quantity counts: five of a 20m drop is 100m, and a log that records how many you got should say
+ * so. Untradeable items are absent rather than zero — a pet has no price, and pretending it has one
+ * would quietly rank someone below a player with one tradeable spear.
+ */
+export function buildValueShowcase(
+  owned: { itemId: number; quantity: number }[],
+  prices: Map<number, number>,
+  limit = 6,
+): { items: ValuedItem[]; total: number } {
+  const names = clogItemNames();
+  const pages = clogPageOfItem();
+  let total = 0;
+
+  const valued: ValuedItem[] = [];
+  for (const item of owned) {
+    const unit = prices.get(item.itemId);
+    if (!unit) continue;
+    const quantity = Math.max(1, item.quantity);
+    const value = unit * quantity;
+    total += value;
+    valued.push({
+      itemId: item.itemId,
+      name: names.get(item.itemId) ?? `Item ${item.itemId}`,
+      value,
+      page: pages.get(item.itemId) ?? 'Collection log',
+      quantity,
+    });
+  }
+
+  valued.sort((a, b) => b.value - a.value);
+  return { items: valued.slice(0, limit), total };
+}
+
 export interface ShowcaseItem {
   itemId: number;
   name: string;

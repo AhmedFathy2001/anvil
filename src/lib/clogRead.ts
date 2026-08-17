@@ -3,7 +3,8 @@ import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { buildClogProfile, matchBestsToPages, type BestTime } from '@/lib/clogProfile';
-import { buildShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
+import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
+import { getItemPrices } from '@/lib/itemPrices';
 import { BOSSES } from '@/lib/constants';
 import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
 
@@ -83,9 +84,11 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
   const quantities: Record<number, number> = {};
   for (const item of items) if (item.quantity > 1) quantities[item.itemId] = item.quantity;
 
-  // The shelf: what they own that was hard to get. Leading with this rather than a completion bar
-  // is the whole point — a log's meaning is its rarest slot, not the fraction of a list it fills.
+  // Two shelves, because a log is bragged about two ways. Rarity is what the odds say; value is what
+  // the Grand Exchange says, and they rank almost nothing the same.
   const showcase = buildShowcase(items);
+  const prices = await getItemPrices().catch(() => new Map<number, number>());
+  const value = buildValueShowcase(items, prices);
 
   // Rates for the grid's rarity emphasis. Only the ~150 log items that HAVE a meaningful rate
   // travel, so this costs a couple of KB rather than shipping the drop dataset to a browser.
@@ -119,6 +122,8 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
     catalogue,
     quantities,
     showcase,
+    valuable: value.items,
+    totalValue: value.total,
     rarityById,
     groups,
     closest,
