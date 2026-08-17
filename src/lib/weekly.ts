@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { clanMembers, pendingRenames, playerSnapshots, settings, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { clanMembers, pendingRenames, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
@@ -18,9 +19,9 @@ export type { HiscoresSnapshot };
 const WEEKLY_TRACK_GUESTS_KEY = 'weekly_track_guests';
 
 export async function defaultIncludeGuests(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, WEEKLY_TRACK_GUESTS_KEY) });
+  const value = await getSetting(WEEKLY_TRACK_GUESTS_KEY);
   // Only an explicit "off" opts out; unset means include, which is the new default.
-  return !(row?.value === 'false' || row?.value === '0');
+  return !(value === 'false' || value === '0');
 }
 
 /**

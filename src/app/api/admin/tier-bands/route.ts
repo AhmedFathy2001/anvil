@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { setSetting, deleteSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { DEFAULT_TIER_BANDS, normalizeTierBands } from '@/lib/tileFilter';
 import { TIER_BANDS_SETTING_KEY, getTierBands } from '@/lib/pluginConfig';
@@ -45,12 +43,7 @@ export async function PUT(request: Request) {
   }
 
   const value = JSON.stringify(bands);
-  const existing = await db.query.settings.findFirst({ where: eq(settings.key, TIER_BANDS_SETTING_KEY) });
-  if (existing) {
-    await db.update(settings).set({ value }).where(eq(settings.key, TIER_BANDS_SETTING_KEY));
-  } else {
-    await db.insert(settings).values({ key: TIER_BANDS_SETTING_KEY, value });
-  }
+  await setSetting(TIER_BANDS_SETTING_KEY, value);
 
   return NextResponse.json({ success: true, bands });
 }
@@ -60,6 +53,6 @@ export async function DELETE() {
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  await db.delete(settings).where(eq(settings.key, TIER_BANDS_SETTING_KEY));
+  await deleteSetting(TIER_BANDS_SETTING_KEY);
   return NextResponse.json({ success: true, bands: DEFAULT_TIER_BANDS });
 }

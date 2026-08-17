@@ -1,7 +1,5 @@
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
@@ -38,10 +36,11 @@ const WEEKLY_WEBHOOK_KEY = 'discord_webhook_weekly';
 // their entry fee. No fallback: stays silent until a dedicated webhook is set.
 const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
 
+// Wraps the shared reader because a notify must never throw on a database hiccup — the post is
+// best-effort, and losing it is better than failing whatever triggered it.
 async function getSettingUrl(key: string): Promise<string | null> {
   try {
-    const setting = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-    return setting?.value || null;
+    return await getSettingText(key);
   } catch (error) {
     log.warn('discord.db-read-fail', { key }, error);
     return null;

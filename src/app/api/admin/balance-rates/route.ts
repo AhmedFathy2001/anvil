@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSetting, setSetting, deleteSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import defaultRates from '@/data/balanceRates.json';
 
@@ -67,10 +65,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   let overrides: unknown = null;
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, SETTING_KEY) });
-  if (row?.value) {
+  const value = await getSetting(SETTING_KEY);
+  if (value) {
     try {
-      overrides = JSON.parse(row.value);
+      overrides = JSON.parse(value);
     } catch {
       overrides = null;
     }
@@ -90,17 +88,11 @@ export async function PUT(request: Request) {
   }
   const clean = sanitize(body.overrides);
   const empty = Object.keys(clean.skills).length === 0 && Object.keys(clean.activities).length === 0;
-  const existing = await db.query.settings.findFirst({ where: eq(settings.key, SETTING_KEY) });
   if (empty) {
-    if (existing) await db.delete(settings).where(eq(settings.key, SETTING_KEY));
+    await deleteSetting(SETTING_KEY);
     return NextResponse.json({ success: true, overrides: null });
   }
-  const value = JSON.stringify(clean);
-  if (existing) {
-    await db.update(settings).set({ value }).where(eq(settings.key, SETTING_KEY));
-  } else {
-    await db.insert(settings).values({ key: SETTING_KEY, value });
-  }
+  await setSetting(SETTING_KEY, JSON.stringify(clean));
   return NextResponse.json({ success: true, overrides: clean });
 }
 
@@ -108,6 +100,6 @@ export async function DELETE() {
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  await db.delete(settings).where(eq(settings.key, SETTING_KEY));
+  await deleteSetting(SETTING_KEY);
   return NextResponse.json({ success: true });
 }

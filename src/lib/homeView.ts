@@ -5,7 +5,6 @@ import {
   events,
   memberDailyStats,
   memberMilestones,
-  settings,
   teams,
   tiles,
   weeklyCompetitions,
@@ -13,7 +12,7 @@ import {
 } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
-import { getClanDisplayName } from '@/lib/pluginConfig';
+import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { parseEventRules } from '@/lib/eventRules';
 import { eventAxes } from '@/lib/eventAxes';
@@ -102,8 +101,7 @@ const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = new Date()): Promise<HomeView> {
   const nowIso = now.toISOString();
   const clanName = await getClanDisplayName();
-  const inviteRow = await db.query.settings.findFirst({ where: eq(settings.key, 'discord_invite_url') });
-  const discordInvite = inviteRow?.value?.trim() || process.env.DISCORD_INVITE_URL?.trim() || null;
+  const discordInvite = await getDiscordInviteUrl();
 
   const memberCount = await db
     .select({ c: count() })

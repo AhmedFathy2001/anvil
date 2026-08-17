@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { events, teams, settings, tiles, players } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { events, teams, tiles, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import StatsClient from './StatsClient';
@@ -28,7 +29,7 @@ export default async function EventStatsPage({
   const [statStandings, teamStandings, pullRow] = await Promise.all([
     getStatStandings(id),
     getTeamStandings(id, event.scoringMode),
-    db.query.settings.findFirst({ where: eq(settings.key, `stats_pull_at:${id}`) }),
+    getSetting(`stats_pull_at:${id}`),
   ]);
 
   return (
@@ -39,7 +40,7 @@ export default async function EventStatsPage({
       players={eventPlayers}
       statStandings={statStandings}
       teamStandings={teamStandings}
-      statsPulledAt={pullRow?.value ?? null}
+      statsPulledAt={pullRow}
     />
   );
 }

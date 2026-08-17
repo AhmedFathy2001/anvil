@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { listBotChannels } from '@/lib/discord-broadcast';
@@ -27,20 +25,6 @@ const WEBHOOK_KEYS = new Set([
 
 // Discord caps webhook names at 80 chars.
 const NAME_MAX = 80;
-
-async function readSetting(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  return row?.value ?? null;
-}
-
-async function upsertSetting(key: string, value: string | null): Promise<void> {
-  const existing = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  if (existing) {
-    await db.update(settings).set({ value }).where(eq(settings.key, key));
-  } else {
-    await db.insert(settings).values({ key, value });
-  }
-}
 
 // GET — two modes:
 //   ?channelId=<id>  → { ok, reason? } whether the bot can create a webhook in that channel
@@ -102,12 +86,12 @@ export async function POST(request: Request) {
     } else {
       // Append a distinct new webhook. Suffix the name (Anvil 2, Anvil 3…) so multiple webhooks in
       // one channel stay tellable apart in Discord's UI.
-      const existing = parseWebhookUrls(await readSetting(settingKey));
+      const existing = parseWebhookUrls(await getSetting(settingKey));
       const suffixed = existing.length === 0 ? baseName : `${baseName} ${existing.length + 1}`.slice(0, NAME_MAX);
       const wh = await createChannelWebhook(creds.botToken, channelId, suffixed);
       urls = [...existing, wh.url];
     }
-    await upsertSetting(settingKey, urls.length ? urls.join(' ') : null);
+    await setSetting(settingKey, urls.length ? urls.join(' ') : null);
     return NextResponse.json({ urls });
   } catch (err) {
     // Lib functions throw a human-readable message (missing perm, channel gone, 15-webhook cap…).

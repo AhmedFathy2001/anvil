@@ -1,20 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { fetchGuildRoles } from '@/lib/discord-roles';
 
-async function readSetting(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  return row?.value ?? null;
-}
-
-async function upsertSetting(key: string, value: string): Promise<void> {
-  const existing = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  if (existing) await db.update(settings).set({ value }).where(eq(settings.key, key));
-  else await db.insert(settings).values({ key, value });
-}
 
 function parseIds(raw: string | null): string[] {
   if (!raw) return [];
@@ -46,8 +34,8 @@ export async function GET() {
 
   return NextResponse.json({
     roles: sorted,
-    defaultRoleIds: parseIds(await readSetting('discord_default_role_ids')),
-    guestRoleIds: parseIds(await readSetting('discord_guest_role_ids')),
+    defaultRoleIds: parseIds(await getSetting('discord_default_role_ids')),
+    guestRoleIds: parseIds(await getSetting('discord_guest_role_ids')),
   });
 }
 
@@ -61,8 +49,8 @@ export async function POST(request: Request) {
     | null;
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  await upsertSetting('discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
-  await upsertSetting('discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
+  await setSetting('discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
+  await setSetting('discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
 
   return NextResponse.json({ success: true });
 }

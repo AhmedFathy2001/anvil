@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { events, players, playerSnapshots, playerEventFacts, clanMembers, settings } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { events, players, playerSnapshots, playerEventFacts, clanMembers } from '@/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 import defaultMarkers from '@/data/capabilityMarkers.json';
 
@@ -39,9 +40,9 @@ export interface CapabilityMarker {
 export async function loadCapabilityMarkers(): Promise<CapabilityMarker[]> {
   const base = (defaultMarkers as { markers: CapabilityMarker[] }).markers;
   try {
-    const row = await db.query.settings.findFirst({ where: eq(settings.key, CAPABILITY_MARKERS_SETTING_KEY) });
-    if (!row?.value) return base;
-    const parsed = JSON.parse(row.value) as { markers?: CapabilityMarker[] };
+    const value = await getSetting(CAPABILITY_MARKERS_SETTING_KEY);
+    if (!value) return base;
+    const parsed = JSON.parse(value) as { markers?: CapabilityMarker[] };
     if (!Array.isArray(parsed.markers)) return base;
     const byKey = new Map(base.map((m) => [m.key, m]));
     for (const m of parsed.markers) {

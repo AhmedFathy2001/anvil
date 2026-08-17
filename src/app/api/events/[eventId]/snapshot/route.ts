@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, events, settings } from '@/db/schema';
+import { getSetting, setSetting } from '@/lib/settings';
+import { players, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -39,9 +40,9 @@ export async function POST(
   // 30-minute cooldown (persisted, server-enforced) — skipped for a force-reset correction.
   const cooldownKey = statsPullKey(eId);
   if (!forceReset) {
-    const lastPull = await db.query.settings.findFirst({ where: eq(settings.key, cooldownKey) });
-    if (lastPull?.value) {
-      const lastMs = new Date(lastPull.value).getTime();
+    const lastPull = await getSetting(cooldownKey);
+    if (lastPull) {
+      const lastMs = new Date(lastPull).getTime();
       if (Number.isFinite(lastMs) && Date.now() - lastMs < STATS_PULL_COOLDOWN_MS) {
         return NextResponse.json(
           {
@@ -107,10 +108,7 @@ export async function POST(
   }
 
   // Record the pull time so the cooldown persists across refreshes and future requests.
-  await db
-    .insert(settings)
-    .values({ key: cooldownKey, value: timestamp })
-    .onConflictDoUpdate({ target: settings.key, set: { value: timestamp } });
+  await setSetting(cooldownKey, timestamp);
 
   return NextResponse.json({ snapshotted, refreshed, failed, pulledAt: timestamp });
 }

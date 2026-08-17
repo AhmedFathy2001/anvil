@@ -21,7 +21,8 @@
  * Reuses the bot REST helper + credential resolution from lib/discord-roles.ts.
  */
 import { db } from '@/db';
-import { events, teams, players, clanMembers, users, settings, eventSignups } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { events, teams, players, clanMembers, users, eventSignups } from '@/db/schema';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
@@ -75,17 +76,12 @@ async function getBotUserId(botToken: string): Promise<string | null> {
   return me.id;
 }
 
-async function readSetting(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  return row?.value ?? null;
-}
-
 /**
  * Resolve live config. Returns null when the feature is disabled OR the bot
  * credentials are missing — callers treat that as "skip silently".
  */
 export async function loadTeamChannelConfig(): Promise<TeamChannelConfig | null> {
-  const enabled = (await readSetting('discord_team_sync_enabled')) === 'true';
+  const enabled = (await getSetting('discord_team_sync_enabled')) === 'true';
   if (!enabled) return null;
   const creds = await getBotCredentials();
   if (!creds) return null;
@@ -93,8 +89,8 @@ export async function loadTeamChannelConfig(): Promise<TeamChannelConfig | null>
     botToken: creds.botToken,
     guildId: creds.guildId,
     botUserId: await getBotUserId(creds.botToken),
-    bingoRoleId: (await readSetting('discord_bingo_role_id')) || null,
-    captainRoleId: (await readSetting('discord_captain_role_id')) || null,
+    bingoRoleId: (await getSetting('discord_bingo_role_id')) || null,
+    captainRoleId: (await getSetting('discord_captain_role_id')) || null,
   };
 }
 

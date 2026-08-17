@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSetting, setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 
@@ -59,25 +57,15 @@ const EXPOSED_KEYS = [
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 
-async function upsertSetting(key: string, value: string | null) {
-  const existing = await db.query.settings.findFirst({
-    where: eq(settings.key, key),
-  });
-  if (existing) {
-    await db.update(settings).set({ value }).where(eq(settings.key, key));
-  } else {
-    await db.insert(settings).values({ key, value });
-  }
-}
-
 export async function GET() {
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const rows = await db.select().from(settings);
-  const map = new Map(rows.map((r) => [r.key, r.value]));
+  // Only the exposed keys, rather than selecting the whole table and filtering in JS: secrets live
+  // in the same table, and reading them into memory to throw them away is a needless exposure.
+  const map = await getSettingMap([...EXPOSED_KEYS]);
   const out: Record<string, string> = {};
   for (const key of EXPOSED_KEYS) out[key] = map.get(key) || '';
   return NextResponse.json(out);
@@ -94,7 +82,7 @@ export async function PUT(request: Request) {
     const raw = body[key];
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
-    await upsertSetting(key, value ? value : null);
+    await setSetting(key, value ? value : null);
   }
 
   return NextResponse.json({ success: true });

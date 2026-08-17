@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, teams, events, settings } from '@/db/schema';
+import { getSetting, setSetting } from '@/lib/settings';
+import { players, teams, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -21,17 +22,14 @@ function delay(ms: number) {
 // Check + stamp a persisted cooldown for `key`. Returns blocked=true (with nextRefresh) if still
 // within the window; otherwise records "now" and returns blocked=false.
 async function takeCooldown(key: string): Promise<{ blocked: boolean; nextRefresh?: string }> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  const last = row?.value ? new Date(row.value).getTime() : 0;
+  const stored = await getSetting(key);
+  const last = stored ? new Date(stored).getTime() : 0;
   const nowMs = Date.now();
   if (last && nowMs - last < REFRESH_COOLDOWN_MS) {
     return { blocked: true, nextRefresh: new Date(last + REFRESH_COOLDOWN_MS).toISOString() };
   }
   const nowIso = new Date(nowMs).toISOString();
-  await db
-    .insert(settings)
-    .values({ key, value: nowIso })
-    .onConflictDoUpdate({ target: settings.key, set: { value: nowIso } });
+  await setSetting(key, nowIso);
   return { blocked: false };
 }
 

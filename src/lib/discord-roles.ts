@@ -11,7 +11,8 @@
  * no-ops, so this module is safe to deploy before the token is provisioned.
  */
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, settings, users, eventSignups, detectedAccounts } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { clanAuditLog, clanMembers, users, eventSignups, detectedAccounts } from '@/db/schema';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -147,11 +148,6 @@ interface RoleSyncConfig {
   overwriteNickname: boolean;
 }
 
-async function readSetting(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  return row?.value ?? null;
-}
-
 /**
  * Where the effective bot token came from — surfaced in the admin UI so a clan can see whether it's
  * on the shared Anvil bot (managed convenience) or its own:
@@ -169,7 +165,7 @@ export type BotTokenSource = 'byo' | 'own-env' | 'shared' | 'none';
  * point at its own bot without a redeploy, mirroring how guild ID is settings-first.
  */
 async function resolveBotToken(): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
-  const byo = (await readSetting('discord_bot_token'))?.trim();
+  const byo = (await getSetting('discord_bot_token'))?.trim();
   if (byo) return { token: byo, source: 'byo' };
   const own = process.env.DISCORD_BOT_TOKEN;
   if (own) return { token: own, source: 'own-env' };
@@ -209,7 +205,7 @@ export function isSharedBotAvailable(): boolean {
 export async function getBotCredentials(): Promise<{ botToken: string; guildId: string } | null> {
   const resolved = await resolveBotToken();
   if (!resolved) return null;
-  const guildId = (await readSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
+  const guildId = (await getSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
   if (!guildId) return null;
   return { botToken: resolved.token, guildId };
 }
@@ -251,27 +247,27 @@ function parseJsonArray(raw: string | null): string[] {
  * credentials are missing — callers should treat that as "skip silently".
  */
 export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
-  const enabled = (await readSetting('discord_role_sync_enabled')) === 'true';
+  const enabled = (await getSetting('discord_role_sync_enabled')) === 'true';
   if (!enabled) return null;
 
   const creds = await getBotCredentials();
   if (!creds) return null;
 
   // Auto-match defaults to true — turn it off by setting the value to literal 'false'.
-  const autoMatchRaw = await readSetting('discord_auto_match_rank_by_name');
+  const autoMatchRaw = await getSetting('discord_auto_match_rank_by_name');
   const autoMatchRankByName = autoMatchRaw !== 'false';
 
   return {
     botToken: creds.botToken,
     guildId: creds.guildId,
-    rankRoleMap: parseJsonRecord(await readSetting('discord_rank_role_map')),
-    defaultRoleIds: parseJsonArray(await readSetting('discord_default_role_ids')),
-    guestRoleIds: parseJsonArray(await readSetting('discord_guest_role_ids')),
-    defaultRoleNames: parseJsonArray(await readSetting('discord_default_role_names')),
-    guestRoleNames: parseJsonArray(await readSetting('discord_guest_role_names')),
+    rankRoleMap: parseJsonRecord(await getSetting('discord_rank_role_map')),
+    defaultRoleIds: parseJsonArray(await getSetting('discord_default_role_ids')),
+    guestRoleIds: parseJsonArray(await getSetting('discord_guest_role_ids')),
+    defaultRoleNames: parseJsonArray(await getSetting('discord_default_role_names')),
+    guestRoleNames: parseJsonArray(await getSetting('discord_guest_role_names')),
     autoMatchRankByName,
-    setNicknameOnLink: (await readSetting('discord_nickname_sync_enabled')) === 'true',
-    overwriteNickname: (await readSetting('discord_nickname_overwrite')) === 'true',
+    setNicknameOnLink: (await getSetting('discord_nickname_sync_enabled')) === 'true',
+    overwriteNickname: (await getSetting('discord_nickname_overwrite')) === 'true',
   };
 }
 

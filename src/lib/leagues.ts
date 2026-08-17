@@ -1,6 +1,4 @@
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSettingText, setSetting } from '@/lib/settings';
 import { log } from '@/lib/logger';
 
 /**
@@ -27,10 +25,11 @@ const GENERIC_LEAGUES_ICON = 'https://oldschool.runescape.wiki/images/League_ico
 /** Re-check the wiki at most this often — a league's art changes once a season, if that. */
 const ICON_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Wrapped because the icon cache is a convenience: a read failure must degrade to "no cached icon",
+// never break the seasonal banner.
 async function getSetting(key: string): Promise<string | null> {
   try {
-    const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-    return row?.value?.trim() || null;
+    return await getSettingText(key);
   } catch {
     return null;
   }
@@ -38,10 +37,7 @@ async function getSetting(key: string): Promise<string | null> {
 
 async function putSetting(key: string, value: string): Promise<void> {
   try {
-    await db
-      .insert(settings)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: settings.key, set: { value } });
+    await setSetting(key, value);
   } catch (err) {
     log.info('leagues.icon-cache-write-failed', { key, err: String(err) });
   }

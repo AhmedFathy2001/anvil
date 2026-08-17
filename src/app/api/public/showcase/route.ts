@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanMembers, completions, events, settings, submissions, weeklyCompetitions } from '@/db/schema';
+import { getSettingText } from '@/lib/settings';
+import { clanMembers, completions, events, submissions, weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName, getPublicShowcase } from '@/lib/pluginConfig';
 import { APP_VERSION } from '@/lib/serverInfo';
 
@@ -53,7 +54,7 @@ export async function GET() {
     db.select({ n: count() }).from(weeklyCompetitions),
     db.select({ at: min(events.createdAt) }).from(events),
     db.select({ at: min(clanMembers.joinedAt) }).from(clanMembers),
-    db.query.settings.findFirst({ where: eq(settings.key, 'discord_invite_url') }),
+    getSettingText('discord_invite_url'),
   ]);
 
   // "Running Anvil since" — the oldest thing in the DB that a human caused. Events first (a clan
@@ -64,7 +65,7 @@ export async function GET() {
     {
       listed: true,
       name: await getClanDisplayName(''),
-      discordInviteUrl: inviteRow?.value?.trim() || null,
+      discordInviteUrl: inviteRow,
       since,
       version: APP_VERSION,
       stats: {

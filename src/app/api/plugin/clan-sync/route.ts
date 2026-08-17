@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, settings } from '@/db/schema';
+import { getSetting, setSetting } from '@/lib/settings';
+import { clanAuditLog, clanMembers } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
@@ -353,10 +354,7 @@ export async function POST(request: Request) {
       renamed: changes.filter((c) => c.type === 'renamed').length,
     },
   });
-  await db
-    .insert(settings)
-    .values({ key: 'last_clan_sync', value: lastSyncSettingValue })
-    .onConflictDoUpdate({ target: settings.key, set: { value: lastSyncSettingValue } });
+  await setSetting('last_clan_sync', lastSyncSettingValue);
 
   // ── 7) Discord summary (async, never blocks the response) ────────────────
   if (changes.length > 0) {
@@ -440,10 +438,10 @@ export async function GET(request: Request) {
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'last_clan_sync') });
-  if (row?.value) {
+  const stored = await getSetting('last_clan_sync');
+  if (stored) {
     try {
-      const parsed = JSON.parse(row.value) as {
+      const parsed = JSON.parse(stored) as {
         at?: string;
         summary?: { added?: number; markedLeft?: number; returned?: number; renamed?: number };
       };

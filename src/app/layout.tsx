@@ -3,9 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { verifyUser } from "@/lib/auth";
 import { db } from "@/db";
-import { users as usersTable, settings } from "@/db/schema";
+import { users as usersTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
+import { getDiscordInviteUrl } from "@/lib/pluginConfig";
 import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
@@ -57,8 +58,7 @@ export default async function RootLayout({
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
-  const inviteRow = await db.query.settings.findFirst({ where: eq(settings.key, 'discord_invite_url') });
-  const discordInvite = inviteRow?.value?.trim() || process.env.DISCORD_INVITE_URL?.trim() || null;
+  const discordInvite = await getDiscordInviteUrl();
 
   return (
     <html lang="en">

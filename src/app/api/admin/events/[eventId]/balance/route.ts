@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { tiles, events, settings } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
@@ -30,10 +31,10 @@ export async function GET(
   const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
 
   let ratesOverride: unknown = null;
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, BALANCE_RATES_SETTING_KEY) });
-  if (row?.value) {
+  const stored = await getSetting(BALANCE_RATES_SETTING_KEY);
+  if (stored) {
     try {
-      ratesOverride = JSON.parse(row.value);
+      ratesOverride = JSON.parse(stored);
     } catch {
       /* malformed overrides are ignored — defaults still apply */
     }

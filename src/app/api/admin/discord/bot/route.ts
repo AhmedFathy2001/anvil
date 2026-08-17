@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import {
   discordRest,
@@ -17,18 +15,10 @@ import { botGuildStatus } from '@/lib/discord-permissions';
 // "connected as" name are surfaced. The (non-secret) guild ID is co-located here since it's the
 // other half of the bot connection.
 
-async function upsertSetting(key: string, value: string | null): Promise<void> {
-  const existing = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  if (existing) {
-    await db.update(settings).set({ value }).where(eq(settings.key, key));
-  } else {
-    await db.insert(settings).values({ key, value });
-  }
-}
 
 async function readGuildId(): Promise<string> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, 'discord_guild_id') });
-  return row?.value || process.env.DISCORD_GUILD_ID || '';
+  const guildIdSetting = await getSetting('discord_guild_id');
+  return guildIdSetting || process.env.DISCORD_GUILD_ID || '';
 }
 
 // Validate a token by asking Discord who it is. Returns the bot's id + display name, or null if the
@@ -113,7 +103,7 @@ export async function PUT(request: Request) {
   const { botToken, guildId } = body as Record<string, unknown>;
 
   if (typeof guildId === 'string') {
-    await upsertSetting('discord_guild_id', guildId.trim() || null);
+    await setSetting('discord_guild_id', guildId.trim() || null);
   }
 
   if (typeof botToken === 'string') {
@@ -126,10 +116,10 @@ export async function PUT(request: Request) {
           { status: 400 },
         );
       }
-      await upsertSetting('discord_bot_token', trimmed);
+      await setSetting('discord_bot_token', trimmed);
     } else {
       // Clear the BYO override → fall back to the env / shared bot.
-      await upsertSetting('discord_bot_token', null);
+      await setSetting('discord_bot_token', null);
     }
   }
 

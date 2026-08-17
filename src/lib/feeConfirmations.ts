@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { clanAuditLog, eventSignups, settings, signupFees } from '@/db/schema';
+import { getSetting } from '@/lib/settings';
+import { clanAuditLog, eventSignups, signupFees } from '@/db/schema';
 import { and, eq, notInArray } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import {
@@ -17,10 +18,7 @@ export type { ConfirmOutcome, FeeConfirmation };
 // `fee_confirmations_required` setting; defaults to 1 (a single second pair of eyes). 0 means the
 // clan has turned the second signature off — see lib/feeRules for why that exists.
 export async function getRequiredConfirmations(): Promise<number> {
-  const row = await db.query.settings.findFirst({
-    where: eq(settings.key, 'fee_confirmations_required'),
-  });
-  return clampRequiredConfirmations(row?.value);
+  return clampRequiredConfirmations(await getSetting('fee_confirmations_required'));
 }
 
 export function parseConfirmations(json: string | null | undefined): FeeConfirmation[] {
@@ -157,10 +155,8 @@ export async function recordFeeSettled(
  * this can never mark unpaid money as received. It only closes out fees a mod already said they had.
  */
 export async function shouldAutoConfirmOnEventEnd(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({
-    where: eq(settings.key, 'fee_autoconfirm_on_event_end'),
-  });
-  return row?.value === 'true' || row?.value === '1';
+  const value = await getSetting('fee_autoconfirm_on_event_end');
+  return value === 'true' || value === '1';
 }
 
 /**

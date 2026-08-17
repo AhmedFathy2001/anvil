@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { clanMembers, settings } from '@/db/schema';
+import { getSettingText, setSetting, deleteSetting } from '@/lib/settings';
+import { clanMembers } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { statusFrom, type CapStatus } from '@/lib/memberCapRules';
 
@@ -37,21 +38,18 @@ export async function activeMemberCount(): Promise<number> {
 }
 
 async function readOverSince(): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, CAP_OVER_SINCE_KEY) });
-  const value = row?.value?.trim();
+  const value = await getSettingText(CAP_OVER_SINCE_KEY);
   if (!value) return null;
   return Number.isNaN(Date.parse(value)) ? null : value;
 }
 
 async function writeOverSince(value: string | null): Promise<void> {
+  // Deleted, not set to null: absence is what "not over the cap" means here.
   if (value == null) {
-    await db.delete(settings).where(eq(settings.key, CAP_OVER_SINCE_KEY));
+    await deleteSetting(CAP_OVER_SINCE_KEY);
     return;
   }
-  await db
-    .insert(settings)
-    .values({ key: CAP_OVER_SINCE_KEY, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value } });
+  await setSetting(CAP_OVER_SINCE_KEY, value);
 }
 
 /** Read-only view — for banners, dashboards, anything that shouldn't start a grace clock. */

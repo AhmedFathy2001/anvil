@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { getOAuthMode } from '@/lib/discord-oauth';
-import { getClanDisplayName } from '@/lib/pluginConfig';
+import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 
 export const metadata: Metadata = {
@@ -54,8 +51,7 @@ const SECTIONS = [
 export default async function PluginGuidePage() {
   const origin = await siteOrigin();
   const clanName = await getClanDisplayName('this clan');
-  const inviteRow = await db.query.settings.findFirst({ where: eq(settings.key, 'discord_invite_url') });
-  const discordInvite = inviteRow?.value?.trim() || process.env.DISCORD_INVITE_URL?.trim() || null;
+  const discordInvite = await getDiscordInviteUrl();
 
   // Which login this instance uses decides one paragraph in step 2: a managed instance authenticates
   // Discord through the shared Anvil login (a visible hop to another domain, worth explaining before

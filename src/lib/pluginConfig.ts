@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
+import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
+import { events, tiles, weeklyCompetitions } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import { BOSSES, FUN_DEATH_MESSAGES } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
@@ -173,11 +174,7 @@ export const WEBHOOK_SETTING_KEYS = [
 
 // Plugin-posted notification destinations, read from the settings key/value table.
 export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
-  const rows = await db
-    .select()
-    .from(settings)
-    .where(inArray(settings.key, [...WEBHOOK_SETTING_KEYS]));
-  const map = new Map(rows.map((r) => [r.key, r.value]));
+  const map = await getSettingMap([...WEBHOOK_SETTING_KEYS]);
   return {
     rareDrops: map.get('webhook_rare_drops') || null,
     deaths: map.get('webhook_deaths') || null,
@@ -196,9 +193,9 @@ export const ALWAYS_NOTIFY_SETTING_KEY = 'always_notify_items';
 
 // Reads a settings value stored as one entry per line, trimmed and blank-filtered.
 async function getLineSetting(key: string): Promise<string[]> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
-  if (!row?.value) return [];
-  return row.value
+  const value = await getSetting(key);
+  if (!value) return [];
+  return value
     .split('\n')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
@@ -280,10 +277,7 @@ export async function getAlwaysNotifyItemIds(): Promise<number[]> {
 export const SHOW_KILL_COUNT_SETTING_KEY = 'show_kill_count';
 
 export async function getShowKillCount(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({
-    where: eq(settings.key, SHOW_KILL_COUNT_SETTING_KEY),
-  });
-  return row?.value !== 'off';
+  return (await getSetting(SHOW_KILL_COUNT_SETTING_KEY)) !== 'off';
 }
 
 // Clan-wide floor on rarity-triggered drop posts, as 1-in-N. Members set their own threshold in the
@@ -294,10 +288,7 @@ export const DROP_RARITY_FLOOR_SETTING_KEY = 'drop_rarity_floor';
 export const DEFAULT_DROP_RARITY_FLOOR = 10_000;
 
 export async function getDropRarityFloor(): Promise<number> {
-  const row = await db.query.settings.findFirst({
-    where: eq(settings.key, DROP_RARITY_FLOOR_SETTING_KEY),
-  });
-  const parsed = Number(row?.value);
+  const parsed = Number(await getSetting(DROP_RARITY_FLOOR_SETTING_KEY));
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_DROP_RARITY_FLOOR;
   // Never below the plugin's own hard minimum — a "floor" that loosens the gate would be a trap.
   return Math.max(1000, Math.round(parsed));
@@ -317,8 +308,8 @@ export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
 // home hero, guides, Discord posts. Resolution: settings row, provisioner
 // env, caller-supplied fallback (pages use softer prose fallbacks like "your clan").
 export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, CLAN_NAME_SETTING_KEY) });
-  return row?.value?.trim() || process.env.CLAN_NAME?.trim() || fallback;
+  const value = await getSettingText(CLAN_NAME_SETTING_KEY);
+  return value || process.env.CLAN_NAME?.trim() || fallback;
 }
 
 // The exact in-game clan name the plugin's roster-sync payload must report. Null = unset, which
@@ -329,10 +320,20 @@ export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
 // backfilled from clan_name at boot (scripts/migrate.mjs) so their gate survives this split, and an
 // admin who clears the field is opting into "any clan" on purpose.
 export async function getInGameClanName(): Promise<string | null> {
-  const row = await db.query.settings.findFirst({
-    where: eq(settings.key, CLAN_INGAME_NAME_SETTING_KEY),
-  });
-  return row?.value?.trim() || process.env.CLAN_INGAME_NAME?.trim() || null;
+  const value = await getSettingText(CLAN_INGAME_NAME_SETTING_KEY);
+  return value || process.env.CLAN_INGAME_NAME?.trim() || null;
+}
+
+// The clan's Discord invite, shown in the nav, on the home page and in the setup guides. Same
+// resolution shape as the two names above: settings row, then the provisioner-injected env, then
+// nothing (the links hide themselves when unset).
+//
+// Lives here because three separate call sites had this exact `trim() || env || null` chain inlined.
+export const DISCORD_INVITE_SETTING_KEY = 'discord_invite_url';
+
+export async function getDiscordInviteUrl(): Promise<string | null> {
+  const value = await getSettingText(DISCORD_INVITE_SETTING_KEY);
+  return value || process.env.DISCORD_INVITE_URL?.trim() || null;
 }
 
 // Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so
@@ -342,10 +343,10 @@ export async function getInGameClanName(): Promise<string | null> {
 export const TIER_BANDS_SETTING_KEY = 'tier_bands';
 
 export async function getTierBands(): Promise<TierBand[]> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, TIER_BANDS_SETTING_KEY) });
-  if (!row?.value) return DEFAULT_TIER_BANDS;
+  const value = await getSetting(TIER_BANDS_SETTING_KEY);
+  if (!value) return DEFAULT_TIER_BANDS;
   try {
-    const bands = normalizeTierBands(JSON.parse(row.value));
+    const bands = normalizeTierBands(JSON.parse(value));
     return bands.length ? bands : DEFAULT_TIER_BANDS;
   } catch {
     return DEFAULT_TIER_BANDS;
@@ -364,9 +365,8 @@ export async function getTierBands(): Promise<TierBand[]> {
 export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
 
 export async function getPublicShowcase(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, PUBLIC_SHOWCASE_KEY) });
-  const v = row?.value; // default (no row) = listed; explicit 'off' opts out
-  return v !== 'off';
+  // default (no row) = listed; explicit 'off' opts out
+  return (await getSetting(PUBLIC_SHOWCASE_KEY)) !== 'off';
 }
 
 /**
