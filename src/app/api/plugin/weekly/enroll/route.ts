@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
+  // Unauthenticated, so the HOST is the only thing that says which clan to enrol into.
+  const clan = await requireClanFromRequest(request);
+
   let body: { rsn?: string };
   try {
     body = await request.json();
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
   });
   if (!active) return NextResponse.json({ enrolled: false, reason: 'no-active-comp' });
 
-  const clanMemberId = await findOrCreateClanMember(rsn);
+  const clanMemberId = await findOrCreateClanMember(clan.id, rsn);
 
   const existing = await db.query.weeklyParticipants.findFirst({
     where: and(

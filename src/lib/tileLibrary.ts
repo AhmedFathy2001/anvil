@@ -91,13 +91,14 @@ export async function pendingSeedTasks(): Promise<SeedTask[]> {
  * Copy the given starter tasks in (all pending ones when `keys` is omitted). Idempotent: the unique
  * index on seed_key means a double-click can't duplicate anything, and we skip what's already there.
  */
-export async function importSeedTasks(keys?: string[], userId?: number | null): Promise<number> {
+export async function importSeedTasks(clanId: number, keys?: string[], userId?: number | null): Promise<number> {
   const pending = await pendingSeedTasks();
   const wanted = keys?.length ? pending.filter((t) => keys.includes(t.key)) : pending;
   if (wanted.length === 0) return 0;
 
   await db.insert(tileLibrary).values(
     wanted.map((t) => ({
+      clanId,
       label: t.label,
       description: t.config.description ?? null,
       tileType: t.config.tileType || 'standard',
@@ -165,6 +166,7 @@ export async function drawTasks(req: DrawRequest): Promise<DrawResult> {
 
 /** Harvest: add tiles from an existing board to the catalogue. Returns how many were added. */
 export async function addTasksFromRows(
+  clanId: number,
   rows: { label: string; points?: number | null; category?: string | null; description?: string | null; tileType?: string | null; config: TileCsvRow }[],
   opts: { sourceEventId?: number | null; userId?: number | null } = {},
 ): Promise<number> {
@@ -172,6 +174,7 @@ export async function addTasksFromRows(
   if (valid.length === 0) return 0;
   await db.insert(tileLibrary).values(
     valid.map((r) => ({
+      clanId,
       label: r.label.trim().slice(0, 200),
       description: r.description ?? null,
       tileType: r.tileType || r.config.tileType || 'standard',

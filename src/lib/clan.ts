@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 
 /**
@@ -12,6 +12,7 @@ import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
  * so admins can promote them later from the clan roster UI.
  */
 export async function findOrCreateClanMember(
+  clanId: number,
   rsn: string,
   options: { discordId?: string | null; asGuest?: boolean } = {},
 ): Promise<number> {
@@ -19,8 +20,10 @@ export async function findOrCreateClanMember(
   if (!trimmed) throw new Error('rsn is required');
 
   const normalized = normalizeRsn(trimmed);
+  // Scoped to the clan: the same RSN is legitimately on several clans' rosters, so a global lookup
+  // would hand one clan another clan's member row.
   const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, normalized),
+    where: and(eq(clanMembers.clanId, clanId), eq(clanMembers.rsnNormalized, normalized)),
   });
 
   if (existing) {
@@ -36,6 +39,7 @@ export async function findOrCreateClanMember(
   const [row] = await db
     .insert(clanMembers)
     .values({
+      clanId,
       rsn: trimmed,
       rsnNormalized: normalized,
       discordId: options.discordId ?? null,

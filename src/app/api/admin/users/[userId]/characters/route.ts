@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { users, clanMembers, clanAuditLog } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
@@ -14,6 +15,7 @@ import { onCharacterLinked } from '@/lib/identity';
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const actor = await verifyUser();
   if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  const clan = await requireClan();
 
   const { userId: idParam } = await params;
   const targetId = Number(idParam);
@@ -61,6 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     const inserted = await db
       .insert(clanMembers)
       .values({
+        clanId: clan.id,
         rsn,
         rsnNormalized: normalizedRsn,
         source: 'manual',

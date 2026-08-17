@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { feedback } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -25,9 +26,11 @@ export async function POST(request: Request) {
   const text = (body.body || '').trim().slice(0, 5000);
   if (!subject || !text) return NextResponse.json({ error: 'A subject and some details are required.' }, { status: 400 });
 
+  const clan = await requireClan();
   const inserted = await db
     .insert(feedback)
     .values({
+      clanId: clan.id,
       kind,
       subject,
       body: text,

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
+import { resolveClanFromRequest } from '@/lib/clanContext';
 import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
@@ -411,6 +412,7 @@ async function applyRenameOnPlay(
 // to auto-link (it's their own authenticated play; the worst case is squatting a fresh name, which is
 // reversible and already possible via the old play+Add path). Best-effort — never blocks plugin auth.
 async function autoLinkOrSuggestOnPlay(
+  clanId: number,
   userId: number,
   rsn: string,
   normalizedRsn: string,
@@ -486,6 +488,7 @@ async function autoLinkOrSuggestOnPlay(
       const inserted = await db
         .insert(clanMembers)
         .values({
+          clanId,
           rsn,
           rsnNormalized: normalizedRsn,
           accountHash: accountHash ?? null,
@@ -588,6 +591,7 @@ async function maybeAutoClaimEstablishedOnPlay(
 // The first account a user attributes becomes their primary. Returns the outcome so the
 // caller can surface a 409 on a cross-user conflict.
 export async function claimAccountForUser(
+  clanId: number,
   userId: number,
   rsn: string,
   normalizedRsn: string,
@@ -659,6 +663,7 @@ export async function claimAccountForUser(
     const inserted = await db
       .insert(clanMembers)
       .values({
+        clanId,
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash: accountHash ?? null,
@@ -750,6 +755,13 @@ export async function resolvePluginMember(
 
   const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (!user) return null;
+
+  // Which clan is this plugin talking to? The token identifies the PERSON; the Host identifies the
+  // clan, and a member row belongs to the pair. A request whose host names no clan cannot resolve a
+  // member, because there is no roster to resolve against.
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) return null;
+
   const nowIso = new Date().toISOString();
 
   // Re-link an established account this caller cryptographically controls: if the (unforgeable)
@@ -764,7 +776,7 @@ export async function resolvePluginMember(
   // Auto-add the account they're on (opt-out): safe cases link immediately, the forge-risky
   // established-by-RSN case falls back to an opt-in suggestion. Needs the RSN to know which account.
   if (currentRsn && normalizedRsn) {
-    await autoLinkOrSuggestOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
+    await autoLinkOrSuggestOnPlay(clan.id, user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
   }
 
   const memberRows = await db

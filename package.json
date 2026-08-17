@@ -18,6 +18,7 @@
     "verify:efficiency": "tsx scripts/verify-efficiency.mts",
     "db:studio": "drizzle-kit studio",
     "test": "node scripts/test-all.mjs",
+    "test:clan": "npx tsx --test tests/clan-host.test.ts",
     "test:db": "npx tsx --test tests/db-semantics.test.ts",
     "test:security": "node --experimental-strip-types --test tests/client-ip.test.ts tests/secret-box.test.ts",
     "test:stages": "node --experimental-strip-types --test tests/board-misconfig.test.ts tests/draft-control.test.ts tests/event-stage.test.ts tests/weekly-stage.test.ts",

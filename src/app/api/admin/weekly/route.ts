@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
@@ -58,7 +59,9 @@ export async function POST(request: Request) {
   if (startDate <= now && endDate > now) status = 'active';
   else if (endDate <= now) status = 'completed';
 
+  const clan = await requireClan();
   const result = await db.insert(weeklyCompetitions).values({
+    clanId: clan.id,
     type,
     metric,
     title,

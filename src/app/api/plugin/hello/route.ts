@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { clanMembers, events, weeklyCompetitions } from '@/db/schema';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
@@ -33,6 +34,8 @@ async function activeNow() {
 // which is recoverable from the admin UI — but it's unauthenticated and creates a row per distinct
 // RSN, so a per-IP rate limit stops a script from mass-inflating the roster.
 export async function POST(request: Request) {
+  // Unauthenticated, so the Host is the only thing that names the clan being written to.
+  const clan = await requireClanFromRequest(request);
   const rl = await rateLimit(request, 'plugin-hello', { limit: 30, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
@@ -48,12 +51,14 @@ export async function POST(request: Request) {
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
 
   const rsnNormalized = normalizeRsn(rsn);
+  // Scoped to the clan named by the Host: the same RSN legitimately sits on other clans' rosters.
   const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
+    where: and(eq(clanMembers.clanId, clan.id), eq(clanMembers.rsnNormalized, rsnNormalized)),
   });
 
   if (!existing) {
     await db.insert(clanMembers).values({
+      clanId: clan.id,
       rsn,
       rsnNormalized,
       source: 'plugin-self',

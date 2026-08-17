@@ -8,6 +8,13 @@
       "when": 1786952535236,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786979036495,
+      "tag": "0001_clan_entity",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { clanAuditLog, clanMembers } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
 
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // The roster being synced belongs to the clan whose address the plugin called.
+  const clan = await requireClanFromRequest(request);
 
   let body: { clanName?: string; members?: IncomingMember[] };
   try {
@@ -214,6 +218,7 @@ export async function POST(request: Request) {
       .insert(clanMembers)
       .values(
         toInsert.map((row) => ({
+          clanId: clan.id,
           rsn: row.rsn,
           rsnNormalized: row.rsnNormalized,
           rank: row.rank,

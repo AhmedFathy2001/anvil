@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
 import { validateEventRules } from '@/lib/eventRules';
@@ -140,8 +141,10 @@ export async function POST(request: Request) {
   // detail page because there's nothing to render). A previous schema drift on
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
+  const clan = await requireClan();
   const event = await db.transaction(async (tx) => {
     const [created] = await tx.insert(events).values({
+      clanId: clan.id,
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
       maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
       rules: resolvedRules,

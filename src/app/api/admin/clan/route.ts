@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanMembers, users } from '@/db/schema';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
 // GET — list all clan members (active + departed) for the admin roster view.
@@ -69,9 +70,12 @@ export async function POST(request: Request) {
   const rsn = (body.rsn || '').trim();
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
 
+  const clan = await requireClan();
   const rsnNormalized = normalizeRsn(rsn);
+  // Scoped to this clan: the same RSN is legitimately on other clans' rosters, and an unscoped lookup
+  // would 409 "already in roster" against a member of a clan this admin has nothing to do with.
   const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
+    where: and(eq(clanMembers.clanId, clan.id), eq(clanMembers.rsnNormalized, rsnNormalized)),
   });
   if (existing && !existing.leftAt) {
     return NextResponse.json({ error: 'Already in roster', id: existing.id }, { status: 409 });
@@ -94,6 +98,7 @@ export async function POST(request: Request) {
   const inserted = await db
     .insert(clanMembers)
     .values({
+      clanId: clan.id,
       rsn,
       rsnNormalized,
       rank: body.rank ?? null,

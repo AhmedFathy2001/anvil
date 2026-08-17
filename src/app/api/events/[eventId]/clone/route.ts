@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events, tiles, surveyQuestions } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
@@ -27,9 +28,11 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
+  const clan = await requireClan();
   const [created] = await db
     .insert(events)
     .values({
+      clanId: clan.id,
       name: `${source.name} (copy)`,
       boardSize: source.boardSize,
       scoringMode: source.scoringMode,

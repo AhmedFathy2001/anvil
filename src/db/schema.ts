@@ -1,8 +1,50 @@
 import { pgTable, text, integer, serial, boolean, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+/**
+ * A clan. The tenant row — one deployment now serves many of these.
+ *
+ * Resolved from the request's Host header against this table as a CLOSED SET: `slug` matches a
+ * subdomain label, `customDomain` matches a whole host, and a host matching neither is a 404 with no
+ * fallback. That is what keeps Host-based routing safe — the header is never trusted, only ever used
+ * as a lookup key, and every absolute URL the app builds comes from the row it found rather than
+ * from the header itself (see lib/request-origin).
+ *
+ * Per-clan CONFIG deliberately does not live here. It stays in `settings`, now keyed (clan_id, key),
+ * because it is a sprawl of ~40 optional keys that would make this a wide table of mostly nulls.
+ * What lives here is only what identifies and gates a clan.
+ */
+export const clans = pgTable('clans', {
+  id: serial('id').primaryKey(),
+  // Subdomain label: <slug>.anvilosrs.com. Lowercase, url-safe; the clan's stable address.
+  slug: text('slug').notNull(),
+  // A whole host the clan points at us via CNAME. Null = subdomain only.
+  customDomain: text('custom_domain'),
+  // Display name, shown on the site and in Discord posts. Need not match the in-game clan name.
+  name: text('name').notNull(),
+  // The exact OSRS clan name. The plugin's roster sync refuses a payload reporting a different one;
+  // null accepts any clan (see getInGameClanName).
+  inGameName: text('in_game_name'),
+  // active = serving. suspended = resolves but refuses writes (non-payment, abuse review).
+  // archived = read-only history, kept so links and profiles don't rot.
+  status: text('status').notNull().default('active'),
+  // Entitlement tier. Gates the bot-backed features and the stat-sweep cadence, so a free clan
+  // cannot consume the shared Discord and Jagex budgets the paid ones fund.
+  plan: text('plan').notNull().default('free'),
+  // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
+  memberCap: integer('member_cap'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('clans_slug_unique').on(table.slug),
+  uniqueIndex('clans_custom_domain_unique').on(table.customDomain),
+  index('clans_status_idx').on(table.status),
+]);
+
 export const events = pgTable('events', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   boardSize: integer('board_size').notNull(),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
@@ -413,6 +455,14 @@ export const submissions = pgTable('submissions', {
   index('submissions_tile_team_idx').on(table.tileId, table.teamId),
 ]);
 
+// Per-clan configuration, still keyed on `key` alone.
+//
+// This is the ONE root table the clan conversion has not scoped yet, and deliberately so: making the
+// key composite forces clanId through lib/settings, which forces it through every settings-backed
+// getter in pluginConfig, which forces it through all 24 Discord notify helpers and their callers.
+// That cascade is a change of its own, and lumping it in here would have made this commit
+// unreviewable. Config therefore stays deployment-wide for one more step, while the tables that hold
+// a clan's actual DATA are already scoped.
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: text('value'),
@@ -534,6 +584,9 @@ export const eventEditors = pgTable('event_editors', {
 
 export const weeklyCompetitions = pgTable('weekly_competitions', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   type: text('type').notNull(), // 'skill' | 'boss'
   metric: text('metric').notNull(), // e.g. 'attack', 'zulrah'
   title: text('title').notNull(),
@@ -584,6 +637,9 @@ export const weeklyParticipants = pgTable('weekly_participants', {
 // Per-event enrollment lives in `players` (and `weeklyParticipants`) and references a row here.
 export const clanMembers = pgTable('clan_members', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   rsn: text('rsn').notNull(),                 // display casing
   rsnNormalized: text('rsn_normalized').notNull(), // lowercased for uniqueness (OSRS is case-insensitive)
   discordId: text('discord_id'),              // legacy column; prefer joining via userId → users.discordId
@@ -1008,6 +1064,9 @@ export const pendingNotifications = pgTable('pending_notifications', {
 // import pipeline verbatim.
 export const eventPresets = pgTable('event_presets', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   format: text('format').notNull(),
   scoringMode: text('scoring_mode').notNull(),
@@ -1034,6 +1093,9 @@ export const eventPresets = pgTable('event_presets', {
 // clan's own tier_bands at draw time, so retuning the bands re-tiers the catalogue with it.
 export const tileLibrary = pgTable('tile_library', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
   description: text('description'),
   tileType: text('tile_type').default('standard').notNull(),
@@ -1061,6 +1123,9 @@ export const tileLibrary = pgTable('tile_library', {
 // have no ANVIL_ADMIN_FEEDBACK_URL configured).
 export const feedback = pgTable('feedback', {
   id: serial('id').primaryKey(),
+  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
+  // must be scoped by it.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   kind: text('kind').notNull().default('bug'), // 'bug' | 'feedback'
   subject: text('subject').notNull(),
   body: text('body').notNull(),

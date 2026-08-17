@@ -30,12 +30,21 @@ let sum: typeof import('drizzle-orm')['sum'];
 
 const NOW = '2026-08-17T12:00:00.000Z';
 
+// Every clan-scoped table needs an owning clan now, so the suite mints one.
+let clanId: number;
+
 before(async () => {
   await resetDatabase(DB);
   ({ db, pool, schema: s } = await loadDb());
   ({ savePersonalBests } = await import('../src/lib/personalBests.ts'));
   ({ applyWeeklyValue } = await import('../src/lib/weekly.ts'));
   ({ eq, and, count, sum } = await import('drizzle-orm'));
+
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'semantics', name: 'Semantics Clan' })
+    .returning({ id: s.clans.id });
+  clanId = clan!.id;
 });
 
 after(async () => {
@@ -46,7 +55,7 @@ after(async () => {
 async function makeMember(rsn: string): Promise<number> {
   const [row] = await db
     .insert(s.clanMembers)
-    .values({ rsn, rsnNormalized: rsn.toLowerCase() })
+    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
     .returning({ id: s.clanMembers.id });
   return row!.id;
 }
@@ -70,14 +79,14 @@ test('onConflictDoNothing returns nothing when it did nothing', async () => {
   const rsn = 'Conflict Probe';
   const first = await db
     .insert(s.clanMembers)
-    .values({ rsn, rsnNormalized: rsn.toLowerCase() })
+    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
     .onConflictDoNothing()
     .returning({ id: s.clanMembers.id });
   assert.equal(first.length, 1, 'first insert should report a row');
 
   const second = await db
     .insert(s.clanMembers)
-    .values({ rsn, rsnNormalized: rsn.toLowerCase() })
+    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
     .onConflictDoNothing()
     .returning({ id: s.clanMembers.id });
   assert.equal(second.length, 0, 'conflicting insert must report NO row, or notifications double-fire');
@@ -134,6 +143,7 @@ test('a weekly value is monotonic under interleaved writes', async () => {
   const [comp] = await db
     .insert(s.weeklyCompetitions)
     .values({
+      clanId,
       type: 'skill',
       metric: 'mining',
       title: 'Mining SOTW',
@@ -211,7 +221,7 @@ test('boolean columns round-trip as booleans, flag columns as 0/1', async () => 
 test('count and sum come back as numbers', async () => {
   const [event] = await db
     .insert(s.events)
-    .values({ name: 'Aggregate Board', boardSize: 5, startDate: NOW, endDate: NOW })
+    .values({ clanId, name: 'Aggregate Board', boardSize: 5, startDate: NOW, endDate: NOW })
     .returning({ id: s.events.id });
 
   await db.insert(s.tiles).values([
@@ -238,7 +248,7 @@ test('count and sum come back as numbers', async () => {
 test('deleting an event cascades to its tiles, teams and completions', async () => {
   const [event] = await db
     .insert(s.events)
-    .values({ name: 'Cascade Board', boardSize: 5, startDate: NOW, endDate: NOW })
+    .values({ clanId, name: 'Cascade Board', boardSize: 5, startDate: NOW, endDate: NOW })
     .returning({ id: s.events.id });
 
   const [team] = await db
@@ -272,8 +282,8 @@ test('a transaction that throws rolls back every write in it', async () => {
 
   await assert.rejects(
     db.transaction(async (tx) => {
-      await tx.insert(s.clanMembers).values({ rsn: 'Rollback A', rsnNormalized: 'rollback a' });
-      await tx.insert(s.clanMembers).values({ rsn: 'Rollback B', rsnNormalized: 'rollback b' });
+      await tx.insert(s.clanMembers).values({ clanId, rsn: 'Rollback A', rsnNormalized: 'rollback a' });
+      await tx.insert(s.clanMembers).values({ clanId, rsn: 'Rollback B', rsnNormalized: 'rollback b' });
       throw new Error('deliberate failure');
     }),
   );
@@ -286,9 +296,9 @@ test('a transaction that throws rolls back every write in it', async () => {
 // OSRS names are case-insensitive, so the roster stores a normalized copy and puts the constraint
 // there. Losing this lets one person hold two roster rows and split their own stats.
 test('the same RSN in different casing cannot be enrolled twice', async () => {
-  await db.insert(s.clanMembers).values({ rsn: 'CaseTest', rsnNormalized: 'casetest' });
+  await db.insert(s.clanMembers).values({ clanId, rsn: 'CaseTest', rsnNormalized: 'casetest' });
   await assert.rejects(
-    db.insert(s.clanMembers).values({ rsn: 'casetest', rsnNormalized: 'casetest' }),
+    db.insert(s.clanMembers).values({ clanId, rsn: 'casetest', rsnNormalized: 'casetest' }),
     'the normalized unique index must reject a second casing',
   );
 });

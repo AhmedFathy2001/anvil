@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { eventPresets, events, tiles } from '@/db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
@@ -50,9 +51,11 @@ export async function POST(
     .where(eq(tiles.eventId, id))
     .orderBy(asc(tiles.position));
 
+  const clan = await requireClan();
   const [preset] = await db
     .insert(eventPresets)
     .values({
+      clanId: clan.id,
       name,
       format: event.format,
       scoringMode: event.scoringMode,

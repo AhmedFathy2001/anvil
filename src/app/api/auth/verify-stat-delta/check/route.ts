@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanAuditLog, clanMembers, verificationAttempts } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
   if (!session || session.userId <= 0) {
     return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });
   }
+  const clan = await requireClan();
 
   const rl = await rateLimit(request, 'stat-delta-check', { limit: 30, windowMs: 10 * 60 * 1000 });
   if (!rl.ok) {
@@ -162,6 +164,7 @@ export async function POST(request: Request) {
     const inserted = await db
       .insert(clanMembers)
       .values({
+        clanId: clan.id,
         rsn: attempt.rsn,
         rsnNormalized: attempt.rsnNormalized,
         source: 'manual',

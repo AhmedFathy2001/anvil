@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import {
   addTasksFromRows,
@@ -48,12 +49,13 @@ export async function GET() {
 export async function POST(request: Request) {
   const editor = await verifyTileEditorAnywhere();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clan = await requireClan();
 
   const body = await request.json().catch(() => ({}));
   const action = body?.action;
 
   if (action === 'seed') {
-    const added = await importSeedTasks(Array.isArray(body.keys) ? body.keys : undefined, editor.userId);
+    const added = await importSeedTasks(clan.id, Array.isArray(body.keys) ? body.keys : undefined, editor.userId);
     return NextResponse.json({ ok: true, added });
   }
 
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
     if (body.tasks.length > 500) {
       return NextResponse.json({ error: 'Too many tasks in one go (max 500)' }, { status: 400 });
     }
-    const added = await addTasksFromRows(body.tasks, {
+    const added = await addTasksFromRows(clan.id, body.tasks, {
       sourceEventId: typeof body.sourceEventId === 'number' ? body.sourceEventId : null,
       userId: editor.userId,
     });

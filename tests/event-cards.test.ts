@@ -35,11 +35,18 @@ before(async () => {
   //   2 showdown (reveal policy) — half its tiles never revealed
   //   3 classic + missions — one mission announced, one still hidden
   //   4 tile-count board — scoring is per tile, not per point, and awardedPoints must be ignored
+  // Every clan-scoped table needs an owning clan now.
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'cards', name: 'Cards Clan' })
+    .returning({ id: s.clans.id });
+  const clanId = clan!.id;
+
   await db.insert(s.events).values([
-    { id: 1, name: 'Plain points', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: null },
-    { id: 2, name: 'Showdown', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"revealPolicy":"scheduled"}' },
-    { id: 3, name: 'Missions', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"mission":{"policy":"manual"}}' },
-    { id: 4, name: 'Tile count', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'tiles', format: 'bingo', rules: null },
+    { id: 1, clanId, name: 'Plain points', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: null },
+    { id: 2, clanId, name: 'Showdown', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"revealPolicy":"scheduled"}' },
+    { id: 3, clanId, name: 'Missions', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"mission":{"policy":"manual"}}' },
+    { id: 4, clanId, name: 'Tile count', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'tiles', format: 'bingo', rules: null },
   ]);
 
   await db.insert(s.teams).values(

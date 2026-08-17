@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanMembers, players, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
@@ -44,6 +45,7 @@ export async function POST(
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clan = await requireClan();
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
@@ -93,7 +95,7 @@ export async function POST(
     for (const p of fromText) {
       const name = p.name.trim();
       const discord = p.discord?.trim() || null;
-      const clanMemberId = await findOrCreateClanMember(name, { discordId: discord });
+      const clanMemberId = await findOrCreateClanMember(clan.id, name, { discordId: discord });
       members.push({ clanMemberId, name, discord, timezone: p.timezone?.trim() || null });
     }
 
@@ -115,7 +117,7 @@ export async function POST(
   }
   const trimmedName = name.trim();
   const trimmedDiscord = discord?.trim() || null;
-  const clanMemberId = await findOrCreateClanMember(trimmedName, { discordId: trimmedDiscord });
+  const clanMemberId = await findOrCreateClanMember(clan.id, trimmedName, { discordId: trimmedDiscord });
   members.push({ clanMemberId, name: trimmedName, discord: trimmedDiscord, timezone: timezone?.trim() || null });
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });

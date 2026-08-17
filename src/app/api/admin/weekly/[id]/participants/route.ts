@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, getTableColumns, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -81,6 +82,7 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const clan = await requireClan();
 
   const { id } = await params;
   const compId = parseInt(id, 10);
@@ -96,7 +98,7 @@ export async function POST(
     const trimmed = sanitizeRsn(rsn);
     if (!trimmed) continue;
     try {
-      const clanMemberId = await findOrCreateClanMember(trimmed);
+      const clanMemberId = await findOrCreateClanMember(clan.id, trimmed);
       await db.insert(weeklyParticipants).values({
         competitionId: compId,
         clanMemberId,

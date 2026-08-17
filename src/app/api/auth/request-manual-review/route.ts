@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanAuditLog, clanMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
   if (!session || session.userId <= 0) {
     return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });
   }
+  const clan = await requireClan();
 
   // Manual claims sit in a mod queue forever once submitted, so a tighter limit
   // discourages spam without blocking legitimate retries.
@@ -81,6 +83,7 @@ export async function POST(request: Request) {
     const inserted = await db
       .insert(clanMembers)
       .values({
+        clanId: clan.id,
         rsn,
         rsnNormalized,
         source: 'manual',

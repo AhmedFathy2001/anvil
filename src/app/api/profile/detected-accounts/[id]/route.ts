@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { detectedAccounts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { claimAccountForUser, verifyUser } from '@/lib/auth';
@@ -14,6 +15,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const rl = await rateLimit(request, 'detected-action', { limit: 30, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  const clan = await requireClan();
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -44,6 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const result = await claimAccountForUser(
+    clan.id,
     session.userId,
     detection.rsn,
     detection.rsnNormalized,

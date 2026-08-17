@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import {
   clanAuditLog,
   clanMembers,
@@ -22,6 +23,8 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 // Admin issuers additionally receive a long-lived pluginLinks token that the plugin
 // uses for clan-sync and other admin actions.
 export async function POST(request: Request) {
+  // Unauthenticated, so the Host is the only thing that names the clan being written to.
+  const clan = await requireClanFromRequest(request);
   const rl = await rateLimit(request, 'plugin-link', { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
@@ -177,6 +180,7 @@ export async function POST(request: Request) {
     const inserted = await db
       .insert(clanMembers)
       .values({
+        clanId: clan.id,
         rsn,
         rsnNormalized,
         accountHash: accountHash || null,
