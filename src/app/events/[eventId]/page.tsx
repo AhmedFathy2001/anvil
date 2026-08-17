@@ -9,6 +9,8 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
+import EventFirsts from '@/components/events/EventFirsts';
+import { loadEventFirsts } from '@/lib/eventFirsts';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import {
@@ -221,6 +223,9 @@ export default async function EventScoreboardPage({
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
   // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
   const rules = parseEventRules(event.rules);
+  // The board's firsts — read in claim order, so they're a fact about the event rather than a
+  // recomputation of the standings.
+  const firsts = await loadEventFirsts(event.id);
   const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
   // Staff keep the full board, so tell the client WHICH of those tiles a member wouldn't see —
@@ -417,6 +422,10 @@ export default async function EventScoreboardPage({
           </div>
         )
       ) : (
+        <>
+        {/* Who got it moving, and who drew first blood. Above the board because they're the part
+            that stops being true the moment someone else claims one. */}
+        <EventFirsts firsts={firsts} />
         <ScoreboardClient
           event={event}
           tiles={boardTiles}
@@ -432,6 +441,7 @@ export default async function EventScoreboardPage({
           hiddenSchedule={hiddenSchedule}
           boardPointsTotal={pointsOnBoard}
         />
+        </>
       )}
     </>
   );
