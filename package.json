@@ -43,7 +43,6 @@
     "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.0.1",
     "aws4fetch": "^1.0.20",
@@ -52,6 +51,7 @@
     "jose": "^6.2.3",
     "next": "16.1.6",
     "osrs-json-hiscores": "^2.25.0",
+    "pg": "^8.23.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sharp": "^0.33.5",
@@ -61,12 +61,14 @@
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
+    "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@libsql/client": "^0.17.0"
   }
 }

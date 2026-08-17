@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, eventSignups, events, signupFees, users } from '@/db/schema';
-import { alias } from 'drizzle-orm/sqlite-core';
+import { alias } from 'drizzle-orm/pg-core';
 import { and, desc, eq, inArray, not } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 

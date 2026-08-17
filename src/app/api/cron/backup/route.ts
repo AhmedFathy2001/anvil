@@ -4,7 +4,7 @@ import { timingSafeStrEqual } from '@/lib/auth';
 
 // Daily off-box database backup. The control-plane cron dispatcher hits this once a day per clan
 // (staggered across a low-traffic hour) with the clan's derived CRON_SECRET. It VACUUMs a consistent
-// copy of the SQLite DB, gzips it, and uploads it to the private backup bucket, then prunes old
+// dump of the database, gzips it, and uploads it to the private backup bucket, then prunes old
 // copies. A no-op (200) when S3_BACKUP_BUCKET isn't configured or the DB is remote — so the job is
 // safe to schedule everywhere and only does work where it's wired up.
 

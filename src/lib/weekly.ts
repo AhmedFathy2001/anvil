@@ -220,7 +220,8 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
 
   const updates: Record<string, unknown> = {
     // Atomic monotonic max — race-safe when a sweep and a live push write between each other's read/write.
-    currentValue: sql`max(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
+    // GREATEST, not max(): max() is an AGGREGATE in Postgres and would not take two scalars.
+    currentValue: sql`greatest(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
     lastUpdated: nowIso,
   };
 
@@ -281,7 +282,7 @@ export async function writePlayerSnapshot(
       .values({ clanMemberId, weeklyCompetitionId, kind: 'current', payload, overallXp })
       .onConflictDoUpdate({
         target: [playerSnapshots.clanMemberId, playerSnapshots.weeklyCompetitionId, playerSnapshots.kind],
-        set: { payload, overallXp, capturedAt: sql`(datetime('now'))` },
+        set: { payload, overallXp, capturedAt: sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')` },
         setWhere: ne(playerSnapshots.payload, payload),
       });
   } catch (err) {

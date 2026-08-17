@@ -12,7 +12,7 @@ import {
   tiles,
   users,
 } from '@/db/schema';
-import { alias } from 'drizzle-orm/sqlite-core';
+import { alias } from 'drizzle-orm/pg-core';
 import { and, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { getSetupStatus } from '@/lib/setupStatus';

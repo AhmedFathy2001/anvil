@@ -15,7 +15,7 @@
  */
 export function localHour(iso: string | null | undefined, timezone: string | null | undefined): number | null {
   if (!iso) return null;
-  // SQLite's datetime('now') writes "YYYY-MM-DD HH:MM:SS" with no zone marker; it IS UTC, so say so
+  // The database default writes "YYYY-MM-DD HH:MM:SS" with no zone marker; it IS UTC, so say so
   // rather than letting the runtime read it as local time.
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(iso) ? `${iso.replace(' ', 'T')}Z` : iso;
   const ms = Date.parse(normalized);

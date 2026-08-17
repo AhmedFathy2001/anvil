@@ -1,1 +1,0 @@
-ALTER TABLE `federation_connections` ADD `is_guest` integer DEFAULT 0 NOT NULL;

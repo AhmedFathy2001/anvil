@@ -16,7 +16,7 @@ import { eventShapeBadge, isPointsMode } from '@/lib/utils';
  * WHERE THE WORK HAPPENS. This used to pull every tile of every event and then every completion of
  * every tile into JS, and sum them there — so opening /events cost the clan's whole history, on
  * every request, to print a number for a bingo that ended a year ago. The board totals and the
- * per-team scores are two GROUP BYs; SQLite does them without shipping the rows. Row-level loading
+ * per-team scores are two GROUP BYs; the database does them without shipping the rows. Row-level loading
  * survives only for the boards that genuinely need it — a reveal policy or mission tiles mean some
  * completions don't count yet, and that judgement lives in lib/eventRules, not in SQL.
  */

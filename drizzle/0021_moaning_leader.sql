@@ -1,1 +1,0 @@
-ALTER TABLE `federation_device_sessions` ADD `broker_token` text;

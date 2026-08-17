@@ -344,8 +344,7 @@ export async function GET(request: Request) {
     })
     .from(submissions)
     .where(eq(submissions.teamId, auth.teamId))
-    .groupBy(submissions.tileId)
-    .all();
+    .groupBy(submissions.tileId);
 
   const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
 
@@ -365,8 +364,7 @@ export async function GET(request: Request) {
         eq(submissions.teamId, auth.teamId),
         sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${auth.playerId}`,
       ))
-      .groupBy(submissions.tileId)
-      .all();
+      .groupBy(submissions.tileId);
     for (const r of own) soloSubmissionMap[r.tileId] = r.total;
   }
   // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
@@ -382,8 +380,7 @@ export async function GET(request: Request) {
     })
     .from(submissions)
     .where(eq(submissions.teamId, auth.teamId))
-    .groupBy(submissions.tileId, submissions.itemId)
-    .all();
+    .groupBy(submissions.tileId, submissions.itemId);
 
   // Build a map: tileId -> { itemId -> total }
   const perItemMap = new Map<number, Map<number, number>>();
@@ -572,7 +569,6 @@ export async function GET(request: Request) {
         .select({ tileId: completions.tileId })
         .from(completions)
         .where(eq(completions.teamId, auth.teamId))
-        .all()
     : [];
   // Label lookups include CLOSED reveal-mode tiles (a completed bounty tile is closed but its
   // completion row still needs its label) — just never the still-hidden ones.

@@ -1,1 +1,0 @@
-ALTER TABLE `event_signups` ADD `exclude_from_prize_pool` integer DEFAULT false NOT NULL;

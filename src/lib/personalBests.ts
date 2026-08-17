@@ -67,10 +67,10 @@ export function normalizeBests(raw: IncomingBest[]): CleanBest[] {
  * One statement, and the conflict clause is where the rule actually lives — doing it as
  * read-then-write would race two clients of the same account against each other.
  *
- * Lives here rather than inline in the route so there is ONE definition of the rule to port between
- * SQL dialects and one for tests to exercise. The scalar `min(a, b)` below is SQLite-specific and
- * becomes `LEAST(a, b)` on Postgres; a test that reimplemented this expression instead of calling
- * it would keep passing while the real path broke.
+ * Lives here rather than inline in the route so there is ONE definition of the rule and one thing
+ * for tests to exercise. LEAST, not min(): min() is an AGGREGATE in Postgres and would not take two
+ * scalars — a test that reimplemented this expression rather than calling it would keep passing
+ * while the real path broke.
  */
 export async function savePersonalBests(clanMemberId: number, bests: CleanBest[], nowIso: string): Promise<number> {
   if (bests.length === 0) return 0;
@@ -90,7 +90,7 @@ export async function savePersonalBests(clanMemberId: number, bests: CleanBest[]
     .onConflictDoUpdate({
       target: [memberPersonalBests.clanMemberId, memberPersonalBests.activity, memberPersonalBests.teamSize],
       set: {
-        centis: sql`min(${memberPersonalBests.centis}, excluded.centis)`,
+        centis: sql`least(${memberPersonalBests.centis}, excluded.centis)`,
         // Only stamp the date when this push actually improved the record; otherwise a re-import
         // would redate every best a player has ever set to today.
         achievedAt: sql`case when excluded.centis < ${memberPersonalBests.centis} then excluded.achieved_at else ${memberPersonalBests.achievedAt} end`,

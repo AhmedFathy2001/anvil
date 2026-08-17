@@ -1,1 +1,0 @@
-ALTER TABLE `events` ADD `draft_notified` integer DEFAULT 0;

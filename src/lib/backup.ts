@@ -1,4 +1,4 @@
-// Off-box database backup — a gzipped, point-in-time-consistent copy of a clan's SQLite DB uploaded
+// Off-box database backup — a gzipped, point-in-time-consistent dump of the clan's database uploaded
 // to a PRIVATE object-storage bucket, so a dead box, a corrupt volume, or a bad migration is
 // recoverable. Driven daily (staggered) by the control-plane cron dispatcher via /api/cron/backup.
 //
@@ -7,13 +7,14 @@
 // (S3_BACKUP_BUCKET) in the same account, keyed under the clan's slug prefix, pruned to the newest N.
 // If that bucket isn't configured the feature is simply off — we never fall back to the media bucket.
 //
-// Restore: pull the object (aws/rclone), `gunzip`, drop it in at /data/anvil.db (stop the container
-// first). It's a standalone SQLite file — the boot migrator applies anything newer on next start.
+// Restore: pull the object (aws/rclone), `gunzip`, then `psql -d <target> -f anvil-<ts>.sql`. The
+// dump is schema+data with --no-owner/--no-acl so it loads into a differently-owned database; the
+// boot migrator applies anything newer on next start.
 
 import https from 'node:https';
 import { gzipSync } from 'node:zlib';
-import { readFileSync, existsSync, statSync, rmSync } from 'node:fs';
-import { createClient } from '@libsql/client';
+import { readFileSync, existsSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { AwsClient } from 'aws4fetch';
 
 export interface BackupResult {
@@ -53,12 +54,8 @@ export function isBackupConfigured(): boolean {
 
 const RETAIN = Number(process.env.BACKUP_RETAIN || 14);
 
-/** Resolve the local SQLite file path from DATABASE_URL, or null for a non-file (remote) DB. */
-function localDbPath(): string | null {
-  const url = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL || '';
-  if (!url.startsWith('file:')) return null;
-  return url.slice('file:'.length).replace(/^\/\//, '/'); // file:/data/anvil.db -> /data/anvil.db
-}
+/** Where pg_dump writes its temporary output before it is gzipped and uploaded. */
+const DUMP_TMP_DIR = process.env.BACKUP_TMP_DIR || '/tmp';
 
 /**
  * Signed S3/R2 PUT over node:https (not global fetch): Next's patched fetch doesn't reliably emit
@@ -119,30 +116,29 @@ async function s3Delete(cfg: BackupConfig, key: string): Promise<void> {
 }
 
 /**
- * Take a consistent snapshot of the local SQLite DB, gzip it, and upload it to the private backup
- * bucket; then prune to the newest RETAIN copies. No-op (ok:true, skipped) for a remote DB or when
- * the backup bucket isn't configured. Never throws for expected conditions — returns a result object.
+ * Dump the database, gzip it, and upload it to the private backup bucket; then prune to the newest
+ * RETAIN copies. No-op (ok:true, skipped) when the backup bucket isn't configured. Never throws for
+ * expected conditions — returns a result object.
+ *
+ * pg_dump runs a single consistent snapshot transaction, so the dump is point-in-time consistent
+ * without pausing writes. It is invoked with execFile (argv, no shell), so the connection string —
+ * which carries a password — never goes through a shell and cannot be word-split.
  */
 export async function backupDatabase(): Promise<BackupResult> {
   const cfg = backupConfig();
   if (!cfg) return { ok: true, skipped: 'S3_BACKUP_BUCKET not configured' };
-  const dbPath = localDbPath();
-  if (!dbPath) return { ok: true, skipped: 'remote DB (no local file to snapshot)' };
-  if (!existsSync(dbPath) || statSync(dbPath).size === 0) return { ok: true, skipped: 'empty DB' };
+  const url = process.env.DATABASE_URL;
+  if (!url) return { ok: true, skipped: 'DATABASE_URL not set' };
 
-  const tmp = `${dbPath}.bak-tmp-${process.pid}-${Date.now()}`;
-  const client = createClient({ url: `file:${dbPath}` });
+  const tmp = `${DUMP_TMP_DIR}/anvil-backup-${process.pid}-${Date.now()}.sql`;
   try {
     if (existsSync(tmp)) rmSync(tmp, { force: true });
-    // VACUUM INTO -> a fully consistent standalone copy (safe under WAL). Target must not pre-exist;
-    // the pid+ts name guarantees that. Path is process-controlled; escape quotes defensively since
-    // VACUUM takes no bound parameter.
-    await client.execute(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+    execFileSync('pg_dump', ['--no-owner', '--no-acl', '--file', tmp, url], { stdio: 'pipe' });
     const gz = gzipSync(readFileSync(tmp));
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const dir = cfg.prefix ? `${cfg.prefix}/backups` : 'backups';
-    const key = `${dir}/anvil-${ts}.db.gz`;
+    const key = `${dir}/anvil-${ts}.sql.gz`;
     await s3Put(cfg, key, gz, 'application/gzip');
 
     // Prune: keep the newest RETAIN. Keys are ISO-timestamped, so a lexical sort is chronological.
@@ -161,7 +157,6 @@ export async function backupDatabase(): Promise<BackupResult> {
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   } finally {
-    client.close();
     if (existsSync(tmp)) rmSync(tmp, { force: true });
   }
 }

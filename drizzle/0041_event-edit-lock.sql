@@ -1,1 +1,0 @@
-ALTER TABLE `events` ADD `edit_unlocked_at` text;

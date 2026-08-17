@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `pvp_min_loot_value` integer;

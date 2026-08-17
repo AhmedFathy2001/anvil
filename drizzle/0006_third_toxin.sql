@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `party_size` integer;

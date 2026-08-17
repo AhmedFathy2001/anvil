@@ -45,7 +45,7 @@ export default function EventFirsts({ firsts }: { firsts: EventFirst[] }) {
   );
 }
 
-/** SQLite writes "YYYY-MM-DD HH:MM:SS" with no zone marker, and it IS UTC — say so. */
+/** Timestamp columns hold "YYYY-MM-DD HH:MM:SS" with no zone marker, and it IS UTC — say so. */
 function when(raw: string): string {
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw;
   const ms = Date.parse(normalized);

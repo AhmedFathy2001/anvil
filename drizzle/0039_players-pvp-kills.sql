@@ -1,1 +1,0 @@
-ALTER TABLE `players` ADD `pvp_kills` integer DEFAULT 0;

@@ -36,7 +36,7 @@ interface ChangeRecord {
 //   2) Build maps by accountHash + rsnNormalized for O(1) lookup
 //   3) Categorize each incoming row in memory (no per-member queries)
 //   4) Bulk-insert new members in one statement
-//   5) Apply per-row updates sequentially (drizzle SQLite has no batch UPDATE-with-different-values)
+//   5) Apply per-row updates sequentially (drizzle has no batch UPDATE-with-different-values)
 //   6) Bulk-insert audit entries in one statement
 //   7) Soft-delete missing-from-roster rows in one UPDATE
 //
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
   }
 
   // ── 4) Apply per-member updates ──────────────────────────────────────────
-  // Sequential because each row has different values; libsql doesn't have a portable
+  // Sequential because each row has different values; drizzle doesn't have a portable
   // batch UPDATE form. Each statement is a single round-trip keyed on PK.
   for (const u of toUpdate) {
     await db

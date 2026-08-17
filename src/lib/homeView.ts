@@ -248,7 +248,7 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
   // ---- Events: what's live and what it came to --------------------------------------------------
   // Shared with the events index so the two pages can never disagree about who is leading.
   const homeEvents = await loadEventCards({ pastLimit: 6 }, now);
-  // The same predicate the events index uses for "live", asked of SQLite instead of read out of
+  // The same predicate the events index uses for "live", asked of the database instead of read out of
   // every event the clan has ever run: started, not force-ended, and not past its end date.
   // Several boards can be live at once, so this is a list, not a lookup.
   const liveEvents = await db

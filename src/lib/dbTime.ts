@@ -2,8 +2,12 @@
 //
 // Anvil's text timestamp columns were written by two different things and it shows:
 //
-//   SQLite  `datetime('now')`  → "2026-08-15 12:00:00"        (space, no zone, always UTC)
-//   JS      `toISOString()`    → "2026-08-15T12:00:00.000Z"   (T, explicit Z)
+//   column default   → "2026-08-15 12:00:00"        (space, no zone, always UTC)
+//   JS `toISOString()` → "2026-08-15T12:00:00.000Z"   (T, explicit Z)
+//
+// The first form originally came from SQLite's `datetime('now')`; the Postgres port kept producing
+// it byte-for-byte on purpose, so the swap changed no stored value. Converting these columns to a
+// real timestamptz — which deletes this whole module — is its own follow-up step.
 //
 // Both are UTC and both sort correctly against their own kind, which is why this stayed invisible
 // for so long. It bites in two places:
@@ -34,7 +38,7 @@ export function parseStamp(value: string | null | undefined): number | null {
   // Already explicit about its zone (Z, +01:00, -0500) — trust it as written.
   const iso = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(trimmed)
     ? trimmed
-    : // SQLite's "YYYY-MM-DD HH:MM:SS" (and the rare "YYYY-MM-DDTHH:MM:SS" with no zone) are
+    : // The zone-less "YYYY-MM-DD HH:MM:SS" (and the rare "YYYY-MM-DDTHH:MM:SS") forms are
       // both UTC by construction, so say so rather than letting the engine guess local.
       `${trimmed.replace(' ', 'T')}Z`;
 

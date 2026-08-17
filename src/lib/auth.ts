@@ -554,9 +554,13 @@ async function maybeAutoClaimEstablishedOnPlay(
         lastSeenInClan: nowIso,
       })
       // Re-assert unowned in the WHERE so a concurrent claim wins cleanly instead of being clobbered.
-      .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)));
+      .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)))
+      // Row COUNT is the guard, and it has to be read portably: the driver-specific field this used
+      // to read (rowsAffected) is absent on other drivers and came back undefined, which compiled
+      // fine and silently disabled the check.
+      .returning({ id: clanMembers.id });
 
-    if ((result as { rowsAffected?: number }).rowsAffected === 0) return;
+    if (result.length === 0) return;
 
     db.insert(clanAuditLog)
       .values({

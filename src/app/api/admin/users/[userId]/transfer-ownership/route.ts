@@ -49,8 +49,9 @@ export async function POST(
       const crowned = await tx
         .update(users)
         .set({ isOwner: true })
-        .where(and(eq(users.id, targetId), eq(users.role, 'admin')));
-      if (crowned.rowsAffected !== 1) {
+        .where(and(eq(users.id, targetId), eq(users.role, 'admin')))
+        .returning({ id: users.id });
+      if (crowned.length !== 1) {
         throw new Error('target-not-admin');
       }
       // Then demote the outgoing owner to a plain admin, in the same transaction.

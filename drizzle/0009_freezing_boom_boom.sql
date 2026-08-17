@@ -1,1 +1,0 @@
-ALTER TABLE `players` ADD `plugin_stats` text;

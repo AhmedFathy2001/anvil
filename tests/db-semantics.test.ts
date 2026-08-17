@@ -19,23 +19,29 @@ import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/
 const DB = useTestDatabase('db-semantics');
 
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
+let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let savePersonalBests: typeof import('../src/lib/personalBests.ts')['savePersonalBests'];
 let applyWeeklyValue: typeof import('../src/lib/weekly.ts')['applyWeeklyValue'];
 let eq: typeof import('drizzle-orm')['eq'];
 let and: typeof import('drizzle-orm')['and'];
+let count: typeof import('drizzle-orm')['count'];
+let sum: typeof import('drizzle-orm')['sum'];
 
 const NOW = '2026-08-17T12:00:00.000Z';
 
 before(async () => {
-  resetDatabase(DB);
-  ({ db, schema: s } = await loadDb());
+  await resetDatabase(DB);
+  ({ db, pool, schema: s } = await loadDb());
   ({ savePersonalBests } = await import('../src/lib/personalBests.ts'));
   ({ applyWeeklyValue } = await import('../src/lib/weekly.ts'));
-  ({ eq, and } = await import('drizzle-orm'));
+  ({ eq, and, count, sum } = await import('drizzle-orm'));
 });
 
-after(() => dropDatabase(DB));
+after(async () => {
+  await pool.end();
+  await dropDatabase(DB);
+});
 
 async function makeMember(rsn: string): Promise<number> {
   const [row] = await db
@@ -195,6 +201,34 @@ test('boolean columns round-trip as booleans, flag columns as 0/1', async () => 
   const memberId = await makeMember('Flag Probe');
   const member = await db.query.clanMembers.findFirst({ where: eq(s.clanMembers.id, memberId) });
   assert.equal(member?.isGuest, 0, 'integer flag columns keep their 0/1 domain');
+});
+
+// ── Aggregates come back as numbers, not strings ──────────────────────────────────────────────
+// COUNT() and SUM(integer) are bigint in Postgres, and the driver returns bigint as a STRING by
+// default to protect precision. Every scoreboard in the app compares those results with === against
+// a number, so the default silently makes '20' === 20 false: no error, no crash, just a leaderboard
+// that reads wrong. src/db configures the parser; this pins it so nobody removes it.
+test('count and sum come back as numbers', async () => {
+  const [event] = await db
+    .insert(s.events)
+    .values({ name: 'Aggregate Board', boardSize: 5, startDate: NOW, endDate: NOW })
+    .returning({ id: s.events.id });
+
+  await db.insert(s.tiles).values([
+    { eventId: event!.id, position: 0, label: 'a', points: 10 },
+    { eventId: event!.id, position: 1, label: 'b', points: 25 },
+  ]);
+
+  const [agg] = await db
+    .select({ n: count(), points: sum(s.tiles.points) })
+    .from(s.tiles)
+    .where(eq(s.tiles.eventId, event!.id));
+
+  assert.equal(typeof agg!.n, 'number', `count came back as ${typeof agg!.n}`);
+  assert.equal(agg!.n, 2);
+  assert.equal(Number(agg!.points), 35);
+  // The one that actually bit: a strict comparison against a number literal.
+  assert.ok(agg!.n === 2, 'count must be === comparable to a number literal');
 });
 
 // ── Deleting a parent takes its children ──────────────────────────────────────────────────────

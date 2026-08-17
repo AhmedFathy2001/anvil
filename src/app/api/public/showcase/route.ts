@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, count, eq, isNull, min, sql } from 'drizzle-orm';
+import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMembers, completions, events, settings, submissions, weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName, getPublicShowcase } from '@/lib/pluginConfig';
@@ -47,7 +47,7 @@ export async function GET() {
     db
       .select({ n: count() })
       .from(events)
-      .where(sql`${events.endDate} is not null and ${events.endDate} < datetime('now')`),
+      .where(and(isNotNull(events.endDate), lt(events.endDate, new Date().toISOString()))),
     db.select({ n: count() }).from(completions),
     db.select({ n: count() }).from(submissions),
     db.select({ n: count() }).from(weeklyCompetitions),

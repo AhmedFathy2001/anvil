@@ -1,1 +1,0 @@
-ALTER TABLE `submissions` ADD `federated_source` text;

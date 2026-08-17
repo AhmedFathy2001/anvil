@@ -41,7 +41,7 @@ const FILTERS: { key: 'all' | HistoryEntry['action']; label: string }[] = [
   { key: 'reordered', label: 'Reorders' },
 ];
 
-// SQLite datetime('now') is "YYYY-MM-DD HH:MM:SS" in UTC — parse as UTC, render local.
+// The database default is "YYYY-MM-DD HH:MM:SS" in UTC — parse as UTC, render local.
 function parseUtc(s: string): Date {
   return new Date(s.replace(' ', 'T') + 'Z');
 }

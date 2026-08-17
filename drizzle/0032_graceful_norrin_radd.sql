@@ -1,1 +1,0 @@
-ALTER TABLE `events` ADD `placement_prizes` text;

@@ -1,1 +1,0 @@
-ALTER TABLE `tiles` ADD `per_kill_cap` integer;

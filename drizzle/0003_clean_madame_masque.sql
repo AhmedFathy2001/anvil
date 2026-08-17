@@ -1,1 +1,0 @@
-ALTER TABLE `signup_fees` ADD `confirmations` text;

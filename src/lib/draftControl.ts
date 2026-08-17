@@ -224,7 +224,7 @@ export async function buildDraftControl(eventId: number): Promise<DraftControl |
     .sort()
     .at(-1) ?? null;
   const pickSeconds = rules.pickSeconds;
-  // parseStamp, not Date.parse: this column holds both JS ISO and SQLite's zone-less
+  // parseStamp, not Date.parse: this column holds both JS ISO and the zone-less
   // "YYYY-MM-DD HH:MM:SS", and V8 reads the latter as LOCAL time — a deadline hours out (lib/dbTime).
   const lastPickMs = parseStamp(lastPickAt);
   const pickDueAt =

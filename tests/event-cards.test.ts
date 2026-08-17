@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+
+import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
 // lib/eventCards scores every card with two GROUP BYs instead of reading the clan's whole history
 // into JS. That is only safe while the aggregate agrees with the rules: a completion on a tile that
@@ -10,96 +10,87 @@ import { rmSync } from 'node:fs';
 // the completions" is the wrong answer, because the failure would be silent: every card still
 // renders, with a leader who is winning by tiles nobody can see.
 //
-// DB-backed, like tests/stat-history.test.ts. Run: npm run test:cards
+// Seeds through Drizzle rather than SQL strings. The original seeded with hand-written INSERTs,
+// which is exactly why it was the one suite the Postgres port broke — the assertions were portable,
+// the fixture was not. See tests/helpers/testDb.
+//
+// Run: npm run test:cards
 
-const DB_FILE = './.test-event-cards.db';
-process.env.DATABASE_URL = `file:${DB_FILE}`;
+const DB = useTestDatabase('event-cards');
 
 const NOW = new Date('2026-08-15T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
 
 let loadEventCards: typeof import('../src/lib/eventCards.ts')['loadEventCards'];
+let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 
 before(async () => {
-  rmSync(DB_FILE, { force: true });
-  rmSync(`${DB_FILE}-wal`, { force: true });
-  rmSync(`${DB_FILE}-shm`, { force: true });
-  execFileSync('node', ['scripts/migrate.mjs'], { env: { ...process.env }, stdio: 'pipe' });
-
+  await resetDatabase(DB);
+  const { db, pool: p, schema: s } = await loadDb();
+  pool = p;
   ({ loadEventCards } = await import('../src/lib/eventCards.ts'));
-  const { createClient } = await import('@libsql/client');
-  const client = createClient({ url: process.env.DATABASE_URL! });
 
   // Four boards, all finished, all with completions on tiles that must not count.
   //   1 classic points board — everything visible, the plain aggregate case
   //   2 showdown (reveal policy) — half its tiles never revealed
   //   3 classic + missions — one mission announced, one still hidden
   //   4 tile-count board — scoring is per tile, not per point, and awardedPoints must be ignored
-  const stmts = [
-    `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
-       values (1, 'Plain points', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'points', 'bingo', null)`,
-    `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
-       values (2, 'Showdown', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'points', 'bingo', '{"revealPolicy":"scheduled"}')`,
-    `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
-       values (3, 'Missions', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'points', 'bingo', '{"mission":{"policy":"manual"}}')`,
-    `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
-       values (4, 'Tile count', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'tiles', 'bingo', null)`,
-  ];
-  for (let e = 1; e <= 4; e++) {
-    stmts.push(`insert into teams (id, event_id, name, color) values (${e * 10 + 1}, ${e}, 'Alpha', '#d0553f')`);
-    stmts.push(`insert into teams (id, event_id, name, color) values (${e * 10 + 2}, ${e}, 'Beta', '#4aa3d4')`);
-  }
+  await db.insert(s.events).values([
+    { id: 1, name: 'Plain points', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: null },
+    { id: 2, name: 'Showdown', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"revealPolicy":"scheduled"}' },
+    { id: 3, name: 'Missions', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"mission":{"policy":"manual"}}' },
+    { id: 4, name: 'Tile count', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'tiles', format: 'bingo', rules: null },
+  ]);
 
-  // event 1: three 10-point tiles + one optional 50-pointer. Alpha claims two (20), Beta one (10).
-  stmts.push(
-    `insert into tiles (id, event_id, position, label, points, optional) values (101, 1, 0, 'a', 10, 0)`,
-    `insert into tiles (id, event_id, position, label, points, optional) values (102, 1, 1, 'b', 10, 0)`,
-    `insert into tiles (id, event_id, position, label, points, optional) values (103, 1, 2, 'c', 10, 0)`,
-    `insert into tiles (id, event_id, position, label, points, optional) values (104, 1, 3, 'opt', 50, 1)`,
-    `insert into completions (team_id, tile_id, completed_at) values (11, 101, '${day(-15)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (11, 102, '${day(-15)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (12, 103, '${day(-15)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (11, 104, '${day(-15)}')`,
+  await db.insert(s.teams).values(
+    [1, 2, 3, 4].flatMap((e) => [
+      { id: e * 10 + 1, eventId: e, name: 'Alpha', color: '#d0553f' },
+      { id: e * 10 + 2, eventId: e, name: 'Beta', color: '#4aa3d4' },
+    ]),
   );
 
-  // event 2: two revealed 10s, two never-revealed 10s. Alpha claimed one of each — only the
-  // revealed one scores, so Alpha is on 10, not 20.
-  stmts.push(
-    `insert into tiles (id, event_id, position, label, points, revealed_at) values (201, 2, 0, 'shown', 10, '${day(-18)}')`,
-    `insert into tiles (id, event_id, position, label, points, revealed_at) values (202, 2, 1, 'shown', 10, '${day(-18)}')`,
-    `insert into tiles (id, event_id, position, label, points, revealed_at) values (203, 2, 2, 'hidden', 10, null)`,
-    `insert into tiles (id, event_id, position, label, points, revealed_at) values (204, 2, 3, 'hidden', 10, null)`,
-    `insert into completions (team_id, tile_id, completed_at) values (21, 201, '${day(-15)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (21, 203, '${day(-15)}')`,
-  );
+  await db.insert(s.tiles).values([
+    // event 1: three 10-point tiles + one optional 50-pointer.
+    { id: 101, eventId: 1, position: 0, label: 'a', points: 10, optional: 0 },
+    { id: 102, eventId: 1, position: 1, label: 'b', points: 10, optional: 0 },
+    { id: 103, eventId: 1, position: 2, label: 'c', points: 10, optional: 0 },
+    { id: 104, eventId: 1, position: 3, label: 'opt', points: 50, optional: 1 },
+    // event 2: two revealed 10s, two never-revealed 10s.
+    { id: 201, eventId: 2, position: 0, label: 'shown', points: 10, revealedAt: day(-18) },
+    { id: 202, eventId: 2, position: 1, label: 'shown', points: 10, revealedAt: day(-18) },
+    { id: 203, eventId: 2, position: 2, label: 'hidden', points: 10, revealedAt: null },
+    { id: 204, eventId: 2, position: 3, label: 'hidden', points: 10, revealedAt: null },
+    // event 3: classic board plus two missions, one announced.
+    { id: 301, eventId: 3, position: 0, label: 'board', points: 10 },
+    { id: 302, eventId: 3, position: 1, label: 'announced', points: 25, mission: 1, revealedAt: day(-14) },
+    { id: 303, eventId: 3, position: 2, label: 'quiet', points: 25, mission: 1, revealedAt: null },
+    // event 4: tile-scored.
+    { id: 401, eventId: 4, position: 0, label: 'a', points: 10 },
+    { id: 402, eventId: 4, position: 1, label: 'b', points: 10 },
+  ]);
 
-  // event 3: classic board (everything visible) plus two missions, one announced. A completion on
-  // the un-announced mission must not score.
-  stmts.push(
-    `insert into tiles (id, event_id, position, label, points) values (301, 3, 0, 'board', 10)`,
-    `insert into tiles (id, event_id, position, label, points, mission, revealed_at) values (302, 3, 1, 'announced', 25, 1, '${day(-14)}')`,
-    `insert into tiles (id, event_id, position, label, points, mission, revealed_at) values (303, 3, 2, 'quiet', 25, 1, null)`,
-    `insert into completions (team_id, tile_id, completed_at) values (31, 301, '${day(-13)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (31, 302, '${day(-13)}')`,
-    `insert into completions (team_id, tile_id, completed_at) values (31, 303, '${day(-13)}')`,
-  );
-
-  // event 4: tile-scored. awardedPoints is set on one completion and must be ignored — a tile is
-  // worth one tile.
-  stmts.push(
-    `insert into tiles (id, event_id, position, label, points) values (401, 4, 0, 'a', 10)`,
-    `insert into tiles (id, event_id, position, label, points) values (402, 4, 1, 'b', 10)`,
-    `insert into completions (team_id, tile_id, completed_at, awarded_points) values (41, 401, '${day(-13)}', 99)`,
-    `insert into completions (team_id, tile_id, completed_at) values (41, 402, '${day(-13)}')`,
-  );
-
-  await client.batch(stmts, 'write');
+  await db.insert(s.completions).values([
+    // Alpha claims two (20), Beta one (10). The optional 50-pointer is claimed but off-board.
+    { teamId: 11, tileId: 101, completedAt: day(-15) },
+    { teamId: 11, tileId: 102, completedAt: day(-15) },
+    { teamId: 12, tileId: 103, completedAt: day(-15) },
+    { teamId: 11, tileId: 104, completedAt: day(-15) },
+    // Alpha claimed one revealed and one hidden — only the revealed one scores, so Alpha is on 10.
+    { teamId: 21, tileId: 201, completedAt: day(-15) },
+    { teamId: 21, tileId: 203, completedAt: day(-15) },
+    // A completion on the un-announced mission must not score.
+    { teamId: 31, tileId: 301, completedAt: day(-13) },
+    { teamId: 31, tileId: 302, completedAt: day(-13) },
+    { teamId: 31, tileId: 303, completedAt: day(-13) },
+    // awardedPoints is set on one completion and must be ignored — a tile is worth one tile.
+    { teamId: 41, tileId: 401, completedAt: day(-13), awardedPoints: 99 },
+    { teamId: 41, tileId: 402, completedAt: day(-13) },
+  ]);
 });
 
-after(() => {
-  rmSync(DB_FILE, { force: true });
-  rmSync(`${DB_FILE}-wal`, { force: true });
-  rmSync(`${DB_FILE}-shm`, { force: true });
+after(async () => {
+  await pool.end();
+  await dropDatabase(DB);
 });
 
 const card = async (id: number) => {

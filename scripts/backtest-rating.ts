@@ -5,8 +5,10 @@
  *
  *   DATABASE_URL=file:/path/to/snapshot.db node --experimental-strip-types scripts/backtest-rating.ts --event 8
  *
- * Read-only. Uses raw SQL on purpose — a prod snapshot may lag the local drizzle schema, so we
- * only touch columns that have existed for a long time.
+ * Read-only, and the LAST thing here that still speaks SQLite: it analyses standalone snapshot
+ * FILES taken before the Postgres port, never the live database. Uses raw SQL on purpose — a
+ * snapshot may lag the local drizzle schema, so it only touches columns that have existed for a
+ * long time. @libsql/client is a devDependency for exactly this.
  *
  * What it prints:
  *   1. ACTUAL   — final team totals and each person's share (the ground truth), plus the

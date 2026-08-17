@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, serial, boolean, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-export const events = sqliteTable('events', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const events = pgTable('events', {
+  id: serial('id').primaryKey(),
   name: text('name').notNull(),
   boardSize: integer('board_size').notNull(),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   draftStatus: text('draft_status').default('none').notNull(),
   draftOrder: text('draft_order'),
   startDate: text('start_date'),
@@ -106,8 +106,8 @@ export const events = sqliteTable('events', {
   startProofDrawnAt: text('start_proof_drawn_at'),
 });
 
-export const tiles = sqliteTable('tiles', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const tiles = pgTable('tiles', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   position: integer('position').notNull(),
   label: text('label').notNull(),
@@ -239,7 +239,7 @@ export const tiles = sqliteTable('tiles', {
 // so a second admin opening the same tile is warned who's already in it. Purely advisory —
 // the hard guard against clobbering is tiles.updatedAt above. Expired rows are reaped on
 // the next acquire attempt; tile deletion cascades the lock away.
-export const tileLocks = sqliteTable('tile_locks', {
+export const tileLocks = pgTable('tile_locks', {
   tileId: integer('tile_id').primaryKey().references(() => tiles.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull(),
   username: text('username').notNull(),
@@ -252,8 +252,8 @@ export const tileLocks = sqliteTable('tile_locks', {
 // Tiles tab can render a timeline. `tileId` is a plain int (NOT an FK) so a row survives the
 // tile being deleted; `tileLabel` snapshots the name so the history stays readable afterwards.
 // Mirrors the clan_audit_log conventions (free-text action, JSON old/new snapshots, actor).
-export const tileAuditLog = sqliteTable('tile_audit_log', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const tileAuditLog = pgTable('tile_audit_log', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id'), // no FK — history outlives the tile it describes
   tileLabel: text('tile_label'), // label snapshot at the time of the change
@@ -265,22 +265,22 @@ export const tileAuditLog = sqliteTable('tile_audit_log', {
   oldValue: text('old_value'),
   newValue: text('new_value'),
   actorUserId: integer('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
-  occurredAt: text('occurred_at').default(sql`(datetime('now'))`).notNull(),
+  occurredAt: text('occurred_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('tile_audit_log_event_id_idx').on(table.eventId),
   index('tile_audit_log_occurred_at_idx').on(table.occurredAt),
   index('tile_audit_log_tile_id_idx').on(table.tileId),
 ]);
 
-export const teams = sqliteTable('teams', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const teams = pgTable('teams', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   color: text('color').notNull(),
   // Captains are Discord-linked users — `captainUserId` references `users.id` and is the
   // sole captain identifier. The legacy `captain_password` column was retired once
-  // Discord login became required to participate; the column stays in DDL only because
-  // SQLite makes drops painful, but no code reads or writes it.
+  // Discord login became required to participate; the column stays in DDL only so the retirement
+  // never needed a data migration, but no code reads or writes it.
   captainPassword: text('captain_password'),
   captainUserId: integer('captain_user_id').references(() => users.id, { onDelete: 'set null' }),
   // Discord team-channel provisioning (bot-driven, see lib/discord-teams.ts). The
@@ -295,11 +295,11 @@ export const teams = sqliteTable('teams', {
   index('teams_captain_user_id_idx').on(table.captainUserId),
 ]);
 
-export const completions = sqliteTable('completions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const completions = pgTable('completions', {
+  id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
-  completedAt: text('completed_at').default(sql`(datetime('now'))`).notNull(),
+  completedAt: text('completed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   // The player who finished it: a stat tile (boss KC / skilling) that completed via the hiscores
   // sweep or a live push and so has NO submission to attribute, or a Solo count tile, where one
   // member reaching the count alone IS the completion (lib/countProgress). NULL for team-total
@@ -324,8 +324,8 @@ export const completions = sqliteTable('completions', {
   index('completions_team_id_idx').on(table.teamId),
 ]);
 
-export const players = sqliteTable('players', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const players = pgTable('players', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // clanMemberId is the source of truth for identity; `name` is kept as a per-event
   // display override (useful if an RSN changes mid-event). New enrollments should
@@ -380,8 +380,8 @@ export const players = sqliteTable('players', {
   index('players_clan_member_id_idx').on(table.clanMemberId),
 ]);
 
-export const submissions = sqliteTable('submissions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const submissions = pgTable('submissions', {
+  id: serial('id').primaryKey(),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   playerId: integer('player_id').references(() => players.id, { onDelete: 'set null' }),
@@ -406,14 +406,14 @@ export const submissions = sqliteTable('submissions', {
   // submission still counts — flagging is deliberately softer than refusing, since the drop really
   // happened and refusing would lose it. NULL on everything unremarkable.
   flaggedReason: text('flagged_reason'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
   index('submissions_team_id_idx').on(table.teamId),
   index('submissions_tile_team_idx').on(table.tileId, table.teamId),
 ]);
 
-export const settings = sqliteTable('settings', {
+export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: text('value'),
 });
@@ -425,8 +425,8 @@ export const settings = sqliteTable('settings', {
  * logged-in member approves the code — then the poll returns the account token exactly once.
  * Works identically for hosted, self-hosted-networked, and fully-standalone instances.
  */
-export const pluginDeviceCodes = sqliteTable('plugin_device_codes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const pluginDeviceCodes = pgTable('plugin_device_codes', {
+  id: serial('id').primaryKey(),
   // SHA-256 of the long random device_code the plugin holds; the raw value is never stored.
   deviceCodeHash: text('device_code_hash').notNull(),
   // Short human-typeable code shown in the plugin and confirmed on /link-device. Unambiguous
@@ -438,7 +438,7 @@ export const pluginDeviceCodes = sqliteTable('plugin_device_codes', {
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   // Minimum seconds between polls (slow_down pacing if the plugin polls faster).
   interval: integer('interval').notNull().default(5),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   expiresAt: text('expires_at').notNull(),
   lastPolledAt: text('last_polled_at'),
 }, (t) => [
@@ -449,7 +449,7 @@ export const pluginDeviceCodes = sqliteTable('plugin_device_codes', {
 
 // Tiny fixed-window rate-limit bucket store. Rows are self-garbage-collected
 // by an opportunistic DELETE on each write; nothing else needs scheduling.
-export const rateLimits = sqliteTable('rate_limits', {
+export const rateLimits = pgTable('rate_limits', {
   key: text('key').primaryKey(), // "<scope>:<ident>:<window-start-ms>"
   count: integer('count').default(1).notNull(),
   expiresAt: text('expires_at').notNull(),
@@ -457,8 +457,8 @@ export const rateLimits = sqliteTable('rate_limits', {
   index('rate_limits_expires_at_idx').on(table.expiresAt),
 ]);
 
-export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
   // Dead legacy columns (username + password_hash). Discord OAuth is the only auth path now;
   // these are left in the table to keep migrations cheap. Stop reading/writing them.
   username: text('username').unique(),
@@ -484,21 +484,21 @@ export const users = sqliteTable('users', {
   //
   // The legacy `editor` role predates this and meant "member with global authoring" — migration
   // 0048 converts those rows, and nothing new should ever write role='editor'.
-  canEditTiles: integer('can_edit_tiles', { mode: 'boolean' }).notNull().default(false),
+  canEditTiles: boolean('can_edit_tiles').notNull().default(false),
   // The clan owner — the person who provisioned this instance. Exactly one user has this set.
   // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
   // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can
   // transfer ownership. Granted once at genesis to the ADMIN_DISCORD_ID user on a fresh
   // instance; never auto-reassigned afterwards. See transfer-ownership route.
-  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
+  isOwner: boolean('is_owner').notNull().default(false),
   // Site ban. A banned user gets no authenticated session (verifyUser → null) and is refused on
   // Discord login, so they can't act as a member/staff. The owner can never be banned. (Public,
   // logged-out pages stay public — blocking those is an IP/Caddy concern, not this flag.)
-  banned: integer('banned', { mode: 'boolean' }).notNull().default(false),
+  banned: boolean('banned').notNull().default(false),
   bannedAt: text('banned_at'),
   bannedReason: text('banned_reason'),
   bannedByUserId: integer('banned_by_user_id'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   createdBy: integer('created_by'),
   // Discord OAuth identity (the primary login path for non-staff users)
   discordId: text('discord_id').unique(),
@@ -520,11 +520,11 @@ export const users = sqliteTable('users', {
 // they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
 // by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
 // the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
-export const eventEditors = sqliteTable('event_editors', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const eventEditors = pgTable('event_editors', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   // The admin who granted this (audit only; nullable for system/backfill rows).
   grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
@@ -532,14 +532,14 @@ export const eventEditors = sqliteTable('event_editors', {
   index('event_editors_user_idx').on(table.userId),
 ]);
 
-export const weeklyCompetitions = sqliteTable('weekly_competitions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const weeklyCompetitions = pgTable('weekly_competitions', {
+  id: serial('id').primaryKey(),
   type: text('type').notNull(), // 'skill' | 'boss'
   metric: text('metric').notNull(), // e.g. 'attack', 'zulrah'
   title: text('title').notNull(),
   startDate: text('start_date').notNull(),
   endDate: text('end_date').notNull(),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('upcoming'), // 'upcoming' | 'active' | 'completed'
   // Whether auto-enrollment sweeps in guests (clan_members.is_guest = 1) alongside full members.
@@ -550,8 +550,8 @@ export const weeklyCompetitions = sqliteTable('weekly_competitions', {
   includeGuests: integer('include_guests').notNull().default(1),
 });
 
-export const weeklyParticipants = sqliteTable('weekly_participants', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const weeklyParticipants = pgTable('weekly_participants', {
+  id: serial('id').primaryKey(),
   competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   // clanMemberId links back to the global roster so leaderboards can deduplicate
   // when an RSN is renamed. Kept nullable to support legacy rows and guest-only participants.
@@ -582,15 +582,15 @@ export const weeklyParticipants = sqliteTable('weekly_participants', {
 
 // Global clan roster. Source of truth for "who is in the clan" across all events.
 // Per-event enrollment lives in `players` (and `weeklyParticipants`) and references a row here.
-export const clanMembers = sqliteTable('clan_members', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const clanMembers = pgTable('clan_members', {
+  id: serial('id').primaryKey(),
   rsn: text('rsn').notNull(),                 // display casing
   rsnNormalized: text('rsn_normalized').notNull(), // lowercased for uniqueness (OSRS is case-insensitive)
   discordId: text('discord_id'),              // legacy column; prefer joining via userId → users.discordId
   rank: text('rank'),                         // clan rank name as reported by RuneLite (e.g. 'general', 'captain')
   isGuest: integer('is_guest').default(0).notNull(),
   source: text('source').notNull().default('manual'), // 'manual' | 'plugin-self' | 'plugin-roster'
-  joinedAt: text('joined_at').default(sql`(datetime('now'))`).notNull(),
+  joinedAt: text('joined_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   leftAt: text('left_at'),                    // soft-delete timestamp; null = active
   lastSeenInClan: text('last_seen_in_clan'),  // bumped on each roster sync that includes this rsn
   notes: text('notes'),
@@ -674,8 +674,8 @@ export const clanMembers = sqliteTable('clan_members', {
 // Append-only history of what happened to clan_members rows: joined, left, returned,
 // renamed, verified, claimed, merged, promoted, demoted. Powers the admin audit view
 // and the Discord audit pings.
-export const clanAuditLog = sqliteTable('clan_audit_log', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const clanAuditLog = pgTable('clan_audit_log', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
   eventType: text('event_type').notNull(),
   // Snapshots of relevant fields before/after the event, JSON-encoded. Examples:
@@ -686,7 +686,7 @@ export const clanAuditLog = sqliteTable('clan_audit_log', {
   newValue: text('new_value'),
   actorUserId: integer('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
   notes: text('notes'),
-  occurredAt: text('occurred_at').default(sql`(datetime('now'))`).notNull(),
+  occurredAt: text('occurred_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('clan_audit_log_member_id_idx').on(table.clanMemberId),
   index('clan_audit_log_occurred_at_idx').on(table.occurredAt),
@@ -696,8 +696,8 @@ export const clanAuditLog = sqliteTable('clan_audit_log', {
 // Stat-delta verification: a Discord-linked user claims an RSN, we snapshot Hiscores XP
 // per skill, ask them to gain ≥minDelta XP in any skill within the window, then re-poll.
 // On success we mark the corresponding clanMember verified with method='stat_delta'.
-export const verificationAttempts = sqliteTable('verification_attempts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const verificationAttempts = pgTable('verification_attempts', {
+  id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   rsn: text('rsn').notNull(),
   rsnNormalized: text('rsn_normalized').notNull(),
@@ -708,7 +708,7 @@ export const verificationAttempts = sqliteTable('verification_attempts', {
   completedAt: text('completed_at'),
   succeeded: integer('succeeded').default(0).notNull(),
   failureReason: text('failure_reason'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('verification_attempts_user_id_idx').on(table.userId),
   index('verification_attempts_rsn_normalized_idx').on(table.rsnNormalized),
@@ -721,8 +721,8 @@ export const verificationAttempts = sqliteTable('verification_attempts', {
 // verifies the clan_member) or Ignores (status → 'dismissed', so it isn't re-suggested) the
 // account from /profile. One row per (user, rsn); accountHash captured when the plugin
 // reports it so an Add survives a later in-game rename.
-export const detectedAccounts = sqliteTable('detected_accounts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const detectedAccounts = pgTable('detected_accounts', {
+  id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   rsn: text('rsn').notNull(),                       // display casing as last reported in-game
   rsnNormalized: text('rsn_normalized').notNull(),  // lowercased for the per-user uniqueness guard
@@ -740,11 +740,11 @@ export const detectedAccounts = sqliteTable('detected_accounts', {
 // Distinct from per-event `players.playerToken` (which scopes a player to one event/team).
 // Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the
 // admin can use this token from any in-game character on their account.
-export const pluginLinks = sqliteTable('plugin_links', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const pluginLinks = pgTable('plugin_links', {
+  id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').notNull(),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   lastUsedAt: text('last_used_at'),
   revokedAt: text('revoked_at'),
 }, (table) => [
@@ -758,8 +758,8 @@ export const pluginLinks = sqliteTable('plugin_links', {
 // snapshot of the responses captured at submit time, editable by the user up until
 // `events.signupDeadline`. New signups prefill from the user's most recent prior signup so
 // they don't re-type unchanged answers.
-export const eventSignups = sqliteTable('event_signups', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const eventSignups = pgTable('event_signups', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // Nullable: a "guest" sign-up for an in-game roster member who has no linked site user yet
   // (e.g. added by an admin / by name). Linked members carry their user id. A person may now enter up
@@ -777,9 +777,9 @@ export const eventSignups = sqliteTable('event_signups', {
   // When set, this approved sign-up does NOT count toward the entry-fee prize pool (lib/prizePool).
   // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
   // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
-  excludeFromPrizePool: integer('exclude_from_prize_pool', { mode: 'boolean' }).notNull().default(false),
-  signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  excludeFromPrizePool: boolean('exclude_from_prize_pool').notNull().default(false),
+  signedUpAt: text('signed_up_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   // Multi-account: a person (userId) may now enter up to events.maxAccountsPerPerson accounts, so the
   // old one-per-user unique is gone. Dedup is per ACCOUNT instead — one sign-up per (event, clanMember)
@@ -795,8 +795,8 @@ export const eventSignups = sqliteTable('event_signups', {
 //   pending → reported (player names who they paid) → collected (mod claims + uploads proof)
 //   → confirmed (admin clears; proof blob is then deleted to save storage)
 // disputed = collector claim and player report disagree; surfaces an admin badge.
-export const signupFees = sqliteTable('signup_fees', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const signupFees = pgTable('signup_fees', {
+  id: serial('id').primaryKey(),
   signupId: integer('signup_id').notNull().references(() => eventSignups.id, { onDelete: 'cascade' }),
   amount: integer('amount').notNull(),
   status: text('status').notNull().default('pending'),
@@ -828,8 +828,8 @@ export const signupFees = sqliteTable('signup_fees', {
 // each). Amounts are auto-suggested from the prize pool at generation time, then admin-editable.
 // Status flow: pending → paid (a treasurer/admin marks it, optionally attaching a screenshot). When
 // every payout for the event is paid, the winners+amounts are announced to the bingo webhook.
-export const payouts = sqliteTable('payouts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const payouts = pgTable('payouts', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // Recipient identity. clanMemberId is the stable link (set null if the member is later deleted or
   // for free-form manual rows); `rsn` is the display name captured when the row was created.
@@ -848,12 +848,12 @@ export const payouts = sqliteTable('payouts', {
   paidByUserId: integer('paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   paidAt: text('paid_at'),
   notes: text('notes'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('payouts_event_id_idx').on(table.eventId),
   index('payouts_status_idx').on(table.status),
   // One auto-generated payout per (event, member). NULL clanMemberId rows (free-form) are exempt —
-  // SQLite treats NULLs as distinct in a unique index — so multiple manual entries are allowed.
+  // NULLs count as distinct in a unique index — so multiple manual entries are allowed.
   uniqueIndex('payouts_event_member_unique').on(table.eventId, table.clanMemberId),
 ]);
 
@@ -866,8 +866,8 @@ export const payouts = sqliteTable('payouts', {
 // or → denied (resolution column has the reason). Re-submissions with the same target
 // RSN are allowed once a prior attempt is resolved; a unique partial-style guard is
 // enforced at the application layer at submit time.
-export const pendingRenames = sqliteTable('pending_renames', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const pendingRenames = pgTable('pending_renames', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
   oldRsn: text('old_rsn').notNull(),
   newRsn: text('new_rsn').notNull(),
@@ -882,7 +882,7 @@ export const pendingRenames = sqliteTable('pending_renames', {
   resolution: text('resolution'),
   submittedByUserId: integer('submitted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   reviewedAt: text('reviewed_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('pending_renames_status_idx').on(table.status),
   index('pending_renames_member_idx').on(table.clanMemberId),
@@ -892,8 +892,8 @@ export const pendingRenames = sqliteTable('pending_renames', {
 // member. Two roles: (1) recompute leaderboards for any comp window without trusting
 // the per-comp `currentValue` cache; (2) catch negative-gain anomalies retroactively.
 // Payload is JSON to avoid a 200-column table for ~150 members.
-export const playerSnapshots = sqliteTable('player_snapshots', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const playerSnapshots = pgTable('player_snapshots', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
   // Competition this snapshot belongs to. Snapshots are scoped to a weekly competition so we
   // keep exactly two per (member, competition): a frozen 'baseline' at event start and a
@@ -902,15 +902,15 @@ export const playerSnapshots = sqliteTable('player_snapshots', {
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   // 'baseline' (insert-once, frozen at enrollment) | 'current' (upserted each tick).
   kind: text('kind').notNull().default('current'),
-  capturedAt: text('captured_at').default(sql`(datetime('now'))`).notNull(),
+  capturedAt: text('captured_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   // JSON: { skills: { attack: {xp,level,rank}, ... }, bosses: { zulrah: {score,rank}, ... } }
   payload: text('payload').notNull(),
   // Denormalized for cheap ORDER BY and the rename detector's "latest overall XP" probe.
   overallXp: integer('overall_xp'),
 }, (table) => [
   index('player_snapshots_member_captured_idx').on(table.clanMemberId, table.capturedAt),
-  // One baseline + one current per member per competition. NULLs are distinct in SQLite, so
-  // legacy/orphan rows (NULL competition) never collide here.
+  // One baseline + one current per member per competition. NULLs count as distinct in a unique
+  // index, so legacy/orphan rows (NULL competition) never collide here.
   uniqueIndex('player_snapshots_member_comp_kind_idx').on(table.clanMemberId, table.weeklyCompetitionId, table.kind),
 ]);
 
@@ -918,8 +918,8 @@ export const playerSnapshots = sqliteTable('player_snapshots', {
 // profile folds over (balance-engine plan). Written once at event end (idempotent re-write on
 // demand), backfillable for past events. A person = linked user ('u<id>') > clan member
 // ('m<id>') > bare RSN ('n<rsn>') — durable across events, unlike per-event player ids.
-export const playerEventFacts = sqliteTable('player_event_facts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const playerEventFacts = pgTable('player_event_facts', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   personKey: text('person_key').notNull(),
   clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
@@ -960,13 +960,13 @@ export const playerEventFacts = sqliteTable('player_event_facts', {
 
 // Short-lived one-time codes an admin generates on the site and pastes into the plugin.
 // Plugin exchanges {code, rsn} for a pluginLinks row.
-export const pluginLinkCodes = sqliteTable('plugin_link_codes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const pluginLinkCodes = pgTable('plugin_link_codes', {
+  id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   code: text('code').notNull(),
   expiresAt: text('expires_at').notNull(),
   consumedAt: text('consumed_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('plugin_link_codes_code_unique').on(table.code),
   index('plugin_link_codes_user_id_idx').on(table.userId),
@@ -979,7 +979,7 @@ export const pluginLinkCodes = sqliteTable('plugin_link_codes', {
 // cron backstop — posts ONE merged embed per quiet window, or immediately when a submission completes
 // the tile. The submission row itself is always written first, so nothing here is load-bearing: a
 // dropped bucket loses a cosmetic post, never progress. Rows are deleted on flush.
-export const pendingNotifications = sqliteTable('pending_notifications', {
+export const pendingNotifications = pgTable('pending_notifications', {
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
@@ -1006,15 +1006,15 @@ export const pendingNotifications = sqliteTable('pending_notifications', {
 // tiles-as-CSV lets staff re-launch a proven board in one click from the create gallery. `tiles` is
 // the canonical tile CSV (same format as the bulk importer) so applying a preset reuses the tested
 // import pipeline verbatim.
-export const eventPresets = sqliteTable('event_presets', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const eventPresets = pgTable('event_presets', {
+  id: serial('id').primaryKey(),
   name: text('name').notNull(),
   format: text('format').notNull(),
   scoringMode: text('scoring_mode').notNull(),
   boardSize: integer('board_size').notNull(),
   tiles: text('tiles'),
   createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('event_presets_created_at_idx').on(table.createdAt),
 ]);
@@ -1032,8 +1032,8 @@ export const eventPresets = sqliteTable('event_presets', {
 // and templates already speak, so a drawn tile keeps its drop targets, thresholds and item lists
 // instead of degrading to a bare label. Tier is NOT stored: it's derived from `points` through the
 // clan's own tier_bands at draw time, so retuning the bands re-tiers the catalogue with it.
-export const tileLibrary = sqliteTable('tile_library', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const tileLibrary = pgTable('tile_library', {
+  id: serial('id').primaryKey(),
   label: text('label').notNull(),
   description: text('description'),
   tileType: text('tile_type').default('standard').notNull(),
@@ -1046,7 +1046,7 @@ export const tileLibrary = sqliteTable('tile_library', {
   /** Which board it was harvested from, when it was. Kept for provenance, not enforced. */
   sourceEventId: integer('source_event_id').references(() => events.id, { onDelete: 'set null' }),
   createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('tile_library_points_idx').on(table.points),
   index('tile_library_category_idx').on(table.category),
@@ -1059,8 +1059,8 @@ export const tileLibrary = sqliteTable('tile_library', {
 // here. An admin can ELEVATE a report to the central Anvil.Admin so the operator sees it across
 // clans — available on managed hosting only (elevation is disabled on self-hosted instances, which
 // have no ANVIL_ADMIN_FEEDBACK_URL configured).
-export const feedback = sqliteTable('feedback', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const feedback = pgTable('feedback', {
+  id: serial('id').primaryKey(),
   kind: text('kind').notNull().default('bug'), // 'bug' | 'feedback'
   subject: text('subject').notNull(),
   body: text('body').notNull(),
@@ -1069,10 +1069,10 @@ export const feedback = sqliteTable('feedback', {
   contact: text('contact'), // optional handle/RSN the reporter left
   pageUrl: text('page_url'), // where they were when reporting (context)
   adminNotes: text('admin_notes'),
-  elevated: integer('elevated', { mode: 'boolean' }).notNull().default(false),
+  elevated: boolean('elevated').notNull().default(false),
   elevatedAt: text('elevated_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('feedback_status_idx').on(table.status),
   index('feedback_created_at_idx').on(table.createdAt),
@@ -1084,8 +1084,8 @@ export const feedback = sqliteTable('feedback', {
 // response stores all its answers as one JSON blob keyed by question id. Responses are attributed to
 // the submitting user but STAFF-ONLY (never surfaced publicly). This is unrelated to the app-level
 // `feedback` bug/support table above.
-export const surveyQuestions = sqliteTable('survey_questions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const surveyQuestions = pgTable('survey_questions', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
   // 'rating' (1–5 scale), 'text' (free response), 'single' (choose one), 'multi' (choose many).
@@ -1093,14 +1093,14 @@ export const surveyQuestions = sqliteTable('survey_questions', {
   prompt: text('prompt').notNull(),
   // JSON string[] of choices for 'single' / 'multi'; NULL for 'rating' / 'text'.
   options: text('options'),
-  required: integer('required', { mode: 'boolean' }).notNull().default(false),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  required: boolean('required').notNull().default(false),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('survey_questions_event_id_idx').on(table.eventId),
 ]);
 
-export const surveyResponses = sqliteTable('survey_responses', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const surveyResponses = pgTable('survey_responses', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // The participant who submitted (attributed, staff-only). set null on user delete keeps the response
   // in the aggregate counts (just detached). One row per (event, user) — enforced below.
@@ -1108,7 +1108,7 @@ export const surveyResponses = sqliteTable('survey_responses', {
   // { [questionId]: number | string | string[] } — one blob per submission. Keys map to
   // survey_questions.id; answers for since-deleted questions are ignored when results are rendered.
   answers: text('answers').notNull(),
-  submittedAt: text('submitted_at').default(sql`(datetime('now'))`).notNull(),
+  submittedAt: text('submitted_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('survey_responses_event_user_unique').on(table.eventId, table.userId),
   index('survey_responses_event_id_idx').on(table.eventId),
@@ -1131,8 +1131,8 @@ export const surveyResponses = sqliteTable('survey_responses', {
  * Records (best day / week / month) are NOT stored: they're a query over these rows, which is at most
  * 365 tiny rows per member. Nothing to maintain incrementally, nothing to drift.
  */
-export const memberDailyStats = sqliteTable('member_daily_stats', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const memberDailyStats = pgTable('member_daily_stats', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
   // UTC calendar day, 'YYYY-MM-DD'. UTC because every other date in the app is, and a clan spans zones.
   day: text('day').notNull(),
@@ -1150,7 +1150,7 @@ export const memberDailyStats = sqliteTable('member_daily_stats', {
 
   // JSON `{ skills: { slayer: 412000 }, bosses: { zulrah: 140 } }` — ONLY metrics that moved.
   deltas: text('deltas'),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('member_daily_stats_member_day_idx').on(table.clanMemberId, table.day),
   index('member_daily_stats_day_idx').on(table.day),
@@ -1165,8 +1165,8 @@ export const memberDailyStats = sqliteTable('member_daily_stats', {
  * within their polling interval. Recorded as `noticedAt` rather than pretending to be the moment it
  * happened in game.
  */
-export const memberMilestones = sqliteTable('member_milestones', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const memberMilestones = pgTable('member_milestones', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
   // 'level' (99s) | 'xp' | 'kc' | 'ehb' | 'ehp' | 'total'
   kind: text('kind').notNull(),
@@ -1174,7 +1174,7 @@ export const memberMilestones = sqliteTable('member_milestones', {
   metric: text('metric'),
   // The threshold crossed: 99, 50_000_000, 1000 kills…
   threshold: integer('threshold').notNull(),
-  noticedAt: text('noticed_at').default(sql`(datetime('now'))`).notNull(),
+  noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('member_milestones_unique').on(table.clanMemberId, table.kind, table.metric, table.threshold),
   index('member_milestones_member_idx').on(table.clanMemberId, table.noticedAt),
@@ -1189,8 +1189,8 @@ export const memberMilestones = sqliteTable('member_milestones', {
  * while scouting is somewhere else. Rows survive the draft (they're a record of intent, and cost
  * nothing) and are keyed on the person, not the account, so an alt row never splits a plan.
  */
-export const draftShortlists = sqliteTable('draft_shortlists', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const draftShortlists = pgTable('draft_shortlists', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // The captain. Not the team: a captain who changes teams keeps their own list, and a team with a
   // new captain doesn't inherit the old one's opinions.
@@ -1202,8 +1202,8 @@ export const draftShortlists = sqliteTable('draft_shortlists', {
   position: integer('position').notNull(),
   // The captain's own note on this person, e.g. "take before pick 22, wants raids".
   note: text('note'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('draft_shortlists_unique').on(table.eventId, table.userId, table.personKey),
   index('draft_shortlists_owner_idx').on(table.eventId, table.userId, table.position),
@@ -1212,8 +1212,8 @@ export const draftShortlists = sqliteTable('draft_shortlists', {
 // STARTING SHOT proofs — one row per enrolled player per event (lib/startProof). The image is the
 // same managed-media upload every other proof uses (/api/upload → WebP), so a full roster costs
 // about as much storage as a handful of drop screenshots.
-export const eventStartProofs = sqliteTable('event_start_proofs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const eventStartProofs = pgTable('event_start_proofs', {
+  id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // The ENROLMENT, not the person: a two-account player owes a shot per account they entered, which
   // is the point — the gate is per credit, and credits are per player row.
@@ -1229,7 +1229,7 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
   // What the client says was on screen, and whether the server recomputed it to a match. A plugin
   // capture with keywordOk can be auto-accepted; a hand-typed web one never is (see autoAcceptDecision).
   keyword: text('keyword'),
-  keywordOk: integer('keyword_ok', { mode: 'boolean' }).notNull().default(false),
+  keywordOk: boolean('keyword_ok').notNull().default(false),
   // Client-claimed capture time (the plugin's own UTC stamp). Advisory; createdAt is ours.
   capturedAt: text('captured_at'),
   // pending = on file, awaiting a look; accepted = counted; rejected = player must re-take.
@@ -1237,7 +1237,7 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
   reviewNote: text('review_note'),
   reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
   reviewedAt: text('reviewed_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('event_start_proof_player_unique').on(table.eventId, table.playerId),
   index('event_start_proof_event_status_idx').on(table.eventId, table.status),
@@ -1254,8 +1254,8 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
  * safe to hand to someone from another clan. What it grants is deliberately short of admin — see
  * lib/teamStaff for the list, and note that subbing a player out mid-event stays with the host.
  */
-export const teamStaff = sqliteTable('team_staff', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const teamStaff = pgTable('team_staff', {
+  id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   // The admin who handed it over — audit only, and nullable so a deleted account doesn't take the
@@ -1263,7 +1263,7 @@ export const teamStaff = sqliteTable('team_staff', {
   grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // Free-text for the host: "Ironforge's mod", "runs their side of the 25v25".
   note: text('note'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('team_staff_team_user_unique').on(table.teamId, table.userId),
   index('team_staff_user_idx').on(table.userId),
@@ -1287,7 +1287,7 @@ export const teamStaff = sqliteTable('team_staff', {
 // what lets the UI say "68 of 125" instead of pretending a partial log is a complete one.
 
 /** One row per member: how much of the log we have, and the identity to merge it by later. */
-export const memberClog = sqliteTable('member_clog', {
+export const memberClog = pgTable('member_clog', {
   clanMemberId: integer('clan_member_id')
     .primaryKey()
     .references(() => clanMembers.id, { onDelete: 'cascade' }),
@@ -1315,8 +1315,8 @@ export const memberClog = sqliteTable('member_clog', {
  * into clog.json. Kept as text rather than an id because the catalogue is a file, not a table: an id
  * would have to be minted and kept stable across dataset rebuilds, and the name already is.
  */
-export const memberClogItems = sqliteTable('member_clog_items', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const memberClogItems = pgTable('member_clog_items', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
     .references(() => clanMembers.id, { onDelete: 'cascade' }),
@@ -1347,8 +1347,8 @@ export const memberClogItems = sqliteTable('member_clog_items', {
  * Exact, and it covers content the hiscores never lists. Display and luck maths only — crediting a
  * kill tile from this would double-count against the chat line that already credits it.
  */
-export const memberClogKc = sqliteTable('member_clog_kc', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const memberClogKc = pgTable('member_clog_kc', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
     .references(() => clanMembers.id, { onDelete: 'cascade' }),
@@ -1365,16 +1365,16 @@ export const memberClogKc = sqliteTable('member_clog_kc', {
  * `teamSize` is part of the key because a solo Chambers PB and a five-man one are different records;
  * null means the activity doesn't have team sizes (or the client didn't say).
  */
-export const memberPersonalBests = sqliteTable('member_personal_bests', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const memberPersonalBests = pgTable('member_personal_bests', {
+  id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
     .references(() => clanMembers.id, { onDelete: 'cascade' }),
   /** Lowercased activity name as the game's kill-count line names it. */
   activity: text('activity').notNull(),
   /**
-   * 0 means "this activity has no team sizes", NOT null. SQLite counts NULLs as distinct in a
-   * unique index, so a nullable column here would let one member accumulate a new row per push for
+   * 0 means "this activity has no team sizes", NOT null. NULLs count as distinct in a unique
+   * index, so a nullable column here would let one member accumulate a new row per push for
    * every activity that doesn't report a size — which is nearly all of them.
    */
   teamSize: integer('team_size').notNull().default(0),

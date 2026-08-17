@@ -1,1 +1,0 @@
-ALTER TABLE `clan_members` ADD `live_stat_key_times` text;
