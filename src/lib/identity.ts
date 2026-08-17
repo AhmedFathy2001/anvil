@@ -124,20 +124,11 @@ async function linkSignupsToOwner(clanMemberId: number, userId: number): Promise
  * Discord link-member. Consolidating the side effects here is what keeps them from drifting apart as
  * new link paths appear.
  *
- * Today that means: adopt the character's guest sign-ups, and (federation) advertise the membership
- * to the broker. The association push used to happen only during Discord login, which reads the
- * membership BEFORE these paths create it — so someone joining a new clan wasn't advertised until
- * their SECOND login there, and until then the clan couldn't appear in their plugin sidebar.
- *
- * Both effects are best-effort: linking a character must never fail because a broker is down.
+ * Today that means: adopt the character's guest sign-ups. Best-effort — linking a character must
+ * never fail because a downstream side effect did.
  */
 export async function onCharacterLinked(clanMemberId: number, userId: number): Promise<void> {
   await linkSignupsToOwner(clanMemberId, userId).catch(() => {});
-  // Dynamic import: lib/federation pulls in the relay/crypto stack, and this module is imported by
-  // lib/auth — the same static-cycle dodge used for discord-roles in lib/auth.ts.
-  import('@/lib/federation')
-    .then((m) => m.pushMemberAssociations(userId))
-    .catch(() => {});
 }
 
 // Unowned game accounts (roster members + guests not yet attached to a person, still in the clan).

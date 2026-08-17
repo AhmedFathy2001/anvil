@@ -5,7 +5,7 @@
 // (the lifecycle cron's scheduled start, the admin "start-now" action) now runs these checks.
 //
 // Pure and dependency-free (no `@/` imports) so tests/event-readiness.test.ts can run it directly
-// with Node type-stripping, like lib/eventRules and lib/federationDecisions. Callers fetch the
+// with Node type-stripping, like lib/eventRules. Callers fetch the
 // counts (see eventLifecycle.getEventStartReadiness) and pass them in.
 
 // 'no-end-date' is a WARNING, not a state check: an event with no end date runs until someone ends

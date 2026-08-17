@@ -15,7 +15,7 @@ import { APP_VERSION } from '@/lib/serverInfo';
  * no event/tile names, nothing member-scoped: this is the one route on the site that answers to
  * strangers with no rate limit in front of it, so it must stay boring on purpose.
  *
- * Opt out with the `public_showcase` setting (Advanced settings → Federation), which flips this to
+ * Opt out with the `public_showcase` setting (Advanced settings), which flips this to
  * `{ listed: false }` and nothing else.
  */
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ export async function GET() {
     [firstMember],
     inviteRow,
   ] = await Promise.all([
-    // Active roster: still in the clan (no leftAt) and not a federation guest.
+    // Active roster: still in the clan (no leftAt) and not a guest.
     db
       .select({ n: count() })
       .from(clanMembers)

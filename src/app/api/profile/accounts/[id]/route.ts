@@ -9,7 +9,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 //
 // Promote one of the caller's own accounts to their primary (main), demoting the rest. The primary
 // is the person's default representative: the name their team takes in per-person events, the RSN
-// that leads their Discord nickname, and what other clans see first over federation. It used to be
+// that leads their Discord nickname. It used to be
 // implicit (first account linked wins) and only an admin could change it, from the clan roster.
 //
 // Deliberately not gated on verification — the same as the admin path. Picking an unverified alt is

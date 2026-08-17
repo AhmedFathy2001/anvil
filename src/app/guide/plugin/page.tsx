@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getOAuthMode } from '@/lib/discord-oauth';
-import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
+import { getClanDisplayName } from '@/lib/pluginConfig';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 
 export const metadata: Metadata = {
@@ -62,7 +62,6 @@ export default async function PluginGuidePage() {
   // someone thinks it's a phishing redirect); a BYO-app instance never leaves this site. 'none' means
   // Discord login isn't configured at all, so the in-plugin sign-in can't work — token only.
   const oauthMode = getOAuthMode();
-  const federationEnabled = await getFederationEnabled();
 
   return (
     <GuideShell
@@ -176,45 +175,15 @@ export default async function PluginGuidePage() {
                   ]}
                 />
 
-                {/* Instance-specific: where the browser actually goes to authenticate you. */}
-                {oauthMode === 'brokered' ? (
-                  <Note tag="Why a second domain appears">
-                    <p>
-                      Approving happens here, on{' '}
-                      <code className="font-mono text-gold/90 break-all">{origin}</code>. If
-                      you&rsquo;re not signed into the site yet, the login step routes through
-                      Anvil&rsquo;s shared Discord login on{' '}
-                      <code className="font-mono">anvilosrs.com</code> to confirm your Discord
-                      identity, then lands you straight back here — that&rsquo;s the same login you
-                      get from the Login button on this site, not part of the plugin flow.
-                    </p>
-                    <p>
-                      The plugin itself only ever talks to{' '}
-                      <code className="font-mono text-gold/90 break-all">{origin}</code>: it refuses
-                      to open any sign-in page that isn&rsquo;t on the Site URL you typed.
-                    </p>
-                  </Note>
-                ) : (
-                  <Note tag="Where this happens">
-                    <p>
-                      Everything in this flow stays on{' '}
-                      <code className="font-mono text-gold/90 break-all">{origin}</code> — the code is
-                      issued here, approved here with {clanName}&rsquo;s own Discord login, and the
-                      token is handed back here. The plugin refuses to open any sign-in page that
-                      isn&rsquo;t on the Site URL you typed, so nothing in this step reaches another
-                      Anvil instance.
-                    </p>
-                  </Note>
-                )}
-
-                {federationEnabled && (
-                  <p className="text-sm text-text-muted">
-                    Not to be confused with{' '}
-                    <span className="text-foreground font-medium">Connect clans</span> in the side
-                    panel — that&rsquo;s the separate, optional button that links you to other Anvil
-                    clans, and it only appears once you&rsquo;re already signed in here.
+                <Note tag="Where this happens">
+                  <p>
+                    Everything in this flow stays on{' '}
+                    <code className="font-mono text-gold/90 break-all">{origin}</code> — the code is
+                    issued here, approved here with {clanName}&rsquo;s own Discord login, and the
+                    token is handed back here. The plugin refuses to open any sign-in page that
+                    isn&rsquo;t on the Site URL you typed.
                   </p>
-                )}
+                </Note>
 
                 <p className="text-text-muted text-sm">
                   If the browser doesn&rsquo;t open on its own, the panel prints the address and the

@@ -509,7 +509,7 @@ async function autoLinkOrSuggestOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
-    // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+    // Character now has an owner: adopt its guest sign-ups.
     await onCharacterLinked(clanMemberId, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
@@ -566,7 +566,7 @@ async function maybeAutoClaimEstablishedOnPlay(
         actorUserId: userId,
       })
       .catch(() => {});
-    // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+    // Character now has an owner: adopt its guest sign-ups.
     await onCharacterLinked(existing.id, userId);
   } catch {
     // Best-effort — a failure must not break plugin auth.
@@ -699,7 +699,7 @@ export async function claimAccountForUser(
   import('@/lib/discord-roles')
     .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
     .catch(() => {});
-  // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+  // Character now has an owner: adopt its guest sign-ups.
   onCharacterLinked(clanMemberId, userId).catch(() => {});
 
   return { ok: true, clanMemberId };

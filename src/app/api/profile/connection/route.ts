@@ -27,7 +27,7 @@ export async function GET() {
     }),
   ]);
 
-  // Federation anchors (`guest:<discordId>`) aren't accounts — see api/federation/v1/exchange.
+  // Legacy federation anchors (`guest:<discordId>`) aren't accounts — rows a removed feature left behind.
   const real = members.filter((m) => !m.rsn.startsWith('guest:'));
   let lastPingAt: string | null = null;
   let lastPingRsn: string | null = null;

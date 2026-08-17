@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     clanMemberId = inserted[0].id;
   }
 
-  // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
+  // Character now has an owner: adopt its guest sign-ups.
   await onCharacterLinked(clanMemberId, session.userId);
 
   db.insert(clanAuditLog)

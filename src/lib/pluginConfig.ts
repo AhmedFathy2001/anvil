@@ -306,7 +306,7 @@ export async function getDropRarityFloor(): Promise<number> {
 // --- Clan naming ----------------------------------------------------------------------------
 // Two independent names, because the two jobs are different:
 //   clan_name        — the DISPLAY name. What the site, the plugin sidebar, Discord posts and the
-//                      federation directory call this clan. Free-form; rename at will.
+//                      other clans call this clan. Free-form; rename at will.
 //   clan_ingame_name — the EXACT in-game clan name, used only to gate the plugin's roster sync
 //                      (/api/plugin/clan-sync). Blank = accept a sync from any clan.
 // A clan whose OSRS clan is "Anvl CC" can therefore present itself as "The Anvil" everywhere.
@@ -314,7 +314,7 @@ export const CLAN_NAME_SETTING_KEY = 'clan_name';
 export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
 
 // The clan's display name — plugin sidebar (clan filter label + logged-out home card), the web
-// home hero, guides, Discord posts, the federation directory. Resolution: settings row, provisioner
+// home hero, guides, Discord posts. Resolution: settings row, provisioner
 // env, caller-supplied fallback (pages use softer prose fallbacks like "your clan").
 export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, CLAN_NAME_SETTING_KEY) });
@@ -352,123 +352,21 @@ export async function getTierBands(): Promise<TierBand[]> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Federation scalars (see docs/FEDERATION.md). Edited on Admin → Integrations;
-// consumed by /api/federation/v1/* and (at L2) the /exchange + /events tracks.
-// ---------------------------------------------------------------------------
-export const FEDERATION_SHARED_CREDIT_KEY = 'federation_shared_credit';
-export const FEDERATION_EXCHANGE_POLICY_KEY = 'federation_exchange_policy';
-export const FEDERATION_ASSOCIATION_PUSH_KEY = 'federation_association_push';
-export const FEDERATION_BROKER_TRUST_KEY = 'federation_broker_trust';
-// Master site-relayed-federation switch (WIRE §10.1). 'on' | '' (off). One toggle federates every
-// member of the clan; on enable the site registers with the broker and starts relaying. Read by the
-// plugin-facing /api/plugin/federation/* endpoints; NEVER exposes the broker URL to the plugin.
-export const FEDERATION_ENABLED_KEY = 'federation_enabled';
-// Optional broker-URL override (WIRE §10.1). The broker URL is SERVER-SIDE config: env
-// FEDERATION_BROKER_URL is the default (the pinned Anvil broker); this setting overrides it for a
-// self-hoster pointing at a different broker. Deliberately server-side only — it is NEVER returned to
-// the plugin (the plugin only ever calls its own home site).
-export const FEDERATION_BROKER_URL_KEY = 'federation_broker_url';
-// Per-clan opt-out for INBOUND relayed (cross-clan) credit writes (FEDERATION_SECURITY.md §3/priority
-// #1). Default ON. When '' (off), POST /events refuses any relayed write from another home with a
-// clean { credited:false, reason:'federation-writes-disabled' } — the clan still reads boards but takes
-// no federated credit. A clan that trusts nobody's relay flips this off.
-export const FEDERATION_ACCEPT_WRITES_KEY = 'federation_accept_writes';
-
-export type SharedCredit = 'accept' | 'exclusive';
-export type ExchangePolicy = 'auto-guest' | 'request-to-join' | 'reject';
-export interface BrokerTrust {
-  iss: string; // broker id / base URL (must match assertion `iss` at L2)
-  jwksUrl: string; // where to fetch the broker's signing keys
-}
-
-// Cross-clan crediting opt-out (decision 1, WIRE §5). Default 'accept'. Read by POST /events, which
-// rejects fanout.count > 1 with `200 {credited:false, reason:"exclusive"}` when set to 'exclusive'.
-export async function getSharedCredit(): Promise<SharedCredit> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_SHARED_CREDIT_KEY) });
-  return row?.value === 'exclusive' ? 'exclusive' : 'accept';
-}
-
-// Guest-on-exchange policy (decision 4). Default 'auto-guest'. POST /exchange branches on this when
-// the asserted discord_id isn't a member: auto-guest (inert guest + board:read token) / request-to-join
-// (pending, no token) / reject (403).
-export async function getExchangePolicy(): Promise<ExchangePolicy> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_EXCHANGE_POLICY_KEY) });
-  const v = row?.value;
-  return v === 'request-to-join' || v === 'reject' ? v : 'auto-guest';
-}
-
-// Whether this instance tells the broker "discord_id X is a member here" (decision 2). Default OFF
-// (self-host sovereignty); a clan we HOST is seeded 'on' at first boot instead — see
-// seedManagedDefaults() in scripts/migrate.mjs, which writes the row only when it's absent, so a
-// hosted clan that opts back out stays out. The outbound /assoc push
-// (federation.ts pushAssociation, fired from /exchange and /token) is gated on this flag.
-export async function getAssociationPush(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ASSOCIATION_PUSH_KEY) });
-  return row?.value === 'on';
-}
-
-// Brokers this instance trusts (WIRE §7). Stored as a JSON array of { iss, jwksUrl }. Empty = trust
-// no broker (L2 disabled). Malformed entries are dropped rather than throwing. POST /exchange requires
-// the assertion `iss` to be present here (and reads the matching jwksUrl to validate the signature).
-export async function getBrokerTrust(): Promise<BrokerTrust[]> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_TRUST_KEY) });
-  if (!row?.value) return [];
-  try {
-    const parsed = JSON.parse(row.value);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (b): b is BrokerTrust =>
-          !!b && typeof b.iss === 'string' && b.iss.length > 0 && typeof b.jwksUrl === 'string' && b.jwksUrl.length > 0,
-      )
-      .map((b) => ({ iss: b.iss, jwksUrl: b.jwksUrl }));
-  } catch {
-    return [];
-  }
-}
-
-// Master site-relayed-federation switch (WIRE §10.1). Default OFF for a self-host; a clan we HOST is
-// seeded 'on' at first boot (scripts/migrate.mjs seedManagedDefaults), because one connected network
-// is what the hosted product sells. When on, the plugin-facing /api/plugin/federation/* endpoints
-// relay to the broker + other clan sites server-to-server.
-export async function getFederationEnabled(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
-  return row?.value === 'on';
-}
-
-// Whether this clan accepts INBOUND relayed cross-clan credit writes (FEDERATION_SECURITY.md §3).
-// Default ON — absent setting ⇒ accept. Only an explicit '' (off) opts the clan out.
-export async function getAcceptFederatedWrites(): Promise<boolean> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ACCEPT_WRITES_KEY) });
-  const v = row?.value; // default (no row) = accept; explicit '' / 'off' = opt out
-  return v !== '' && v !== 'off';
-}
-
 // --- Public showcase listing ------------------------------------------------------------------
 // Opt-OUT flag for the "Clans on Anvil" page on the Anvil site (anvilosrs.com/clans): when on, the
 // unauthenticated GET /api/public/showcase serves this clan's name + a handful of aggregate counts
 // so the operator's page can show who actually runs Anvil. Never any member, RSN or Discord data —
 // see the route for the exact payload.
 //
-// Default ON (absent row ⇒ listed), because the page only ever reaches instances the operator hosts
-// or that already advertise themselves in the federation directory. Stored as the explicit strings
-// 'on'/'off': the settings PUT folds '' to NULL, which would read back as the default.
+// Default ON (absent row ⇒ listed), because the page only ever reaches instances the operator hosts.
+// Stored as the explicit strings 'on'/'off': the settings PUT folds '' to NULL, which would read back
+// as the default.
 export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
 
 export async function getPublicShowcase(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, PUBLIC_SHOWCASE_KEY) });
   const v = row?.value; // default (no row) = listed; explicit 'off' opts out
   return v !== 'off';
-}
-
-// Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting
-// override wins (self-hoster pointing elsewhere), else the FEDERATION_BROKER_URL env default (the
-// pinned Anvil broker). Trailing slashes trimmed. Null when neither is set (federation can't connect).
-export async function getBrokerBaseUrl(): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_URL_KEY) });
-  const raw = (row?.value?.trim() || process.env.FEDERATION_BROKER_URL?.trim() || '').replace(/\/+$/, '');
-  return raw || null;
 }
 
 /**

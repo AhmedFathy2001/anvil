@@ -4,16 +4,13 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
-import { getAssociationPush, getFederationEnabled } from '@/lib/pluginConfig';
-import { ensureRegisteredWithBroker, pushAllMemberAssociations } from '@/lib/federation';
-import { publicOrigin } from '@/lib/request-origin';
 
 const EXPOSED_KEYS = [
   'discord_webhook_url',
   'discord_webhook_bingo',
   'discord_webhook_weekly',
   'discord_webhook_signups',
-  // Display name (site, plugin, Discord posts, federation directory) vs the exact in-game clan
+  // Display name (site, plugin, Discord posts) vs the exact in-game clan
   // name the roster sync must report. Independent on purpose — see lib/pluginConfig.ts.
   'clan_name',
   'clan_ingame_name',
@@ -56,18 +53,6 @@ const EXPOSED_KEYS = [
   'fee_confirmations_required',
   // Opt-in: settle collected fees when an event ends (skips the second-admin sign-off).
   'fee_autoconfirm_on_event_end',
-  // Federation scalars (docs/FEDERATION.md). Enums/bool/JSON stored as text; read back via the
-  // typed helpers in lib/pluginConfig.ts. The signing key, instance id and broker verification
-  // token are deliberately NOT here — the signing private key must never be API-readable.
-  'federation_shared_credit', // 'accept' | 'exclusive'
-  'federation_exchange_policy', // 'auto-guest' | 'request-to-join' | 'reject'
-  'federation_association_push', // 'on' | '' (off)
-  'federation_broker_trust', // JSON array of { iss, jwksUrl }
-  // Site-relayed federation (WIRE §10). The master switch; the inbound-relayed-write kill-switch; and
-  // an optional broker-URL override (server-side config, admin-only — NEVER surfaced to any plugin).
-  'federation_enabled', // 'on' | '' (off) — master switch
-  'federation_accept_writes', // 'on' | 'off' — accept INBOUND cross-clan relayed credit writes (default on)
-  'federation_broker_url', // optional override of the FEDERATION_BROKER_URL env default
   // Whether GET /api/public/showcase serves this clan's name + aggregate counts to the operator's
   // public "clans on Anvil" page. 'on' | 'off' — default on (see getPublicShowcase).
   'public_showcase',
@@ -104,51 +89,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Snapshot the prior federation state so we can detect the transitions that need broker work.
-  const wasFederationEnabled = await getFederationEnabled();
-  const wasAssociationPush = await getAssociationPush();
-
   const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
   for (const key of EXPOSED_KEYS) {
     const raw = body[key];
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
     await upsertSetting(key, value ? value : null);
-  }
-
-  // Broker reconcile (WIRE §10.1). Registering tells the broker we're here and — the part that
-  // silently matters — adds it to brokerTrust[], which is what lets other clans' relayed /exchange
-  // calls be accepted at all.
-  //
-  // This used to fire ONLY on the off→on edge, which made a failed enable permanent: an instance
-  // whose one register attempt failed (broker down, or FEDERATION_BROKER_URL missing from the
-  // container at the time) was left federation-on with an empty trust list, 403ing every inbound
-  // exchange, with no way for an admin to retry. The whole call is idempotent — the broker upserts
-  // and the trust entry dedupes — so ANY save that leaves federation on now re-asserts it, and
-  // re-saving the Federation tab is a real repair. Best-effort + fire-and-forget throughout: a broker
-  // hiccup must never fail saving settings.
-  const touchedFederation =
-    body.clan_name !== undefined || EXPOSED_KEYS.some((k) => k.startsWith('federation_') && body[k] !== undefined);
-  const nowEnabled = await getFederationEnabled();
-
-  if (nowEnabled) {
-    if (touchedFederation) {
-      void ensureRegisteredWithBroker(publicOrigin(request)).catch(() => {});
-    }
-    // Advertise the whole roster when the clan (re-)joins the network, and equally when it turns
-    // "make this clan easy to find" on while already federated — that consent is what association
-    // push waits for, and without a backfill here nobody is advertised until their next login.
-    const joined = !wasFederationEnabled;
-    const startedSharing = (await getAssociationPush()) && !wasAssociationPush;
-    if (joined || startedSharing) {
-      void pushAllMemberAssociations().catch(() => {});
-    }
-  } else if (body.federation_enabled !== undefined) {
-    // Leaving the network: tell the broker to stop advertising us and retract our member
-    // associations. Fires on EVERY off-save (not just the transition) so a re-save can repair a
-    // missed/failed notify; idempotent + fire-and-forget broker-side. The inbound federation
-    // routes also refuse while disabled, so other homes drop us even before the broker syncs.
-    void ensureRegisteredWithBroker(publicOrigin(request), 'off').catch(() => {});
   }
 
   return NextResponse.json({ success: true });

@@ -179,7 +179,7 @@ type EventRow = typeof events.$inferSelect;
 
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
 // interactive for that team (per-cell + per-item progress).
-// Exported so the federation board endpoint (/api/federation/v1/board) reuses the exact same shape.
+// Exported so other board surfaces reuse the exact same shape.
 export async function buildBoard(event: EventRow, callerTeamId: number | null) {
   // Tiles stay hidden in-game until the host reveals them. Return the event shell with
   // an empty tile list (and no per-team completions, since those reference tiles) plus a

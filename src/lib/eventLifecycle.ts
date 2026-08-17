@@ -19,7 +19,7 @@ const RECAP_HIGHLIGHT_COUNT = 5;
 
 // While an event's scheduled start is HELD (start time reached but the event isn't startable —
 // lib/eventReadiness), each cron tick nudges startDate this far ahead of now. Every start-gated
-// surface (submissions, plugin event pick, federation writes, tile-edit locks, countdowns) keys off
+// surface (submissions, plugin event pick, tile-edit locks, countdowns) keys off
 // startDate, so pushing the date is the one mutation that consistently holds them ALL closed. Must
 // exceed the 1-minute flush-notifications cadence so the date can't lapse between ticks; once the
 // blockers clear, the event starts within one tick.

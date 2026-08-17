@@ -20,6 +20,11 @@ export const APP_VERSION: string = pkg.version;
 /** Immutable git SHA baked in by CI (Dockerfile ARG). 'dev' outside a CI-built image. */
 export const GIT_SHA: string = process.env.GIT_SHA || 'dev';
 
+// Deliberately still 1 after federation was removed. The contract calls a capability removal a
+// breaking change, but the plugin treats an out-of-range apiLevel as "this clan's site needs an
+// update" — bumping would fire that warning on every client in the wild over a surface they can
+// already detect. Dropping the capability string IS the negotiated degradation: plugins gate the
+// Connect-clans UI on supports("federation"), so they hide it on their own with no update.
 export const PLUGIN_API_LEVEL = 1;
 
 // Baseline set as of v1.0.0 — everything the plugin-facing API supported when the handshake first
@@ -43,7 +48,6 @@ export const PLUGIN_CAPABILITIES = [
   'notify', // server-forwarded Discord notifications
   'counters',
   'activity-feed',
-  'federation',
   'ladder', // ladder format + missions board + standings
   'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
   'config-etag', // conditional GET on /api/plugin/config + /board

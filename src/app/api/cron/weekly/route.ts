@@ -11,8 +11,6 @@ import {
 import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
-import { reconcileBrokerRegistration } from '@/lib/federation';
-import { publicOrigin } from '@/lib/request-origin';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -77,12 +75,6 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  // Piggy-backed on the lifecycle tick: make sure an instance that is federation-ON is actually
-  // registered with the broker. Hosted clans are seeded federation-on at provision and so never save
-  // the Federation tab — the only other thing that registers them. Near-free (two settings reads and
-  // an early return) once connected; fire-and-forget so the broker can never stall the sweep.
-  void reconcileBrokerRegistration(publicOrigin(request)).catch(() => {});
 
   const now = new Date().toISOString();
 

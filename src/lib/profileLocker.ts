@@ -213,8 +213,9 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
   const nowMs = now.getTime();
 
   // ── Identity ──────────────────────────────────────────────────────────────────────────────────
-  // Federation anchors (`guest:<discordId>`) are relationships, not accounts — a colon can't occur
-  // in an OSRS name, so the prefix is an unambiguous test. See api/federation/v1/exchange.
+  // Legacy federation anchors (`guest:<discordId>`) are relationships, not accounts — a colon can't
+  // occur in an OSRS name, so the prefix is an unambiguous test. Federation is gone, but rows it
+  // created can still be in the roster until the tenancy migration folds them in.
   const memberRows = (
     await db.query.clanMembers.findMany({
       where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),

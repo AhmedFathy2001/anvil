@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EVENT_MODES } from '@/lib/eventModes';
-import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
-import { isSharedLoginAvailable } from '@/lib/discord-oauth';
+import { getClanDisplayName } from '@/lib/pluginConfig';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { BotConsentDiagram, ProvisioningStatesDiagram, SetupStepsDiagram } from '../_components/Diagrams';
 
@@ -12,7 +11,7 @@ export const metadata: Metadata = {
     "Set up a clan on Anvil and run a bingo end to end: Discord, roster sync, boards, tiles, teams and draft, launch, and what happens after the event ends.",
 };
 
-// Instance-specific copy (clan name, whether federation is on), so no static render.
+// Instance-specific copy (clan name), so no static render.
 export const dynamic = 'force-dynamic';
 
 const SECTIONS = [
@@ -29,11 +28,9 @@ const SECTIONS = [
 
 export default async function AdminGuidePage() {
   const clanName = await getClanDisplayName('your clan');
-  const federationEnabled = await getFederationEnabled();
-  // Hosted instances are marked by the provisioner (ANVIL_SHARED_LOGIN + a broker URL); a self-host
-  // can't declare it. Only they went through the purchase → setup → build path, so only they get the
-  // paragraph about it.
-  const hosted = isSharedLoginAvailable();
+  // Hosted instances went through the purchase → setup → build path, so only they get the paragraph
+  // about it.
+  const hosted = Boolean(process.env.CLAN_SLUG);
 
   return (
     <GuideShell
@@ -344,12 +341,6 @@ export default async function AdminGuidePage() {
             },
           ]}
         />
-        {federationEnabled && (
-          <p className="text-text-muted">
-            With federation on, members can also connect to other Anvil clans from the plugin — handy
-            for cross-clan events, and entirely opt-in per member.
-          </p>
-        )}
         <p className="text-text-muted">
           Then point your members at the{' '}
           <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
