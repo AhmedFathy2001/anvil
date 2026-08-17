@@ -5,6 +5,7 @@ import { ActivityHeatmap, Bar, LineChart, ProgressRing } from '@/components/stat
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
+import CollectionLog, { type CollectionLogProps } from './CollectionLog';
 import type {
   ActivityStanding,
   CompetitionHistory,
@@ -19,7 +20,7 @@ import type {
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'stats' | 'activities' | 'progress' | 'trophies' | 'bests' | 'milestones';
+type Tab = 'stats' | 'activities' | 'progress' | 'trophies' | 'bests' | 'collection' | 'milestones';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
@@ -32,6 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'progress', label: 'Progress' },
   { key: 'trophies', label: 'Trophies' },
   { key: 'bests', label: 'Bests' },
+  { key: 'collection', label: 'Collection' },
   { key: 'milestones', label: 'Milestones' },
 ];
 
@@ -170,6 +172,7 @@ export default function ProfileTabs({
   history,
   upcoming,
   activityStandings,
+  collection,
 }: {
   profile: MemberProfile;
   series: DailyPoint[];
@@ -178,6 +181,8 @@ export default function ProfileTabs({
   history: CompetitionHistory;
   upcoming: UpcomingMilestone[];
   activityStandings: Record<string, ActivityStanding>;
+  /** The synced collection log + best times. Its own tab because it's a page's worth of grid. */
+  collection: CollectionLogProps;
 }) {
   const [tab, setTab] = useState<Tab>('stats');
   const [metric, setMetric] = useState<Metric>('ehp');
@@ -693,6 +698,8 @@ export default function ProfileTabs({
           )}
         </Section>
       )}
+
+      {tab === 'collection' && <CollectionLog {...collection} />}
 
       {tab === 'milestones' && (
         <>

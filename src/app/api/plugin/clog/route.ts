@@ -5,6 +5,7 @@ import { memberClog, memberClogItems, memberClogKc } from '@/db/schema';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
+import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -286,16 +287,27 @@ async function ingestWholeLog(
   // know when anything was obtained, so it stays NULL rather than dating years-old items to today.
   const hadLog = existing.length > 0;
 
+  // Kill counts, for stamping an unlock we are watching land. Only read when this ISN'T a first
+  // sync: on a first sync everything is new and none of it happened just now.
+  const kills = hadLog
+    ? await bossKillsFor(member.clanMemberId).catch(() => ({}) as Record<string, number>)
+    : ({} as Record<string, number>);
+
   const rows = [...pages.entries()].flatMap(([pageName, items]) =>
     items.map((r) => {
       const before = previous.get(`${pageName} ${r.itemId}`);
+      const bossKey = bossKeyForPage(pageName);
+      // The one moment this is knowable: they didn't have it, now they do, so their current KC is
+      // the KC it dropped at. Every later sync copies the stamp rather than re-reading it — after
+      // the fact, a pet spooned at 12 and one earned at 3,000 look identical.
+      const stamped = !before && hadLog && bossKey ? (kills[bossKey] ?? null) : null;
       return {
         clanMemberId: member.clanMemberId,
         itemId: r.itemId,
         pageName,
         quantity: r.quantity,
         firstSeenAt: before ? before.firstSeenAt : hadLog ? meta.nowIso : null,
-        kcAtUnlock: before?.kcAtUnlock ?? null,
+        kcAtUnlock: before?.kcAtUnlock ?? stamped,
       };
     }),
   );

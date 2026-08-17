@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ClanPulse from './ClanPulse';
 import ClanActivities from './ClanActivities';
+import ClanLuck from './ClanLuck';
 import MembersDirectory from './MembersDirectory';
 import type {
   ClanActivityAnalytics,
@@ -18,11 +19,12 @@ import type {
 //
 // Both tabs render from data the server already sent, so switching costs nothing.
 
-type Tab = 'roster' | 'activities';
+type Tab = 'roster' | 'activities' | 'luck';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'roster', label: 'Roster' },
   { key: 'activities', label: 'Clues & minigames' },
+  { key: 'luck', label: 'Luck' },
 ];
 
 export default function MembersTabs({
@@ -31,12 +33,15 @@ export default function MembersTabs({
   rosterLog,
   activities,
   movement,
+  luck,
 }: {
   members: MemberListRow[];
   analytics: ClanAnalytics;
   rosterLog: RosterEvent[];
   activities: ClanActivityAnalytics;
   movement: Record<number, RosterMovement>;
+  /** Dry streaks + spoons, from synced collection logs (lib/clogLuckBoard). */
+  luck: React.ComponentProps<typeof ClanLuck>;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
 
@@ -68,6 +73,8 @@ export default function MembersTabs({
       )}
 
       {tab === 'activities' && <ClanActivities activities={activities} />}
+
+      {tab === 'luck' && <ClanLuck {...luck} />}
     </>
   );
 }
