@@ -18,6 +18,7 @@
     "verify:efficiency": "tsx scripts/verify-efficiency.mts",
     "db:studio": "drizzle-kit studio",
     "test:federation": "node --experimental-strip-types --test tests/federation-relay.test.ts",
+    "test:security": "node --experimental-strip-types --test tests/client-ip.test.ts tests/secret-box.test.ts",
     "test:events": "node --experimental-strip-types --test tests/event-rules.test.ts tests/event-readiness.test.ts tests/event-axes.test.ts tests/tile-authoring.test.ts",
     "test:embeds": "node --experimental-strip-types --test tests/discord-embeds.test.ts",
     "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts",
