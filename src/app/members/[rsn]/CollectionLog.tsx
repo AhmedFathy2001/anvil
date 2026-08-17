@@ -183,7 +183,7 @@ export default function CollectionLog({
             </div>
             <span className="text-xs text-text-muted">
               {shelf === 'rarest' ? (
-                'expected hours at this content, not your luck'
+                'efficient hours at this content — a yardstick, not your evening'
               ) : (
                 <>
                   <span className="font-mono text-gold">{formatGp(totalValue)}</span> of tradeables in this log
@@ -204,7 +204,7 @@ export default function CollectionLog({
                       <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
                       <div className="text-[11px] font-mono text-gold">
                         {item.hours != null
-                          ? `${item.hours >= 10 ? Math.round(item.hours) : item.hours.toFixed(1)}h expected`
+                          ? `${item.hours >= 10 ? Math.round(item.hours) : item.hours.toFixed(1)}h efficient`
                           : `1 in ${Math.round(item.denominator).toLocaleString()}`}
                       </div>
                       <div className="text-[10px] text-text-muted truncate max-w-[11rem]">

@@ -23,12 +23,17 @@ export interface ItemRarity {
   /** The source those odds belong to — "1 in 5,000 from Zulrah" is the sentence. */
   source: string;
   /**
-   * Expected HOURS to see one, at the community's kills-per-hour for that content. Null when we
-   * have no rate for the source.
+   * EFFICIENT hours to see one: the rate over Wise Old Man's kills-per-hour for that content. Null
+   * where we have no rate for the source.
    *
-   * This is the number that makes two drops comparable. A rate alone doesn't: 1 in 2,160 at a boss
-   * you kill 39 times an hour is about 55 hours, while 1 in 400 at content you clear three times an
-   * hour is over 100 — so ranking by "1 in N" puts the quick one first and calls it rarer.
+   * Efficient, not expected. Those rates are the theoretical maximum — 3.7 Tombs of Amascut an hour
+   * is a max-efficiency eight-man, not anybody's Tuesday — so this is a yardstick for COMPARING two
+   * drops, not a promise about somebody's evening. It's the right yardstick precisely because it's
+   * consistent: the same optimism applies to every piece of content, so the ordering survives it.
+   *
+   * And it's the ordering that was wrong before: 1 in 2,160 at a boss killed 39 times an hour is a
+   * shorter grind than 1 in 400 at content cleared three times an hour, which ranking by "1 in N"
+   * gets backwards.
    */
   hours: number | null;
 }
