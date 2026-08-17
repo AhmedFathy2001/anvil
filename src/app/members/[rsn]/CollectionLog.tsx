@@ -151,10 +151,18 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
                   type="button"
                   onClick={() => setSelected(p.name)}
                   className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 text-xs transition-colors ${
-                    active ? 'bg-gold/15 text-gold' : 'hover:bg-card-bg-hover'
+                    active ? 'bg-gold/15' : 'hover:bg-card-bg-hover'
                   }`}
                 >
-                  <span className="truncate">{p.name}</span>
+                  {/* A finished page is green, the way the game marks one — the count alone made you
+                      compare two numbers to notice, which is exactly what green is for. */}
+                  <span
+                    className={`truncate ${
+                      p.complete ? 'text-accent-green-light' : active ? 'text-gold' : ''
+                    }`}
+                  >
+                    {p.name}
+                  </span>
                   <span className={p.complete ? 'text-accent-green-light shrink-0' : 'text-text-muted shrink-0'}>
                     {p.obtained}/{p.total}
                   </span>
@@ -167,7 +175,9 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
         {/* Items on the chosen page */}
         <div className="border border-card-border rounded-xl bg-card-bg p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h3 className="font-semibold text-sm">{page?.name}</h3>
+            <h3 className={`font-semibold text-sm ${page?.complete ? 'text-accent-green-light' : ''}`}>
+              {page?.name}
+            </h3>
             <span className={`text-xs ${page?.complete ? 'text-accent-green-light' : 'text-text-muted'}`}>
               {page?.obtained}/{page?.total}
             </span>

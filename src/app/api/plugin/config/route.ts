@@ -19,6 +19,7 @@ import {
   getDropRarityFloor,
   getClanDisplayName,
   getTierBands,
+  personalBestActivities,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
@@ -241,6 +242,8 @@ export async function GET(request: Request) {
         codeword: null,
         // No event resolved → nothing to prove (lib/startProof). Present for shape parity.
         startProof: null,
+        // Profile sync runs with or without an event, so the PB import needs its names here too.
+        pbActivities: personalBestActivities(),
         trackedStats: [],
         // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
         trackedKcNames: weeklyNames.kc,
@@ -759,6 +762,10 @@ export async function GET(request: Request) {
       id: auth.playerId,
     },
     codeword: generateCodeword(auth.playerId, event.id),
+    // Activity names for the personal-best import (lib/pluginConfig). RuneLite files its stored PBs
+    // under a config scope the plugin can READ but can't LIST, so it has to ask by name — and the
+    // names live here rather than in the plugin so a new boss is a dataset change, not a release.
+    pbActivities: personalBestActivities(),
     // Null unless this event requires a starting shot (lib/startProof). Carries the drawn location,
     // this player's keyword and whether they've filed one — the plugin's button keys off it.
     startProof,

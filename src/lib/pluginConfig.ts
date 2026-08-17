@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
-import { FUN_DEATH_MESSAGES } from '@/lib/constants';
+import { BOSSES, FUN_DEATH_MESSAGES } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
 
@@ -469,4 +469,36 @@ export async function getBrokerBaseUrl(): Promise<string | null> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_URL_KEY) });
   const raw = (row?.value?.trim() || process.env.FEDERATION_BROKER_URL?.trim() || '').replace(/\/+$/, '');
   return raw || null;
+}
+
+/**
+ * Activity names to probe when importing a member's existing personal bests.
+ *
+ * RuneLite's chat-commands plugin stores each best under `personalbest.<rsprofile>.<activity>`, in
+ * the RS-profile config scope. A plugin can read that scope by key but cannot enumerate it — the
+ * only listing API reads the main profile — so the import has to know what to ask for. These are
+ * the names the game itself uses (lowercased), which is what chat-commands keys on.
+ *
+ * Raid and party activities also exist as "<name> N players" variants; the plugin appends those
+ * rather than us shipping every combination.
+ */
+export function personalBestActivities(): string[] {
+  const names = new Set<string>();
+  for (const boss of BOSSES) {
+    names.add(boss.label.toLowerCase());
+    for (const alias of boss.aliases ?? []) names.add(alias.toLowerCase());
+  }
+  // Timed content that isn't a hiscores boss, so it has no BOSSES entry to come from.
+  for (const extra of [
+    'gauntlet', 'corrupted gauntlet', 'the gauntlet', 'the corrupted gauntlet',
+    'fight caves', 'inferno', 'fortis colosseum', 'colosseum',
+    'barbarian assault', 'fragment of seren', 'zalcano',
+    'agility pyramid', 'ape atoll agility', 'hallowed sepulchre',
+    'hallowed sepulchre floor 1', 'hallowed sepulchre floor 2', 'hallowed sepulchre floor 3',
+    'hallowed sepulchre floor 4', 'hallowed sepulchre floor 5',
+    'guardians of the rift', 'tempoross', 'wintertodt',
+  ]) {
+    names.add(extra);
+  }
+  return [...names].sort();
 }
