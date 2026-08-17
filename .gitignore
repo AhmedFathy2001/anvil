@@ -68,3 +68,6 @@ docs/PLUGIN_SUBMISSION.md
 
 # Claude Code worktrees (local only)
 .claude/worktrees/
+.test-*.db
+.test-*.db-wal
+.test-*.db-shm
