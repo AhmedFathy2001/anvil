@@ -83,7 +83,11 @@ export default function CollectionLog({
   const [bestsOpen, setBestsOpen] = useState(false);
   // Rarity and value rank almost nothing the same, and people brag about both. One shelf, two ways
   // of reading it, rather than two stacked panels competing for the top of the page.
-  const [shelf, setShelf] = useState<'rarest' | 'valuable'>('rarest');
+  //
+  // Value leads: "what's your log worth" is the question people actually ask each other, and a
+  // number in gp needs no explaining. Rarity is the more interesting claim but the slower read, so
+  // it's one click away rather than in front. Someone with nothing tradeable still opens on rarity.
+  const [shelf, setShelf] = useState<'rarest' | 'valuable'>(valuable.length > 0 ? 'valuable' : 'rarest');
 
   const page = pages.find((p) => p.name === selected) ?? pages[0];
   const owned = useMemo(() => new Set(page?.ownedIds ?? []), [page]);
@@ -157,7 +161,7 @@ export default function CollectionLog({
                 version was styled like the heading beside it, so the value view may as well not
                 have existed unless you thought to poke at the title. */}
             <div className="inline-flex rounded-lg border border-card-border overflow-hidden">
-              {(['rarest', 'valuable'] as const).map((mode) => {
+              {(['valuable', 'rarest'] as const).map((mode) => {
                 const empty = mode === 'rarest' ? showcase.length === 0 : valuable.length === 0;
                 return (
                   <button
