@@ -11,6 +11,7 @@ import {
   clogPageIndex,
   clogPageItems,
   clogPageNames,
+  clogPageOfItem,
   clogTotalSlots,
   groupObtainedItems,
 } from '../src/lib/clogDataset.ts';
@@ -46,9 +47,7 @@ test('groupObtainedItems: an obtained item lands on its page, with its quantity'
   const withRows = [...pages.values()].filter((rows) => rows.length > 0);
   assert.ok(withRows.length >= 1);
 
-  // Nothing is invented: any page that carries one of these ids genuinely lists it. (Several pages
-  // legitimately share an item — a clue-scroll reward or a pet — which is why this, and not "only
-  // one page may carry it", is the real invariant.)
+  // Nothing is invented: any page that carries one of these ids genuinely lists it.
   const index = clogPageIndex();
   for (const [name, rows] of pages) {
     for (const row of rows) {
@@ -57,20 +56,32 @@ test('groupObtainedItems: an obtained item lands on its page, with its quantity'
   }
 });
 
-test('groupObtainedItems: a shared item lands on every page it belongs to', () => {
-  // Pets sit under their boss AND under "All Pets" — the game shows both as obtained, so we do too.
+test('groupObtainedItems: a shared item is filed once, under its owning page', () => {
+  // Pets sit under their boss AND under "All Pets", but the table is unique on (member, item): two
+  // rows for one pet is what made a whole-log push 500. One row, on the page that answers "where
+  // did this come from?".
   const petPage = clogPageNames().find((p) => p === 'All Pets');
   assert.ok(petPage, 'the catalogue should carry an All Pets page');
-  const pet = clogPageItems(petPage!)[0].id;
+  const shared = clogPageItems(petPage!).find((i) => clogPageOfItem().get(i.id) !== 'All Pets');
+  assert.ok(shared, 'All Pets should share at least one item with a boss page');
 
-  const { pages } = groupObtainedItems([{ id: pet, quantity: 1 }]);
-  const carrying = [...pages.entries()].filter(([, rows]) => rows.some((r) => r.itemId === pet));
-  assert.ok(carrying.length >= 1);
-  assert.ok(carrying.some(([name]) => name === 'All Pets'));
-  // Whatever pages hold it, each holds it exactly once.
-  for (const [, rows] of carrying) {
-    assert.equal(rows.filter((r) => r.itemId === pet).length, 1);
-  }
+  const { pages } = groupObtainedItems([{ id: shared!.id, quantity: 1 }]);
+  const carrying = [...pages.entries()].filter(([, rows]) => rows.some((r) => r.itemId === shared!.id));
+  assert.equal(carrying.length, 1, 'exactly one page may carry it');
+  assert.notEqual(carrying[0][0], 'All Pets', 'the boss is the useful answer, not the pet index');
+  assert.equal(carrying[0][0], clogPageOfItem().get(shared!.id));
+});
+
+test('groupObtainedItems: a whole catalogue produces one row per item', () => {
+  // The real shape of a full sync: every id in the log at once. One row each, or the unique index
+  // rejects the insert and the member loses their whole log to a 500.
+  const every = clogPageNames().flatMap((p) => clogPageItems(p).map((i) => ({ id: i.id, quantity: 1 })));
+  const { pages, unknown } = groupObtainedItems(every);
+  const rows = [...pages.values()].flat();
+  const distinct = new Set(rows.map((r) => r.itemId));
+  assert.equal(unknown, 0);
+  assert.equal(rows.length, distinct.size, 'no item may be filed twice');
+  assert.equal(distinct.size, new Set(every.map((e) => e.id)).size);
 });
 
 test('groupObtainedItems: unknown ids are counted, never placed', () => {

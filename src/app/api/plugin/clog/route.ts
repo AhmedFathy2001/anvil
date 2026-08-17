@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberClog, memberClogItems, memberClogKc } from '@/db/schema';
 import { resolvePluginMember } from '@/lib/auth';
+import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
@@ -63,6 +64,17 @@ export async function POST(request: Request) {
   // It's authoritative by construction — everything they own, in one shot — so it replaces the
   // stored log rather than merging into it.
   if (Array.isArray(body?.items)) {
+    // A whole-log push rewrites ~1,700 rows. Once a minute per member is generous for a thing whose
+    // input only changes when a drop lands, and it means a client stuck in a retry loop — or a
+    // player mashing the sync button — costs one write, not one per attempt. 429 is deliberately
+    // retryable: the plugin backs off rather than dropping the log it just collected.
+    const rl = await rateLimitByKey('clog-full', String(member.clanMemberId), { limit: 1, windowMs: 60_000 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Your collection log was synced less than a minute ago.', retryAfterMs: rl.reset - Date.now() },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
+    }
     return ingestWholeLog(body.items as IncomingItem[], member, {
       nowIso: new Date().toISOString(),
       pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
@@ -159,7 +171,14 @@ export async function POST(request: Request) {
             kcAtUnlock: before?.kcAtUnlock ?? null,
           };
         }),
-      );
+      )
+        // The unique index is (member, item), not (member, page, item): the same item filed under a
+        // different page — Jagex moved it, or two synced pages both list it — would otherwise fail
+        // the whole statement and lose the page.
+        .onConflictDoUpdate({
+          target: [memberClogItems.clanMemberId, memberClogItems.itemId],
+          set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
+        });
       itemsWritten += rows.length;
     }
 
@@ -283,9 +302,16 @@ async function ingestWholeLog(
 
   await db.delete(memberClogItems).where(eq(memberClogItems.clanMemberId, member.clanMemberId));
   // SQLite takes a bounded number of bound parameters per statement, and a full log is ~1,700 rows
-  // across six columns — chunked so one insert can't blow the limit.
+  // across six columns — chunked so one insert can't blow the limit. The conflict clause is belt to
+  // the delete's braces: one bad row must not throw away a whole sync.
   for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-    await db.insert(memberClogItems).values(rows.slice(i, i + INSERT_CHUNK));
+    await db
+      .insert(memberClogItems)
+      .values(rows.slice(i, i + INSERT_CHUNK))
+      .onConflictDoUpdate({
+        target: [memberClogItems.clanMemberId, memberClogItems.itemId],
+        set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
+      });
   }
 
   const index = clogPageIndex();
