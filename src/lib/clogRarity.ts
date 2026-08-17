@@ -127,11 +127,11 @@ export function buildShowcase(
 
 export type PageGroup = 'Raids' | 'Bosses' | 'Clues' | 'Minigames' | 'Skilling' | 'Other';
 
-const RAID_PAGES = new Set(['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut', 'The Gauntlet']);
+const RAID_PAGES = new Set(['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut']);
 
 const GROUP_PATTERNS: [PageGroup, RegExp][] = [
   ['Clues', /treasure trails|clue|shared/i],
-  ['Minigames', /barbarian assault|castle wars|last man|soul wars|trouble brewing|pest control|mage arena|gauntlet|inferno|fight cave|colosseum|tzhaar|emir|rogue|brimhaven|hallowed|guardians of the rift|temple trekking|mahogany|magic training|shades of mort|volcanic mine|giants foundry|tithe|gnome restaurant|barrows/i],
+  ['Minigames', /barbarian assault|castle wars|last man|soul wars|trouble brewing|pest control|mage arena|inferno|fight cave|colosseum|tzhaar|emir|rogue|brimhaven|hallowed|guardians of the rift|temple trekking|mahogany|magic training|shades of mort|volcanic mine|giants foundry|tithe|gnome restaurant|barrows/i],
   ['Skilling', /fishing|farming|hunter|mining|woodcut|thieving|agility|firemaking|smithing|crafting|runecraft|construction|cooking|slayer|motherlode|tempoross|wintertodt|zalcano|sepulchre|camdozaal|forestry|birdhouse|aerial|drift|blast/i],
 ];
 

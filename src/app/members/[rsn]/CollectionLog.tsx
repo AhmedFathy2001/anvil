@@ -73,6 +73,7 @@ export default function CollectionLog({
   const [filter, setFilter] = useState('');
   const [bestFilter, setBestFilter] = useState('');
   const [show, setShow] = useState<'all' | 'owned' | 'missing'>('all');
+  const [bestsOpen, setBestsOpen] = useState(false);
 
   const page = pages.find((p) => p.name === selected) ?? pages[0];
   const owned = useMemo(() => new Set(page?.ownedIds ?? []), [page]);
@@ -117,6 +118,7 @@ export default function CollectionLog({
   }, [items, owned, show]);
 
   const pagesComplete = pages.filter((p) => p.complete).length;
+  const pageBests = bestsByPage[page?.name ?? ''] ?? [];
 
   if (!synced) {
     return (
@@ -140,7 +142,10 @@ export default function CollectionLog({
           page opens on what was hard to get and puts the percentage beside it. */}
       {showcase.length > 0 && (
         <div className="border border-gold/30 rounded-xl bg-gradient-to-b from-gold/[0.07] to-transparent p-4">
-          <div className="text-[11px] uppercase tracking-widest text-gold/80 mb-3">Hardest earned</div>
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="text-[11px] uppercase tracking-widest text-gold/80">Rarest drops</span>
+            <span className="text-[10px] text-text-muted">by drop rate, not by effort</span>
+          </div>
           <div className="flex flex-wrap gap-3">
             {showcase.map((item) => (
               <div key={item.itemId} className="flex items-center gap-2.5 min-w-0">
@@ -306,9 +311,9 @@ export default function CollectionLog({
           </div>
           {/* This page's times, every scale of it. A raid has one log page and many personal bests,
               so they belong here rather than only in a table somewhere else. */}
-          {(bestsByPage[page?.name ?? ''] ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-card-border">
-              {bestsByPage[page!.name].map((b) => (
+          {pageBests.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-card-border">
+              {(bestsOpen ? pageBests : pageBests.slice(0, 1)).map((b) => (
                 <span
                   key={`${b.activity}-${b.label}`}
                   className="text-[11px] px-2 py-1 rounded border border-card-border bg-brown-dark/40"
@@ -318,6 +323,17 @@ export default function CollectionLog({
                   <span className="font-mono text-gold">{b.time}</span>
                 </span>
               ))}
+              {/* Twenty scales of a raid is a wall of chips. The headline time is the one anybody
+                  quotes; the rest are there when you go looking for them. */}
+              {pageBests.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setBestsOpen((open) => !open)}
+                  className="text-[11px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
+                >
+                  {bestsOpen ? 'Show less' : `+${pageBests.length - 1} more times`}
+                </button>
+              )}
             </div>
           )}
 
@@ -330,7 +346,7 @@ export default function CollectionLog({
               // Rarity is worn only by what someone actually has: a missing megarare glowing on
               // every profile would say nothing about the person whose page this is.
               const emphasis = !has
-                ? 'border-card-border bg-brown-dark/40'
+                ? 'border-card-border/40 bg-black/30'
                 : tier === 'ultra'
                   ? 'border-gold bg-gold/10 shadow-[0_0_16px_-4px] shadow-gold/70'
                   : tier === 'rare'
@@ -351,7 +367,7 @@ export default function CollectionLog({
                   <img
                     src={itemIconUrl(item.id)}
                     alt={item.name}
-                    className={`w-8 h-8 object-contain ${has ? '' : 'opacity-20 grayscale'}`}
+                    className={`w-8 h-8 object-contain ${has ? '' : 'opacity-[0.10] grayscale contrast-50'}`}
                   />
                   {has && qty > 1 && (
                     <span className="absolute -top-1 -right-1 text-[9px] font-mono px-1 rounded bg-brown-dark border border-card-border text-gold">
@@ -370,36 +386,6 @@ export default function CollectionLog({
         </div>
       </div>
 
-      {bests.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <span className="w-1 h-4 bg-gold rounded-full" />
-              Personal bests
-              <span className="text-xs text-text-muted font-normal">{bests.length}</span>
-            </h3>
-            <input
-              value={bestFilter}
-              onChange={(e) => setBestFilter(e.target.value)}
-              placeholder="Find a time…"
-              className="w-40 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
-            />
-          </div>
-          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-72 overflow-y-auto">
-            {shownBests.map((b) => (
-              <div key={b.activity} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
-                <span className="truncate">{b.activity}</span>
-                <span className="font-mono text-gold shrink-0">{b.time}</span>
-              </div>
-            ))}
-            {shownBests.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs text-text-muted">
-                No time matches &ldquo;{bestFilter}&rdquo;.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

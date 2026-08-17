@@ -20,21 +20,25 @@ import type {
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'stats' | 'activities' | 'progress' | 'trophies' | 'bests' | 'collection' | 'milestones';
+type Tab = 'stats' | 'records' | 'collection' | 'trophies';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
 /** Days in the activity grid — a year, the way a contribution graph is normally read. */
 const HEATMAP_DAYS = 365;
 
+/**
+ * Four tabs, one question each.
+ *
+ * Seven was a filing cabinet: Stats, Activities and Progress were three answers to "how are they
+ * doing", and Bests and Milestones were two answers to "what have they done". Splitting those made
+ * every one of them thin — a tab you visit once, find two numbers in, and never open again.
+ */
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'stats', label: 'Stats' },
-  { key: 'activities', label: 'Activities' },
-  { key: 'progress', label: 'Progress' },
-  { key: 'trophies', label: 'Trophies' },
-  { key: 'bests', label: 'Bests' },
+  { key: 'stats', label: 'Overview' },
+  { key: 'records', label: 'Records' },
   { key: 'collection', label: 'Collection' },
-  { key: 'milestones', label: 'Milestones' },
+  { key: 'trophies', label: 'Trophies' },
 ];
 
 const bossLabel = (key: string) => BOSSES.find((b) => b.key === key)?.label ?? key;
@@ -185,8 +189,14 @@ export default function ProfileTabs({
   collection: CollectionLogProps;
 }) {
   const [tab, setTab] = useState<Tab>('stats');
+  const [bestFilter, setBestFilter] = useState('');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
+
+  const shownTimes = useMemo(() => {
+    const q = bestFilter.trim().toLowerCase();
+    return q ? collection.bests.filter((b) => b.activity.toLowerCase().includes(q)) : collection.bests;
+  }, [collection.bests, bestFilter]);
 
   const eff = profile.efficiency;
 
@@ -290,7 +300,7 @@ export default function ProfileTabs({
             }`}
           >
             {t.label}
-            {t.key === 'milestones' && milestones.length > 0 && (
+            {t.key === 'records' && milestones.length > 0 && (
               <span className="ml-1.5 text-[10px] text-text-muted">{milestones.length}</span>
             )}
             {t.key === 'trophies' && totalWins > 0 && (
@@ -408,7 +418,7 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'activities' && (
+      {tab === 'stats' && (
         <>
           {!hasActivities && (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
@@ -515,7 +525,7 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'progress' && (
+      {tab === 'stats' && (
         <Section title="Gained over time">
           <div className="border border-card-border rounded-xl bg-card-bg p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -656,8 +666,9 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'bests' && (
-        <Section title="Personal bests" aside="the biggest stretch we've recorded">
+      {tab === 'records' && (
+        <>
+        <Section title="Best days" aside="the biggest stretch we've recorded">
           {records.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
               Nothing yet. Records build from daily history, so they appear once they&rsquo;ve played a
@@ -697,11 +708,45 @@ export default function ProfileTabs({
             </div>
           )}
         </Section>
+
+          {/* Times, from the synced profile. They belong beside the other bests rather than under
+              the collection log grid, which is where they were and where nobody would look. */}
+          {collection.bests.length > 0 && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <span className="w-1 h-4 bg-gold rounded-full" />
+                  Personal bests
+                  <span className="text-xs text-text-muted font-normal">{collection.bests.length}</span>
+                </h3>
+                <input
+                  value={bestFilter}
+                  onChange={(e) => setBestFilter(e.target.value)}
+                  placeholder="Find a time…"
+                  className="w-44 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-96 overflow-y-auto">
+                {shownTimes.map((b) => (
+                  <div key={b.activity} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                    <span className="truncate">{b.activity}</span>
+                    <span className="font-mono text-gold shrink-0">{b.time}</span>
+                  </div>
+                ))}
+                {shownTimes.length === 0 && (
+                  <div className="px-3 py-4 text-center text-xs text-text-muted">
+                    No time matches &ldquo;{bestFilter}&rdquo;.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {tab === 'collection' && <CollectionLog {...collection} />}
 
-      {tab === 'milestones' && (
+      {tab === 'records' && (
         <>
           {upcoming.length > 0 && (
             <Section title="In reach" aside="closest first">
