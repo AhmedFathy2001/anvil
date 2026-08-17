@@ -1,4 +1,6 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
+import efficiencyRates from '@/data/efficiencyRates.json'; // Wise Old Man EHB rates (kills per hour)
+import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
 
 // How rare is a collection log slot, and where did it come from.
@@ -20,6 +22,21 @@ export interface ItemRarity {
   denominator: number;
   /** The source those odds belong to — "1 in 5,000 from Zulrah" is the sentence. */
   source: string;
+  /**
+   * Expected HOURS to see one, at the community's kills-per-hour for that content. Null when we
+   * have no rate for the source.
+   *
+   * This is the number that makes two drops comparable. A rate alone doesn't: 1 in 2,160 at a boss
+   * you kill 39 times an hour is about 55 hours, while 1 in 400 at content you clear three times an
+   * hour is over 100 — so ranking by "1 in N" puts the quick one first and calls it rarer.
+   */
+  hours: number | null;
+}
+
+/** Kills per hour by hiscores boss key, from the same table the site's EHB already uses. */
+function killsPerHour(): Record<string, number> {
+  return (efficiencyRates as { algorithms?: { main?: { bosses?: Record<string, number> } } })
+    .algorithms?.main?.bosses ?? {};
 }
 
 /**
@@ -61,17 +78,26 @@ export function clogItemRarity(): Map<number, ItemRarity> {
 
   const drops = npcDrops as unknown as Record<string, DropEntry[]>;
   const owner = clogPageOfItem();
+  const rates = killsPerHour();
+  const bossKeyByLabel = new Map(BOSSES.map((b) => [b.label.toLowerCase(), b.key]));
   const out = new Map<number, ItemRarity>();
 
   for (const page of clogPageNames()) {
     const table = drops[page];
     if (!table) continue; // no per-kill table for this content
+    const kph = rates[bossKeyByLabel.get(page.toLowerCase()) ?? ''];
     for (const drop of table) {
       // Only for items this page actually owns, so a shared item is rated by its own boss.
       if (owner.get(drop.i) !== page) continue;
       if (!Number.isFinite(drop.d) || drop.d < RARITY_THRESHOLDS.notable) continue;
       const held = out.get(drop.i);
-      if (!held || drop.d > held.denominator) out.set(drop.i, { denominator: drop.d, source: page });
+      if (!held || drop.d > held.denominator) {
+        out.set(drop.i, {
+          denominator: drop.d,
+          source: page,
+          hours: kph && kph > 0 ? drop.d / kph : null,
+        });
+      }
     }
   }
 
@@ -128,6 +154,8 @@ export interface ShowcaseItem {
   itemId: number;
   name: string;
   denominator: number;
+  /** Expected hours at this content, or null where we have no kills-per-hour for it. */
+  hours: number | null;
   source: string;
   page: string;
   kcAtUnlock: number | null;
@@ -135,11 +163,15 @@ export interface ShowcaseItem {
 }
 
 /**
- * The rarest things a member owns, hardest first — the shelf the page leads with.
+ * The hardest things a member owns to come by, in expected TIME — the shelf the page leads with.
  *
- * An item with no known rate simply isn't a candidate: a shelf is a claim about how hard something
- * was, and "we don't know" is not one. Ties break on the item they were obtained at, so a spooned
- * unlock outranks an identical grind.
+ * Ordering on "1 in N" compares numbers that aren't comparable: a rate at content you clear three
+ * times an hour and a rate at a boss you kill forty times an hour describe completely different
+ * grinds. Hours put them on one scale, so the ranking finally matches what a player means by rare.
+ *
+ * Anything with no known rate isn't a candidate at all — a shelf is a claim about difficulty, and
+ * "we don't know" isn't one. Items whose content has no kills-per-hour fall back to the raw rate,
+ * ranked below everything we can actually time.
  */
 export function buildShowcase(
   owned: { itemId: number; kcAtUnlock: number | null; firstSeenAt: string | null }[],
@@ -157,6 +189,7 @@ export function buildShowcase(
         itemId: item.itemId,
         name: names.get(item.itemId) ?? `Item ${item.itemId}`,
         denominator: rate.denominator,
+        hours: rate.hours,
         source: rate.source,
         page: pages.get(item.itemId) ?? rate.source,
         kcAtUnlock: item.kcAtUnlock,
@@ -164,7 +197,9 @@ export function buildShowcase(
       };
     })
     .filter((x): x is ShowcaseItem => x !== null)
-    .sort((a, b) => b.denominator - a.denominator || (a.kcAtUnlock ?? Infinity) - (b.kcAtUnlock ?? Infinity))
+    // Hours first where we know them; a timed drop always outranks an untimed one, since the
+    // untimed one is an unknown rather than a small number.
+    .sort((a, b) => (b.hours ?? -1) - (a.hours ?? -1) || b.denominator - a.denominator)
     .slice(0, limit);
 }
 

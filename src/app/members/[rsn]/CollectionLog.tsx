@@ -172,14 +172,14 @@ export default function CollectionLog({
                         : 'text-text-muted hover:text-foreground hover:bg-card-bg-hover'
                     }`}
                   >
-                    {mode === 'rarest' ? 'Rarest drops' : 'Most valuable'}
+                    {mode === 'rarest' ? 'Hardest to get' : 'Most valuable'}
                   </button>
                 );
               })}
             </div>
             <span className="text-xs text-text-muted">
               {shelf === 'rarest' ? (
-                'by drop rate, not by effort'
+                'expected hours at this content, not your luck'
               ) : (
                 <>
                   <span className="font-mono text-gold">{formatGp(totalValue)}</span> of tradeables in this log
@@ -199,10 +199,12 @@ export default function CollectionLog({
                     <div className="min-w-0">
                       <div className="text-sm font-medium truncate max-w-[11rem]">{item.name}</div>
                       <div className="text-[11px] font-mono text-gold">
-                        1 in {Math.round(item.denominator).toLocaleString()}
+                        {item.hours != null
+                          ? `${item.hours >= 10 ? Math.round(item.hours) : item.hours.toFixed(1)}h expected`
+                          : `1 in ${Math.round(item.denominator).toLocaleString()}`}
                       </div>
                       <div className="text-[10px] text-text-muted truncate max-w-[11rem]">
-                        {item.page}
+                        {item.page} · 1 in {Math.round(item.denominator).toLocaleString()}
                         {item.kcAtUnlock != null && <> · at {item.kcAtUnlock.toLocaleString()} KC</>}
                       </div>
                     </div>
