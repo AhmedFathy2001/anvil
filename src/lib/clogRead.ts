@@ -46,6 +46,9 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
         activity: memberPersonalBests.activity,
         teamSize: memberPersonalBests.teamSize,
         centis: memberPersonalBests.centis,
+        // When they set it, so "what have they done lately" can include times, not just milestones.
+        achievedAt: memberPersonalBests.achievedAt,
+        updatedAt: memberPersonalBests.updatedAt,
       })
       .from(memberPersonalBests)
       .where(eq(memberPersonalBests.clanMemberId, clanMemberId)),
@@ -110,6 +113,9 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
     activity: b.activity,
     teamSize: b.teamSize,
     time: formatPersonalBest(b.centis),
+    // achievedAt is the game's own word for it; updatedAt is when we heard. The first is truer and
+    // the second always exists, so recency uses whichever we have.
+    at: b.achievedAt ?? b.updatedAt ?? null,
   }));
   // Times belong next to the content they're for: a raid's page shows every scale of it, so someone
   // reading Chambers of Xeric sees their solo and their trio without going anywhere else.
@@ -134,6 +140,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
       .map((b) => ({
         activity: titleCase(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''),
         time: b.time,
+        at: b.at,
       })),
   };
 }

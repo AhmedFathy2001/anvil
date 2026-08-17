@@ -6,6 +6,7 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
+import LocalTime from '@/components/LocalTime';
 import type {
   ActivityStanding,
   CompetitionHistory,
@@ -192,6 +193,31 @@ export default function ProfileTabs({
   const [bestFilter, setBestFilter] = useState('');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
+
+  /**
+   * One dated stream of everything they've achieved, newest first.
+   *
+   * Times and milestones are the same kind of news — "I did a thing, on a day" — and splitting them
+   * across two lists meant neither could answer "what has this person been up to?". Undated entries
+   * are left out rather than dated to now: a personal best imported from a client we've never seen
+   * set could be years old.
+   */
+  const recentFeed = useMemo(() => {
+    const entries: { key: string; kind: 'time' | 'milestone'; label: string; value: string | null; at: string }[] = [];
+    for (const b of collection.bests) {
+      if (b.at) entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at });
+    }
+    for (const m of milestones) {
+      entries.push({
+        key: `ms-${m.kind}-${m.metric ?? ''}-${m.threshold}`,
+        kind: 'milestone',
+        label: milestoneText(m),
+        value: null,
+        at: m.noticedAt,
+      });
+    }
+    return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12);
+  }, [collection.bests, milestones]);
 
   const shownTimes = useMemo(() => {
     const q = bestFilter.trim().toLowerCase();
@@ -668,6 +694,31 @@ export default function ProfileTabs({
 
       {tab === 'records' && (
         <>
+        {/* What they've done LATELY. A record only feels like one when you can see it happen: four
+            static lists said what this player has ever managed and nothing about this week. */}
+        {recentFeed.length > 0 && (
+          <Section title="Lately" aside="newest first">
+            <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+              {recentFeed.map((entry) => (
+                <div key={entry.key} className="flex items-center gap-3 px-4 py-2.5">
+                  <span
+                    className={`text-[10px] uppercase tracking-widest shrink-0 w-16 ${
+                      entry.kind === 'time' ? 'text-gold' : 'text-accent-green-light'
+                    }`}
+                  >
+                    {entry.kind === 'time' ? 'Best' : 'Milestone'}
+                  </span>
+                  <span className="text-sm flex-1 truncate">{entry.label}</span>
+                  {entry.value && <span className="text-sm font-mono text-gold shrink-0">{entry.value}</span>}
+                  <span className="text-[11px] text-text-muted shrink-0 w-24 text-right">
+                    <LocalTime date={entry.at} format="date" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
         <Section title="Best days" aside="the biggest stretch we've recorded">
           {records.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">

@@ -51,8 +51,8 @@ export interface CollectionLogProps {
   closest: { page: string; remaining: number } | null;
   /** Best times filed under the log page they belong to — every scale of a raid on its own page. */
   bestsByPage: Record<string, BestTime[]>;
-  /** The same times as one flat list, for the searchable table. */
-  bests: { activity: string; time: string }[];
+  /** The same times as one flat list, for the searchable table. When each was set, where known. */
+  bests: { activity: string; time: string; at: string | null }[];
 }
 
 export default function CollectionLog({
