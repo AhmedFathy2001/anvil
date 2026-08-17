@@ -1,5 +1,5 @@
 import { clogItemNames, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
-import { assessDry, assessSpoon, chancePerKill, type DryVerdict, type SpoonVerdict } from '@/lib/clogLuck';
+import { assessLuck, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
 
 // Reading a synced collection log back out: the member's own page, and the clan's luck boards.
 //
@@ -244,94 +244,63 @@ export interface LuckSource {
   rsn: string;
   /** Absolute kill count for the page's source, from the hiscores. */
   kills: number;
-  /** Do they own it? */
-  owned: boolean;
-  /** KC when it dropped, if we watched it land. */
-  kcAtUnlock: number | null;
+  /**
+   * How many they have. The collection log counts what you've obtained, not just whether you have
+   * it, and that count is the whole metric: presence alone can't tell one seed in 30,000 Gauntlet
+   * from a fair fifteen.
+   */
+  obtained: number;
 }
 
-export interface DryEntry {
+export interface LuckEntry {
   clanMemberId: number;
   rsn: string;
   itemId: number;
   itemName: string;
   source: string;
   rate: DropRate;
-  verdict: DryVerdict;
-}
-
-export interface SpoonEntry {
-  clanMemberId: number;
-  rsn: string;
-  itemId: number;
-  itemName: string;
-  source: string;
-  rate: DropRate;
-  verdict: SpoonVerdict;
+  assessment: LuckAssessment;
 }
 
 /**
- * The dry board: members who have put in the kills and still have nothing.
+ * Both tails of the clan's luck, from what everyone owns and how much they've killed.
  *
- * Sorted by how remarkable it is (fewest people would still be waiting), not by raw KC — 800 kills
- * on a 1-in-100 is a worse beat than 800 on a 1-in-5,000, and a board sorted on KC only ever shows
- * the rarest items and the same three people.
+ * One pass, one model: an entry is dry or spooned by how far its COUNT sits from expectation, so a
+ * player holding one of a drop they're owed fifteen of lands on the dry board where they belong,
+ * and someone sitting near the rate lands on neither.
+ *
+ * Sorted by how unlikely the result is rather than by the raw multiple: at low expectation a wild
+ * ratio is ordinary — two drops where one was owed is nothing — and a board that leads with those
+ * is a board of noise.
  */
-export function buildDryBoard(
+export function buildLuckBoards(
   candidates: { itemId: number; itemName: string; source: string; rate: DropRate; members: LuckSource[] }[],
-  limit = 20,
-): DryEntry[] {
-  const out: DryEntry[] = [];
+  limit = 15,
+): { dry: LuckEntry[]; spooned: LuckEntry[] } {
+  const dry: LuckEntry[] = [];
+  const spooned: LuckEntry[] = [];
+
   for (const candidate of candidates) {
     const chance = chancePerKill(candidate.rate.denominator, candidate.rate.rolls);
     if (chance <= 0) continue;
     for (const member of candidate.members) {
-      if (member.owned || member.kills <= 0) continue;
-      const verdict = assessDry(chance, member.kills);
-      if (!verdict.notable) continue;
-      out.push({
+      if (member.kills <= 0) continue;
+      const assessment = assessLuck(chance, member.kills, member.obtained);
+      if (!assessment.notable) continue;
+      const entry: LuckEntry = {
         clanMemberId: member.clanMemberId,
         rsn: member.rsn,
         itemId: candidate.itemId,
         itemName: candidate.itemName,
         source: candidate.source,
         rate: candidate.rate,
-        verdict,
-      });
+        assessment,
+      };
+      (assessment.verdict === 'dry' ? dry : spooned).push(entry);
     }
   }
-  return out.sort((a, b) => a.verdict.luckPercentile - b.verdict.luckPercentile).slice(0, limit);
+
+  const byTail = (a: LuckEntry, b: LuckEntry) => a.assessment.tail - b.assessment.tail;
+  return { dry: dry.sort(byTail).slice(0, limit), spooned: spooned.sort(byTail).slice(0, limit) };
 }
 
-/**
- * The spoon board: unlocks that landed far inside the rate.
- *
- * Only from `kcAtUnlock`, so it covers what we watched happen rather than everything anyone ever
- * got. That's a real limitation and the UI says so — the alternative is inferring luck from current
- * KC, which would call every long-serving player spooned the moment they stopped killing something.
- */
-export function buildSpoonBoard(
-  candidates: { itemId: number; itemName: string; source: string; rate: DropRate; members: LuckSource[] }[],
-  limit = 20,
-): SpoonEntry[] {
-  const out: SpoonEntry[] = [];
-  for (const candidate of candidates) {
-    const chance = chancePerKill(candidate.rate.denominator, candidate.rate.rolls);
-    if (chance <= 0) continue;
-    for (const member of candidate.members) {
-      if (!member.owned || member.kcAtUnlock == null || member.kcAtUnlock <= 0) continue;
-      const verdict = assessSpoon(chance, member.kcAtUnlock);
-      if (!verdict.notable) continue;
-      out.push({
-        clanMemberId: member.clanMemberId,
-        rsn: member.rsn,
-        itemId: candidate.itemId,
-        itemName: candidate.itemName,
-        source: candidate.source,
-        rate: candidate.rate,
-        verdict,
-      });
-    }
-  }
-  return out.sort((a, b) => a.verdict.luckPercentile - b.verdict.luckPercentile).slice(0, limit);
-}

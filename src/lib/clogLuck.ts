@@ -1,16 +1,21 @@
-// Spoons and dry streaks — how lucky a member has been, from what they own and how long they spent.
+// Luck: how many of a thing someone has, against how many the rate says they should.
 //
-// Two questions, and they need different evidence:
+// The obvious model — "do they have it?" — is wrong in both directions, and a clan will tell you so
+// within a day. One enhanced weapon seed at 30,000 Gauntlet is not a lucky player who owns the item;
+// it's someone owed about fourteen more. And a player sitting near the rate is not a story at all,
+// in either direction.
 //
-//   DRY   — "you have 1,400 Zulrah and no pet". Answerable from what we already hold: the boss KC on
-//           the hiscores, the drop rate from the wiki dataset, and the absence of the item.
-//   SPOON — "you got it in 12". Needs the KC AT THE MOMENT it dropped, which the hiscores can never
-//           tell us after the fact — a spooned pet at 12 KC looks identical to a dry one at 3,000
-//           once they've killed it 3,000 times. So it is only knowable for unlocks we watched
-//           happen (`member_clog_items.kcAtUnlock`), and the board says so rather than guessing.
+// So there is ONE axis, counts rather than presence: how many drops did the rate owe you by now, how
+// many did you get, and how surprising is the gap. Dry and spooned are the two tails of it, with a
+// wide neutral band in the middle where most of a clan correctly sits.
 //
-// The maths is the standard geometric one and stays deliberately plain: p per kill, independent
-// rolls, no pity. It is a talking point for a clan Discord, not an actuarial model.
+// This also means the whole existing collection log can be assessed today. The log records how many
+// of each item someone has obtained, and the hiscores record the kills — no per-drop history needed,
+// which is what made "when exactly did that drop?" a dead end for everything already in the ground.
+//
+// The maths is a Poisson approximation to the binomial: kills are many, per-kill chance is small,
+// and that's precisely where it's near-exact. No pity timers, no bad-luck protection — OSRS has
+// neither.
 
 /** One roll's chance, from the wiki dataset's 1-in-N denominator. */
 export function chancePerKill(denominator: number, rollsPerKill = 1): number {
@@ -24,70 +29,98 @@ export function chancePerKill(denominator: number, rollsPerKill = 1): number {
   return 1 - Math.pow(1 - single, rolls);
 }
 
-/** Probability of STILL not having it after `kills` kills. The number a dry streak really is. */
+/** How many you'd expect by now. 1.0 = exactly on rate. */
+export function expectedDrops(chance: number, kills: number): number {
+  const raw = chance * Math.max(0, kills);
+  // Rounded to a place no display shows, so band comparisons against round numbers aren't decided
+  // by floating-point drift.
+  return Math.round(raw * 1e9) / 1e9;
+}
+
+/** Probability of STILL having none after `kills` — the special case people quote for a first drop. */
 export function chanceOfNothing(chance: number, kills: number): number {
   if (chance <= 0 || kills <= 0) return 1;
   return Math.pow(1 - chance, kills);
 }
 
-/** How many you'd expect by now. 1.0 = exactly on rate. */
-export function expectedDrops(chance: number, kills: number): number {
-  const raw = chance * Math.max(0, kills);
-  // Rounded to a place no display shows. Both thresholds below are equality-ish comparisons against
-  // round numbers (2× the rate, a tenth of it), and 0.1 arriving as 0.10000000000000009 decides them
-  // the wrong way — a spoon at exactly a tenth of the rate is a spoon.
-  return Math.round(raw * 1e9) / 1e9;
+/**
+ * P(X ≤ k) for X ~ Poisson(expected). The chance of being AT MOST this fortunate.
+ *
+ * Poisson stands in for the binomial because n is large and p tiny — the error is far below anything
+ * this is used to say. Summed term by term from the bottom, which is stable for the small means
+ * (single digits) that drop rates produce.
+ */
+export function poissonAtMost(k: number, expected: number): number {
+  if (expected <= 0) return 1;
+  if (k < 0) return 0;
+  const floor = Math.floor(k);
+  let term = Math.exp(-expected);
+  let sum = term;
+  for (let i = 1; i <= floor; i++) {
+    term = (term * expected) / i;
+    sum += term;
+  }
+  return Math.min(1, sum);
 }
 
-export interface DryVerdict {
-  /** Kills done with nothing to show. */
+/** P(X ≥ k) — the chance of being AT LEAST this fortunate. */
+export function poissonAtLeast(k: number, expected: number): number {
+  if (k <= 0) return 1;
+  return Math.max(0, 1 - poissonAtMost(k - 1, expected));
+}
+
+export type LuckVerdict = 'dry' | 'on-rate' | 'spooned';
+
+/**
+ * How unlikely a result has to be before it's worth saying out loud. At 5% each way, a board of
+ * twenty entries is twenty genuine outliers rather than a leaderboard of ordinary people.
+ */
+export const TAIL_THRESHOLD = 0.05;
+
+export interface LuckAssessment {
   kills: number;
-  /** How many drops the rate says they should have had. */
+  /** How many they actually have — the collection log's own count, not a presence flag. */
+  obtained: number;
   expected: number;
-  /** Share of players who'd still be waiting at this point, 0–1. Lower = more remarkable. */
-  luckPercentile: number;
-  /** True once they're past the point where most people have it — the threshold for a board entry. */
+  /** obtained ÷ expected. 1 is on rate; 0.07 is the enhanced seed at 30k. */
+  ratio: number;
+  /** dry / on-rate / spooned. Most people are on rate, and the model should say so. */
+  verdict: LuckVerdict;
+  /** How surprising the result is, 0–1. Small = remarkable, whichever tail it's in. */
+  tail: number;
+  /** True when this is worth a place on a board. */
   notable: boolean;
 }
 
 /**
- * How dry is this? Notable at 2× the drop rate: past that, more than 85% of people have it, which is
- * where "unlucky" stops being noise. Below it, someone with 40 Zulrah kills and no pet is not dry,
- * they are new — and a board that says otherwise is a board nobody trusts.
+ * Assess one member against one drop.
+ *
+ * Owning the item does not end the question — quantity is the question. Someone with one seed where
+ * the rate owed fifteen is the driest person in the clan, and the old presence-based model called
+ * them lucky and moved on.
  */
-export function assessDry(chance: number, kills: number): DryVerdict {
+export function assessLuck(chance: number, kills: number, obtained: number): LuckAssessment {
   const expected = expectedDrops(chance, kills);
+  const got = Math.max(0, obtained);
+  const dryTail = poissonAtMost(got, expected);
+  const spoonTail = poissonAtLeast(got, expected);
+
+  let verdict: LuckVerdict = 'on-rate';
+  if (expected > 0) {
+    if (dryTail < TAIL_THRESHOLD) verdict = 'dry';
+    else if (spoonTail < TAIL_THRESHOLD) verdict = 'spooned';
+  }
+
   return {
     kills,
+    obtained: got,
     expected,
-    luckPercentile: chanceOfNothing(chance, kills),
-    notable: expected >= 2,
-  };
-}
-
-export interface SpoonVerdict {
-  /** KC when it dropped, as recorded the moment we first saw the unlock. */
-  kills: number;
-  expected: number;
-  /** Share of players who'd have it this early, 0–1. Lower = luckier. */
-  luckPercentile: number;
-  /** True when it landed well inside the rate — the threshold for a board entry. */
-  notable: boolean;
-}
-
-/**
- * How spooned is this? Notable when it came inside a tenth of the drop rate — a Twisted bow at 30
- * CoX, not at 400. The percentile is the honest measure and the board sorts on it; `notable` just
- * keeps "got it slightly early" off a list of legends.
- */
-export function assessSpoon(chance: number, killsAtUnlock: number): SpoonVerdict {
-  const expected = expectedDrops(chance, killsAtUnlock);
-  return {
-    kills: killsAtUnlock,
-    expected,
-    // The chance of having it by this kill is what "how lucky" means for an unlock that happened.
-    luckPercentile: 1 - chanceOfNothing(chance, killsAtUnlock),
-    notable: expected > 0 && expected <= 0.1,
+    ratio: expected > 0 ? got / expected : 0,
+    verdict,
+    tail: verdict === 'dry' ? dryTail : verdict === 'spooned' ? spoonTail : Math.min(dryTail, spoonTail),
+    // Nothing to say about somebody who has barely started: at fewer than half an expected drop,
+    // every result is the same result.
+    notable: verdict !== 'on-rate' && expected >= 0.5,
   };
 }
 
@@ -97,21 +130,24 @@ export function formatRate(denominator: number): string {
   return `1 in ${denominator >= 100 ? Math.round(denominator).toLocaleString() : denominator.toFixed(1)}`;
 }
 
-/**
- * "3.2× dry" / "spooned at 0.04×" — the multiple of the drop rate, which is how players actually
- * compare these to each other. Null when there's no rate to compare against.
- */
-export function formatMultiple(expected: number): string | null {
-  if (!Number.isFinite(expected) || expected <= 0) return null;
-  return `${expected >= 10 ? Math.round(expected) : expected.toFixed(1)}×`;
+/** "3.2×" — the multiple of expectation, which is how players compare these to each other. */
+export function formatMultiple(value: number): string | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return `${value >= 10 ? Math.round(value) : value.toFixed(1)}×`;
+}
+
+/** "got 1 of 15" — the plain sentence under a board entry, before any statistics. */
+export function formatCount(obtained: number, expected: number): string {
+  const owed = expected >= 10 ? Math.round(expected).toLocaleString() : expected.toFixed(1);
+  return `${obtained.toLocaleString()} of ${owed} expected`;
 }
 
 /**
- * The one-in-N phrasing of a percentile, for the line under a board entry: a 1.2% chance of being
- * this dry reads better as "only 1 in 83 are still waiting here".
+ * The one-in-N phrasing of a tail probability: a 1.2% result reads better as "1 in 83 people end up
+ * here" than as a decimal nobody converts in their head.
  */
-export function formatOdds(percentile: number): string | null {
-  if (!Number.isFinite(percentile) || percentile <= 0 || percentile >= 1) return null;
-  const n = Math.round(1 / percentile);
+export function formatOdds(tail: number): string | null {
+  if (!Number.isFinite(tail) || tail <= 0 || tail >= 1) return null;
+  const n = Math.round(1 / tail);
   return n >= 2 ? `1 in ${n.toLocaleString()}` : null;
 }

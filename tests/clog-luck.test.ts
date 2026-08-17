@@ -7,20 +7,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  assessDry,
-  assessSpoon,
+  assessLuck,
   chanceOfNothing,
   chancePerKill,
   expectedDrops,
+  formatCount,
   formatMultiple,
   formatOdds,
   formatRate,
+  poissonAtLeast,
+  poissonAtMost,
+  TAIL_THRESHOLD,
 } from '../src/lib/clogLuck.ts';
 import {
   buildClogProfile,
-  buildDryBoard,
+  buildLuckBoards,
   buildPageItems,
-  buildSpoonBoard,
   matchBestsToPages,
   type LuckSource,
 } from '../src/lib/clogProfile.ts';
@@ -36,33 +38,59 @@ test('chancePerKill: rolls combine as independent chances, never as a sum', () =
   assert.equal(chancePerKill(-5), 0);
 });
 
-test('chanceOfNothing: the odds of still waiting', () => {
-  // At exactly the drop rate, ~37% of people still have nothing. The classic.
+test('chanceOfNothing: the odds of still having none', () => {
   const p = chancePerKill(512);
   const at1x = chanceOfNothing(p, 512);
   assert.ok(at1x > 0.36 && at1x < 0.38, `expected ~0.37, got ${at1x}`);
-  // At 3× the rate, under 5% are still waiting.
   assert.ok(chanceOfNothing(p, 512 * 3) < 0.05);
   assert.equal(chanceOfNothing(p, 0), 1, 'nobody is dry at zero kills');
 });
 
-test('assessDry: notable starts at twice the rate, not before', () => {
-  const p = chancePerKill(500);
-  assert.equal(assessDry(p, 40).notable, false, 'forty kills is new, not unlucky');
-  assert.equal(assessDry(p, 999).notable, false);
-  assert.equal(assessDry(p, 1000).notable, true);
-  const bad = assessDry(p, 2500);
-  assert.equal(bad.expected, 5);
-  assert.ok(bad.luckPercentile < 0.01, 'five times the rate is under 1% of people');
+test('the Poisson tails match their textbook values', () => {
+  // Poisson(1): P(X≤0) = e^-1 = 0.3679, P(X≤1) = 2e^-1 = 0.7358.
+  assert.ok(Math.abs(poissonAtMost(0, 1) - 0.36788) < 1e-4);
+  assert.ok(Math.abs(poissonAtMost(1, 1) - 0.73576) < 1e-4);
+  assert.ok(Math.abs(poissonAtLeast(1, 1) - 0.63212) < 1e-4);
+  assert.equal(poissonAtMost(5, 0), 1, 'with nothing expected, having none is certain');
+  assert.equal(poissonAtLeast(0, 4), 1, 'at least none is always true');
 });
 
-test('assessSpoon: notable only well inside the rate', () => {
+test('assessLuck: owning one is still dry when the rate owed fifteen', () => {
+  // The case that broke the presence model: an enhanced weapon seed at 30,000 Gauntlet. Having it
+  // is not luck — it's about fourteen short.
+  const seed = assessLuck(chancePerKill(2000), 30_000, 1);
+  assert.equal(seed.expected, 15);
+  assert.equal(seed.verdict, 'dry');
+  assert.ok(seed.ratio < 0.1);
+  assert.ok(seed.tail < 1e-4, 'this is a story, and the tail should say so');
+  assert.equal(seed.notable, true);
+});
+
+test('assessLuck: near the rate is neither, in either direction', () => {
   const p = chancePerKill(500);
-  assert.equal(assessSpoon(p, 300).notable, false, 'a bit early is not a spoon');
-  assert.equal(assessSpoon(p, 50).notable, true);
-  const legendary = assessSpoon(p, 5);
-  assert.ok(legendary.luckPercentile < 0.02);
-  assert.equal(assessSpoon(p, 0).notable, false, 'zero KC is missing data, not luck');
+  assert.equal(assessLuck(p, 5_000, 10).verdict, 'on-rate', 'exactly on rate');
+  assert.equal(assessLuck(p, 5_000, 14).verdict, 'on-rate', 'a bit ahead is not a spoon');
+  assert.equal(assessLuck(p, 5_000, 6).verdict, 'on-rate', 'a bit behind is not a drought');
+  // Far enough out either way and it counts.
+  assert.equal(assessLuck(p, 5_000, 20).verdict, 'spooned');
+  assert.equal(assessLuck(p, 5_000, 2).verdict, 'dry');
+});
+
+test('assessLuck: nothing to say about someone who just started', () => {
+  const p = chancePerKill(500);
+  const fresh = assessLuck(p, 100, 0); // a fifth of one drop expected
+  assert.equal(fresh.notable, false, 'zero of 0.2 expected is every new player');
+  assert.equal(assessLuck(p, 100, 2).notable, false, 'and two of 0.2 is a coin landing twice');
+});
+
+test('assessLuck: a tail sits under the threshold exactly when the verdict is a tail', () => {
+  const p = chancePerKill(1000);
+  const dry = assessLuck(p, 10_000, 2);
+  const spoon = assessLuck(p, 10_000, 19);
+  assert.equal(dry.verdict, 'dry');
+  assert.equal(spoon.verdict, 'spooned');
+  assert.ok(dry.tail < TAIL_THRESHOLD);
+  assert.ok(spoon.tail < TAIL_THRESHOLD);
 });
 
 test('expectedDrops never goes negative on a nonsense kill count', () => {
@@ -76,62 +104,48 @@ test('the phrasings a clan actually reads', () => {
   assert.equal(formatMultiple(3.24), '3.2×');
   assert.equal(formatMultiple(11.6), '12×');
   assert.equal(formatMultiple(0), null);
+  assert.equal(formatCount(1, 15), '1 of 15 expected');
+  assert.equal(formatCount(0, 2.4), '0 of 2.4 expected');
   assert.equal(formatOdds(0.012), '1 in 83');
-  assert.equal(formatOdds(0.9), null, 'an unremarkable percentile gets no line');
+  assert.equal(formatOdds(0.9), null, 'an unremarkable tail gets no line');
   assert.equal(formatOdds(0), null);
 });
 
 // ── boards ───────────────────────────────────────────────────────────────────────────────────────
 
 const RATE = { denominator: 500, rolls: 1 };
-const member = (id: number, rsn: string, kills: number, owned: boolean, kcAtUnlock: number | null = null): LuckSource =>
-  ({ clanMemberId: id, rsn, kills, owned, kcAtUnlock });
+const member = (id: number, rsn: string, kills: number, obtained: number): LuckSource =>
+  ({ clanMemberId: id, rsn, kills, obtained });
 
-test('buildDryBoard: only people who put the kills in, sorted by how remarkable it is', () => {
-  const board = buildDryBoard([
+test('buildLuckBoards: both tails from one pass, and owners can be dry', () => {
+  const { dry, spooned } = buildLuckBoards([
     {
       itemId: 1, itemName: 'Pet', source: 'Zulrah', rate: RATE,
       members: [
-        member(1, 'Grinder', 3000, false),   // 6× dry — the story
-        member(2, 'Dabbler', 1200, false),   // 2.4× dry — notable
-        member(3, 'Newbie', 50, false),      // not dry, just new
-        member(4, 'Lucky', 5000, true),      // has it; not a dry entry whatever their KC
+        member(1, 'Grinder', 5_000, 1),   // 1 of 10 — dry, and they OWN one
+        member(2, 'Fair', 5_000, 10),     // on rate
+        member(3, 'Spooned', 1_000, 8),   // 8 of 2
+        member(4, 'Newbie', 50, 0),       // nothing expected yet
       ],
     },
   ]);
-  assert.deepEqual(board.map((e) => e.rsn), ['Grinder', 'Dabbler']);
-  assert.ok(board[0].verdict.luckPercentile < board[1].verdict.luckPercentile);
-  assert.equal(board[0].verdict.expected, 6);
+  assert.deepEqual(dry.map((e) => e.rsn), ['Grinder']);
+  assert.deepEqual(spooned.map((e) => e.rsn), ['Spooned']);
+  assert.equal(dry[0].assessment.obtained, 1, 'having one is not the same as being lucky');
 });
 
-test('buildDryBoard: a rare item at low KC ranks below a common one at high KC', () => {
-  // The reason the sort is on percentile, not kills: 900 kills for a 1-in-100 is the worse beat.
-  const board = buildDryBoard([
-    { itemId: 1, itemName: 'Common', source: 'A', rate: { denominator: 100, rolls: 1 }, members: [member(1, 'Common-dry', 900, false)] },
-    { itemId: 2, itemName: 'Rare', source: 'B', rate: { denominator: 5000, rolls: 1 }, members: [member(2, 'Rare-dry', 11000, false)] },
+test('buildLuckBoards: sorted by how unlikely, not by the raw multiple', () => {
+  const { spooned } = buildLuckBoards([
+    // 3 of 1 expected is a coin flip's worth of luck; 25 of 10 is a story, despite the smaller ratio.
+    { itemId: 1, itemName: 'Small sample', source: 'A', rate: RATE, members: [member(1, 'Ratio-high', 500, 3)] },
+    { itemId: 2, itemName: 'Real run', source: 'B', rate: RATE, members: [member(2, 'Truly-lucky', 5_000, 25)] },
   ]);
-  assert.equal(board[0].rsn, 'Common-dry');
-});
-
-test('buildSpoonBoard: only unlocks we watched land', () => {
-  const board = buildSpoonBoard([
-    {
-      itemId: 1, itemName: 'Pet', source: 'Zulrah', rate: RATE,
-      members: [
-        member(1, 'Spooned', 4000, true, 12),   // twelve KC — the legend
-        member(2, 'Normal', 700, true, 480),    // about on rate
-        member(3, 'Unknown', 4000, true, null), // owned before we watched: unknowable, not lucky
-        member(4, 'Missing', 4000, false, null),
-      ],
-    },
-  ]);
-  assert.deepEqual(board.map((e) => e.rsn), ['Spooned']);
-  assert.equal(board[0].verdict.kills, 12);
+  assert.equal(spooned[0].rsn, 'Truly-lucky');
 });
 
 test('boards respect their limit', () => {
-  const many = Array.from({ length: 40 }, (_, i) => member(i + 1, `M${i}`, 5000, false));
-  assert.equal(buildDryBoard([{ itemId: 1, itemName: 'Pet', source: 'Z', rate: RATE, members: many }], 5).length, 5);
+  const many = Array.from({ length: 40 }, (_, i) => member(i + 1, `M${i}`, 5_000, 0));
+  assert.equal(buildLuckBoards([{ itemId: 1, itemName: 'Pet', source: 'Z', rate: RATE, members: many }], 5).dry.length, 5);
 });
 
 // ── profile assembly ─────────────────────────────────────────────────────────────────────────────

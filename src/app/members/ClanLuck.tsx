@@ -2,16 +2,16 @@
 
 import Link from 'next/link';
 import { itemIconUrl } from '@/lib/tileIcons';
-import { formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
-import type { DryEntry, SpoonEntry } from '@/lib/clogProfile';
+import { formatCount, formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
+import type { LuckEntry } from '@/lib/clogProfile';
 
 // Who the game has been cruel to, and who it hasn't. Both boards read from synced collection logs
 // crossed with hiscores kill counts and the wiki's drop rates — so an entry is a claim we can show
 // the working for, which is the only kind worth putting someone's name next to.
 
 interface Props {
-  dry: DryEntry[];
-  spoons: SpoonEntry[];
+  dry: LuckEntry[];
+  spooned: LuckEntry[];
   membersConsidered: number;
   itemsConsidered: number;
 }
@@ -58,7 +58,7 @@ function Row({
   );
 }
 
-export default function ClanLuck({ dry, spoons, membersConsidered, itemsConsidered }: Props) {
+export default function ClanLuck({ dry, spooned, membersConsidered, itemsConsidered }: Props) {
   if (membersConsidered === 0) {
     return (
       <div className="border border-dashed border-card-border rounded-xl p-8 text-center">
@@ -76,20 +76,21 @@ export default function ClanLuck({ dry, spoons, membersConsidered, itemsConsider
     <div className="space-y-6">
       <p className="text-xs text-text-muted">
         Drawn from {membersConsidered} synced log{membersConsidered === 1 ? '' : 's'} against{' '}
-        {itemsConsidered} rare drops, using each member&rsquo;s hiscores kill count and the wiki&rsquo;s
-        rates. Only bosses appear — a clue-scroll item has no kill count to be dry against.
+        {itemsConsidered} rare drops: how many of each someone has, against how many their kill count
+        and the wiki&rsquo;s rate say they should. Sitting near the rate is neither — only the tails
+        appear here. Bosses only, since a clue item has no kill count to measure against.
       </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <h3 className="font-semibold flex items-center gap-2 mb-2">
             <span className="w-1 h-5 bg-red-500 rounded-full" />
-            Dry streaks
-            <span className="text-xs text-text-muted font-normal">worst first</span>
+            Dry
+            <span className="text-xs text-text-muted font-normal">fewest drops for the kills</span>
           </h3>
           {dry.length === 0 ? (
             <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
-              Nobody is past twice a drop rate. Enjoy it while it lasts.
+              Everyone is inside the ordinary range. Enjoy it while it lasts.
             </div>
           ) : (
             <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
@@ -101,13 +102,11 @@ export default function ClanLuck({ dry, spoons, membersConsidered, itemsConsider
                   itemName={e.itemName}
                   source={e.source}
                   tone="dry"
-                  headline={`${formatMultiple(e.verdict.expected) ?? ''} dry`}
+                  headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
-                    `${e.verdict.kills.toLocaleString()} KC`,
+                    `${e.assessment.kills.toLocaleString()} KC`,
                     formatRate(e.rate.denominator),
-                    formatOdds(e.verdict.luckPercentile)
-                      ? `only ${formatOdds(e.verdict.luckPercentile)} are still waiting`
-                      : null,
+                    formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')}
@@ -120,18 +119,16 @@ export default function ClanLuck({ dry, spoons, membersConsidered, itemsConsider
         <section>
           <h3 className="font-semibold flex items-center gap-2 mb-2">
             <span className="w-1 h-5 bg-accent-green rounded-full" />
-            Spoons
-            <span className="text-xs text-text-muted font-normal">luckiest first</span>
+            Spooned
+            <span className="text-xs text-text-muted font-normal">most drops for the kills</span>
           </h3>
-          {spoons.length === 0 ? (
+          {spooned.length === 0 ? (
             <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
-              Nothing yet. A spoon needs the kill count at the moment it dropped, so this fills in with
-              drops that land while the plugin is watching — old unlocks can&rsquo;t be dated after
-              the fact.
+              Nobody is far enough ahead of their kill count to call it. Yet.
             </div>
           ) : (
             <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-              {spoons.map((e) => (
+              {spooned.map((e) => (
                 <Row
                   key={`${e.clanMemberId}-${e.itemId}`}
                   rsn={e.rsn}
@@ -139,12 +136,11 @@ export default function ClanLuck({ dry, spoons, membersConsidered, itemsConsider
                   itemName={e.itemName}
                   source={e.source}
                   tone="spoon"
-                  headline={`${e.verdict.kills.toLocaleString()} KC`}
+                  headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
+                    `${e.assessment.kills.toLocaleString()} KC`,
                     formatRate(e.rate.denominator),
-                    formatOdds(e.verdict.luckPercentile)
-                      ? `${formatOdds(e.verdict.luckPercentile)} get it this early`
-                      : null,
+                    formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')}

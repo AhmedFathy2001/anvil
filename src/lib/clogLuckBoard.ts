@@ -4,7 +4,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
-import { buildDryBoard, buildSpoonBoard, type DryEntry, type LuckSource, type SpoonEntry } from '@/lib/clogProfile';
+import { buildLuckBoards, type LuckEntry, type LuckSource } from '@/lib/clogProfile';
 import { parsePluginStats } from '@/lib/pluginStats';
 
 // The clan's luck boards: who is dry, and who was spooned.
@@ -120,8 +120,8 @@ export async function bossKillsFor(clanMemberId: number): Promise<Record<string,
 }
 
 export interface LuckBoards {
-  dry: DryEntry[];
-  spoons: SpoonEntry[];
+  dry: LuckEntry[];
+  spooned: LuckEntry[];
   /** How many members' logs the boards are drawn from — the honest denominator under the tables. */
   membersConsidered: number;
   /** Items the three datasets agreed on. Useful when a board looks thin. */
@@ -136,7 +136,7 @@ export interface LuckBoards {
  */
 export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
   const candidates = luckCandidates();
-  if (candidates.length === 0) return { dry: [], spoons: [], membersConsidered: 0, itemsConsidered: 0 };
+  if (candidates.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: 0 };
 
   // Everyone who has synced, and is still in the clan.
   const synced = await db
@@ -144,7 +144,7 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
     .from(memberClog)
     .innerJoin(clanMembers, eq(memberClog.clanMemberId, clanMembers.id))
     .where(isNull(clanMembers.leftAt));
-  if (synced.length === 0) return { dry: [], spoons: [], membersConsidered: 0, itemsConsidered: candidates.length };
+  if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
 
   const memberIds = synced.map((m) => m.id);
   const itemIds = [...new Set(candidates.map((c) => c.itemId))];
@@ -155,13 +155,14 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
     .select({
       clanMemberId: memberClogItems.clanMemberId,
       itemId: memberClogItems.itemId,
-      kcAtUnlock: memberClogItems.kcAtUnlock,
+      quantity: memberClogItems.quantity,
     })
     .from(memberClogItems)
     .where(and(inArray(memberClogItems.clanMemberId, memberIds), inArray(memberClogItems.itemId, itemIds)));
 
-  const owned = new Map<string, { kcAtUnlock: number | null }>();
-  for (const row of ownedRows) owned.set(`${row.clanMemberId}:${row.itemId}`, { kcAtUnlock: row.kcAtUnlock });
+  // How MANY, not whether: the count is the metric, and a missing row simply means none.
+  const owned = new Map<string, number>();
+  for (const row of ownedRows) owned.set(`${row.clanMemberId}:${row.itemId}`, row.quantity);
 
   // Kill counts: the live push first (it's the fresher of the two), falling back to the most recent
   // hiscores snapshot we hold for them.
@@ -198,21 +199,17 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
     itemName: c.itemName,
     source: c.source,
     rate: c.rate,
-    members: synced.map((m): LuckSource => {
-      const has = owned.get(`${m.id}:${c.itemId}`);
-      return {
-        clanMemberId: m.id,
-        rsn: m.rsn,
-        kills: kills.get(m.id)?.[c.bossKey] ?? 0,
-        owned: !!has,
-        kcAtUnlock: has?.kcAtUnlock ?? null,
-      };
-    }),
+    members: synced.map((m): LuckSource => ({
+      clanMemberId: m.id,
+      rsn: m.rsn,
+      kills: kills.get(m.id)?.[c.bossKey] ?? 0,
+      obtained: owned.get(`${m.id}:${c.itemId}`) ?? 0,
+    })),
   }));
 
+  const boards = buildLuckBoards(shaped, limit);
   return {
-    dry: buildDryBoard(shaped, limit),
-    spoons: buildSpoonBoard(shaped, limit),
+    ...boards,
     membersConsidered: synced.length,
     itemsConsidered: candidates.length,
   };
