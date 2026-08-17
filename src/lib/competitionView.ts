@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { memberDailyStats, memberMilestones, weeklyCompetitions, clanMembers } from '@/db/schema';
 import { and, eq, gte, inArray, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
 import { BOSSES, SKILL_LABELS, EFFICIENCY_LABELS, EFFICIENCY_SCALE } from '@/lib/constants';
 import {
   activeStreak,
@@ -13,11 +14,9 @@ import {
   dailyTotals,
   dayRange,
   daysElapsed,
-  mostConsistent,
   projectTotal,
   type CompetitionType,
   type DailyRow,
-  type DaySeries,
 } from '@/lib/competitionInsights';
 
 /**
@@ -68,12 +67,6 @@ export interface CompetitionMilestone {
   day: string;
 }
 
-export interface CompetitionRecord {
-  emoji: string;
-  label: string;
-  who: string;
-  value: string;
-}
 
 export interface CompetitionView {
   type: CompetitionType;
@@ -105,7 +98,12 @@ export interface CompetitionView {
   /** The viewer's own row, if they're in it. */
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null } | null;
   milestones: CompetitionMilestone[];
-  records: CompetitionRecord[];
+  /**
+   * The week's superlatives. Every one is decided by the SHAPE of the days rather than by when a
+   * number arrived, because the plugin reports in seconds and the sweep can be hours behind — see
+   * lib/competitionAwards.
+   */
+  awards: CompetitionAward[];
   /**
    * Whether the week's shape is worth drawing: 'none' (guest-only board or pre-history competition),
    * 'thin' (rows exist but explain too little of the standings to be honest about), or 'ok'.
@@ -300,7 +298,21 @@ export async function buildCompetitionView(
     // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
     // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
     // week whose leader gained 1.0M), so it produces nothing instead.
-    records: trust === 'ok' ? buildRecords(entries, series, elapsed, type) : [],
+    // Gated on the same judgement every other day-shaped surface uses: a week the daily rows can't
+    // explain would hand out awards the standings contradict.
+    awards:
+      trust === 'ok'
+        ? buildCompetitionAwards(entries, {
+            elapsed,
+            clanTotal,
+            fmt: (v) => `${fmtUnit(v, type)}${type === 'efficiency' ? '' : ` ${UNIT[type]}`}`,
+            // 'Tue' reads better than a date on an award that is about which day it was.
+            dayLabel: (i) =>
+              days[i]
+                ? new Date(`${days[i]}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' })
+                : `day ${i + 1}`,
+          })
+        : [],
     trust,
     coverage,
   };
@@ -402,51 +414,6 @@ function fmtUnit(value: number, type: CompetitionType): string {
   if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return value.toLocaleString();
-}
-
-/** The week's superlatives — the things a flat table can never tell you. */
-function buildRecords(
-  entries: CompetitionEntry[],
-  series: DaySeries[],
-  elapsed: number,
-  type: CompetitionType,
-): CompetitionRecord[] {
-  const out: CompetitionRecord[] = [];
-  const scoring = entries.filter((e) => e.gained > 0);
-  if (scoring.length === 0) return out;
-
-  const streaker = [...scoring].sort((a, b) => b.streak - a.streak)[0];
-  if (streaker.streak > 1) {
-    out.push({ emoji: '🔥', label: 'Longest active streak', who: streaker.rsn, value: `${streaker.streak}d` });
-  }
-
-  let bigDay: { rsn: string; value: number } | null = null;
-  for (const e of scoring) {
-    const best = Math.max(...e.days.slice(0, elapsed), 0);
-    if (!bigDay || best > bigDay.value) bigDay = { rsn: e.rsn, value: best };
-  }
-  if (bigDay && bigDay.value > 0) {
-    out.push({ emoji: '💥', label: 'Biggest single day', who: bigDay.rsn, value: fmtUnit(bigDay.value, type) });
-  }
-
-  const steady = mostConsistent(
-    series.filter((s) => scoring.some((e) => e.rsn === s.rsn)),
-    elapsed,
-  );
-  if (steady) {
-    const total = steady.days.slice(0, elapsed).reduce((a, b) => a + b, 0);
-    out.push({
-      emoji: '⚖️',
-      label: 'Most consistent',
-      who: steady.rsn,
-      value: `${fmtUnit(Math.round(total / elapsed), type)}/day`,
-    });
-  }
-
-  const first = series.find((s) => (s.days[0] ?? 0) > 0);
-  if (first) out.push({ emoji: '🌅', label: 'First to score', who: first.rsn, value: 'day one' });
-
-  return out;
 }
 
 /** The viewer's clan-member ids, for the "you" strip. Empty when signed out. */

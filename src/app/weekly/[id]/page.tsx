@@ -10,6 +10,7 @@ import { competitionIconUrl } from '@/lib/tileIcons';
 import CompetitionHero from '@/components/weekly/CompetitionHero';
 import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
+import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,8 @@ export default async function WeeklyLeaderboardPage({
         showShape={showDaily}
       />
 
+      <CompetitionAwards awards={view.awards} />
+
       <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="min-w-0">
           {showDaily ? (
@@ -138,7 +141,7 @@ export default async function WeeklyLeaderboardPage({
             unit={view.unit}
             showDaily={showDaily}
           />
-          <SidePanels milestones={view.milestones} records={view.records} />
+          <SidePanels milestones={view.milestones} />
         </div>
       </div>
     </div>

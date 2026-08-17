@@ -1,7 +1,7 @@
 'use client';
 
 import type { CompetitionType } from '@/lib/competitionInsights';
-import type { CompetitionEntry, CompetitionMilestone, CompetitionRecord } from '@/lib/competitionView';
+import type { CompetitionEntry, CompetitionMilestone } from '@/lib/competitionView';
 import { dateLabel, exactValue, shortValue } from './format';
 
 /**
@@ -291,13 +291,7 @@ export function Board({
   );
 }
 
-export function SidePanels({
-  milestones,
-  records,
-}: {
-  milestones: CompetitionMilestone[];
-  records: CompetitionRecord[];
-}) {
+export function SidePanels({ milestones }: { milestones: CompetitionMilestone[] }) {
   return (
     <>
       {milestones.length > 0 && (
@@ -313,23 +307,6 @@ export function SidePanels({
                   <b className="font-semibold text-foreground">{m.highlight}</b>
                 </span>
                 <span className="shrink-0 font-mono text-[11px] text-text-muted">{dateLabel(m.day)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {records.length > 0 && (
-        <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
-          <h3 className="text-sm font-bold">Records &amp; streaks</h3>
-          <div className="mt-2.5">
-            {records.map((r) => (
-              <div key={r.label} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
-                <span className="text-base leading-none">{r.emoji}</span>
-                <span className="min-w-0 flex-1 text-text-muted">
-                  {r.label} — <b className="font-semibold text-foreground">{r.who}</b>
-                </span>
-                <span className="shrink-0 font-mono text-xs font-bold text-gold-light">{r.value}</span>
               </div>
             ))}
           </div>
