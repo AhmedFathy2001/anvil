@@ -9,7 +9,6 @@ completely different schedules.
   the **latest** plugin.
 - A **site** is one deployment per clan. Hosted clans track our release channels, but
   **self-hosted instances can lag by months**.
-- The plugin **multi-homes**: through federation one plugin instance talks to several
   sites at once, each potentially on a different version.
 
 So "check the version number" doesn't work as a compat strategy — the plugin instead asks
@@ -63,7 +62,7 @@ v1.0.0) — never as "supports nothing", which would break every not-yet-updated
 Defined in `src/lib/serverInfo.ts` (site) — that list is the source of truth. Baseline as
 of v1.0.0: `stats-live`, `drop-tiles`, `kill-tiles`, `timed-tiles`, `lms-tiles`,
 `value-tiles`, `gain-tiles`, `deathless-tiles`, `pvp-tiles`, `diary-tiles`, `ca-tiles`,
-`clog-tiles`, `weekly`, `schedule`, `notify`, `counters`, `activity-feed`, `federation`,
+`clog-tiles`, `weekly`, `schedule`, `notify`, `counters`, `activity-feed`,
 `ladder`, `reveal-modes`, `config-etag`. Post-baseline additions: `bingo-missions`
 (mid-event announced mission tiles on a normal bingo — the plugin gates its mission strip
 on this so it isn't confused by a self-hosted site that predates the feature);

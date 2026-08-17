@@ -34,7 +34,7 @@ See the [README](README.md) for the full repository map and stack details.
 5. **Run:** `npm run dev` — the app serves on http://localhost:3000.
 
 Test suites run on `node:test`: `npm run test:events`, `test:embeds`,
-`test:federation`, `test:recap`.
+`test:security`, `test:recap`.
 
 A full self-hosting / deployment guide lives in
 [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).

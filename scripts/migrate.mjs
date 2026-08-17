@@ -180,27 +180,20 @@ async function seedSettingsFromEnv() {
 }
 
 /**
- * Managed-hosting defaults. A clan we host is part of the Anvil network by default — federation on,
- * discoverable in the directory, and listed on the public "clans on Anvil" page — because that is
- * what the hosted product is: one network, one plugin listing every clan a member plays in. A
- * self-hoster (no provisioner env) gets none of this and keeps the sovereign-by-default posture.
+ * Managed-hosting defaults. A clan we host is listed on the public "clans on Anvil" page by default.
+ * A self-hoster (no provisioner env) gets none of this.
  *
  * INSERT-ONLY-IF-ABSENT, deliberately stricter than seedSettingsFromEnv's "missing or empty" rule:
  * these are toggles whose OFF state is the empty string / 'off'. Treating empty as unset would
- * silently re-enable federation for a clan that turned it off, on every single container recreate.
- * A row existing at all — whatever its value — means the clan has an opinion, so we leave it alone.
- *
- * Seeding federation_enabled here only records the intent; the broker registration that makes it
- * real (and fills brokerTrust) is done by the reconcile in lib/federation.ts, which the cron kicks.
+ * silently re-enable a toggle the clan turned off, on every single container recreate. A row
+ * existing at all — whatever its value — means the clan has an opinion, so we leave it alone.
  */
 async function seedManagedDefaults() {
-  // The provisioner is the only thing that sets these; their presence IS "this clan is hosted".
-  const managed = process.env.CLAN_SLUG?.trim() && process.env.FEDERATION_ASSOC_SECRET?.trim();
+  // The provisioner is the only thing that sets this; its presence IS "this clan is hosted".
+  const managed = process.env.CLAN_SLUG?.trim();
   if (!managed) return;
 
   const defaults = [
-    ['federation_enabled', 'on'],       // join the network
-    ['federation_association_push', 'on'], // "make this clan easy to find" — auto-listed in members' plugins
     ['public_showcase', 'on'],          // listed on anvilosrs.com/clans (opt-out in Advanced settings)
   ];
   for (const [key, value] of defaults) {

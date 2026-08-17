@@ -85,7 +85,6 @@ The essentials:
 | `STORAGE_DRIVER`, `S3_*` | For uploads | Proof screenshots + fee proofs. See §7. |
 | `S3_BACKUP_BUCKET` | Recommended | Private bucket for the daily off-box DB backup. See §9. |
 | `CLAN_NAME`, `CLAN_INGAME_NAME`, `DISCORD_INVITE_URL`, `DISCORD_MEMBER_ROLE_ID` | Optional | First-boot fallbacks for values you'd otherwise set in the admin UI. |
-| `FEDERATION_TOKEN_ENC_KEY` | Optional | Encrypts cached cross-clan tokens. Falls back to `ADMIN_SESSION_SECRET`. Only matters if you enable federation. |
 
 Generate each secret with:
 
@@ -297,7 +296,7 @@ private.
     plugin notification channels (rare drops, deaths, combat achievements, PvP kills,
     clips, achievements). With the bot's **Manage Webhooks** permission, Anvil can create
     them for you instead.
-  - Optional: role/nickname sync, team channels, tier bands, taunt lines, federation.
+  - Optional: role/nickname sync, team channels, tier bands, taunt lines.
 
 **Roster membership** comes from the in-game clan roster sync (an admin links the plugin as
 admin on `/admin/clan`, opens the clan tab in game, and clicks **Sync clan**) or from adding
@@ -463,13 +462,3 @@ future `db:migrate` runs break. It's for throwaway scratch DBs only.
 | Plugin says it can't reach the site | **Site URL** is empty or has a trailing slash / wrong scheme. Check `GET /api/version` in a browser first. |
 | Clan sync rejected | The in-game clan name reported by the plugin doesn't match **In-game clan name** in `/admin/clan`. Blank it to accept any clan. |
 
----
-
-## Joining the Anvil ecosystem (optional)
-
-Your instance is fully standalone. You can also opt into the shared network at
-`anvilosrs.com` — a **directory + identity broker** (not a data server) that lets members
-and other clans discover your instance and, optionally, connect to several clans with one
-Discord login. Your board and player data never leave your box, and the broker being down
-never takes your instance down. See [`ECOSYSTEM.md`](./ECOSYSTEM.md) for how to register,
-prove domain ownership, and what each federation layer does.

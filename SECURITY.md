@@ -23,6 +23,5 @@ only when upgrading is not a reasonable path.
 
 - The plugin never receives Discord webhook URLs or other secrets — it posts to the site,
   which forwards server-side. Anything that breaks that boundary is in scope.
-- Anything allowing cross-clan data access through the federation layer is in scope.
 - Self-hosted instances are configured by their operators; misconfigured deployments
   (exposed `.env`, missing TLS) are out of scope, but insecure *defaults* are in scope.

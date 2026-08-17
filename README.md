@@ -29,8 +29,6 @@ Questions, bug reports or setup help: **[join the Anvil Discord](https://discord
   deaths, achievements, kills and clips, event announcements, and per-channel webhooks.
 - **After the event.** Frozen contribution splits, a post-event survey, and a recap of
   superlatives (MVP, biggest drop, most kills, best rate).
-- **Optional federation.** Opt into a shared directory + identity broker so members can
-  reach several clans with one Discord login — your data never leaves your box.
 
 ## Stack
 
@@ -50,7 +48,7 @@ src/
   app/                Next.js routes — pages, /api, /admin, /guide
   components/         Shared React components
   db/                 Drizzle schema + client
-  lib/                auth, discord, weekly, stats, events, federation, storage…
+  lib/                auth, discord, weekly, stats, events, storage…
   hooks/              Client-side hooks (live refresh, countdowns)
   middleware.ts       Edge middleware: role-gated /admin routing
 drizzle/              Generated SQL migrations + meta snapshots (the source of truth)
@@ -172,7 +170,7 @@ Run with `npx tsx` (`.ts`) or `node` (`.mjs`); each loads `.env` / `.env.local` 
 - `npm run data:clog` / `data:ca` / `data:drops` / `data:rates` / `data:efficiency` — rebuild the
   bundled wiki-derived datasets (`data:drops` refreshes both the drop-rate table behind the board
   balance auditor and the loot-only item list behind the tile picker's "Drops only" filter)
-- `npm run test:events` / `test:embeds` / `test:federation` / `test:recap` — node:test suites
+- `npm run test:events` / `test:embeds` / `test:security` / `test:recap` — node:test suites
 - `scripts/backfill-clan-members.ts` — populate `clan_members` from legacy `players` /
   `weekly_participants` rows (idempotent)
 - `scripts/prune-player-snapshots.ts` — trim historical hiscores snapshots
@@ -195,8 +193,6 @@ Hub plugin — it just doesn't show newer features. Contract:
 | [`docs/PLUGIN_SETUP.md`](docs/PLUGIN_SETUP.md) | The member-facing plugin walkthrough |
 | [`docs/tile-authoring.md`](docs/tile-authoring.md) | CSV / spreadsheet tile authoring spec |
 | [`docs/PLUGIN_WIRE.md`](docs/PLUGIN_WIRE.md) | Site ↔ plugin contract and compatibility rules |
-| [`docs/ECOSYSTEM.md`](docs/ECOSYSTEM.md) | Joining the optional federation network |
-| [`docs/FEDERATION*.md`](docs/FEDERATION.md) | Federation design, wire spec, security model |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local setup, migration workflow, PR process |
 
 Your own instance also serves in-app guides at `/guide/plugin` and `/guide/admin`, prefilled
