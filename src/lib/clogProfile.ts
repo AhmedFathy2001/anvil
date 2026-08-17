@@ -129,6 +129,91 @@ export function buildPageItems(page: string, items: StoredClogItem[]): ClogItemV
   });
 }
 
+// ── Personal bests ───────────────────────────────────────────────────────────────────────────────
+
+export interface BestTime {
+  /** How this run is qualified — "Solo", "3 players", "Challenge mode 5 players". */
+  label: string;
+  /** Formatted time, e.g. 33:38.00. */
+  time: string;
+  /** The raw activity name, for searching. */
+  activity: string;
+  /** Players in the run, so scales sort in a sensible order instead of by clock time. */
+  partySize: number;
+}
+
+/**
+ * Normalised form for matching a stored best to a log page. The game names an activity without the
+ * punctuation the collection log uses, so both sides lose everything that isn't a letter, a digit or
+ * a single space.
+ */
+function normalizeActivity(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** "The Gauntlet" and "gauntlet" are the same content; the article only exists on one of them. */
+function coreName(value: string): string {
+  return normalizeActivity(value).replace(/^the /, '');
+}
+
+/** Party size out of a label, so "5 players" sorts after "3 players" and both after a solo. */
+function partySizeOf(label: string, fallback: number): number {
+  const match = /(\d+)\s*players?/.exec(label);
+  return match ? parseInt(match[1], 10) : fallback;
+}
+
+/**
+ * Attach best times to the log pages they belong to.
+ *
+ * A raid has ONE collection log page and many personal bests — party sizes and modes both — so
+ * everything from "chambers of xeric" to "chambers of xeric challenge mode 3 players" belongs to
+ * Chambers of Xeric, and what's left over becomes the label. Content whose name carries a qualifier
+ * at the FRONT ("corrupted gauntlet" under The Gauntlet) matches the same way, or it would be
+ * dropped for not starting with its own page's name.
+ *
+ * Ordered by scale rather than by time: a solo and a five-man aren't comparable, and sorting them
+ * together would put a trio above a solo for no reason anyone reading it would accept.
+ */
+export function matchBestsToPages(
+  bests: { activity: string; teamSize: number; time: string }[],
+  pageNames: string[],
+): Map<string, BestTime[]> {
+  const pages = pageNames
+    .map((name) => ({ name, core: coreName(name) }))
+    .filter((p) => p.core.length > 0)
+    // Longest first so a page that contains another's words can't steal its times.
+    .sort((a, b) => b.core.length - a.core.length);
+
+  const out = new Map<string, BestTime[]>();
+  for (const best of bests) {
+    const activity = normalizeActivity(best.activity);
+    const page = pages.find(
+      (p) =>
+        activity === p.core ||
+        activity.startsWith(p.core + ' ') ||
+        activity.endsWith(' ' + p.core) ||
+        activity.includes(' ' + p.core + ' '),
+    );
+    if (!page) continue;
+
+    // Whatever isn't the page's own name describes the run: a mode, a party size, or both.
+    const label = activity.replace(page.core, ' ').replace(/\s+/g, ' ').trim() || 'Solo';
+    const list = out.get(page.name) ?? [];
+    list.push({
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+      time: best.time,
+      activity: best.activity,
+      partySize: partySizeOf(label, best.teamSize || 1),
+    });
+    out.set(page.name, list);
+  }
+
+  for (const list of out.values()) {
+    list.sort((a, b) => a.partySize - b.partySize || a.label.localeCompare(b.label));
+  }
+  return out;
+}
+
 // ── Clan luck ────────────────────────────────────────────────────────────────────────────────────
 
 export interface DropRate {

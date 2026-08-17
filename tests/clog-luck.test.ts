@@ -16,7 +16,14 @@ import {
   formatOdds,
   formatRate,
 } from '../src/lib/clogLuck.ts';
-import { buildClogProfile, buildDryBoard, buildPageItems, buildSpoonBoard, type LuckSource } from '../src/lib/clogProfile.ts';
+import {
+  buildClogProfile,
+  buildDryBoard,
+  buildPageItems,
+  buildSpoonBoard,
+  matchBestsToPages,
+  type LuckSource,
+} from '../src/lib/clogProfile.ts';
 import { clogPageItems, clogPageNames } from '../src/lib/clogDataset.ts';
 
 test('chancePerKill: rolls combine as independent chances, never as a sum', () => {
@@ -173,3 +180,57 @@ test('buildPageItems: the whole page, flagged by what they own', () => {
   assert.ok(grid.slice(1).every((i) => !i.owned && i.quantity === 0));
   assert.ok(grid.every((i) => i.name && !i.name.startsWith('Item ')), 'every slot names itself');
 });
+
+// ── personal bests ───────────────────────────────────────────────────────────────────────────────
+
+test('matchBestsToPages: a raid has one page and many times', () => {
+  // There is no separate CM page in the collection log — challenge mode, party sizes and the plain
+  // raid are all Chambers of Xeric, distinguished by the run rather than by the page.
+  const matched = matchBestsToPages(
+    [
+      { activity: 'chambers of xeric', teamSize: 0, time: '33:38.00' },
+      { activity: 'chambers of xeric 3 players', teamSize: 3, time: '22:15.00' },
+      { activity: 'chambers of xeric challenge mode', teamSize: 0, time: '55:10.00' },
+      { activity: 'chambers of xeric challenge mode 5 players', teamSize: 5, time: '38:02.00' },
+    ],
+    ['Chambers of Xeric', 'Vorkath'],
+  );
+  const cox = matched.get('Chambers of Xeric')!;
+  assert.equal(cox.length, 4, 'every scale lands on the one page');
+  assert.equal(matched.has('Vorkath'), false);
+  // Ordered by scale, not by clock: a trio being faster than a solo is not a ranking.
+  assert.deepEqual(cox.map((b) => b.partySize), [1, 1, 3, 5]);
+  assert.deepEqual(cox.map((b) => b.label), ['Challenge mode', 'Solo', '3 players', 'Challenge mode 5 players']);
+});
+
+test('matchBestsToPages: a qualifier in front still finds its page', () => {
+  // "corrupted gauntlet" doesn't start with "the gauntlet", and its items are on that page anyway.
+  const matched = matchBestsToPages(
+    [
+      { activity: 'gauntlet', teamSize: 0, time: '8:30.00' },
+      { activity: 'corrupted gauntlet', teamSize: 0, time: '12:45.00' },
+    ],
+    ['The Gauntlet'],
+  );
+  const list = matched.get('The Gauntlet')!;
+  assert.equal(list.length, 2);
+  assert.ok(list.some((b) => b.label === 'Corrupted'));
+  assert.ok(list.some((b) => b.label === 'Solo'));
+});
+
+test('matchBestsToPages: punctuation on either side never blocks a match', () => {
+  const matched = matchBestsToPages(
+    [{ activity: 'tombs of amascut expert mode', teamSize: 0, time: '30:00.00' }],
+    ['Tombs of Amascut'],
+  );
+  assert.equal(matched.get('Tombs of Amascut')?.[0].label, 'Expert mode');
+});
+
+test('matchBestsToPages: an activity with no page is dropped, not guessed at', () => {
+  const matched = matchBestsToPages(
+    [{ activity: 'ape atoll agility', teamSize: 0, time: '1:16.00' }],
+    ['Vorkath', 'Zulrah'],
+  );
+  assert.equal(matched.size, 0);
+});
+

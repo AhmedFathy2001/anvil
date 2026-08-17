@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
-import { buildClogProfile } from '@/lib/clogProfile';
+import { buildClogProfile, matchBestsToPages, type BestTime } from '@/lib/clogProfile';
 import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
 
 // Reading a member's synced log for their profile page. One place, because the catalogue slice the
@@ -81,6 +81,15 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
   const quantities: Record<number, number> = {};
   for (const item of items) if (item.quantity > 1) quantities[item.itemId] = item.quantity;
 
+  const formatted = bests.map((b) => ({
+    activity: b.activity,
+    teamSize: b.teamSize,
+    time: formatPersonalBest(b.centis),
+  }));
+  // Times belong next to the content they're for: a raid's page shows every scale of it, so someone
+  // reading Chambers of Xeric sees their solo and their trio without going anywhere else.
+  const byPage = matchBestsToPages(formatted, clogPageNames());
+
   return {
     rsn,
     synced: view.synced,
@@ -88,11 +97,12 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
     catalogue,
     quantities,
     recent: view.recent,
-    bests: bests
+    bestsByPage: Object.fromEntries(byPage) as Record<string, BestTime[]>,
+    bests: formatted
       .sort((a, b) => a.activity.localeCompare(b.activity))
       .map((b) => ({
         activity: titleCase(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''),
-        time: formatPersonalBest(b.centis),
+        time: b.time,
       })),
   };
 }

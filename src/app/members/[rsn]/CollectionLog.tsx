@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
-import type { ClogPageView, RecentUnlock } from '@/lib/clogProfile';
+import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
 
 // A member's synced collection log. The game's own shape — pages down the side, the chosen page's
 // items in a grid, obtained lit and the rest dimmed — because that is the only layout anyone will
@@ -35,11 +35,13 @@ export interface CollectionLogProps {
   catalogue: Record<string, { id: number; name: string }[]>;
   quantities: Record<number, number>;
   recent: RecentUnlock[];
-  /** Best times, already formatted, newest-first by activity name. */
+  /** Best times filed under the log page they belong to — every scale of a raid on its own page. */
+  bestsByPage: Record<string, BestTime[]>;
+  /** The same times as one flat list, for the searchable table. */
   bests: { activity: string; time: string }[];
 }
 
-export default function CollectionLog({ rsn, synced, pages, catalogue, quantities, recent, bests }: CollectionLogProps) {
+export default function CollectionLog({ rsn, synced, pages, catalogue, quantities, recent, bests, bestsByPage }: CollectionLogProps) {
   // Open on the fullest page — someone's log is most interesting where they've actually played.
   const initial = useMemo(() => {
     const withItems = [...pages].sort((a, b) => b.obtained - a.obtained || a.name.localeCompare(b.name));
@@ -47,10 +49,16 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
   }, [pages]);
   const [selected, setSelected] = useState(initial);
   const [filter, setFilter] = useState('');
+  const [bestFilter, setBestFilter] = useState('');
 
   const page = pages.find((p) => p.name === selected) ?? pages[0];
   const owned = useMemo(() => new Set(page?.ownedIds ?? []), [page]);
   const items = catalogue[page?.name ?? ''] ?? [];
+
+  const shownBests = useMemo(() => {
+    const q = bestFilter.trim().toLowerCase();
+    return q ? bests.filter((b) => b.activity.toLowerCase().includes(q)) : bests;
+  }, [bests, bestFilter]);
 
   const shownPages = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -182,6 +190,23 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
               {page?.obtained}/{page?.total}
             </span>
           </div>
+          {/* This page's times, every scale of it. A raid has one log page and many personal bests,
+              so they belong here rather than only in a table somewhere else. */}
+          {(bestsByPage[page?.name ?? ''] ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-card-border">
+              {bestsByPage[page!.name].map((b) => (
+                <span
+                  key={`${b.activity}-${b.label}`}
+                  className="text-[11px] px-2 py-1 rounded border border-card-border bg-brown-dark/40"
+                  title={b.activity}
+                >
+                  <span className="text-text-muted">{b.label}</span>{' '}
+                  <span className="font-mono text-gold">{b.time}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-1.5">
             {items.map((item) => {
               const has = owned.has(item.id);
@@ -214,17 +239,31 @@ export default function CollectionLog({ rsn, synced, pages, catalogue, quantitie
 
       {bests.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-            <span className="w-1 h-4 bg-gold rounded-full" />
-            Personal bests
-          </h3>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <span className="w-1 h-4 bg-gold rounded-full" />
+              Personal bests
+              <span className="text-xs text-text-muted font-normal">{bests.length}</span>
+            </h3>
+            <input
+              value={bestFilter}
+              onChange={(e) => setBestFilter(e.target.value)}
+              placeholder="Find a time…"
+              className="w-40 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
+            />
+          </div>
           <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-72 overflow-y-auto">
-            {bests.map((b) => (
+            {shownBests.map((b) => (
               <div key={b.activity} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
                 <span className="truncate">{b.activity}</span>
                 <span className="font-mono text-gold shrink-0">{b.time}</span>
               </div>
             ))}
+            {shownBests.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-text-muted">
+                No time matches &ldquo;{bestFilter}&rdquo;.
+              </div>
+            )}
           </div>
         </div>
       )}
