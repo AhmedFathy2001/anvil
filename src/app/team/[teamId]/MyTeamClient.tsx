@@ -420,23 +420,34 @@ export default function MyTeamClient({
       </p>
 
       {eventCountdown && (
-        <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
-          <p className="text-xs text-text-muted mb-1">Event starts in</p>
-          <p className="text-lg font-bold text-gold">{eventCountdown}</p>
-          {event.startDate && <p className="text-xs text-text-muted mt-1"><LocalTime date={event.startDate} /></p>}
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gradient-to-b from-gold/15 to-transparent p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-text-muted">Event starts in</p>
+            <p className="text-2xl font-extrabold text-gold tabular-nums leading-tight">{eventCountdown}</p>
+            {event.startDate && (
+              <p className="text-xs text-text-muted"><LocalTime date={event.startDate} /></p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide text-text-muted">On the board</p>
+            <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: team.color }}>
+              {total.toLocaleString()} {pointsMode ? 'pts' : 'tiles'}
+            </p>
+            <p className="text-xs text-text-muted">{players.filter((p) => p.teamId === team.id).length} on the team</p>
+          </div>
         </div>
       )}
 
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
-      {isCaptain && (
+      {isCaptain && eventStarted && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
-            disabled={refreshing || !!countdown || !eventStarted}
+            disabled={refreshing || !!countdown}
             className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh Team Stats'}
+            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : 'Refresh Team Stats'}
           </button>
           {lastFetch && <span className="text-xs text-text-muted">Last updated: <LocalTime date={lastFetch} /></span>}
         </div>
