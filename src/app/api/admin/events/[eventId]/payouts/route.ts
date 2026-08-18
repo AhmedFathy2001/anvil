@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, payouts, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -15,7 +16,7 @@ function sortPayouts<T extends { place: number | null; amount: number }>(rows: T
 // GET — the full payouts panel payload: existing rows, the prize pool, live standings (for the
 // generate preview), and whether the winners have been announced.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   if (!(await verifyAdminOrModerator())) {
@@ -23,6 +24,10 @@ export async function GET(
   }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
@@ -58,6 +63,10 @@ export async function POST(
   }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

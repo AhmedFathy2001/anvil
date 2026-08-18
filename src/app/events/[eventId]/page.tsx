@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, eventSignups, clanRoster, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
@@ -46,6 +47,8 @@ export default async function EventScoreboardPage({
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  await requireEventForPage(id);
   const event = await db.query.events.findFirst({
     where: eq(events.id, id),
   });

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
@@ -38,6 +39,10 @@ export async function PATCH(
 
   const { eventId, signupId } = await params;
   const evtId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, evtId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const sigId = parseInt(signupId, 10);
   if (!Number.isFinite(evtId) || !Number.isFinite(sigId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

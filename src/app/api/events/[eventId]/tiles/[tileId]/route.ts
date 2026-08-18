@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
@@ -10,7 +11,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 // the page-load list) so a save starts from the latest state — and carries the updatedAt
 // stamp the concurrency check on PUT compares against.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
   const { eventId, tileId } = await params;
@@ -31,11 +32,15 @@ export async function GET(
 // so positions stay contiguous (0..n-1). Classic bingo grids are a fixed N×N shape and reject
 // deletes. Pre-start only. Completions/submissions for the tile cascade-delete via their FK.
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
   const { eventId, tileId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

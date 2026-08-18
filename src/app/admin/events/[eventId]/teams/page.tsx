@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -17,6 +18,8 @@ export default async function EventTeamsPage({
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  await requireEventForPage(id);
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 

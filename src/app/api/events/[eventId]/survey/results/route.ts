@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { surveyQuestions, surveyResponses, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
@@ -8,13 +9,17 @@ import { aggregateSurvey, toQuestionView, type SurveyAnswerMap } from '@/lib/sur
 // Staff-only survey results: per-question aggregation plus attributed free-text answers. Attribution
 // (respondent name) never leaves this admin-gated endpoint.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const [qRows, rRows] = await Promise.all([
     db.select().from(surveyQuestions).where(eq(surveyQuestions.eventId, eId)),
     db.select().from(surveyResponses).where(eq(surveyResponses.eventId, eId)),

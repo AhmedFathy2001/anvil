@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { getSetting } from '@/lib/settings';
 import { events, teams, tiles, eventParticipants } from '@/db/schema';
@@ -18,6 +19,8 @@ export default async function EventStatsPage({
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  await requireEventForPage(id);
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 

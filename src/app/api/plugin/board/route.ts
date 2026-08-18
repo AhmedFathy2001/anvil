@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
@@ -355,7 +356,9 @@ export async function GET(request: Request) {
     if (!Number.isFinite(eventId) || eventId <= 0) {
       return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
     }
-    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    // Whose event is this? The id came from the query string, so it names any clan's board until
+    // something asks — and this endpoint is deliberately anonymous, so nothing else will.
+    const event = await eventForRequest(request, eventId);
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -16,6 +17,10 @@ export async function PATCH(
 
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const id = parseInt(payoutId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -60,7 +65,7 @@ export async function PATCH(
 
 // DELETE — remove a payout row entirely (and its proof screenshot, if any).
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
   if (!(await verifyFeeCollector())) {
@@ -69,6 +74,10 @@ export async function DELETE(
 
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const id = parseInt(payoutId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

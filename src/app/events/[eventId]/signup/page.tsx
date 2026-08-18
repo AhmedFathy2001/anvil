@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireEventForPage } from '@/lib/eventScope';
 import { clanRoster, eventSignups, events, signupFees } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
@@ -17,6 +18,8 @@ export default async function EventSignupPage({
 }) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  await requireEventForPage(id);
   if (!Number.isFinite(id)) notFound();
 
   const session = await verifyUser();

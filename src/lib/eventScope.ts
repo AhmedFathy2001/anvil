@@ -1,0 +1,51 @@
+// Is this event the one this clan means?
+//
+// Event ids are global and arrive from the URL, so `/events/2` on one clan's host will happily find
+// another clan's event unless something asks. Nothing did: a route would take the id straight to
+// tiles, teams and submissions — all of which are correctly keyed by event_id — and never establish
+// whose event it was in the first place. `theafkspot/events/2` rendered Second Clan's board.
+//
+// ONE CHECK, AT THE TOP. Everything downstream of an event derives its clan through event_id, so a
+// route that has verified the event belongs to this clan is safe for the rest of its work. That is
+// the "one hop, never a copy" rule the schema is built on, and it means the guard is a single line
+// per route rather than a clan filter threaded through every query in it.
+
+import { and, eq } from 'drizzle-orm';
+import { notFound } from 'next/navigation';
+
+import { db } from '@/db';
+import { events } from '@/db/schema';
+import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
+
+export type ScopedEvent = typeof events.$inferSelect;
+
+/** The event with this id, but only if `clanId` owns it. */
+export async function eventInClan(clanId: number, eventId: number): Promise<ScopedEvent | null> {
+  if (!Number.isInteger(eventId)) return null;
+  const [row] = await db
+    .select()
+    .from(events)
+    .where(and(eq(events.clanId, clanId), eq(events.id, eventId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * The event named by this id on the requesting clan's host, or null.
+ *
+ * Null covers both "no such event" and "that event is another clan's", deliberately — a caller must
+ * not be able to tell the difference, or the 404 becomes a probe for which ids exist elsewhere.
+ */
+export async function eventForRequest(request: Request, eventId: number): Promise<ScopedEvent | null> {
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) return null;
+  return eventInClan(clan.id, eventId);
+}
+
+/** The same, for a server page: renders the not-found page rather than returning null. */
+export async function requireEventForPage(eventId: number): Promise<ScopedEvent> {
+  const clan = await requireClan();
+  const event = await eventInClan(clan.id, eventId);
+  if (!event) notFound();
+  return event;
+}

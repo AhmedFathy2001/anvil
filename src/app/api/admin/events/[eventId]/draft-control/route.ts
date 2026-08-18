@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, eventParticipants, teams } from '@/db/schema';
@@ -30,7 +31,7 @@ async function loadEvent(eventId: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const clan = await requireClan();
@@ -38,6 +39,10 @@ export async function GET(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
 
   const control = await buildDraftControl(clan.id, eId);
@@ -54,6 +59,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
 
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).

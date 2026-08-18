@@ -51,14 +51,21 @@ const HELPERS = new Map([
 // Anything that counts as "this query knows about the clan".
 const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b/;
 
-// A lookup by primary key is already as narrow as a query can be: ids are unique across the whole
-// table, so `where id = 42` can only ever return one clan's row. Demanding a clan filter there would
-// be noise, and noise is how a rule like this gets ignored.
+// NO PRIMARY-KEY EXEMPTION, deliberately.
 //
-// The negative lookahead is what keeps this honest — it matches `eq(clanRoster.id, someNumber)` but
-// NOT `eq(auditLog.clanMemberId, clanRoster.id)`, which is a JOIN condition and scopes nothing. Miss
-// that distinction and the rule falls silent on every query that happens to join the roster.
-const PK_LOOKUP = /\b(?:eq|inArray)\(\s*(?:clanRoster|clanMemberships)\.id\s*,\s*(?!\w+\.\w)/;
+// "`where id = 42` returns one row, so it is already narrow" is true and beside the point: the row
+// it returns may belong to another clan. Ids reach these queries from route parameters, so an
+// exemption here is an exemption for exactly the case that matters — and it hid a live one, where
+// `theafkspot/events/2` rendered another clan's board because the id was all the query asked for.
+//
+// A lookup by id is safe only when the id came from a row already known to be this clan's — or when
+// the enclosing function has already established it. The event guards do exactly that: one call at
+// the top of a handler settles whose event this is, and everything after derives its clan through
+// event_id. So a function containing one of these counts as scoped for `events`.
+//
+// Per FUNCTION, not per file. A file-level check would let one guarded handler excuse an unguarded
+// neighbour, which is the shape of the bug this is here to catch.
+const EVENT_GUARDS = /\b(?:eventForRequest|requireEventForPage|eventInClan)\s*\(/;
 const ESCAPE = /clan-scope:\s*global/;
 
 export default {
@@ -92,13 +99,26 @@ export default {
       return around.some((c) => ESCAPE.test(c.value));
     }
 
+    /** The function body this node sits in, or null at module scope. */
+    function enclosingFunction(node) {
+      let n = node;
+      while (n) {
+        if (/FunctionDeclaration|FunctionExpression|ArrowFunctionExpression/.test(n.type)) return n;
+        n = n.parent;
+      }
+      return null;
+    }
+
     function check(node, table) {
       if (!ROOT_TABLES.has(table)) return;
       const stmt = statementOf(node);
       const text = source.getText(stmt);
       if (CLAN_MARKERS.test(text)) return;
-      if (PK_LOOKUP.test(text)) return;
       if (excused(stmt)) return;
+      if (table === 'events') {
+        const fn = enclosingFunction(node);
+        if (fn && EVENT_GUARDS.test(source.getText(fn))) return;
+      }
       context.report({ node, messageId: 'unscoped', data: { table } });
     }
 

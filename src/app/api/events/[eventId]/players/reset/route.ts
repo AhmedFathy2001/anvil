@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventParticipants, tiles, submissions, completions, events } from '@/db/schema';
 import { and, eq, inArray, or, isNotNull } from 'drizzle-orm';
@@ -22,6 +23,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;

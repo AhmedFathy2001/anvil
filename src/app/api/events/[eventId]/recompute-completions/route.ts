@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, teams, completions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
@@ -14,9 +15,13 @@ export const dynamic = 'force-dynamic';
 // submission — e.g. a full item set collected before the collection-completion fix shipped). It only ever
 // touches pairs with NO completion yet, so it can only ADD — never revert a manual/auto completion.
 // Notifications are suppressed (silent) so old completions don't re-announce.
-export async function POST(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(id);
   if (lockedResponse) return lockedResponse;

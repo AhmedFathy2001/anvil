@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, teams, eventSignups } from '@/db/schema';
@@ -16,7 +17,7 @@ import {
 // GET — current provisioning state for the admin Teams tab: whether the feature is
 // configured, and which teams already have a role + channels.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const clan = await requireClan();
@@ -26,6 +27,10 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -73,6 +78,10 @@ export async function POST(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 

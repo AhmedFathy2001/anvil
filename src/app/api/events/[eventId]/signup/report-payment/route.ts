@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventSignups, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -11,7 +12,7 @@ import { verifyUser } from '@/lib/auth';
 // treasurers — so a player who handed off gp to whoever happened to be online
 // can pick that person without guessing the role.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
@@ -21,6 +22,10 @@ export async function GET(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
@@ -57,6 +62,10 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

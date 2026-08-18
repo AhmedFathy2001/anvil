@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -10,11 +11,15 @@ import { getEventRecap } from '@/lib/eventRecap';
 // event has ended; staff (admin/treasurer/moderator) can preview it earlier to see what players will
 // get. Before the event ends, non-staff get an empty, `ended:false` payload (the page shows a nudge).
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (Number.isNaN(id)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });

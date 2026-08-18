@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { surveyQuestions, events } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -18,12 +19,16 @@ async function loadOrdered(eventId: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   return NextResponse.json({ questions: await loadOrdered(eId) });
 }
 
@@ -43,6 +48,10 @@ export async function PUT(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 

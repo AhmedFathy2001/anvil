@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { clanRoster, eventParticipants, events, teams } from '@/db/schema';
@@ -12,7 +13,7 @@ import { upsertPlayers, backfillApprovedSignups, accountCapError, type MemberInp
 import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   // Staff-only: this returns the full roster, which carries each player's login token (a bearer
@@ -24,6 +25,10 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const eventPlayers = await db
     .select()
     .from(eventParticipants)
@@ -50,6 +55,10 @@ export async function POST(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(id);
   if (lockedResponse) return lockedResponse;
@@ -140,6 +149,10 @@ export async function DELETE(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
@@ -181,6 +194,10 @@ export async function PATCH(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;

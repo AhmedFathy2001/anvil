@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { verifyFeeCollector } from '@/lib/auth';
 import { announcePayouts } from '@/lib/payouts';
 
@@ -6,7 +7,7 @@ import { announcePayouts } from '@/lib/payouts';
 // The same summary auto-fires when the last payout is marked paid; this is for re-posting or
 // announcing a partial set on demand.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   if (!(await verifyFeeCollector())) {
@@ -14,6 +15,10 @@ export async function POST(
   }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

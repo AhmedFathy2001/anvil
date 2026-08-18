@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -46,7 +47,8 @@ export async function GET(request: Request) {
     if (!Number.isInteger(eventId)) {
       return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
     }
-    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    // Whose event is this? An admin of one clan must not be able to export another clan's board.
+    const event = await eventForRequest(request, eventId);
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     const rows = await db.select().from(tiles).where(eq(tiles.eventId, eventId)).orderBy(tiles.position);

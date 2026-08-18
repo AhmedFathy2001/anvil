@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -18,6 +19,8 @@ export default async function AdminTeamBoardPage({
   const clan = await requireClan();
   const { eventId, teamId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  await requireEventForPage(eId);
   const tId = parseInt(teamId, 10);
 
   const event = await db.query.events.findFirst({

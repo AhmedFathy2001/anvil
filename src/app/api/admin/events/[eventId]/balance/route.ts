@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
@@ -15,12 +16,16 @@ import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 // and merges the result with its live structural checks. Admin rate overrides (the
 // balance_rates setting) merge over the curated defaults.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

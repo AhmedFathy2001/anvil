@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventEditors, events, users, clanAuditLog } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
@@ -15,7 +16,7 @@ async function loadEvent(eventId: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
@@ -24,6 +25,10 @@ export async function GET(
   }
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   if (!(await loadEvent(eId))) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -69,6 +74,10 @@ export async function POST(
   }
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   if (!(await loadEvent(eId))) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -106,6 +115,10 @@ export async function DELETE(
   }
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
 
   const userId = parseInt(new URL(request.url).searchParams.get('userId') ?? '', 10);

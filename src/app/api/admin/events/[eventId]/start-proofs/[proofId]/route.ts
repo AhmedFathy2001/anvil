@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventStartProofs } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -18,6 +19,10 @@ export async function PATCH(
 
   const { eventId, proofId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const pId = parseInt(proofId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(pId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -50,7 +55,7 @@ export async function PATCH(
 
 /** Clear a shot so the player uploads a fresh one. Removes the stored image too. */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; proofId: string }> },
 ) {
   if (!(await verifyAdminOrModerator())) {
@@ -58,6 +63,10 @@ export async function DELETE(
   }
   const { eventId, proofId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const pId = parseInt(proofId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(pId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

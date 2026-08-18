@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster, eventSignups, events, signupFees, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
@@ -14,6 +15,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Being an admin of one clan confers nothing in another, and this is a ledger of who owes and
+  // who collected — so it is scoped to the clan whose host asked, not to the asker's role.
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
   const eventIdParam = url.searchParams.get('eventId');
@@ -24,7 +30,7 @@ export async function GET(request: Request) {
   const collector = alias(users, 'collector_user');
   const reporter = alias(users, 'reporter_user');
 
-  const filters = [];
+  const filters = [eq(events.clanId, clan.id)];
   // A still-pending (untouched) fee whose sign-up was withdrawn or rejected is dead money —
   // nothing was collected and the player is out. Withdrawal/rejection is supposed to delete
   // it, but stale rows from before that logic (and the reject path, which doesn't delete)

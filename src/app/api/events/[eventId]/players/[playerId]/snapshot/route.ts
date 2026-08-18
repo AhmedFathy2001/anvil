@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { accounts, clanRoster, eventParticipants, tiles } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
@@ -9,7 +10,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 
 // GET player's snapshot data for editing
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; playerId: string }> }
 ) {
   const isAdmin = await verifyAdmin();
@@ -19,6 +20,10 @@ export async function GET(
 
   const { eventId, playerId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const pId = parseInt(playerId, 10);
 
   const player = await db.query.eventParticipants.findFirst({
@@ -96,6 +101,10 @@ export async function PATCH(
 
   const { eventId, playerId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;

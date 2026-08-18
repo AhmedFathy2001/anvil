@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
@@ -25,6 +26,10 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const { searchParams } = new URL(request.url);
   const teamIdFilter = searchParams.get('teamId');
   const tileIdFilter = searchParams.get('tileId');
@@ -77,6 +82,10 @@ export async function POST(
   if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
@@ -465,6 +474,10 @@ export async function DELETE(
   const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;

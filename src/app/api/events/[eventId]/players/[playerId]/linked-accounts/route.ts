@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventParticipants, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -9,7 +10,7 @@ import { verifyAdmin } from '@/lib/auth';
 // current account — the candidates an admin can swap the player's tracked account to (e.g. when an
 // RSN gets banned and they play on an alt). Admin only.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; playerId: string }> },
 ) {
   const isAdmin = await verifyAdmin();
@@ -19,6 +20,10 @@ export async function GET(
 
   const { eventId, playerId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const pId = parseInt(playerId, 10);
 
   const player = await db.query.eventParticipants.findFirst({

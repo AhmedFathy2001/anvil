@@ -1,4 +1,6 @@
 import { db } from '@/db';
+import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { events, tiles, completions, submissions, moments } from '@/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -17,6 +19,10 @@ export async function GET(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(eId)) {
     return jsonWithEtag(request, { v: 'none' });
   }

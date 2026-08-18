@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
@@ -15,12 +16,16 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } fr
 import { announceNextMission } from '@/lib/revealEngine';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const event = await db.query.events.findFirst({
     where: eq(events.id, id),
   });
@@ -81,6 +86,10 @@ export async function PATCH(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const body = await request.json();
 
   // Handle force-end action
@@ -536,7 +545,7 @@ export async function PATCH(
 // Admin-only and gated on the event already being over so we can't delete a live one
 // out from under participants — force-end first if you need to delete a running event.
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const isAdmin = await verifyAdmin();
@@ -546,6 +555,10 @@ export async function DELETE(
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, id))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
   }

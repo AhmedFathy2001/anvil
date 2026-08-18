@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tileAuditLog, users } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
@@ -10,11 +11,15 @@ import { verifyTileEditorForEvent } from '@/lib/auth';
 const LIMIT = 300;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const editor = await verifyTileEditorForEvent(eId);
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

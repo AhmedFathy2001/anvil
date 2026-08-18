@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { db } from '@/db';
 import { events, eventParticipants, clanRoster, eventStartProofs } from '@/db/schema';
@@ -30,6 +31,10 @@ export async function GET(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isInteger(eId)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
 
   const resolved = await resolveCaller(request, eId, null);
@@ -62,6 +67,10 @@ export async function POST(
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isInteger(eId)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
 
   // A finished event is read-only like everywhere else — a starting shot filed after the fact

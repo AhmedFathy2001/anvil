@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles, surveyQuestions } from '@/db/schema';
@@ -10,7 +11,7 @@ import { verifyAdmin } from '@/lib/auth';
 // dates, draft back to 'none', tiles hidden again, per-tile reveal state cleared. For "run last
 // month's bingo again" without going through save-as-template + create-from-template.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   if (!(await verifyAdmin())) {
@@ -19,6 +20,10 @@ export async function POST(
 
   const { eventId } = await params;
   const sourceId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, sourceId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(sourceId)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

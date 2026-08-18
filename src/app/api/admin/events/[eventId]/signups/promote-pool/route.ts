@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { clanRoster, eventSignups, eventParticipants, teams } from '@/db/schema';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
@@ -14,7 +15,7 @@ import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 //
 // Returns the count of new player rows created.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const isAdmin = await verifyAdmin();
@@ -24,6 +25,10 @@ export async function POST(
 
   const { eventId } = await params;
   const evtId = parseInt(eventId, 10);
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, evtId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!Number.isFinite(evtId)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

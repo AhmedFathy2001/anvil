@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, eventSignups, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -17,6 +18,10 @@ export async function POST(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
+  // Whose event is this? Ids are global and this one came from the URL.
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   if (!isEventEnded(event)) {

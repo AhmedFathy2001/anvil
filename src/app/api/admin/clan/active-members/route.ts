@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -18,6 +19,10 @@ export async function GET(request: Request) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // The roster of the clan whose host asked. An admin elsewhere is not an admin here.
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const url = new URL(request.url);
   const eventIdRaw = url.searchParams.get('eventId');
@@ -54,7 +59,7 @@ export async function GET(request: Request) {
           // shape consistent (enrolledPlayerId will always be null in that branch).
           eq(eventParticipants.id, -1),
     )
-    .where(isNull(clanRoster.leftAt))
+    .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.rsn);
 
   return NextResponse.json(
