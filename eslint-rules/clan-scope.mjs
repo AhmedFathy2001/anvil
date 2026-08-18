@@ -50,6 +50,15 @@ const HELPERS = new Map([
 
 // Anything that counts as "this query knows about the clan".
 const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b/;
+
+// A lookup by primary key is already as narrow as a query can be: ids are unique across the whole
+// table, so `where id = 42` can only ever return one clan's row. Demanding a clan filter there would
+// be noise, and noise is how a rule like this gets ignored.
+//
+// The negative lookahead is what keeps this honest — it matches `eq(clanRoster.id, someNumber)` but
+// NOT `eq(auditLog.clanMemberId, clanRoster.id)`, which is a JOIN condition and scopes nothing. Miss
+// that distinction and the rule falls silent on every query that happens to join the roster.
+const PK_LOOKUP = /\b(?:eq|inArray)\(\s*(?:clanRoster|clanMemberships)\.id\s*,\s*(?!\w+\.\w)/;
 const ESCAPE = /clan-scope:\s*global/;
 
 export default {
@@ -88,6 +97,7 @@ export default {
       const stmt = statementOf(node);
       const text = source.getText(stmt);
       if (CLAN_MARKERS.test(text)) return;
+      if (PK_LOOKUP.test(text)) return;
       if (excused(stmt)) return;
       context.report({ node, messageId: 'unscoped', data: { table } });
     }

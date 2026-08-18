@@ -6,6 +6,7 @@ import {
   getRosterMovement,
   listMembers,
 } from '@/lib/memberProfile';
+import { requireClan } from '@/lib/clanContext';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 
@@ -18,14 +19,15 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function MembersPage() {
-  const members = await listMembers();
+  const clan = await requireClan();
+  const members = await listMembers(clan.id);
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
   const [analytics, rosterLog, activities, movement, luck] = await Promise.all([
     getClanAnalytics(members),
-    getRosterLog(20),
-    getClanActivityAnalytics(),
+    getRosterLog(clan.id, 20),
+    getClanActivityAnalytics(clan.id),
     getRosterMovement(members),
     getLuckBoards(),
   ]);

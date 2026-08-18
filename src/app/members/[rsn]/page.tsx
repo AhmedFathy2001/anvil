@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { requireClan } from '@/lib/clanContext';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Persona from './Persona';
@@ -101,7 +102,8 @@ function TotalLevelDial({ level }: { level: number }) {
 
 export default async function MemberProfilePage({ params }: { params: Promise<{ rsn: string }> }) {
   const { rsn } = await params;
-  const profile = await getMemberProfile(decodeURIComponent(rsn));
+  const clan = await requireClan();
+  const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
   if (!profile) notFound();
 
   // Every tab's data in one round trip — every query is small and the tabs then switch instantly.
@@ -121,7 +123,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     getCompetitionHistory(profile.id, profile.rsn),
     viewer ? getPersona(profile.id) : Promise.resolve(null),
     getCollectionLog(profile.id, profile.rsn),
-    getActivityStandings(profile.rsn),
+    getActivityStandings(clan.id, profile.rsn),
   ]);
   const upcoming = getUpcomingMilestones(profile);
 

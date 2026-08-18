@@ -27,6 +27,8 @@ const iso = (daysFromNow) => new Date(Date.now() + daysFromNow * 86_400_000).toI
 console.log('[seed] clearing previous preview data');
 await c.query('TRUNCATE clans RESTART IDENTITY CASCADE');
 await c.query('TRUNCATE users RESTART IDENTITY CASCADE');
+// Accounts and people are global, so they are not reached by clearing the clans.
+await c.query('TRUNCATE players RESTART IDENTITY CASCADE');
 
 const CLANS = [
   {
@@ -42,7 +44,9 @@ const CLANS = [
     name: 'Second Clan',
     inGame: 'Second',
     invite: 'https://discord.gg/second',
-    members: ['Odablock', 'Torvesta', 'Framed'],
+    // Zezima is on BOTH rosters on purpose: one account, two clans, which is the case the identity
+    // split exists for and the one worth being able to see in a browser.
+    members: ['Odablock', 'Torvesta', 'Framed', 'Zezima'],
     event: { name: 'Autumn Board', size: 4 },
   },
 ];
@@ -63,11 +67,25 @@ for (const spec of CLANS) {
     await c.query('INSERT INTO settings (clan_id, key, value) VALUES ($1,$2,$3)', [clan.id, k, v]);
   }
 
+  // A roster seat is an ACCOUNT on a clan's roster, and an account belongs to a person. Accounts are
+  // global, so an RSN seeded into both clans is deliberately ONE account with two seats — which is
+  // the case worth being able to click through in a browser.
   for (const rsn of spec.members) {
+    const norm = rsn.toLowerCase();
+    let { rows: [account] } = await c.query('SELECT id FROM accounts WHERE rsn_normalized = $1', [norm]);
+    if (!account) {
+      const { rows: [person] } = await c.query(
+        'INSERT INTO players (display_name) VALUES ($1) RETURNING id', [rsn]);
+      ({ rows: [account] } = await c.query(
+        `INSERT INTO accounts (player_id, rsn, rsn_normalized, status)
+         VALUES ($1,$2,$3,'active') RETURNING id`,
+        [person.id, rsn, norm],
+      ));
+    }
     await c.query(
-      `INSERT INTO clan_members (clan_id, rsn, rsn_normalized, source, is_guest, status)
-       VALUES ($1,$2,$3,'plugin-roster',0,'active')`,
-      [clan.id, rsn, rsn.toLowerCase()],
+      `INSERT INTO clan_memberships (clan_id, account_id, kind, source)
+       VALUES ($1,$2,'member','roster')`,
+      [clan.id, account.id],
     );
   }
 

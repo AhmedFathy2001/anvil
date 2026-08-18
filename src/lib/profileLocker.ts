@@ -195,7 +195,7 @@ function weekKey(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function buildLocker(userId: number, now: Date = new Date()): Promise<LockerData> {
+export async function buildLocker(clanId: number, userId: number, now: Date = new Date()): Promise<LockerData> {
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
 
@@ -207,7 +207,7 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
     await db
       .select()
       .from(clanRoster)
-      .where(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)))
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)))
       .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
   ).filter((m) => !m.rsn.startsWith('guest:'));
 
@@ -518,7 +518,7 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
   const weeklyWins = finishedWeeklies.filter((w) => w.rank === 1).length;
 
   // ── Standing in the clan ──────────────────────────────────────────────────────────────────────
-  const roster = await listMembers();
+  const roster = await listMembers(clanId);
   const rankIn = (pick: (r: (typeof roster)[number]) => number | null) => {
     const ranked = roster.filter((r) => pick(r) != null).sort((a, b) => (pick(b) ?? 0) - (pick(a) ?? 0));
     let best: { place: number; outOf: number } | null = null;
@@ -585,8 +585,8 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
 
   const [records, focusProfile, activity] = await Promise.all([
     focusId ? getRecords(focusId) : Promise.resolve([]),
-    focusRsn ? getMemberProfile(focusRsn) : Promise.resolve(null),
-    getClanActivityAnalytics(),
+    focusRsn ? getMemberProfile(clanId, focusRsn) : Promise.resolve(null),
+    getClanActivityAnalytics(clanId),
   ]);
 
   const bests: LockerBests = {

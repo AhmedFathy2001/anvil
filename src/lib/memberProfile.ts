@@ -42,7 +42,7 @@ export interface MemberListRow {
  * member's most recent daily row. No per-member work, no snapshot parsing — a 500-member clan is one
  * indexed scan.
  */
-export async function listMembers(): Promise<MemberListRow[]> {
+export async function listMembers(clanId: number): Promise<MemberListRow[]> {
   // The member's newest daily row carries their latest totals. A correlated subquery keeps this to a
   // single statement rather than a query per member.
   const latestDay = db
@@ -74,7 +74,7 @@ export async function listMembers(): Promise<MemberListRow[]> {
     )
     // Members who left the clan drop off the directory; the profile page still resolves by name so
     // old links and event recaps don't 404.
-    .where(isNull(clanRoster.leftAt))
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.rsn);
 
   return rows
@@ -185,11 +185,13 @@ function combatLevelFrom(snapshot: HiscoresSnapshot): number | null {
 }
 
 /** Resolve a profile by RSN (case-insensitive), or null when no such member exists. */
-export async function getMemberProfile(rsn: string): Promise<MemberProfile | null> {
+export async function getMemberProfile(clanId: number, rsn: string): Promise<MemberProfile | null> {
   const normalized = normalizeRsn(rsn);
   if (!normalized) return null;
 
-  const member = await findRosterSeat(eq(clanRoster.rsnNormalized, normalized));
+  // Scoped to the clan whose page this is. The same RSN is legitimately on other clans' rosters, and
+  // an unscoped lookup would render another clan's member under this clan's banner.
+  const member = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
   if (!member) return null;
 
   const { snapshot, at } = await lastSnapshotFor(member);
@@ -404,7 +406,11 @@ export interface MemberStandings {
  * nothing to someone who doesn't already know what good looks like; "#3 of 47" does.
  */
 export async function getStandings(clanMemberId: number): Promise<MemberStandings> {
-  const rows = await listMembers();
+  // "#3 of 47" only means anything within one clan, and the seat already names which one — so the
+  // clan is derived here rather than threaded through every caller.
+  const seat = await findRosterSeat(eq(clanRoster.id, clanMemberId));
+  if (!seat) return { ehp: null, ehb: null, xp: null };
+  const rows = await listMembers(seat.clanId);
   const rankIn = (pick: (r: MemberListRow) => number | null): Standing | null => {
     const ranked = rows.filter((r) => pick(r) !== null).sort((a, b) => (pick(b) ?? 0) - (pick(a) ?? 0));
     const index = ranked.findIndex((r) => r.id === clanMemberId);
@@ -427,7 +433,7 @@ export interface RosterEvent {
  * of them at the same timestamp, which buries the joins and leaves nobody wants to miss under a wall
  * of "imp → helper". Comings and goings are the point; rank churn is texture.
  */
-export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
+export async function getRosterLog(clanId: number, limit = 25): Promise<RosterEvent[]> {
   const MAX_RANK_ROWS = 5;
   const rows = await db
     .select({
@@ -438,8 +444,15 @@ export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
       rsn: clanRoster.rsn,
     })
     .from(clanAuditLog)
-    .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
-    .where(inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']))
+    // INNER, not LEFT: an entry whose seat is gone belongs to no clan, so it cannot be shown on any
+    // clan's feed — and a left join would have let every clan's entries through the clan filter.
+    .innerJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
+    .where(
+      and(
+        eq(clanRoster.clanId, clanId),
+        inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']),
+      ),
+    )
     .orderBy(desc(clanAuditLog.occurredAt))
     // Over-fetch so the cap below still leaves a full feed of comings and goings.
     .limit(limit * 4);
@@ -717,14 +730,14 @@ const ACTIVITY_BOARDS: { key: string; label?: string }[] = [
 const BOARD_SIZE = 8;
 
 /** Every non-departed member's activity map, with their name. One query, small blobs. */
-async function readClanActivities(): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
+async function readClanActivities(clanId: number): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
   const rows = await db
     .select({
       rsn: clanRoster.rsn,
       statsActivities: clanRoster.statsActivities,
     })
     .from(clanRoster)
-    .where(isNull(clanRoster.leftAt));
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)));
 
   return rows
     .filter((r) => isPlausibleRsn(r.rsn) && r.statsActivities)
@@ -755,8 +768,8 @@ function rankFor(
 }
 
 /** The clan's clues, minigames and collection logs, plus the fun titles that fall out of them. */
-export async function getClanActivityAnalytics(): Promise<ClanActivityAnalytics> {
-  const rows = await readClanActivities();
+export async function getClanActivityAnalytics(clanId: number): Promise<ClanActivityAnalytics> {
+  const rows = await readClanActivities(clanId);
 
   const sum = (key: string) => rows.reduce((total, r) => total + (r.activities[key]?.score ?? 0), 0);
 
@@ -821,10 +834,10 @@ export interface ActivityStanding {
  * derived blob exists — the alternative was parsing the whole roster's snapshots to render one
  * profile. Activities nobody in the clan has are simply absent.
  */
-export async function getActivityStandings(rsn: string): Promise<Record<string, ActivityStanding>> {
+export async function getActivityStandings(clanId: number, rsn: string): Promise<Record<string, ActivityStanding>> {
   const normalized = normalizeRsn(rsn);
   if (!normalized) return {};
-  const rows = await readClanActivities();
+  const rows = await readClanActivities(clanId);
 
   const out: Record<string, ActivityStanding> = {};
   for (const activity of HISCORES_ACTIVITIES) {
@@ -1096,11 +1109,19 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
   if (!member?.playerId) return null;
 
   const user = await db.query.users.findFirst({ where: eq(users.id, member.playerId) });
-  const rows = await listMembers();
+  const rows = await listMembers(member.clanId);
   const siblings = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt)));
+    // This clan's seats only. Someone's alts in another clan are that clan's business, and naming
+    // them here would out a person's other accounts to a clan they never joined.
+    .where(
+      and(
+        eq(clanRoster.clanId, member.clanId),
+        eq(clanRoster.playerId, member.playerId),
+        isNull(clanRoster.leftAt),
+      ),
+    );
   if (siblings.length <= 1) return null;
 
   const statsById = new Map(rows.map((r) => [r.id, r]));

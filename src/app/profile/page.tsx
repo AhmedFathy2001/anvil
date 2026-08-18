@@ -48,7 +48,7 @@ export default async function ProfilePage({
 
   const welcome = (await searchParams).welcome === '1';
   const [locker, clanName] = await Promise.all([
-    buildLocker(user.id),
+    buildLocker(clan.id, user.id),
     getClanDisplayName(clan.id),
   ]);
 
