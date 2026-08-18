@@ -1,9 +1,10 @@
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
+import { requireClan } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
 import { competitionIconUrl } from '@/lib/tileIcons';
@@ -30,11 +31,17 @@ export default async function WeeklyLeaderboardPage({
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const [competition] = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  // Scoped to the clan whose host this is: ids are global, so without the clan check one clan's
+  // page would happily render another clan's competition under its own banner.
+  const clan = await requireClan();
+  const [competition] = await db
+    .select()
+    .from(weeklyCompetitions)
+    .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) notFound();
 
   const session = await verifyUser();
-  const myMemberIds = await viewerMemberIds(session?.userId ?? null);
+  const myMemberIds = await viewerMemberIds(clan.id, session);
   const view = await buildCompetitionView(competition, myMemberIds);
 
   const leader = view.entries[0]?.gained > 0

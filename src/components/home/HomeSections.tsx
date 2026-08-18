@@ -104,22 +104,55 @@ export function Hero({ view }: { view: HomeView }) {
 
 /* ----------------------------------------------------------------- you ---- */
 
-export function YouStrip({ you, discordInvite }: { you: HomeYou | null; discordInvite: string | null }) {
+/**
+ * The viewer's own week — or, when there isn't one, an honest account of why.
+ *
+ * THREE states, not two. Signing in makes you a user of the platform; it does not put you on any
+ * clan's roster, and with one deployment serving every clan, "signed in but not a member here" is
+ * the normal state of anyone looking at a clan that isn't theirs. Rendering that as "Sign in with
+ * Discord" tells someone who is already signed in to sign in again, and hides the real reason there
+ * is nothing to show.
+ */
+export function YouStrip({
+  you,
+  signedIn,
+  discordInvite,
+}: {
+  you: HomeYou | null;
+  signedIn: boolean;
+  discordInvite: string | null;
+}) {
   if (!you) {
+    // Signed in, but nothing of theirs on this roster. Membership is granted — by the in-game roster
+    // sync, by an admin, or by an approved guest application — so the useful next step is to link an
+    // account, not to sign in again.
+    const prompt = signedIn
+      ? {
+          title: "You're signed in, but not on this clan's roster",
+          sub: 'Link a RuneScape account, or ask a mod to add you as a guest',
+          href: '/profile',
+          cta: 'Your profile',
+        }
+      : {
+          title: 'Sign in to see your week',
+          sub: 'Your rank in everything running, and your own gains',
+          href: '/login',
+          cta: 'Sign in with Discord',
+        };
     return (
       <div className="mb-7 grid grid-cols-1 items-center gap-4 rounded-xl border border-gold/25 bg-gradient-to-r from-gold/10 to-card-bg p-3.5 sm:grid-cols-[1fr_auto]">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-lg border border-card-border bg-brown-dark/60 text-base">👤</span>
           <div>
-            <div className="font-bold">Sign in to see your week</div>
-            <div className="text-xs text-text-muted">Your rank in everything running, and your own gains</div>
+            <div className="font-bold">{prompt.title}</div>
+            <div className="text-xs text-text-muted">{prompt.sub}</div>
           </div>
         </div>
         <Link
-          href="/login"
+          href={prompt.href}
           className="justify-self-start rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 sm:justify-self-end"
         >
-          Sign in with Discord
+          {prompt.cta}
         </Link>
       </div>
     );

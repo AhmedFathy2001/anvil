@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanRoster, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanRoster, players, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
@@ -70,9 +71,18 @@ export async function completeDiscordLogin(
     (await db.query.users.findFirst({ where: eq(users.isOwner, true) })) == null;
 
   if (!user) {
+    // The PERSON first. A login is how someone signs in, not who they are — accounts hang off the
+    // person, so a user without one has no identity to attach an OSRS account to.
+    //
+    // Not optional and not deferred: users.id and players.id come from separate sequences, so a user
+    // whose player_id is null cannot be compared against account ownership without matching an
+    // unrelated person who happens to share the number.
+    const [person] = await db.insert(players).values({ displayName }).returning();
+
     const inserted = await db
       .insert(users)
       .values({
+        playerId: person.id,
         displayName,
         discordId: discordUser.id,
         discordUsername: discordUser.username,
@@ -139,14 +149,14 @@ export async function completeDiscordLogin(
       const unlinked = await db
         .select()
         .from(clanRoster)
-        .where(and(isNull(clanRoster.playerId), isNull(clanRoster.leftAt)));
+        .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
       const candidates = unlinked.filter((cm) => fuzzyAliases.has(osrsNormalize(cm.rsn)));
 
       for (const cm of candidates) {
         await db
           .update(accounts)
           .set({
-            playerId: user.id,
+            playerId: await personOfOrCreate(user.id),
             claimedAt: cm.claimedAt ?? nowIso,
             verifiedAt: cm.verifiedAt ?? nowIso,
             verificationMethod: cm.verificationMethod ?? 'discord_name_match',

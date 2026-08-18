@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users, clanAuditLog, clanRoster } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
+import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     .where(eq(users.id, targetId));
 
   // Audit against one of the user's clan members (if any) so it shows in the clan history.
-  const cm = await findRosterSeat(eq(clanRoster.playerId, targetId));
+  const cm = await findRosterSeat(await seatsOwnedBy(targetId));
   if (cm) {
     db.insert(clanAuditLog)
       .values({

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { db } from '@/db';
 import { events, eventParticipants, clanRoster, eventStartProofs } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -215,7 +216,7 @@ async function myPlayerRows(userId: number, eventId: number) {
   const members = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(eq(clanRoster.playerId, userId));
+    .where(await seatsOwnedBy(userId));
   if (members.length === 0) return [];
   return db
     .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })

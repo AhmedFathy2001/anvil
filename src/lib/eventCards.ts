@@ -58,18 +58,29 @@ const dateShort = (iso: string) =>
  * The same predicate as the `past` filter below, expressed as a count so asking the question
  * doesn't mean loading the answer.
  */
-export async function countPastEvents(now: Date = new Date()): Promise<number> {
+export async function countPastEvents(clanId: number, now: Date = new Date()): Promise<number> {
   const nowIso = now.toISOString();
   const [row] = await db
     .select({ c: count() })
     .from(events)
-    .where(or(isNotNull(events.forceEndedAt), and(isNotNull(events.endDate), lt(events.endDate, nowIso))));
+    .where(
+      and(
+        eq(events.clanId, clanId),
+        or(isNotNull(events.forceEndedAt), and(isNotNull(events.endDate), lt(events.endDate, nowIso))),
+      ),
+    );
   return row?.c ?? 0;
 }
 
-export async function loadEventCards(opts: LoadEventCardsOptions = {}, now: Date = new Date()): Promise<EventCard[]> {
+export async function loadEventCards(
+  clanId: number,
+  opts: LoadEventCardsOptions = {},
+  now: Date = new Date(),
+): Promise<EventCard[]> {
   const nowIso = now.toISOString();
-  const all = await db.select().from(events).orderBy(desc(events.createdAt));
+  // Every card the app renders is built here, so this one filter is what keeps one clan's boards off
+  // another clan's pages. Everything below derives from `all` and inherits the scope.
+  const all = await db.select().from(events).where(eq(events.clanId, clanId)).orderBy(desc(events.createdAt));
 
   // A draft has no start date and no forced end: the host is still building it, so it is not public.
   const isDraft = (e: (typeof all)[number]) => !e.forceEndedAt && !e.startDate;

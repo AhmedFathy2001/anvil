@@ -48,13 +48,13 @@ export default async function ProfilePage({
 
   const welcome = (await searchParams).welcome === '1';
   const [locker, clanName] = await Promise.all([
-    buildLocker(clan.id, user.id),
+    buildLocker(clan.id, session.playerId, session.userId),
     getClanDisplayName(clan.id),
   ]);
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
   // they already own through another path so we never suggest an account that's on the list above.
-  const owned = await findRosterSeats(and(eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
+  const owned = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));
   const ownedHashes = new Set(owned.map((m) => m.accountHash).filter(Boolean) as string[]);
   const detectedRows = await db.query.detectedAccounts.findMany({

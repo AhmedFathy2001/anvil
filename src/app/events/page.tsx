@@ -1,5 +1,6 @@
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
+import { requireClan } from '@/lib/clanContext';
 import { hubKind } from '@/lib/hubKinds';
 import CompetitionCard, { boardGlyphFor } from '@/components/events/CompetitionCard';
 import WeekFrame from '@/components/events/WeekFrame';
@@ -32,7 +33,8 @@ export default async function EventsIndexPage({
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
 
-  const [view, calendar] = await Promise.all([loadHubView({ pastLimit }), loadCalendar()]);
+  const clan = await requireClan();
+  const [view, calendar] = await Promise.all([loadHubView(clan.id, { pastLimit }), loadCalendar(clan.id)]);
   const liveCount = view.live.boards.length + view.live.weeks.length;
   const nextUp = [
     ...view.upcoming.boards.map((b) => ({

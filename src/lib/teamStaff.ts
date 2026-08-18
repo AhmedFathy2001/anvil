@@ -58,7 +58,7 @@ export async function resolveTeamManagement(teamId: number): Promise<TeamManagem
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)));
   let playerId: number | null = null;
   if (myMembers.length > 0) {
     const mine = new Set(myMembers.map((m) => m.id));

@@ -22,11 +22,19 @@ const NOW = new Date('2026-08-15T12:00:00Z');
 const day = (offset: number) => new Date(NOW.getTime() + offset * 86_400_000).toISOString();
 
 let loadEventCards: typeof import('../src/lib/eventCards.ts')['loadEventCards'];
+
+/** The clan under test, and a second one whose boards must never appear in its results. */
+let clanId: number;
+let otherClanId: number;
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
+let db: Awaited<ReturnType<typeof loadDb>>['db'];
+let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 
 before(async () => {
   await resetDatabase(DB);
-  const { db, pool: p, schema: s } = await loadDb();
+  const { db: d, pool: p, schema: sch } = await loadDb();
+  db = d;
+  s = sch;
   pool = p;
   ({ loadEventCards } = await import('../src/lib/eventCards.ts'));
 
@@ -36,11 +44,15 @@ before(async () => {
   //   3 classic + missions — one mission announced, one still hidden
   //   4 tile-count board — scoring is per tile, not per point, and awardedPoints must be ignored
   // Every clan-scoped table needs an owning clan now.
-  const [clan] = await db
+  const [clan, other] = await db
     .insert(s.clans)
-    .values({ slug: 'cards', name: 'Cards Clan' })
+    .values([
+      { slug: 'cards', name: 'Cards Clan' },
+      { slug: 'nextdoor', name: 'Next Door' },
+    ])
     .returning({ id: s.clans.id });
-  const clanId = clan!.id;
+  clanId = clan!.id;
+  otherClanId = other!.id;
 
   await db.insert(s.events).values([
     { id: 1, clanId, name: 'Plain points', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: null },
@@ -101,7 +113,7 @@ after(async () => {
 });
 
 const card = async (id: number) => {
-  const cards = await loadEventCards({ includeUpcoming: true }, NOW);
+  const cards = await loadEventCards(clanId, { includeUpcoming: true }, NOW);
   const found = cards.find((c) => c.id === id);
   assert.ok(found, `no card for event ${id}`);
   return found;
@@ -154,11 +166,43 @@ test('a team with no completions never becomes the leader', async () => {
 });
 
 test('pastLimit caps finished events without touching live ones', async () => {
-  const all = await loadEventCards({ includeUpcoming: true }, NOW);
-  const capped = await loadEventCards({ includeUpcoming: true, pastLimit: 2 }, NOW);
+  const all = await loadEventCards(clanId, { includeUpcoming: true }, NOW);
+  const capped = await loadEventCards(clanId, { includeUpcoming: true, pastLimit: 2 }, NOW);
   assert.equal(all.length, 4);
   assert.equal(capped.length, 2);
   // Same derivation either way — paging must not change what a card says.
   const first = all.find((c) => c.id === capped[0].id);
   assert.deepEqual(capped[0], first);
+});
+
+
+// ── One clan's boards never appear on another's ───────────────────────────────────────────────
+// The failure this pins was visible in a browser and invisible to every other test: with two clans
+// seeded, both home pages listed both clans' events, because the card loader read the events table
+// whole. Every card surface in the app is built from this one function, so the filter belongs here
+// and this is the test that says so.
+test('event cards are the asking clan\'s, and no one else\'s', async () => {
+  await db.insert(s.events).values({
+    id: 999,
+    clanId: otherClanId,
+    name: 'Next Door Board',
+    boardSize: 5,
+    createdAt: day(-30),
+    startDate: day(-20),
+    endDate: day(-10),
+    scoringMode: 'points',
+    format: 'bingo',
+    rules: null,
+  });
+
+  const mine = await loadEventCards(clanId, { includeUpcoming: true }, NOW);
+  assert.ok(mine.length > 0, 'the clan under test still sees its own boards');
+  assert.equal(
+    mine.filter((c) => c.name === 'Next Door Board').length,
+    0,
+    "another clan's board must not appear",
+  );
+
+  const theirs = await loadEventCards(otherClanId, { includeUpcoming: true }, NOW);
+  assert.deepEqual(theirs.map((c) => c.name), ['Next Door Board'], 'and they see only their own');
 });

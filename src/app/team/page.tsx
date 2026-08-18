@@ -43,7 +43,7 @@ export default async function MyTeamsHubPage() {
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)));
   const memberIds = myMembers.map((m) => m.id);
 
   // Kept aside from the team-card fold: the starting-shot card needs the ENROLMENT (player row),

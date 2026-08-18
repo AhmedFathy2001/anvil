@@ -206,7 +206,7 @@ export default async function EventScoreboardPage({
       await db
         .select({ id: clanRoster.id })
         .from(clanRoster)
-        .where(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)))
+        .where(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)))
     ).map((m) => m.id);
     hasVerifiedAccount = myMemberIds.length > 0;
   }

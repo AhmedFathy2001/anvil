@@ -73,6 +73,13 @@ const DB = useTestDatabase('identity-backfill');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
+/** Same schema handle, under a name the later tests can use without shadowing. */
+let s2: Awaited<ReturnType<typeof loadDb>>['schema'];
+// Imported inside before(), not at the top: src/db reads DATABASE_URL once at module load, so
+// anything reaching it before useTestDatabase() has pointed the env at this suite's database boots
+// against whatever was configured for the app.
+let personOf: typeof import('../src/lib/roster.ts')['personOf'];
+let personOfOrCreate: typeof import('../src/lib/roster.ts')['personOfOrCreate'];
 
 /** Everything about one person, read back the way the app will read it. */
 async function person(displayName: string) {
@@ -91,6 +98,8 @@ before(async () => {
   // Stop before the identity migration, so the database is in the shape 0006 has to transform.
   await resetDatabase(DB, '0005_clan_staff');
   ({ db, pool, schema: s } = await loadDb());
+  s2 = s;
+  ({ personOf, personOfOrCreate } = await import('../src/lib/roster.ts'));
 
   const clans = await db
     .insert(s.clans)
@@ -276,4 +285,60 @@ test('a login points at the person behind it', async () => {
   const logins = await db.select().from(s.users);
   assert.ok(logins.length > 0);
   for (const u of logins) assert.ok(u.playerId != null, `${u.displayName} has a person`);
+});
+
+
+// ── A login is not a person, and their ids are not interchangeable ────────────────────────────
+// users.id and players.id come from separate sequences. They coincide only for rows this migration
+// created together, so a NEW login gets a number that already belongs to some unrelated person —
+// and comparing it against account ownership silently hands them that person's accounts.
+//
+// This was live: a fresh sign-in on a clan the user had never joined was shown as an existing member
+// of it, because user #1 met player #1.
+test('a new login gets its own person, not the one that shares its number', async () => {
+  // Ahmed and Woox already exist as logins from the fixture; the next login is a fresh number in the
+  // users sequence, and the accounts backfill has already used the low numbers in the players one.
+  const [login] = await db
+    .insert(s2.users)
+    .values({ displayName: 'Newcomer', discordId: '333' })
+    .returning();
+
+  // The number this login shares with an existing person, if any.
+  const [collision] = await db.select().from(s2.players).where(eq(s2.players.id, login.id));
+  assert.ok(collision, 'the fixture is only meaningful while some person shares the number');
+  assert.notEqual(collision.displayName, 'Newcomer', 'and it is somebody else');
+
+  // Nothing may be inferred from the shared number: this login owns no accounts until it claims one.
+  const seatsByUserId = await db.select().from(s2.clanRoster).where(eq(s2.clanRoster.playerId, login.id));
+  const ownedByCollision = seatsByUserId.length;
+  assert.ok(
+    ownedByCollision > 0,
+    'the collision really would have matched — which is what made the bug silent rather than empty',
+  );
+
+  // The login has no person yet, so it can own nothing. personOf must say so rather than guess.
+  const person = await personOf(login.id);
+  assert.equal(person, null, 'a login with no player_id resolves to no person');
+});
+
+test('claiming resolves a login to its own person before writing ownership', async () => {
+  const [login] = await db
+    .insert(s2.users)
+    .values({ displayName: 'Claimer', discordId: '444' })
+    .returning();
+
+  const before = await db.select().from(s2.players);
+  const personId = await personOfOrCreate(login.id);
+  const after = await db.select().from(s2.players);
+
+  // A real person row, created for this login — not the login's own number handed back, which is
+  // what "they're the same id anyway" would have produced.
+  assert.equal(after.length, before.length + 1, 'a person row was created');
+  assert.equal(after.find((p) => p.id === personId)?.displayName, 'Claimer');
+
+  const [refreshed] = await db.select().from(s2.users).where(eq(s2.users.id, login.id));
+  assert.equal(refreshed.playerId, personId, 'and the link is recorded on the login');
+
+  // Asking twice is the same person, not a second one.
+  assert.equal(await personOfOrCreate(login.id), personId);
 });

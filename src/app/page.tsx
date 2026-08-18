@@ -65,7 +65,7 @@ export default async function HomePage() {
     notFound();
   }
   const session = await verifyUser();
-  const myMemberIds = await viewerMemberIds(session?.userId ?? null);
+  const myMemberIds = await viewerMemberIds(clan.id, session);
   const view = await buildHomeView(clan.id, myMemberIds);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
@@ -73,7 +73,7 @@ export default async function HomePage() {
   return (
     <div>
       <Hero view={view} />
-      <YouStrip you={view.you} discordInvite={view.discordInvite} />
+      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
       <WeeklyRail weeklies={view.weeklies} />
       <EventGrid events={view.events} />

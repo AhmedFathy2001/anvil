@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { countPastEvents, loadEventCards, type EventCard } from '@/lib/eventCards';
 import { loadWeeklyCards, type WeeklyCard, type WeeklyKind } from '@/lib/weeklyCards';
 import type { EventMode } from '@/lib/eventModes';
@@ -105,19 +105,19 @@ function weekItem(w: WeeklyCard): HubItem {
   };
 }
 
-export async function loadHubView(opts: LoadHubOptions = {}, now: Date = new Date()): Promise<HubView> {
+export async function loadHubView(clanId: number, opts: LoadHubOptions = {}, now: Date = new Date()): Promise<HubView> {
   const pastLimit = opts.pastLimit ?? 24;
 
   // Each side is asked for a page of finished items; merging then trimming gives the newest
   // `pastLimit` across BOTH without reading either archive whole.
   const [boards, weeks, boardsPast, weeksPast] = await Promise.all([
-    loadEventCards({ includeUpcoming: true, pastLimit }, now),
-    loadWeeklyCards({ pastLimit, withDailyShape: true }, now),
-    countPastEvents(now),
+    loadEventCards(clanId, { includeUpcoming: true, pastLimit }, now),
+    loadWeeklyCards(clanId, { pastLimit, withDailyShape: true }, now),
+    countPastEvents(clanId, now),
     db
       .select({ c: count() })
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'completed'))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'completed')))
       .then((r) => r[0]?.c ?? 0),
   ]);
 

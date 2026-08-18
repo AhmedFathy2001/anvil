@@ -166,6 +166,7 @@ function milestoneText(
 export async function buildCompetitionView(
   competition: {
     id: number;
+    clanId: number;
     type: string;
     metric: string;
     title: string;
@@ -347,7 +348,7 @@ function parseDeltas(raw: string | null): DailyRow['deltas'] {
  * Comparing an Agility week to a Zulrah week would be meaningless, so the metric has to match.
  */
 async function loadPrevious(
-  competition: { id: number; type: string; metric: string; startDate: string },
+  competition: { id: number; clanId: number; type: string; metric: string; startDate: string },
   pace: number,
 ): Promise<CompetitionView['previous']> {
   const [prev] = await db
@@ -355,6 +356,8 @@ async function loadPrevious(
     .from(weeklyCompetitions)
     .where(
       and(
+        // The clan's own previous run of this competition — "last time" means last time here.
+        eq(weeklyCompetitions.clanId, competition.clanId),
         eq(weeklyCompetitions.type, competition.type),
         eq(weeklyCompetitions.metric, competition.metric),
         ne(weeklyCompetitions.id, competition.id),
@@ -458,12 +461,21 @@ function fmtUnit(value: number, type: CompetitionType): string {
   return value.toLocaleString();
 }
 
-/** The viewer's clan-member ids, for the "you" strip. Empty when signed out. */
-export async function viewerMemberIds(userId: number | null): Promise<number[]> {
-  if (userId == null) return [];
+/**
+ * The viewer's roster-seat ids in this clan, for the "you" strip. Empty when signed out.
+ *
+ * Takes the SESSION rather than an id on purpose. A user id and a person id are both `number`, so a
+ * numeric parameter accepts either and the compiler cannot tell them apart — which is how a viewer
+ * once got shown another person's seats because the two sequences had handed out the same number.
+ */
+export async function viewerMemberIds(clanId: number, session: { playerId: number } | null): Promise<number[]> {
+  const playerId = session?.playerId ?? null;
+  if (playerId == null) return [];
   const rows = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(eq(clanRoster.playerId, userId));
+    // This clan's seats. Unscoped, a viewer's seat in another clan would be treated as theirs here —
+    // ranking them on a leaderboard they are not on, and disclosing that they play elsewhere.
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId)));
   return rows.map((r) => r.id);
 }

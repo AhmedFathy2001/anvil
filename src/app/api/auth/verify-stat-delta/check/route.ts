@@ -186,7 +186,7 @@ export async function POST(request: Request) {
   }
 
   // First account becomes primary if user has no other primary.
-  const userAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
+  const userAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   if (!userAccounts.some((a) => a.isPrimary === 1)) {
     await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }

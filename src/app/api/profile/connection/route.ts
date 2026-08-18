@@ -18,7 +18,7 @@ export async function GET() {
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [members, pending] = await Promise.all([
-    findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt))),
+    findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt))),
     db.query.detectedAccounts.findMany({
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
       columns: { id: true },

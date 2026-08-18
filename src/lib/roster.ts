@@ -9,10 +9,10 @@
 // wrong is how one clan reads another's roster. Pass the clan filter in the `where` when the answer
 // is the former. The clan-scope lint rule flags calls that look like they forgot.
 
-import { and, eq, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanRoster, players } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, players, users } from '@/db/schema';
 
 export type RosterSeat = typeof clanRoster.$inferSelect;
 
@@ -147,3 +147,65 @@ export async function unclaimAccountOfSeat(seatId: number): Promise<void> {
   const [person] = await db.insert(players).values({ displayName: seat.rsn }).returning();
   await db.update(accounts).set({ playerId: person.id, isPrimary: 0 }).where(eq(accounts.id, seat.accountId));
 }
+
+/**
+ * The person behind a login, or null if there is no such login.
+ *
+ * For code that is handed a USER id — a plugin token resolves to one, so do the admin routes that
+ * act on a named user — and needs to ask about account ownership. users.id and players.id are
+ * separate sequences: passing the user id straight into a player_id comparison matches whichever
+ * unrelated person happens to share the number, which is silent and wrong rather than empty.
+ *
+ * Request handlers holding a session should use `session.playerId` and skip this entirely.
+ */
+export async function personOf(userId: number | null | undefined): Promise<number | null> {
+  if (userId == null) return null;
+  const [row] = await db.select({ playerId: users.playerId }).from(users).where(eq(users.id, userId)).limit(1);
+  return row?.playerId ?? null;
+}
+
+/**
+ * A condition matching the roster seats whose account belongs to this LOGIN's person — and matching
+ * nothing at all when the login has no person, or does not exist.
+ *
+ * The `false` matters. `eq(playerId, null)` is not valid SQL and a sentinel id would be a guess, but
+ * the real risk is the shape this replaced: passing the user id straight in, which matched whichever
+ * unrelated person happened to share the number. "No person, therefore no seats" is the only honest
+ * answer.
+ */
+export async function seatsOwnedBy(userId: number | null | undefined): Promise<SQL> {
+  const playerId = await personOf(userId);
+  return playerId == null ? sql`false` : eq(clanRoster.playerId, playerId);
+}
+
+/**
+ * The person behind a login, creating one if this login somehow has none.
+ *
+ * For the CLAIM paths, where the answer decides who ends up owning an OSRS account. Reads can
+ * tolerate "no person, therefore no rows"; a write cannot, because the alternatives are refusing a
+ * legitimate claim or — far worse — writing the user id into player_id and handing the account to an
+ * unrelated person who happens to share the number.
+ */
+export async function personOfOrCreate(userId: number): Promise<number> {
+  const existing = await personOf(userId);
+  if (existing != null) return existing;
+
+  const [login] = await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, userId)).limit(1);
+  const [person] = await db.insert(players).values({ displayName: login?.displayName ?? null }).returning({ id: players.id });
+  await db.update(users).set({ playerId: person.id }).where(eq(users.id, userId));
+  return person.id;
+}
+
+/**
+ * An account nobody has claimed.
+ *
+ * NOT `player_id IS NULL`, which is what this used to be and can no longer be true: every account
+ * has a person from the moment it exists, so that an unclaimed roster entry has an identity to
+ * accumulate history against and a later claim MERGES two people rather than filling in a blank.
+ *
+ * What "unclaimed" means now is that no login has asserted ownership, which is exactly what
+ * `claimed_at` records. Used as the concurrency guard on the auto-link paths, where the point is
+ * that a second claim arriving at the same time must lose rather than overwrite — a guard that
+ * silently never matches would not refuse those writes, it would refuse ALL of them.
+ */
+export const UNCLAIMED_ACCOUNT = isNull(accounts.claimedAt);

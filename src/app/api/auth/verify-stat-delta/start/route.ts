@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     .from(clanRoster)
     .where(
       and(
-        eq(clanRoster.playerId, session.userId),
+        eq(clanRoster.playerId, session.playerId),
         isNotNull(clanRoster.verifiedAt),
         isNull(clanRoster.leftAt),
         ne(clanRoster.rsnNormalized, rsnNormalized),

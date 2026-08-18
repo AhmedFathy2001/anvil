@@ -20,7 +20,7 @@ export async function GET() {
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
       orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
     }),
-    findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt))),
+    findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt))),
   ]);
 
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));

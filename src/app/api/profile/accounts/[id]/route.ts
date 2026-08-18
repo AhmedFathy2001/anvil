@@ -29,13 +29,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // Scope to the caller's own, still-linked accounts — the only rows they may promote.
-  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
+  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (member.isPrimary === 1) return NextResponse.json({ ok: true });
 
-  const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.userId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
+  const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.playerId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
 
-  await db.update(accounts).set({ isPrimary: 0 }).where(eq(clanRoster.playerId, session.userId));
+  await db.update(accounts).set({ isPrimary: 0 }).where(eq(clanRoster.playerId, session.playerId));
   await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, id));
 
   // The nickname is built from the person's verified RSNs ordered primary-first, so re-sync to put
@@ -73,7 +73,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   // Scope to the caller's own, still-linked accounts.
-  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
+  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Live-event guard: any player row in a non-force-ended event that hasn't ended yet.
@@ -128,7 +128,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const [next] = await db
       .select()
       .from(clanRoster)
-      .where(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)))
+      .where(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)))
       .orderBy(desc(clanRoster.verifiedAt))
       .limit(1);
     if (next) await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, next.accountId));

@@ -13,7 +13,7 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
-import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { findRosterSeat, personOfOrCreate, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -638,8 +638,8 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
   if (user) {
     await db
       .update(accounts)
-      .set({ playerId: user.id })
-      // Only fills an unowned account, so it never hijacks — and the guard has to sit on the
+      .set({ playerId: await personOfOrCreate(user.id) })
+      // Only fills an unclaimed account, so it never hijacks — and the guard has to sit on the
       // ACCOUNT, since ownership is not something a single clan's seat can speak for.
       .where(
         and(
@@ -647,139 +647,150 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
             accounts.id,
             db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(eq(clanMemberships.id, memberId)),
           ),
-          isNull(accounts.playerId),
+          UNCLAIMED_ACCOUNT,
         ),
       )
       .catch(() => {});
-    }
-    }
-    
-    /** users.discordId for a user id, or null. */
-    async function discordIdForUser(userId: number): Promise<string | null> {
-    const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    return u?.discordId ?? null;
-    }
-    
-    /**
-     * Resolve a Discord user ID for a clan member. Priority (strongest → weakest):
-     *   1) the account's player → users.discordId          (canonical OAuth-linked)
-     *   2) clan_members.discordId                          (cached from a prior resolve)
-     *   3) an event sign-up ties this account to a user    (they signed up playing it)
-     *   4) a plugin self-report / detected account maps    (they played it through the plugin)
-     *      this RSN to a user
-     *   5) guild member search by RSN prefix + alias split (best-effort name match)
-     *
-     * Sources 3–5 write the result back onto clan_members.discordId so it's resolved once, not
-     * every sweep — this also slashes the rate-limited guild searches. Returns null only when a
-     * member genuinely has no Discord link anywhere (the correct "skip until they link" case).
-     */
-    export async function resolveDiscordIdForMember(
-    clanId: number,
-    member: MinimalClanMember,
-    ): Promise<string | null> {
-    const cfg = await loadRoleSyncConfig(clanId);
-    if (!cfg) return null;
-    // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
-    // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
-    const candidates = await gatherDiscordIdCandidates(member);
-    for (const c of candidates) {
+  }
+}
+
+/** users.discordId for a user id, or null. */
+async function discordIdForUser(userId: number): Promise<string | null> {
+  const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return u?.discordId ?? null;
+}
+
+/**
+ * users.discordId for a PERSON, or null.
+ *
+ * A seat names the person who owns its account, not the login they sign in with — separate id
+ * sequences, so looking the person's id up in `users.id` would find an unrelated login.
+ */
+async function discordIdForPerson(playerId: number): Promise<string | null> {
+  const u = await db.query.users.findFirst({ where: eq(users.playerId, playerId) });
+  return u?.discordId ?? null;
+}
+
+/**
+ * Resolve a Discord user ID for a clan member. Priority (strongest → weakest):
+ *   1) the account's player → users.discordId          (canonical OAuth-linked)
+ *   2) accounts.discordId                              (cached from a prior resolve)
+ *   3) an event sign-up ties this account to a user    (they signed up playing it)
+ *   4) a plugin self-report / detected account maps    (they played it through the plugin)
+ *      this RSN to a user
+ *   5) guild member search by RSN prefix + alias split (best-effort name match)
+ *
+ * Sources 3–5 write the result back onto accounts.discordId so it's resolved once, not
+ * every sweep — this also slashes the rate-limited guild searches. Returns null only when a
+ * member genuinely has no Discord link anywhere (the correct "skip until they link" case).
+ */
+export async function resolveDiscordIdForMember(
+  clanId: number,
+  member: MinimalClanMember,
+): Promise<string | null> {
+  const cfg = await loadRoleSyncConfig(clanId);
+  if (!cfg) return null;
+  // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
+  // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
+  const candidates = await gatherDiscordIdCandidates(member);
+  for (const c of candidates) {
     const gm = await getGuildMember(cfg, c);
     if (gm.member) {
       if (c !== member.discordId) await cacheDiscordId(member.id, c);
       return c;
     }
-    }
-    const searched = await findDiscordIdByRsn(clanId, member.rsn);
-    if (searched) {
+  }
+  const searched = await findDiscordIdByRsn(clanId, member.rsn);
+  if (searched) {
     const gm = await getGuildMember(cfg, searched);
     if (gm.member) {
       await cacheDiscordId(member.id, searched);
       return searched;
     }
-    }
-    return null;
-    }
-    
-    /**
-     * Every plausible Discord id for a member, from the DB only (no live API), strongest first and
-     * deduped:
-     *   1) the clan member's linked user (OAuth login)     — their current, real id
-     *   2) a user who signed up playing this account
-     *   3) a user whose plugin self-report matched this RSN
-     *   4) the cached clan_members.discordId               — can be a STALE legacy value, so it's LAST
-     * The role sweep tries each against the guild and uses the first that's actually a member, so a
-     * dead cached id can no longer shadow a live link, and no nickname/RSN needs to change.
-     */
-    async function gatherDiscordIdCandidates(member: MinimalClanMember): Promise<string[]> {
-    const out: string[] = [];
-    const add = (id: string | null | undefined) => {
+  }
+  return null;
+}
+
+/**
+ * Every plausible Discord id for a member, from the DB only (no live API), strongest first and
+ * deduped:
+ *   1) the clan member's linked user (OAuth login)     — their current, real id
+ *   2) a user who signed up playing this account
+ *   3) a user whose plugin self-report matched this RSN
+ *   4) the cached clan_members.discordId               — can be a STALE legacy value, so it's LAST
+ * The role sweep tries each against the guild and uses the first that's actually a member, so a
+ * dead cached id can no longer shadow a live link, and no nickname/RSN needs to change.
+ */
+async function gatherDiscordIdCandidates(member: MinimalClanMember): Promise<string[]> {
+  const out: string[] = [];
+  const add = (id: string | null | undefined) => {
     if (id && !out.includes(id)) out.push(id);
-    };
-    
-    if (member.playerId != null) add(await discordIdForUser(member.playerId));
-    
-    const signup = await db.query.eventSignups.findFirst({
+  };
+
+  if (member.playerId != null) add(await discordIdForPerson(member.playerId));
+
+  const signup = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.clanMemberId, member.id), isNotNull(eventSignups.userId)),
-    });
-    if (signup?.userId != null) add(await discordIdForUser(signup.userId));
-    
-    const norm = normalizeRsn(member.rsn);
-    if (norm) {
+  });
+  if (signup?.userId != null) add(await discordIdForUser(signup.userId));
+
+  const norm = normalizeRsn(member.rsn);
+  if (norm) {
     const detected = await db.query.detectedAccounts.findFirst({
       where: eq(detectedAccounts.rsnNormalized, norm),
     });
     if (detected?.userId != null) add(await discordIdForUser(detected.userId));
-    }
-    
-    add(member.discordId); // cached last — may be a stale legacy id
-    return out;
-    }
-    
-    // =============================================================================
-    // Sync logic
-    // =============================================================================
-    
-    interface SyncReport {
-    ok: boolean;
-    reason?: string;
-    discordUserId?: string;
-    added: string[];
-    removed: string[];
-    // The nickname we set on this sync (RSN(s)), or undefined if we left it alone.
-    nickSet?: string;
-    }
-    
-    /**
-     * Compute and apply the target Discord roles for a clan member. Handles alts by
-     * gathering all active clan_members owned by the same Discord user and picking
-     * the highest in-game rank across them. A guest with no non-guest siblings is
-     * synced to the guest-role set; otherwise we treat them as a full member.
-     *
-     * Fire-and-forget friendly: catches errors and logs them as warnings. Returns
-     * a report so admin endpoints can surface what happened.
-     */
-    export async function syncRolesForClanMember(
-    memberId: number,
-    ctx?: SweepContext,
-    skipNickname = false,
-    ): Promise<SyncReport> {
-    // The member knows its clan; deriving it here means a caller can't pass one that disagrees.
-    const member = await findRosterSeat(eq(clanRoster.id, memberId));
-    if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
-    const cfg = await loadRoleSyncConfig(member.clanId);
-    if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
-    if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
-    
-    // Resolve the member to a Discord account that is ACTUALLY in the guild. Try every DB-known id
-    // first (linked user, sign-up, self-report, cache); only if none are in the guild do we pay for
-    // the rate-limited name search (which matches nick / username / global_name, so no rename is
-    // needed). The first candidate that's a live guild member wins and is cached — so a stale legacy
-    // id can't win, and "user not in guild" only fires when NONE of their ids are really present.
-    const candidates = await gatherDiscordIdCandidates(member);
-    let discordUserId: string | null = null;
-    let currentMember: DiscordGuildMember | null = null;
-    let sawTransient = false;
-    if (ctx) {
+  }
+
+  add(member.discordId); // cached last — may be a stale legacy id
+  return out;
+}
+
+// =============================================================================
+// Sync logic
+// =============================================================================
+
+interface SyncReport {
+  ok: boolean;
+  reason?: string;
+  discordUserId?: string;
+  added: string[];
+  removed: string[];
+  // The nickname we set on this sync (RSN(s)), or undefined if we left it alone.
+  nickSet?: string;
+}
+
+/**
+ * Compute and apply the target Discord roles for a clan member. Handles alts by
+ * gathering all active clan_members owned by the same Discord user and picking
+ * the highest in-game rank across them. A guest with no non-guest siblings is
+ * synced to the guest-role set; otherwise we treat them as a full member.
+ *
+ * Fire-and-forget friendly: catches errors and logs them as warnings. Returns
+ * a report so admin endpoints can surface what happened.
+ */
+export async function syncRolesForClanMember(
+  memberId: number,
+  ctx?: SweepContext,
+  skipNickname = false,
+): Promise<SyncReport> {
+  // The member knows its clan; deriving it here means a caller can't pass one that disagrees.
+  const member = await findRosterSeat(eq(clanRoster.id, memberId));
+  if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
+  const cfg = await loadRoleSyncConfig(member.clanId);
+  if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
+  if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
+
+  // Resolve the member to a Discord account that is ACTUALLY in the guild. Try every DB-known id
+  // first (linked user, sign-up, self-report, cache); only if none are in the guild do we pay for
+  // the rate-limited name search (which matches nick / username / global_name, so no rename is
+  // needed). The first candidate that's a live guild member wins and is cached — so a stale legacy
+  // id can't win, and "user not in guild" only fires when NONE of their ids are really present.
+  const candidates = await gatherDiscordIdCandidates(member);
+  let discordUserId: string | null = null;
+  let currentMember: DiscordGuildMember | null = null;
+  let sawTransient = false;
+  if (ctx) {
     // Bulk path — everything's in memory, zero API calls: check each candidate id, then match the
     // RSN against the pre-built nick/username/global_name alias index.
     for (const cand of candidates) {
@@ -799,7 +810,7 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
         currentMember = m;
       }
     }
-    } else {
+  } else {
     // Live path (single-member sync): one API call per candidate until one's in the guild.
     for (const cand of candidates) {
       const gm = await getGuildMember(cfg, cand);
@@ -822,8 +833,8 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
         }
       }
     }
-    }
-    if (!currentMember || !discordUserId) {
+  }
+  if (!currentMember || !discordUserId) {
     const anyId = discordUserId ?? candidates[0];
     return {
       ok: false,
@@ -836,81 +847,81 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
       removed: [],
       ...(anyId ? { discordUserId: anyId } : {}),
     };
-    }
-    if (discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
-    
-    // Collect every active clan_member that belongs to this Discord user. The OAuth
-    // link (users.discord_id) is the strongest signal — we always pull those. The
-    // legacy clan_members.discord_id covers ghost/auto-discovered linkages.
-    const ownedRows: { rank: string | null; kind: string }[] = [];
-    
-    // NB: we gather by membership (not left), NOT by hiscores `status`. A clan role reflects
-    // membership, not whether their XP is trackable — an 'unranked' member (RSN 404s on the
-    // hiscores: mobile-only, freshly renamed, name-lag) is still a real member who should get
-    // their role. Gating on status='active' here is exactly what silently skipped members whose
-    // account isn't on the hiscores.
-    const viaOauth = await db
+  }
+  if (discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
+
+  // Collect every active clan_member that belongs to this Discord user. The OAuth
+  // link (users.discord_id) is the strongest signal — we always pull those. The
+  // legacy clan_members.discord_id covers ghost/auto-discovered linkages.
+  const ownedRows: { rank: string | null; kind: string }[] = [];
+
+  // NB: we gather by membership (not left), NOT by hiscores `status`. A clan role reflects
+  // membership, not whether their XP is trackable — an 'unranked' member (RSN 404s on the
+  // hiscores: mobile-only, freshly renamed, name-lag) is still a real member who should get
+  // their role. Gating on status='active' here is exactly what silently skipped members whose
+  // account isn't on the hiscores.
+  const viaOauth = await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
     .innerJoin(users, eq(clanRoster.playerId, users.id))
     .where(and(eq(users.discordId, discordUserId), isNull(clanRoster.leftAt)));
-    ownedRows.push(...viaOauth);
-    
-    const viaLegacy = await db
+  ownedRows.push(...viaOauth);
+
+  const viaLegacy = await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
     .where(and(eq(clanRoster.discordId, discordUserId), isNull(clanRoster.leftAt)));
-    ownedRows.push(...viaLegacy);
-    
-    // The current member always counts (already guarded against leftAt above).
-    ownedRows.push({ rank: member.rank, kind: member.kind });
-    
-    if (ownedRows.length === 0) {
+  ownedRows.push(...viaLegacy);
+
+  // The current member always counts (already guarded against leftAt above).
+  ownedRows.push({ rank: member.rank, kind: member.kind });
+
+  if (ownedRows.length === 0) {
     return { ok: false, reason: 'no active clan_members for this Discord user', added: [], removed: [], discordUserId };
-    }
-    
-    const allGuests = ownedRows.every((r) => r.kind === 'guest');
-    
-    // If any part of the config is name-based or auto-matching is on, we need the
-    // live guild role list. Fetched at most once per sync. When all config is
-    // strictly ID-based and auto-match is off, we skip the GET entirely.
-    const needGuildRoles =
+  }
+
+  const allGuests = ownedRows.every((r) => r.kind === 'guest');
+
+  // If any part of the config is name-based or auto-matching is on, we need the
+  // live guild role list. Fetched at most once per sync. When all config is
+  // strictly ID-based and auto-match is off, we skip the GET entirely.
+  const needGuildRoles =
     cfg.autoMatchRankByName ||
     cfg.defaultRoleNames.length > 0 ||
     cfg.guestRoleNames.length > 0;
-    let guildRoles: DiscordRole[] = ctx?.guildRoles ?? [];
-    if (needGuildRoles && !ctx) {
+  let guildRoles: DiscordRole[] = ctx?.guildRoles ?? [];
+  if (needGuildRoles && !ctx) {
     const rolesRes = await discordFetch(cfg, `/guilds/${cfg.guildId}/roles`);
     if (rolesRes.ok) {
       guildRoles = (await rolesRes.json()) as DiscordRole[];
     } else {
       log.warn('discord-roles.list-roles-fail', { status: rolesRes.status, ctx: 'syncRolesForClanMember' });
     }
-    }
-    
-    // Pick highest rank using Discord role positions when available — that lets the
-    // admin's Discord role ordering dictate clan rank precedence (including custom
-    // ranks like "marshal" that the static RANK_PRECEDENCE doesn't know).
-    const highestRank = pickHighestRankUsingGuild(
+  }
+
+  // Pick highest rank using Discord role positions when available — that lets the
+  // admin's Discord role ordering dictate clan rank precedence (including custom
+  // ranks like "marshal" that the static RANK_PRECEDENCE doesn't know).
+  const highestRank = pickHighestRankUsingGuild(
     ownedRows.filter((r) => r.kind === 'member').map((r) => r.rank),
     guildRoles,
-    );
-    
-    // Merge ID-based config with name-resolved fallbacks. Explicit IDs win; names
-    // only add roles that the ID list didn't already cover, so an admin can keep a
-    // partial override without losing the auto-match path for the rest.
-    const resolvedDefaults = new Set<string>([
+  );
+
+  // Merge ID-based config with name-resolved fallbacks. Explicit IDs win; names
+  // only add roles that the ID list didn't already cover, so an admin can keep a
+  // partial override without losing the auto-match path for the rest.
+  const resolvedDefaults = new Set<string>([
     ...cfg.defaultRoleIds,
     ...resolveRoleNamesToIds(cfg.defaultRoleNames, guildRoles),
-    ]);
-    const resolvedGuests = new Set<string>([
+  ]);
+  const resolvedGuests = new Set<string>([
     ...cfg.guestRoleIds,
     ...resolveRoleNamesToIds(cfg.guestRoleNames, guildRoles),
-    ]);
-    
-    // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
-    const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
-    if (cfg.autoMatchRankByName) {
+  ]);
+
+  // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
+  const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
+  if (cfg.autoMatchRankByName) {
     // Pre-walk every rank we know about so a demotion to a previously-unseen rank
     // still removes the old rank role. Three sources unioned:
     //   1) RANK_PRECEDENCE — standard OSRS clan ranks (handles fresh clans)
@@ -950,13 +961,13 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
       const id = findRoleIdForRankByName(rankKey, guildRoles);
       if (id) managedRankRoleIds.add(id);
     }
-    }
-    
-    // Target role set
-    const target = new Set<string>();
-    if (allGuests) {
+  }
+
+  // Target role set
+  const target = new Set<string>();
+  if (allGuests) {
     resolvedGuests.forEach((id) => target.add(id));
-    } else {
+  } else {
     resolvedDefaults.forEach((id) => target.add(id));
     const rankKey = normalizeRankKey(highestRank);
     if (rankKey) {
@@ -972,48 +983,46 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
         managedRankRoleIds.add(roleId);
       }
     }
-    }
-    
-    // The set of roles we're allowed to touch on this user. Anything outside this
-    // set (moderator role assigned manually, server-booster role, @everyone, …) is
-    // left untouched.
-    const managed = new Set<string>([
+  }
+
+  // The set of roles we're allowed to touch on this user. Anything outside this
+  // set (moderator role assigned manually, server-booster role, @everyone, …) is
+  // left untouched.
+  const managed = new Set<string>([
     ...resolvedDefaults,
     ...resolvedGuests,
     ...managedRankRoleIds,
-    ]);
-    
-    // currentMember was already fetched (and verified in-guild) during resolution above.
-    const current = new Set(currentMember.roles);
-    
-    const added: string[] = [];
-    const removed: string[] = [];
-    for (const roleId of target) {
+  ]);
+
+  // currentMember was already fetched (and verified in-guild) during resolution above.
+  const current = new Set(currentMember.roles);
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const roleId of target) {
     if (!current.has(roleId)) added.push(roleId);
-    }
-    for (const roleId of current) {
+  }
+  for (const roleId of current) {
     if (managed.has(roleId) && !target.has(roleId)) removed.push(roleId);
-    }
-    
-    // Apply. PUT/DELETE are independent buckets per (guild, role) so back-to-back
-    // calls don't generally trip 429s, but discordFetch retries when they do.
-    for (const roleId of added) {
+  }
+
+  // Apply. PUT/DELETE are independent buckets per (guild, role) so back-to-back
+  // calls don't generally trip 429s, but discordFetch retries when they do.
+  for (const roleId of added) {
     const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`, { method: 'PUT' });
     if (!res.ok) log.warn('discord-roles.add-fail', { roleId, status: res.status, discordUserId });
-    }
-    for (const roleId of removed) {
+  }
+  for (const roleId of removed) {
     const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`, { method: 'DELETE' });
     if (!res.ok) log.warn('discord-roles.remove-fail', { roleId, status: res.status, discordUserId });
-    }
-    
-    if ((added.length > 0 || removed.length > 0) && !member.discordId && discordUserId) {
-    // Cache the resolved Discord id on the clan_member so we don't rerun the
-    // expensive name-match every time. Doesn't conflict with the OAuth path — if
-    // the user later logs in via Discord, users.discord_id becomes the source of
-    // truth and we'd still pick it first.
-    await db
-      .update(accounts)
-      .set({ discordId: discordUserId });
+  }
+
+  if ((added.length > 0 || removed.length > 0) && !member.discordId && discordUserId) {
+    // Cache the resolved Discord id on the ACCOUNT so we don't rerun the expensive name-match every
+    // time — and so a match made in one clan counts in every clan that account plays in. Doesn't
+    // conflict with the OAuth path: if the user later logs in via Discord, users.discord_id becomes
+    // the source of truth and we'd still pick it first.
+    await updateAccountOfSeat(member.id, { discordId: discordUserId });
   }
 
   // Nickname sync — set the member's nick to their verified RSN(s). By default only fills a BLANK

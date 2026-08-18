@@ -8,7 +8,7 @@ import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
+import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -61,7 +61,7 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
   if (accountHash) {
     const owned = await findRosterSeat(and(
         eq(clanRoster.accountHash, accountHash),
-        eq(clanRoster.playerId, userId),
+        await seatsOwnedBy(userId),
         isNull(clanRoster.leftAt),
       ));
     if (owned?.rsn) return owned.rsn;

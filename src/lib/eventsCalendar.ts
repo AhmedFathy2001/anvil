@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { events, weeklyCompetitions } from '@/db/schema';
-import { and, gte, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { modeKeyFor } from '@/lib/eventModes';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import type { HubKind } from '@/lib/eventsHub';
@@ -47,6 +47,7 @@ const WEEK_MS = 7 * 86_400_000;
  * @param weeksAhead how far past today, so what's scheduled is always in frame
  */
 export async function loadCalendar(
+  clanId: number,
   weeksBack = 52,
   weeksAhead = 3,
   now: Date = new Date(),
@@ -70,6 +71,7 @@ export async function loadCalendar(
       .from(events)
       .where(
         and(
+          eq(events.clanId, clanId),
           // A draft has no start date: it isn't scheduled, so it isn't on a calendar.
           isNotNull(events.startDate),
           lte(events.startDate, to),
@@ -88,7 +90,13 @@ export async function loadCalendar(
         metric: weeklyCompetitions.metric,
       })
       .from(weeklyCompetitions)
-      .where(and(lte(weeklyCompetitions.startDate, to), gte(weeklyCompetitions.endDate, from))),
+      .where(
+        and(
+          eq(weeklyCompetitions.clanId, clanId),
+          lte(weeklyCompetitions.startDate, to),
+          gte(weeklyCompetitions.endDate, from),
+        ),
+      ),
   ]);
 
   const items: CalendarItem[] = [];

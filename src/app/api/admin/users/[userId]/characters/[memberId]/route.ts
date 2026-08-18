@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanRoster, clanAuditLog } from '@/db/schema';
-import { findRosterSeat, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
+import { findRosterSeat, personOf, seatsOwnedBy, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -21,7 +21,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
-  const member = await findRosterSeat(and(eq(clanRoster.id, memberId), eq(clanRoster.playerId, targetId)));
+  const member = await findRosterSeat(and(eq(clanRoster.id, memberId), await seatsOwnedBy(targetId)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   await unclaimAccountOfSeat(memberId);

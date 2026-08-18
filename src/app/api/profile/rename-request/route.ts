@@ -29,7 +29,7 @@ export async function GET() {
     })
     .from(pendingRenames)
     .innerJoin(clanRoster, eq(pendingRenames.clanMemberId, clanRoster.id))
-    .where(eq(clanRoster.playerId, session.userId))
+    .where(eq(clanRoster.playerId, session.playerId))
     .orderBy(desc(pendingRenames.createdAt))
     .limit(50);
 
@@ -57,13 +57,13 @@ export async function POST(request: Request) {
   // Otherwise pick: primary > only-one.
   let cm = null;
   if (typeof body.clanMemberId === 'number') {
-    cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.userId)));
+    cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.playerId)));
     if (!cm) return NextResponse.json({ error: 'Clan member not found or not owned by you' }, { status: 403 });
   } else {
     const owned = await db
       .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)
-      .where(and(eq(clanRoster.playerId, session.userId), or(eq(clanRoster.isPrimary, 1), eq(clanRoster.isPrimary, 0))));
+      .where(and(eq(clanRoster.playerId, session.playerId), or(eq(clanRoster.isPrimary, 1), eq(clanRoster.isPrimary, 0))));
     const primary = owned.find((r) => r.isPrimary === 1) ?? (owned.length === 1 ? owned[0] : null);
     if (!primary) {
       return NextResponse.json(

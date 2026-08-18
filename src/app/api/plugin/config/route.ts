@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
@@ -90,7 +91,7 @@ async function homeBoardForUser(userId: number): Promise<{
   const myMembers = await db
     .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)));
+    .where(and(await seatsOwnedBy(userId), isNull(clanRoster.leftAt)));
   if (myMembers.length === 0) return null;
   const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
 

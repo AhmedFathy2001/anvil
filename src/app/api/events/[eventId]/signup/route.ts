@@ -41,7 +41,7 @@ export async function GET(
     .from(clanRoster)
     .where(
       and(
-        eq(clanRoster.playerId, session.userId),
+        eq(clanRoster.playerId, session.playerId),
         isNull(clanRoster.leftAt),
       ),
     )
@@ -182,7 +182,7 @@ export async function POST(
   }
 
   // Confirm every chosen account belongs to this user, is verified, and still in clan.
-  const myAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
+  const myAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   const accountById = new Map(myAccounts.map((a) => [a.id, a]));
   for (const cid of selectedIds) {
     const acc = accountById.get(cid);

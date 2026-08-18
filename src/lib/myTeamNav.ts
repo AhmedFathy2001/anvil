@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { clanRoster, eventSignups, events, eventParticipants, teams, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 
@@ -41,7 +42,7 @@ export async function countLiveTeamInvolvements(userId: number, now: Date = new 
       .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
       .where(
         and(
-          eq(clanRoster.playerId, userId),
+          await seatsOwnedBy(userId),
           isNull(clanRoster.leftAt),
           isNotNull(eventParticipants.teamId),
           notForceEnded,

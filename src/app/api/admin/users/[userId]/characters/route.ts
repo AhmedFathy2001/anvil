@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, personOfOrCreate } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -51,7 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     await db
       .update(accounts)
       .set({
-        playerId: targetId,
+        playerId: await personOfOrCreate(targetId),
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'manual',
         provisional: 0,
@@ -68,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     await db
       .update(accounts)
       .set({
-        playerId: targetId,
+        playerId: await personOfOrCreate(targetId),
         verifiedAt: nowIso,
         verificationMethod: 'manual',
         provisional: 0,

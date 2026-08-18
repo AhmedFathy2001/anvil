@@ -137,6 +137,6 @@ export async function getUnlinkedCharacters(): Promise<{ id: number; rsn: string
   const rows = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, kind: clanRoster.kind })
     .from(clanRoster)
-    .where(and(isNull(clanRoster.playerId), isNull(clanRoster.leftAt)));
+    .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
   return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.kind === 'guest' }));
 }

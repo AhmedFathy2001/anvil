@@ -39,7 +39,7 @@ export default async function EventSignupPage({
     .from(clanRoster)
     .where(
       and(
-        eq(clanRoster.playerId, session.userId),
+        eq(clanRoster.playerId, session.playerId),
         isNull(clanRoster.leftAt),
       ),
     )

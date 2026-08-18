@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventEditors, eventParticipants, events, pluginLinks, teams, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, updateAccountOfSeat } from '@/lib/roster';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -82,6 +82,11 @@ export function signCaptainToken(teamId: number): string {
 
 export interface UserPayload {
   userId: number;
+  // The PERSON this login belongs to. Distinct from userId and not interchangeable with it: users
+  // and players are separate id sequences, so comparing a user id against account ownership matches
+  // whichever unrelated person happens to share the number. Anything asking "is this account mine?"
+  // means this field.
+  playerId: number;
   username: string;
   role: string;
   // Only meaningful for role 'editor': 'all' = global editor (edits every event), 'assigned' =
@@ -106,13 +111,17 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, role: true, banned: true, editorScope: true, canEditTiles: true },
+      columns: { id: true, playerId: true, displayName: true, role: true, banned: true, editorScope: true, canEditTiles: true },
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
     if (!dbUser || dbUser.banned) return null;
+    // Self-heal a login that predates persons. Cheap, because it only runs while player_id is null,
+    // and the alternative is a session whose identity is a number in the wrong id space.
+    const playerId = dbUser.playerId ?? (await personOfOrCreate(dbUser.id));
     return {
       userId: dbUser.id,
+      playerId,
       username: typeof data.username === 'string' ? data.username : 'user',
       role: dbUser.role,
       editorScope: dbUser.editorScope ?? 'all',
@@ -212,7 +221,7 @@ export async function resolveTeamMembership(
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)));
   if (myMembers.length > 0) {
     const memberIds = myMembers.map((m) => m.id);
     const playerRow = await db.query.eventParticipants.findFirst({
@@ -472,7 +481,7 @@ async function autoLinkOrSuggestOnPlay(
       await db
         .update(accounts)
         .set({
-          playerId: userId,
+          playerId: await personOfOrCreate(userId),
           accountHash: existing.accountHash ?? accountHash,
           verifiedAt: existing.verifiedAt ?? nowIso,
           verificationMethod: 'plugin',
@@ -480,7 +489,7 @@ async function autoLinkOrSuggestOnPlay(
           claimedAt: existing.claimedAt ?? nowIso,
         })
         // Re-assert unowned so a concurrent claim wins cleanly.
-        .where(and(eq(accounts.id, existing.accountId), isNull(accounts.playerId)));
+        .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT));
       await db
         .update(clanMemberships)
         .set({
@@ -495,7 +504,7 @@ async function autoLinkOrSuggestOnPlay(
       await db
         .update(accounts)
         .set({
-          playerId: userId,
+          playerId: await personOfOrCreate(userId),
           verifiedAt: nowIso,
           verificationMethod: 'plugin',
           provisional: 0,
@@ -553,7 +562,7 @@ async function maybeAutoClaimEstablishedOnPlay(
     const result = await db
       .update(accounts)
       .set({
-        playerId: userId,
+        playerId: await personOfOrCreate(userId),
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -562,7 +571,7 @@ async function maybeAutoClaimEstablishedOnPlay(
       // Re-assert unowned in the WHERE so a concurrent claim wins cleanly instead of being clobbered.
       // On the ACCOUNT, which is where ownership lives — guarding the seat would not be a guard at
       // all, since two clans' seats over one account could each pass it.
-      .where(and(eq(accounts.id, existing.accountId), isNull(accounts.playerId)))
+      .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT))
       // Row COUNT is the guard, and it has to be read portably: the driver-specific field this used
       // to read (rowsAffected) is absent on other drivers and came back undefined, which compiled
       // fine and silently disabled the check.
@@ -649,7 +658,7 @@ export async function claimAccountForUser(
     await db
       .update(accounts)
       .set({
-        playerId: userId,
+        playerId: await personOfOrCreate(userId),
         accountHash: accountHash ?? existing.accountHash,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
@@ -674,7 +683,7 @@ export async function claimAccountForUser(
     await db
       .update(accounts)
       .set({
-        playerId: userId,
+        playerId: await personOfOrCreate(userId),
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -701,7 +710,7 @@ export async function claimAccountForUser(
     .catch(() => {});
 
   // First account a user attributes becomes their primary.
-  const owned = await findRosterSeats(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)));
+  const owned = await findRosterSeats(and(await seatsOwnedBy(userId), isNull(clanRoster.leftAt)));
   if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
     await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
@@ -795,7 +804,7 @@ export async function resolvePluginMember(
       accountHash: clanRoster.accountHash,
     })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
+    .where(and(await seatsOwnedBy(user.id), isNull(clanRoster.leftAt)));
   if (memberRows.length === 0) return null;
 
   // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT guess.

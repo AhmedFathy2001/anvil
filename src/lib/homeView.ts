@@ -90,7 +90,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const memberCount = await db
     .select({ c: count() })
     .from(clanRoster)
-    .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
     .then((r) => r[0]?.c ?? 0);
 
   // ---- Weeklies: the rail, and a count for the rest ----------------------------------------------
@@ -101,24 +101,24 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     db
       .select()
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'active'))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')))
       .orderBy(desc(weeklyCompetitions.startDate)),
     db
       .select()
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'upcoming'))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'upcoming')))
       .orderBy(desc(weeklyCompetitions.startDate))
       .limit(2),
     db
       .select()
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'completed'))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'completed')))
       .orderBy(desc(weeklyCompetitions.startDate))
       .limit(RAIL_LIMIT),
     db
       .select({ c: count() })
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'completed'))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'completed')))
       .then((r) => r[0]?.c ?? 0),
   ]);
   const railComps = [...live, ...upcoming, ...finished].slice(0, RAIL_LIMIT);
@@ -233,7 +233,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
 
   // ---- Events: what's live and what it came to --------------------------------------------------
   // Shared with the events index so the two pages can never disagree about who is leading.
-  const homeEvents = await loadEventCards({ pastLimit: 6 }, now);
+  const homeEvents = await loadEventCards(clanId, { pastLimit: 6 }, now);
   // The same predicate the events index uses for "live", asked of the database instead of read out of
   // every event the clan has ever run: started, not force-ended, and not past its end date.
   // Several boards can be live at once, so this is a list, not a lookup.
@@ -242,6 +242,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     .from(events)
     .where(
       and(
+        eq(events.clanId, clanId),
         isNull(events.forceEndedAt),
         isNotNull(events.startDate),
         lte(events.startDate, nowIso),

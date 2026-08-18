@@ -195,7 +195,12 @@ function weekKey(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function buildLocker(clanId: number, userId: number, now: Date = new Date()): Promise<LockerData> {
+export async function buildLocker(
+  clanId: number,
+  playerId: number,
+  userId: number,
+  now: Date = new Date(),
+): Promise<LockerData> {
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
 
@@ -207,7 +212,7 @@ export async function buildLocker(clanId: number, userId: number, now: Date = ne
     await db
       .select()
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)))
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)))
       .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
   ).filter((m) => !m.rsn.startsWith('guest:'));
 

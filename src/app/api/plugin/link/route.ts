@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats } from '@/lib/roster';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
         rsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
         previousRsns: previousRsns.length ? JSON.stringify(previousRsns) : existing.previousRsns,
         accountHash: accountHash || existing.accountHash,
-        playerId: issuingUser.id,
+        playerId: await personOfOrCreate(issuingUser.id),
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     await db
       .update(accounts)
       .set({
-        playerId: issuingUser.id,
+        playerId: await personOfOrCreate(issuingUser.id),
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -207,7 +207,10 @@ export async function POST(request: Request) {
 
   // First account becomes primary automatically. Done after the upsert so we can count
   // existing rows owned by this user.
-  const userAccounts = await findRosterSeats(and(eq(clanRoster.playerId, issuingUser.id), isNull(clanRoster.leftAt)));
+  const issuingPlayerId = await personOf(issuingUser.id);
+  const userAccounts = issuingPlayerId
+    ? await findRosterSeats(and(eq(clanRoster.playerId, issuingPlayerId), isNull(clanRoster.leftAt)))
+    : [];
   const hasPrimary = userAccounts.some((a) => a.isPrimary === 1);
   if (!hasPrimary) {
     await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));

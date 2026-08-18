@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { memberDailyStats, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
@@ -60,6 +60,7 @@ function metricLabel(type: string, metric: string): string {
 const unitFor = (type: string) => (type === 'skill' ? 'XP' : type === 'boss' ? 'KC' : 'h');
 
 export async function loadWeeklyCards(
+  clanId: number,
   opts: LoadWeeklyCardsOptions = {},
   now: Date = new Date(),
 ): Promise<WeeklyCard[]> {
@@ -67,7 +68,7 @@ export async function loadWeeklyCards(
     const q = db
       .select()
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, status))
+      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, status)))
       .orderBy(desc(weeklyCompetitions.startDate));
     return take != null ? q.limit(take) : q;
   };
