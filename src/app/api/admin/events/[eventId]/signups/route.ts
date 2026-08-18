@@ -131,7 +131,11 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const account = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), isNull(clanRoster.leftAt)));
+  // The seat has to be on THIS clan's roster. The event already is (guarded above), but the member
+  // id came from the request body and would otherwise seat another clan's member into it.
+  const account = await findRosterSeat(
+    and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.id, body.clanMemberId), isNull(clanRoster.leftAt)),
+  );
   if (!account) {
     return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
   }

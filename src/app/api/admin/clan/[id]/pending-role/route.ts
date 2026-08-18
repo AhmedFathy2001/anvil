@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
 import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -44,7 +45,7 @@ export async function PUT(
     return NextResponse.json({ error: "role must be 'admin', 'moderator', 'editor', 'treasurer', or null" }, { status: 400 });
   }
 
-  const member = await findRosterSeat(eq(clanRoster.id, memberId));
+  const member = await seatForRequest(request, memberId);
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
   await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, memberId));

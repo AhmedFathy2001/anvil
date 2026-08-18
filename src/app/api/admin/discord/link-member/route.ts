@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { accounts, clanRoster, users } from '@/db/schema';
-import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { findRosterSeat, seatInClan, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -24,7 +24,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'clanMemberId and a numeric discordUserId are required' }, { status: 400 });
   }
 
-  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
+  // This clan's seat only — binding a Discord account to another clan's member is not this
+  // admin's call, and the id arrived in the request body.
+  const member = await seatInClan(clan.id, clanMemberId);
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
   if (!(await isGuildMember(clan.id, discordUserId))) {

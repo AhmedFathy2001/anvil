@@ -12,6 +12,7 @@
 import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { resolveClanFromRequest } from '@/lib/clanContext';
 import { accounts, clanMemberships, clanRoster, players, users } from '@/db/schema';
 
 export type RosterSeat = typeof clanRoster.$inferSelect;
@@ -209,3 +210,28 @@ export async function personOfOrCreate(userId: number): Promise<number> {
  * silently never matches would not refuse those writes, it would refuse ALL of them.
  */
 export const UNCLAIMED_ACCOUNT = isNull(accounts.claimedAt);
+
+/**
+ * The roster seat with this id, but only if this clan owns it.
+ *
+ * The counterpart to eventInClan, for the same reason: seat ids are global and reach the admin
+ * routes from the URL, so `/api/admin/clan/42` names a seat on whichever roster happens to hold id
+ * 42. These are WRITE paths — rename, promote, demote, ban — so the failure is not a clan reading
+ * another's roster but editing it.
+ */
+export async function seatInClan(clanId: number, seatId: number): Promise<RosterSeat | null> {
+  if (!Number.isInteger(seatId)) return null;
+  const [seat] = await db
+    .select()
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.id, seatId)))
+    .limit(1);
+  return seat ?? null;
+}
+
+/** The same, resolving the clan from the request's host. */
+export async function seatForRequest(request: Request, seatId: number): Promise<RosterSeat | null> {
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) return null;
+  return seatInClan(clan.id, seatId);
+}

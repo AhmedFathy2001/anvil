@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { seatForRequest } from '@/lib/roster';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster } from '@/db/schema';
@@ -37,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const existing = await findRosterSeat(eq(clanRoster.id, memberId));
+  const existing = await seatForRequest(request, memberId);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Set-primary: demote the person's other accounts, promote this one. Only meaningful for a linked
@@ -77,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 // DELETE — soft-delete (mark as left). Preserves historical references.
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
   // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
   // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
@@ -90,6 +91,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const memberId = Number(id);
   if (!Number.isInteger(memberId)) return NextResponse.json({ error: 'Bad id' }, { status: 400 });
+
+  // Whose seat is this? The id came from the URL, and removing someone from a roster is not
+  // something an admin of a different clan gets to do.
+  if (!(await seatForRequest(request, memberId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   await db
     .update(clanMemberships)

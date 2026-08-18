@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, eventParticipants, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
@@ -51,7 +52,7 @@ export async function POST(
   }
   const newNormalized = normalizeRsn(newRsn);
 
-  const source = await findRosterSeat(eq(clanRoster.id, memberId));
+  const source = await seatForRequest(request, memberId);
   if (!source) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }

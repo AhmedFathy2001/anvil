@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanRoster } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
@@ -37,7 +38,7 @@ export async function POST(
     return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
   }
 
-  const member = await findRosterSeat(eq(clanRoster.id, memberId));
+  const member = await seatForRequest(request, memberId);
   if (!member) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }

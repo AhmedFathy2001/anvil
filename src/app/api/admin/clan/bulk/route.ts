@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 
@@ -46,6 +47,9 @@ export async function POST(request: Request) {
   const actor = await verifyAdminOrModerator();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   let body: { ids?: unknown; action?: unknown; role?: unknown; reason?: unknown };
   try {
     body = await request.json();
@@ -79,7 +83,12 @@ export async function POST(request: Request) {
   }
   const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) || null : null;
 
-  const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, ids));
+  // Scoped to the clan whose host asked: the ids came from the request body, and a bulk promote,
+  // demote or remove must not be able to reach across into another clan's roster.
+  const members = await db
+    .select()
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, ids)));
   if (!members.length) return NextResponse.json({ error: 'No matching members' }, { status: 404 });
 
   // Linked users, for the ban guards.
