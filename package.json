@@ -38,7 +38,7 @@
     "test:weekly": "node --experimental-strip-types --test tests/competition-insights.test.ts",
     "test:cards": "npx tsx --test tests/event-cards.test.ts",
     "test:awards": "node --experimental-strip-types --test tests/competition-awards.test.ts",
-    "test:moments": "npx tsx --test tests/moments.test.ts",
+    "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
     "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts"
   },
   "dependencies": {

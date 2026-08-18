@@ -259,6 +259,16 @@ export async function momentsForEvent(eventId: number, limit = 20): Promise<Mome
 }
 
 /**
+ * Every moment a board produced, for the end-of-event summary (lib/momentsAnalytics).
+ *
+ * Unlimited on purpose — a count of deaths that quietly stopped at twenty would be a lie — but
+ * capped high enough that a runaway feed can't hand the page a million rows.
+ */
+export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<MomentRow[]> {
+  return momentsForEvent(eventId, cap);
+}
+
+/**
  * Moments a member can see about themselves, across every scope — the profile fold.
  *
  * Unscoped rows are impossible by construction (nothing is stored that belonged to nothing), so
