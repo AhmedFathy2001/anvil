@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { verifyUser } from "@/lib/auth";
@@ -35,7 +35,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const clan = await requireClan();
+  // Null on the apex, which is a legitimate place to be: the directory and the platform surfaces
+  // belong to no clan. The shell renders without clan branding rather than failing.
+  const clan = await currentClan();
   const session = await verifyUser();
   let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string } | null = null;
   if (session?.userId) {
@@ -60,7 +62,7 @@ export default async function RootLayout({
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
-  const discordInvite = await getDiscordInviteUrl(clan.id);
+  const discordInvite = clan ? await getDiscordInviteUrl(clan.id) : null;
 
   return (
     <html lang="en">

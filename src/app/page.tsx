@@ -1,5 +1,11 @@
 import Link from 'next/link';
-import { requireClan } from '@/lib/clanContext';
+import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
+import { count, eq, isNull, and } from 'drizzle-orm';
+import { db } from '@/db';
+import { clans, clanMembers, events as eventsTable } from '@/db/schema';
+import { apexDomain, currentClan, isApexHost } from '@/lib/clanContext';
+import ApexDirectory, { type DirectoryClan } from '@/components/ApexDirectory';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
@@ -18,8 +24,46 @@ export const dynamic = 'force-dynamic';
  *
  * Everything here is assembled in lib/homeView from rows that already exist.
  */
+/**
+ * The apex home: a directory of every clan, since the apex belongs to none of them.
+ *
+ * Counts are per clan, read the same way each clan's own pages read them.
+ */
+async function ApexHome() {
+  // clan-scope: global -- the directory's whole job is to list every clan.
+  const rows = await db.select().from(clans).where(eq(clans.status, 'active')).orderBy(clans.name);
+
+  const listed: DirectoryClan[] = await Promise.all(
+    rows.map(async (c) => {
+      const [[members], [evts]] = await Promise.all([
+        db
+          .select({ n: count() })
+          .from(clanMembers)
+          .where(and(eq(clanMembers.clanId, c.id), isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0))),
+        db.select({ n: count() }).from(eventsTable).where(eq(eventsTable.clanId, c.id)),
+      ]);
+      return {
+        slug: c.slug,
+        name: c.name,
+        host: c.customDomain || `${c.slug}.${apexDomain()}`,
+        members: members?.n ?? 0,
+        events: evts?.n ?? 0,
+      };
+    }),
+  );
+
+  return <ApexDirectory clans={listed} />;
+}
+
 export default async function HomePage() {
-  const clan = await requireClan();
+  const clan = await currentClan();
+  if (!clan) {
+    // No clan resolved. That is the apex if the host IS the apex, and nothing at all otherwise —
+    // an unrecognised host must not land on a real page just because it failed to name a clan.
+    const host = (await headers()).get('host');
+    if (isApexHost(host)) return <ApexHome />;
+    notFound();
+  }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(session?.userId ?? null);
   const view = await buildHomeView(clan.id, myMemberIds);

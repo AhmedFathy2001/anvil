@@ -48,6 +48,27 @@ export function apexDomain(): string {
   return (process.env.ANVIL_APEX_DOMAIN || 'anvilosrs.com').toLowerCase();
 }
 
+/**
+ * Hosts that ARE the apex — the clanless surface serving the directory and platform pages.
+ *
+ * A list rather than a single value so a preview or staging apex can exist alongside the real one.
+ * It is deliberately explicit: an unrecognised host is still nothing, so a spoofed Host gets a 404
+ * rather than quietly landing on a real page.
+ */
+export function apexHosts(): string[] {
+  const apex = apexDomain();
+  const extra = (process.env.ANVIL_APEX_ALIASES || '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return [apex, `www.${apex}`, ...extra];
+}
+
+export function isApexHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  return host != null && apexHosts().includes(host);
+}
+
 /** Strip the port and lowercase; hosts are compared case-insensitively and port-blind. */
 function normalizeHost(raw: string | null | undefined): string | null {
   if (!raw) return null;
