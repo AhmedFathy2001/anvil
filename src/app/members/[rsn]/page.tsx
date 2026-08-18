@@ -17,7 +17,7 @@ import {
 import ProfileTabs from './ProfileTabs';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberProgress } from '@/lib/memberProgressRead';
-import AccountProgress from './AccountProgress';
+import AccountProgressCard from '@/components/AccountProgressCard';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
 
@@ -242,7 +242,9 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
           a signed-out visitor — see the note above the query. */}
       {persona && <Persona persona={persona} currentMemberId={profile.id} />}
 
-      <AccountProgress progress={progress} />
+      <div className="mb-6">
+        <AccountProgressCard summary={progress} />
+      </div>
 
       <ProfileTabs
         profile={profile}

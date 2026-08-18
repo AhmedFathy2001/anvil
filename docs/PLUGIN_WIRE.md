@@ -229,8 +229,14 @@ what moved, so the steady state is no request at all. Values are **max-merged**,
 these can go down in a live game — a lower number means a client that read a varbit before the game
 populated it, which is what every login looks like for a few ticks. Unknown keys are dropped
 individually rather than failing the request, so a newer plugin can add one before the server knows
-it. The accepted keys are `questPoints`, `caPoints`, `caTier` (0 = none … 6 = Grandmaster),
-`diaryEasy`, `diaryMedium`, `diaryHard`, `diaryElite`.
+it. The accepted keys are `questPoints`, `questsCompleted`, `caPoints`, `caTier` (0 = none … 6 =
+Grandmaster), `caTiers` (a bitmask, bit 0 Easy … bit 5 Grandmaster, so a profile can light every
+cleared tier rather than only the highest), the four counts `diaryEasy` / `diaryMedium` /
+`diaryHard` / `diaryElite`, and one mask per region — `diaryArdougne`, `diaryDesert`,
+`diaryFalador`, `diaryFremennik`, `diaryKandarin`, `diaryKaramja`, `diaryKourend`,
+`diaryLumbridge`, `diaryMorytania`, `diaryVarrock`, `diaryWestern`, `diaryWilderness` — whose value
+is `1` easy | `2` medium | `4` hard | `8` elite. Send both the counts and the masks: the counts are
+what an older server understands, the masks are what a profile grid draws.
 
 Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
 varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
