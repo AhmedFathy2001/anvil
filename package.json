@@ -13,6 +13,7 @@
     "data:clog": "node scripts/build-clog-dataset.mjs",
     "data:ca": "node scripts/build-ca-dataset.mjs",
     "data:drops": "node scripts/build-drops-dataset.mjs",
+    "data:slayer": "node scripts/build-slayer-dataset.mjs",
     "data:rates": "node scripts/build-rates-dataset.mjs",
     "data:efficiency": "node scripts/build-efficiency-dataset.mjs",
     "verify:efficiency": "tsx scripts/verify-efficiency.mts",
@@ -38,6 +39,7 @@
     "test:weekly": "node --experimental-strip-types --test tests/competition-insights.test.ts",
     "test:cards": "npx tsx --test tests/event-cards.test.ts",
     "test:awards": "node --experimental-strip-types --test tests/competition-awards.test.ts",
+    "test:bossgen": "npx tsx --test tests/boss-tile-gen.test.ts",
     "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
     "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts"
   },
