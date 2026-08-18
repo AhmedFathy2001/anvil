@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, players, clanMembers, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
+import { events, teams, eventParticipants, clanMembers, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -80,8 +80,8 @@ export default async function MyTeamsHubPage() {
   if (memberIds.length > 0) {
     const playerRows = await db
       .select({
-        playerId: players.id,
-        playerName: players.name,
+        playerId: eventParticipants.id,
+        playerName: eventParticipants.name,
         rules: events.rules,
         startProofLocation: events.startProofLocation,
         startProofDrawnAt: events.startProofDrawnAt,
@@ -95,10 +95,10 @@ export default async function MyTeamsHubPage() {
         endDate: events.endDate,
         forceEndedAt: events.forceEndedAt,
       })
-      .from(players)
-      .innerJoin(teams, eq(players.teamId, teams.id))
-      .innerJoin(events, eq(players.eventId, events.id))
-      .where(and(inArray(players.clanMemberId, memberIds), isNotNull(players.teamId)));
+      .from(eventParticipants)
+      .innerJoin(teams, eq(eventParticipants.teamId, teams.id))
+      .innerJoin(events, eq(eventParticipants.eventId, events.id))
+      .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId)));
     for (const r of playerRows) add(r, 'player');
     myPlayerRows = playerRows;
   }

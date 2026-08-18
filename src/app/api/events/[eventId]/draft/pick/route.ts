@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers, events, players, teams } from '@/db/schema';
+import { clanMembers, events, eventParticipants, teams } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick, countPicksTaken } from '@/lib/draft';
@@ -68,8 +68,8 @@ export async function POST(
   // Determine current pick
   const eventPlayers = await db
     .select()
-    .from(players)
-    .where(eq(players.eventId, eId));
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eId));
   // Turns taken = DISTINCT pick numbers (a multi-account person is one pick sharing one pickNumber).
   const pickedCount = countPicksTaken(eventPlayers);
   const unpicked = eventPlayers.filter((p) => p.teamId === null);
@@ -109,8 +109,8 @@ export async function POST(
   }
 
   // Validate player is in pool
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, playerId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, playerId), eq(eventParticipants.eventId, eId)),
   });
   if (!player) {
     return NextResponse.json({ error: 'Player not found in this event' }, { status: 404 });
@@ -153,10 +153,10 @@ export async function POST(
   const groupIds = [playerId];
   if (pickedMember?.userId != null) {
     const siblings = await db
-      .select({ id: players.id })
-      .from(players)
-      .innerJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
-      .where(and(eq(players.eventId, eId), eq(clanMembers.userId, pickedMember.userId), isNull(players.teamId)));
+      .select({ id: eventParticipants.id })
+      .from(eventParticipants)
+      .innerJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+      .where(and(eq(eventParticipants.eventId, eId), eq(clanMembers.userId, pickedMember.userId), isNull(eventParticipants.teamId)));
     for (const s of siblings) {
       if (s.id !== playerId) groupIds.push(s.id);
     }
@@ -165,13 +165,13 @@ export async function POST(
   // Make the pick — the picked player and every grouped sibling share teamId + pickNumber.
   const now = new Date().toISOString();
   await db
-    .update(players)
+    .update(eventParticipants)
     .set({
       teamId: expectedTeamId,
       pickNumber: pickedCount,
       pickedAt: now,
     })
-    .where(and(inArray(players.id, groupIds), eq(players.eventId, eId), isNull(players.teamId)));
+    .where(and(inArray(eventParticipants.id, groupIds), eq(eventParticipants.eventId, eId), isNull(eventParticipants.teamId)));
 
   // Check if pool is now empty → auto-complete draft
   const remainingPool = unpicked.length - groupIds.length;
@@ -192,7 +192,7 @@ export async function POST(
     if (flipped.length > 0) {
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eId));
       // Re-fetch players to include the just-picked player
-      const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+      const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
 
       const teamsWithPlayers = eventTeams.map(team => ({
         name: team.name,

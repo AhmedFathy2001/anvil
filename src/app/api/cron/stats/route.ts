@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import {
-  players,
-  tiles,
-  teams,
-  completions,
-  events,
-  clanMembers,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
+import { eventParticipants, tiles, teams, completions, events, clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -61,7 +52,7 @@ function delay(ms: number) {
 }
 
 type EventRow = typeof events.$inferSelect;
-type PlayerRow = typeof players.$inferSelect;
+type PlayerRow = typeof eventParticipants.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
 type TeamRow = typeof teams.$inferSelect;
 
@@ -190,7 +181,7 @@ export async function GET(request: Request) {
 
   const ctxList: EventCtx[] = [];
   for (const event of activeEvents) {
-    const eventPlayers = await db.query.players.findMany({ where: eq(players.eventId, event.id) });
+    const eventPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, event.id) });
     const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) });
     // Skip tiles an admin flipped to manual (autoTrackDisabled) — never auto-credit those.
     const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal && !t.autoTrackDisabled);
@@ -264,7 +255,7 @@ export async function GET(request: Request) {
   }
 
   // Resolve the canonical fetch RSN + live overlay per linked member. Fetching by clan_members.rsn
-  // (rename-synced) instead of players.name (a per-event display override) is what stops a mid-event
+  // (rename-synced) instead of eventParticipants.name (a per-event display override) is what stops a mid-event
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
     const members = await db
@@ -424,13 +415,13 @@ export async function GET(request: Request) {
       for (const b of entry.bingo) {
         if (b.needsSnapshot) {
           await db
-            .update(players)
+            .update(eventParticipants)
             .set({ statsSnapshot: snapshotJson, snapshotAt: ts, cachedStats: snapshotJson, lastStatsFetch: ts })
-            .where(eq(players.id, b.player.id));
+            .where(eq(eventParticipants.id, b.player.id));
           b.ctx.result.playersSnapshotted++;
           fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline: snapshot, current: snapshot, liveMap });
         } else {
-          await db.update(players).set({ cachedStats: snapshotJson, lastStatsFetch: ts }).where(eq(players.id, b.player.id));
+          await db.update(eventParticipants).set({ cachedStats: snapshotJson, lastStatsFetch: ts }).where(eq(eventParticipants.id, b.player.id));
           b.ctx.result.playersChecked++;
           let baseline: HiscoresSnapshot;
           try {

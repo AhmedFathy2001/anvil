@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, tiles, players, completions, submissions } from '@/db/schema';
+import { events, teams, tiles, eventParticipants, completions, submissions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -201,7 +201,7 @@ async function computeRecap(eventId: number): Promise<{
   const [eventTeams, eventTiles, eventPlayers] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
 
   // Does this board ask about clues at all? A "most caskets" award on a board with no clue tile is

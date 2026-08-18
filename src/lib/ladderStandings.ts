@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { tiles, teams, completions, submissions, players } from '@/db/schema';
+import { tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import {
   computeIndividualStandings,
@@ -42,7 +42,7 @@ export async function getLadderBoards(event: {
 }): Promise<LadderBoards> {
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, event.id));
+  const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id));
   const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
   const perPerson = event.accountSlotMode === 'per-person';
   const tileIds = eventTiles.map((t) => t.id);

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, teams, players, completions, users } from '@/db/schema';
+import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
@@ -23,7 +23,7 @@ export default async function EventTeamsPage({
   const [eventTiles, eventTeams, rawPlayers, profiles] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     db.select().from(teams).where(eq(teams.eventId, id)),
-    db.select().from(players).where(eq(players.eventId, id)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id)),
     loadEventProfiles(id),
   ]);
   // Join in each player's frozen sign-up answers for the draft-setup pool.

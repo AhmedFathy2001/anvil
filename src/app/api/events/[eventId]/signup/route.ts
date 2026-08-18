@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, players, signupFees } from '@/db/schema';
+import { clanMembers, eventSignups, events, eventParticipants, signupFees } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -224,7 +224,7 @@ export async function POST(
   for (const r of deselected) {
     await db.update(eventSignups).set({ status: 'withdrawn', updatedAt: now }).where(eq(eventSignups.id, r.id));
     await db.delete(signupFees).where(eq(signupFees.signupId, r.id));
-    await db.delete(players).where(and(eq(players.eventId, id), eq(players.clanMemberId, r.clanMemberId), isNull(players.teamId)));
+    await db.delete(eventParticipants).where(and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, r.clanMemberId), isNull(eventParticipants.teamId)));
   }
 
   // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
@@ -254,11 +254,11 @@ export async function POST(
   for (const { row, account } of rows) {
     if (row.status !== 'pending' && row.status !== 'approved') continue;
 
-    const existingPlayer = await db.query.players.findFirst({
-      where: and(eq(players.eventId, id), eq(players.clanMemberId, account.id)),
+    const existingPlayer = await db.query.eventParticipants.findFirst({
+      where: and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, account.id)),
     });
     if (!existingPlayer) {
-      await db.insert(players).values({
+      await db.insert(eventParticipants).values({
         eventId: id,
         clanMemberId: account.id,
         name: account.rsn,
@@ -363,7 +363,7 @@ export async function DELETE(
     if (fee) {
       await db.delete(signupFees).where(eq(signupFees.id, fee.id));
     }
-    await db.delete(players).where(and(eq(players.eventId, id), eq(players.clanMemberId, r.clanMemberId), isNull(players.teamId)));
+    await db.delete(eventParticipants).where(and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, r.clanMemberId), isNull(eventParticipants.teamId)));
   }
 
   return NextResponse.json({ ok: true });

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { tiles, players, teams, completions, events } from '@/db/schema';
+import { tiles, eventParticipants, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { parseEventRules, hasRevealPolicy, visibleTiles } from '@/lib/eventRules';
 import { statKeys, statLabel } from '@/lib/tileKinds';
@@ -38,7 +38,7 @@ const readStat = (json: string | null | undefined, statType: string, keys: strin
 export async function getStatStandings(eventId: number): Promise<StatTileStanding[]> {
   const [eventTiles, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
 
   const statTiles = eventTiles

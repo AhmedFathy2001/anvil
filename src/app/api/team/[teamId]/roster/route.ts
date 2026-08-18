@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, events, players, submissions, tiles } from '@/db/schema';
+import { clanMembers, events, eventParticipants, submissions, tiles } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
 
@@ -35,17 +35,17 @@ export async function GET(
 
   const roster = await db
     .select({
-      playerId: players.id,
-      name: players.name,
-      clanMemberId: players.clanMemberId,
-      pickNumber: players.pickNumber,
-      frozenAt: players.frozenAt,
+      playerId: eventParticipants.id,
+      name: eventParticipants.name,
+      clanMemberId: eventParticipants.clanMemberId,
+      pickNumber: eventParticipants.pickNumber,
+      frozenAt: eventParticipants.frozenAt,
       rsn: clanMembers.rsn,
       lastSeen: clanMembers.liveStatsAt,
     })
-    .from(players)
-    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
-    .where(and(eq(players.eventId, management.eventId), eq(players.teamId, tId)));
+    .from(eventParticipants)
+    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .where(and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.teamId, tId)));
 
   // Their team's proof: the submissions their own players made, newest first, with the screenshot.
   const eventTiles = await db
@@ -125,8 +125,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'The draft is running — rosters are the draft’s to change right now.' }, { status: 409 });
   }
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, playerId), eq(players.eventId, management.eventId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, playerId), eq(eventParticipants.eventId, management.eventId)),
   });
   if (!player || player.teamId !== tId) {
     return NextResponse.json({ error: 'That player is not on your team' }, { status: 404 });
@@ -135,9 +135,9 @@ export async function DELETE(
   // Back to the pool rather than deleted: the host may still want them in the event, and the
   // enrollment (and their sign-up) is not a manager's to destroy.
   await db
-    .update(players)
+    .update(eventParticipants)
     .set({ teamId: null, pickNumber: null, pickedAt: null })
-    .where(eq(players.id, playerId));
+    .where(eq(eventParticipants.id, playerId));
 
   return NextResponse.json({ ok: true });
 }

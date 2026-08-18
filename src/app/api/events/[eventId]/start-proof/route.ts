@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, players, clanMembers, eventStartProofs } from '@/db/schema';
+import { events, eventParticipants, clanMembers, eventStartProofs } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -170,7 +170,7 @@ async function resolveCaller(
 
   const pluginAuth = await verifyPluginToken(request);
   if (pluginAuth && pluginAuth.eventId === eventId) {
-    const row = await db.query.players.findFirst({ where: eq(players.id, pluginAuth.playerId) });
+    const row = await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, pluginAuth.playerId) });
     if (!row) return { error: NextResponse.json({ error: 'Player not found' }, { status: 404 }) };
     return { event, player: { id: row.id, teamId: row.teamId, name: row.name }, source: 'plugin' };
   }
@@ -181,8 +181,8 @@ async function resolveCaller(
   // Admin filing on behalf: they name the enrolment, we don't guess.
   if (requestedPlayerId != null) {
     const admin = await verifyAdmin();
-    const row = await db.query.players.findFirst({
-      where: and(eq(players.id, requestedPlayerId), eq(players.eventId, eventId)),
+    const row = await db.query.eventParticipants.findFirst({
+      where: and(eq(eventParticipants.id, requestedPlayerId), eq(eventParticipants.eventId, eventId)),
     });
     if (!row) return { error: NextResponse.json({ error: 'Player not found on this event' }, { status: 404 }) };
     if (!admin) {
@@ -218,7 +218,7 @@ async function myPlayerRows(userId: number, eventId: number) {
     .where(eq(clanMembers.userId, userId));
   if (members.length === 0) return [];
   return db
-    .select({ id: players.id, teamId: players.teamId, name: players.name })
-    .from(players)
-    .where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, members.map((m) => m.id))));
+    .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, members.map((m) => m.id))));
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, players, completions, clanMembers, eventStartProofs } from '@/db/schema';
+import { events, tiles, teams, submissions, eventParticipants, completions, clanMembers, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
@@ -102,12 +102,12 @@ async function homeBoardForUser(userId: number): Promise<{
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
-      teamId: players.teamId,
-      clanMemberId: players.clanMemberId,
+      teamId: eventParticipants.teamId,
+      clanMemberId: eventParticipants.clanMemberId,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(inArray(players.clanMemberId, myMembers.map((m) => m.id)));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(inArray(eventParticipants.clanMemberId, myMembers.map((m) => m.id)));
 
   const now = Date.now();
   const isLive = (e: (typeof enrollments)[number]) =>
@@ -166,15 +166,15 @@ async function activeEventForUnlinkedRsn(request: Request): Promise<string | nul
   if (!norm) return null;
   const rows = await db
     .select({
-      name: players.name,
+      name: eventParticipants.name,
       eventName: events.name,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(sql`lower(${players.name}) = ${norm}`);
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(sql`lower(${eventParticipants.name}) = ${norm}`);
   const now = Date.now();
   for (const r of rows) {
     if (normalizeRsn(r.name) !== norm) continue; // exact (nbsp-normalised) match
@@ -398,18 +398,18 @@ export async function GET(request: Request) {
   // when tracking_mode is 'individual').
   const teamPlayers = await db
     .select({
-      id: players.id,
-      name: players.name,
-      clanMemberId: players.clanMemberId,
-      statsSnapshot: players.statsSnapshot,
-      cachedStats: players.cachedStats,
+      id: eventParticipants.id,
+      name: eventParticipants.name,
+      clanMemberId: eventParticipants.clanMemberId,
+      statsSnapshot: eventParticipants.statsSnapshot,
+      cachedStats: eventParticipants.cachedStats,
       // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
       // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
       liveStatKeyTimes: clanMembers.liveStatKeyTimes,
     })
-    .from(players)
-    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
-    .where(and(eq(players.eventId, auth.eventId), eq(players.teamId, auth.teamId)));
+    .from(eventParticipants)
+    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .where(and(eq(eventParticipants.eventId, auth.eventId), eq(eventParticipants.teamId, auth.teamId)));
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
 
@@ -585,9 +585,9 @@ export async function GET(request: Request) {
   const completedByMap = new Map<number, string>();
   if (completedTileIds.length > 0) {
     const creditRows = await db
-      .select({ tileId: submissions.tileId, name: players.name })
+      .select({ tileId: submissions.tileId, name: eventParticipants.name })
       .from(submissions)
-      .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+      .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
       .where(and(eq(submissions.teamId, auth.teamId), inArray(submissions.tileId, completedTileIds)))
       .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
     for (const r of creditRows) {
@@ -607,7 +607,7 @@ export async function GET(request: Request) {
 
   // Lock-out claims (bounty / lockout modifier): the most recent missions someone locked in,
   // EVENT-WIDE (not just this team), so the plugin can announce "X claimed <mission>" to the other
-  // players. Only shipped on lockout events; the plugin diffs it across polls and skips its own.
+  // eventParticipants. Only shipped on lockout events; the plugin diffs it across polls and skips its own.
   let recentClaims:
     | { tileId: number; label: string; points: number; rsn: string | null; at: string }[]
     | undefined;
@@ -633,16 +633,16 @@ export async function GET(request: Request) {
     );
     const claimNameById = new Map<number, string>();
     if (claimCreditIds.length > 0) {
-      const rows = await db.select({ id: players.id, name: players.name }).from(players).where(inArray(players.id, claimCreditIds));
+      const rows = await db.select({ id: eventParticipants.id, name: eventParticipants.name }).from(eventParticipants).where(inArray(eventParticipants.id, claimCreditIds));
       for (const r of rows) claimNameById.set(r.id, r.name);
     }
     const subTileIds = Array.from(new Set(claimRows.filter((c) => c.creditPlayerId == null).map((c) => c.tileId)));
     const subNameByTileTeam = new Map<string, string>();
     if (subTileIds.length > 0) {
       const subRows = await db
-        .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: players.name })
+        .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: eventParticipants.name })
         .from(submissions)
-        .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+        .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
         .where(inArray(submissions.tileId, subTileIds))
         .orderBy(submissions.createdAt); // ascending → last write per (tile,team) wins
       for (const r of subRows) {
@@ -678,9 +678,9 @@ export async function GET(request: Request) {
   const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
         await db
-          .select({ name: players.name, teamId: players.teamId })
-          .from(players)
-          .where(eq(players.eventId, auth.eventId))
+          .select({ name: eventParticipants.name, teamId: eventParticipants.teamId })
+          .from(eventParticipants)
+          .where(eq(eventParticipants.eventId, auth.eventId))
       ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
     : [];
 

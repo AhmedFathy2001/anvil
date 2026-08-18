@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, tiles, players, completions, submissions, clanMembers, playerEventFacts } from '@/db/schema';
+import { events, teams, tiles, eventParticipants, completions, submissions, clanMembers, playerEventFacts } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown';
 import { getStatStandings } from '@/lib/statStandings';
@@ -96,7 +96,7 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
   const [eventTeams, eventTiles, eventPlayers] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
   const tileIds = eventTiles.map((t) => t.id);
   const eventCompletions = tileIds.length

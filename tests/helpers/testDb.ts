@@ -58,13 +58,28 @@ async function withAdmin<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
-/** Drop any leftover database, create it fresh, and run migrations into it. */
-export async function resetDatabase(dbName: string): Promise<void> {
+/**
+ * Drop any leftover database, create it fresh, and run migrations into it.
+ *
+ * `through` stops after the named migration, leaving the database in the shape it had BEFORE the
+ * next one. That is what a data-migration test needs: seed rows in the old shape, apply the
+ * migration, assert on what it made of them. Finish the chain afterwards with migrateRest().
+ */
+export async function resetDatabase(dbName: string, through?: string): Promise<void> {
   await dropDatabase(dbName);
   // Identifiers can't be bound parameters; dbName is derived from a literal in the test file and
   // stripped to [a-z0-9_] above, so it cannot carry anything to quote out of.
   await withAdmin((c) => c.query(`CREATE DATABASE "${dbName}"`));
-  execFileSync('node', ['scripts/migrate.mjs'], {
+  runMigrator(dbName, through ? ['--through', through] : []);
+}
+
+/** Apply whatever migrations remain — the other half of resetDatabase(db, through). */
+export function migrateRest(dbName: string): void {
+  runMigrator(dbName, []);
+}
+
+function runMigrator(dbName: string, args: string[]): void {
+  execFileSync('node', ['scripts/migrate.mjs', ...args], {
     env: { ...process.env, DATABASE_URL: urlFor(dbName) },
     stdio: 'pipe',
   });

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, payouts, players } from '@/db/schema';
+import { events, payouts, eventParticipants } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { getTeamStandings } from '@/lib/statStandings';
@@ -186,12 +186,12 @@ export async function generatePayouts(
 
   const teamIds = topTeams.map((t) => t.teamId);
   const memberFilters = [
-    eq(players.eventId, eventId),
-    inArray(players.teamId, teamIds),
-    isNotNull(players.clanMemberId),
-    ...(opts.includeSubbed ? [] : [isNull(players.frozenAt)]),
+    eq(eventParticipants.eventId, eventId),
+    inArray(eventParticipants.teamId, teamIds),
+    isNotNull(eventParticipants.clanMemberId),
+    ...(opts.includeSubbed ? [] : [isNull(eventParticipants.frozenAt)]),
   ];
-  const teamPlayers = teamIds.length ? await db.select().from(players).where(and(...memberFilters)) : [];
+  const teamPlayers = teamIds.length ? await db.select().from(eventParticipants).where(and(...memberFilters)) : [];
   const membersByTeam = new Map<number, { clanMemberId: number; rsn: string }[]>();
   for (const p of teamPlayers) {
     if (p.clanMemberId == null || p.teamId == null) continue;

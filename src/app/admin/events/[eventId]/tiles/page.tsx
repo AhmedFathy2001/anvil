@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, players } from '@/db/schema';
+import { events, tiles, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TilesClient from './TilesClient';
@@ -28,7 +28,7 @@ export default async function EventTilesPage({
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     getTierBands(clan.id),
     verifyUser(),
-    db.select({ teamId: players.teamId }).from(players).where(eq(players.eventId, id)),
+    db.select({ teamId: eventParticipants.teamId }).from(eventParticipants).where(eq(eventParticipants.eventId, id)),
   ]);
 
   // Does this board actually have multi-person teams? Team-shaped tile options (Team Total vs Solo,

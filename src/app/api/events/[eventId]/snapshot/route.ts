@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
-import { players, events } from '@/db/schema';
+import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -64,8 +64,8 @@ export async function POST(
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;
 
-  const eventPlayers = await db.query.players.findMany({
-    where: eq(players.eventId, eId),
+  const eventPlayers = await db.query.eventParticipants.findMany({
+    where: eq(eventParticipants.eventId, eId),
   });
 
   let snapshotted = 0;
@@ -82,24 +82,24 @@ export async function POST(
       // only update cachedStats (don't overwrite the baseline)
       if (player.statsSnapshot && eventStarted && !forceReset) {
         await db
-          .update(players)
+          .update(eventParticipants)
           .set({
             cachedStats: statsJson,
             lastStatsFetch: timestamp,
           })
-          .where(eq(players.id, player.id));
+          .where(eq(eventParticipants.id, player.id));
         refreshed++;
       } else {
         // First snapshot, event hasn't started, or force reset - set baseline
         await db
-          .update(players)
+          .update(eventParticipants)
           .set({
             statsSnapshot: statsJson,
             snapshotAt: timestamp,
             cachedStats: statsJson,
             lastStatsFetch: timestamp,
           })
-          .where(eq(players.id, player.id));
+          .where(eq(eventParticipants.id, player.id));
         snapshotted++;
       }
     } catch {

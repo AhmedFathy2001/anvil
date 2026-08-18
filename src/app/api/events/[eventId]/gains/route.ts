@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, tiles } from '@/db/schema';
+import { eventParticipants, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
 import { computeGain, effectiveValue, snapshotValue } from '@/lib/statTracking';
@@ -35,8 +35,8 @@ export async function GET(
     return NextResponse.json([]);
   }
 
-  let eventPlayers = await db.query.players.findMany({
-    where: eq(players.eventId, eId),
+  let eventPlayers = await db.query.eventParticipants.findMany({
+    where: eq(eventParticipants.eventId, eId),
   });
 
   if (teamIdFilter) {

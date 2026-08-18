@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { submissions, tiles, completions, teams, events, players } from '@/db/schema';
+import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
@@ -45,9 +45,9 @@ export async function countTileProgress(
   // The team's roster, so a member NAMED by someone else's client resolves to a player row — that's
   // what lets a three-man count as three when only one of the three runs the plugin.
   const roster = await db
-    .select({ id: players.id, name: players.name })
-    .from(players)
-    .where(eq(players.teamId, teamId));
+    .select({ id: eventParticipants.id, name: eventParticipants.name })
+    .from(eventParticipants)
+    .where(eq(eventParticipants.teamId, teamId));
   const idByRsn = new Map(roster.map((p) => [p.name.trim().toLowerCase().replace(/\s+/g, ' '), p.id]));
   const namedMemberIds = (group: string[]) => group.map((n) => idByRsn.get(n)).filter((id): id is number => id != null);
 

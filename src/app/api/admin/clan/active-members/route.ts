@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, users } from '@/db/schema';
+import { clanMembers, eventParticipants, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 
@@ -41,18 +41,18 @@ export async function GET(request: Request) {
       discordId: users.discordId,
       discordUsername: users.discordUsername,
       discordAvatar: users.discordAvatar,
-      enrolledPlayerId: players.id,
-      enrolledTeamId: players.teamId,
+      enrolledPlayerId: eventParticipants.id,
+      enrolledTeamId: eventParticipants.teamId,
     })
     .from(clanMembers)
     .leftJoin(users, eq(clanMembers.userId, users.id))
     .leftJoin(
-      players,
+      eventParticipants,
       eventId != null
-        ? and(eq(players.clanMemberId, clanMembers.id), eq(players.eventId, eventId))
+        ? and(eq(eventParticipants.clanMemberId, clanMembers.id), eq(eventParticipants.eventId, eventId))
         : // Sentinel join that never matches when no eventId is supplied — keeps the
           // shape consistent (enrolledPlayerId will always be null in that branch).
-          eq(players.id, -1),
+          eq(eventParticipants.id, -1),
     )
     .where(isNull(clanMembers.leftAt))
     .orderBy(clanMembers.rsn);

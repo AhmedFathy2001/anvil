@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { events, moments, players, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
   classifyObservation,
@@ -57,14 +57,14 @@ export async function activeScopesFor(clanMemberId: number, now: Date = new Date
 
   const playerRows = await db
     .select({
-      eventId: players.eventId,
-      teamId: players.teamId,
+      eventId: eventParticipants.eventId,
+      teamId: eventParticipants.teamId,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(eq(players.clanMemberId, clanMemberId));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(eq(eventParticipants.clanMemberId, clanMemberId));
   const active = playerRows.find((p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso));
 
   const event = active ? await eventScope(active.eventId) : null;

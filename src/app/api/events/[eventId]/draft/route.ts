@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers, events, players, teams } from '@/db/schema';
+import { clanMembers, events, eventParticipants, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
@@ -30,8 +30,8 @@ export async function GET(
 
   const rawPlayers = await db
     .select()
-    .from(players)
-    .where(eq(players.eventId, id));
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, id));
   // Strip the per-player login token before this leaves the server — this endpoint is public
   // (spectator/scoreboard views read it), and the token is a bearer credential for /api/player/login.
   const safeRaw = rawPlayers.map((row) => {
@@ -227,8 +227,8 @@ export async function POST(
 
       const poolCount = await db
         .select()
-        .from(players)
-        .where(eq(players.eventId, id));
+        .from(eventParticipants)
+        .where(eq(eventParticipants.eventId, id));
       const unpicked = poolCount.filter((p) => p.teamId === null);
       if (unpicked.length === 0) {
         return NextResponse.json({ error: 'No unpicked players in pool' }, { status: 400 });
@@ -297,7 +297,7 @@ export async function POST(
         .returning({ id: events.id });
       if (flipped.length > 0) {
         const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-        const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+        const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
 
         const teamsWithPlayers = eventTeams.map(team => ({
           name: team.name,
@@ -326,13 +326,13 @@ export async function POST(
       // Clear all picks and reset draft status
       const eventPlayers = await db
         .select()
-        .from(players)
-        .where(eq(players.eventId, id));
+        .from(eventParticipants)
+        .where(eq(eventParticipants.eventId, id));
       for (const p of eventPlayers) {
         await db
-          .update(players)
+          .update(eventParticipants)
           .set({ teamId: null, pickNumber: null, pickedAt: null })
-          .where(eq(players.id, p.id));
+          .where(eq(eventParticipants.id, p.id));
       }
       await db
         .update(events)
@@ -344,7 +344,7 @@ export async function POST(
     case 'resend-roster': {
       // Resend the draft complete notification to Discord
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+      const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
 
       const teamsWithPlayers = eventTeams.map(team => ({
         name: team.name,
@@ -375,7 +375,7 @@ export async function POST(
       }
 
       // Find the player with the highest pickNumber
-      const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+      const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
       const pickedPlayers = eventPlayers.filter(p => p.pickNumber !== null);
 
       if (pickedPlayers.length === 0) {
@@ -389,9 +389,9 @@ export async function POST(
 
       // Reset their pick
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ teamId: null, pickNumber: null, pickedAt: null })
-        .where(eq(players.id, lastPicked.id));
+        .where(eq(eventParticipants.id, lastPicked.id));
 
       return NextResponse.json({
         success: true,

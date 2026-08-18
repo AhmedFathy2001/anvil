@@ -2,17 +2,7 @@ import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import {
-  clanAuditLog,
-  clanMembers,
-  completions,
-  events,
-  eventSignups,
-  signupFees,
-  teams,
-  tiles,
-  users,
-} from '@/db/schema';
+import { clanAuditLog, clanMembers, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';

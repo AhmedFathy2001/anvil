@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, events } from '@/db/schema';
+import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 
@@ -63,19 +63,19 @@ export async function POST(request: Request) {
   // event not force-ended and not past its end date. Counters are per-event, so they land on that row.
   const playerRows = await db
     .select({
-      id: players.id,
-      teamId: players.teamId,
-      deaths: players.deaths,
-      lootGpGained: players.lootGpGained,
-      pvpKills: players.pvpKills,
-      biggestHit: players.biggestHit,
-      minutesPlayed: players.minutesPlayed,
+      id: eventParticipants.id,
+      teamId: eventParticipants.teamId,
+      deaths: eventParticipants.deaths,
+      lootGpGained: eventParticipants.lootGpGained,
+      pvpKills: eventParticipants.pvpKills,
+      biggestHit: eventParticipants.biggestHit,
+      minutesPlayed: eventParticipants.minutesPlayed,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(eq(players.clanMemberId, member.clanMemberId));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
   const active = playerRows.find(
     (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
   );
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     newMinutes !== curMinutes
   ) {
     await db
-      .update(players)
+      .update(eventParticipants)
       .set({
         deaths: newDeaths,
         lootGpGained: newLoot,
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
         biggestHit: newHit,
         minutesPlayed: newMinutes,
       })
-      .where(eq(players.id, active.id));
+      .where(eq(eventParticipants.id, active.id));
     return NextResponse.json({ ok: true, updated: 1 });
   }
   return NextResponse.json({ ok: true, updated: 0 });

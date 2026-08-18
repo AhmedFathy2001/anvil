@@ -1,11 +1,11 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanMembers, players } from '@/db/schema';
+import { clanMembers, eventParticipants } from '@/db/schema';
 
 /**
  * Put a team's captain onto their own team as a player, so they show in the roster and aren't
  * left in the draft pool to be picked onto themselves. Resolves the captain's event player row
- * via their linked clan membership (captainUserId → clan_members.userId → players.clanMemberId).
+ * via their linked clan membership (captainUserId → clan_members.userId → eventParticipants.clanMemberId).
  *
  * Conservative on purpose:
  *  - Only acts when the captain actually has a player row in this event (a non-playing captain
@@ -29,18 +29,18 @@ export async function placeCaptainOnTeam(
 
   // The captain's player in this event that isn't on a team yet.
   const [captainPlayer] = await db
-    .select({ id: players.id, teamId: players.teamId })
-    .from(players)
+    .select({ id: eventParticipants.id, teamId: eventParticipants.teamId })
+    .from(eventParticipants)
     .where(
       and(
-        eq(players.eventId, eventId),
-        inArray(players.clanMemberId, memberIds),
-        isNull(players.teamId),
+        eq(eventParticipants.eventId, eventId),
+        inArray(eventParticipants.clanMemberId, memberIds),
+        isNull(eventParticipants.teamId),
       ),
     )
     .limit(1);
   if (!captainPlayer) return null;
 
-  await db.update(players).set({ teamId }).where(eq(players.id, captainPlayer.id));
+  await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, captainPlayer.id));
   return captainPlayer.id;
 }

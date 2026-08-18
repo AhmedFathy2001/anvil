@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, tiles, clanMembers } from '@/db/schema';
+import { eventParticipants, tiles, clanMembers } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -20,8 +20,8 @@ export async function GET(
   const eId = parseInt(eventId, 10);
   const pId = parseInt(playerId, 10);
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
   if (!player) {
     return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -100,8 +100,8 @@ export async function PATCH(
   if (lockedResponse) return lockedResponse;
   const pId = parseInt(playerId, 10);
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
   if (!player) {
     return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -118,14 +118,14 @@ export async function PATCH(
       const statsJson = JSON.stringify(currentStats);
 
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({
           statsSnapshot: statsJson,
           snapshotAt: now,
           cachedStats: statsJson,
           lastStatsFetch: now,
         })
-        .where(eq(players.id, pId));
+        .where(eq(eventParticipants.id, pId));
 
       // Clear the member's live overlay too. The freshly-fetched hiscores is now the source of
       // truth, so any live_stats entry is superseded — and a bogus push that landed ABOVE the real
@@ -168,9 +168,9 @@ export async function PATCH(
     }
 
     await db
-      .update(players)
+      .update(eventParticipants)
       .set({ statsSnapshot: JSON.stringify(snapshot) })
-      .where(eq(players.id, pId));
+      .where(eq(eventParticipants.id, pId));
 
     // Drop any live-overlay entry for this key too, so a stuck/bogus push for the stat being
     // corrected can't keep the effective current inflated after the baseline is fixed by hand.

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
+import { events, eventParticipants, teams } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -54,9 +54,9 @@ export async function POST(
 
   for (const a of assignments) {
     await db
-      .update(players)
+      .update(eventParticipants)
       .set({ teamId: a.teamId })
-      .where(and(inArray(players.id, a.playerIds), eq(players.eventId, id), isNull(players.teamId)));
+      .where(and(inArray(eventParticipants.id, a.playerIds), eq(eventParticipants.eventId, id), isNull(eventParticipants.teamId)));
     const profile = balance.byPlayerId.get(a.playerIds[0]);
     if (profile) profile.teamId = a.teamId; // keep the in-memory strengths honest for the summary
   }

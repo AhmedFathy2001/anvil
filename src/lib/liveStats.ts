@@ -8,7 +8,7 @@ import { parsePluginStats } from '@/lib/pluginStats';
  * `clan_members.live_stats` as a flat {hiscoresKey: absoluteValue} map. It's read as
  * max(hiscores, live) by BOTH bingo stat tiles and weekly SOTW/BOTW, and pruned by the unified stat
  * sweep as hiscores catch up. Keyed on the member (not a per-event player row) so it survives renames
- * and works with no active bingo event. Replaces the per-event `players.plugin_stats`.
+ * and works with no active bingo event. Replaces the per-event `eventParticipants.plugin_stats`.
  */
 
 /**

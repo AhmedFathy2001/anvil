@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { submissions, completions, tiles, players, events } from '@/db/schema';
+import { submissions, completions, tiles, eventParticipants, events } from '@/db/schema';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
 
@@ -179,9 +179,9 @@ export async function buildActivity(args: {
   const rsnById = new Map<number, string>();
   if (creditPlayerIds.length > 0) {
     const pRows = await db
-      .select({ id: players.id, name: players.name })
-      .from(players)
-      .where(inArray(players.id, creditPlayerIds));
+      .select({ id: eventParticipants.id, name: eventParticipants.name })
+      .from(eventParticipants)
+      .where(inArray(eventParticipants.id, creditPlayerIds));
     for (const p of pRows) rsnById.set(p.id, p.name);
   }
 
@@ -191,9 +191,9 @@ export async function buildActivity(args: {
   const completedByTile = new Map<number, string>();
   if (completedTileIds.length > 0) {
     const creditRows = await db
-      .select({ tileId: submissions.tileId, name: players.name })
+      .select({ tileId: submissions.tileId, name: eventParticipants.name })
       .from(submissions)
-      .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+      .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
       .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
       .orderBy(submissions.createdAt); // ascending → last write per tile wins
     for (const r of creditRows) {

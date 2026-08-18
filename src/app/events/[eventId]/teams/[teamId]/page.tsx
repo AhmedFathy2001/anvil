@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, players } from '@/db/schema';
+import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import TeamBoardClient from './TeamBoardClient';
@@ -45,7 +45,7 @@ export default async function TeamBoardPage({
   }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
-  const rawEventPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const rawEventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   // Owner per player so TeamBoardClient can roll a person's accounts into one contributor (per-person).
   const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
   const tierBands = await getTierBands(clan.id);

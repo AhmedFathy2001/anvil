@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { submissions, tiles, teams, players, events, users, eventStartProofs } from '@/db/schema';
+import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { resolveTeamManagement } from '@/lib/teamStaff';
@@ -56,7 +56,7 @@ export async function GET(
         .orderBy(submissions.createdAt);
 
   // Join player names (uploader and credit)
-  const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+  const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const playerMap = new Map(allPlayers.map((p) => [p.id, p.name]));
 
   const result = filtered.map((s) => ({
@@ -244,8 +244,8 @@ export async function POST(
   } else if (captain) {
     // Captain submitting - they are the uploader
     // Find captain's player record if they have one
-    const captainPlayer = await db.query.players.findFirst({
-      where: and(eq(players.teamId, captain.teamId), eq(players.eventId, eId)),
+    const captainPlayer = await db.query.eventParticipants.findFirst({
+      where: and(eq(eventParticipants.teamId, captain.teamId), eq(eventParticipants.eventId, eId)),
     });
     uploaderId = captainPlayer?.id || null;
   }
@@ -253,8 +253,8 @@ export async function POST(
   // Validate creditPlayerId if provided - must be on the same team
   const resolvedCreditPlayerId: number | null = creditPlayerId || null;
   if (resolvedCreditPlayerId) {
-    const creditPlayer = await db.query.players.findFirst({
-      where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
+    const creditPlayer = await db.query.eventParticipants.findFirst({
+      where: and(eq(eventParticipants.id, resolvedCreditPlayerId), eq(eventParticipants.teamId, teamId)),
     });
     if (!creditPlayer) {
       return NextResponse.json({ error: 'Credit player must be on the same team' }, { status: 400 });
@@ -403,8 +403,8 @@ export async function POST(
   // Get credit player name if provided
   let creditPlayerName: string | null = null;
   if (resolvedCreditPlayerId) {
-    const creditPlayer = await db.query.players.findFirst({
-      where: eq(players.id, resolvedCreditPlayerId),
+    const creditPlayer = await db.query.eventParticipants.findFirst({
+      where: eq(eventParticipants.id, resolvedCreditPlayerId),
     });
     creditPlayerName = creditPlayer?.name || null;
   }
@@ -527,8 +527,8 @@ export async function DELETE(
   // Get credit player name if exists
   let creditPlayerName: string | null = null;
   if (submission.creditPlayerId) {
-    const creditPlayer = await db.query.players.findFirst({
-      where: eq(players.id, submission.creditPlayerId),
+    const creditPlayer = await db.query.eventParticipants.findFirst({
+      where: eq(eventParticipants.id, submission.creditPlayerId),
     });
     creditPlayerName = creditPlayer?.name || null;
   }
@@ -548,8 +548,8 @@ export async function DELETE(
       deletedByRole = 'captain';
     }
     if (player) {
-      const playerRecord = await db.query.players.findFirst({
-        where: eq(players.id, player.playerId),
+      const playerRecord = await db.query.eventParticipants.findFirst({
+        where: eq(eventParticipants.id, player.playerId),
       });
       deletedByName = playerRecord?.name || 'Player';
       deletedByRole = 'player';
@@ -562,7 +562,7 @@ export async function DELETE(
         deletedByName = team?.name ? `${team.name} ${seat}` : seat;
         deletedByRole = membership.isCaptain ? 'captain' : 'team staff';
       } else if (membership.playerId) {
-        const playerRecord = await db.query.players.findFirst({ where: eq(players.id, membership.playerId) });
+        const playerRecord = await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, membership.playerId) });
         deletedByName = playerRecord?.name || 'Player';
         deletedByRole = 'player';
       }

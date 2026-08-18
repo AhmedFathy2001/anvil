@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players } from '@/db/schema';
+import { eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { signPlayerToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'playerToken is required' }, { status: 400 });
   }
 
-  const player = await db.query.players.findFirst({
-    where: eq(players.playerToken, playerToken.trim()),
+  const player = await db.query.eventParticipants.findFirst({
+    where: eq(eventParticipants.playerToken, playerToken.trim()),
   });
 
   if (!player) {

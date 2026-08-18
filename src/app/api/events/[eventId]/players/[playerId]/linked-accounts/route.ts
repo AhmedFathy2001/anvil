@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, clanMembers } from '@/db/schema';
+import { eventParticipants, clanMembers } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 
@@ -20,8 +20,8 @@ export async function GET(
   const eId = parseInt(eventId, 10);
   const pId = parseInt(playerId, 10);
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
   if (!player) {
     return NextResponse.json({ error: 'Player not found' }, { status: 404 });

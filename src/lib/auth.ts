@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, eventParticipants, pluginLinks, teams, users } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -214,11 +214,11 @@ export async function resolveTeamMembership(
     .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
   if (myMembers.length > 0) {
     const memberIds = myMembers.map((m) => m.id);
-    const playerRow = await db.query.players.findFirst({
+    const playerRow = await db.query.eventParticipants.findFirst({
       where: and(
-        eq(players.eventId, eventId),
-        eq(players.teamId, teamId),
-        inArray(players.clanMemberId, memberIds),
+        eq(eventParticipants.eventId, eventId),
+        eq(eventParticipants.teamId, teamId),
+        inArray(eventParticipants.clanMemberId, memberIds),
       ),
     });
     playerId = playerRow?.id ?? null;
@@ -260,7 +260,7 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // `verifyPluginToken` which additionally resolves the active enrollment.
 //
 // Only the per-user account token (`users.plugin_token`) is accepted — legacy
-// per-event `players.player_token`s are no longer a plugin credential.
+// per-event `eventParticipants.player_token`s are no longer a plugin credential.
 export async function verifyPluginTokenUser(
   request: Request,
 ): Promise<{ userId: number } | null> {
@@ -720,7 +720,7 @@ export async function claimAccountForUser(
 // SOTW/BOTW by clan member even when the caller isn't in any bingo.
 //
 // Only the **per-user account token** (`users.plugin_token`) is accepted; legacy per-event
-// `players.player_token`s are not a plugin credential. `currentRsn` (header `X-RSN`, fallback
+// `eventParticipants.player_token`s are not a plugin credential. `currentRsn` (header `X-RSN`, fallback
 // `?rsn=`) is the in-game name reported by the client; it scopes resolution to the matching
 // clan_member — the check that blocks "a drop on the wrong account credits the right account" (the
 // multi-RSN-on-one-Jagex problem). The optional `X-Account-Hash` is the rename-proof anchor.
@@ -869,17 +869,17 @@ export async function verifyPluginToken(
   const nowIso = new Date().toISOString();
   const playerRows = await db
     .select({
-      id: players.id,
-      name: players.name,
-      teamId: players.teamId,
-      eventId: players.eventId,
+      id: eventParticipants.id,
+      name: eventParticipants.name,
+      teamId: eventParticipants.teamId,
+      eventId: eventParticipants.eventId,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(eq(players.clanMemberId, member.clanMemberId));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
 
   // A member in two concurrent events resolves to ONE — the plugin scopes to a single active event
   // (until the multi-enrollment rework lands). The pick is DETERMINISTIC, not row order: events

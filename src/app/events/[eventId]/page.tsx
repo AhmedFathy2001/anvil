@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { events, tiles, teams, completions, eventSignups, clanMembers, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -95,7 +95,7 @@ export default async function EventScoreboardPage({
         .from(submissions)
         .where(inArray(submissions.tileId, tileIds))
     : [];
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, id));
+  const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
   // Multi-account: owner per player + slot mode, so 'per-person' events rank the MVP by person.
   const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
   const accountSlotMode = event.accountSlotMode;

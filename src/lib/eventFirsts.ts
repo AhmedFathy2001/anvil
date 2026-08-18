@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { completions, players, teams, tiles } from '@/db/schema';
+import { completions, eventParticipants, teams, tiles } from '@/db/schema';
 import { asc, eq, inArray } from 'drizzle-orm';
 
 /**
@@ -62,7 +62,7 @@ export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
 
   const playerIds = [...new Set(rows.map((r) => r.creditPlayerId).filter((id): id is number => id != null))];
   const playerRows = playerIds.length
-    ? await db.select({ id: players.id, name: players.name }).from(players).where(inArray(players.id, playerIds))
+    ? await db.select({ id: eventParticipants.id, name: eventParticipants.name }).from(eventParticipants).where(inArray(eventParticipants.id, playerIds))
     : [];
   const playerById = new Map(playerRows.map((p) => [p.id, p.name]));
 

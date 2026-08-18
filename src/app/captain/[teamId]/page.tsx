@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, players } from '@/db/schema';
+import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyCaptain } from '@/lib/auth';
@@ -49,7 +49,7 @@ export default async function CaptainBoardPage({
     parseEventRules(event.rules),
     await db.select().from(tiles).where(eq(tiles.eventId, event.id)),
   );
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, event.id));
+  const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id));
 
   const tileIds = eventTiles.map((t) => t.id);
   let teamCompletions: { id: number; teamId: number; tileId: number; completedAt: string }[] = [];

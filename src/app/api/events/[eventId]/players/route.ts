@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanMembers, players, events, teams } from '@/db/schema';
+import { clanMembers, eventParticipants, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -25,8 +25,8 @@ export async function GET(
 
   const eventPlayers = await db
     .select()
-    .from(players)
-    .where(eq(players.eventId, id));
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, id));
 
   // Defense in depth: never serialize the login token, even to staff.
   const safe = eventPlayers.map((row) => {
@@ -152,8 +152,8 @@ export async function DELETE(
   const pId = parseInt(playerId, 10);
 
   // Only allow deleting unpicked players
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
 
   if (!player) {
@@ -164,7 +164,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Cannot delete a player that has been drafted' }, { status: 400 });
   }
 
-  await db.delete(players).where(and(eq(players.id, pId), eq(players.eventId, eId)));
+  await db.delete(eventParticipants).where(and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)));
 
   return NextResponse.json({ success: true });
 }
@@ -191,8 +191,8 @@ export async function PATCH(
 
   const pId = parseInt(playerId, 10);
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
 
   if (!player) {
@@ -318,9 +318,9 @@ export async function PATCH(
   }
 
   const [updated] = await db
-    .update(players)
+    .update(eventParticipants)
     .set(updateData)
-    .where(eq(players.id, pId))
+    .where(eq(eventParticipants.id, pId))
     .returning();
 
   return NextResponse.json(updated);

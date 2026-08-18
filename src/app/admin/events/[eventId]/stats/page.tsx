@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { getSetting } from '@/lib/settings';
-import { events, teams, tiles, players } from '@/db/schema';
+import { events, teams, tiles, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import StatsClient from './StatsClient';
@@ -25,7 +25,7 @@ export default async function EventStatsPage({
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
   const [eventTiles, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
-    db.select().from(players).where(eq(players.eventId, id)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id)),
   ]);
 
   const [statStandings, teamStandings, pullRow] = await Promise.all([

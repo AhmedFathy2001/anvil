@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
+import { events, eventParticipants, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getTeamForPick } from '@/lib/draft';
 import {
@@ -94,7 +94,7 @@ export async function buildDraftControl(clanId: number, eventId: number): Promis
 
   const [eventTeams, eventPlayers, balance] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     buildDraftBalance(clanId, eventId),
   ]);
 

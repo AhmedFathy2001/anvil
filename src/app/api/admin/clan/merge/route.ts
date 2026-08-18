@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import {
-  clanAuditLog,
-  clanMembers,
-  eventSignups,
-  players,
-  signupFees,
-  weeklyParticipants,
-} from '@/db/schema';
+import { clanAuditLog, clanMembers, eventSignups, eventParticipants, signupFees, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 
@@ -81,7 +74,7 @@ export async function POST(request: Request) {
   const finalOwner = target.userId ?? source.userId ?? null;
 
   // Move references off of source.
-  await db.update(players).set({ clanMemberId: targetId }).where(eq(players.clanMemberId, sourceId));
+  await db.update(eventParticipants).set({ clanMemberId: targetId }).where(eq(eventParticipants.clanMemberId, sourceId));
   await db
     .update(weeklyParticipants)
     .set({ clanMemberId: targetId })

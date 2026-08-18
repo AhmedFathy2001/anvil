@@ -1,18 +1,5 @@
 import { db } from '@/db';
-import {
-  clanMembers,
-  completions,
-  events,
-  eventSignups,
-  memberDailyStats,
-  playerEventFacts,
-  players,
-  submissions,
-  teams,
-  tiles,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
+import { clanMembers, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
@@ -274,12 +261,12 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
   // ── Enrollment: which events these accounts are in, live and finished ─────────────────────────
   const playerRows = await db
     .select({
-      id: players.id,
-      name: players.name,
-      clanMemberId: players.clanMemberId,
-      teamId: players.teamId,
-      eventId: players.eventId,
-      playerToken: players.playerToken,
+      id: eventParticipants.id,
+      name: eventParticipants.name,
+      clanMemberId: eventParticipants.clanMemberId,
+      teamId: eventParticipants.teamId,
+      eventId: eventParticipants.eventId,
+      playerToken: eventParticipants.playerToken,
       eventName: events.name,
       eventStartDate: events.startDate,
       eventEndDate: events.endDate,
@@ -289,10 +276,10 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
       teamName: teams.name,
       teamColor: teams.color,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .leftJoin(teams, eq(players.teamId, teams.id))
-    .where(inArray(players.clanMemberId, memberIds));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .leftJoin(teams, eq(eventParticipants.teamId, teams.id))
+    .where(inArray(eventParticipants.clanMemberId, memberIds));
 
   const isOver = (row: { eventForceEndedAt: string | null; eventEndDate: string | null }) =>
     !!row.eventForceEndedAt || (!!row.eventEndDate && row.eventEndDate < nowIso);
@@ -709,7 +696,7 @@ async function myShareOfEvent(params: {
 
   const [eventTiles, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
   const tileIds = eventTiles.map((t) => t.id);
   if (tileIds.length === 0) return { points: 0, tasks: 0 };
@@ -879,9 +866,9 @@ async function captainSeatsFor(userId: number, nowIso: string): Promise<LockerCa
   if (seats.length === 0) return [];
 
   const counts = await db
-    .select({ teamId: players.teamId })
-    .from(players)
-    .where(inArray(players.teamId, seats.map((s) => s.teamId)));
+    .select({ teamId: eventParticipants.teamId })
+    .from(eventParticipants)
+    .where(inArray(eventParticipants.teamId, seats.map((s) => s.teamId)));
   const sizeByTeam = new Map<number, number>();
   for (const row of counts) {
     if (row.teamId != null) sizeByTeam.set(row.teamId, (sizeByTeam.get(row.teamId) ?? 0) + 1);

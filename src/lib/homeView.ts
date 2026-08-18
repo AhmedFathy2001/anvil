@@ -1,15 +1,5 @@
 import { db } from '@/db';
-import {
-  clanMembers,
-  completions,
-  events,
-  memberDailyStats,
-  memberMilestones,
-  teams,
-  tiles,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
+import { clanMembers, completions, events, memberDailyStats, memberMilestones, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
@@ -23,7 +13,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { ladderLifecycle } from '@/lib/ladderView';
 import { monthWindow } from '@/lib/ladderInsights';
-import { players as playersTable, submissions as submissionsTable } from '@/db/schema';
+import { eventParticipants as playersTable, submissions as submissionsTable } from '@/db/schema';
 
 /**
  * Everything the home page shows, assembled once.

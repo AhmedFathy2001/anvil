@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { players, tiles, teams, events, completions, clanMembers, weeklyParticipants } from '@/db/schema';
+import { eventParticipants, tiles, teams, events, completions, clanMembers, weeklyParticipants } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
@@ -143,15 +143,15 @@ export async function POST(request: Request) {
   // ── Bingo credit: re-evaluate the member's active-event stat tiles so a real-time clear completes now.
   const playerRows = await db
     .select({
-      id: players.id,
-      teamId: players.teamId,
-      eventId: players.eventId,
+      id: eventParticipants.id,
+      teamId: eventParticipants.teamId,
+      eventId: eventParticipants.eventId,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
-    .where(eq(players.clanMemberId, member.clanMemberId));
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
   const activePlayer = playerRows.find(
     (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
   );
@@ -171,15 +171,15 @@ export async function POST(request: Request) {
     if (statTiles.length > 0) {
       const teamPlayers = await db
         .select({
-          id: players.id,
-          clanMemberId: players.clanMemberId,
-          statsSnapshot: players.statsSnapshot,
-          cachedStats: players.cachedStats,
-          frozenAt: players.frozenAt,
-          frozenStats: players.frozenStats,
+          id: eventParticipants.id,
+          clanMemberId: eventParticipants.clanMemberId,
+          statsSnapshot: eventParticipants.statsSnapshot,
+          cachedStats: eventParticipants.cachedStats,
+          frozenAt: eventParticipants.frozenAt,
+          frozenStats: eventParticipants.frozenStats,
         })
-        .from(players)
-        .where(and(eq(players.eventId, activePlayer.eventId), eq(players.teamId, activePlayer.teamId!)));
+        .from(eventParticipants)
+        .where(and(eq(eventParticipants.eventId, activePlayer.eventId), eq(eventParticipants.teamId, activePlayer.teamId!)));
       // Every team player's live overlay (each is their own member; the pushing member's row reflects
       // the merge we just wrote). Gain = sum over keys of max(0, max(hiscores, live) − baseline).
       const teamLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));

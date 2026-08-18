@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, teams, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -189,11 +189,11 @@ export async function POST(
     }
   }
 
-  const existingPlayer = await db.query.players.findFirst({
-    where: and(eq(players.eventId, id), eq(players.clanMemberId, body.clanMemberId)),
+  const existingPlayer = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, body.clanMemberId)),
   });
   if (!existingPlayer) {
-    await db.insert(players).values({
+    await db.insert(eventParticipants).values({
       eventId: id,
       clanMemberId: body.clanMemberId,
       name: account.rsn,

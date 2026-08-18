@@ -13,8 +13,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import { execFileSync } from 'child_process';
-import { readFileSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync, readdirSync, unlinkSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 
 // Best-effort .env loader so `npm run db:migrate` works locally / against prod creds in a .env
 // file. A no-op in containers where the platform already sets the env and no .env file exists;
@@ -89,12 +90,35 @@ async function snapshotBeforeMigrate() {
   } catch {}
 }
 
+/**
+ * Which clan the provisioner's env vars describe, or null.
+ *
+ * Settings are per-clan now, so every seeder below needs a clan to write against — and at boot,
+ * before any request, the ONLY thing that names one is CLAN_SLUG. A shared multi-clan deployment
+ * sets no CLAN_SLUG and correctly seeds nothing; a single-clan container keeps its behaviour.
+ *
+ * Without this the seeders below matched `WHERE key = $1` across every clan's rows and inserted
+ * without a clan_id, which the NOT NULL added with the per-clan settings split turned into a
+ * swallowed warning on every boot.
+ */
+async function envClanId() {
+  const slug = process.env.CLAN_SLUG?.trim();
+  if (!slug) return null;
+  try {
+    const r = await pool.query('SELECT id FROM clans WHERE slug = $1', [slug]);
+    return r.rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Materialize provisioner-passed identity into the settings table. The managed control-plane hands
 // a new clan its name/invite as env vars (CLAN_NAME / DISCORD_INVITE_URL), but the admin UI, setup
 // checklist, and most reads go through settings rows — only a handful of pages ever fall back to
 // env. Seed ONLY when the row is missing or empty, so a clan admin's later edit always wins over a
 // container recreate. No-op for self-hosters (env unset) and on already-seeded DBs.
-async function seedSettingsFromEnv() {
+async function seedSettingsFromEnv(clanId) {
+  if (!clanId) return;
   const seeds = [
     ['clan_name', process.env.CLAN_NAME],
     ['clan_ingame_name', process.env.CLAN_INGAME_NAME],
@@ -104,13 +128,13 @@ async function seedSettingsFromEnv() {
     const value = raw?.trim();
     if (!value) continue;
     try {
-      const existing = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
+      const existing = await pool.query('SELECT value FROM settings WHERE clan_id = $1 AND key = $2', [clanId, key]);
       const current = existing.rows[0]?.value;
       if (existing.rows.length > 0 && current != null && String(current).trim() !== '') continue;
       if (existing.rows.length === 0) {
-        await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, value]);
+        await pool.query('INSERT INTO settings (clan_id, key, value) VALUES ($1, $2, $3)', [clanId, key, value]);
       } else {
-        await pool.query('UPDATE settings SET value = $1 WHERE key = $2', [value, key]);
+        await pool.query('UPDATE settings SET value = $1 WHERE clan_id = $2 AND key = $3', [value, clanId, key]);
       }
       console.log(`[migrate] seeded settings.${key} from env`);
     } catch (e) {
@@ -129,19 +153,17 @@ async function seedSettingsFromEnv() {
  * silently re-enable a toggle the clan turned off, on every single container recreate. A row
  * existing at all — whatever its value — means the clan has an opinion, so we leave it alone.
  */
-async function seedManagedDefaults() {
-  // The provisioner is the only thing that sets this; its presence IS "this clan is hosted".
-  const managed = process.env.CLAN_SLUG?.trim();
-  if (!managed) return;
+async function seedManagedDefaults(clanId) {
+  if (!clanId) return; // no CLAN_SLUG = not a provisioner-managed single-clan container
 
   const defaults = [
     ['public_showcase', 'on'], // listed on anvilosrs.com/clans (opt-out in Advanced settings)
   ];
   for (const [key, value] of defaults) {
     try {
-      const existing = await pool.query('SELECT 1 FROM settings WHERE key = $1', [key]);
+      const existing = await pool.query('SELECT 1 FROM settings WHERE clan_id = $1 AND key = $2', [clanId, key]);
       if (existing.rows.length > 0) continue;
-      await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, value]);
+      await pool.query('INSERT INTO settings (clan_id, key, value) VALUES ($1, $2, $3)', [clanId, key, value]);
       console.log(`[migrate] seeded settings.${key}=${value} (managed clan default)`);
     } catch (e) {
       // Convenience, not correctness — never block boot on it.
@@ -158,26 +180,63 @@ async function seedManagedDefaults() {
 // writes when an admin clears the field) this never fires again, so "accept any clan" stays a
 // choice the admin can make. Runs after seedSettingsFromEnv so a freshly provisioned clan has its
 // clan_name row already in place.
-async function backfillInGameClanName() {
+async function backfillInGameClanName(clanId) {
+  if (!clanId) return;
   try {
-    const existing = await pool.query('SELECT 1 FROM settings WHERE key = $1', ['clan_ingame_name']);
+    const existing = await pool.query('SELECT 1 FROM settings WHERE clan_id = $1 AND key = $2', [clanId, 'clan_ingame_name']);
     if (existing.rows.length > 0) return;
-    const display = await pool.query('SELECT value FROM settings WHERE key = $1', ['clan_name']);
+    const display = await pool.query('SELECT value FROM settings WHERE clan_id = $1 AND key = $2', [clanId, 'clan_name']);
     const value = display.rows[0]?.value == null ? '' : String(display.rows[0].value).trim();
     if (!value) return;
-    await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2)', ['clan_ingame_name', value]);
+    await pool.query('INSERT INTO settings (clan_id, key, value) VALUES ($1, $2, $3)', [clanId, 'clan_ingame_name', value]);
     console.log('[migrate] backfilled settings.clan_ingame_name from clan_name');
   } catch (e) {
     console.warn(`[migrate] WARNING: clan_ingame_name backfill failed (continuing): ${e?.message || e}`);
   }
 }
 
+// Apply only up to and including a given migration tag: `node scripts/migrate.mjs --through 0005_clan_staff`.
+//
+// For rehearsing a migration against a copy of real data, and for tests that need the database in
+// its shape BEFORE some migration so they can seed old-shape rows and watch the migration transform
+// them — which is the only way to test a data backfill, since a backfill runs once and only at
+// migration time.
+//
+// Implemented as a truncated copy of the migrations folder rather than by applying SQL by hand, so
+// drizzle stays the thing that runs migrations and writes the ledger. The .sql files are byte-identical
+// copies, so their hashes match and a later full run picks up exactly where this one stopped.
+function migrationsFolderThrough(tag) {
+  const journal = JSON.parse(readFileSync('./drizzle/meta/_journal.json', 'utf-8'));
+  const cut = journal.entries.findIndex((e) => e.tag === tag);
+  if (cut === -1) throw new Error(`--through: no migration tagged '${tag}'`);
+
+  const dir = join(tmpdir(), `anvil-migrate-through-${tag}-${process.pid}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(join(dir, 'meta'), { recursive: true });
+  const entries = journal.entries.slice(0, cut + 1);
+  writeFileSync(join(dir, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }, null, 2));
+  for (const e of entries) copyFileSync(join('./drizzle', `${e.tag}.sql`), join(dir, `${e.tag}.sql`));
+  return dir;
+}
+
+const throughIdx = process.argv.indexOf('--through');
+const through = throughIdx === -1 ? null : process.argv[throughIdx + 1];
+
 try {
   await snapshotBeforeMigrate();
+  if (through) {
+    const folder = migrationsFolderThrough(through);
+    await migrate(db, { migrationsFolder: folder });
+    rmSync(folder, { recursive: true, force: true });
+    console.log(`[migrate] stopped after ${through}`);
+    await pool.end();
+    process.exit(0);
+  }
   await migrate(db, { migrationsFolder: './drizzle' });
-  await seedSettingsFromEnv();
-  await seedManagedDefaults();
-  await backfillInGameClanName();
+  const clanId = await envClanId();
+  await seedSettingsFromEnv(clanId);
+  await seedManagedDefaults(clanId);
+  await backfillInGameClanName(clanId);
   console.log('[migrate] up to date');
   await pool.end();
   process.exit(0);

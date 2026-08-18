@@ -75,6 +75,98 @@ export const clanStaff = pgTable('clan_staff', {
   index('clan_staff_clan_role_idx').on(table.clanId, table.role),
 ]);
 
+
+// ── Identity: person, account, membership ────────────────────────────────────────────────────
+//
+// Three levels, because OSRS has three. A PERSON owns one or more ACCOUNTS (a main and alts), and
+// each account can sit on a different clan's ROSTER. `clan_members` collapsed all three into one row
+// per clan, which is why the same human in two clans was two unrelated rows with nothing joining
+// them — and why there could be no cross-clan profile, no "clans you play in", no guest applications.
+
+/**
+ * A person. Exists whether or not they have ever logged in.
+ *
+ * An unclaimed roster entry gets one of these too, so every account has an owner from the moment it
+ * is seen; claiming later merges people rather than inventing one. That is what makes
+ * `player_event_facts.personKey` — today a synthesized string ('u<id>' > 'm<id>' > 'n<rsn>') — a
+ * real foreign key.
+ */
+export const players = pgTable('players', {
+  id: serial('id').primaryKey(),
+  // Best known name for the human: their Discord display name, else their main's RSN.
+  displayName: text('display_name'),
+  // PLATFORM ban — barred everywhere. A clan barring someone is clan_bans, a different thing
+  // entirely; a clan admin must be structurally unable to reach this.
+  banned: boolean('banned').notNull().default(false),
+  bannedAt: text('banned_at'),
+  bannedReason: text('banned_reason'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
+/**
+ * An OSRS account. GLOBAL — one row per account across the whole platform, not per clan.
+ *
+ * This is where `rsn_normalized` and `account_hash` uniqueness finally means what it says. On
+ * clan_members those constraints were global only by accident of one-clan-per-database, and had to
+ * be relaxed to (clan, rsn) once several clans shared one — which is a weaker rule than the truth.
+ * An RSN identifies exactly one account in the game; here it does the same.
+ *
+ * Hiscores state lives here rather than on the person, because Jagex tracks accounts. A person's
+ * profile aggregates across theirs.
+ */
+export const accounts = pgTable('accounts', {
+  id: serial('id').primaryKey(),
+  playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  rsn: text('rsn').notNull(),
+  rsnNormalized: text('rsn_normalized').notNull(),
+  // Jagex's stable per-account id from the client. Survives renames, which is why it outranks the
+  // RSN when resolving who is playing — but it comes from a client we do not control, so it anchors
+  // rather than proves.
+  accountHash: text('account_hash'),
+  // 'active' | 'unranked' | 'banned' | 'archived' — drives whether the hiscores sweep polls it.
+  status: text('status').notNull().default('active'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('accounts_rsn_normalized_unique').on(table.rsnNormalized),
+  uniqueIndex('accounts_account_hash_unique').on(table.accountHash),
+  index('accounts_player_idx').on(table.playerId),
+]);
+
+/**
+ * An account's place on a clan's roster. The JOIN that makes someone a member of somewhere.
+ *
+ * MEMBERSHIP IS GRANTED, NEVER ASSUMED. Logging in makes a person a user of the platform and nothing
+ * more; no row here appears because someone signed in. A row is written by exactly three things:
+ * the in-game roster sync seeing the RSN, an admin adding them, or an approved guest application.
+ *
+ * `kind` carries that distinction structurally instead of leaving it to a flag:
+ *   member — on the clan's in-game roster. Only the roster sync or an admin may set this.
+ *   guest  — allowed to take part without being in the clan in game. What a cross-clan event, or a
+ *            friend playing one bingo, actually is.
+ *
+ * Per ACCOUNT rather than per person, because an in-game roster lists RSNs: a main and an alt both
+ * in the clan are two roster rows, which is what the clan itself sees.
+ */
+export const clanMemberships = pgTable('clan_memberships', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  // 'member' | 'guest' — see above. Never inferred from activity.
+  kind: text('kind').notNull().default('guest'),
+  // In-game clan rank title, as the roster reported it.
+  rank: text('rank'),
+  // How this row came to exist, so "why is this person here?" is answerable: 'roster' | 'admin' |
+  // 'application'. Deliberately not free-form.
+  source: text('source').notNull().default('roster'),
+  joinedAt: text('joined_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  // Soft-left: the roster stopped listing them. Kept so their history in this clan survives.
+  leftAt: text('left_at'),
+}, (table) => [
+  uniqueIndex('clan_memberships_clan_account_unique').on(table.clanId, table.accountId),
+  index('clan_memberships_clan_kind_idx').on(table.clanId, table.kind),
+  index('clan_memberships_account_idx').on(table.accountId),
+]);
+
 export const events = pgTable('events', {
   id: serial('id').primaryKey(),
   // The clan that owns this row. Added by the multi-clan conversion; every query on this table
@@ -382,7 +474,7 @@ export const completions = pgTable('completions', {
   // member reaching the count alone IS the completion (lib/countProgress). NULL for team-total
   // tiles and admin manual completions — the activity feed attributes those from the latest
   // submission instead. Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
-  creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
+  creditPlayerId: integer('credit_player_id').references(() => eventParticipants.id, { onDelete: 'set null' }),
   // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
   // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.
   // Locks "who contributed what %" to completion time — the underlying hiscores stat keeps climbing
@@ -401,7 +493,7 @@ export const completions = pgTable('completions', {
   index('completions_team_id_idx').on(table.teamId),
 ]);
 
-export const players = pgTable('players', {
+export const eventParticipants = pgTable('event_participants', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // clanMemberId is the source of truth for identity; `name` is kept as a per-event
@@ -461,8 +553,8 @@ export const submissions = pgTable('submissions', {
   id: serial('id').primaryKey(),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
-  playerId: integer('player_id').references(() => players.id, { onDelete: 'set null' }),
-  creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
+  playerId: integer('player_id').references(() => eventParticipants.id, { onDelete: 'set null' }),
+  creditPlayerId: integer('credit_player_id').references(() => eventParticipants.id, { onDelete: 'set null' }),
   amount: integer('amount').default(1).notNull(),
   imageUrl: text('image_url'),
   note: text('note'),
@@ -737,7 +829,7 @@ export const clanMembers = pgTable('clan_members', {
   // JSON map ({"zulrah":1250,"mining":4210000}), max-merged per key. The single source the unified
   // stat sweep reads as max(hiscores, live) and prunes as hiscores catches up — shared by bingo
   // tiles AND weekly SOTW/BOTW. Keyed on the member (not a per-event player row) so it survives
-  // renames and works with no active bingo event. Replaces the per-event players.plugin_stats.
+  // renames and works with no active bingo event. Replaces the per-event eventParticipants.plugin_stats.
   liveStats: text('live_stats'),
   liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
   // Per-KEY last-rose timestamps: JSON map ({"fishing":"2026-07-16T…","zulrah":"…"}) stamped only when
@@ -853,7 +945,7 @@ export const detectedAccounts = pgTable('detected_accounts', {
 ]);
 
 // Long-lived plugin tokens issued to an admin after they've verified via the link flow.
-// Distinct from per-event `players.playerToken` (which scopes a player to one event/team).
+// Distinct from per-event `eventParticipants.playerToken` (which scopes a player to one event/team).
 // Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the
 // admin can use this token from any in-game character on their account.
 export const pluginLinks = pgTable('plugin_links', {
@@ -1342,8 +1434,8 @@ export const eventStartProofs = pgTable('event_start_proofs', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // The ENROLMENT, not the person: a two-account player owes a shot per account they entered, which
   // is the point — the gate is per credit, and credits are per player row.
-  playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
-  // Denormalised so the admin panel groups by team without a join through players.
+  playerId: integer('player_id').notNull().references(() => eventParticipants.id, { onDelete: 'cascade' }),
+  // Denormalised so the admin panel groups by team without a join through eventParticipants.
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   // The account the shot was taken on, as the client saw it. Audit only — the gate keys on playerId.
   rsn: text('rsn'),

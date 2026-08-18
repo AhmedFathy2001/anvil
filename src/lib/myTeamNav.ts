@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, players, teams, teamStaff } from '@/db/schema';
+import { clanMembers, eventSignups, events, eventParticipants, teams, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 
 /**
@@ -35,15 +35,15 @@ export async function countLiveTeamInvolvements(userId: number, now: Date = new 
       .innerJoin(events, eq(teams.eventId, events.id))
       .where(and(eq(teamStaff.userId, userId), notForceEnded, live)),
     db
-      .select({ teamId: players.teamId })
-      .from(players)
-      .innerJoin(events, eq(players.eventId, events.id))
-      .innerJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
+      .select({ teamId: eventParticipants.teamId })
+      .from(eventParticipants)
+      .innerJoin(events, eq(eventParticipants.eventId, events.id))
+      .innerJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
       .where(
         and(
           eq(clanMembers.userId, userId),
           isNull(clanMembers.leftAt),
-          isNotNull(players.teamId),
+          isNotNull(eventParticipants.teamId),
           notForceEnded,
           live,
         ),

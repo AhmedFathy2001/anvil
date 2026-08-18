@@ -22,7 +22,7 @@
  */
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { events, teams, players, clanMembers, users, eventSignups } from '@/db/schema';
+import { events, teams, eventParticipants, clanMembers, users, eventSignups } from '@/db/schema';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
@@ -464,8 +464,8 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
   // Only drafted players (teamId set).
   const drafted = await db
     .select()
-    .from(players)
-    .where(and(eq(players.eventId, eventId), isNotNull(players.teamId)));
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
 
   let assigned = 0;
   let skipped = 0;
@@ -589,7 +589,7 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
     if (did) bingoIds.add(did);
   }
 
-  const eventPlayers = await db.select().from(players).where(eq(players.eventId, eventId));
+  const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId));
   for (const p of eventPlayers) {
     const did = await discordIdForPlayerClanMember(p.clanMemberId);
     if (did) bingoIds.add(did);

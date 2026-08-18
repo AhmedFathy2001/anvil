@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { events, players, teams } from '@/db/schema';
+import { events, eventParticipants, teams } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -90,8 +90,8 @@ export async function POST(
 
       const rows = await db
         .select()
-        .from(players)
-        .where(and(eq(players.eventId, eId), inArray(players.id, playerIds)));
+        .from(eventParticipants)
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, playerIds)));
       if (rows.length === 0) return NextResponse.json({ error: 'Nobody to move' }, { status: 404 });
       // Moving someone who was never picked would hand them a roster spot without a turn — that's
       // what the pool assignment on the Teams tab is for, before the draft runs.
@@ -100,9 +100,9 @@ export async function POST(
       }
 
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ teamId })
-        .where(and(eq(players.eventId, eId), inArray(players.id, rows.map((r) => r.id))));
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, rows.map((r) => r.id))));
 
       return NextResponse.json({ ok: true, moved: rows.length, teamId });
     }
@@ -116,8 +116,8 @@ export async function POST(
       }
       const rows = await db
         .select()
-        .from(players)
-        .where(and(eq(players.eventId, eId), inArray(players.id, [...give, ...take])));
+        .from(eventParticipants)
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, [...give, ...take])));
       const giveRows = rows.filter((r) => give.includes(r.id));
       const takeRows = rows.filter((r) => take.includes(r.id));
       const giveTeam = giveRows[0]?.teamId ?? null;
@@ -130,13 +130,13 @@ export async function POST(
       }
 
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ teamId: takeTeam })
-        .where(and(eq(players.eventId, eId), inArray(players.id, giveRows.map((r) => r.id))));
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, giveRows.map((r) => r.id))));
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ teamId: giveTeam })
-        .where(and(eq(players.eventId, eId), inArray(players.id, takeRows.map((r) => r.id))));
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, takeRows.map((r) => r.id))));
 
       return NextResponse.json({ ok: true, swapped: giveRows.length + takeRows.length });
     }
@@ -230,16 +230,16 @@ export async function POST(
 
       const now = new Date().toISOString();
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ teamId: control.currentTeamId, pickNumber: control.currentPickNumber, pickedAt: now })
-        .where(and(eq(players.eventId, eId), inArray(players.id, chosen.playerIds)));
+        .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, chosen.playerIds)));
 
       // Was that the last one? Then the draft is over, and the roster post has to fire here too —
       // otherwise a draft finished by a host-made pick ends silently.
       const stillInPool = await db
-        .select({ id: players.id })
-        .from(players)
-        .where(and(eq(players.eventId, eId), isNull(players.teamId)));
+        .select({ id: eventParticipants.id })
+        .from(eventParticipants)
+        .where(and(eq(eventParticipants.eventId, eId), isNull(eventParticipants.teamId)));
       if (stillInPool.length === 0) {
         await db.update(events).set({ draftStatus: 'completed' }).where(eq(events.id, eId));
         // Atomic 0→1 flip, the same exactly-once guard the pick route and "End draft" both use.
@@ -250,7 +250,7 @@ export async function POST(
           .returning({ id: events.id });
         if (flipped.length > 0) {
           const eventTeams = await db.select().from(teamsTable).where(eq(teamsTable.eventId, eId));
-          const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
+          const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
           notifyDraftComplete({
             clanId: clan.id,
             eventName: event.name,

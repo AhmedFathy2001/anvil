@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, players } from '@/db/schema';
+import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -100,7 +100,7 @@ export default async function MyTeamPage({
 
   const [allEventTiles, rawEventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
-    db.select().from(players).where(eq(players.eventId, event.id)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
     getTierBands(clan.id),
   ]);
   // Reveal-policy events (lib/eventRules): the team hub is a player surface — only revealed

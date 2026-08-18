@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import {
-  clanAuditLog,
-  clanMembers,
-  pluginLinkCodes,
-  pluginLinks,
-  users,
-} from '@/db/schema';
+import { clanAuditLog, clanMembers, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';

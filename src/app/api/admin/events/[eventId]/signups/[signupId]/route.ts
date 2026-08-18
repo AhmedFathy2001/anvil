@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, teams, users } from '@/db/schema';
+import { clanAuditLog, clanMembers, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
@@ -88,8 +88,8 @@ export async function PATCH(
       // Approving = eligible for the draft, so make sure they're in the player pool. Idempotent —
       // skips if a player row already exists (self-serve signup / admin-on-behalf already added
       // one). This is what keeps "approved sign-ups" and "the draft pool" consistent.
-      const existingPlayer = await db.query.players.findFirst({
-        where: and(eq(players.eventId, evtId), eq(players.clanMemberId, signup.clanMemberId)),
+      const existingPlayer = await db.query.eventParticipants.findFirst({
+        where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
       });
       if (!existingPlayer) {
         const account = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) });
@@ -100,7 +100,7 @@ export async function PATCH(
         } catch {
           /* profileData not JSON — leave timezone null */
         }
-        await db.insert(players).values({
+        await db.insert(eventParticipants).values({
           eventId: evtId,
           clanMemberId: signup.clanMemberId,
           name: account?.rsn ?? 'Unknown',
@@ -199,12 +199,12 @@ export async function PATCH(
 
       // Remove from the draft pool if they aren't already drafted onto a team.
       await db
-        .delete(players)
+        .delete(eventParticipants)
         .where(
           and(
-            eq(players.eventId, evtId),
-            eq(players.clanMemberId, signup.clanMemberId),
-            isNull(players.teamId),
+            eq(eventParticipants.eventId, evtId),
+            eq(eventParticipants.clanMemberId, signup.clanMemberId),
+            isNull(eventParticipants.teamId),
           ),
         );
 
@@ -272,16 +272,16 @@ export async function PATCH(
         })
         .returning();
 
-      const existingPlayer = await db.query.players.findFirst({
-        where: and(eq(players.eventId, evtId), eq(players.clanMemberId, signup.clanMemberId)),
+      const existingPlayer = await db.query.eventParticipants.findFirst({
+        where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
       });
       if (existingPlayer) {
         await db
-          .update(players)
+          .update(eventParticipants)
           .set({ teamId: team.id, pickNumber: 0, pickedAt: now })
-          .where(eq(players.id, existingPlayer.id));
+          .where(eq(eventParticipants.id, existingPlayer.id));
       } else {
-        await db.insert(players).values({
+        await db.insert(eventParticipants).values({
           eventId: evtId,
           clanMemberId: signup.clanMemberId,
           name: account.rsn,
@@ -337,8 +337,8 @@ export async function PATCH(
       // already, refuse — wholesale undoing draft results is a separate, riskier action.
       const teamPlayers = await db
         .select()
-        .from(players)
-        .where(eq(players.teamId, captainTeam.id));
+        .from(eventParticipants)
+        .where(eq(eventParticipants.teamId, captainTeam.id));
       const onlyCaptain =
         teamPlayers.length <= 1 &&
         (teamPlayers.length === 0 ||
@@ -357,9 +357,9 @@ export async function PATCH(
       );
       if (captainPlayer) {
         await db
-          .update(players)
+          .update(eventParticipants)
           .set({ teamId: null, pickNumber: null, pickedAt: null })
-          .where(eq(players.id, captainPlayer.id));
+          .where(eq(eventParticipants.id, captainPlayer.id));
       }
 
       await db.delete(teams).where(eq(teams.id, captainTeam.id));

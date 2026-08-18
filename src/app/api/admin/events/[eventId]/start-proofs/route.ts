@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, players, teams, eventStartProofs } from '@/db/schema';
+import { events, eventParticipants, teams, eventStartProofs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { parseEventRules } from '@/lib/eventRules';
@@ -85,15 +85,15 @@ export async function GET(
 
   const roster = await db
     .select({
-      playerId: players.id,
-      rsn: players.name,
-      teamId: players.teamId,
+      playerId: eventParticipants.id,
+      rsn: eventParticipants.name,
+      teamId: eventParticipants.teamId,
       teamName: teams.name,
       teamColor: teams.color,
     })
-    .from(players)
-    .leftJoin(teams, eq(players.teamId, teams.id))
-    .where(eq(players.eventId, id));
+    .from(eventParticipants)
+    .leftJoin(teams, eq(eventParticipants.teamId, teams.id))
+    .where(eq(eventParticipants.eventId, id));
 
   const proofs = await db.select().from(eventStartProofs).where(eq(eventStartProofs.eventId, id));
   const byPlayer = new Map(proofs.map((p) => [p.playerId, p]));

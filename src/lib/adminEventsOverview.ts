@@ -14,20 +14,7 @@
 // typically one or two.
 
 import { db } from '@/db';
-import {
-  completions,
-  eventSignups,
-  events,
-  payouts,
-  playerEventFacts,
-  players,
-  signupFees,
-  submissions,
-  teams,
-  tiles,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
+import { completions, eventSignups, events, payouts, playerEventFacts, eventParticipants, signupFees, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getTeamStandings } from '@/lib/statStandings';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
@@ -176,10 +163,10 @@ export async function getRunningEventSummaries(
       .where(and(inArray(tiles.eventId, ids), gte(submissions.createdAt, activeSince)))
       .groupBy(tiles.eventId),
     db
-      .select({ eventId: players.eventId, n: count() })
-      .from(players)
-      .where(inArray(players.eventId, ids))
-      .groupBy(players.eventId),
+      .select({ eventId: eventParticipants.eventId, n: count() })
+      .from(eventParticipants)
+      .where(inArray(eventParticipants.eventId, ids))
+      .groupBy(eventParticipants.eventId),
     // Most recent credits across all running events at once; sliced per event below. 8 per event
     // is far more than the three the card shows, but keeps one event's quiet day from starving
     // another's feed.
@@ -188,12 +175,12 @@ export async function getRunningEventSummaries(
         eventId: tiles.eventId,
         at: completions.completedAt,
         tile: tiles.label,
-        player: players.name,
+        player: eventParticipants.name,
         team: teams.name,
       })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .leftJoin(players, eq(completions.creditPlayerId, players.id))
+      .leftJoin(eventParticipants, eq(completions.creditPlayerId, eventParticipants.id))
       .leftJoin(teams, eq(completions.teamId, teams.id))
       .where(inArray(tiles.eventId, ids))
       .orderBy(desc(completions.completedAt))
@@ -423,11 +410,11 @@ export async function getSetupProgress(
     db.select({ eventId: tiles.eventId, n: count() }).from(tiles).where(inArray(tiles.eventId, ids)).groupBy(tiles.eventId),
     db.select({ eventId: teams.eventId, n: count() }).from(teams).where(inArray(teams.eventId, ids)).groupBy(teams.eventId),
     db
-      .select({ eventId: players.eventId, n: count() })
-      .from(players)
-      .where(and(inArray(players.eventId, ids), isNotNull(players.teamId)))
-      .groupBy(players.eventId),
-    db.select({ eventId: players.eventId, n: count() }).from(players).where(inArray(players.eventId, ids)).groupBy(players.eventId),
+      .select({ eventId: eventParticipants.eventId, n: count() })
+      .from(eventParticipants)
+      .where(and(inArray(eventParticipants.eventId, ids), isNotNull(eventParticipants.teamId)))
+      .groupBy(eventParticipants.eventId),
+    db.select({ eventId: eventParticipants.eventId, n: count() }).from(eventParticipants).where(inArray(eventParticipants.eventId, ids)).groupBy(eventParticipants.eventId),
     db
       .select({ eventId: eventSignups.eventId, n: count() })
       .from(eventSignups)
@@ -507,10 +494,10 @@ export async function getPastEventResults(eventIds: number[]): Promise<Map<numbe
   // Enrolment is the fallback headcount for events with no facts, so the column isn't blank for
   // every pre-facts event in the table.
   const enrolled = await db
-    .select({ eventId: players.eventId, n: count() })
-    .from(players)
-    .where(inArray(players.eventId, eventIds))
-    .groupBy(players.eventId);
+    .select({ eventId: eventParticipants.eventId, n: count() })
+    .from(eventParticipants)
+    .where(inArray(eventParticipants.eventId, eventIds))
+    .groupBy(eventParticipants.eventId);
 
   for (const id of eventIds) {
     const win = winners.find((w) => w.eventId === id);

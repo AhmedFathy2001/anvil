@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
-import { players, teams, events } from '@/db/schema';
+import { eventParticipants, teams, events } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -12,7 +12,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 // captains refresh their own team. Regular members rely on the periodic stats cron for freshness
 // (avoids everyone hammering the OSRS hiscores).
 //
-// The 1-hour cooldown is persisted in `settings` — deliberately NOT keyed off players.lastStatsFetch,
+// The 1-hour cooldown is persisted in `settings` — deliberately NOT keyed off eventParticipants.lastStatsFetch,
 // which the cron keeps fresh; keying off that would permanently block the manual override.
 const REFRESH_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
@@ -42,9 +42,9 @@ async function refreshPlayers(list: { id: number; name: string }[], nowIso: stri
     try {
       const stats = await getHiscoresStats(p.name);
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ cachedStats: JSON.stringify(stats), lastStatsFetch: nowIso })
-        .where(eq(players.id, p.id));
+        .where(eq(eventParticipants.id, p.id));
       results.push({ playerId: p.id, name: p.name, success: true });
     } catch {
       results.push({ playerId: p.id, name: p.name, success: false });
@@ -90,8 +90,8 @@ export async function POST(
     if (!isAdmin) {
       return NextResponse.json({ error: 'Only an admin can refresh a single player.' }, { status: 403 });
     }
-    const target = await db.query.players.findFirst({
-      where: and(eq(players.id, playerId), eq(players.eventId, eId)),
+    const target = await db.query.eventParticipants.findFirst({
+      where: and(eq(eventParticipants.id, playerId), eq(eventParticipants.eventId, eId)),
     });
     if (!target) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -99,9 +99,9 @@ export async function POST(
     try {
       const stats = await getHiscoresStats(target.name);
       await db
-        .update(players)
+        .update(eventParticipants)
         .set({ cachedStats: JSON.stringify(stats), lastStatsFetch: nowIso })
-        .where(eq(players.id, playerId));
+        .where(eq(eventParticipants.id, playerId));
       return NextResponse.json({ success: true, playerId, lastFetch: nowIso });
     } catch {
       return NextResponse.json({ error: `Failed to fetch stats for ${target.name}` }, { status: 500 });
@@ -134,8 +134,8 @@ export async function POST(
       );
     }
 
-    const teamPlayers = await db.query.players.findMany({
-      where: and(eq(players.teamId, teamId), eq(players.eventId, eId)),
+    const teamPlayers = await db.query.eventParticipants.findMany({
+      where: and(eq(eventParticipants.teamId, teamId), eq(eventParticipants.eventId, eId)),
     });
     const results = await refreshPlayers(teamPlayers, nowIso);
     return NextResponse.json({ success: true, teamId, lastFetch: nowIso, results });
@@ -150,7 +150,7 @@ export async function POST(
         { status: 429 },
       );
     }
-    const allPlayers = await db.query.players.findMany({ where: eq(players.eventId, eId) });
+    const allPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, eId) });
     const results = await refreshPlayers(allPlayers, nowIso);
     return NextResponse.json({ success: true, lastFetch: nowIso, results });
   }

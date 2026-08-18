@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, tiles, completions, players } from '@/db/schema';
+import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
 import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
 import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
@@ -94,8 +94,8 @@ export async function eventBoardSummary(event: {
 export async function getEventStartReadiness(eventId: number, draftStatus: string): Promise<StartReadiness> {
   const [[teamCount], [assignedCount], [totalCount]] = await Promise.all([
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
-    db.select({ n: count() }).from(players).where(and(eq(players.eventId, eventId), isNotNull(players.teamId))),
-    db.select({ n: count() }).from(players).where(eq(players.eventId, eventId)),
+    db.select({ n: count() }).from(eventParticipants).where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId))),
+    db.select({ n: count() }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
   return computeStartReadiness({
     draftStatus,

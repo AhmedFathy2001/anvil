@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanMembers, players, teams, eventSignups } from '@/db/schema';
+import { clanMembers, eventParticipants, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 
@@ -19,26 +19,26 @@ export async function upsertPlayers(
   eventId: number,
   members: MemberInput[],
   assignTeamId: number | null,
-): Promise<(typeof players.$inferSelect)[]> {
+): Promise<(typeof eventParticipants.$inferSelect)[]> {
   const memberIds = members.map((m) => m.clanMemberId);
   const existing = memberIds.length
-    ? await db.select().from(players).where(and(eq(players.eventId, eventId), inArray(players.clanMemberId, memberIds)))
+    ? await db.select().from(eventParticipants).where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)))
     : [];
-  const byMember = new Map<number, typeof players.$inferSelect>();
+  const byMember = new Map<number, typeof eventParticipants.$inferSelect>();
   for (const p of existing) if (p.clanMemberId != null) byMember.set(p.clanMemberId, p);
 
   const pickedAt = assignTeamId != null ? new Date().toISOString() : null;
-  const results: (typeof players.$inferSelect)[] = [];
-  const toInsert: (typeof players.$inferInsert)[] = [];
+  const results: (typeof eventParticipants.$inferSelect)[] = [];
+  const toInsert: (typeof eventParticipants.$inferInsert)[] = [];
 
   for (const m of members) {
     const row = byMember.get(m.clanMemberId);
     if (row) {
       if (assignTeamId != null && row.teamId == null) {
         const [updated] = await db
-          .update(players)
+          .update(eventParticipants)
           .set({ teamId: assignTeamId, pickedAt })
-          .where(eq(players.id, row.id))
+          .where(eq(eventParticipants.id, row.id))
           .returning();
         results.push(updated);
       } else {
@@ -58,7 +58,7 @@ export async function upsertPlayers(
     }
   }
   if (toInsert.length > 0) {
-    results.push(...(await db.insert(players).values(toInsert).returning()));
+    results.push(...(await db.insert(eventParticipants).values(toInsert).returning()));
   }
   return results;
 }
@@ -116,11 +116,11 @@ export async function listEligiblePluginMembers(eventId: number): Promise<Eligib
     .select({
       id: clanMembers.id,
       rsn: clanMembers.rsn,
-      enrolledPlayerId: players.id,
-      enrolledTeamId: players.teamId,
+      enrolledPlayerId: eventParticipants.id,
+      enrolledTeamId: eventParticipants.teamId,
     })
     .from(clanMembers)
-    .leftJoin(players, and(eq(players.clanMemberId, clanMembers.id), eq(players.eventId, eventId)))
+    .leftJoin(eventParticipants, and(eq(eventParticipants.clanMemberId, clanMembers.id), eq(eventParticipants.eventId, eventId)))
     .where(eligibleWhere())
     .orderBy(clanMembers.rsn);
   return rows;
@@ -197,10 +197,10 @@ export async function accountCapError(
 
   const ownerIds = [...addingByOwner.keys()];
   const existingRows = await db
-    .select({ clanMemberId: players.clanMemberId, userId: clanMembers.userId })
-    .from(players)
-    .innerJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
-    .where(and(eq(players.eventId, eventId), inArray(clanMembers.userId, ownerIds)));
+    .select({ clanMemberId: eventParticipants.clanMemberId, userId: clanMembers.userId })
+    .from(eventParticipants)
+    .innerJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .where(and(eq(eventParticipants.eventId, eventId), inArray(clanMembers.userId, ownerIds)));
   const existingByOwner = new Map<number, Set<number>>();
   for (const r of existingRows) {
     if (r.userId == null || r.clanMemberId == null) continue;
@@ -229,10 +229,10 @@ function personKeyOf(clanMemberId: number | null, userId: number | null | undefi
 // a second team for them on a re-run.
 async function existingTeamByPerson(eventId: number): Promise<Map<string, number>> {
   const rows = await db
-    .select({ playerId: players.id, teamId: players.teamId, clanMemberId: players.clanMemberId, userId: clanMembers.userId })
-    .from(players)
-    .leftJoin(clanMembers, eq(players.clanMemberId, clanMembers.id))
-    .where(and(eq(players.eventId, eventId), isNotNull(players.teamId)));
+    .select({ playerId: eventParticipants.id, teamId: eventParticipants.teamId, clanMemberId: eventParticipants.clanMemberId, userId: clanMembers.userId })
+    .from(eventParticipants)
+    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
   const map = new Map<string, number>();
   for (const r of rows) {
     if (r.teamId == null) continue;
@@ -342,8 +342,8 @@ export async function placeUnassignedPlayers(
 ): Promise<{ placed: number; teamsCreated: number }> {
   const pool = await db
     .select()
-    .from(players)
-    .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), isNull(eventParticipants.teamId)));
   if (pool.length === 0) return { placed: 0, teamsCreated: 0 };
 
   let teamsCreated = 0;
@@ -354,9 +354,9 @@ export async function placeUnassignedPlayers(
       if (created) teamsCreated++;
     });
     await db
-      .update(players)
+      .update(eventParticipants)
       .set({ teamId, pickedAt })
-      .where(and(eq(players.eventId, eventId), isNull(players.teamId)));
+      .where(and(eq(eventParticipants.eventId, eventId), isNull(eventParticipants.teamId)));
     return { placed: pool.length, teamsCreated };
   }
 
@@ -386,7 +386,7 @@ export async function placeUnassignedPlayers(
     }
     personTeam.set(g.personKey, teamId);
     for (const a of g.accounts) {
-      if (a.playerId != null) await db.update(players).set({ teamId, pickedAt }).where(eq(players.id, a.playerId));
+      if (a.playerId != null) await db.update(eventParticipants).set({ teamId, pickedAt }).where(eq(eventParticipants.id, a.playerId));
     }
   }
   return { placed: pool.length, teamsCreated };

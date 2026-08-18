@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { players, tiles, submissions, completions, events } from '@/db/schema';
+import { eventParticipants, tiles, submissions, completions, events } from '@/db/schema';
 import { and, eq, inArray, or, isNotNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { parseContributionSnapshot, buildContributionSnapshot } from '@/lib/statTracking';
@@ -36,8 +36,8 @@ export async function POST(
     return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
   }
 
-  const player = await db.query.players.findFirst({
-    where: and(eq(players.id, pId), eq(players.eventId, eId)),
+  const player = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.id, pId), eq(eventParticipants.eventId, eId)),
   });
   if (!player) {
     return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -104,10 +104,10 @@ export async function POST(
   //    a plain reset leaves them active-but-zeroed.
   const benched = !!subOut && !remove && !drop;
   if (drop) {
-    await db.delete(players).where(eq(players.id, pId));
+    await db.delete(eventParticipants).where(eq(eventParticipants.id, pId));
   } else {
     await db
-      .update(players)
+      .update(eventParticipants)
       .set({
         statsSnapshot: null,
         snapshotAt: null,
@@ -118,7 +118,7 @@ export async function POST(
         frozenStats: null,
         ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),
       })
-      .where(eq(players.id, pId));
+      .where(eq(eventParticipants.id, pId));
   }
 
   return NextResponse.json({

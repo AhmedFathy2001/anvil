@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, weeklyParticipants } from '@/db/schema';
+import { clanMembers, eventParticipants, weeklyParticipants } from '@/db/schema';
 import { and, eq, ne } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
@@ -8,7 +8,7 @@ import { log } from '@/lib/logger';
 // POST /api/admin/clan/[id]/rename — records an OSRS username change.
 // Updates the canonical rsn on clan_members and cascades the rename through
 // every table that embeds the RSN alongside a clan_member_id FK:
-//   - players.name (current-event enrollments)
+//   - eventParticipants.name (current-event enrollments)
 //   - weekly_participants.rsn + rsnNormalized (keeps FK, no re-enrollment)
 //
 // Merge handling: if the new RSN already exists as a separate clan member,
@@ -75,7 +75,7 @@ export async function POST(
 
   if (conflict) {
     const [conflictPlayers, conflictWeekly] = await Promise.all([
-      db.select({ id: players.id }).from(players).where(eq(players.clanMemberId, conflict.id)),
+      db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.clanMemberId, conflict.id)),
       db.select({ id: weeklyParticipants.id }).from(weeklyParticipants).where(eq(weeklyParticipants.clanMemberId, conflict.id)),
     ]);
 
@@ -117,9 +117,9 @@ export async function POST(
 
   // Cascade the name to every FK-carrying row.
   await db
-    .update(players)
+    .update(eventParticipants)
     .set({ name: newRsn })
-    .where(eq(players.clanMemberId, memberId));
+    .where(eq(eventParticipants.clanMemberId, memberId));
 
   await db
     .update(weeklyParticipants)

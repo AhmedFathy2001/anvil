@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, completions, players, submissions } from '@/db/schema';
+import { events, tiles, completions, eventParticipants, submissions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
   parseEventRules,
@@ -365,14 +365,14 @@ async function announceBountyClaim(
 
     let rsn: string | null = null;
     if (creditPlayerId != null) {
-      const p = await db.select({ name: players.name }).from(players).where(eq(players.id, creditPlayerId)).limit(1);
+      const p = await db.select({ name: eventParticipants.name }).from(eventParticipants).where(eq(eventParticipants.id, creditPlayerId)).limit(1);
       rsn = p[0]?.name ?? null;
     }
     if (!rsn) {
       const subs = await db
-        .select({ name: players.name })
+        .select({ name: eventParticipants.name })
         .from(submissions)
-        .leftJoin(players, eq(submissions.creditPlayerId, players.id))
+        .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
         .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId)))
         .orderBy(submissions.createdAt); // ascending → last write is the finishing hand
       rsn = subs.length > 0 ? subs[subs.length - 1].name ?? null : null;

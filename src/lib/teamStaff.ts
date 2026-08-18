@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, players, teams, teamStaff, users } from '@/db/schema';
+import { clanMembers, eventParticipants, teams, teamStaff, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -63,9 +63,9 @@ export async function resolveTeamManagement(teamId: number): Promise<TeamManagem
   if (myMembers.length > 0) {
     const mine = new Set(myMembers.map((m) => m.id));
     const roster = await db
-      .select({ id: players.id, clanMemberId: players.clanMemberId })
-      .from(players)
-      .where(and(eq(players.eventId, team.eventId), eq(players.teamId, teamId)));
+      .select({ id: eventParticipants.id, clanMemberId: eventParticipants.clanMemberId })
+      .from(eventParticipants)
+      .where(and(eq(eventParticipants.eventId, team.eventId), eq(eventParticipants.teamId, teamId)));
     playerId = roster.find((p) => p.clanMemberId != null && mine.has(p.clanMemberId))?.id ?? null;
   }
 

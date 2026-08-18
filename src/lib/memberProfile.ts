@@ -5,19 +5,7 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import {
-  clanAuditLog,
-  clanMembers,
-  events,
-  players,
-  users,
-  memberDailyStats,
-  memberMilestones,
-  playerEventFacts,
-  playerSnapshots,
-  weeklyCompetitions,
-  weeklyParticipants,
-} from '@/db/schema';
+import { clanAuditLog, clanMembers, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
@@ -920,15 +908,15 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
 
   const enrolled = await db
     .select({
-      eventId: players.eventId,
-      playerName: players.name,
-      playerClanMemberId: players.clanMemberId,
+      eventId: eventParticipants.eventId,
+      playerName: eventParticipants.name,
+      playerClanMemberId: eventParticipants.clanMemberId,
       name: events.name,
       endDate: events.endDate,
       format: events.format,
     })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .orderBy(desc(events.endDate));
 
   const mineEvents = enrolled.filter(

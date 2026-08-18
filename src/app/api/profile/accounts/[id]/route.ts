@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, detectedAccounts, events, players } from '@/db/schema';
+import { clanAuditLog, clanMembers, detectedAccounts, events, eventParticipants } from '@/db/schema';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
@@ -85,12 +85,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   // Live-event guard: any player row in a non-force-ended event that hasn't ended yet.
   const nowIso = new Date().toISOString();
   const activeRows = await db
-    .select({ id: players.id })
-    .from(players)
-    .innerJoin(events, eq(players.eventId, events.id))
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(
       and(
-        eq(players.clanMemberId, id),
+        eq(eventParticipants.clanMemberId, id),
         isNull(events.forceEndedAt),
         or(isNull(events.endDate), gt(events.endDate, nowIso)),
       ),

@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { events, players, playerSnapshots, playerEventFacts, clanMembers } from '@/db/schema';
+import { events, eventParticipants, playerSnapshots, playerEventFacts, clanMembers } from '@/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 import defaultMarkers from '@/data/capabilityMarkers.json';
 
@@ -166,7 +166,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   if (opts.eventId != null) {
     const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
     eventStartIso = event?.startDate ?? null;
-    const roster = await db.select().from(players).where(eq(players.eventId, opts.eventId));
+    const roster = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, opts.eventId));
     for (const p of roster) {
       const member = p.clanMemberId != null ? memberById.get(p.clanMemberId) : memberByAlias.get(normalizeRsn(p.name));
       const key = member ? personKeyOfMember(member) : `n${normalizeRsn(p.name)}`;
@@ -236,13 +236,13 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   const priorRows = priorEventIds.length
     ? await db
         .select({
-          eventId: players.eventId,
-          name: players.name,
-          clanMemberId: players.clanMemberId,
-          statsSnapshot: players.statsSnapshot,
+          eventId: eventParticipants.eventId,
+          name: eventParticipants.name,
+          clanMemberId: eventParticipants.clanMemberId,
+          statsSnapshot: eventParticipants.statsSnapshot,
         })
-        .from(players)
-        .where(inArray(players.eventId, priorEventIds))
+        .from(eventParticipants)
+        .where(inArray(eventParticipants.eventId, priorEventIds))
     : [];
   const baselineByPerson = new Map<string, { vol: number; xp: number; startDate: string }>();
   for (const r of priorRows) {

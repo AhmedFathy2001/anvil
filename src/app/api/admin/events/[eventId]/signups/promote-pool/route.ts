@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, players, teams } from '@/db/schema';
+import { clanMembers, eventSignups, eventParticipants, teams } from '@/db/schema';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 
@@ -45,13 +45,13 @@ export async function POST(
 
   // Existing player rows in this event keyed by clanMemberId so we know who to skip.
   const existingPlayers = await db
-    .select({ clanMemberId: players.clanMemberId })
-    .from(players)
-    .where(and(eq(players.eventId, evtId), isNull(players.teamId)));
+    .select({ clanMemberId: eventParticipants.clanMemberId })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, evtId), isNull(eventParticipants.teamId)));
   const captainPlayers = await db
-    .select({ clanMemberId: players.clanMemberId })
-    .from(players)
-    .where(eq(players.eventId, evtId));
+    .select({ clanMemberId: eventParticipants.clanMemberId })
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, evtId));
   const allEnrolledClanIds = new Set(
     captainPlayers.map((p) => p.clanMemberId).filter((id): id is number => id !== null),
   );
@@ -99,7 +99,7 @@ export async function POST(
 
   let created = 0;
   if (inserts.length > 0) {
-    const inserted = await db.insert(players).values(inserts).returning();
+    const inserted = await db.insert(eventParticipants).values(inserts).returning();
     created = inserted.length;
   }
 

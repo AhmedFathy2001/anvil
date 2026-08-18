@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, players, signupFees, users } from '@/db/schema';
+import { clanMembers, eventSignups, eventParticipants, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { markFeeCollected } from '@/lib/feeConfirmations';
 import { requireTeamManager } from '@/lib/teamStaff';
@@ -21,9 +21,9 @@ import { requireTeamManager } from '@/lib/teamStaff';
 /** The signups behind this team's roster — the only fees this endpoint will ever touch. */
 async function teamSignupIds(eventId: number, teamId: number): Promise<number[]> {
   const roster = await db
-    .select({ clanMemberId: players.clanMemberId })
-    .from(players)
-    .where(and(eq(players.eventId, eventId), eq(players.teamId, teamId)));
+    .select({ clanMemberId: eventParticipants.clanMemberId })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId)));
   const memberIds = roster.map((r) => r.clanMemberId).filter((id): id is number => id != null);
   if (memberIds.length === 0) return [];
 

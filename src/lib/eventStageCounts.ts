@@ -6,16 +6,7 @@
 
 import { cache } from 'react';
 import { db } from '@/db';
-import {
-  events,
-  eventSignups,
-  payouts,
-  players,
-  surveyQuestions,
-  surveyResponses,
-  teams,
-  tiles,
-} from '@/db/schema';
+import { events, eventSignups, payouts, eventParticipants, surveyQuestions, surveyResponses, teams, tiles } from '@/db/schema';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { eventTileCount } from '@/lib/utils';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
@@ -44,9 +35,9 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
     db
       .select({ n: count() })
-      .from(players)
-      .where(and(eq(players.eventId, eventId), isNotNull(players.teamId))),
-    db.select({ n: count() }).from(players).where(eq(players.eventId, eventId)),
+      .from(eventParticipants)
+      .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId))),
+    db.select({ n: count() }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     db
       .select({ n: count() })
       .from(eventSignups)

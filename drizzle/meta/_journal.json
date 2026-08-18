@@ -43,6 +43,13 @@
       "when": 1787063032225,
       "tag": "0005_clan_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787063033225,
+      "tag": "0006_identity",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { draftShortlists, eventSignups, players, teams } from '@/db/schema';
+import { draftShortlists, eventSignups, eventParticipants, teams } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { buildDraftBalance, tierOf, type Tier } from '@/lib/draftBalance';
 import { parseProfile, type SignupProfile } from '@/lib/signup';
@@ -83,7 +83,7 @@ export async function buildWarRoom(params: {
 
   const [eventTeams, eventPlayers, balance] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
-    db.select().from(players).where(eq(players.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     buildDraftBalance(clanId, eventId),
   ]);
 
