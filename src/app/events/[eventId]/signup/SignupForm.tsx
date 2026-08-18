@@ -68,6 +68,12 @@ interface Props {
   prefillProfile: SignupProfile;
   windowOpen: boolean;
   windowReason: 'not_open_yet' | 'closed' | 'event_started' | null;
+  /**
+   * Arrived through a team's invite link (lib/teamInvites). Everything about the form is the same —
+   * same questions, same accounts, same fee — but the entry lands on that team, approved, so say so
+   * rather than letting someone submit believing they're entering the draft pool.
+   */
+  invite?: { token: string; teamName: string } | null;
 }
 
 const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
@@ -192,6 +198,7 @@ export default function SignupForm({
   prefillProfile,
   windowOpen,
   windowReason,
+  invite = null,
 }: Props) {
   const router = useRouter();
   const verifiedAccounts = useMemo(
@@ -317,7 +324,7 @@ export default function SignupForm({
       const res = await fetch(`/api/events/${eventId}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanMemberIds: Array.from(selectedIds), profile }),
+        body: JSON.stringify({ clanMemberIds: Array.from(selectedIds), profile, inviteToken: invite?.token }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -371,6 +378,17 @@ export default function SignupForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
+      {invite && (
+        <div className="border border-gold/30 bg-gold/10 rounded-xl p-4 text-sm">
+          <p className="font-medium text-gold">
+            You&apos;re joining <strong>{invite.teamName}</strong> by invite.
+          </p>
+          <p className="text-text-muted text-xs mt-1">
+            Fill this in as normal — you go straight onto that team when you submit, with no waiting
+            on a host to approve you.
+          </p>
+        </div>
+      )}
       {/* Status / window banner */}
       {existingSignup && !isWithdrawn && (
         <div className="border border-accent-green/30 bg-accent-green/10 rounded-xl p-4 text-sm">

@@ -15,6 +15,9 @@ import {
   invitePath,
   isWellFormedToken,
   type InviteRecord,
+  mayMintInvite,
+  inviteExpiry,
+  MAX_INVITE_HOURS,
 } from '../src/lib/teamInvites.ts';
 
 const NOW = Date.parse('2026-08-17T12:00:00.000Z');
@@ -170,4 +173,37 @@ test('the panel line says how much of the invite is left', () => {
 
 test('a revoked invite reads as turned off even when it also expired', () => {
   assert.equal(describeInvite(invite({ revokedAt: iso(-1), expiresAt: iso(-2) }), NOW), 'Turned off');
+});
+
+test('mayMintInvite: a host always, a captain only when the event says so', () => {
+  const captain = { isAdmin: false, isCaptain: true, isStaff: false };
+  const staff = { isAdmin: false, isCaptain: false, isStaff: true };
+  const nobody = { isAdmin: false, isCaptain: false, isStaff: false };
+
+  // Off by default: on an ordinary clan event the host builds the teams, and a captain handing out
+  // seats would be filling a roster nobody approved.
+  assert.equal(mayMintInvite({ ...captain, captainInvites: false }), false);
+  assert.equal(mayMintInvite({ ...staff, captainInvites: false }), false);
+  assert.equal(mayMintInvite({ ...captain, captainInvites: true }), true);
+  // A staff seat runs the team too — clan-v-clan is exactly the visiting moderator's case.
+  assert.equal(mayMintInvite({ ...staff, captainInvites: true }), true);
+  // Being neither is never enough, switch or no switch.
+  assert.equal(mayMintInvite({ ...nobody, captainInvites: true }), false);
+  // The host doesn't need the switch — it exists to delegate, not to permit.
+  assert.equal(mayMintInvite({ isAdmin: true, isCaptain: false, isStaff: false, captainInvites: false }), true);
+});
+
+test('inviteExpiry: hours from now, or nothing at all', () => {
+  const now = Date.parse('2026-08-18T12:00:00.000Z');
+  assert.equal(inviteExpiry(6, now), '2026-08-18T18:00:00.000Z');
+  // 0 / null / nonsense all mean "this link does not expire" rather than "expired".
+  assert.equal(inviteExpiry(0, now), null);
+  assert.equal(inviteExpiry(null, now), null);
+  assert.equal(inviteExpiry(-3, now), null);
+  assert.equal(inviteExpiry(Number.NaN, now), null);
+  // A link that outlives any event is capped rather than refused.
+  assert.equal(
+    inviteExpiry(MAX_INVITE_HOURS * 10, now),
+    new Date(now + MAX_INVITE_HOURS * 3_600_000).toISOString(),
+  );
 });

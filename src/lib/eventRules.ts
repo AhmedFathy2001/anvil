@@ -134,6 +134,12 @@ export interface EventRules {
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
   startProof: StartProofConfig | null;
+  /**
+   * May a team's own captain (and its staff seats) mint invite links for it? Off by default: on a
+   * normal clan event the host builds the teams, and a captain handing out seats would be filling a
+   * roster nobody approved. On a clan-v-clan it's the whole point — see lib/teamInvites.
+   */
+  captainInvites: boolean;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -150,6 +156,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   pickSeconds: 0,
   mission: null,
   startProof: null,
+  captainInvites: false,
 };
 
 /**
@@ -301,6 +308,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     pickSeconds: obj.pickSeconds === 0 ? 0 : clampInt(obj.pickSeconds, 30, 3600, 0),
     mission,
     startProof,
+    captainInvites: obj.captainInvites === true,
   };
 }
 
@@ -373,6 +381,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.mission.intervalMinutes must be an integer between 5 and 10080' };
     }
   }
+  if (o.captainInvites !== undefined && typeof o.captainInvites !== 'boolean') {
+    return { error: 'rules.captainInvites must be a boolean' };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown;
@@ -420,7 +431,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.balanceSpreadCapPct === 10 &&
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
-    canonical.startProof === null;
+    canonical.startProof === null &&
+    !canonical.captainInvites;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 
