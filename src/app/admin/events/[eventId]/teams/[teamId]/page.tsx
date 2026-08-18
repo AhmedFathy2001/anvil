@@ -6,6 +6,7 @@ import { getTierBands } from '@/lib/pluginConfig';
 import AdminTeamBoardClient from './AdminTeamBoardClient';
 import CaptainAssignment from './CaptainAssignment';
 import TeamStaffPanel from './TeamStaffPanel';
+import TeamInvitePanel from './TeamInvitePanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,7 @@ export default async function AdminTeamBoardPage({
     <>
       <CaptainAssignment teamId={team.id} currentCaptainUserId={team.captainUserId} />
       <TeamStaffPanel teamId={team.id} />
+      <TeamInvitePanel eventId={eId} teamId={team.id} />
       <AdminTeamBoardClient
         event={event}
         team={safeTeam}

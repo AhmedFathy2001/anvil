@@ -156,6 +156,45 @@ export function invitePath(eventId: number, token: string): string {
   return `/events/${eventId}/join/${token}`;
 }
 
+/**
+ * What taking a seat should actually DO, given where the person already stands.
+ *
+ * Lives here with the other refusals rather than inline in the join route, because two of these are
+ * easy to get subtly wrong and expensive when you do:
+ *
+ *   - Someone already on ANOTHER team must be refused, not moved. A link is a way onto a team for
+ *     someone who has none; if it could reassign, anyone drafted onto team A could switch to B by
+ *     opening a link, and the host would never see it happen.
+ *   - Someone already in the event costs NO seat. Re-opening the link you joined with is the common
+ *     case, and a host who allowed ten seats means ten people, not ten clicks.
+ *
+ * Returning the plan rather than doing the work is what lets the caller order its writes so that a
+ * refusal never leaves a claimed seat behind it.
+ */
+export type JoinPlan =
+  | { action: 'refuse'; reason: 'other-team' }
+  | { action: 'join'; claimSeat: boolean; assignTeam: boolean };
+
+export function planJoin(input: {
+  /** The team the link seats people onto. */
+  inviteTeamId: number;
+  /** The team their event player row is already on, null when they're in the pool or absent. */
+  playerTeamId: number | null;
+  /** Their existing sign-up's status, or null when they have none. */
+  signupStatus: string | null;
+}): JoinPlan {
+  if (input.playerTeamId != null && input.playerTeamId !== input.inviteTeamId) {
+    return { action: 'refuse', reason: 'other-team' };
+  }
+  // A withdrawn row is a person who left; coming back through a link is a new entry and costs a seat.
+  const inAlready = input.signupStatus != null && input.signupStatus !== 'withdrawn';
+  return {
+    action: 'join',
+    claimSeat: !inAlready,
+    assignTeam: input.playerTeamId !== input.inviteTeamId,
+  };
+}
+
 /** One line for the admin panel: how much of the invite is left. */
 export function describeInvite(invite: InviteRecord, now: number): string {
   if (invite.revokedAt) return 'Turned off';

@@ -14,6 +14,7 @@ import {
   generateInviteToken,
   invitePath,
   isWellFormedToken,
+  planJoin,
   type InviteRecord,
 } from '../src/lib/teamInvites.ts';
 
@@ -170,4 +171,55 @@ test('the panel line says how much of the invite is left', () => {
 
 test('a revoked invite reads as turned off even when it also expired', () => {
   assert.equal(describeInvite(invite({ revokedAt: iso(-1), expiresAt: iso(-2) }), NOW), 'Turned off');
+});
+
+// ---- planJoin: what taking a seat actually does -------------------------------------------------
+//
+// Added alongside the link rules because these two are the ones with teeth. Moving somebody between
+// teams and charging a seat twice are both silent when wrong: the host sees a roster that looks
+// plausible and a seat count that doesn't match the people in it.
+
+test('someone with no team joins, takes a seat, and is put on the team', () => {
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: null, signupStatus: null }), {
+    action: 'join',
+    claimSeat: true,
+    assignTeam: true,
+  });
+});
+
+test('re-opening the link you already joined with costs no seat', () => {
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: 7, signupStatus: 'approved' }), {
+    action: 'join',
+    claimSeat: false,
+    assignTeam: false,
+  });
+});
+
+test('someone already on another team is refused, never moved', () => {
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: 3, signupStatus: 'approved' }), {
+    action: 'refuse',
+    reason: 'other-team',
+  });
+  // Even with no sign-up of their own — the player row is what decides which side they're on.
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: 3, signupStatus: null }), {
+    action: 'refuse',
+    reason: 'other-team',
+  });
+});
+
+test('someone who signed up normally and was then sent a link is seated, and pays a seat for it', () => {
+  // In the pool (no team) with a pending sign-up: they are not yet IN, so the seat is real.
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: null, signupStatus: 'pending' }), {
+    action: 'join',
+    claimSeat: false,
+    assignTeam: true,
+  });
+});
+
+test('coming back after withdrawing costs a seat again', () => {
+  assert.deepEqual(planJoin({ inviteTeamId: 7, playerTeamId: null, signupStatus: 'withdrawn' }), {
+    action: 'join',
+    claimSeat: true,
+    assignTeam: true,
+  });
 });
