@@ -207,6 +207,35 @@ either flagged for review or refused with `409 { code: "start_proof_required" }`
 host's setting. A plugin that sees that code should KEEP the pending submission on disk and
 retry after the player files their shot, rather than dropping the drop.
 
+### `progress`
+
+Account progress the hiscores never publish: quest points, combat-achievement points and tier,
+achievement diaries per tier. `POST /api/plugin/progress`:
+
+```json
+{ "progress": [
+  { "key": "questPoints", "value": 302 },
+  { "key": "caPoints", "value": 1465 },
+  { "key": "caTier", "value": 4 },
+  { "key": "diaryElite", "value": 7 }
+] }
+```
+
+Member-level auth (`Bearer <accountToken>` + `X-RSN`) — this is account state, not event scoring, so
+no live event is required and nothing here moves a standing.
+
+Send only the keys whose value **changed** since the last successful push: the server writes only
+what moved, so the steady state is no request at all. Values are **max-merged**, because none of
+these can go down in a live game — a lower number means a client that read a varbit before the game
+populated it, which is what every login looks like for a few ticks. Unknown keys are dropped
+individually rather than failing the request, so a newer plugin can add one before the server knows
+it. The accepted keys are `questPoints`, `caPoints`, `caTier` (0 = none … 6 = Grandmaster),
+`diaryEasy`, `diaryMedium`, `diaryHard`, `diaryElite`.
+
+Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
+varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
+regions are counted at those three tiers and twelve at elite. The site says so where it shows them.
+
 ### `moments`
 
 The highlight feed: pets, uniques, big hauls, deaths and combat tasks that happen while a
