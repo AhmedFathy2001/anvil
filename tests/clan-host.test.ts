@@ -173,20 +173,31 @@ test('the same RSN is a separate member row in each clan', async () => {
   assert.equal(await findOrCreateClanMember(a!.id, 'Zezima'), inA);
   assert.equal(await findOrCreateClanMember(b!.id, 'Zezima'), inB);
 
-  // And each clan sees exactly one Zezima.
+  // And each clan sees exactly one Zezima — one ACCOUNT, seated once in each clan.
   for (const [clanId, expected] of [[a!.id, inA], [b!.id, inB]] as const) {
-    const rows = await db.select().from(schema.clanMembers)
-      .where(and(eq(schema.clanMembers.clanId, clanId), eq(schema.clanMembers.rsnNormalized, 'zezima')));
+    const rows = await db.select().from(schema.clanRoster)
+      .where(and(eq(schema.clanRoster.clanId, clanId), eq(schema.clanRoster.rsnNormalized, 'zezima')));
     assert.equal(rows.length, 1);
     assert.equal(rows[0]!.id, expected);
   }
 
+  // The same person, not two coincidentally-named strangers. Before the identity split this was
+  // unrepresentable: two clans holding one RSN meant two unrelated rows.
+  const zezimaAccounts = await db.select().from(schema.accounts)
+    .where(eq(schema.accounts.rsnNormalized, 'zezima'));
+  assert.equal(zezimaAccounts.length, 1, 'one RSN is one account, however many clans list it');
+
   // A soft-delete sweep scoped to A must leave B's roster untouched — the clan-sync failure mode.
-  await db.update(schema.clanMembers)
+  await db.update(schema.clanMemberships)
     .set({ leftAt: new Date().toISOString() })
-    .where(eq(schema.clanMembers.clanId, a!.id));
-  const bRow = await db.query.clanMembers.findFirst({ where: eq(schema.clanMembers.id, inB) });
+    .where(eq(schema.clanMemberships.clanId, a!.id));
+  const [bRow] = await db.select().from(schema.clanRoster).where(eq(schema.clanRoster.id, inB));
   assert.equal(bRow?.leftAt, null, "B's members must survive A's roster sync");
+
+  // And leaving one clan is not leaving the game: the account, and everything hanging off it, is
+  // untouched by a roster sweep in a clan it also happens to play in.
+  const [account] = await db.select().from(schema.accounts).where(eq(schema.accounts.id, zezimaAccounts[0]!.id));
+  assert.equal(account.status, 'active');
 });
 
 // ── Apex-hosted login ─────────────────────────────────────────────────────────────────────────

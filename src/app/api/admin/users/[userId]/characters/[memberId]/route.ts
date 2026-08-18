@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, clanAuditLog } from '@/db/schema';
+import { clanRoster, clanAuditLog } from '@/db/schema';
+import { findRosterSeat, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -20,12 +21,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
-  const member = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.id, memberId), eq(clanMembers.userId, targetId)),
-  });
+  const member = await findRosterSeat(and(eq(clanRoster.id, memberId), eq(clanRoster.playerId, targetId)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  await db.update(clanMembers).set({ userId: null, isPrimary: 0 }).where(eq(clanMembers.id, memberId));
+  await unclaimAccountOfSeat(memberId);
 
   db.insert(clanAuditLog)
     .values({

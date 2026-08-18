@@ -6,7 +6,8 @@ import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { clipEmbed } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 
 /**
@@ -39,13 +40,11 @@ const ALLOWED_TYPES = new Set(['video/mp4', 'video/x-matroska', 'video/quicktime
 async function posterRsn(request: Request, userId: number): Promise<string | null> {
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
   if (accountHash) {
-    const owned = await db.query.clanMembers.findFirst({
-      where: and(
-        eq(clanMembers.accountHash, accountHash),
-        eq(clanMembers.userId, userId),
-        isNull(clanMembers.leftAt),
-      ),
-    });
+    const owned = await findRosterSeat(and(
+        eq(clanRoster.accountHash, accountHash),
+        eq(clanRoster.playerId, userId),
+        isNull(clanRoster.leftAt),
+      ));
     if (owned?.rsn) return owned.rsn;
   }
   const headerRsn = request.headers.get('X-RSN')?.trim();

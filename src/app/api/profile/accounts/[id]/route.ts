@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, detectedAccounts, events, eventParticipants } from '@/db/schema';
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { accounts, clanAuditLog, clanRoster, detectedAccounts, eventParticipants, events } from '@/db/schema';
+import { findRosterSeat, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
+import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
@@ -28,19 +29,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // Scope to the caller's own, still-linked accounts — the only rows they may promote.
-  const member = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.id, id), eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-  });
+  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (member.isPrimary === 1) return NextResponse.json({ ok: true });
 
-  const previous = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.userId, session.userId), eq(clanMembers.isPrimary, 1), isNull(clanMembers.leftAt)),
-    columns: { id: true, rsn: true },
-  });
+  const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.userId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
 
-  await db.update(clanMembers).set({ isPrimary: 0 }).where(eq(clanMembers.userId, session.userId));
-  await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, id));
+  await db.update(accounts).set({ isPrimary: 0 }).where(eq(clanRoster.playerId, session.userId));
+  await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, id));
 
   // The nickname is built from the person's verified RSNs ordered primary-first, so re-sync to put
   // the new main in front. Fire-and-forget: a Discord outage must not fail the change itself.
@@ -77,9 +73,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   // Scope to the caller's own, still-linked accounts.
-  const member = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.id, id), eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-  });
+  const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Live-event guard: any player row in a non-force-ended event that hasn't ended yet.
@@ -105,7 +99,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   // Detach ownership. Keep the row (and its verification/accountHash) so a future re-add
   // cleanly re-claims it.
-  await db.update(clanMembers).set({ userId: null, isPrimary: 0 }).where(eq(clanMembers.id, id));
+  await unclaimAccountOfSeat(id);
 
   // Drop a sticky "Ignored" marker so the auto-link-on-play doesn't immediately re-add the account
   // the user just removed. It shows in the collapsed Ignored list on their profile, re-addable there.
@@ -131,11 +125,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   // If we just removed the primary, promote another owned account so the user still has one.
   if (member.isPrimary === 1) {
-    const next = await db.query.clanMembers.findFirst({
-      where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-      orderBy: (m, { desc }) => [desc(m.verifiedAt)],
-    });
-    if (next) await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, next.id));
+    const [next] = await db
+      .select()
+      .from(clanRoster)
+      .where(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)))
+      .orderBy(desc(clanRoster.verifiedAt))
+      .limit(1);
+    if (next) await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, next.accountId));
   }
 
   db.insert(clanAuditLog)

@@ -25,14 +25,27 @@
  */
 
 // Tables carrying clan_id directly.
+//
+// `accounts` and `players` are deliberately ABSENT. They are global by design — one row per OSRS
+// account and per person, however many clans they turn up in — so a query without a clan filter is
+// correct there, and flagging it would train people to ignore this rule.
 const ROOT_TABLES = new Set([
   'events',
-  'clanMembers',
+  'clanMemberships',
+  'clanRoster',
   'weeklyCompetitions',
   'eventPresets',
   'tileLibrary',
   'feedback',
   'settings',
+]);
+
+// Helpers that ARE a query on a clan-scoped table. Without these the rule would go blind the moment
+// a query moves behind a function — which is exactly what happened when the roster became a view and
+// sixty reads moved into lib/roster.
+const HELPERS = new Map([
+  ['findRosterSeat', 'clanRoster'],
+  ['findRosterSeats', 'clanRoster'],
 ]);
 
 // Anything that counts as "this query knows about the clan".
@@ -80,9 +93,13 @@ export default {
     }
 
     return {
-      // db.select().from(events)
+      // db.select().from(events), and the roster helpers that wrap exactly that
       CallExpression(node) {
         const callee = node.callee;
+        if (callee.type === 'Identifier' && HELPERS.has(callee.name)) {
+          check(node, HELPERS.get(callee.name));
+          return;
+        }
         if (
           callee.type === 'MemberExpression' &&
           callee.property.type === 'Identifier' &&

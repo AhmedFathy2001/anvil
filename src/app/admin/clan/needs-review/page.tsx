@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, users } from '@/db/schema';
+import { clanRoster, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
 import VerificationsClient, { type PendingMember } from '../../verifications/VerificationsClient';
@@ -12,22 +12,22 @@ export const dynamic = 'force-dynamic';
 export default async function ClanNeedsReviewPage() {
   const rows = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      verifiedAt: clanMembers.verifiedAt,
-      verificationMethod: clanMembers.verificationMethod,
-      claimedAt: clanMembers.claimedAt,
-      notes: clanMembers.notes,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      verifiedAt: clanRoster.verifiedAt,
+      verificationMethod: clanRoster.verificationMethod,
+      claimedAt: clanRoster.claimedAt,
+      notes: clanRoster.notes,
       userId: users.id,
       displayName: users.displayName,
       discordId: users.discordId,
       discordUsername: users.discordUsername,
       discordAvatar: users.discordAvatar,
     })
-    .from(clanMembers)
-    .leftJoin(users, eq(clanMembers.userId, users.id))
-    .where(and(eq(clanMembers.provisional, 1), isNull(clanMembers.leftAt)))
-    .orderBy(clanMembers.claimedAt);
+    .from(clanRoster)
+    .leftJoin(users, eq(clanRoster.playerId, users.id))
+    .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+    .orderBy(clanRoster.claimedAt);
 
   const items: PendingMember[] = rows.map((r) => ({
     id: r.id,

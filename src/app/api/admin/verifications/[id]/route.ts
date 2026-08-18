@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers } from '@/db/schema';
+import { accounts, clanAuditLog, clanRoster } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -36,7 +37,7 @@ export async function POST(
     return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
   }
 
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
+  const member = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!member) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }
@@ -46,21 +47,18 @@ export async function POST(
       return NextResponse.json({ error: 'Member is not provisional' }, { status: 400 });
     }
     const nowIso = new Date().toISOString();
-    await db
-      .update(clanMembers)
-      .set({
-        provisional: 0,
-        verifiedByUserId: session.userId > 0 ? session.userId : member.verifiedByUserId,
-        // Manual claims arrive with verifiedAt=null because there's no automated proof yet —
-        // the mod's approval IS the proof. Stamp the moment of approval so leaderboards and
-        // audit trails treat the row as verified going forward.
-        verifiedAt: member.verifiedAt ?? nowIso,
-      })
-      .where(eq(clanMembers.id, memberId));
+    await updateAccountOfSeat(memberId, {
+      provisional: 0,
+      verifiedByUserId: session.userId > 0 ? session.userId : member.verifiedByUserId,
+      // Manual claims arrive with verifiedAt=null because there's no automated proof yet —
+      // the mod's approval IS the proof. Stamp the moment of approval so leaderboards and
+      // audit trails treat the account as verified going forward.
+      verifiedAt: member.verifiedAt ?? nowIso,
+    });
 
     // Apply any pre-assigned SITE role now that the verification has cleared mod review.
-    if (member.userId && member.pendingRole) {
-      await applyPendingRole(memberId, member.userId, 'manual_approval');
+    if (member.playerId && member.pendingRole) {
+      await applyPendingRole(memberId, member.playerId, 'manual_approval');
     }
     // Give them their Discord roles + nickname now that they're a confirmed member. Fire-and-
     // forget; no-op if role sync is off. (Manual approval previously synced nothing on its own.)
@@ -81,17 +79,14 @@ export async function POST(
   }
 
   // reject — revoke verification, free the member up for re-claim.
-  await db
-    .update(clanMembers)
-    .set({
-      provisional: 0,
-      verifiedAt: null,
-      verificationMethod: null,
-      claimedAt: null,
-      // Keep the userId in place if present so we don't forget who attempted; but mark
-      // as not verified. A fresh link/stat-delta attempt can re-verify.
-    })
-    .where(eq(clanMembers.id, memberId));
+  await updateAccountOfSeat(memberId, {
+    provisional: 0,
+    verifiedAt: null,
+    verificationMethod: null,
+    claimedAt: null,
+    // Keep the userId in place if present so we don't forget who attempted; but mark
+    // as not verified. A fresh link/stat-delta attempt can re-verify.
+  });
 
   db.insert(clanAuditLog)
     .values({

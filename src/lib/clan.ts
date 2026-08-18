@@ -1,15 +1,17 @@
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 
 /**
- * Upsert a clan member by normalized RSN. Returns the clan_member id.
+ * Seat an RSN on a clan's roster, creating the account behind it if it is new. Returns the seat id.
  *
- * Used by enrollment flows (bingo player creation, weekly participant enrollment)
- * so the global roster stays in sync with per-event rosters even before the
- * plugin has done a proper clan-sync. New rows default to `isGuest=1` + `source='manual'`
- * so admins can promote them later from the clan roster UI.
+ * Used by enrollment flows (bingo player creation, weekly participant enrollment) so the roster
+ * stays in sync with per-event rosters even before the plugin has done a proper clan-sync.
+ *
+ * Seats as a GUEST unless told otherwise: entering an event is not joining a clan. Only the in-game
+ * roster sync, or an admin saying so, makes someone a member.
  */
 export async function findOrCreateClanMember(
   clanId: number,
@@ -22,30 +24,25 @@ export async function findOrCreateClanMember(
   const normalized = normalizeRsn(trimmed);
   // Scoped to the clan: the same RSN is legitimately on several clans' rosters, so a global lookup
   // would hand one clan another clan's member row.
-  const existing = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.clanId, clanId), eq(clanMembers.rsnNormalized, normalized)),
-  });
+  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
 
   if (existing) {
-    const patch: Record<string, unknown> = {};
-    if (options.discordId && !existing.discordId) patch.discordId = options.discordId;
-    if (existing.leftAt) patch.leftAt = null;
-    if (Object.keys(patch).length > 0) {
-      await db.update(clanMembers).set(patch).where(eq(clanMembers.id, existing.id));
+    // The Discord id is a fact about the account; whether they have left is a fact about the seat.
+    if (options.discordId && !existing.discordId) {
+      await db.update(accounts).set({ discordId: options.discordId }).where(eq(accounts.id, existing.accountId));
+    }
+    if (existing.leftAt) {
+      await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, existing.id));
     }
     return existing.id;
   }
 
-  const [row] = await db
-    .insert(clanMembers)
-    .values({
-      clanId,
-      rsn: trimmed,
-      rsnNormalized: normalized,
-      discordId: options.discordId ?? null,
-      source: 'manual',
-      isGuest: options.asGuest === false ? 0 : 1,
-    })
-    .returning();
-  return row.id;
+  const account = await findOrCreateAccount({ rsn: trimmed, rsnNormalized: normalized });
+  if (options.discordId) {
+    await db.update(accounts).set({ discordId: options.discordId }).where(eq(accounts.id, account.id));
+  }
+  return findOrCreateSeat(clanId, account.id, {
+    kind: options.asGuest === false ? 'member' : 'guest',
+    source: 'admin',
+  });
 }

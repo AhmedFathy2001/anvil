@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { users, clanAuditLog, clanMembers } from '@/db/schema';
+import { accounts, clanAuditLog, clanRoster, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
@@ -138,21 +138,21 @@ export async function completeDiscordLogin(
     if (fuzzyAliases.size > 0) {
       const unlinked = await db
         .select()
-        .from(clanMembers)
-        .where(and(isNull(clanMembers.userId), isNull(clanMembers.leftAt)));
+        .from(clanRoster)
+        .where(and(isNull(clanRoster.playerId), isNull(clanRoster.leftAt)));
       const candidates = unlinked.filter((cm) => fuzzyAliases.has(osrsNormalize(cm.rsn)));
 
       for (const cm of candidates) {
         await db
-          .update(clanMembers)
+          .update(accounts)
           .set({
-            userId: user.id,
+            playerId: user.id,
             claimedAt: cm.claimedAt ?? nowIso,
             verifiedAt: cm.verifiedAt ?? nowIso,
             verificationMethod: cm.verificationMethod ?? 'discord_name_match',
             provisional: cm.pendingRole ? 0 : 1,
           })
-          .where(eq(clanMembers.id, cm.id));
+          .where(eq(accounts.id, cm.accountId));
 
         db.insert(clanAuditLog)
           .values({

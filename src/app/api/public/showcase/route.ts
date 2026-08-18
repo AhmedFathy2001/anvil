@@ -3,7 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
 import { db } from '@/db';
 import { getSettingText } from '@/lib/settings';
-import { clanMembers, completions, events, submissions, tiles, weeklyCompetitions } from '@/db/schema';
+import { clanRoster, completions, events, submissions, tiles, weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName, getPublicShowcase } from '@/lib/pluginConfig';
 import { APP_VERSION } from '@/lib/serverInfo';
 
@@ -48,8 +48,8 @@ export async function GET() {
     // carrying a clan_id of their own that could disagree with it.
     db
       .select({ n: count() })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.clanId, clan.id), isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0))),
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'))),
     db.select({ n: count() }).from(events).where(eq(events.clanId, clan.id)),
     db
       .select({ n: count() })
@@ -69,7 +69,7 @@ export async function GET() {
       .where(eq(events.clanId, clan.id)),
     db.select({ n: count() }).from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clan.id)),
     db.select({ at: min(events.createdAt) }).from(events).where(eq(events.clanId, clan.id)),
-    db.select({ at: min(clanMembers.joinedAt) }).from(clanMembers).where(eq(clanMembers.clanId, clan.id)),
+    db.select({ at: min(clanRoster.joinedAt) }).from(clanRoster).where(eq(clanRoster.clanId, clan.id)),
     getSettingText(clan.id, 'discord_invite_url'),
   ]);
 

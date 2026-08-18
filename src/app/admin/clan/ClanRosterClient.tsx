@@ -13,7 +13,7 @@ interface ClanMember {
   discordId: string | null;
   rank: string | null;
   isGuest: number;
-  source: 'manual' | 'plugin-self' | 'plugin-roster';
+  source: 'roster' | 'admin' | 'application';
   joinedAt: string;
   leftAt: string | null;
   lastSeenInClan: string | null;
@@ -90,9 +90,9 @@ function matchesRole(m: ClanMember, filter: RoleFilter): boolean {
 
 // How a member landed on the roster — friendlier than the raw source keys.
 const SOURCE_LABEL: Record<string, string> = {
-  manual: 'Added manually',
-  'plugin-self': 'Plugin (self-report)',
-  'plugin-roster': 'Clan sync',
+  admin: 'Added manually',
+  application: 'Applied or self-reported',
+  roster: 'Clan sync',
 };
 
 // Shared badges — used by BOTH the desktop table and the mobile card list so the two
@@ -570,7 +570,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const res = await fetch(`/api/admin/clan/${member.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isGuest: member.isGuest === 0 }),
+      body: JSON.stringify({ isGuest: !member.isGuest }),
     });
     if (res.ok) fetchAll();
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, teams, users } from '@/db/schema';
+import { clanRoster, eventSignups, teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile } from '@/lib/signup';
@@ -50,12 +50,12 @@ export async function GET(
         discordUsername: users.discordUsername,
       },
       account: {
-        rsn: clanMembers.rsn,
+        rsn: clanRoster.rsn,
       },
     })
     .from(eventSignups)
     .innerJoin(users, eq(eventSignups.userId, users.id))
-    .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+    .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .where(eq(eventSignups.eventId, team.eventId));
 
   const applicants = rows

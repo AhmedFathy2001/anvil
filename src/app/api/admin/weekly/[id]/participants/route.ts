@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, getTableColumns, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 
@@ -23,11 +23,11 @@ export async function GET(
   const participants = await db
     .select({
       ...getTableColumns(weeklyParticipants),
-      leftAt: clanMembers.leftAt,
-      clanStatus: clanMembers.status,
+      leftAt: clanRoster.leftAt,
+      clanStatus: clanRoster.status,
     })
     .from(weeklyParticipants)
-    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
     .where(eq(weeklyParticipants.competitionId, compId));
 
   // Enrollment diagnostics — answers "why is the count one short?" without DB spelunking:
@@ -41,26 +41,26 @@ export async function GET(
     columns: { includeGuests: true },
   });
   const trackGuests = compRow?.includeGuests !== 0;
-  const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
+  const baseClause = and(isNull(clanRoster.leftAt), eq(clanRoster.status, 'active'));
   // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
   // "124 of 125" is usually one member sitting outside the enrollment filter.
   const fullRoster = await db
-    .select({ rsn: clanMembers.rsn, isGuest: clanMembers.isGuest, status: clanMembers.status })
-    .from(clanMembers)
+    .select({ rsn: clanRoster.rsn, kind: clanRoster.kind, status: clanRoster.status })
+    .from(clanRoster)
     .where(baseClause);
-  const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.isGuest === 0);
+  const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.kind === 'member');
   const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
   const notEnrolled = roster.filter((m) => !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
   // Active members excluded from auto-enrollment by this comp's guest setting (named so the admin
   // can add them manually or clear their guest flag).
   const guestsExcluded = trackGuests
     ? []
-    : fullRoster.filter((m) => m.isGuest === 1 && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
+    : fullRoster.filter((m) => m.kind === 'guest' && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
   // Non-active roster rows are excluded too — name them for the same reason.
   const inactive = await db
-    .select({ rsn: clanMembers.rsn, status: clanMembers.status })
-    .from(clanMembers)
-    .where(isNull(clanMembers.leftAt));
+    .select({ rsn: clanRoster.rsn, status: clanRoster.status })
+    .from(clanRoster)
+    .where(isNull(clanRoster.leftAt));
   const inactiveExcluded = inactive
     .filter((m) => m.status !== 'active' && !enrolledNorm.has(normalizeRsn(m.rsn)))
     .map((m) => `${m.rsn} (${m.status})`);

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, eventParticipants, clanMembers, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
+import { events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -41,9 +41,9 @@ export default async function MyTeamsHubPage() {
 
   // My roster identities → my drafted player rows → teams I play on.
   const myMembers = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
   const memberIds = myMembers.map((m) => m.id);
 
   // Kept aside from the team-card fold: the starting-shot card needs the ENROLMENT (player row),

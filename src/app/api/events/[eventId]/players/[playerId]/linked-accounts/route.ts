@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { eventParticipants, clanMembers } from '@/db/schema';
+import { eventParticipants, clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 
@@ -28,14 +29,14 @@ export async function GET(
   }
 
   const current = player.clanMemberId != null
-    ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+    ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
     : null;
 
   // Every RSN owned by the same Discord user is a swap candidate. Ghost accounts (no userId) have
   // no owner to gather siblings from, so only their own row is offered.
-  const ownerUserId = current?.userId ?? null;
+  const ownerUserId = current?.playerId ?? null;
   let members = ownerUserId != null
-    ? await db.select().from(clanMembers).where(eq(clanMembers.userId, ownerUserId))
+    ? await db.select().from(clanRoster).where(eq(clanRoster.playerId, ownerUserId))
     : current
       ? [current]
       : [];

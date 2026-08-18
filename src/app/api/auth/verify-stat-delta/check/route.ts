@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers, verificationAttempts } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, verificationAttempts } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
@@ -123,32 +124,35 @@ export async function POST(request: Request) {
     .set({ completedAt: nowIso, succeeded: 1 })
     .where(eq(verificationAttempts.id, attempt.id));
 
-  const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, attempt.rsnNormalized),
-  });
+  const existing = await findRosterSeat(eq(clanRoster.rsnNormalized, attempt.rsnNormalized));
 
   let clanMemberId: number;
   if (existing) {
-    if (existing.userId && existing.userId !== session.userId) {
+    if (existing.playerId && existing.playerId !== session.userId) {
       // Race: ownership changed between start and check. Fail safely.
       return NextResponse.json(
         { status: 'failed', reason: 'ownership_conflict' },
         { status: 409 },
       );
     }
-    const claimingGhost = existing.userId == null;
+    const claimingGhost = existing.playerId == null;
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
-        userId: session.userId,
+        playerId: session.userId,
         verifiedAt: nowIso,
         verificationMethod: 'stat_delta',
         provisional: 1,
         claimedAt: claimingGhost ? nowIso : existing.claimedAt,
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
+      })
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
+      .set({
+        leftAt: existing.source === 'admin' ? existing.leftAt : null,
         lastSeenInClan: nowIso,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
     if (claimingGhost) {
       db.insert(clanAuditLog)
@@ -161,34 +165,30 @@ export async function POST(request: Request) {
         .catch(() => {});
     }
   } else {
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        clanId: clan.id,
-        rsn: attempt.rsn,
-        rsnNormalized: attempt.rsnNormalized,
-        source: 'manual',
-        // Verification proves account ownership, not clan membership. Start as a guest;
-        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
-        isGuest: 1,
-        lastSeenInClan: nowIso,
-        userId: session.userId,
+    const account = await findOrCreateAccount({ rsn: attempt.rsn, rsnNormalized: attempt.rsnNormalized });
+    await db
+      .update(accounts)
+      .set({
+        playerId: session.userId,
         verifiedAt: nowIso,
         verificationMethod: 'stat_delta',
         provisional: 1,
         claimedAt: nowIso,
       })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
+      .where(eq(accounts.id, account.id));
+    // Verification proves account ownership, not clan membership. Only the in-game roster sync
+    // promotes a seat to 'member'.
+    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    await db
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso })
+      .where(eq(clanMemberships.id, clanMemberId));
   }
 
   // First account becomes primary if user has no other primary.
-  const userAccounts = await db.query.clanMembers.findMany({
-    where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-    columns: { id: true, isPrimary: true },
-  });
+  const userAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
   if (!userAccounts.some((a) => a.isPrimary === 1)) {
-    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
+    await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
 
   db.insert(clanAuditLog)

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, playerSnapshots } from '@/db/schema';
+import { clanAuditLog, clanRoster, playerSnapshots } from '@/db/schema';
 import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { fetchHiscoresSnapshot } from '@/lib/hiscores';
@@ -110,7 +110,7 @@ export async function GET() {
     ),
   );
   const memberRows = memberIds.length > 0
-    ? await db.select().from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    ? await db.select().from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const memberById = new Map(memberRows.map((m) => [m.id, m]));
 

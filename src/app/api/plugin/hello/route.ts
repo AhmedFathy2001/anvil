@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { clanMembers, events, weeklyCompetitions } from '@/db/schema';
+import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -52,19 +53,17 @@ export async function POST(request: Request) {
 
   const rsnNormalized = normalizeRsn(rsn);
   // Scoped to the clan named by the Host: the same RSN legitimately sits on other clans' rosters.
-  const existing = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.clanId, clan.id), eq(clanMembers.rsnNormalized, rsnNormalized)),
-  });
+  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
 
   if (!existing) {
-    await db.insert(clanMembers).values({
-      clanId: clan.id,
-      rsn,
-      rsnNormalized,
-      source: 'plugin-self',
-      isGuest: 1,
-      lastSeenInClan: new Date().toISOString(),
-    });
+    // A login ping says the account exists and is playing. It says nothing about membership, so the
+    // seat is a guest until the in-game roster sync or an admin says otherwise.
+    const account = await findOrCreateAccount({ rsn, rsnNormalized });
+    const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    await db
+      .update(clanMemberships)
+      .set({ lastSeenInClan: new Date().toISOString() })
+      .where(eq(clanMemberships.id, seatId));
     return NextResponse.json({ knownMember: false, isGuest: true, ...(await activeNow()) });
   }
 
@@ -73,12 +72,12 @@ export async function POST(request: Request) {
   // roster) or an admin may clear leftAt. We only bump liveness for rows still in the roster.
   if (!existing.leftAt) {
     await db
-      .update(clanMembers)
+      .update(clanMemberships)
       .set({ lastSeenInClan: new Date().toISOString() })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(clanMemberships.id, existing.id));
   }
 
-  const knownMember = existing.isGuest === 0 && !existing.leftAt;
+  const knownMember = existing.kind === 'member' && !existing.leftAt;
   return NextResponse.json({
     knownMember,
     isGuest: !knownMember,

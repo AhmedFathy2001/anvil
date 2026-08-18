@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, verificationAttempts } from '@/db/schema';
+import { clanRoster, verificationAttempts } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
@@ -63,10 +64,8 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
 
   // If this RSN is already owned by another user, refuse before burning a Hiscores call.
-  const conflict = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
-  });
-  if (conflict?.userId && conflict.userId !== session.userId) {
+  const conflict = await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized));
+  if (conflict?.playerId && conflict.playerId !== session.userId) {
     return NextResponse.json(
       { error: 'This account is already linked to a different user. Ask a moderator if you think this is wrong.' },
       { status: 409 },
@@ -109,14 +108,14 @@ export async function POST(request: Request) {
   // compare hiscores snapshots: same OSRS account → near-identical XP across skills.
   // Refuse and point them at their existing linked row when the match is overwhelming.
   const existingLinked = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn, rsnNormalized: clanMembers.rsnNormalized })
-    .from(clanMembers)
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, rsnNormalized: clanRoster.rsnNormalized })
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.userId, session.userId),
-        isNotNull(clanMembers.verifiedAt),
-        isNull(clanMembers.leftAt),
-        ne(clanMembers.rsnNormalized, rsnNormalized),
+        eq(clanRoster.playerId, session.userId),
+        isNotNull(clanRoster.verifiedAt),
+        isNull(clanRoster.leftAt),
+        ne(clanRoster.rsnNormalized, rsnNormalized),
       ),
     );
   for (const cm of existingLinked) {

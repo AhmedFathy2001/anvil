@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 
 type UpdatableFields = Partial<{
@@ -36,32 +37,42 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const existing = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
+  const existing = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Set-primary: demote the person's other accounts, promote this one. Only meaningful for a linked
   // account (a person is a users row) — a ghost/unlinked account has no siblings to be primary among.
   if (body.setPrimary) {
-    if (existing.userId == null) {
+    if (existing.playerId == null) {
       return NextResponse.json({ error: 'Only a linked account can be set as the main.' }, { status: 400 });
     }
-    await db.update(clanMembers).set({ isPrimary: 0 }).where(eq(clanMembers.userId, existing.userId));
-    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, memberId));
+    // Across every account this person owns, in every clan — a main is a main everywhere.
+    await db.update(accounts).set({ isPrimary: 0 }).where(eq(accounts.playerId, existing.playerId));
+    await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, existing.accountId));
     return NextResponse.json({ ok: true });
   }
 
-  const update: Record<string, unknown> = {};
-  if (body.rank !== undefined) update.rank = body.rank;
-  if (body.discordId !== undefined) update.discordId = body.discordId;
-  if (body.isGuest !== undefined) update.isGuest = body.isGuest ? 1 : 0;
-  if (body.notes !== undefined) update.notes = body.notes;
-  if (body.rejoin) update.leftAt = null;
+  // Split by where each field lives: the Discord id belongs to the account, everything else to
+  // this clan's seat. An admin editing their own roster must not be able to reach past it.
+  const seatPatch: Record<string, unknown> = {};
+  if (body.rank !== undefined) seatPatch.rank = body.rank;
+  if (body.isGuest !== undefined) seatPatch.kind = body.isGuest ? 'guest' : 'member';
+  if (body.notes !== undefined) seatPatch.notes = body.notes;
+  if (body.rejoin) seatPatch.leftAt = null;
 
-  if (Object.keys(update).length === 0) {
+  const accountPatch: Record<string, unknown> = {};
+  if (body.discordId !== undefined) accountPatch.discordId = body.discordId;
+
+  if (Object.keys(seatPatch).length === 0 && Object.keys(accountPatch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  await db.update(clanMembers).set(update).where(eq(clanMembers.id, memberId));
+  if (Object.keys(seatPatch).length > 0) {
+    await db.update(clanMemberships).set(seatPatch).where(eq(clanMemberships.id, memberId));
+  }
+  if (Object.keys(accountPatch).length > 0) {
+    await db.update(accounts).set(accountPatch).where(eq(accounts.id, existing.accountId));
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -81,9 +92,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!Number.isInteger(memberId)) return NextResponse.json({ error: 'Bad id' }, { status: 400 });
 
   await db
-    .update(clanMembers)
+    .update(clanMemberships)
     .set({ leftAt: new Date().toISOString() })
-    .where(eq(clanMembers.id, memberId));
+    .where(eq(clanMemberships.id, memberId));
 
   return NextResponse.json({ ok: true });
 }

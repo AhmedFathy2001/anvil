@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { eventParticipants, tiles, teams, events, completions, clanMembers, weeklyParticipants } from '@/db/schema';
+import { eventParticipants, tiles, teams, events, completions, clanRoster, weeklyParticipants } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { eq, and, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
@@ -98,10 +99,7 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
 
   // Merge into the member's live overlay — absolute counts only ever rise, so keep the max per key.
-  const memberRow = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.id, member.clanMemberId),
-    columns: { liveStats: true, status: true, liveStatKeyTimes: true },
-  });
+  const memberRow = await findRosterSeat(eq(clanRoster.id, member.clanMemberId));
   const live = parsePluginStats(memberRow?.liveStats);
   const keyTimes = parseStatKeyTimes(memberRow?.liveStatKeyTimes);
   let changed = false;
@@ -121,9 +119,7 @@ export async function POST(request: Request) {
       const at = Date.parse(iso);
       if (!Number.isFinite(at) || nowMs - at > KEY_TIME_TTL_MS) delete keyTimes[k];
     }
-    await db
-      .update(clanMembers)
-      .set({
+    await updateAccountOfSeat(member.clanMemberId, {
         liveStats: JSON.stringify(live),
         liveStatsAt: nowIso,
         liveStatKeyTimes: JSON.stringify(keyTimes),
@@ -131,10 +127,9 @@ export async function POST(request: Request) {
         // built up while they were away: the next tick fetches them, and their hiscores reconcile
         // stays prompt. This is what lets idle members be deferred aggressively without an active
         // player ever going stale (lib/statHistory.ts).
-        statsMissStreak: 0,
-        statsNextDueAt: null,
-      })
-      .where(eq(clanMembers.id, member.clanMemberId));
+      statsMissStreak: 0,
+      statsNextDueAt: null,
+    });
   }
 
   const updatedKeys = new Set(Object.keys(pushed));

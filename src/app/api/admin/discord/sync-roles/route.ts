@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { clanRoster } from '@/db/schema';
 import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { loadRoleSyncConfig, syncRolesForClanMember, buildSweepContext } from '@/lib/discord-roles';
@@ -44,12 +44,12 @@ export async function POST(request: Request) {
   // gate on hiscores `status` — a role reflects membership, not whether their XP is trackable,
   // so an 'unranked' member (RSN 404s on the hiscores) must still be synced.
   const eligible = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn })
-    .from(clanMembers)
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(clanRoster)
     .where(
       and(
-        isNull(clanMembers.leftAt),
-        or(eq(clanMembers.isGuest, 0), isNotNull(clanMembers.verifiedAt)),
+        isNull(clanRoster.leftAt),
+        or(eq(clanRoster.kind, 'member'), isNotNull(clanRoster.verifiedAt)),
       ),
     );
 

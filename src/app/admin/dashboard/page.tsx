@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
@@ -70,15 +70,15 @@ export default async function AdminDashboardPage() {
     db.select({ eventId: teams.eventId, n: count() }).from(teams).groupBy(teams.eventId),
     db
       .select({ c: count() })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.provisional, 1), isNull(clanMembers.leftAt)))
+      .from(clanRoster)
+      .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
-      .from(clanMembers)
+      .from(clanRoster)
       // Exclude guests (is_guest=1) so "Active members" matches the real in-game clan
       // count — guests are plugin-pinged non-members. Unranked non-guests stay counted.
-      .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
+      .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
       .then((r) => r[0]?.c ?? 0),
     // NOT lastSeenInClan. That column is bumped for EVERY member on every roster sync, so it
     // measures "still in the clan", not "played" — it read 135 of 135 and 0 idle, every day.
@@ -86,12 +86,12 @@ export default async function AdminDashboardPage() {
     // is actually in game.
     db
       .select({ c: count() })
-      .from(clanMembers)
+      .from(clanRoster)
       .where(
         and(
-          isNull(clanMembers.leftAt),
-          eq(clanMembers.isGuest, 0),
-          sinceDay(clanMembers.liveStatsAt, now, 7),
+          isNull(clanRoster.leftAt),
+          eq(clanRoster.kind, 'member'),
+          sinceDay(clanRoster.liveStatsAt, now, 7),
         ),
       )
       .then((r) => r[0]?.c ?? 0),
@@ -122,14 +122,14 @@ export default async function AdminDashboardPage() {
         eventType: clanAuditLog.eventType,
         notes: clanAuditLog.notes,
         occurredAt: clanAuditLog.occurredAt,
-        memberRsn: clanMembers.rsn,
+        memberRsn: clanRoster.rsn,
         // Who performed the action. displayName preferred; fall back to the Discord
         // handle so a logged actor never renders as a blank "by".
         actorName: actor.displayName,
         actorUsername: actor.discordUsername,
       })
       .from(clanAuditLog)
-      .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+      .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
       .leftJoin(actor, eq(clanAuditLog.actorUserId, actor.id))
       .orderBy(desc(clanAuditLog.occurredAt))
       .limit(60),

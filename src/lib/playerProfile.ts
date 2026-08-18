@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { events, eventParticipants, playerSnapshots, playerEventFacts, clanMembers } from '@/db/schema';
+import { events, eventParticipants, playerSnapshots, playerEventFacts, clanRoster } from '@/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 import defaultMarkers from '@/data/capabilityMarkers.json';
 
@@ -136,15 +136,15 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   const markers = await loadCapabilityMarkers(clanId);
   const members = await db
     .select({
-      id: clanMembers.id,
-      userId: clanMembers.userId,
-      rsn: clanMembers.rsn,
-      rsnNormalized: clanMembers.rsnNormalized,
-      previousRsns: clanMembers.previousRsns,
-      leftAt: clanMembers.leftAt,
-      isGuest: clanMembers.isGuest,
+      id: clanRoster.id,
+      userId: clanRoster.playerId,
+      rsn: clanRoster.rsn,
+      rsnNormalized: clanRoster.rsnNormalized,
+      previousRsns: clanRoster.previousRsns,
+      leftAt: clanRoster.leftAt,
+      kind: clanRoster.kind,
     })
-    .from(clanMembers);
+    .from(clanRoster);
   const memberById = new Map(members.map((m) => [m.id, m]));
   const memberByAlias = new Map<string, (typeof members)[number]>();
   for (const m of members) {
@@ -193,7 +193,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
       if (!entry.snapshotJson && p.statsSnapshot) entry.snapshotJson = p.statsSnapshot;
     }
   } else {
-    const active = members.filter((m) => !m.leftAt && !m.isGuest);
+    const active = members.filter((m) => !m.leftAt && m.kind !== 'guest');
     const snapRows = active.length
       ? await db
           .select({

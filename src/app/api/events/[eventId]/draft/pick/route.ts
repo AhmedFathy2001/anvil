@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers, events, eventParticipants, teams } from '@/db/schema';
+import { clanRoster, events, eventParticipants, teams } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick, countPicksTaken } from '@/lib/draft';
@@ -148,15 +149,15 @@ export async function POST(
   // this event joins the SAME team, sharing this pick's number (guests have no owning user → just
   // themselves). The group leaves the pool together and counts as a single turn.
   const pickedMember = player.clanMemberId != null
-    ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+    ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
     : null;
   const groupIds = [playerId];
-  if (pickedMember?.userId != null) {
+  if (pickedMember?.playerId != null) {
     const siblings = await db
       .select({ id: eventParticipants.id })
       .from(eventParticipants)
-      .innerJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
-      .where(and(eq(eventParticipants.eventId, eId), eq(clanMembers.userId, pickedMember.userId), isNull(eventParticipants.teamId)));
+      .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+      .where(and(eq(eventParticipants.eventId, eId), eq(clanRoster.playerId, pickedMember.playerId), isNull(eventParticipants.teamId)));
     for (const s of siblings) {
       if (s.id !== playerId) groupIds.push(s.id);
     }

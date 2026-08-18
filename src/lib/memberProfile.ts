@@ -5,7 +5,8 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
@@ -55,26 +56,26 @@ export async function listMembers(): Promise<MemberListRow[]> {
 
   const rows = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      rank: clanMembers.rank,
-      isGuest: clanMembers.isGuest,
-      status: clanMembers.status,
-      lastSeenAt: clanMembers.lastSeenInClan,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      rank: clanRoster.rank,
+      kind: clanRoster.kind,
+      status: clanRoster.status,
+      lastSeenAt: clanRoster.lastSeenInClan,
       overallXp: memberDailyStats.overallXp,
       ehpMilli: memberDailyStats.ehpMilli,
       ehbMilli: memberDailyStats.ehbMilli,
     })
-    .from(clanMembers)
-    .leftJoin(latestDay, eq(latestDay.clanMemberId, clanMembers.id))
+    .from(clanRoster)
+    .leftJoin(latestDay, eq(latestDay.clanMemberId, clanRoster.id))
     .leftJoin(
       memberDailyStats,
-      and(eq(memberDailyStats.clanMemberId, clanMembers.id), eq(memberDailyStats.day, latestDay.day)),
+      and(eq(memberDailyStats.clanMemberId, clanRoster.id), eq(memberDailyStats.day, latestDay.day)),
     )
     // Members who left the clan drop off the directory; the profile page still resolves by name so
     // old links and event recaps don't 404.
-    .where(isNull(clanMembers.leftAt))
-    .orderBy(clanMembers.rsn);
+    .where(isNull(clanRoster.leftAt))
+    .orderBy(clanRoster.rsn);
 
   return rows
     // Placeholder rows RuneLite handed us before the sync learned to reject them ("#Player1404"):
@@ -85,7 +86,7 @@ export async function listMembers(): Promise<MemberListRow[]> {
       id: r.id,
       rsn: r.rsn,
       rank: r.rank,
-      isGuest: r.isGuest === 1,
+      isGuest: r.kind === 'guest',
       status: r.status,
       lastSeenAt: r.lastSeenAt,
       overallXp: r.overallXp ?? null,
@@ -188,9 +189,7 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
   const normalized = normalizeRsn(rsn);
   if (!normalized) return null;
 
-  const member = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, normalized),
-  });
+  const member = await findRosterSeat(eq(clanRoster.rsnNormalized, normalized));
   if (!member) return null;
 
   const { snapshot, at } = await lastSnapshotFor(member);
@@ -199,7 +198,7 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
       id: member.id,
       rsn: member.rsn,
       rank: member.rank,
-      isGuest: member.isGuest === 1,
+      isGuest: member.kind === 'guest',
       status: member.status,
       joinedAt: member.joinedAt,
       leftAt: member.leftAt,
@@ -255,7 +254,7 @@ export async function getMemberProfile(rsn: string): Promise<MemberProfile | nul
     id: member.id,
     rsn: member.rsn,
     rank: member.rank,
-    isGuest: member.isGuest === 1,
+    isGuest: member.kind === 'guest',
     status: member.status,
     joinedAt: member.joinedAt,
     leftAt: member.leftAt,
@@ -436,10 +435,10 @@ export async function getRosterLog(limit = 25): Promise<RosterEvent[]> {
       occurredAt: clanAuditLog.occurredAt,
       oldValue: clanAuditLog.oldValue,
       newValue: clanAuditLog.newValue,
-      rsn: clanMembers.rsn,
+      rsn: clanRoster.rsn,
     })
     .from(clanAuditLog)
-    .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
     .where(inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']))
     .orderBy(desc(clanAuditLog.occurredAt))
     // Over-fetch so the cap below still leaves a full feed of comings and goings.
@@ -721,11 +720,11 @@ const BOARD_SIZE = 8;
 async function readClanActivities(): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
   const rows = await db
     .select({
-      rsn: clanMembers.rsn,
-      statsActivities: clanMembers.statsActivities,
+      rsn: clanRoster.rsn,
+      statsActivities: clanRoster.statsActivities,
     })
-    .from(clanMembers)
-    .where(isNull(clanMembers.leftAt));
+    .from(clanRoster)
+    .where(isNull(clanRoster.leftAt));
 
   return rows
     .filter((r) => isPlausibleRsn(r.rsn) && r.statsActivities)
@@ -896,7 +895,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
   //
   // Matched by clan_member_id OR any name this member has been known by, because a rename mid-history
   // leaves old `players` rows carrying the old RSN.
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   const aliases = new Set<string>([normalizeRsn(rsn)]);
   if (member?.rsn) aliases.add(normalizeRsn(member.rsn));
   try {
@@ -1093,15 +1092,15 @@ export interface Persona {
  * just the profile you're already looking at.
  */
 export async function getPersona(clanMemberId: number): Promise<Persona | null> {
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
-  if (!member?.userId) return null;
+  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
+  if (!member?.playerId) return null;
 
-  const user = await db.query.users.findFirst({ where: eq(users.id, member.userId) });
+  const user = await db.query.users.findFirst({ where: eq(users.id, member.playerId) });
   const rows = await listMembers();
   const siblings = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn, isPrimary: clanMembers.isPrimary })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, member.userId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt)));
   if (siblings.length <= 1) return null;
 
   const statsById = new Map(rows.map((r) => [r.id, r]));
@@ -1120,7 +1119,7 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || (b.ehp ?? 0) - (a.ehp ?? 0));
 
   return {
-    userId: member.userId,
+    userId: member.playerId,
     discordId: user?.discordId ?? null,
     discordUsername: user?.discordUsername ?? null,
     discordAvatar: user?.discordAvatar ?? null,

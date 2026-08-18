@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, detectedAccounts } from '@/db/schema';
+import { clanRoster, detectedAccounts } from '@/db/schema';
+import { findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -17,10 +18,7 @@ export async function GET() {
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [members, pending] = await Promise.all([
-    db.query.clanMembers.findMany({
-      where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-      columns: { rsn: true, liveStatsAt: true, verifiedAt: true },
-    }),
+    findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt))),
     db.query.detectedAccounts.findMany({
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
       columns: { id: true },

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
   // ── 1) Pre-fetch this clan's existing rows ────────────────────────────────
   // Scoped to the clan: unscoped, the diff below would treat every OTHER clan's members as missing
   // from this roster and soft-delete them.
-  const existingRows = await db.select().from(clanMembers).where(eq(clanMembers.clanId, clan.id));
+  const existingRows = await db.select().from(clanRoster).where(eq(clanRoster.clanId, clan.id));
   const byHash = new Map<string, typeof existingRows[number]>();
   const byRsn = new Map<string, typeof existingRows[number]>();
   for (const r of existingRows) {
@@ -97,9 +98,9 @@ export async function POST(request: Request) {
     setRsnNormalized: string;
     setRank: string | null;
     setAccountHash: string | null;
-    setSource: 'manual' | 'plugin-self' | 'plugin-roster';
+    setSource: 'roster' | 'admin' | 'application';
     setLeftAt: string | null;
-    setIsGuest: number;
+    setKind: 'member' | 'guest';
     setPreviousRsns: string | null;
     renamed: boolean;
     oldRsn?: string;
@@ -151,14 +152,14 @@ export async function POST(request: Request) {
       existing.accountHash === incomingHash &&
       existing.rsnNormalized !== rsnNormalized;
     const returning = existing.leftAt != null && existing.source !== 'manual';
-    const preserveLeftAt = Boolean(existing.leftAt && existing.source === 'manual');
+    const preserveLeftAt = Boolean(existing.leftAt && existing.source === 'admin');
     // A null existing.rank (a guest or never-ranked row) counts as a change to their
     // first rank — so a guest the roster now reports with a rank ("imp") produces a
     // rank_changed audit + Discord role sync instead of silently flipping isGuest.
     const rankChanged = rank != null && rank !== existing.rank;
     // Guest → real member: the ranked roster includes them, so they're no longer a
     // guest. preserveLeftAt guards the manual-left case (don't resurrect those).
-    const becameMember = existing.isGuest === 1 && !preserveLeftAt;
+    const becameMember = existing.kind === 'guest' && !preserveLeftAt;
 
     let previousRsns: string[] = [];
     if (existing.previousRsns) {
@@ -175,14 +176,10 @@ export async function POST(request: Request) {
       setRsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
       setRank: rank ?? existing.rank,
       setAccountHash: incomingHash ?? existing.accountHash,
-      setSource:
-        existing.source === 'manual'
-          ? 'manual'
-          : existing.source === 'plugin-self'
-            ? 'plugin-self'
-            : 'plugin-roster',
+      // An admin's decision outranks the roster; anything else the roster now confirms.
+      setSource: existing.source === 'admin' ? ('admin' as const) : ('roster' as const),
       setLeftAt: preserveLeftAt ? existing.leftAt : null,
-      setIsGuest: preserveLeftAt ? existing.isGuest : 0,
+      setKind: preserveLeftAt ? (existing.kind as 'member' | 'guest') : ('member' as const),
       setPreviousRsns: renamed ? JSON.stringify(previousRsns) : existing.previousRsns,
       renamed,
       oldRsn: renamed ? existing.rsn : undefined,
@@ -216,21 +213,22 @@ export async function POST(request: Request) {
   }
 
   if (toInsert.length > 0) {
-    const insertedRows = await db
-      .insert(clanMembers)
-      .values(
-        toInsert.map((row) => ({
-          clanId: clan.id,
-          rsn: row.rsn,
-          rsnNormalized: row.rsnNormalized,
-          rank: row.rank,
-          source: 'plugin-roster' as const,
-          isGuest: 0,
-          lastSeenInClan: now,
-          accountHash: row.accountHash,
-        })),
-      )
-      .returning({ id: clanMembers.id, rsn: clanMembers.rsn });
+    // THE grant. Membership is never assumed anywhere else in the codebase — this sweep is the
+    // in-game roster itself, so it is the one writer allowed to seat someone as a member.
+    const insertedRows: { id: number; rsn: string }[] = [];
+    for (const row of toInsert) {
+      const account = await findOrCreateAccount({
+        rsn: row.rsn,
+        rsnNormalized: row.rsnNormalized,
+        accountHash: row.accountHash,
+      });
+      const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'member', source: 'roster' });
+      await db
+        .update(clanMemberships)
+        .set({ kind: 'member', source: 'roster', rank: row.rank, lastSeenInClan: now, leftAt: null })
+        .where(eq(clanMemberships.id, seatId));
+      insertedRows.push({ id: seatId, rsn: row.rsn });
+    }
 
     for (let i = 0; i < insertedRows.length; i++) {
       const ins = insertedRows[i];
@@ -253,20 +251,24 @@ export async function POST(request: Request) {
   // Sequential because each row has different values; drizzle doesn't have a portable
   // batch UPDATE form. Each statement is a single round-trip keyed on PK.
   for (const u of toUpdate) {
+    // The name and the hash describe the account, so a rename spotted by one clan's sync is a
+    // rename everywhere. Rank, presence and membership describe this seat and stop here.
+    await updateAccountOfSeat(u.id, {
+      rsn: u.setRsn,
+      rsnNormalized: u.setRsnNormalized,
+      previousRsns: u.setPreviousRsns,
+      accountHash: u.setAccountHash,
+    });
     await db
-      .update(clanMembers)
+      .update(clanMemberships)
       .set({
-        rsn: u.setRsn,
-        rsnNormalized: u.setRsnNormalized,
-        previousRsns: u.setPreviousRsns,
         rank: u.setRank,
         lastSeenInClan: now,
         leftAt: u.setLeftAt,
-        isGuest: u.setIsGuest,
-        accountHash: u.setAccountHash,
+        kind: u.setKind,
         source: u.setSource,
       })
-      .where(eq(clanMembers.id, u.id));
+      .where(eq(clanMemberships.id, u.id));
 
     if (u.renamed) {
       changes.push({ type: 'renamed', rsn: u.setRsn, oldRsn: u.oldRsn, memberId: u.id });
@@ -318,21 +320,37 @@ export async function POST(request: Request) {
 
   // ── 5) Soft-delete missing ───────────────────────────────────────────────
   const incomingList = Array.from(incomingNormalized);
-  const leftResult = await db
-    .update(clanMembers)
-    .set({ leftAt: now })
+  // Chosen through the view and applied to the seats: the RSN this filters on belongs to the
+  // account now, so filter and target no longer live on one table.
+  //
+  // `source != 'admin'` is the guard that matters. An admin put those seats here by hand, and the
+  // in-game roster not listing them is not evidence they left — it is usually evidence they were
+  // never in the clan in game, which is what a guest IS.
+  const departing = await db
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.clanId, clan.id),
-        isNull(clanMembers.leftAt),
-        ne(clanMembers.source, 'manual'),
-        eq(clanMembers.isGuest, 0),
+        eq(clanRoster.clanId, clan.id),
+        isNull(clanRoster.leftAt),
+        ne(clanRoster.source, 'admin'),
+        eq(clanRoster.kind, 'member'),
         incomingList.length > 0
-          ? notInArray(clanMembers.rsnNormalized, incomingList)
-          : inArray(clanMembers.source, ['plugin-self', 'plugin-roster']),
+          ? notInArray(clanRoster.rsnNormalized, incomingList)
+          : eq(clanRoster.source, 'roster'),
       ),
-    )
-    .returning({ id: clanMembers.id, rsn: clanMembers.rsn });
+    );
+  const leftResult = departing.length
+    ? await db
+        .update(clanMemberships)
+        .set({ leftAt: now })
+        .where(inArray(clanMemberships.id, departing.map((d) => d.id)))
+        .returning({ id: clanMemberships.id })
+        .then((rows) => {
+          const byId = new Map(departing.map((d) => [d.id, d.rsn]));
+          return rows.map((r) => ({ id: r.id, rsn: byId.get(r.id)! }));
+        })
+    : [];
 
   for (const left of leftResult) {
     changes.push({ type: 'left', rsn: left.rsn, memberId: left.id });

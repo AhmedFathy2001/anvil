@@ -22,7 +22,8 @@
  */
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { events, teams, eventParticipants, clanMembers, users, eventSignups } from '@/db/schema';
+import { events, teams, eventParticipants, clanRoster, users, eventSignups } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
@@ -287,9 +288,9 @@ async function discordIdForUserId(userId: number | null | undefined): Promise<st
  */
 async function discordIdForPlayerClanMember(clanMemberId: number | null): Promise<string | null> {
   if (clanMemberId == null) return null;
-  const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  const cm = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!cm) return null;
-  return resolveDiscordIdForMember(cm.clanId, { id: cm.id, rsn: cm.rsn, userId: cm.userId, discordId: cm.discordId });
+  return resolveDiscordIdForMember(cm.clanId, { id: cm.id, rsn: cm.rsn, playerId: cm.playerId, discordId: cm.discordId });
 }
 
 // =============================================================================

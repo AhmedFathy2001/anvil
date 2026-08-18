@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers, events, eventParticipants, teams } from '@/db/schema';
+import { clanRoster, events, eventParticipants, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
@@ -45,7 +45,7 @@ export async function GET(
   // the draft board can show they draft together (guests have no owner → their own single entry).
   const memberIds = [...new Set(safeRaw.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
   const ownerRows = memberIds.length
-    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    ? await db.select({ id: clanRoster.id, userId: clanRoster.playerId }).from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const ownerByMember = new Map(ownerRows.map((r) => [r.id, r.userId]));
   // Surface each player's frozen sign-up answers so captains read them while drafting.

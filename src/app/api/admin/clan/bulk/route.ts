@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, users } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -79,11 +79,11 @@ export async function POST(request: Request) {
   }
   const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) || null : null;
 
-  const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, ids));
+  const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, ids));
   if (!members.length) return NextResponse.json({ error: 'No matching members' }, { status: 404 });
 
   // Linked users, for the ban guards.
-  const userIds = [...new Set(members.map((m) => m.userId).filter((v): v is number => v != null))];
+  const userIds = [...new Set(members.map((m) => m.playerId).filter((v): v is number => v != null))];
   const userRows = userIds.length
     ? await db
         .select({ id: users.id, isOwner: users.isOwner, role: users.role })
@@ -100,11 +100,11 @@ export async function POST(request: Request) {
   let appliedNow = 0;
 
   for (const m of members) {
-    const linked = m.userId != null ? userById.get(m.userId) ?? null : null;
+    const linked = m.playerId != null ? userById.get(m.playerId) ?? null : null;
 
     switch (action) {
       case 'set-role': {
-        await db.update(clanMembers).set({ pendingRole: role }).where(eq(clanMembers.id, m.id));
+        await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, m.id));
         db.insert(clanAuditLog)
           .values({
             clanMemberId: m.id,
@@ -116,20 +116,20 @@ export async function POST(request: Request) {
           .catch(() => {});
         // Already-verified, non-provisional members get it immediately — same rule as the single-row
         // route. applyPendingRole never downgrades, so an existing admin is left alone.
-        if (role && m.userId && !m.provisional) {
-          if (await applyPendingRole(m.id, m.userId, 'manual_approval')) appliedNow++;
+        if (role && m.playerId && !m.provisional) {
+          if (await applyPendingRole(m.id, m.playerId, 'manual_approval')) appliedNow++;
         }
         applied++;
         break;
       }
       case 'promote':
       case 'demote': {
-        const isGuest = action === 'demote' ? 1 : 0;
-        if (m.isGuest === isGuest) {
-          skipped.push({ id: m.id, rsn: m.rsn, reason: isGuest ? 'already a guest' : 'already a member' });
+        const kind = action === 'demote' ? ('guest' as const) : ('member' as const);
+        if (m.kind === kind) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: kind === 'guest' ? 'already a guest' : 'already a member' });
           break;
         }
-        await db.update(clanMembers).set({ isGuest }).where(eq(clanMembers.id, m.id));
+        await db.update(clanMemberships).set({ kind }).where(eq(clanMemberships.id, m.id));
         applied++;
         break;
       }
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'already left' });
           break;
         }
-        await db.update(clanMembers).set({ leftAt: nowIso }).where(eq(clanMembers.id, m.id));
+        await db.update(clanMemberships).set({ leftAt: nowIso }).where(eq(clanMemberships.id, m.id));
         applied++;
         break;
       }
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'already on the roster' });
           break;
         }
-        await db.update(clanMembers).set({ leftAt: null }).where(eq(clanMembers.id, m.id));
+        await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, m.id));
         applied++;
         break;
       }

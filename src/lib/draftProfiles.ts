@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, eventSignups } from '@/db/schema';
+import { clanRoster, eventSignups } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { parseProfile, type SignupProfile } from './signup';
 
@@ -66,7 +66,7 @@ export async function loadPlayerOwners<T extends { id: number; clanMemberId: num
 ): Promise<Map<number, number | null>> {
   const memberIds = [...new Set(players.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
   const rows = memberIds.length
-    ? await db.select({ id: clanMembers.id, userId: clanMembers.userId }).from(clanMembers).where(inArray(clanMembers.id, memberIds))
+    ? await db.select({ id: clanRoster.id, userId: clanRoster.playerId }).from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const byMember = new Map(rows.map((r) => [r.id, r.userId]));
   return new Map(players.map((p) => [p.id, p.clanMemberId != null ? byMember.get(p.clanMemberId) ?? null : null]));

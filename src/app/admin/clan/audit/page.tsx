@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, users } from '@/db/schema';
 import { desc, eq, isNull, ne } from 'drizzle-orm';
 import AuditLogClient, { type AuditEntry, type LeftMember, type JoinedMember } from './AuditLogClient';
 
@@ -18,11 +18,11 @@ export default async function ClanAuditPage() {
       actorUserId: clanAuditLog.actorUserId,
       notes: clanAuditLog.notes,
       occurredAt: clanAuditLog.occurredAt,
-      memberRsn: clanMembers.rsn,
+      memberRsn: clanRoster.rsn,
       actorDisplayName: users.displayName,
     })
     .from(clanAuditLog)
-    .leftJoin(clanMembers, eq(clanAuditLog.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
     .leftJoin(users, eq(clanAuditLog.actorUserId, users.id))
     .orderBy(desc(clanAuditLog.occurredAt))
     .limit(AUDIT_LIMIT);
@@ -30,17 +30,17 @@ export default async function ClanAuditPage() {
   // Separate lists of recently-left and recently-joined members for the merge UI.
   // "Recently" = the last 30 days of soft-deleted/created rows.
   const recentLeft = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn, leftAt: clanMembers.leftAt, rank: clanMembers.rank })
-    .from(clanMembers)
-    .where(ne(clanMembers.leftAt, ''))
-    .orderBy(desc(clanMembers.leftAt))
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, leftAt: clanRoster.leftAt, rank: clanRoster.rank })
+    .from(clanRoster)
+    .where(ne(clanRoster.leftAt, ''))
+    .orderBy(desc(clanRoster.leftAt))
     .limit(50);
 
   const recentActive = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn, joinedAt: clanMembers.joinedAt, rank: clanMembers.rank })
-    .from(clanMembers)
-    .where(isNull(clanMembers.leftAt))
-    .orderBy(desc(clanMembers.joinedAt))
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, joinedAt: clanRoster.joinedAt, rank: clanRoster.rank })
+    .from(clanRoster)
+    .where(isNull(clanRoster.leftAt))
+    .orderBy(desc(clanRoster.joinedAt))
     .limit(100);
 
   const entries: AuditEntry[] = rows.map((r) => ({

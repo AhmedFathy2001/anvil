@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanMembers, users } from '@/db/schema';
+import { clanRoster, users } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -32,8 +32,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const provisionalCount = await db
     .select({ c: count() })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.provisional, 1), isNull(clanMembers.leftAt)))
+    .from(clanRoster)
+    .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .then((r) => r[0]?.c ?? 0);
 
   const isAdmin = session.role === 'admin';

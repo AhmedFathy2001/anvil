@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, payouts, clanMembers } from '@/db/schema';
+import { events, payouts, clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
 import { getEventPrizePool, parsePlacementPrizes } from '@/lib/payouts';
@@ -81,7 +82,7 @@ export async function POST(
   if (body?.clanMemberId != null) {
     const cmId = Number(body.clanMemberId);
     const member = Number.isFinite(cmId)
-      ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, cmId) })
+      ? await findRosterSeat(eq(clanRoster.id, cmId))
       : null;
     if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     clanMemberId = cmId;

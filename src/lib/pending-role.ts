@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, users } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 
 // Rank for the "never downgrade on apply" guard. Editor and treasurer are both moderator-tier +
@@ -26,12 +27,12 @@ export async function applyPendingRole(
   userId: number,
   source: 'plugin' | 'manual_approval',
 ): Promise<boolean> {
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.pendingRole) return false;
   const pending = member.pendingRole;
   if (!PENDING_ROLES.has(pending)) {
     // Unknown value — clear it so it doesn't keep re-firing on repeat calls.
-    await db.update(clanMembers).set({ pendingRole: null }).where(eq(clanMembers.id, clanMemberId));
+    await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
     return false;
   }
 
@@ -42,12 +43,12 @@ export async function applyPendingRole(
   const pendingRank = ROLE_RANK[pending] ?? 0;
   if (pendingRank <= currentRank) {
     // Already at or above the pending role — clear and exit.
-    await db.update(clanMembers).set({ pendingRole: null }).where(eq(clanMembers.id, clanMemberId));
+    await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
     return false;
   }
 
   await db.update(users).set({ role: pending }).where(eq(users.id, userId));
-  await db.update(clanMembers).set({ pendingRole: null }).where(eq(clanMembers.id, clanMemberId));
+  await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
 
   db.insert(clanAuditLog)
     .values({

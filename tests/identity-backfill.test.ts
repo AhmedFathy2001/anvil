@@ -14,7 +14,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
-import { pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 
 import { useTestDatabase, resetDatabase, migrateRest, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -35,6 +35,38 @@ const usersBeforeIdentity = pgTable('users', {
   displayName: text('display_name').notNull(),
   discordId: text('discord_id'),
 });
+
+/**
+ * `clan_members` as it stood before the split. Frozen for the same reason, and doubly so: the table
+ * does not merely change shape, it is DROPPED by the migration under test. Nothing can read it once
+ * the chain finishes, so what it held is captured below while it still exists.
+ */
+const clanMembersBeforeIdentity = pgTable('clan_members', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull(),
+  rsn: text('rsn').notNull(),
+  rsnNormalized: text('rsn_normalized').notNull(),
+  userId: integer('user_id'),
+  isGuest: integer('is_guest').notNull().default(1),
+  source: text('source').notNull().default('manual'),
+  status: text('status').notNull().default('active'),
+  statusLastChecked: text('status_last_checked'),
+  previousRsns: text('previous_rsns'),
+  isPrimary: integer('is_primary').notNull().default(0),
+  verifiedAt: text('verified_at'),
+  verificationMethod: text('verification_method'),
+  provisional: integer('provisional').notNull().default(0),
+  claimedAt: text('claimed_at'),
+  liveStats: text('live_stats'),
+  liveStatsAt: text('live_stats_at'),
+  statsLastSnapshot: text('stats_last_snapshot'),
+  statsOverallXp: integer('stats_overall_xp'),
+  statsMissStreak: integer('stats_miss_streak').notNull().default(0),
+  statsNextDueAt: text('stats_next_due_at'),
+});
+
+/** What the roster held before the migration, captured while clan_members still exists. */
+let seeded: { id: number; clanId: number }[] = [];
 
 const DB = useTestDatabase('identity-backfill');
 
@@ -80,7 +112,7 @@ before(async () => {
   const ahmed = users.find((u) => u.discordId === '111')!.id;
   const woox = users.find((u) => u.discordId === '222')!.id;
 
-  await db.insert(s.clanMembers).values([
+  await db.insert(clanMembersBeforeIdentity).values([
     // One person, a main and an alt, on BOTH rosters. Four rows that must become one human.
     { clanId: alpha, rsn: 'AhmedMain', rsnNormalized: 'ahmedmain', userId: ahmed, isGuest: 0, source: 'plugin-roster' },
     { clanId: alpha, rsn: 'AhmedAlt', rsnNormalized: 'ahmedalt', userId: ahmed, isGuest: 0, source: 'plugin-roster' },
@@ -110,7 +142,11 @@ before(async () => {
     },
   ]);
 
-  migrateRest(DB); // 0006 runs here
+  seeded = await db
+    .select({ id: clanMembersBeforeIdentity.id, clanId: clanMembersBeforeIdentity.clanId })
+    .from(clanMembersBeforeIdentity);
+
+  migrateRest(DB); // 0006 onwards run here — and 0008 drops clan_members
 });
 
 after(async () => {
@@ -180,22 +216,20 @@ test('every account has an owner, and no person is left owning nothing', async (
 test('a membership keeps the seat id its history already points at', async () => {
   // Fifteen tables carry a clan_member_id. The seat did not change when the row describing it split,
   // so every one of those references must still land on the same seat.
-  const seats = await db.select().from(s.clanMembers);
   const memberships = await db.select().from(s.clanMemberships);
   assert.deepEqual(
     memberships.map((m) => m.id).sort((a, b) => a - b),
-    seats.map((m) => m.id).sort((a, b) => a - b),
+    seeded.map((m) => m.id).sort((a, b) => a - b),
   );
-  for (const seat of seats) {
+  for (const seat of seeded) {
     const m = memberships.find((x) => x.id === seat.id)!;
     assert.equal(m.clanId, seat.clanId, `seat ${seat.id} stayed in its clan`);
   }
 });
 
 test('no roster row is lost in translation', async () => {
-  const before = await db.select().from(s.clanMembers);
   const after = await db.select().from(s.clanMemberships);
-  assert.equal(after.length, before.length);
+  assert.equal(after.length, seeded.length);
 });
 
 test('one account, one hiscores identity — merged by what each number means', async () => {

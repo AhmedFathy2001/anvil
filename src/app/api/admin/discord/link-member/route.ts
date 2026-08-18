@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanMembers, users } from '@/db/schema';
+import { accounts, clanRoster, users } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'clanMemberId and a numeric discordUserId are required' }, { status: 400 });
   }
 
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
+  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
   if (!(await isGuildMember(clan.id, discordUserId))) {
@@ -37,25 +38,19 @@ export async function POST(request: Request) {
   // unlinked) gets the id, plus the site user if one owns that Discord login. The picked row is
   // always updated (admin override); other same-RSN rows only when they aren't already linked to a
   // DIFFERENT user, so we never hijack someone else's account.
-  await db
-    .update(clanMembers)
-    .set({ discordId: discordUserId, ...(linkedUser && member.userId == null ? { userId: linkedUser.id } : {}) })
-    .where(eq(clanMembers.id, clanMemberId));
+  await updateAccountOfSeat(clanMemberId, { discordId: discordUserId, ...(linkedUser && member.playerId == null ? { userId: linkedUser.id } : {}) });
   // Newly attached to an owner → adopt any guest sign-ups this character already had.
-  if (linkedUser && member.userId == null) await onCharacterLinked(clanMemberId, linkedUser.id);
+  if (linkedUser && member.playerId == null) await onCharacterLinked(clanMemberId, linkedUser.id);
 
   if (member.rsnNormalized) {
     const siblings = await db
-      .select({ id: clanMembers.id, userId: clanMembers.userId })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.rsnNormalized, member.rsnNormalized), isNull(clanMembers.leftAt)));
+      .select({ id: clanRoster.id, userId: clanRoster.playerId })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.rsnNormalized, member.rsnNormalized), isNull(clanRoster.leftAt)));
     for (const row of siblings) {
       if (row.id === clanMemberId) continue;
       if (row.userId != null && (!linkedUser || row.userId !== linkedUser.id)) continue; // linked elsewhere — leave it
-      await db
-        .update(clanMembers)
-        .set({ discordId: discordUserId, ...(linkedUser && row.userId == null ? { userId: linkedUser.id } : {}) })
-        .where(eq(clanMembers.id, row.id));
+      await updateAccountOfSeat(row.id, { discordId: discordUserId, ...(linkedUser && row.userId == null ? { userId: linkedUser.id } : {}) });
       if (linkedUser && row.userId == null) await onCharacterLinked(row.id, linkedUser.id);
     }
   }

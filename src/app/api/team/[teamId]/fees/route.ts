@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, eventParticipants, signupFees, users } from '@/db/schema';
+import { clanRoster, eventSignups, eventParticipants, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { markFeeCollected } from '@/lib/feeConfirmations';
 import { requireTeamManager } from '@/lib/teamStaff';
@@ -56,12 +56,12 @@ export async function GET(
       status: signupFees.status,
       collectedAt: signupFees.collectedAt,
       reportedAt: signupFees.reportedAt,
-      rsn: clanMembers.rsn,
+      rsn: clanRoster.rsn,
       displayName: users.displayName,
     })
     .from(signupFees)
     .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
-    .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+    .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .leftJoin(users, eq(eventSignups.userId, users.id))
     .where(inArray(signupFees.signupId, signupIds));
 

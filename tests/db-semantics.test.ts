@@ -52,12 +52,18 @@ after(async () => {
   await dropDatabase(DB);
 });
 
+/** A person with one account, seated on the test clan's roster. Returns the seat id. */
 async function makeMember(rsn: string): Promise<number> {
-  const [row] = await db
-    .insert(s.clanMembers)
-    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
-    .returning({ id: s.clanMembers.id });
-  return row!.id;
+  const [person] = await db.insert(s.players).values({ displayName: rsn }).returning();
+  const [account] = await db
+    .insert(s.accounts)
+    .values({ playerId: person!.id, rsn, rsnNormalized: rsn.toLowerCase() })
+    .returning();
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId, accountId: account!.id, kind: 'member', source: 'roster' })
+    .returning({ id: s.clanMemberships.id });
+  return seat!.id;
 }
 
 // ── Generated keys come back from the insert ──────────────────────────────────────────────────
@@ -67,7 +73,7 @@ test('insert returns the generated primary key', async () => {
   const id = await makeMember('Returning Test');
   assert.ok(Number.isInteger(id) && id > 0, `expected a generated id, got ${id}`);
 
-  const row = await db.query.clanMembers.findFirst({ where: eq(s.clanMembers.id, id) });
+  const [row] = await db.select().from(s.clanRoster).where(eq(s.clanRoster.id, id));
   assert.equal(row?.rsn, 'Returning Test');
 });
 
@@ -77,18 +83,13 @@ test('insert returns the generated primary key', async () => {
 // existing row instead would double-post every completion the sweep and a live push both saw.
 test('onConflictDoNothing returns nothing when it did nothing', async () => {
   const rsn = 'Conflict Probe';
-  const first = await db
-    .insert(s.clanMembers)
-    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
-    .onConflictDoNothing()
-    .returning({ id: s.clanMembers.id });
+  const [person] = await db.insert(s.players).values({ displayName: rsn }).returning();
+  const values = { playerId: person!.id, rsn, rsnNormalized: rsn.toLowerCase() };
+
+  const first = await db.insert(s.accounts).values(values).onConflictDoNothing().returning({ id: s.accounts.id });
   assert.equal(first.length, 1, 'first insert should report a row');
 
-  const second = await db
-    .insert(s.clanMembers)
-    .values({ clanId, rsn, rsnNormalized: rsn.toLowerCase() })
-    .onConflictDoNothing()
-    .returning({ id: s.clanMembers.id });
+  const second = await db.insert(s.accounts).values(values).onConflictDoNothing().returning({ id: s.accounts.id });
   assert.equal(second.length, 0, 'conflicting insert must report NO row, or notifications double-fire');
 });
 
@@ -209,8 +210,8 @@ test('boolean columns round-trip as booleans, flag columns as 0/1', async () => 
   assert.equal(row?.banned, false, 'a false boolean must read back false, not 0 or null');
 
   const memberId = await makeMember('Flag Probe');
-  const member = await db.query.clanMembers.findFirst({ where: eq(s.clanMembers.id, memberId) });
-  assert.equal(member?.isGuest, 0, 'integer flag columns keep their 0/1 domain');
+  const [member] = await db.select().from(s.clanRoster).where(eq(s.clanRoster.id, memberId));
+  assert.equal(member?.provisional, 0, 'integer flag columns keep their 0/1 domain');
 });
 
 // ── Aggregates come back as numbers, not strings ──────────────────────────────────────────────
@@ -278,27 +279,32 @@ test('deleting an event cascades to its tiles, teams and completions', async () 
 // Used by the crown-then-demote ownership transfer among others, where a half-applied write would
 // leave the clan with two owners or none.
 test('a transaction that throws rolls back every write in it', async () => {
-  const before = await db.select().from(s.clanMembers);
+  const [person] = await db.insert(s.players).values({ displayName: 'Rollback' }).returning();
+  const before = await db.select().from(s.accounts);
 
   await assert.rejects(
     db.transaction(async (tx) => {
-      await tx.insert(s.clanMembers).values({ clanId, rsn: 'Rollback A', rsnNormalized: 'rollback a' });
-      await tx.insert(s.clanMembers).values({ clanId, rsn: 'Rollback B', rsnNormalized: 'rollback b' });
+      await tx.insert(s.accounts).values({ playerId: person!.id, rsn: 'Rollback A', rsnNormalized: 'rollback a' });
+      await tx.insert(s.accounts).values({ playerId: person!.id, rsn: 'Rollback B', rsnNormalized: 'rollback b' });
       throw new Error('deliberate failure');
     }),
   );
 
-  const after = await db.select().from(s.clanMembers);
+  const after = await db.select().from(s.accounts);
   assert.equal(after.length, before.length, 'neither row may survive the rollback');
 });
 
 // ── Uniqueness is case-folded by the normalized column, not the display one ───────────────────
-// OSRS names are case-insensitive, so the roster stores a normalized copy and puts the constraint
-// there. Losing this lets one person hold two roster rows and split their own stats.
+// OSRS names are case-insensitive, so accounts store a normalized copy and put the constraint there.
+// Losing this lets one person hold two accounts and split their own stats.
+//
+// GLOBAL, and that is the point: on clan_members this index was global only by accident of one clan
+// per database, and had to weaken to (clan, rsn) once clans shared one. Here it means what it says.
 test('the same RSN in different casing cannot be enrolled twice', async () => {
-  await db.insert(s.clanMembers).values({ clanId, rsn: 'CaseTest', rsnNormalized: 'casetest' });
+  const [person] = await db.insert(s.players).values({ displayName: 'CaseTest' }).returning();
+  await db.insert(s.accounts).values({ playerId: person!.id, rsn: 'CaseTest', rsnNormalized: 'casetest' });
   await assert.rejects(
-    db.insert(s.clanMembers).values({ clanId, rsn: 'casetest', rsnNormalized: 'casetest' }),
+    db.insert(s.accounts).values({ playerId: person!.id, rsn: 'casetest', rsnNormalized: 'casetest' }),
     'the normalized unique index must reject a second casing',
   );
 });

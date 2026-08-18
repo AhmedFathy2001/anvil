@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, signupFees, users } from '@/db/schema';
+import { clanRoster, eventSignups, events, signupFees, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, desc, eq, inArray, not } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
@@ -73,8 +73,8 @@ export async function GET(request: Request) {
         discordUsername: player.discordUsername,
       },
       account: {
-        id: clanMembers.id,
-        rsn: clanMembers.rsn,
+        id: clanRoster.id,
+        rsn: clanRoster.rsn,
       },
       collector: {
         id: collector.id,
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
     .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
     .innerJoin(events, eq(eventSignups.eventId, events.id))
     .innerJoin(player, eq(eventSignups.userId, player.id))
-    .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+    .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .leftJoin(collector, eq(signupFees.collectedByUserId, collector.id))
     .leftJoin(reporter, eq(signupFees.reportedCollectorUserId, reporter.id))
     .where(filters.length > 0 ? and(...filters) : undefined)

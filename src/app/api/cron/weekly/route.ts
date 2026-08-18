@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
-import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, asc, and, or, isNull, lt } from 'drizzle-orm';
 import {
   enrollAllPlayers,
@@ -114,15 +115,15 @@ export async function GET(request: Request) {
   const REPROBE_BATCH = 10;
   const REPROBE_AGE_THRESHOLD = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
   const unrankedCandidates = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn })
-    .from(clanMembers)
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.status, 'unranked'),
-        or(isNull(clanMembers.statusLastChecked), lt(clanMembers.statusLastChecked, REPROBE_AGE_THRESHOLD)),
+        eq(clanRoster.status, 'unranked'),
+        or(isNull(clanRoster.statusLastChecked), lt(clanRoster.statusLastChecked, REPROBE_AGE_THRESHOLD)),
       ),
     )
-    .orderBy(asc(clanMembers.statusLastChecked))
+    .orderBy(asc(clanRoster.statusLastChecked))
     .limit(REPROBE_BATCH);
 
   let revived = 0;
@@ -130,16 +131,12 @@ export async function GET(request: Request) {
     const probe = await probeRsnReachable(m.rsn);
     const nowIso = new Date().toISOString();
     if (probe === 'reachable') {
-      await db.update(clanMembers)
-        .set({ status: 'active', statusLastChecked: nowIso })
-        .where(eq(clanMembers.id, m.id));
+      await updateAccountOfSeat(m.id, { status: 'active', statusLastChecked: nowIso });
       revived++;
     } else if (probe === 'unranked') {
       // Still gone — just bump statusLastChecked so we don't keep retrying this same
       // batch every tick.
-      await db.update(clanMembers)
-        .set({ statusLastChecked: nowIso })
-        .where(eq(clanMembers.id, m.id));
+      await updateAccountOfSeat(m.id, { statusLastChecked: nowIso });
     }
     // transient → leave statusLastChecked alone so this row stays at the head of the
     // next tick's eligible queue, but the rate-limit budget has already moved on.

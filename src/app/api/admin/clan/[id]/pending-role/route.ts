@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, users } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -43,10 +44,10 @@ export async function PUT(
     return NextResponse.json({ error: "role must be 'admin', 'moderator', 'editor', 'treasurer', or null" }, { status: 400 });
   }
 
-  const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
+  const member = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
-  await db.update(clanMembers).set({ pendingRole: role }).where(eq(clanMembers.id, memberId));
+  await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, memberId));
 
   db.insert(clanAuditLog)
     .values({
@@ -59,14 +60,14 @@ export async function PUT(
     .catch(() => {});
 
   let appliedNow = false;
-  if (role && member.userId && !member.provisional) {
+  if (role && member.playerId && !member.provisional) {
     // Already verified non-provisional account — apply immediately.
-    appliedNow = await applyPendingRole(memberId, member.userId, 'manual_approval');
+    appliedNow = await applyPendingRole(memberId, member.playerId, 'manual_approval');
   }
 
   // Echo the resolved state for the client.
-  const finalUser = member.userId
-    ? await db.query.users.findFirst({ where: eq(users.id, member.userId), columns: { id: true, role: true } })
+  const finalUser = member.playerId
+    ? await db.query.users.findFirst({ where: eq(users.id, member.playerId), columns: { id: true, role: true } })
     : null;
 
   return NextResponse.json({

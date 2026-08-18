@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, completions, events, memberDailyStats, memberMilestones, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, completions, events, memberDailyStats, memberMilestones, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
@@ -89,8 +89,8 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
 
   const memberCount = await db
     .select({ c: count() })
-    .from(clanMembers)
-    .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0)))
+    .from(clanRoster)
+    .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
     .then((r) => r[0]?.c ?? 0);
 
   // ---- Weeklies: the rail, and a count for the rest ----------------------------------------------
@@ -282,9 +282,9 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const milestoneMemberIds = [...new Set(milestoneRows.map((m) => m.clanMemberId))];
   const memberNames = milestoneMemberIds.length
     ? await db
-        .select({ id: clanMembers.id, rsn: clanMembers.rsn })
-        .from(clanMembers)
-        .where(inArray(clanMembers.id, milestoneMemberIds))
+        .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+        .from(clanRoster)
+        .where(inArray(clanRoster.id, milestoneMemberIds))
     : [];
   const nameById = new Map(memberNames.map((m) => [m.id, m.rsn]));
   const milestones = milestoneRows.map((m) => ({
@@ -298,9 +298,9 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   let you: HomeYou | null = null;
   if (viewerMemberIds.length > 0) {
     const mine = await db
-      .select({ id: clanMembers.id, rsn: clanMembers.rsn })
-      .from(clanMembers)
-      .where(inArray(clanMembers.id, viewerMemberIds));
+      .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+      .from(clanRoster)
+      .where(inArray(clanRoster.id, viewerMemberIds));
     if (mine.length > 0) {
       const myIds = new Set(mine.map((m) => m.id));
       const myDaily = clanRows.length

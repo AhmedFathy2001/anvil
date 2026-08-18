@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -47,13 +48,11 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
   const nowIso = new Date().toISOString();
 
-  const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
-  });
+  const existing = await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized));
 
   // Hard block: another user already owns this RSN. Surface contact path so the user
   // doesn't keep retrying.
-  if (existing?.userId && existing.userId !== session.userId) {
+  if (existing?.playerId && existing.playerId !== session.userId) {
     return NextResponse.json(
       { error: 'This account is already linked to another user. Contact a moderator if you believe this is wrong.' },
       { status: 409 },
@@ -64,41 +63,43 @@ export async function POST(request: Request) {
 
   if (existing) {
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
-        userId: session.userId,
+        playerId: session.userId,
         verificationMethod: 'manual',
         provisional: 1,
         // Don't overwrite a real verifiedAt if this user is just adding context.
         verifiedAt: existing.verifiedAt,
         claimedAt: existing.claimedAt ?? nowIso,
+      })
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
+      .set({
         notes: note || existing.notes,
         // Bring soft-deleted ghosts back into the active set on claim, unless an admin
-        // had manually removed them.
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
+        // had removed them.
+        leftAt: existing.source === 'admin' ? existing.leftAt : null,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        clanId: clan.id,
-        rsn,
-        rsnNormalized,
-        source: 'manual',
-        // Verification proves account ownership, not clan membership. Start as a guest;
-        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
-        isGuest: 1,
-        lastSeenInClan: nowIso,
-        userId: session.userId,
+    const account = await findOrCreateAccount({ rsn, rsnNormalized });
+    await db
+      .update(accounts)
+      .set({
+        playerId: session.userId,
         verificationMethod: 'manual',
         provisional: 1,
         claimedAt: nowIso,
-        notes: note || null,
       })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
+      .where(eq(accounts.id, account.id));
+    // Asking for review proves nothing yet, and would not grant membership even once granted.
+    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    await db
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso, notes: note || null })
+      .where(eq(clanMemberships.id, clanMemberId));
   }
 
   // Character now has an owner: adopt its guest sign-ups.

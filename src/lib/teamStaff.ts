@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventParticipants, teams, teamStaff, users } from '@/db/schema';
+import { clanRoster, eventParticipants, teams, teamStaff, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -56,9 +56,9 @@ export async function resolveTeamManagement(teamId: number): Promise<TeamManagem
   // Do they also play on it? Any of their linked accounts counts — a captain is usually a player
   // too, and a staff member from another clan usually isn't.
   const myMembers = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
   let playerId: number | null = null;
   if (myMembers.length > 0) {
     const mine = new Set(myMembers.map((m) => m.id));

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventParticipants, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, eventParticipants, weeklyParticipants } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, ne } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
@@ -50,9 +51,7 @@ export async function POST(
   }
   const newNormalized = normalizeRsn(newRsn);
 
-  const source = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.id, memberId),
-  });
+  const source = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!source) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }
@@ -60,60 +59,66 @@ export async function POST(
   if (source.rsnNormalized === newNormalized) {
     // Noop: only the casing changed. Still worth refreshing display casing.
     if (source.rsn !== newRsn) {
-      await db.update(clanMembers).set({ rsn: newRsn }).where(eq(clanMembers.id, memberId));
+      await updateAccountOfSeat(memberId, { rsn: newRsn });
     }
     return NextResponse.json({ ok: true, casingOnly: true });
   }
-
-  // Is there already another row for the new RSN?
-  const conflict = await db.query.clanMembers.findFirst({
-    where: and(
-      eq(clanMembers.rsnNormalized, newNormalized),
-      ne(clanMembers.id, memberId),
-    ),
-  });
-
-  if (conflict) {
-    const [conflictPlayers, conflictWeekly] = await Promise.all([
-      db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.clanMemberId, conflict.id)),
-      db.select({ id: weeklyParticipants.id }).from(weeklyParticipants).where(eq(weeklyParticipants.clanMemberId, conflict.id)),
-    ]);
-
-    const isUnusedGuest =
-      conflict.isGuest === 1
-      && conflictPlayers.length === 0
-      && conflictWeekly.length === 0;
-
-    if (!isUnusedGuest) {
-      return NextResponse.json(
-        {
-          error: 'mergeRequired',
-          message: 'A clan member with that RSN already exists and has activity. Resolve manually.',
-          conflictMemberId: conflict.id,
-          conflictCounts: {
-            players: conflictPlayers.length,
-            weeklyParticipants: conflictWeekly.length,
+      
+      // Is there already another row for the new RSN?
+      const conflict = await findRosterSeat(and(
+        eq(clanRoster.rsnNormalized, newNormalized),
+        ne(clanRoster.id, memberId),
+      ));
+      
+      if (conflict) {
+      const [conflictPlayers, conflictWeekly] = await Promise.all([
+        db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.clanMemberId, conflict.id)),
+        db.select({ id: weeklyParticipants.id }).from(weeklyParticipants).where(eq(weeklyParticipants.clanMemberId, conflict.id)),
+      ]);
+      
+      const isUnusedGuest =
+        conflict.kind === 'guest'
+        && conflictPlayers.length === 0
+        && conflictWeekly.length === 0;
+      
+      if (!isUnusedGuest) {
+        return NextResponse.json(
+          {
+            error: 'mergeRequired',
+            message: 'A clan member with that RSN already exists and has activity. Resolve manually.',
+            conflictMemberId: conflict.id,
+            conflictCounts: {
+              players: conflictPlayers.length,
+              weeklyParticipants: conflictWeekly.length,
+            },
           },
-        },
-        { status: 409 },
-      );
-    }
-
-    // Unused guest: drop it so the rename can proceed.
-    await db.delete(clanMembers).where(eq(clanMembers.id, conflict.id));
-    log.info('clan.rename.merge', {
-      adminUserId: user.userId,
-      sourceId: memberId,
-      mergedId: conflict.id,
-      newRsn,
-    });
-  }
-
-  // Canonical rename on clan_members.
-  await db
-    .update(clanMembers)
-    .set({ rsn: newRsn, rsnNormalized: newNormalized })
-    .where(eq(clanMembers.id, memberId));
+          { status: 409 },
+        );
+      }
+      
+      // Unused guest: drop the seat so the rename can proceed, and the account with it if this was
+      // the only clan seating it. Another clan's roster is not this admin's to edit.
+      await db.delete(clanMemberships).where(eq(clanMemberships.id, conflict.id));
+      const stillSeated = await db
+        .select({ id: clanMemberships.id })
+        .from(clanMemberships)
+        .where(eq(clanMemberships.accountId, conflict.accountId))
+        .limit(1);
+      if (stillSeated.length === 0) {
+        await db.delete(accounts).where(eq(accounts.id, conflict.accountId));
+      }
+      log.info('clan.rename.merge', {
+        adminUserId: user.userId,
+        sourceId: memberId,
+        mergedId: conflict.id,
+        newRsn,
+      });
+      }
+      
+      // Canonical rename on clan_members.
+      await db
+      .update(accounts)
+      .set({ rsn: newRsn, rsnNormalized: newNormalized });
 
   // Cascade the name to every FK-carrying row.
   await db

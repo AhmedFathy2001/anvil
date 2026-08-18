@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanMembers, detectedAccounts, users } from '@/db/schema';
+import { clanRoster, detectedAccounts, users } from '@/db/schema';
+import { findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -53,10 +54,7 @@ export default async function ProfilePage({
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
   // they already own through another path so we never suggest an account that's on the list above.
-  const owned = await db.query.clanMembers.findMany({
-    where: and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)),
-    columns: { rsnNormalized: true, accountHash: true },
-  });
+  const owned = await findRosterSeats(and(eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));
   const ownedHashes = new Set(owned.map((m) => m.accountHash).filter(Boolean) as string[]);
   const detectedRows = await db.query.detectedAccounts.findMany({

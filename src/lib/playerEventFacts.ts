@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, tiles, eventParticipants, completions, submissions, clanMembers, playerEventFacts } from '@/db/schema';
+import { events, teams, tiles, eventParticipants, completions, submissions, clanRoster, playerEventFacts } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown';
 import { getStatStandings } from '@/lib/statStandings';
@@ -32,12 +32,12 @@ interface PersonIdentity {
 async function buildIdentityResolver(): Promise<(clanMemberId: number | null, name: string) => PersonIdentity> {
   const members = await db
     .select({
-      id: clanMembers.id,
-      userId: clanMembers.userId,
-      rsnNormalized: clanMembers.rsnNormalized,
-      previousRsns: clanMembers.previousRsns,
+      id: clanRoster.id,
+      userId: clanRoster.playerId,
+      rsnNormalized: clanRoster.rsnNormalized,
+      previousRsns: clanRoster.previousRsns,
     })
-    .from(clanMembers);
+    .from(clanRoster);
   const byId = new Map(members.map((m) => [m.id, m]));
   const byAlias = new Map<string, (typeof members)[number]>();
   for (const m of members) {

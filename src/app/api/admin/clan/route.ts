@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanMembers, users } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, users } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -15,12 +16,12 @@ export async function GET() {
 
   const rows = await db
     .select()
-    .from(clanMembers)
-    .orderBy(desc(clanMembers.joinedAt));
+    .from(clanRoster)
+    .orderBy(desc(clanRoster.joinedAt));
 
   // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
   // clan_members.discordId column) so the roster can show/toggle the site ban.
-  const userIds = [...new Set(rows.map((r) => r.userId).filter((v): v is number => v != null))];
+  const userIds = [...new Set(rows.map((r) => r.playerId).filter((v): v is number => v != null))];
   // users.role rides along so the roster can filter by site role without a second round-trip.
   const userRows = userIds.length
     ? await db
@@ -34,15 +35,15 @@ export async function GET() {
 
   // Effective Discord id per member: users.discordId beats the legacy clan_members.discordId column.
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
-    (r.userId != null ? userDiscordId.get(r.userId) : null) ?? r.discordId ?? null;
+    (r.playerId != null ? userDiscordId.get(r.playerId) : null) ?? r.discordId ?? null;
 
   return NextResponse.json(
     rows.map((r) => {
       const did = effectiveDiscordId(r);
       return {
         ...r,
-        userBanned: r.userId != null && bannedIds.has(r.userId),
-        userRole: r.userId != null ? userRole.get(r.userId) ?? null : null,
+        userBanned: r.playerId != null && bannedIds.has(r.playerId),
+        userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,
       };
     }),
@@ -74,40 +75,41 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
   // Scoped to this clan: the same RSN is legitimately on other clans' rosters, and an unscoped lookup
   // would 409 "already in roster" against a member of a clan this admin has nothing to do with.
-  const existing = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.clanId, clan.id), eq(clanMembers.rsnNormalized, rsnNormalized)),
-  });
+  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
   if (existing && !existing.leftAt) {
     return NextResponse.json({ error: 'Already in roster', id: existing.id }, { status: 409 });
   }
   if (existing && existing.leftAt) {
     await db
-      .update(clanMembers)
+      .update(accounts)
+      .set({ rsn, discordId: body.discordId ?? existing.discordId })
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
       .set({
-        rsn,
         leftAt: null,
         rank: body.rank ?? existing.rank,
-        discordId: body.discordId ?? existing.discordId,
-        isGuest: body.isGuest ? 1 : 0,
+        kind: body.isGuest ? 'guest' : 'member',
         notes: body.notes ?? existing.notes,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(clanMemberships.id, existing.id));
     return NextResponse.json({ id: existing.id, reactivated: true });
   }
 
-  const inserted = await db
-    .insert(clanMembers)
-    .values({
-      clanId: clan.id,
-      rsn,
-      rsnNormalized,
-      rank: body.rank ?? null,
-      discordId: body.discordId ?? null,
-      isGuest: body.isGuest ? 1 : 0,
-      source: 'manual',
-      notes: body.notes ?? null,
-    })
-    .returning();
+  const account = await findOrCreateAccount({ rsn, rsnNormalized });
+  if (body.discordId) {
+    await db.update(accounts).set({ discordId: body.discordId }).where(eq(accounts.id, account.id));
+  }
+  // An admin saying so is one of the three ways membership is granted, so this may seat a member.
+  const seatId = await findOrCreateSeat(clan.id, account.id, {
+    kind: body.isGuest ? 'guest' : 'member',
+    source: 'admin',
+  });
+  await db
+    .update(clanMemberships)
+    .set({ rank: body.rank ?? null, notes: body.notes ?? null })
+    .where(eq(clanMemberships.id, seatId));
 
-  return NextResponse.json(inserted[0]);
+  const [seat] = await db.select().from(clanRoster).where(eq(clanMemberships.id, seatId));
+  return NextResponse.json(seat);
 }

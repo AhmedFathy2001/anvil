@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { db } from '@/db';
-import { clanMembers, eventParticipants, teams, eventSignups } from '@/db/schema';
+import { clanRoster, eventParticipants, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 
@@ -69,19 +69,19 @@ export async function upsertPlayers(
 // decisions aren't silently overridden.
 export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
   if (clanMemberIds.length === 0) return;
-  const members = await db.select().from(clanMembers).where(inArray(clanMembers.id, clanMemberIds));
+  const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
   for (const m of members) {
     // Dedup: linked → by (event, user); guest → by (event, clan member).
     const existing = await db.query.eventSignups.findFirst({
       where:
-        m.userId != null
-          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.userId))
+        m.playerId != null
+          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.playerId))
           : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
     });
     if (existing) continue;
     await db
       .insert(eventSignups)
-      .values({ eventId, userId: m.userId ?? null, clanMemberId: m.id, status: 'approved', profileData: '{}' })
+      .values({ eventId, userId: m.playerId ?? null, clanMemberId: m.id, status: 'approved', profileData: '{}' })
       .catch(() => {}); // unique (event,user) race — ignore
   }
 }
@@ -95,10 +95,10 @@ export type EnrollPlacement = 'one_team' | 'draft_pool' | 'individual';
 // in the clan, and cron-active. This is exactly who can complete plugin-tracked tiles.
 function eligibleWhere() {
   return and(
-    isNull(clanMembers.leftAt),
-    eq(clanMembers.status, 'active'),
-    eq(clanMembers.isGuest, 0),
-    or(isNotNull(clanMembers.accountHash), eq(clanMembers.verificationMethod, 'plugin')),
+    isNull(clanRoster.leftAt),
+    eq(clanRoster.status, 'active'),
+    eq(clanRoster.kind, 'member'),
+    or(isNotNull(clanRoster.accountHash), eq(clanRoster.verificationMethod, 'plugin')),
   );
 }
 
@@ -114,15 +114,15 @@ export interface EligibleMember {
 export async function listEligiblePluginMembers(eventId: number): Promise<EligibleMember[]> {
   const rows = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
       enrolledPlayerId: eventParticipants.id,
       enrolledTeamId: eventParticipants.teamId,
     })
-    .from(clanMembers)
-    .leftJoin(eventParticipants, and(eq(eventParticipants.clanMemberId, clanMembers.id), eq(eventParticipants.eventId, eventId)))
+    .from(clanRoster)
+    .leftJoin(eventParticipants, and(eq(eventParticipants.clanMemberId, clanRoster.id), eq(eventParticipants.eventId, eventId)))
     .where(eligibleWhere())
-    .orderBy(clanMembers.rsn);
+    .orderBy(clanRoster.rsn);
   return rows;
 }
 
@@ -170,14 +170,14 @@ async function loadMemberMeta(
   const ids = [...new Set(clanMemberIds.filter((x): x is number => x != null))];
   if (ids.length === 0) return new Map();
   const rows = await db
-    .select({ id: clanMembers.id, userId: clanMembers.userId, isPrimary: clanMembers.isPrimary })
-    .from(clanMembers)
-    .where(inArray(clanMembers.id, ids));
+    .select({ id: clanRoster.id, userId: clanRoster.playerId, isPrimary: clanRoster.isPrimary })
+    .from(clanRoster)
+    .where(inArray(clanRoster.id, ids));
   return new Map(rows.map((r) => [r.id, { userId: r.userId, isPrimary: r.isPrimary === 1 }]));
 }
 
 // Reject an admin add that would put more than the event's cap of ONE person's accounts into the
-// event. Owned accounts (same clanMembers.userId) count together; guests / unlinked accounts are each
+// event. Owned accounts (same clanRoster.playerId) count together; guests / unlinked accounts are each
 // their own person and so are never capped here. Returns an error string, or null when within cap.
 // Mirrors the self-service signup cap (api/events/[eventId]/signup) for the admin add path.
 export async function accountCapError(
@@ -197,10 +197,10 @@ export async function accountCapError(
 
   const ownerIds = [...addingByOwner.keys()];
   const existingRows = await db
-    .select({ clanMemberId: eventParticipants.clanMemberId, userId: clanMembers.userId })
+    .select({ clanMemberId: eventParticipants.clanMemberId, userId: clanRoster.playerId })
     .from(eventParticipants)
-    .innerJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
-    .where(and(eq(eventParticipants.eventId, eventId), inArray(clanMembers.userId, ownerIds)));
+    .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+    .where(and(eq(eventParticipants.eventId, eventId), inArray(clanRoster.playerId, ownerIds)));
   const existingByOwner = new Map<number, Set<number>>();
   for (const r of existingRows) {
     if (r.userId == null || r.clanMemberId == null) continue;
@@ -215,7 +215,7 @@ export async function accountCapError(
   return null;
 }
 
-// Stable person key: owned accounts (same clanMembers.userId) collapse to one person; guests /
+// Stable person key: owned accounts (same clanRoster.playerId) collapse to one person; guests /
 // unlinked accounts stand alone (keyed by their clanMemberId, else the player row). Kept consistent
 // between grouping and existing-team resolution so a re-run routes an alt to the person's own team.
 function personKeyOf(clanMemberId: number | null, userId: number | null | undefined, playerId?: number): string {
@@ -229,9 +229,9 @@ function personKeyOf(clanMemberId: number | null, userId: number | null | undefi
 // a second team for them on a re-run.
 async function existingTeamByPerson(eventId: number): Promise<Map<string, number>> {
   const rows = await db
-    .select({ playerId: eventParticipants.id, teamId: eventParticipants.teamId, clanMemberId: eventParticipants.clanMemberId, userId: clanMembers.userId })
+    .select({ playerId: eventParticipants.id, teamId: eventParticipants.teamId, clanMemberId: eventParticipants.clanMemberId, userId: clanRoster.playerId })
     .from(eventParticipants)
-    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
   const map = new Map<string, number>();
   for (const r of rows) {
@@ -242,7 +242,7 @@ async function existingTeamByPerson(eventId: number): Promise<Map<string, number
   return map;
 }
 
-// Group accounts into one bucket per PERSON. Owned accounts (clanMembers.userId) share a person key;
+// Group accounts into one bucket per PERSON. Owned accounts (clanRoster.playerId) share a person key;
 // guests / unlinked accounts are each their own person. Each group is named after the person's
 // primary account RSN (else the first account seen), and carries its personKey for existing-team reuse.
 async function groupAccountsByPerson(

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { users, clanMembers, clanAuditLog } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -35,10 +36,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
   const nowIso = new Date().toISOString();
-  const existing = await db.query.clanMembers.findFirst({ where: eq(clanMembers.rsnNormalized, normalizedRsn) });
+  const existing = await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn));
 
-  if (existing?.userId != null) {
-    if (existing.userId === targetId) return NextResponse.json({ ok: true, clanMemberId: existing.id });
+  if (existing?.playerId != null) {
+    if (existing.playerId === targetId) return NextResponse.json({ ok: true, clanMemberId: existing.id });
     return NextResponse.json(
       { error: 'That RSN is already linked to another site user — remove it there first.' },
       { status: 409 },
@@ -48,34 +49,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   let clanMemberId: number;
   if (existing) {
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
-        userId: targetId,
+        playerId: targetId,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'manual',
         provisional: 0,
         claimedAt: existing.claimedAt ?? nowIso,
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
+      .set({ leftAt: existing.source === 'admin' ? existing.leftAt : null })
+      .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        clanId: clan.id,
-        rsn,
-        rsnNormalized: normalizedRsn,
-        source: 'manual',
-        userId: targetId,
-        isGuest: 1,
+    const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn });
+    await db
+      .update(accounts)
+      .set({
+        playerId: targetId,
         verifiedAt: nowIso,
         verificationMethod: 'manual',
         provisional: 0,
         claimedAt: nowIso,
       })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
+      .where(eq(accounts.id, account.id));
+    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'admin' });
   }
 
   // Adopt any guest sign-ups this character already had (created before it was attached to a person),

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, eventParticipants, signupFees } from '@/db/schema';
+import { clanRoster, eventSignups, events, eventParticipants, signupFees } from '@/db/schema';
+import { findRosterSeats } from '@/lib/roster';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -30,21 +31,21 @@ export async function GET(
   // used to sign up — verification is the gate that proves "this user controls this RSN".
   const myAccounts = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      isPrimary: clanMembers.isPrimary,
-      verifiedAt: clanMembers.verifiedAt,
-      verificationMethod: clanMembers.verificationMethod,
-      provisional: clanMembers.provisional,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      isPrimary: clanRoster.isPrimary,
+      verifiedAt: clanRoster.verifiedAt,
+      verificationMethod: clanRoster.verificationMethod,
+      provisional: clanRoster.provisional,
     })
-    .from(clanMembers)
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.userId, session.userId),
-        isNull(clanMembers.leftAt),
+        eq(clanRoster.playerId, session.userId),
+        isNull(clanRoster.leftAt),
       ),
     )
-    .orderBy(desc(clanMembers.isPrimary), desc(clanMembers.verifiedAt));
+    .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
 
   // Existing signup for this user/event (if any).
   const signup = await db.query.eventSignups.findFirst({
@@ -181,9 +182,7 @@ export async function POST(
   }
 
   // Confirm every chosen account belongs to this user, is verified, and still in clan.
-  const myAccounts = await db.query.clanMembers.findMany({
-    where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-  });
+  const myAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)));
   const accountById = new Map(myAccounts.map((a) => [a.id, a]));
   for (const cid of selectedIds) {
     const acc = accountById.get(cid);

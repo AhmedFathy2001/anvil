@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 
@@ -11,7 +11,7 @@ export async function GET() {
   const participantCounts = await db
     .select({ competitionId: weeklyParticipants.competitionId, count: count() })
     .from(weeklyParticipants)
-    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
     .where(countsTowardLeaderboard())
     .groupBy(weeklyParticipants.competitionId);
 

@@ -7,7 +7,8 @@ import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -58,13 +59,11 @@ function seasonalWebhookFor(webhooks: PluginWebhooks, channel: Channel): string 
 async function posterRsn(request: Request, userId: number): Promise<string | null> {
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
   if (accountHash) {
-    const owned = await db.query.clanMembers.findFirst({
-      where: and(
-        eq(clanMembers.accountHash, accountHash),
-        eq(clanMembers.userId, userId),
-        isNull(clanMembers.leftAt),
-      ),
-    });
+    const owned = await findRosterSeat(and(
+        eq(clanRoster.accountHash, accountHash),
+        eq(clanRoster.playerId, userId),
+        isNull(clanRoster.leftAt),
+      ));
     if (owned?.rsn) return owned.rsn;
   }
   // RSN header: self-reported, so it names the account the poster is logged into but proves

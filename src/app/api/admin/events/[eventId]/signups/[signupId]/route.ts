@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
@@ -92,7 +93,7 @@ export async function PATCH(
         where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
       });
       if (!existingPlayer) {
-        const account = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) });
+        const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
         let timezone: string | null = null;
         try {
           const p = JSON.parse(signup.profileData) as { timezone?: unknown };
@@ -122,7 +123,7 @@ export async function PATCH(
             signup.userId != null
               ? db.query.users.findFirst({ where: eq(users.id, signup.userId) })
               : Promise.resolve(undefined),
-            db.query.clanMembers.findFirst({ where: eq(clanMembers.id, signup.clanMemberId) }),
+            findRosterSeat(eq(clanRoster.id, signup.clanMemberId)),
             db.query.signupFees.findFirst({ where: eq(signupFees.signupId, sigId) }),
           ]);
           if (!event) return;
@@ -250,9 +251,7 @@ export async function PATCH(
         );
       }
 
-      const account = await db.query.clanMembers.findFirst({
-        where: eq(clanMembers.id, signup.clanMemberId),
-      });
+      const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
       if (!account) {
         return NextResponse.json(
           { error: "Captain's chosen account no longer exists" },

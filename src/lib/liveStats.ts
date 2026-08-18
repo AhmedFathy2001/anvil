@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { clanRoster } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { parsePluginStats } from '@/lib/pluginStats';
 
@@ -23,9 +23,9 @@ export async function liveStatsForMembers(
   const out = new Map<number, Record<string, number>>();
   if (ids.length === 0) return out;
   const rows = await db
-    .select({ id: clanMembers.id, liveStats: clanMembers.liveStats })
-    .from(clanMembers)
-    .where(inArray(clanMembers.id, ids));
+    .select({ id: clanRoster.id, liveStats: clanRoster.liveStats })
+    .from(clanRoster)
+    .where(inArray(clanRoster.id, ids));
   for (const r of rows) out.set(r.id, parsePluginStats(r.liveStats));
   return out;
 }

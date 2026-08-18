@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSettingText, setSetting, deleteSetting } from '@/lib/settings';
-import { clanMembers, clans } from '@/db/schema';
+import { clanRoster, clans } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { statusFrom, type CapStatus } from '@/lib/memberCapRules';
 
@@ -33,13 +33,13 @@ const CAP_OVER_SINCE_KEY = 'member_cap_over_since';
 export async function activeMemberCount(clanId: number): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
-    .from(clanMembers)
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.clanId, clanId),
-        eq(clanMembers.status, 'active'),
-        isNull(clanMembers.leftAt),
-        eq(clanMembers.isGuest, 0),
+        eq(clanRoster.clanId, clanId),
+        eq(clanRoster.status, 'active'),
+        isNull(clanRoster.leftAt),
+        eq(clanRoster.kind, 'member'),
       ),
     );
   return Number(row?.n ?? 0);

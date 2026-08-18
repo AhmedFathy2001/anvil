@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, eventSignups, eventParticipants, signupFees, weeklyParticipants } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, eventParticipants, eventSignups, signupFees, weeklyParticipants } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 
@@ -32,8 +33,8 @@ export async function POST(request: Request) {
   }
 
   const [source, target] = await Promise.all([
-    db.query.clanMembers.findFirst({ where: eq(clanMembers.id, sourceId) }),
-    db.query.clanMembers.findFirst({ where: eq(clanMembers.id, targetId) }),
+    findRosterSeat(eq(clanRoster.id, sourceId)),
+    findRosterSeat(eq(clanRoster.id, targetId)),
   ]);
   if (!source || !target) {
     return NextResponse.json({ error: 'Source or target not found' }, { status: 404 });
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   // Refuse if both are actively claimed by different users — that's a real conflict that
   // needs the users involved to resolve, not an admin merge.
-  if (source.userId && target.userId && source.userId !== target.userId) {
+  if (source.playerId && target.playerId && source.playerId !== target.playerId) {
     return NextResponse.json(
       { error: 'Both records are claimed by different users. Resolve ownership before merging.' },
       { status: 409 },
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
   // The surviving identity's owner: at most one side is claimed (the conflict guard above), so this
   // is unambiguous. Sign-ups adopted from the source inherit it when they were an unowned guest.
-  const finalOwner = target.userId ?? source.userId ?? null;
+  const finalOwner = target.playerId ?? source.playerId ?? null;
 
   // Move references off of source.
   await db.update(eventParticipants).set({ clanMemberId: targetId }).where(eq(eventParticipants.clanMemberId, sourceId));
@@ -118,20 +119,32 @@ export async function POST(request: Request) {
     }
   }
 
-  // Promote any source-side fields the target is missing.
+  // Promote any source-side fields the target is missing. All of these describe the account.
   await db
-    .update(clanMembers)
+    .update(accounts)
     .set({
       previousRsns: merged.length ? JSON.stringify(merged) : null,
       accountHash: target.accountHash ?? source.accountHash,
-      userId: finalOwner,
+      playerId: finalOwner ?? target.playerId ?? source.playerId ?? undefined,
       verifiedAt: target.verifiedAt ?? source.verifiedAt,
       verificationMethod: target.verificationMethod ?? source.verificationMethod,
       claimedAt: target.claimedAt ?? source.claimedAt,
     })
-    .where(eq(clanMembers.id, targetId));
+    .where(eq(accounts.id, target.accountId));
 
-  await db.delete(clanMembers).where(eq(clanMembers.id, sourceId));
+  // Drop the losing SEAT, and the account behind it only if no other clan is still seating it —
+  // a merge inside one clan has no business removing an account another clan still rosters.
+  await db.delete(clanMemberships).where(eq(clanMemberships.id, sourceId));
+  if (source.accountId !== target.accountId) {
+    const stillSeated = await db
+      .select({ id: clanMemberships.id })
+      .from(clanMemberships)
+      .where(eq(clanMemberships.accountId, source.accountId))
+      .limit(1);
+    if (stillSeated.length === 0) {
+      await db.delete(accounts).where(eq(accounts.id, source.accountId));
+    }
+  }
 
   // Audit the merge against the surviving target so history stays attached.
   db.insert(clanAuditLog)

@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { clanMembers, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, eq, gte, inArray, isNull, or } from 'drizzle-orm';
+import { clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
@@ -204,10 +204,11 @@ export async function buildLocker(userId: number, now: Date = new Date()): Promi
   // occur in an OSRS name, so the prefix is an unambiguous test. Federation is gone, but rows it
   // created can still be in the roster until the tenancy migration folds them in.
   const memberRows = (
-    await db.query.clanMembers.findMany({
-      where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),
-      orderBy: (m, { desc }) => [desc(m.isPrimary), desc(m.verifiedAt)],
-    })
+    await db
+      .select()
+      .from(clanRoster)
+      .where(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)))
+      .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
   ).filter((m) => !m.rsn.startsWith('guest:'));
 
   const memberIds = memberRows.map((m) => m.id);

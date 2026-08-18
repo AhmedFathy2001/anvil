@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { count, eq, isNull, and } from 'drizzle-orm';
 import { db } from '@/db';
-import { clans, clanMembers, events as eventsTable } from '@/db/schema';
+import { clans, clanRoster, events as eventsTable } from '@/db/schema';
 import { apexDomain, currentClan, isApexHost } from '@/lib/clanContext';
 import ApexDirectory, { type DirectoryClan } from '@/components/ApexDirectory';
 import { verifyUser } from '@/lib/auth';
@@ -38,8 +38,8 @@ async function ApexHome() {
       const [[members], [evts]] = await Promise.all([
         db
           .select({ n: count() })
-          .from(clanMembers)
-          .where(and(eq(clanMembers.clanId, c.id), isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0))),
+          .from(clanRoster)
+          .where(and(eq(clanRoster.clanId, c.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'))),
         db.select({ n: count() }).from(eventsTable).where(eq(eventsTable.clanId, c.id)),
       ]);
       return {

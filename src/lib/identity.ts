@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { users, clanMembers, eventSignups } from '@/db/schema';
+import { users, clanRoster, eventSignups } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
@@ -33,14 +33,14 @@ export interface PersonWithCharacters {
 function toCharacter(row: {
   id: number;
   rsn: string;
-  isGuest: number;
+  kind: string;
   verifiedAt: string | null;
   leftAt: string | null;
 }): Character {
   return {
     id: row.id,
     rsn: row.rsn,
-    isGuest: row.isGuest === 1,
+    isGuest: row.kind === 'guest',
     verified: row.verifiedAt != null,
     left: row.leftAt != null,
   };
@@ -68,15 +68,15 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
   const chars = userIds.length
     ? await db
         .select({
-          id: clanMembers.id,
-          rsn: clanMembers.rsn,
-          userId: clanMembers.userId,
-          isGuest: clanMembers.isGuest,
-          verifiedAt: clanMembers.verifiedAt,
-          leftAt: clanMembers.leftAt,
+          id: clanRoster.id,
+          rsn: clanRoster.rsn,
+          userId: clanRoster.playerId,
+          kind: clanRoster.kind,
+          verifiedAt: clanRoster.verifiedAt,
+          leftAt: clanRoster.leftAt,
         })
-        .from(clanMembers)
-        .where(inArray(clanMembers.userId, userIds))
+        .from(clanRoster)
+        .where(inArray(clanRoster.playerId, userIds))
     : [];
 
   const byUser = new Map<number, Character[]>();
@@ -135,8 +135,8 @@ export async function onCharacterLinked(clanMemberId: number, userId: number): P
 // The pool an admin picks from when assigning a character — so common cases don't need retyping.
 export async function getUnlinkedCharacters(): Promise<{ id: number; rsn: string; isGuest: boolean }[]> {
   const rows = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn, isGuest: clanMembers.isGuest })
-    .from(clanMembers)
-    .where(and(isNull(clanMembers.userId), isNull(clanMembers.leftAt)));
-  return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.isGuest === 1 }));
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, kind: clanRoster.kind })
+    .from(clanRoster)
+    .where(and(isNull(clanRoster.playerId), isNull(clanRoster.leftAt)));
+  return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.kind === 'guest' }));
 }

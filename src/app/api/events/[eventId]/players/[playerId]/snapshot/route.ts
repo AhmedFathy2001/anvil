@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { eventParticipants, tiles, clanMembers } from '@/db/schema';
+import { accounts, clanRoster, eventParticipants, tiles } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
@@ -134,10 +135,7 @@ export async function PATCH(
       // effective current stays inflated (max(hiscores, stuck overlay)) even after a re-baseline.
       // Repopulates from the next legit plugin push within seconds.
       if (player.clanMemberId != null) {
-        await db
-          .update(clanMembers)
-          .set({ liveStats: '{}', liveStatKeyTimes: '{}' })
-          .where(eq(clanMembers.id, player.clanMemberId));
+        await updateAccountOfSeat(player.clanMemberId, { liveStats: '{}', liveStatKeyTimes: '{}' });
       }
 
       return NextResponse.json({ success: true, snapshotAt: now });
@@ -175,19 +173,13 @@ export async function PATCH(
     // Drop any live-overlay entry for this key too, so a stuck/bogus push for the stat being
     // corrected can't keep the effective current inflated after the baseline is fixed by hand.
     if (player.clanMemberId != null) {
-      const memberRow = await db.query.clanMembers.findFirst({
-        where: eq(clanMembers.id, player.clanMemberId),
-        columns: { liveStats: true },
-      });
+      const memberRow = await findRosterSeat(eq(clanRoster.id, player.clanMemberId));
       if (memberRow?.liveStats) {
         try {
           const live = JSON.parse(memberRow.liveStats) as Record<string, number>;
           if (live[stat] !== undefined) {
             delete live[stat];
-            await db
-              .update(clanMembers)
-              .set({ liveStats: JSON.stringify(live) })
-              .where(eq(clanMembers.id, player.clanMemberId));
+            await updateAccountOfSeat(player.clanMemberId, { liveStats: JSON.stringify(live) });
           }
         } catch { /* malformed overlay — nothing to prune */ }
       }

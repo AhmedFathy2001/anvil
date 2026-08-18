@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanMembers, eventParticipants, events, teams } from '@/db/schema';
+import { clanRoster, eventParticipants, events, teams } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -86,8 +87,8 @@ export async function POST(
     if (fromIds.length > 0) {
       const memberRows = await db
         .select()
-        .from(clanMembers)
-        .where(inArray(clanMembers.id, fromIds.map((i) => i.clanMemberId)));
+        .from(clanRoster)
+        .where(inArray(clanRoster.id, fromIds.map((i) => i.clanMemberId)));
       for (const m of memberRows) {
         members.push({ clanMemberId: m.id, name: m.rsn, discord: null, timezone: null });
       }
@@ -241,7 +242,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid clanMemberId' }, { status: 400 });
     }
     if (cmId !== player.clanMemberId) {
-      const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, cmId) });
+      const member = await findRosterSeat(eq(clanRoster.id, cmId));
       if (!member) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });
       }
@@ -257,16 +258,16 @@ export async function PATCH(
       updateData.lastStatsFetch = null;
 
       // The RuneLite plugin resolves a player row via the Discord user's OWN linked accounts
-      // (clanMembers.userId), so the swapped-in account must belong to the same owner or the overlay
+      // (clanRoster.playerId), so the swapped-in account must belong to the same owner or the overlay
       // won't find it. If it's an unlinked ghost, link it to the player's current Discord owner so the
       // plugin resolves. If it already belongs to a DIFFERENT Discord user, leave it alone (don't
       // steal someone else's account) — the UI warns the admin about that case.
       const currentMember = player.clanMemberId != null
-        ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) })
+        ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
         : null;
-      const ownerUserId = currentMember?.userId ?? null;
-      if (ownerUserId != null && member.userId == null) {
-        await db.update(clanMembers).set({ userId: ownerUserId }).where(eq(clanMembers.id, cmId));
+      const ownerUserId = currentMember?.playerId ?? null;
+      if (ownerUserId != null && member.playerId == null) {
+        await updateAccountOfSeat(cmId, { playerId: ownerUserId });
       }
     }
   }

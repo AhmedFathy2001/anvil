@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -75,19 +76,17 @@ export async function POST(request: Request) {
   //   1) accountHash match — strongest, survives renames
   //   2) rsnNormalized match — for ghosts or members imported via sync
   let existing = accountHash
-    ? await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })
+    ? await findRosterSeat(eq(clanRoster.accountHash, accountHash))
     : null;
   if (!existing) {
-    existing = (await db.query.clanMembers.findFirst({
-      where: eq(clanMembers.rsnNormalized, rsnNormalized),
-    })) ?? null;
+    existing = (await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized))) ?? null;
   }
 
   // Detect rename: accountHash matches a row whose RSN no longer matches what the plugin reports.
   const renamed =
     existing && accountHash && existing.accountHash === accountHash && existing.rsnNormalized !== rsnNormalized;
   // Ghost being claimed: a row exists but has no user attached yet.
-  const claimingGhost = existing && existing.userId == null;
+  const claimingGhost = existing && existing.playerId == null;
 
   let clanMemberId: number;
 
@@ -105,35 +104,40 @@ export async function POST(request: Request) {
 
     // If another user already owns this clanMember, refuse to overwrite — the link
     // belongs to whoever first claimed it. The site can offer a transfer flow elsewhere.
-    if (existing.userId && existing.userId !== issuingUser.id) {
+    if (existing.playerId && existing.playerId !== issuingUser.id) {
       return NextResponse.json(
         { error: 'This RuneScape account is already linked to a different site user.' },
         { status: 409 },
       );
     }
 
+    // The name, the rename history and the proof are all facts about the ACCOUNT — so a rename
+    // detected here is visible in every clan this account plays in, not just this one.
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
         rsn: renamed ? rsn : existing.rsn,
         rsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
         previousRsns: previousRsns.length ? JSON.stringify(previousRsns) : existing.previousRsns,
         accountHash: accountHash || existing.accountHash,
-        userId: issuingUser.id,
+        playerId: issuingUser.id,
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
-        // Plugin-self is a stronger provenance than plugin-roster but weaker than manual.
-        source: existing.source === 'manual' ? 'manual' : 'plugin-self',
-        // If this row was previously soft-deleted (left clan) and is now linking, treat
-        // them as returned. Manual removals stay marked-left.
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
-        lastSeenInClan: nowIso,
         claimedAt: claimingGhost ? nowIso : existing.claimedAt,
         // The first account a user links becomes their primary unless one is already set.
         isPrimary: existing.isPrimary,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
+      .set({
+        // If this seat was previously soft-deleted (left clan) and is now linking, treat them as
+        // returned. Admin removals stay marked-left.
+        leftAt: existing.source === 'admin' ? existing.leftAt : null,
+        lastSeenInClan: nowIso,
+      })
+      .where(eq(clanMemberships.id, existing.id));
 
     clanMemberId = existing.id;
 
@@ -171,27 +175,25 @@ export async function POST(request: Request) {
       })
       .catch(() => {});
   } else {
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        clanId: clan.id,
-        rsn,
-        rsnNormalized,
-        accountHash: accountHash || null,
-        source: 'plugin-self',
-        // Verification proves account ownership, not clan membership. Start as a guest;
-        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
-        isGuest: 1,
-        lastSeenInClan: nowIso,
-        userId: issuingUser.id,
+    const account = await findOrCreateAccount({ rsn, rsnNormalized, accountHash: accountHash || null });
+    await db
+      .update(accounts)
+      .set({
+        playerId: issuingUser.id,
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
         claimedAt: nowIso,
         isPrimary: 0,
       })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
+      .where(eq(accounts.id, account.id));
+    // Linking a plugin proves account ownership, not clan membership. Only the in-game roster sync
+    // promotes a seat to 'member'.
+    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    await db
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso })
+      .where(eq(clanMemberships.id, clanMemberId));
 
     db.insert(clanAuditLog)
       .values({
@@ -205,13 +207,10 @@ export async function POST(request: Request) {
 
   // First account becomes primary automatically. Done after the upsert so we can count
   // existing rows owned by this user.
-  const userAccounts = await db.query.clanMembers.findMany({
-    where: and(eq(clanMembers.userId, issuingUser.id), isNull(clanMembers.leftAt)),
-    columns: { id: true, isPrimary: true },
-  });
+  const userAccounts = await findRosterSeats(and(eq(clanRoster.playerId, issuingUser.id), isNull(clanRoster.leftAt)));
   const hasPrimary = userAccounts.some((a) => a.isPrimary === 1);
   if (!hasPrimary) {
-    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
+    await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
 
   // Apply any pre-assigned pending role. Plugin-verified claims are high-trust so we

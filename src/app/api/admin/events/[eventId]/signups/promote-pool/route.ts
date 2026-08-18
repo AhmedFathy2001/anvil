@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventSignups, eventParticipants, teams } from '@/db/schema';
+import { clanRoster, eventSignups, eventParticipants, teams } from '@/db/schema';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 
@@ -76,12 +76,12 @@ export async function POST(
     });
   }
 
-  // Batch-load the clanMembers rows for display names.
+  // Batch-load the clanRoster rows for display names.
   const memberIds = toInsertSignups.map((s) => s.clanMemberId);
   const memberRows = await db
     .select()
-    .from(clanMembers)
-    .where(inArray(clanMembers.id, memberIds));
+    .from(clanRoster)
+    .where(inArray(clanRoster.id, memberIds));
   const memberById = new Map(memberRows.map((m) => [m.id, m]));
 
   const inserts = toInsertSignups

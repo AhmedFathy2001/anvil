@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, eventParticipants, clanMembers, eventStartProofs } from '@/db/schema';
+import { events, eventParticipants, clanRoster, eventStartProofs } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -213,9 +213,9 @@ async function resolveCaller(
 /** This user's enrolments in one event, across every roster identity they own. */
 async function myPlayerRows(userId: number, eventId: number) {
   const members = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(eq(clanMembers.userId, userId));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(eq(clanRoster.playerId, userId));
   if (members.length === 0) return [];
   return db
     .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })

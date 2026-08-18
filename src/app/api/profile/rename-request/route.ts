@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, pendingRenames } from '@/db/schema';
+import { clanRoster, pendingRenames } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, or } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { submitRenameRequest } from '@/lib/weekly';
@@ -27,8 +28,8 @@ export async function GET() {
       reviewedAt: pendingRenames.reviewedAt,
     })
     .from(pendingRenames)
-    .innerJoin(clanMembers, eq(pendingRenames.clanMemberId, clanMembers.id))
-    .where(eq(clanMembers.userId, session.userId))
+    .innerJoin(clanRoster, eq(pendingRenames.clanMemberId, clanRoster.id))
+    .where(eq(clanRoster.playerId, session.userId))
     .orderBy(desc(pendingRenames.createdAt))
     .limit(50);
 
@@ -56,15 +57,13 @@ export async function POST(request: Request) {
   // Otherwise pick: primary > only-one.
   let cm = null;
   if (typeof body.clanMemberId === 'number') {
-    cm = await db.query.clanMembers.findFirst({
-      where: and(eq(clanMembers.id, body.clanMemberId), eq(clanMembers.userId, session.userId)),
-    });
+    cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.userId)));
     if (!cm) return NextResponse.json({ error: 'Clan member not found or not owned by you' }, { status: 403 });
   } else {
     const owned = await db
-      .select({ id: clanMembers.id, isPrimary: clanMembers.isPrimary })
-      .from(clanMembers)
-      .where(and(eq(clanMembers.userId, session.userId), or(eq(clanMembers.isPrimary, 1), eq(clanMembers.isPrimary, 0))));
+      .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.playerId, session.userId), or(eq(clanRoster.isPrimary, 1), eq(clanRoster.isPrimary, 0))));
     const primary = owned.find((r) => r.isPrimary === 1) ?? (owned.length === 1 ? owned[0] : null);
     if (!primary) {
       return NextResponse.json(
@@ -72,7 +71,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, primary.id) });
+    cm = await findRosterSeat(eq(clanRoster.id, primary.id));
     if (!cm) return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
   }
 

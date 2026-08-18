@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, memberClog, memberClogItems, playerSnapshots } from '@/db/schema';
+import { clanRoster, memberClog, memberClogItems, playerSnapshots } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
@@ -95,9 +95,9 @@ export function bossKeyForPage(page: string): string | null {
  */
 export async function bossKillsFor(clanMemberId: number): Promise<Record<string, number>> {
   const [member] = await db
-    .select({ liveStats: clanMembers.liveStats })
-    .from(clanMembers)
-    .where(eq(clanMembers.id, clanMemberId));
+    .select({ liveStats: clanRoster.liveStats })
+    .from(clanRoster)
+    .where(eq(clanRoster.id, clanMemberId));
   const kills = parsePluginStats(member?.liveStats);
 
   const snaps = await db
@@ -140,10 +140,10 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
 
   // Everyone who has synced, and is still in the clan.
   const synced = await db
-    .select({ id: memberClog.clanMemberId, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats })
+    .select({ id: memberClog.clanMemberId, rsn: clanRoster.rsn, liveStats: clanRoster.liveStats })
     .from(memberClog)
-    .innerJoin(clanMembers, eq(memberClog.clanMemberId, clanMembers.id))
-    .where(isNull(clanMembers.leftAt));
+    .innerJoin(clanRoster, eq(memberClog.clanMemberId, clanRoster.id))
+    .where(isNull(clanRoster.leftAt));
   if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
 
   const memberIds = synced.map((m) => m.id);

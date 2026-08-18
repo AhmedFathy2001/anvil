@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanMembers, eventParticipants } from '@/db/schema';
+import { clanRoster, eventParticipants } from '@/db/schema';
 
 /**
  * Put a team's captain onto their own team as a player, so they show in the roster and aren't
@@ -21,9 +21,9 @@ export async function placeCaptainOnTeam(
   captainUserId: number,
 ): Promise<number | null> {
   const memberRows = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, captainUserId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, captainUserId), isNull(clanRoster.leftAt)));
   const memberIds = memberRows.map((m) => m.id);
   if (memberIds.length === 0) return null;
 

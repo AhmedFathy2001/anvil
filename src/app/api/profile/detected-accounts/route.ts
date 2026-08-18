@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, detectedAccounts } from '@/db/schema';
+import { clanRoster, detectedAccounts } from '@/db/schema';
+import { findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -19,10 +20,7 @@ export async function GET() {
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
       orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
     }),
-    db.query.clanMembers.findMany({
-      where: and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)),
-      columns: { rsnNormalized: true, accountHash: true },
-    }),
+    findRosterSeats(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt))),
   ]);
 
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));

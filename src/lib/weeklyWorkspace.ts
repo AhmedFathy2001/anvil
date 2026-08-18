@@ -5,7 +5,7 @@
 
 import { cache } from 'react';
 import { db } from '@/db';
-import { clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import type { WeeklyCounts } from '@/lib/weeklyStage';
 
@@ -38,10 +38,10 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       flagReason: weeklyParticipants.flagReason,
       keepIfLeft: weeklyParticipants.keepIfLeft,
       lastUpdated: weeklyParticipants.lastUpdated,
-      leftAt: clanMembers.leftAt,
+      leftAt: clanRoster.leftAt,
     })
     .from(weeklyParticipants)
-    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
     .where(eq(weeklyParticipants.competitionId, competitionId));
 
   return rows

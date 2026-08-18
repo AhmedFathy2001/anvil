@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
-import { eventParticipants, tiles, teams, completions, events, clanMembers, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -238,11 +239,11 @@ export async function GET(request: Request) {
         clanMemberId: weeklyParticipants.clanMemberId,
       })
       .from(weeklyParticipants)
-      .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+      .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
       .where(
         and(
           eq(weeklyParticipants.competitionId, comp.id),
-          or(isNull(weeklyParticipants.clanMemberId), eq(clanMembers.status, 'active')),
+          or(isNull(weeklyParticipants.clanMemberId), eq(clanRoster.status, 'active')),
         ),
       )
       .orderBy(asc(weeklyParticipants.lastUpdated));
@@ -260,17 +261,17 @@ export async function GET(request: Request) {
   if (clanMemberIds.size > 0) {
     const members = await db
       .select({
-        id: clanMembers.id,
-        rsn: clanMembers.rsn,
-        liveStats: clanMembers.liveStats,
-        liveStatKeyTimes: clanMembers.liveStatKeyTimes,
-        statsMissStreak: clanMembers.statsMissStreak,
-        statsNextDueAt: clanMembers.statsNextDueAt,
-        statsLastSnapshot: clanMembers.statsLastSnapshot,
-        statsActivities: clanMembers.statsActivities,
+        id: clanRoster.id,
+        rsn: clanRoster.rsn,
+        liveStats: clanRoster.liveStats,
+        liveStatKeyTimes: clanRoster.liveStatKeyTimes,
+        statsMissStreak: clanRoster.statsMissStreak,
+        statsNextDueAt: clanRoster.statsNextDueAt,
+        statsLastSnapshot: clanRoster.statsLastSnapshot,
+        statsActivities: clanRoster.statsActivities,
       })
-      .from(clanMembers)
-      .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
+      .from(clanRoster)
+      .where(inArray(clanRoster.id, Array.from(clanMemberIds)));
     const memberById = new Map(members.map((m) => [m.id, m]));
     for (const entry of work.values()) {
       if (entry.clanMemberId == null) continue;
@@ -357,10 +358,7 @@ export async function GET(request: Request) {
         const stale = pruneStaleOverlay(rec.pruned, entry.liveKeyTimes, Date.parse(ts), STALE_OVERLAY_MS);
         liveMap = stale.pruned;
         if (rec.changed || stale.changed) {
-          await db
-            .update(clanMembers)
-            .set({ liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null })
-            .where(eq(clanMembers.id, entry.clanMemberId));
+          await updateAccountOfSeat(entry.clanMemberId, { liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null });
         }
       }
 
@@ -385,17 +383,14 @@ export async function GET(request: Request) {
         // it happened to gain XP, which for some members is never.
         const writeActivities = changed || !entry.hasActivities;
 
-        await db
-          .update(clanMembers)
-          .set({
-            statsOverallXp: overallXp,
-            statsMissStreak: missStreak,
-            statsNextDueAt: nextDueAt(missStreak, new Date()),
-            // Only rewrite the blob when it would differ — an idle member's row stays untouched.
-            ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
-            ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
-          })
-          .where(eq(clanMembers.id, entry.clanMemberId));
+        await updateAccountOfSeat(entry.clanMemberId, {
+                statsOverallXp: overallXp,
+                statsMissStreak: missStreak,
+                statsNextDueAt: nextDueAt(missStreak, new Date()),
+                // Only rewrite the blob when it would differ — an idle member's row stays untouched.
+                ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
+                ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
+              });
         if (writeActivities) entry.hasActivities = true;
 
         if (changed) {
@@ -611,9 +606,9 @@ export async function GET(request: Request) {
   // Apply unranked flips in one statement (don't churn status_last_checked mid-loop).
   if (unrankedMemberIds.size > 0) {
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({ status: 'unranked', statusLastChecked: new Date().toISOString() })
-      .where(inArray(clanMembers.id, Array.from(unrankedMemberIds)));
+      .where(inArray(clanRoster.id, Array.from(unrankedMemberIds)));
   }
 
   const durationMs = Date.now() - start;

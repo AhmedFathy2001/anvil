@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers } from '@/db/schema';
+import { clanRoster } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import ClanTabNav from './ClanTabNav';
@@ -15,8 +15,8 @@ export default async function ClanLayout({ children }: { children: React.ReactNo
 
   const provisionalCount = await db
     .select({ c: count() })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.provisional, 1), isNull(clanMembers.leftAt)))
+    .from(clanRoster)
+    .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .then((r) => r[0]?.c ?? 0);
 
   return (

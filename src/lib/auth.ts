@@ -2,7 +2,8 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { clanAuditLog, clanMembers, detectedAccounts, eventEditors, events, eventParticipants, pluginLinks, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventEditors, eventParticipants, events, pluginLinks, teams, users } from '@/db/schema';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -209,9 +210,9 @@ export async function resolveTeamMembership(
 
   let playerId: number | null = null;
   const myMembers = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, user.userId), isNull(clanRoster.leftAt)));
   if (myMembers.length > 0) {
     const memberIds = myMembers.map((m) => m.id);
     const playerRow = await db.query.eventParticipants.findFirst({
@@ -291,16 +292,16 @@ async function ensurePluginVerifiedOnPlay(
   if (!needsVerify && !needsHash) return;
 
   try {
+    await updateAccountOfSeat(member.id, {
+      verifiedAt: member.verifiedAt ?? nowIso,
+      verificationMethod: 'plugin',
+      provisional: 0,
+      accountHash: member.accountHash ?? accountHash,
+    });
     await db
-      .update(clanMembers)
-      .set({
-        verifiedAt: member.verifiedAt ?? nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        accountHash: member.accountHash ?? accountHash,
-        lastSeenInClan: nowIso,
-      })
-      .where(eq(clanMembers.id, member.id));
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso })
+      .where(eq(clanMemberships.id, member.id));
 
     if (needsVerify) {
       db.insert(clanAuditLog)
@@ -344,12 +345,10 @@ async function applyRenameOnPlay(
     if (!newRsn || normalizeRsn(oldRsn) === newNorm) return;
 
     // Uniqueness guard — another live member already owns the new name → defer to merge.
-    const clash = await db.query.clanMembers.findFirst({
-      where: and(eq(clanMembers.rsnNormalized, newNorm), isNull(clanMembers.leftAt)),
-    });
+    const clash = await findRosterSeat(and(eq(clanRoster.rsnNormalized, newNorm), isNull(clanRoster.leftAt)));
     if (clash && clash.id !== memberId) return;
 
-    const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
+    const member = await findRosterSeat(eq(clanRoster.id, memberId));
     if (!member) return;
 
     // Append the old name to the alias history (dedup by normalized form).
@@ -364,18 +363,18 @@ async function applyRenameOnPlay(
       previous.push(member.rsn);
     }
 
+    await updateAccountOfSeat(memberId, {
+      rsn: newRsn,
+      rsnNormalized: newNorm,
+      previousRsns: JSON.stringify(previous),
+      // A detected rename proves the old-name hiscores 404 was a rename, not a ban — re-activate
+      // so the weekly cron polls the new name again instead of waiting on the re-probe pass.
+      status: member.status === 'unranked' ? 'active' : member.status,
+    });
     await db
-      .update(clanMembers)
-      .set({
-        rsn: newRsn,
-        rsnNormalized: newNorm,
-        previousRsns: JSON.stringify(previous),
-        // A detected rename proves the old-name hiscores 404 was a rename, not a ban — re-activate
-        // so the weekly cron polls the new name again instead of waiting on the re-probe pass.
-        status: member.status === 'unranked' ? 'active' : member.status,
-        lastSeenInClan: nowIso,
-      })
-      .where(eq(clanMembers.id, memberId));
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso })
+      .where(eq(clanMemberships.id, memberId));
 
     db.insert(clanAuditLog)
       .values({
@@ -421,14 +420,14 @@ async function autoLinkOrSuggestOnPlay(
 ): Promise<void> {
   try {
     const byHash = accountHash
-      ? (await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })) ?? null
+      ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
       : null;
     const byRsn =
-      (await db.query.clanMembers.findFirst({ where: eq(clanMembers.rsnNormalized, normalizedRsn) })) ?? null;
+      (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
     const existing = byHash ?? byRsn;
 
     // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
-    if (existing?.userId != null) return;
+    if (existing?.playerId != null) return;
 
     // Minimal guard: ONLY a row carrying a pre-assigned role stays opt-in when matched by name alone,
     // so nobody can auto-grant themselves admin/mod by typing a member's public RSN. Every other
@@ -468,41 +467,48 @@ async function autoLinkOrSuggestOnPlay(
     // Safe to auto-link: a brand-new account, the user's own unverified ghost, or a hash match.
     let clanMemberId: number;
     if (existing) {
+      // Ownership and proof belong to the account; where they sit and when we last saw them belong
+      // to the seat.
       await db
-        .update(clanMembers)
+        .update(accounts)
         .set({
-          userId,
+          playerId: userId,
           accountHash: existing.accountHash ?? accountHash,
           verifiedAt: existing.verifiedAt ?? nowIso,
           verificationMethod: 'plugin',
           provisional: 0,
-          source: existing.source === 'manual' ? 'manual' : 'plugin-self',
           claimedAt: existing.claimedAt ?? nowIso,
-          leftAt: existing.source === 'manual' ? existing.leftAt : null,
-          lastSeenInClan: nowIso,
         })
         // Re-assert unowned so a concurrent claim wins cleanly.
-        .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)));
+        .where(and(eq(accounts.id, existing.accountId), isNull(accounts.playerId)));
+      await db
+        .update(clanMemberships)
+        .set({
+          source: existing.source === 'admin' ? 'admin' : 'application',
+          leftAt: existing.source === 'admin' ? existing.leftAt : null,
+          lastSeenInClan: nowIso,
+        })
+        .where(eq(clanMemberships.id, existing.id));
       clanMemberId = existing.id;
     } else {
-      const inserted = await db
-        .insert(clanMembers)
-        .values({
-          clanId,
-          rsn,
-          rsnNormalized: normalizedRsn,
-          accountHash: accountHash ?? null,
-          source: 'plugin-self',
-          userId,
-          isGuest: 1, // verification proves ownership, not clan membership; clan-sync promotes to member
+      const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn, accountHash });
+      await db
+        .update(accounts)
+        .set({
+          playerId: userId,
           verifiedAt: nowIso,
           verificationMethod: 'plugin',
           provisional: 0,
           claimedAt: nowIso,
-          lastSeenInClan: nowIso,
         })
-        .returning({ id: clanMembers.id });
-      clanMemberId = inserted[0].id;
+        .where(eq(accounts.id, account.id));
+      // Guest: verification proves ownership of the account, not membership of the clan. Only the
+      // in-game roster sync promotes a seat to 'member'.
+      clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });
+      await db
+        .update(clanMemberships)
+        .set({ lastSeenInClan: nowIso })
+        .where(eq(clanMemberships.id, clanMemberId));
     }
     db.insert(clanAuditLog)
       .values({
@@ -538,30 +544,29 @@ async function maybeAutoClaimEstablishedOnPlay(
   nowIso: string,
 ): Promise<void> {
   try {
-    const existing = await db.query.clanMembers.findFirst({
-      where: eq(clanMembers.accountHash, accountHash),
-    });
+    const existing = await findRosterSeat(eq(clanRoster.accountHash, accountHash));
     if (!existing) return; // no row anchored to this hash — opt-in flow handles the rest
-    if (existing.userId != null) return; // already owned (theirs or someone else's) — never steal
+    if (existing.playerId != null) return; // already owned (theirs or someone else's) — never steal
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
-    if (existing.verifiedAt == null && existing.isGuest !== 0) return;
+    if (existing.verifiedAt == null && existing.kind !== 'member') return;
 
     const result = await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
-        userId,
+        playerId: userId,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
         claimedAt: existing.claimedAt ?? nowIso,
-        lastSeenInClan: nowIso,
       })
       // Re-assert unowned in the WHERE so a concurrent claim wins cleanly instead of being clobbered.
-      .where(and(eq(clanMembers.id, existing.id), isNull(clanMembers.userId)))
+      // On the ACCOUNT, which is where ownership lives — guarding the seat would not be a guard at
+      // all, since two clans' seats over one account could each pass it.
+      .where(and(eq(accounts.id, existing.accountId), isNull(accounts.playerId)))
       // Row COUNT is the guard, and it has to be read portably: the driver-specific field this used
       // to read (rowsAffected) is absent on other drivers and came back undefined, which compiled
       // fine and silently disabled the check.
-      .returning({ id: clanMembers.id });
+      .returning({ id: clanRoster.id });
 
     if (result.length === 0) return;
 
@@ -603,14 +608,14 @@ export async function claimAccountForUser(
   // produce another player's Jagex account hash). The RSN lookup only tells us whether a row
   // already exists; on its own it proves nothing about who controls the account.
   const byHash = accountHash
-    ? (await db.query.clanMembers.findFirst({ where: eq(clanMembers.accountHash, accountHash) })) ?? null
+    ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
     : null;
   const byRsn =
-    (await db.query.clanMembers.findFirst({ where: eq(clanMembers.rsnNormalized, normalizedRsn) })) ?? null;
+    (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
   const existing = byHash ?? byRsn;
 
-  if (existing?.userId != null) {
-    if (existing.userId === userId) return { ok: true, clanMemberId: existing.id };
+  if (existing?.playerId != null) {
+    if (existing.playerId === userId) return { ok: true, clanMemberId: existing.id };
     return { ok: false, reason: 'owned-by-other' };
   }
 
@@ -634,53 +639,56 @@ export async function claimAccountForUser(
   // to mod their plugin — or someone with a leaked account hash — could claim a member who has
   // never played (no hash anchored yet). It's audit-logged and admin-reversible, and once a member
   // has played once their real hash is anchored, after which only that hash (or the owner) matches.
-  if (existing && !byHash && !accountHash && (existing.isGuest === 0 || existing.verifiedAt != null)) {
+  if (existing && !byHash && !accountHash && (existing.kind === 'member' || existing.verifiedAt != null)) {
     return { ok: false, reason: 'needs-verification' };
   }
 
   let clanMemberId: number;
   if (existing) {
-    // Unowned ghost → claim + verify.
+    // Unowned ghost → claim + verify. Ownership and proof are account facts.
     await db
-      .update(clanMembers)
+      .update(accounts)
       .set({
-        userId,
+        playerId: userId,
         accountHash: accountHash ?? existing.accountHash,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
-        source: existing.source === 'manual' ? 'manual' : 'plugin-self',
         claimedAt: existing.claimedAt ?? nowIso,
-        // A previously-left ghost that's now linking is treated as returned; manual
-        // removals stay marked-left (an admin decision we don't override).
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
+      })
+      .where(eq(accounts.id, existing.accountId));
+    await db
+      .update(clanMemberships)
+      .set({
+        source: existing.source === 'admin' ? 'admin' : 'application',
+        // A previously-left ghost that's now linking is treated as returned; admin
+        // removals stay marked-left (a decision we don't override).
+        leftAt: existing.source === 'admin' ? existing.leftAt : null,
         lastSeenInClan: nowIso,
       })
-      .where(eq(clanMembers.id, existing.id));
+      .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    // No row anywhere → create one, owned + verified.
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        clanId,
-        rsn,
-        rsnNormalized: normalizedRsn,
-        accountHash: accountHash ?? null,
-        source: 'plugin-self',
-        // Verification proves account ownership, not clan membership. Start as a guest;
-        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
-        isGuest: 1,
-        userId,
+    // Nothing anywhere → an account, owned + verified, and a seat to put it in.
+    const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn, accountHash });
+    await db
+      .update(accounts)
+      .set({
+        playerId: userId,
         verifiedAt: nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
         claimedAt: nowIso,
         isPrimary: 0,
-        lastSeenInClan: nowIso,
       })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
+      .where(eq(accounts.id, account.id));
+    // Verification proves account ownership, not clan membership. Seated as a guest; only the
+    // in-game roster sync promotes a seat to 'member'.
+    clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });
+    await db
+      .update(clanMemberships)
+      .set({ lastSeenInClan: nowIso })
+      .where(eq(clanMemberships.id, clanMemberId));
   }
 
   db.insert(clanAuditLog)
@@ -693,12 +701,9 @@ export async function claimAccountForUser(
     .catch(() => {});
 
   // First account a user attributes becomes their primary.
-  const owned = await db.query.clanMembers.findMany({
-    where: and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)),
-    columns: { id: true, isPrimary: true },
-  });
+  const owned = await findRosterSeats(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)));
   if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
-    await db.update(clanMembers).set({ isPrimary: 1 }).where(eq(clanMembers.id, clanMemberId));
+    await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
 
   // Now that the account is attributed to a Discord-authenticated user, apply any
@@ -781,16 +786,16 @@ export async function resolvePluginMember(
 
   const memberRows = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      rsnNormalized: clanMembers.rsnNormalized,
-      previousRsns: clanMembers.previousRsns,
-      verifiedAt: clanMembers.verifiedAt,
-      provisional: clanMembers.provisional,
-      accountHash: clanMembers.accountHash,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      rsnNormalized: clanRoster.rsnNormalized,
+      previousRsns: clanRoster.previousRsns,
+      verifiedAt: clanRoster.verifiedAt,
+      provisional: clanRoster.provisional,
+      accountHash: clanRoster.accountHash,
     })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, user.id), isNull(clanMembers.leftAt)));
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
   if (memberRows.length === 0) return null;
 
   // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT guess.

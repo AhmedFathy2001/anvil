@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, eventSignups, clanMembers, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { events, tiles, teams, completions, eventSignups, clanRoster, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -204,9 +204,9 @@ export default async function EventScoreboardPage({
 
     myMemberIds = (
       await db
-        .select({ id: clanMembers.id })
-        .from(clanMembers)
-        .where(and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)))
+        .select({ id: clanRoster.id })
+        .from(clanRoster)
+        .where(and(eq(clanRoster.playerId, session.userId), isNull(clanRoster.leftAt)))
     ).map((m) => m.id);
     hasVerifiedAccount = myMemberIds.length > 0;
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, eventParticipants, users } from '@/db/schema';
+import { clanRoster, eventParticipants, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 
@@ -27,15 +27,15 @@ export async function GET(request: Request) {
   // optional left join to players for the eventId so we can flag already-enrolled rows.
   const rows = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      rank: clanMembers.rank,
-      isPrimary: clanMembers.isPrimary,
-      verifiedAt: clanMembers.verifiedAt,
-      verificationMethod: clanMembers.verificationMethod,
-      accountHash: clanMembers.accountHash,
-      provisional: clanMembers.provisional,
-      lastSeenInClan: clanMembers.lastSeenInClan,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      rank: clanRoster.rank,
+      isPrimary: clanRoster.isPrimary,
+      verifiedAt: clanRoster.verifiedAt,
+      verificationMethod: clanRoster.verificationMethod,
+      accountHash: clanRoster.accountHash,
+      provisional: clanRoster.provisional,
+      lastSeenInClan: clanRoster.lastSeenInClan,
       userId: users.id,
       displayName: users.displayName,
       discordId: users.discordId,
@@ -44,18 +44,18 @@ export async function GET(request: Request) {
       enrolledPlayerId: eventParticipants.id,
       enrolledTeamId: eventParticipants.teamId,
     })
-    .from(clanMembers)
-    .leftJoin(users, eq(clanMembers.userId, users.id))
+    .from(clanRoster)
+    .leftJoin(users, eq(clanRoster.playerId, users.id))
     .leftJoin(
       eventParticipants,
       eventId != null
-        ? and(eq(eventParticipants.clanMemberId, clanMembers.id), eq(eventParticipants.eventId, eventId))
+        ? and(eq(eventParticipants.clanMemberId, clanRoster.id), eq(eventParticipants.eventId, eventId))
         : // Sentinel join that never matches when no eventId is supplied — keeps the
           // shape consistent (enrolledPlayerId will always be null in that branch).
           eq(eventParticipants.id, -1),
     )
-    .where(isNull(clanMembers.leftAt))
-    .orderBy(clanMembers.rsn);
+    .where(isNull(clanRoster.leftAt))
+    .orderBy(clanRoster.rsn);
 
   return NextResponse.json(
     rows.map((r) => ({

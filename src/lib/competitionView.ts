@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { memberDailyStats, memberMilestones, weeklyCompetitions, clanMembers } from '@/db/schema';
+import { memberDailyStats, memberMilestones, weeklyCompetitions, clanRoster } from '@/db/schema';
 import { and, eq, gte, inArray, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
@@ -462,8 +462,8 @@ function fmtUnit(value: number, type: CompetitionType): string {
 export async function viewerMemberIds(userId: number | null): Promise<number[]> {
   if (userId == null) return [];
   const rows = await db
-    .select({ id: clanMembers.id })
-    .from(clanMembers)
-    .where(eq(clanMembers.userId, userId));
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(eq(clanRoster.playerId, userId));
   return rows.map((r) => r.id);
 }

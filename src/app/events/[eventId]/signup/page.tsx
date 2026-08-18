@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
+import { clanRoster, eventSignups, events, signupFees } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -29,21 +29,21 @@ export default async function EventSignupPage({
 
   const myAccounts = await db
     .select({
-      id: clanMembers.id,
-      rsn: clanMembers.rsn,
-      isPrimary: clanMembers.isPrimary,
-      verifiedAt: clanMembers.verifiedAt,
-      verificationMethod: clanMembers.verificationMethod,
-      provisional: clanMembers.provisional,
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      isPrimary: clanRoster.isPrimary,
+      verifiedAt: clanRoster.verifiedAt,
+      verificationMethod: clanRoster.verificationMethod,
+      provisional: clanRoster.provisional,
     })
-    .from(clanMembers)
+    .from(clanRoster)
     .where(
       and(
-        eq(clanMembers.userId, session.userId),
-        isNull(clanMembers.leftAt),
+        eq(clanRoster.playerId, session.userId),
+        isNull(clanRoster.leftAt),
       ),
     )
-    .orderBy(desc(clanMembers.isPrimary), desc(clanMembers.verifiedAt));
+    .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
 
   const maxAccounts = event.maxAccountsPerPerson ?? 1;
 
@@ -71,10 +71,10 @@ export default async function EventSignupPage({
   const accountFees = activeSignups.length
     ? (
         await db
-          .select({ amount: signupFees.amount, status: signupFees.status, rsn: clanMembers.rsn })
+          .select({ amount: signupFees.amount, status: signupFees.status, rsn: clanRoster.rsn })
           .from(signupFees)
           .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
-          .leftJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+          .leftJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
           .where(inArray(signupFees.signupId, activeSignups.map((s) => s.id)))
       ).map((f) => ({ rsn: f.rsn ?? 'Account', amount: f.amount, status: f.status }))
     : [];

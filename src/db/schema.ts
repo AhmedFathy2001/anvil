@@ -1,4 +1,15 @@
-import { pgTable, text, integer, serial, boolean, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  pgView,
+  text,
+  integer,
+  serial,
+  boolean,
+  real,
+  uniqueIndex,
+  index,
+  primaryKey,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -123,6 +134,10 @@ export const accounts = pgTable('accounts', {
   // RSN when resolving who is playing — but it comes from a client we do not control, so it anchors
   // rather than proves.
   accountHash: text('account_hash'),
+  // Which Discord user this RSN belongs to, arrived at by name-matching the guild. WEAKER than
+  // users.discordId, which is a proven OAuth link — this is a cache, and the only handle there is on
+  // a member who has never signed in. Readers should prefer the account's player and fall back here.
+  discordId: text('discord_id'),
   // 'active' | 'unranked' | 'banned' | 'archived' — drives whether the hiscores sweep polls it.
   // Jagex-side health, not a clan's opinion: 'banned' here means Jagex banned the account. Being
   // barred from a clan is a property of that clan's membership, and lives there.
@@ -538,7 +553,7 @@ export const eventParticipants = pgTable('event_participants', {
   // clanMemberId is the source of truth for identity; `name` is kept as a per-event
   // display override (useful if an RSN changes mid-event). New enrollments should
   // always supply clanMemberId; legacy rows have it backfilled.
-  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   discord: text('discord'),
   timezone: text('timezone'),
@@ -796,7 +811,7 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   // clanMemberId links back to the global roster so leaderboards can deduplicate
   // when an RSN is renamed. Kept nullable to support legacy rows and guest-only participants.
-  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   rsn: text('rsn').notNull(),
   // Lowercased/whitespace-collapsed copy used for uniqueness. OSRS names are case-insensitive,
   // so two casings of the same name would otherwise create duplicate enrollments.
@@ -821,114 +836,73 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   index('weekly_participants_clan_member_id_idx').on(table.clanMemberId),
 ]);
 
-// Global clan roster. Source of truth for "who is in the clan" across all events.
-// Per-event enrollment lives in `players` (and `weeklyParticipants`) and references a row here.
-export const clanMembers = pgTable('clan_members', {
-  id: serial('id').primaryKey(),
-  // The clan that owns this row. Added by the multi-clan conversion; every query on this table
-  // must be scoped by it.
-  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
-  rsn: text('rsn').notNull(),                 // display casing
-  rsnNormalized: text('rsn_normalized').notNull(), // lowercased for uniqueness (OSRS is case-insensitive)
-  discordId: text('discord_id'),              // legacy column; prefer joining via userId → users.discordId
-  rank: text('rank'),                         // clan rank name as reported by RuneLite (e.g. 'general', 'captain')
-  isGuest: integer('is_guest').default(0).notNull(),
-  source: text('source').notNull().default('manual'), // 'manual' | 'plugin-self' | 'plugin-roster'
-  joinedAt: text('joined_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
-  leftAt: text('left_at'),                    // soft-delete timestamp; null = active
-  lastSeenInClan: text('last_seen_in_clan'),  // bumped on each roster sync that includes this rsn
-  notes: text('notes'),
-  // Owner — the human/Discord account behind this RSN. Null = ghost (unclaimed).
-  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
-  // Stable Jagex identity captured during plugin handshake. Survives RSN changes.
-  // Null for ghost members and for members verified via stat-delta or manual approval.
-  accountHash: text('account_hash'),
-  // JSON array of historical RSNs. Appended whenever a rename is detected for this account.
-  previousRsns: text('previous_rsns'),
-  // Marks the user's "primary" account when they have multiple alts.
-  isPrimary: integer('is_primary').default(0).notNull(),
-  verifiedAt: text('verified_at'),
-  verificationMethod: text('verification_method'), // 'plugin' | 'stat_delta' | 'manual'
-  verifiedByUserId: integer('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
-  // Watchlist flag — set to 1 when stat-delta succeeds (proves account control but
-  // a coincidental match is theoretically possible). A mod must confirm before this
-  // clears. Plugin and manual verification skip the watchlist (provisional = 0 from
-  // the start). The audit log records who confirmed and when.
-  provisional: integer('provisional').default(0).notNull(),
-  // When a ghost record was claimed by a Discord-linked user.
-  claimedAt: text('claimed_at'),
-  // Pre-assigned role applied to the linked user when this member's verification
-  // is finalized. Plugin-verified claims apply immediately; stat-delta/manual
-  // claims wait for mod approval before promoting the user. Cleared once applied.
-  // Values: 'admin' | 'moderator' | null.
-  pendingRole: text('pending_role'),
-  // Tracking lifecycle. `active` = normal polling. `unranked` = hiscores returned
-  // 404 (renamed, banned, or genuinely not on hiscores yet) — skipped by the cron
-  // until a re-probe job lifts them back. `banned` / `archived` = manual flags.
-  // The cron's queue health depends on this: without it, a renamed account 404s
-  // every tick forever and steals a slot from healthy rows.
-  status: text('status').notNull().default('active'), // 'active' | 'unranked' | 'banned' | 'archived'
-  statusLastChecked: text('status_last_checked'),
-  // Member-scoped real-time overlay: the plugin's absolute boss-KC / skill-XP pushes as a flat
-  // JSON map ({"zulrah":1250,"mining":4210000}), max-merged per key. The single source the unified
-  // stat sweep reads as max(hiscores, live) and prunes as hiscores catches up — shared by bingo
-  // tiles AND weekly SOTW/BOTW. Keyed on the member (not a per-event player row) so it survives
-  // renames and works with no active bingo event. Replaces the per-event eventParticipants.plugin_stats.
-  liveStats: text('live_stats'),
-  liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
-  // Per-KEY last-rose timestamps: JSON map ({"fishing":"2026-07-16T…","zulrah":"…"}) stamped only when
-  // a pushed value actually INCREASED. Lets "Active now" say a member is grinding a SPECIFIC stat tile
-  // (its stat rose within the window) instead of every tile they've ever progressed — liveStatsAt alone
-  // is per-member, so one fishing push otherwise lit them up on every tile. Pruned to the recent window.
-  liveStatKeyTimes: text('live_stat_key_times'),
+/**
+ * A clan's roster, reassembled: every seat with the account sitting in it.
+ *
+ * THE READ MODEL, not a compatibility shim. Roughly eighty files want exactly this join — "who is on
+ * this clan's roster, and what do we know about their account" — and writing it out in each of them
+ * would be the same query eighty times, with eighty chances to forget the clan filter.
+ *
+ * Reads come through here. WRITES GO TO THE REAL TABLES: `clanMemberships` for the seat (rank, kind,
+ * left_at) and `accounts` for the account (rsn, verification, stat state). Declared `.existing()` so
+ * Drizzle treats it as read-only and rejects an insert or update against it at compile time.
+ *
+ * Two columns clan_members carried are gone on purpose:
+ *   is_guest   -> `kind`. An inverted flag is one typo away from granting membership; `kind` says
+ *                 what it means in the direction it means it.
+ *   discord_id -> join through the account's player. It was a stale denormalised copy that the old
+ *                 schema already warned readers off.
+ */
+export const clanRoster = pgView('clan_roster', {
+  // The seat. Same id the fifteen tables carrying clan_member_id have always pointed at.
+  id: integer('id').notNull(),
+  clanId: integer('clan_id').notNull(),
+  accountId: integer('account_id').notNull(),
+  // The PERSON who owns this account — null while nobody has claimed it, which is the normal state
+  // of a roster entry for someone who has never logged in.
+  playerId: integer('player_id'),
 
-  // ── Adaptive hiscores polling ──────────────────────────────────────────────────────────────────
-  // The sweep used to poll every participating member every tick, whether or not they had played —
-  // a 200-member clan spending 19k requests a day to learn that 160 people were offline. These three
-  // let it poll on evidence instead: after a fetch that changed nothing, the member's next fetch is
-  // pushed further out; any change (or any plugin push, which means they're online right now) snaps
-  // them back to hot. See nextDueAfterMiss() in the stats cron for the ladder.
-  //
-  // This matters more per clan we host than per member: every clan container polls Jagex from the
-  // same box IP, so the per-clan rate limit composes into a per-box one.
-  statsOverallXp: integer('stats_overall_xp'),      // last observed total XP — the change detector
-  statsMissStreak: integer('stats_miss_streak').notNull().default(0),
-  statsNextDueAt: text('stats_next_due_at'),        // null = due now
-  // The member's last seen full snapshot, so the daily rollup can say WHICH metrics moved rather than
-  // just how much total XP did. One row per member, overwritten — bounded, unlike a per-day archive —
-  // and only rewritten on a tick where something actually changed.
+  // ── From the account ────────────────────────────────────────────────────────────────────
+  rsn: text('rsn').notNull(),
+  rsnNormalized: text('rsn_normalized').notNull(),
+  accountHash: text('account_hash'),
+  // Name-matched Discord id — a cache, subordinate to the account owner's proven OAuth link.
+  discordId: text('discord_id'),
+  previousRsns: text('previous_rsns'),
+  isPrimary: integer('is_primary').notNull(),
+  verifiedAt: text('verified_at'),
+  verificationMethod: text('verification_method'),
+  verifiedByUserId: integer('verified_by_user_id'),
+  provisional: integer('provisional').notNull(),
+  claimedAt: text('claimed_at'),
+  status: text('status').notNull(),
+  statusLastChecked: text('status_last_checked'),
+  liveStats: text('live_stats'),
+  liveStatsAt: text('live_stats_at'),
+  liveStatKeyTimes: text('live_stat_key_times'),
+  statsOverallXp: integer('stats_overall_xp'),
+  statsMissStreak: integer('stats_miss_streak').notNull(),
+  statsNextDueAt: text('stats_next_due_at'),
   statsLastSnapshot: text('stats_last_snapshot'),
-  // The hiscores entries that aren't skills or bosses — clue tiers, minigames, collection-log slots —
-  // pulled out of the same snapshot as a compact `{"cluesElite":{"score":47,"rank":88123}}` map.
-  //
-  // Derived, so it holds nothing statsLastSnapshot doesn't. It exists because the member directory
-  // is deliberately snapshot-parse-free: clan-wide activity leaderboards over full snapshots would
-  // mean reading and parsing megabytes per page load on a 400-member roster, where this is a few
-  // hundred bytes each. Written on the same ticks as the snapshot, from data already in hand.
-  statsActivities: text('stats_activities')
-}, (table) => [
-  // Unique WITHIN a clan, not globally. These were global because there was one clan per database,
-  // and leaving them that way makes multi-clan structurally impossible: the same person legitimately
-  // appears on several rosters, and a global unique on the RSN means the second clan simply cannot
-  // add them.
-  //
-  // The GLOBAL uniqueness these once expressed is real, but it belongs to the account rather than to
-  // a membership — it moves to the `accounts` table when identity splits into person / account /
-  // membership. Until then the pair is the honest constraint.
-  uniqueIndex('clan_members_clan_rsn_unique').on(table.clanId, table.rsnNormalized),
-  uniqueIndex('clan_members_clan_account_hash_unique').on(table.clanId, table.accountHash),
-  index('clan_members_left_at_idx').on(table.leftAt),
-  index('clan_members_user_id_idx').on(table.userId),
-  index('clan_members_provisional_idx').on(table.provisional),
-  index('clan_members_status_idx').on(table.status),
-]);
+  statsActivities: text('stats_activities'),
+
+  // ── From the seat ───────────────────────────────────────────────────────────────────────
+  kind: text('kind').notNull(),
+  rank: text('rank'),
+  source: text('source').notNull(),
+  joinedAt: text('joined_at').notNull(),
+  leftAt: text('left_at'),
+  lastSeenInClan: text('last_seen_in_clan'),
+  notes: text('notes'),
+  pendingRole: text('pending_role'),
+}).existing();
 
 // Append-only history of what happened to clan_members rows: joined, left, returned,
 // renamed, verified, claimed, merged, promoted, demoted. Powers the admin audit view
 // and the Discord audit pings.
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   eventType: text('event_type').notNull(),
   // Snapshots of relevant fields before/after the event, JSON-encoded. Examples:
   //   renamed: {"rsn":"OldName"}, {"rsn":"NewName"}
@@ -1005,7 +979,7 @@ export const pluginLinks = pgTable('plugin_links', {
 ]);
 
 // Per-event sign-up. One row per (event, user) — a Discord account can only sign up once
-// per event but may own multiple clanMembers; `clanMemberId` is the single RSN they chose
+// per event but may own multiple roster seats; `clanMemberId` is the single RSN they chose
 // to play this event with (the bingo only tracks that account). `profileData` is a frozen
 // snapshot of the responses captured at submit time, editable by the user up until
 // `events.signupDeadline`. New signups prefill from the user's most recent prior signup so
@@ -1018,7 +992,7 @@ export const eventSignups = pgTable('event_signups', {
   // to events.maxAccountsPerPerson accounts, so there's no one-per-user unique any more; dedup is per
   // ACCOUNT via the (eventId, clanMemberId) unique below, which covers guests (NULL userId) too.
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'restrict' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'restrict' }),
   // JSON: { dailyHours, weeklyHours, bosses[], skills[], notes, ...customFields }. One profile PER
   // PERSON: when someone enters several accounts, the answers live on their PRIMARY account's row and
   // the sibling rows carry '{}' — the read-time join backfills them (see lib/draftProfiles).
@@ -1085,7 +1059,7 @@ export const payouts = pgTable('payouts', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   // Recipient identity. clanMemberId is the stable link (set null if the member is later deleted or
   // for free-form manual rows); `rsn` is the display name captured when the row was created.
-  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   rsn: text('rsn').notNull(),
   // Which team they won with + finishing place (1 = first). Null for free-form manual entries.
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
@@ -1120,7 +1094,7 @@ export const payouts = pgTable('payouts', {
 // enforced at the application layer at submit time.
 export const pendingRenames = pgTable('pending_renames', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   oldRsn: text('old_rsn').notNull(),
   newRsn: text('new_rsn').notNull(),
   oldRsnNormalized: text('old_rsn_normalized').notNull(),
@@ -1146,7 +1120,7 @@ export const pendingRenames = pgTable('pending_renames', {
 // Payload is JSON to avoid a 200-column table for ~150 members.
 export const playerSnapshots = pgTable('player_snapshots', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   // Competition this snapshot belongs to. Snapshots are scoped to a weekly competition so we
   // keep exactly two per (member, competition): a frozen 'baseline' at event start and a
   // 'current' overwritten every cron tick until the event ends. NULL only for legacy/orphan
@@ -1174,7 +1148,7 @@ export const playerEventFacts = pgTable('player_event_facts', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   personKey: text('person_key').notNull(),
-  clanMemberId: integer('clan_member_id').references(() => clanMembers.id, { onDelete: 'set null' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
   rsn: text('rsn').notNull(), // lead-account display name at event time
   accounts: integer('accounts').default(1).notNull(),
@@ -1394,7 +1368,7 @@ export const surveyResponses = pgTable('survey_responses', {
  */
 export const memberDailyStats = pgTable('member_daily_stats', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   // UTC calendar day, 'YYYY-MM-DD'. UTC because every other date in the app is, and a clan spans zones.
   day: text('day').notNull(),
 
@@ -1428,7 +1402,7 @@ export const memberDailyStats = pgTable('member_daily_stats', {
  */
 export const memberMilestones = pgTable('member_milestones', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   // 'level' (99s) | 'xp' | 'kc' | 'ehb' | 'ehp' | 'total'
   kind: text('kind').notNull(),
   // The skill or boss key it applies to; null for account-wide ones (total level, EHP, EHB).
@@ -1551,7 +1525,7 @@ export const teamStaff = pgTable('team_staff', {
 export const memberClog = pgTable('member_clog', {
   clanMemberId: integer('clan_member_id')
     .primaryKey()
-    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
   /** Distinct pages we've ever received for this member, and the catalogue total at sync time. */
   pagesSynced: integer('pages_synced').notNull().default(0),
   pagesTotal: integer('pages_total').notNull().default(0),
@@ -1580,7 +1554,7 @@ export const memberClogItems = pgTable('member_clog_items', {
   id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
-    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
   itemId: integer('item_id').notNull(),
   pageName: text('page_name').notNull(),
   /** How many the log says they've had. At least 1 — a 0 would read as "not obtained". */
@@ -1612,7 +1586,7 @@ export const memberClogKc = pgTable('member_clog_kc', {
   id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
-    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
   pageName: text('page_name').notNull(),
   /** The label as the game prints it — pages count kills, chests, completions, laps. */
   label: text('label').notNull(),
@@ -1630,7 +1604,7 @@ export const memberPersonalBests = pgTable('member_personal_bests', {
   id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
     .notNull()
-    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
   /** Lowercased activity name as the game's kill-count line names it. */
   activity: text('activity').notNull(),
   /**
@@ -1665,7 +1639,7 @@ export const memberPersonalBests = pgTable('member_personal_bests', {
  */
 export const moments = pgTable('moments', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
   rsn: text('rsn').notNull(),
   /** 'pet' | 'unique' | 'death' | 'loot' — see MOMENT_KINDS in lib/moments.ts. */

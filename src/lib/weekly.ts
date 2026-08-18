@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { clanMembers, pendingRenames, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, pendingRenames, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
@@ -46,14 +47,14 @@ export async function enrollAllPlayers(competitionId: number) {
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
   // (or manual mod action) flips status back to 'active'.
-  const baseClause = and(isNull(clanMembers.leftAt), eq(clanMembers.status, 'active'));
+  const baseClause = and(isNull(clanRoster.leftAt), eq(clanRoster.status, 'active'));
   const whereClause = trackGuests
     ? baseClause
-    : and(baseClause, eq(clanMembers.isGuest, 0));
+    : and(baseClause, eq(clanRoster.kind, 'member'));
 
   const activeMembers = await db
-    .select({ id: clanMembers.id, rsn: clanMembers.rsn })
-    .from(clanMembers)
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(clanRoster)
     .where(whereClause);
 
   // Count only rows actually inserted (not conflicts that hit the unique index) so
@@ -395,9 +396,7 @@ export async function submitRenameRequest(input: SubmitRenameInput): Promise<Sub
   if (!newRsn) return { ok: false, reason: 'new RSN is required' };
   if (newRsn.length > 12) return { ok: false, reason: 'RSN must be 12 characters or fewer' };
 
-  const cm = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.id, input.clanMemberId),
-  });
+  const cm = await findRosterSeat(eq(clanRoster.id, input.clanMemberId));
   if (!cm) return { ok: false, reason: 'clan member not found' };
 
   const newRsnNormalized = normalizeRsn(newRsn);
@@ -496,12 +495,10 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
   // proceed safely when it's clearly stale (left, unranked, or archived). An
   // active different member with the same target name is a swap that needs
   // human attention.
-  const conflict = await db.query.clanMembers.findFirst({
-    where: and(
-      eq(clanMembers.rsnNormalized, pr.newRsnNormalized),
-      ne(clanMembers.id, pr.clanMemberId),
-    ),
-  });
+  const conflict = await findRosterSeat(and(
+      eq(clanRoster.rsnNormalized, pr.newRsnNormalized),
+      ne(clanRoster.id, pr.clanMemberId),
+    ));
   if (conflict) {
     const stale = conflict.leftAt != null || conflict.status !== 'active';
     if (!stale) {
@@ -509,16 +506,16 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
     }
     // Soft-archive the stale row so the unique index on rsn_normalized frees up.
     await db
-      .update(clanMembers)
-      .set({
-        leftAt: conflict.leftAt ?? new Date().toISOString(),
-        status: 'archived',
-        statusLastChecked: new Date().toISOString(),
-      })
-      .where(eq(clanMembers.id, conflict.id));
+      .update(clanMemberships)
+      .set({ leftAt: conflict.leftAt ?? new Date().toISOString() })
+      .where(eq(clanMemberships.id, conflict.id));
+    await updateAccountOfSeat(conflict.id, {
+      status: 'archived',
+      statusLastChecked: new Date().toISOString(),
+    });
   }
 
-  const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, pr.clanMemberId) });
+  const cm = await findRosterSeat(eq(clanRoster.id, pr.clanMemberId));
   if (!cm) return { ok: false, reason: 'clan member no longer exists' };
 
   // Append the OLD rsn to previousRsns if it isn't already there.
@@ -536,7 +533,7 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
   }
 
   await db
-    .update(clanMembers)
+    .update(accounts)
     .set({
       rsn: pr.newRsn,
       rsnNormalized: pr.newRsnNormalized,
@@ -546,7 +543,7 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
       status: cm.status === 'unranked' ? 'active' : cm.status,
       statusLastChecked: new Date().toISOString(),
     })
-    .where(eq(clanMembers.id, pr.clanMemberId));
+    .where(eq(clanMemberships.id, pr.clanMemberId));
 
   await applyRenameToActiveWeeklyParticipants(pr.clanMemberId, pr.oldRsn, pr.newRsn);
 
@@ -636,7 +633,7 @@ export async function reviewPendingRenames(
 export const countsTowardLeaderboard = () =>
   or(
     isNull(weeklyParticipants.clanMemberId),
-    isNull(clanMembers.leftAt),
+    isNull(clanRoster.leftAt),
     eq(weeklyParticipants.keepIfLeft, 1),
   );
 
@@ -658,7 +655,7 @@ export async function getEffectiveParticipants(competitionId: number) {
       flagReason: weeklyParticipants.flagReason,
     })
     .from(weeklyParticipants)
-    .leftJoin(clanMembers, eq(weeklyParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(weeklyParticipants.competitionId, competitionId), countsTowardLeaderboard()));
 }
 

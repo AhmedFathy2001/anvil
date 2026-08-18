@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanMembers, events, eventParticipants, submissions, tiles } from '@/db/schema';
+import { clanRoster, events, eventParticipants, submissions, tiles } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
 
@@ -40,11 +40,11 @@ export async function GET(
       clanMemberId: eventParticipants.clanMemberId,
       pickNumber: eventParticipants.pickNumber,
       frozenAt: eventParticipants.frozenAt,
-      rsn: clanMembers.rsn,
-      lastSeen: clanMembers.liveStatsAt,
+      rsn: clanRoster.rsn,
+      lastSeen: clanRoster.liveStatsAt,
     })
     .from(eventParticipants)
-    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.teamId, tId)));
 
   // Their team's proof: the submissions their own players made, newest first, with the screenshot.

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanAuditLog, clanMembers, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -32,14 +33,14 @@ export async function GET(
         role: users.role,
       },
       account: {
-        id: clanMembers.id,
-        rsn: clanMembers.rsn,
+        id: clanRoster.id,
+        rsn: clanRoster.rsn,
       },
     })
     .from(eventSignups)
     // LEFT join so guest sign-ups (no linked user) still list — they show by RSN from `account`.
     .leftJoin(users, eq(eventSignups.userId, users.id))
-    .innerJoin(clanMembers, eq(eventSignups.clanMemberId, clanMembers.id))
+    .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
     .where(eq(eventSignups.eventId, id));
 
@@ -121,15 +122,13 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const account = await db.query.clanMembers.findFirst({
-    where: and(eq(clanMembers.id, body.clanMemberId), isNull(clanMembers.leftAt)),
-  });
+  const account = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), isNull(clanRoster.leftAt)));
   if (!account) {
     return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
   }
   // A linked member's sign-up hangs off their users row; an unlinked in-game member gets a
   // GUEST sign-up (userId null) so they still show up + stay consistent with the draft pool.
-  const userId = account.userId; // may be null → guest sign-up
+  const userId = account.playerId; // may be null → guest sign-up
 
   // Dedup: linked → one per (event, user); guest → one per (event, clan member).
   const existing = await db.query.eventSignups.findFirst({

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { events, tiles, teams, submissions, eventParticipants, completions, clanMembers, eventStartProofs } from '@/db/schema';
+import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
@@ -88,9 +88,9 @@ async function homeBoardForUser(userId: number): Promise<{
   pointsScored: boolean;
 } | null> {
   const myMembers = await db
-    .select({ id: clanMembers.id, isPrimary: clanMembers.isPrimary })
-    .from(clanMembers)
-    .where(and(eq(clanMembers.userId, userId), isNull(clanMembers.leftAt)));
+    .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, userId), isNull(clanRoster.leftAt)));
   if (myMembers.length === 0) return null;
   const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
 
@@ -405,10 +405,10 @@ export async function GET(request: Request) {
       cachedStats: eventParticipants.cachedStats,
       // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
       // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
-      liveStatKeyTimes: clanMembers.liveStatKeyTimes,
+      liveStatKeyTimes: clanRoster.liveStatKeyTimes,
     })
     .from(eventParticipants)
-    .leftJoin(clanMembers, eq(eventParticipants.clanMemberId, clanMembers.id))
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, auth.eventId), eq(eventParticipants.teamId, auth.teamId)));
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
   const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
