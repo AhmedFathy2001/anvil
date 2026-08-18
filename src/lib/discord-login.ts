@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
+import { originForHost, sessionCookieDomain } from '@/lib/clanContext';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
@@ -42,9 +43,9 @@ export function loginFailPage(message: string, status = 400): NextResponse {
  */
 export async function completeDiscordLogin(
   discordUser: DiscordUser,
-  opts: { returnTo: string; request: Request; clearCookies?: string[] },
+  opts: { returnTo: string; returnHost?: string; request: Request; clearCookies?: string[] },
 ): Promise<NextResponse> {
-  const { returnTo, request, clearCookies = [] } = opts;
+  const { returnTo, returnHost, request, clearCookies = [] } = opts;
   const nowIso = new Date().toISOString();
   const displayName = discordUser.globalName || discordUser.username;
 
@@ -188,8 +189,14 @@ export async function completeDiscordLogin(
 
   // Banned users complete the identity step but get no session cookie — refused at the door.
   if (user.banned) {
-    const banned = NextResponse.redirect(new URL('/login?error=banned', publicOrigin(request)));
-    for (const c of clearCookies) banned.cookies.set(c, '', { path: '/', maxAge: 0 });
+    // Same origin and cookie domain as the success path: a cookie set with a domain is only cleared
+    // by a delete carrying that same domain, so omitting it here would leave the state cookies behind.
+    const bannedOrigin = returnHost ? originForHost(returnHost) : publicOrigin(request);
+    const bannedDomain = sessionCookieDomain();
+    const banned = NextResponse.redirect(new URL('/login?error=banned', bannedOrigin));
+    for (const c of clearCookies) {
+      banned.cookies.set(c, '', { path: '/', maxAge: 0, ...(bannedDomain ? { domain: bannedDomain } : {}) });
+    }
     return banned;
   }
 
@@ -206,14 +213,26 @@ export async function completeDiscordLogin(
   // First-ever login lands on the getting-started checklist unless a deep link was requested.
   const destination = isNewUser && returnTo === '/' ? '/profile?welcome=1' : returnTo;
 
-  const res = NextResponse.redirect(new URL(destination, publicOrigin(request)));
+  // Back to the clan they started from. `returnHost` has already been resolved against the clans
+  // table by the caller, so it is a host we produced rather than one a query parameter asked for.
+  const origin = returnHost ? originForHost(returnHost) : publicOrigin(request);
+  const res = NextResponse.redirect(new URL(destination, origin));
+
+  // Scoped to the apex DOMAIN, not this host: the callback runs on the apex, and the session has to
+  // be readable by the clan it redirects to. Safe only because clans live beneath the apex — see the
+  // note in lib/clanContext.
+  const cookieDomain = sessionCookieDomain();
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: isProd,
     path: '/',
     maxAge: SESSION_TTL_SECONDS,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   });
-  for (const c of clearCookies) res.cookies.set(c, '', { path: '/', maxAge: 0 });
+  // Clear on the same domain they were set with, or they linger.
+  for (const c of clearCookies) {
+    res.cookies.set(c, '', { path: '/', maxAge: 0, ...(cookieDomain ? { domain: cookieDomain } : {}) });
+  }
   return res;
 }

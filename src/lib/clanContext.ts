@@ -162,3 +162,45 @@ export async function requireClanFromRequest(request: Request): Promise<ClanCont
   if (!clan) throw new Error('No clan for this host');
   return clan;
 }
+
+// ── Apex-hosted login ────────────────────────────────────────────────────────────────────────
+//
+// One deployment means ONE Discord app with ONE registered redirect URI, so the OAuth round trip
+// cannot happen on a clan's own host — Discord rejects every callback that is not the single
+// allowlisted one. Login therefore runs on the apex and hands back to the clan afterwards.
+//
+// That works only because clans are CHILDREN of the apex: a session cookie scoped to the apex domain
+// is readable by every clan beneath it, and by nothing else. If clans sat on sibling hosts, the
+// nearest shared parent would be the whole registrable domain, and a preview login would set a
+// cookie the live clans could read.
+
+/**
+ * Domain for the session cookie: the apex, so every clan beneath it can read it.
+ *
+ * Null for a host with no dot (localhost), where browsers reject a domain attribute and a host-only
+ * cookie is what you want anyway.
+ */
+export function sessionCookieDomain(): string | null {
+  const apex = apexDomain();
+  if (!apex.includes('.')) return null;
+  return `.${apex}`;
+}
+
+/** Absolute origin for a host WE resolved. Never built from a raw header. */
+export function originForHost(host: string): string {
+  const scheme = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
+  return `${scheme}://${host}`;
+}
+
+/**
+ * Validate a "send me back here after login" host.
+ *
+ * Returns the clan's CANONICAL host from its row rather than the string passed in, so what ends up
+ * in a redirect is a value the database produced. An unknown host returns null and the caller falls
+ * back to the apex. Without this the flow would be an open redirect, since the host arrives as a
+ * query parameter.
+ */
+export async function resolveReturnHost(rawHost: string | null | undefined): Promise<string | null> {
+  const clan = await resolveClanByHost(rawHost);
+  return clan?.host ?? null;
+}

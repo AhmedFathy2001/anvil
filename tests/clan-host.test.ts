@@ -188,3 +188,43 @@ test('the same RSN is a separate member row in each clan', async () => {
   const bRow = await db.query.clanMembers.findFirst({ where: eq(schema.clanMembers.id, inB) });
   assert.equal(bRow?.leftAt, null, "B's members must survive A's roster sync");
 });
+
+// ── Apex-hosted login ─────────────────────────────────────────────────────────────────────────
+// One deployment means one Discord app with one registered redirect URI, so the OAuth round trip has
+// to run on the apex and hand back to the clan. Two things make that safe, and both are pinned here
+// because getting either wrong is a security bug rather than a broken feature.
+test('the session cookie is scoped to the apex, so clans beneath it share a login', async () => {
+  const { sessionCookieDomain } = await import('../src/lib/clanContext.ts');
+  // A leading dot: readable by every clan under the apex, and by nothing outside it. Sibling hosts
+  // would have forced a cookie on the whole registrable domain, which other deployments could read.
+  assert.equal(sessionCookieDomain(), '.anvilosrs.com');
+});
+
+test('the post-login redirect can only name a real clan', async () => {
+  const { resolveReturnHost } = await import('../src/lib/clanContext.ts');
+
+  // A known clan comes back as its CANONICAL host — from the row, not from the input.
+  assert.equal(await resolveReturnHost('theafkspot.anvilosrs.com'), 'theafkspot.anvilosrs.com');
+  // A clan reachable by custom domain returns that, because it is what its row says.
+  assert.equal(await resolveReturnHost('myclan.com'), 'myclan.com');
+
+  // Everything else is null and the caller falls back to the apex. Without this the login flow is an
+  // open redirect: the host arrives as a query parameter, so an attacker could hand a half-finished
+  // login to any origin they liked.
+  for (const hostile of [
+    'attacker.example.com',
+    'theafkspot.attacker.example.com',
+    'evil-anvilosrs.com',
+    'nosuchclan.anvilosrs.com',
+    '//attacker.example.com',
+    'anvilosrs.com.attacker.test',
+    '',
+    null,
+  ]) {
+    assert.equal(
+      await resolveReturnHost(hostile),
+      null,
+      `${hostile || '(empty)'} must not be a redirect target`,
+    );
+  }
+});
