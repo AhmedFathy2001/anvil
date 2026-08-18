@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import MyTeamClient from './MyTeamClient';
+import TeamInvitePanel from '@/components/TeamInvitePanel';
 import TeamManageClient from './TeamManageClient';
 import DraftClockClient from './DraftClockClient';
 import DraftWatchClient from './DraftWatchClient';
@@ -101,9 +102,15 @@ export default async function MyTeamPage({
     db.select().from(players).where(eq(players.eventId, event.id)),
     getTierBands(),
   ]);
-  // Reveal-policy events (lib/eventRules): the team hub is a player surface — only revealed
-  // tiles ever reach the client, even for staff viewing their own team.
-  const eventTiles = visibleTiles(parseEventRules(event.rules), allEventTiles);
+  // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
+  // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
+  // page is built, not hidden in the client. Clan staff (admin / treasurer / moderator) still see
+  // their own board here, the same exception every other surface makes.
+  const isClanStaff = user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator';
+  const boardHidden = !event.tilesRevealed && !isClanStaff;
+  // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
+  // staff viewing their own team.
+  const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
   // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
   // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
   const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
@@ -156,8 +163,11 @@ export default async function MyTeamPage({
         </div>
       )}
       {membership.canManage && (
-        <div className="mb-6">
+        <div className="mb-6 space-y-6">
           <TeamManageClient teamId={tId} />
+          {/* Only renders anything actionable when the event lets captains mint — otherwise it's a
+              read-only list of the links the host already handed out for this team. */}
+          <TeamInvitePanel teamId={tId} />
         </div>
       )}
       <MyTeamClient
@@ -167,6 +177,7 @@ export default async function MyTeamPage({
         completions={teamCompletions}
         players={eventPlayers}
         isCaptain={membership.isCaptain}
+        boardHidden={boardHidden}
         myPlayerId={membership.playerId}
         myPlayerName={myPlayer?.name ?? null}
         tierBands={tierBands}

@@ -1431,6 +1431,38 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
 ]);
 
 /**
+ * A link that puts whoever opens it straight onto one team (lib/teamInvites).
+ *
+ * Clan-v-clan is the case this exists for: the visiting side fields its own roster, and collecting
+ * a dozen RSNs by hand — then dragging each onto the right team — is work the other clan's own
+ * moderator could do in a minute. The link decides ONE thing: which team the resulting sign-up
+ * belongs to, and that it needs no approval. It is not a login and not a way around verification —
+ * whoever opens it still signs in with Discord and still needs a verified RSN on the roster.
+ *
+ * Deleted with its team or event; `revokedAt` is the host turning one off without deleting the
+ * history of who came through it.
+ */
+export const teamInvites = sqliteTable('team_invites', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  /** 16 chars of an unambiguous alphabet — see TOKEN_ALPHABET in lib/teamInvites. */
+  token: text('token').notNull(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  /** Denormalised from the team so a link can be refused for the wrong event without a join. */
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  /** How many people may come through it. NULL = no limit. */
+  maxUses: integer('max_uses'),
+  uses: integer('uses').default(0).notNull(),
+  expiresAt: text('expires_at'),
+  revokedAt: text('revoked_at'),
+  /** Who minted it — an admin, or a captain when the event lets them. */
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('team_invite_token_unique').on(table.token),
+  index('team_invite_team_idx').on(table.teamId),
+]);
+
+/**
  * Extra people who can run one team, alongside its captain.
  *
  * `teams.captainUserId` is a single column, so a clan-v-clan event where the visiting side's

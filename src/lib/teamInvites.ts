@@ -165,3 +165,32 @@ export function describeInvite(invite: InviteRecord, now: number): string {
   const left = Math.max(0, invite.maxUses - invite.uses);
   return left === 0 ? `${used} · full` : `${used} · ${left} of ${invite.maxUses} seats left`;
 }
+
+/**
+ * Who may mint a link for a team.
+ *
+ * A host always can. A captain (or one of the team's staff seats) only when the event says so:
+ * on a normal clan event the host builds the teams, and a captain handing out seats would be
+ * filling a roster nobody approved. On a clan-v-clan, where the visiting side runs its own half,
+ * it's the entire point — so it's a switch on the event rather than a rule.
+ */
+export function mayMintInvite(who: {
+  isAdmin: boolean;
+  isCaptain: boolean;
+  isStaff: boolean;
+  captainInvites: boolean;
+}): boolean {
+  if (who.isAdmin) return true;
+  return who.captainInvites && (who.isCaptain || who.isStaff);
+}
+
+/** Bounds on what a minted link may promise. Wide enough to be useful, tight enough to be a link. */
+export const MAX_INVITE_USES = 100;
+export const MAX_INVITE_HOURS = 24 * 30;
+
+/** An expiry ISO stamp from "hours from now", or null for a link that doesn't expire. */
+export function inviteExpiry(hours: number | null | undefined, now: number): string | null {
+  if (hours == null || !Number.isFinite(hours) || hours <= 0) return null;
+  const capped = Math.min(Math.round(hours), MAX_INVITE_HOURS);
+  return new Date(now + capped * 3_600_000).toISOString();
+}

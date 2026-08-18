@@ -278,3 +278,17 @@ test('validateEventRules: startProof shape is enforced and round-trips', () => {
   assert.ok('rules' in stored && stored.rules !== null);
   assert.equal(parseEventRules((stored as { rules: string }).rules).startProof?.onMissing, 'reject');
 });
+
+test('parseEventRules: captain invites are off unless the event says otherwise', () => {
+  assert.equal(parseEventRules(null).captainInvites, false);
+  assert.equal(parseEventRules(JSON.stringify({})).captainInvites, false);
+  assert.equal(parseEventRules(JSON.stringify({ captainInvites: true })).captainInvites, true);
+  // Only a real boolean turns it on — a truthy string is a malformed rule, not consent.
+  assert.equal(parseEventRules(JSON.stringify({ captainInvites: 'yes' })).captainInvites, false);
+  assert.deepEqual(validateEventRules({ captainInvites: 'yes' }), {
+    error: 'rules.captainInvites must be a boolean',
+  });
+  // Turning it on is enough to stop the rules column being NULL.
+  const stored = validateEventRules({ captainInvites: true });
+  assert.ok('rules' in stored && stored.rules !== null);
+});
