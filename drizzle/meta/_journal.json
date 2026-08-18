@@ -435,6 +435,13 @@
       "when": 1787079517495,
       "tag": "0061_team-invites",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1787091300534,
+      "tag": "0062_member-progress",
+      "breakpoints": true
     }
   ]
 }

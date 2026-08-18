@@ -1584,6 +1584,30 @@ export const memberClogKc = sqliteTable('member_clog_kc', {
  * `teamSize` is part of the key because a solo Chambers PB and a five-man one are different records;
  * null means the activity doesn't have team sizes (or the client didn't say).
  */
+/**
+ * Account progress the hiscores don't publish: quest points, combat-achievement points and tier,
+ * diaries per tier. See lib/memberProgress for the key registry.
+ *
+ * One row per (member, key) rather than a wide row per member. A login pushes only the keys that
+ * actually moved — usually none — so an idle clan writes nothing, and a key added later is a
+ * registry entry instead of a migration. Values only ever rise; the ingest max-merges, which makes
+ * a re-push idempotent and stops a client that read a varbit before the game populated it from
+ * erasing somebody's account.
+ */
+export const memberProgress = sqliteTable('member_progress', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** A key from PROGRESS_KEYS — 'questPoints', 'caPoints', 'caTier', 'diaryElite', … */
+  key: text('key').notNull(),
+  value: integer('value').notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_member_key_unique').on(table.clanMemberId, table.key),
+  index('member_progress_key_idx').on(table.key),
+]);
+
 export const memberPersonalBests = sqliteTable('member_personal_bests', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   clanMemberId: integer('clan_member_id')
