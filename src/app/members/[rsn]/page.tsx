@@ -16,6 +16,8 @@ import {
 } from '@/lib/memberProfile';
 import ProfileTabs from './ProfileTabs';
 import { getCollectionLog } from '@/lib/clogRead';
+import { getMemberProgress } from '@/lib/memberProgressRead';
+import AccountProgress from './AccountProgress';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
 
@@ -113,7 +115,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
-  const [milestones, records, series, standings, history, persona, collection, activityStandings] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
@@ -122,6 +124,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     viewer ? getPersona(profile.id) : Promise.resolve(null),
     getCollectionLog(profile.id, profile.rsn),
     getActivityStandings(profile.rsn),
+    getMemberProgress(profile.id),
   ]);
   const upcoming = getUpcomingMilestones(profile);
 
@@ -238,6 +241,8 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
       {/* One human, several accounts. Null for a member with a single linked account, and null for
           a signed-out visitor — see the note above the query. */}
       {persona && <Persona persona={persona} currentMemberId={profile.id} />}
+
+      <AccountProgress progress={progress} />
 
       <ProfileTabs
         profile={profile}
