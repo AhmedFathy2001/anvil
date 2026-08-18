@@ -40,6 +40,41 @@ export const clans = pgTable('clans', {
   index('clans_status_idx').on(table.status),
 ]);
 
+/**
+ * Who holds authority in a clan, and how much.
+ *
+ * The row IS the grant: no row means no authority in that clan, whatever the person holds elsewhere.
+ * One person legitimately appears here for several clans with different roles — admin of their own,
+ * moderator of a friend's — which is exactly what a column on `users` could not express.
+ *
+ * Roles: owner > admin > treasurer > moderator > member. Treasurer and moderator are mod-tier with
+ * one extra capability each; `canEditTiles` rides on top of any of them rather than being a role, so
+ * "a moderator who builds boards" is a checkbox instead of a new combination.
+ *
+ * Two invariants keep this from being an escalation ladder, enforced in lib/clanRoles:
+ *   - nobody may grant a role at or above their own
+ *   - nobody may modify someone at or above their own grade
+ * Without those, a moderator who can edit staff is one request away from being an admin.
+ */
+export const clanStaff = pgTable('clan_staff', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 'owner' | 'admin' | 'treasurer' | 'moderator' | 'member'
+  role: text('role').notNull().default('member'),
+  // Tile authoring as a capability, orthogonal to the tier above.
+  canEditTiles: boolean('can_edit_tiles').notNull().default(false),
+  // 'all' | 'assigned' — reach of that capability; 'assigned' means only boards they hold an
+  // event_editors grant for.
+  editorScope: text('editor_scope').notNull().default('all'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  // One grant per person per clan; a second would make "what is their role here?" ambiguous.
+  uniqueIndex('clan_staff_clan_user_unique').on(table.clanId, table.userId),
+  index('clan_staff_user_idx').on(table.userId),
+  index('clan_staff_clan_role_idx').on(table.clanId, table.role),
+]);
+
 export const events = pgTable('events', {
   id: serial('id').primaryKey(),
   // The clan that owns this row. Added by the multi-clan conversion; every query on this table
@@ -514,9 +549,12 @@ export const users = pgTable('users', {
   username: text('username').unique(),
   displayName: text('display_name').notNull(),
   passwordHash: text('password_hash'),
-  // 'admin' | 'treasurer' | 'editor' | 'moderator' | 'member'. Treasurer and editor are
-  // mod-tier roles with one extra capability each (fee collection / tile authoring).
-  //   admin > {treasurer, editor} > moderator > member.
+  // DEPRECATED — authority is per clan now and lives in `clan_staff`. Being admin of one clan must
+  // confer nothing in another, which a column on the user cannot express: with many clans on one
+  // deployment, a global role makes every admin an admin everywhere.
+  //
+  // Kept (and still backfilled) only so the migration can read it; nothing should gate on it. The
+  // column goes when the last reader does.
   role: text('role').notNull().default('member'),
   // Editor reach. Only meaningful for role 'editor':
   //   'all'      — global editor: can author tiles on EVERY event (the classic editor behavior).
@@ -541,6 +579,20 @@ export const users = pgTable('users', {
   // transfer ownership. Granted once at genesis to the ADMIN_DISCORD_ID user on a fresh
   // instance; never auto-reassigned afterwards. See transfer-ownership route.
   isOwner: boolean('is_owner').notNull().default(false),
+  // PLATFORM authority, entirely separate from any clan role. Deliberately not the same axis:
+  //   - a clan role must never grant platform capability, and
+  //   - platform staff must never implicitly get clan-admin powers.
+  // Being both clan leader and operator is then just one clan_staff row plus this column, rather
+  // than a special case anywhere in the code.
+  //   none    — everyone
+  //   support — read-only across clans, for answering questions
+  //   staff   — clan lifecycle: suspend, rename, resolve ownership claims
+  //   root    — staff, plus granting platform roles
+  platformRole: text('platform_role').notNull().default('none'),
+  // Bumped to invalidate every live session for this user — a demotion or a ban has to take effect
+  // now, not in up to 30 days when the cookie expires. The session carries the value it was minted
+  // with; a mismatch is a dead cookie.
+  sessionVersion: integer('session_version').notNull().default(0),
   // Site ban. A banned user gets no authenticated session (verifyUser → null) and is refused on
   // Discord login, so they can't act as a member/staff. The owner can never be banned. (Public,
   // logged-out pages stay public — blocking those is an IP/Caddy concern, not this flag.)
