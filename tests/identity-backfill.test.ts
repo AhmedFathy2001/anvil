@@ -14,8 +14,27 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
+import { pgTable, serial, text } from 'drizzle-orm/pg-core';
 
 import { useTestDatabase, resetDatabase, migrateRest, dropDatabase, loadDb } from './helpers/testDb.ts';
+
+/**
+ * `users` as it stood BEFORE the identity migrations — deliberately a frozen snapshot, not an
+ * import from the live schema.
+ *
+ * Seeding here happens against the old shape, which is the one thing schema.ts can no longer
+ * describe: it names every column it knows, including the player_id that 0007 is about to add, and
+ * a table that does not have that column yet rejects the insert. Assertions still read through the
+ * real schema, so what is pinned below is the migration's output, not this snapshot.
+ *
+ * This should NOT be updated to track schema.ts. It is a historical record; drifting it forward
+ * would quietly stop testing the migration.
+ */
+const usersBeforeIdentity = pgTable('users', {
+  id: serial('id').primaryKey(),
+  displayName: text('display_name').notNull(),
+  discordId: text('discord_id'),
+});
 
 const DB = useTestDatabase('identity-backfill');
 
@@ -52,7 +71,7 @@ before(async () => {
   const bravo = clans.find((c) => c.slug === 'bravo')!.id;
 
   const users = await db
-    .insert(s.users)
+    .insert(usersBeforeIdentity)
     .values([
       { displayName: 'Ahmed', discordId: '111' },
       { displayName: 'Woox', discordId: '222' },
@@ -70,8 +89,25 @@ before(async () => {
     // Never logged in: a roster entry that is still a person.
     { clanId: alpha, rsn: 'Zezima', rsnNormalized: 'zezima', userId: null, isGuest: 0, source: 'plugin-roster' },
     // Unclaimed on one roster, claimed on the other — ownership must find the real person.
-    { clanId: alpha, rsn: 'Woox', rsnNormalized: 'woox', userId: null, isGuest: 1, source: 'plugin-self' },
-    { clanId: bravo, rsn: 'Woox', rsnNormalized: 'woox', userId: woox, isGuest: 0, source: 'plugin-roster' },
+    // The two clans also DISAGREE about everything each of them tracked for this account, which is
+    // what the merge rules have to resolve.
+    {
+      clanId: alpha, rsn: 'Woox', rsnNormalized: 'woox', userId: null, isGuest: 1, source: 'plugin-self',
+      // alpha knows less: behind on XP, backed off after failed polls, never verified, still on
+      // the watchlist.
+      statsOverallXp: 100, statsMissStreak: 5, statsNextDueAt: '2026-09-01 00:00:00',
+      provisional: 1, isPrimary: 0, previousRsns: '["Wooox"]',
+      liveStats: '{"overall":100}', liveStatsAt: '2026-08-01 00:00:00', statsLastSnapshot: '{"snap":100}',
+      statusLastChecked: '2026-08-01 00:00:00',
+    },
+    {
+      clanId: bravo, rsn: 'Woox', rsnNormalized: 'woox', userId: woox, isGuest: 0, source: 'plugin-roster',
+      statsOverallXp: 900, statsMissStreak: 0, statsNextDueAt: '2026-08-20 00:00:00',
+      provisional: 0, isPrimary: 1, previousRsns: '["Wooox","Woox2"]',
+      verifiedAt: '2026-07-01 00:00:00', verificationMethod: 'plugin', claimedAt: '2026-07-01 00:00:00',
+      liveStats: '{"overall":900}', liveStatsAt: '2026-08-10 00:00:00', statsLastSnapshot: '{"snap":900}',
+      statusLastChecked: '2026-08-10 00:00:00',
+    },
   ]);
 
   migrateRest(DB); // 0006 runs here
@@ -141,8 +177,69 @@ test('every account has an owner, and no person is left owning nothing', async (
   );
 });
 
+test('a membership keeps the seat id its history already points at', async () => {
+  // Fifteen tables carry a clan_member_id. The seat did not change when the row describing it split,
+  // so every one of those references must still land on the same seat.
+  const seats = await db.select().from(s.clanMembers);
+  const memberships = await db.select().from(s.clanMemberships);
+  assert.deepEqual(
+    memberships.map((m) => m.id).sort((a, b) => a - b),
+    seats.map((m) => m.id).sort((a, b) => a - b),
+  );
+  for (const seat of seats) {
+    const m = memberships.find((x) => x.id === seat.id)!;
+    assert.equal(m.clanId, seat.clanId, `seat ${seat.id} stayed in its clan`);
+  }
+});
+
 test('no roster row is lost in translation', async () => {
   const before = await db.select().from(s.clanMembers);
   const after = await db.select().from(s.clanMemberships);
   assert.equal(after.length, before.length);
+});
+
+test('one account, one hiscores identity — merged by what each number means', async () => {
+  const [woox] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'woox'));
+
+  // Total XP only goes up, so the highest reading any clan saw is the truest one.
+  assert.equal(woox.statsOverallXp, 900);
+
+  // A clan that polled successfully proves the account is reachable. Inheriting another clan's
+  // backoff would park a healthy account at the back of the sweep queue for no reason.
+  assert.equal(woox.statsMissStreak, 0);
+  assert.equal(woox.statsNextDueAt, '2026-08-20 00:00:00');
+
+  // Ownership does not expire and is not per clan: proved once, proved everywhere.
+  assert.equal(woox.verifiedAt, '2026-07-01 00:00:00');
+  assert.equal(woox.verificationMethod, 'plugin');
+  assert.equal(woox.claimedAt, '2026-07-01 00:00:00');
+  assert.equal(woox.provisional, 0, 'confirmed in one clan is confirmed, full stop');
+  assert.equal(woox.isPrimary, 1);
+
+  // Name history is append-only, so the longest record is the most complete.
+  assert.equal(woox.previousRsns, '["Wooox","Woox2"]');
+});
+
+test('the stat blobs come from one moment, not spliced from several', async () => {
+  const [woox] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'woox'));
+  // Taking each column independently would pair bravo's live_stats with alpha's snapshot and
+  // describe a state the account was never in. The freshest observation wins as a whole.
+  assert.equal(woox.liveStatsAt, '2026-08-10 00:00:00');
+  assert.equal(woox.liveStats, '{"overall":900}');
+  assert.equal(woox.statsLastSnapshot, '{"snap":900}');
+  assert.equal(woox.statusLastChecked, '2026-08-10 00:00:00');
+});
+
+test('per-seat facts stay on the seat', async () => {
+  // notes and last_seen_in_clan are one clan's view of one seat. Merging them onto the account
+  // would leak a clan's private note about someone into every other clan they play in.
+  const seats = await db.select().from(s.clanMemberships);
+  assert.ok(seats.length > 0);
+  assert.ok('notes' in seats[0] && 'lastSeenInClan' in seats[0] && 'pendingRole' in seats[0]);
+});
+
+test('a login points at the person behind it', async () => {
+  const logins = await db.select().from(s.users);
+  assert.ok(logins.length > 0);
+  for (const u of logins) assert.ok(u.playerId != null, `${u.displayName} has a person`);
 });

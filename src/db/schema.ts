@@ -124,12 +124,45 @@ export const accounts = pgTable('accounts', {
   // rather than proves.
   accountHash: text('account_hash'),
   // 'active' | 'unranked' | 'banned' | 'archived' — drives whether the hiscores sweep polls it.
+  // Jagex-side health, not a clan's opinion: 'banned' here means Jagex banned the account. Being
+  // barred from a clan is a property of that clan's membership, and lives there.
   status: text('status').notNull().default('active'),
+  statusLastChecked: text('status_last_checked'),
+  // JSON array of historical RSNs, appended whenever a rename is detected.
+  previousRsns: text('previous_rsns'),
+  // The person's "main" among their accounts.
+  isPrimary: integer('is_primary').default(0).notNull(),
+
+  // ── Proof of ownership ───────────────────────────────────────────────────────────────────
+  // Global, because it is a fact about the account and not about any clan: proving ownership once
+  // proves it everywhere, and nobody should have to re-prove the same RSN per clan.
+  verifiedAt: text('verified_at'),
+  verificationMethod: text('verification_method'), // 'plugin' | 'stat_delta' | 'manual'
+  verifiedByUserId: integer('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // On the watchlist: matched by a signal weak enough to be coincidence, awaiting a mod's confirm.
+  provisional: integer('provisional').default(0).notNull(),
+  claimedAt: text('claimed_at'),
+
+  // ── Hiscores state ───────────────────────────────────────────────────────────────────────
+  // Here rather than on the roster seat because Jagex tracks accounts, not memberships. One row per
+  // account is what lets the sweep poll a person in three clans ONCE instead of three times — the
+  // poll budget is the scarce resource, so this is the whole reason the split is worth doing.
+  liveStats: text('live_stats'),
+  liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
+  liveStatKeyTimes: text('live_stat_key_times'),
+  statsOverallXp: integer('stats_overall_xp'), // last observed total XP — the change detector
+  statsMissStreak: integer('stats_miss_streak').notNull().default(0),
+  statsNextDueAt: text('stats_next_due_at'),   // null = due now
+  statsLastSnapshot: text('stats_last_snapshot'),
+  statsActivities: text('stats_activities'),
+
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('accounts_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('accounts_account_hash_unique').on(table.accountHash),
   index('accounts_player_idx').on(table.playerId),
+  // The sweep's work queue: which accounts are due a poll.
+  index('accounts_due_idx').on(table.status, table.statsNextDueAt),
 ]);
 
 /**
@@ -161,6 +194,12 @@ export const clanMemberships = pgTable('clan_memberships', {
   joinedAt: text('joined_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   // Soft-left: the roster stopped listing them. Kept so their history in this clan survives.
   leftAt: text('left_at'),
+  // Bumped on each roster sync that lists this RSN. Per seat: presence on THIS clan's roster.
+  lastSeenInClan: text('last_seen_in_clan'),
+  // This clan's private note about this seat.
+  notes: text('notes'),
+  // A clan role waiting on a mod's approval before it applies: 'admin' | 'moderator' | null.
+  pendingRole: text('pending_role'),
 }, (table) => [
   uniqueIndex('clan_memberships_clan_account_unique').on(table.clanId, table.accountId),
   index('clan_memberships_clan_kind_idx').on(table.clanId, table.kind),
@@ -636,6 +675,10 @@ export const rateLimits = pgTable('rate_limits', {
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
+  // The person this login belongs to. A person can hold several OSRS accounts and, eventually,
+  // several logins; the login is not the identity. Ids were seeded 1:1 from users, so this is
+  // already true — this column makes it something a reader can follow rather than infer.
+  playerId: integer('player_id').references(() => players.id, { onDelete: 'set null' }),
   // Dead legacy columns (username + password_hash). Discord OAuth is the only auth path now;
   // these are left in the table to keep migrations cheap. Stop reading/writing them.
   username: text('username').unique(),
@@ -708,6 +751,7 @@ export const users = pgTable('users', {
   pluginToken: text('plugin_token'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
+  index('users_player_idx').on(table.playerId),
 ]);
 
 // Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though

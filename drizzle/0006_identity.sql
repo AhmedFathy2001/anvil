@@ -127,8 +127,14 @@ ALTER TABLE "accounts" ALTER COLUMN "player_id" SET NOT NULL;--> statement-break
 -- kind carries the rule the codebase already followed with a flag: every non-roster path wrote
 -- is_guest = 1, and only the in-game roster sync promoted to 0. Membership is GRANTED — logging in
 -- has never made anyone a member, and must not start now.
-INSERT INTO "clan_memberships" ("clan_id", "account_id", "kind", "rank", "source", "joined_at", "left_at")
+-- The membership KEEPS the clan_members id. Fifteen tables carry a clan_member_id pointing at this
+-- exact seat — snapshots, signups, payouts, audit entries — and the seat is the same seat; only the
+-- row describing it moved. Preserving the id makes those columns a rename rather than a re-key, and
+-- keeps every historical reference intact through the transition.
+INSERT INTO "clan_memberships" ("id", "clan_id", "account_id", "kind", "rank", "source", "joined_at", "left_at")
+OVERRIDING SYSTEM VALUE
 SELECT
+  cm."id",
   cm."clan_id",
   a."id",
   CASE WHEN cm."is_guest" = 0 THEN 'member' ELSE 'guest' END,
@@ -143,6 +149,11 @@ SELECT
 FROM "clan_members" cm
 JOIN "accounts" a ON a."rsn_normalized" = cm."rsn_normalized"
 ON CONFLICT DO NOTHING;--> statement-breakpoint
+
+SELECT setval(
+  pg_get_serial_sequence('clan_memberships', 'id'),
+  GREATEST((SELECT COALESCE(MAX("id"), 0) FROM "clan_memberships"), 1)
+);--> statement-breakpoint
 
 -- ── 8) Constraints, after the data is in ────────────────────────────────────────────────────
 CREATE UNIQUE INDEX "accounts_rsn_normalized_unique" ON "accounts" USING btree ("rsn_normalized");--> statement-breakpoint
