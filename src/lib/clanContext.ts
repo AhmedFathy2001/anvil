@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
 import { eq, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans } from '@/db/schema';
@@ -133,15 +134,18 @@ export const currentClan = cache(async (): Promise<ClanContext | null> => {
 });
 
 /**
- * The clan for the current request, or a thrown error.
+ * The clan for the current request, or a 404.
  *
- * For everything that cannot meaningfully proceed without one — which is most writes. Callers that
- * legitimately work clanless (the directory, a global profile, /staff) use `currentClan` and handle
- * the null instead of reaching for this.
+ * For everything that cannot meaningfully proceed without one — which is most of the app. Callers
+ * that legitimately work clanless (the directory, /staff) use `currentClan` and handle the null.
+ *
+ * notFound() rather than a thrown Error: a clan page requested on the apex is not a server fault,
+ * it is a page that does not exist there. Throwing produced "Something went wrong" with a digest,
+ * which is both alarming and wrong — the apex has no /profile because profiles belong to clans.
  */
 export async function requireClan(): Promise<ClanContext> {
   const clan = await currentClan();
-  if (!clan) throw new Error('No clan for this host');
+  if (!clan) notFound();
   return clan;
 }
 

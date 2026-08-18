@@ -210,8 +210,11 @@ export async function completeDiscordLogin(
     user.role === 'admin' || user.canEditTiles === true,
   );
 
-  // First-ever login lands on the getting-started checklist unless a deep link was requested.
-  const destination = isNewUser && returnTo === '/' ? '/profile?welcome=1' : returnTo;
+  // First-ever login lands on the getting-started checklist unless a deep link was requested — but
+  // only when we are returning to a CLAN. The apex has no /profile: profiles belong to a clan's
+  // roster, so a first login that started at the directory goes back to the directory.
+  const returningToClan = Boolean(returnHost);
+  const destination = isNewUser && returnTo === '/' && returningToClan ? '/profile?welcome=1' : returnTo;
 
   // Back to the clan they started from. `returnHost` has already been resolved against the clans
   // table by the caller, so it is a host we produced rather than one a query parameter asked for.
