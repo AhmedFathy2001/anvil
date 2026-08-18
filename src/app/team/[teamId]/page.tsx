@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import MyTeamClient from './MyTeamClient';
-import TeamInvitePanel from '@/components/TeamInvitePanel';
 import TeamManageClient from './TeamManageClient';
 import DraftClockClient from './DraftClockClient';
 import DraftWatchClient from './DraftWatchClient';
@@ -137,7 +136,9 @@ export default async function MyTeamPage({
         <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; {backLabel}
         </Link>
-        {membership.isCaptain && !eventStarted && (
+        {/* The war room has ONE way in. When the draft hasn't started the banner below says why to
+            go there, so a second identical button above it was noise; once it has, this is it. */}
+        {membership.isCaptain && !eventStarted && event.draftStatus !== 'none' && (
           <Link
             href={`/team/${tId}/applicants`}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
@@ -163,11 +164,9 @@ export default async function MyTeamPage({
         </div>
       )}
       {membership.canManage && (
-        <div className="mb-6 space-y-6">
+        <div className="mb-6">
+          {/* Roster, proof, fees and invite links in one shut card — see TeamManageClient. */}
           <TeamManageClient teamId={tId} />
-          {/* Only renders anything actionable when the event lets captains mint — otherwise it's a
-              read-only list of the links the host already handed out for this team. */}
-          <TeamInvitePanel teamId={tId} />
         </div>
       )}
       <MyTeamClient

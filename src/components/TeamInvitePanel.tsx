@@ -27,9 +27,11 @@ interface Props {
   teamId: number;
   /** Admin-only: the event switch that decides whether captains may mint. Absent for a captain. */
   captainToggle?: { eventId: number; rules: string | null };
+  /** Embedded in another card (the captain's tools) — drop the frame, heading and pitch. */
+  bare?: boolean;
 }
 
-export default function TeamInvitePanel({ teamId, captainToggle }: Props) {
+export default function TeamInvitePanel({ teamId, captainToggle, bare = false }: Props) {
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [mayMint, setMayMint] = useState(false);
   const [captainInvites, setCaptainInvites] = useState(false);
@@ -118,16 +120,26 @@ export default function TeamInvitePanel({ teamId, captainToggle }: Props) {
   const live = invites.filter((i) => !i.revokedAt);
 
   return (
-    <div className="border border-card-border rounded-xl bg-card-bg p-4">
-      <h3 className="font-semibold flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Invite links
-      </h3>
-      <p className="text-sm text-text-muted mb-3">
-        A link that puts whoever opens it straight onto this team — they still sign in and still need
-        a verified RSN, but they skip the draft pool and the approval queue. Made for a visiting clan
-        fielding its own roster.
-      </p>
+    <div className={bare ? '' : 'border border-card-border rounded-xl bg-card-bg p-4'}>
+      {!bare && (
+        <>
+          <h3 className="font-semibold flex items-center gap-2 mb-1">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Invite links
+          </h3>
+          <p className="text-sm text-text-muted mb-3">
+            A link that puts whoever opens it straight onto this team — they still sign in and still
+            need a verified RSN, but they skip the draft pool and the approval queue. Made for a
+            visiting clan fielding its own roster.
+          </p>
+        </>
+      )}
+      {bare && (
+        <p className="text-sm text-text-muted mb-3">
+          Puts whoever opens it straight onto this team — no draft pool, no approval queue. They still
+          sign in and still need a verified RSN.
+        </p>
+      )}
 
       {captainToggle && (
         <label className="flex items-center gap-2 text-sm mb-3">

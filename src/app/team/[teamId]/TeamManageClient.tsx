@@ -1,10 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import TeamInvitePanel from '@/components/TeamInvitePanel';
 
-// The manager's half of a team page: who's on it, what their proof looks like, and whose fee is
-// still owed. Shown to the captain and to anyone holding a staff seat on this team — which is how
-// a visiting clan's moderator runs their own side of a clan-v-clan without an admin account here.
+// The manager's half of a team page: who's on it, what their proof looks like, whose fee is still
+// owed, and the links that put people on it. Shown to the captain and to anyone holding a staff seat
+// on this team — which is how a visiting clan's moderator runs their own side of a clan-v-clan
+// without an admin account here.
+//
+// It opens SHUT. A captain came to look at the board; the summary line carries the only numbers that
+// would have made them open it (who's on, what's owed), so the tools stay one click away instead of
+// three cards deep.
 
 interface RosterRow {
   playerId: number;
@@ -50,7 +56,8 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'roster' | 'proof' | 'fees'>('roster');
+  const [tab, setTab] = useState<'roster' | 'proof' | 'fees' | 'invites'>('roster');
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,17 +121,44 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
 
   const owed = fees.filter((f) => f.status === 'pending' || f.status === 'disputed').length;
 
+  // What the card says about itself while shut — the numbers that decide whether to open it.
+  const summary = [
+    `${roster.length} on the roster`,
+    owed > 0 ? `${owed} fee${owed === 1 ? '' : 's'} owed` : null,
+    proof.length > 0 ? `${proof.length} proof` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <section className="border border-card-border rounded-xl bg-card-bg p-5">
-      <div className="flex items-center gap-2 flex-wrap mb-4">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-2 text-left"
+      >
         <span className="w-1 h-5 bg-gold rounded-full" />
         <h2 className="text-lg font-semibold">Manage this team</h2>
-        <div className="ml-auto flex gap-1.5 flex-wrap">
+        <span className="text-sm text-text-muted truncate">
+          {loading ? '' : summary}
+          {owed > 0 && <span className="text-yellow-400"> ·</span>}
+        </span>
+        <span className={`ml-auto text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
+          ▾
+        </span>
+      </button>
+
+      {!open ? null : (
+      <>
+      <div className="flex items-center gap-2 flex-wrap mb-4 mt-4">
+        <div className="flex gap-1.5 flex-wrap">
           {(
             [
               ['roster', `Roster · ${roster.length}`],
               ['proof', `Proof · ${proof.length}`],
               ['fees', owed > 0 ? `Fees · ${owed} owed` : `Fees · ${fees.length}`],
+              ['invites', 'Invite links'],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -273,10 +307,16 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               </p>
             </div>
           )}
+
+          {/* The links live here rather than in a card of their own: it's the same job as the roster
+              tab — deciding who is on this team — and a captain who can't mint still sees what's out. */}
+          {tab === 'invites' && <TeamInvitePanel teamId={teamId} bare />}
         </>
       )}
 
       {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+      </>
+      )}
     </section>
   );
 }
