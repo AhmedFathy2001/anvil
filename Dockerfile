@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# Single-tenant Anvil clan instance. One image, one running container per clan, each pointed at its
-# own SQLite file (mounted at /data) and its own R2 key prefix. Built as a Next.js standalone bundle
-# so the runtime is just Node — no node_modules install, no `next start`.
+# The Anvil site. One image, one running container, many clans — each a row in the shared Postgres
+# the container is pointed at, resolved per request from the Host header. Built as a Next.js
+# standalone bundle so the runtime is just Node — no node_modules install, no `next start`.
 
 # ─── deps: install everything (dev included) for the build ─────────────────────
 FROM node:22-bookworm-slim AS deps
@@ -27,13 +27,14 @@ WORKDIR /app
 # plugin handshake. CI passes it; local builds fall back to 'dev'.
 ARG GIT_SHA=dev
 ENV GIT_SHA=$GIT_SHA
+# No DATABASE_URL default: the database is a separate service now, and a default would only ever be
+# wrong. Boot fails loudly without it, which is the right failure.
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    DATABASE_URL=file:/data/anvil.db
+    HOSTNAME=0.0.0.0
 
-# Run as non-root; /data holds the clan's SQLite DB (+ WAL/SHM) and must be writable by it.
+# Run as non-root; /data holds pre-migration pg_dump snapshots and must be writable by it.
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs \
  && mkdir -p /data && chown -R nextjs:nodejs /data
@@ -43,12 +44,23 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Migrations + the boot-time migrator. drizzle-orm's /libsql/migrator submodule and @libsql aren't
-# traced into the standalone bundle (migrate.mjs runs outside Next), so copy them in explicitly.
+# Migrations + the boot-time migrator. drizzle-orm's node-postgres migrator and `pg` aren't traced
+# into the standalone bundle (migrate.mjs runs outside Next), so copy them in explicitly.
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed-preview.mjs ./scripts/seed-preview.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@libsql ./node_modules/@libsql
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg ./node_modules/pg
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-pool ./node_modules/pg-pool
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-protocol ./node_modules/pg-protocol
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-types ./node_modules/pg-types
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-connection-string ./node_modules/pg-connection-string
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-int8 ./node_modules/pg-int8
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-array ./node_modules/postgres-array
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-bytea ./node_modules/postgres-bytea
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-date ./node_modules/postgres-date
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-interval ./node_modules/postgres-interval
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-cloudflare ./node_modules/pg-cloudflare
 
 USER nextjs
 VOLUME /data
