@@ -455,18 +455,18 @@ export const submissions = pgTable('submissions', {
   index('submissions_tile_team_idx').on(table.tileId, table.teamId),
 ]);
 
-// Per-clan configuration, still keyed on `key` alone.
+// Per-clan configuration.
 //
-// This is the ONE root table the clan conversion has not scoped yet, and deliberately so: making the
-// key composite forces clanId through lib/settings, which forces it through every settings-backed
-// getter in pluginConfig, which forces it through all 24 Discord notify helpers and their callers.
-// That cascade is a change of its own, and lumping it in here would have made this commit
-// unreviewable. Config therefore stays deployment-wide for one more step, while the tables that hold
-// a clan's actual DATA are already scoped.
+// The key is unique only WITHIN a clan, so the primary key is the pair. That single change is what
+// forces clanId through lib/settings, every settings-backed getter in pluginConfig, and the whole
+// Discord notify layer — which is why it landed on its own rather than alongside the clan entity.
 export const settings = pgTable('settings', {
-  key: text('key').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  key: text('key').notNull(),
   value: text('value'),
-});
+}, (table) => [
+  primaryKey({ columns: [table.clanId, table.key] }),
+]);
 
 /**
  * Device-code sign-in for the plugin (RFC 8628 shape, home-native — no broker involved). The plugin

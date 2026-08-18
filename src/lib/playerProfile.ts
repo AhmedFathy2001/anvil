@@ -37,10 +37,10 @@ export interface CapabilityMarker {
 }
 
 /** Curated markers ⊕ per-clan `capability_markers` setting override (merged by key). */
-export async function loadCapabilityMarkers(): Promise<CapabilityMarker[]> {
+export async function loadCapabilityMarkers(clanId: number): Promise<CapabilityMarker[]> {
   const base = (defaultMarkers as { markers: CapabilityMarker[] }).markers;
   try {
-    const value = await getSetting(CAPABILITY_MARKERS_SETTING_KEY);
+    const value = await getSetting(clanId, CAPABILITY_MARKERS_SETTING_KEY);
     if (!value) return base;
     const parsed = JSON.parse(value) as { markers?: CapabilityMarker[] };
     if (!Array.isArray(parsed.markers)) return base;
@@ -132,8 +132,8 @@ const normalizeRsn = (name: string) => name.toLowerCase().replaceAll('-', ' ').r
  *  - eventId set: every player row of that event (drafted or not) — the draft/pre-start view.
  *  - no eventId: every active, non-guest clan member with a stored snapshot — the clan-wide view.
  */
-export async function computePlayerProfiles(opts: { eventId?: number } = {}): Promise<PlayerProfile[]> {
-  const markers = await loadCapabilityMarkers();
+export async function computePlayerProfiles(clanId: number, opts: { eventId?: number } = {}): Promise<PlayerProfile[]> {
+  const markers = await loadCapabilityMarkers(clanId);
   const members = await db
     .select({
       id: clanMembers.id,

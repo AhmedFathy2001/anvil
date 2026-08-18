@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
@@ -15,6 +16,7 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -43,7 +45,7 @@ export async function POST(
     return NextResponse.json({ error: 'Create at least two teams to balance into.' }, { status: 400 });
   }
 
-  const balance = await buildDraftBalance(id);
+  const balance = await buildDraftBalance(clan.id, id);
   const teamIds = eventTeams.map((t) => t.id);
   const assignments = greedyAssignments(balance, teamIds);
   if (assignments.length === 0) {

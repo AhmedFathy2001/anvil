@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
@@ -73,6 +74,7 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
 }
 
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const auth = await verifyPluginTokenUser(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
   }
 
-  const webhooks = await getNotificationWebhooks();
+  const webhooks = await getNotificationWebhooks(clan.id);
   const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
   if (!url) {
     // No webhook configured for this channel — nothing to forward. Not an error; the plugin gates on
@@ -153,7 +155,7 @@ export async function POST(request: Request) {
   // Marked server-side, after the embed is composed, so EVERY notification kind gets it without the
   // plugin knowing about each one — and clients already in the wild get it on deploy.
   if (seasonal) {
-    finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl());
+    finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl(clan.id));
   }
 
   const ok = await forwardPluginNotification(url, { content: finalContent, embed: finalEmbed, attachment: image });

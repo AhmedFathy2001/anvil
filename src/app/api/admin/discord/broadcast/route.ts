@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
 import { listBroadcastTargets, sendBotMessage } from '@/lib/discord-broadcast';
 
 // GET — channels the bot can post to + roles it could ping, for the Announce form.
 export async function GET() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const data = await listBroadcastTargets();
+  const data = await listBroadcastTargets(clan.id);
   return NextResponse.json(data);
 }
 
 // POST — send a message (optionally an embed, optionally pinging a role) to a channel.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const payload = await request.json().catch(() => null);
@@ -27,6 +30,7 @@ export async function POST(request: Request) {
   }
 
   const report = await sendBotMessage({
+    clanId: clan.id,
     channelId,
     title: typeof title === 'string' ? title : undefined,
     body,

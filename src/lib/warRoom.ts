@@ -73,17 +73,18 @@ export function coverageOf(people: WarRoomPerson[]): Set<string> {
 }
 
 export async function buildWarRoom(params: {
+  clanId: number;
   eventId: number;
   teamId: number;
   /** The captain, for their own shortlist. */
   userId: number;
 }): Promise<WarRoom | null> {
-  const { eventId, teamId, userId } = params;
+  const { clanId, eventId, teamId, userId } = params;
 
   const [eventTeams, eventPlayers, balance] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(players).where(eq(players.eventId, eventId)),
-    buildDraftBalance(eventId),
+    buildDraftBalance(clanId, eventId),
   ]);
 
   const event = await db.query.events.findFirst({

@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
@@ -24,6 +25,7 @@ export default async function MyTeamPage({
   params: Promise<{ teamId: string }>;
   searchParams: Promise<{ from?: string }>;
 }) {
+  const clan = await requireClan();
   const { teamId } = await params;
   const { from } = await searchParams;
   const tId = parseInt(teamId, 10);
@@ -99,7 +101,7 @@ export default async function MyTeamPage({
   const [allEventTiles, rawEventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(players).where(eq(players.eventId, event.id)),
-    getTierBands(),
+    getTierBands(clan.id),
   ]);
   // Reveal-policy events (lib/eventRules): the team hub is a player surface — only revealed
   // tiles ever reach the client, even for staff viewing their own team.

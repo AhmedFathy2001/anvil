@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { requireClan } from '@/lib/clanContext';
 import Link from 'next/link';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -27,7 +28,8 @@ const SECTIONS = [
 ];
 
 export default async function AdminGuidePage() {
-  const clanName = await getClanDisplayName('your clan');
+  const clan = await requireClan();
+  const clanName = await getClanDisplayName(clan.id, 'your clan');
   // Hosted instances went through the purchase → setup → build path, so only they get the paragraph
   // about it.
   const hosted = Boolean(process.env.CLAN_SLUG);

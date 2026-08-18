@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { submissions, tiles, teams, players, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
@@ -71,6 +72,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const rl = await rateLimit(request, 'submissions', { limit: 60, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
@@ -417,6 +419,7 @@ export async function POST(
     // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post
     // them immediately, unchanged.
     notifySubmission({
+      clanId: clan.id,
       eventName: event?.name || 'Unknown Event',
       tileLabel: tile.label,
       teamName: team.name,
@@ -459,6 +462,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
@@ -588,6 +592,7 @@ export async function DELETE(
   // Send Discord notification for deletion
   if (team && event) {
     notifySubmissionDeleted({
+      clanId: clan.id,
       eventName: event.name,
       tileLabel: tile.label,
       teamName: team.name,

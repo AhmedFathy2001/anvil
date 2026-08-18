@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { tiles, events } from '@/db/schema';
@@ -17,6 +18,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   const editor = await verifyTileEditorForEvent(eId);
@@ -31,7 +33,7 @@ export async function GET(
   const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
 
   let ratesOverride: unknown = null;
-  const stored = await getSetting(BALANCE_RATES_SETTING_KEY);
+  const stored = await getSetting(clan.id, BALANCE_RATES_SETTING_KEY);
   if (stored) {
     try {
       ratesOverride = JSON.parse(stored);
@@ -55,8 +57,8 @@ export async function GET(
   // best moment to hear that is while points are still editable. Best-effort: a profile hiccup
   // never blocks the audit itself.
   try {
-    const enrolled = await computePlayerProfiles({ eventId: eId });
-    const pool = enrolled.length > 0 ? enrolled : await computePlayerProfiles({});
+    const enrolled = await computePlayerProfiles(clan.id, { eventId: eId });
+    const pool = enrolled.length > 0 ? enrolled : await computePlayerProfiles(clan.id, {});
     const poolLabel = enrolled.length > 0 ? 'sign-up pool' : 'clan (nobody signed up yet)';
     const gatedTiles = report.perTile.filter((t) => t.floor === 'elite' || t.floor === 'high');
     if (pool.length > 0 && gatedTiles.length > 0) {

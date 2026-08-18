@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -28,6 +29,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; signupId: string }> },
 ) {
+  const clan = await requireClan();
   const session = await verifyUser();
   if (!session || session.role !== 'admin') {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
@@ -125,6 +127,7 @@ export async function PATCH(
           ]);
           if (!event) return;
           await notifySignupApproved({
+            clanId: clan.id,
             eventId: evtId,
             eventName: event.name,
             displayName: user?.displayName ?? account?.rsn ?? 'A member',

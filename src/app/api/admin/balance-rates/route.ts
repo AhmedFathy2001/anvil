@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting, deleteSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import defaultRates from '@/data/balanceRates.json';
@@ -61,11 +62,12 @@ function sanitize(raw: unknown): { skills: Record<string, unknown>; activities: 
 }
 
 export async function GET() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   let overrides: unknown = null;
-  const value = await getSetting(SETTING_KEY);
+  const value = await getSetting(clan.id, SETTING_KEY);
   if (value) {
     try {
       overrides = JSON.parse(value);
@@ -77,6 +79,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -89,17 +92,18 @@ export async function PUT(request: Request) {
   const clean = sanitize(body.overrides);
   const empty = Object.keys(clean.skills).length === 0 && Object.keys(clean.activities).length === 0;
   if (empty) {
-    await deleteSetting(SETTING_KEY);
+    await deleteSetting(clan.id, SETTING_KEY);
     return NextResponse.json({ success: true, overrides: null });
   }
-  await setSetting(SETTING_KEY, JSON.stringify(clean));
+  await setSetting(clan.id, SETTING_KEY, JSON.stringify(clean));
   return NextResponse.json({ success: true, overrides: clean });
 }
 
 export async function DELETE() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  await deleteSetting(SETTING_KEY);
+  await deleteSetting(clan.id, SETTING_KEY);
   return NextResponse.json({ success: true });
 }

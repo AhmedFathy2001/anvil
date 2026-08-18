@@ -92,10 +92,10 @@ const KIND: Record<string, HomeWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', 
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = new Date()): Promise<HomeView> {
+export async function buildHomeView(clanId: number, viewerMemberIds: number[] = [], now: Date = new Date()): Promise<HomeView> {
   const nowIso = now.toISOString();
-  const clanName = await getClanDisplayName();
-  const discordInvite = await getDiscordInviteUrl();
+  const clanName = await getClanDisplayName(clanId);
+  const discordInvite = await getDiscordInviteUrl(clanId);
 
   const memberCount = await db
     .select({ c: count() })

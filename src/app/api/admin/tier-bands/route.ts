@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { setSetting, deleteSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { DEFAULT_TIER_BANDS, normalizeTierBands } from '@/lib/tileFilter';
@@ -9,13 +10,15 @@ import { TIER_BANDS_SETTING_KEY, getTierBands } from '@/lib/pluginConfig';
 // them after validation. Served to the plugin via /api/plugin/config + /api/plugin/board.
 
 export async function GET() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return NextResponse.json({ bands: await getTierBands() });
+  return NextResponse.json({ bands: await getTierBands(clan.id) });
 }
 
 export async function PUT(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -43,16 +46,17 @@ export async function PUT(request: Request) {
   }
 
   const value = JSON.stringify(bands);
-  await setSetting(TIER_BANDS_SETTING_KEY, value);
+  await setSetting(clan.id, TIER_BANDS_SETTING_KEY, value);
 
   return NextResponse.json({ success: true, bands });
 }
 
 // Restore the curated defaults (used by the admin "Reset" action).
 export async function DELETE() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  await deleteSetting(TIER_BANDS_SETTING_KEY);
+  await deleteSetting(clan.id, TIER_BANDS_SETTING_KEY);
   return NextResponse.json({ success: true, bands: DEFAULT_TIER_BANDS });
 }

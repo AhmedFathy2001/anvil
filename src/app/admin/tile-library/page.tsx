@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { requireClan } from '@/lib/clanContext';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { SEED_TASKS } from '@/lib/tileLibrary';
@@ -9,10 +10,11 @@ export const dynamic = 'force-dynamic';
 // The clan's reusable task catalogue. Same authority as tile authoring — an editor curating the
 // library is doing the same job as an editor building a board, one step earlier.
 export default async function TileLibraryPage() {
+  const clan = await requireClan();
   const editor = await verifyTileEditorAnywhere();
   if (!editor) redirect('/admin/dashboard');
 
-  const tierBands = await getTierBands();
+  const tierBands = await getTierBands(clan.id);
 
   return (
     <div className="max-w-4xl">

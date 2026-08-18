@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import {
@@ -16,8 +17,8 @@ import { botGuildStatus } from '@/lib/discord-permissions';
 // other half of the bot connection.
 
 
-async function readGuildId(): Promise<string> {
-  const guildIdSetting = await getSetting('discord_guild_id');
+async function readGuildId(clanId: number): Promise<string> {
+  const guildIdSetting = await getSetting(clanId, 'discord_guild_id');
   return guildIdSetting || process.env.DISCORD_GUILD_ID || '';
 }
 
@@ -54,12 +55,12 @@ function buildInviteUrl(clientId: string, guildId: string): string {
 
 // Assemble the status the UI renders — resolved token source + a live "connected as" check, never
 // the token itself.
-async function buildStatus() {
-  const source = await getBotTokenSource();
+async function buildStatus(clanId: number) {
+  const source = await getBotTokenSource(clanId);
   // Token-only resolution: the bot must be identifiable (and invitable) BEFORE a server ID is set.
-  const resolved = await getBotTokenOnly();
+  const resolved = await getBotTokenOnly(clanId);
   const bot = resolved ? await fetchBotUser(resolved.token) : null;
-  const guildId = await readGuildId();
+  const guildId = await readGuildId(clanId);
 
   // A working token says nothing about whether the bot was ever invited to THIS clan's server —
   // with a shared bot the token is always valid, so membership is the only honest signal.
@@ -85,8 +86,9 @@ async function buildStatus() {
 }
 
 export async function GET() {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  return NextResponse.json(await buildStatus());
+  return NextResponse.json(await buildStatus(clan.id));
 }
 
 // PUT { botToken?, guildId? }
@@ -94,6 +96,7 @@ export async function GET() {
 //   botToken — a non-empty value is validated with Discord and stored as the BYO override; an empty
 //              string clears it, reverting to the env / shared bot.
 export async function PUT(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json().catch(() => null);
@@ -103,7 +106,7 @@ export async function PUT(request: Request) {
   const { botToken, guildId } = body as Record<string, unknown>;
 
   if (typeof guildId === 'string') {
-    await setSetting('discord_guild_id', guildId.trim() || null);
+    await setSetting(clan.id, 'discord_guild_id', guildId.trim() || null);
   }
 
   if (typeof botToken === 'string') {
@@ -116,12 +119,12 @@ export async function PUT(request: Request) {
           { status: 400 },
         );
       }
-      await setSetting('discord_bot_token', trimmed);
+      await setSetting(clan.id, 'discord_bot_token', trimmed);
     } else {
       // Clear the BYO override → fall back to the env / shared bot.
-      await setSetting('discord_bot_token', null);
+      await setSetting(clan.id, 'discord_bot_token', null);
     }
   }
 
-  return NextResponse.json(await buildStatus());
+  return NextResponse.json(await buildStatus(clan.id));
 }

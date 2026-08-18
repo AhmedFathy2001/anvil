@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { eventSignups, signupFees } from '@/db/schema';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
@@ -18,6 +19,7 @@ import { applyFeeConfirmation, getRequiredConfirmations, settlesOnCollect } from
  * for an event still running.
  */
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   const session = await verifyUser();
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
   // With no second signature required there is nobody to be separate from, so the caller's own
   // collections are settleable too — which is the only way a one-person treasury clears the
   // backlog it built up while the rule was in force.
-  const noSignature = settlesOnCollect(await getRequiredConfirmations());
+  const noSignature = settlesOnCollect(await getRequiredConfirmations(clan.id));
 
   const scope = (forCaller: boolean) =>
     and(

@@ -39,18 +39,18 @@ async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: strin
 }
 
 // Weekly Discord posts are best-effort: a webhook failure must never break the cron sweep.
-async function announceWeeklyStart(comp: { type: string; title: string; metric: string; endDate: string }) {
+async function announceWeeklyStart(comp: { clanId: number; type: string; title: string; metric: string; endDate: string }) {
   try {
-    await notifyWeeklyStart({ type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate });
+    await notifyWeeklyStart({ clanId: comp.clanId, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate });
   } catch (err) {
     log.warn('weekly-cron.notify-start-fail', {}, err);
   }
 }
 
-async function announceWeeklyResults(comp: { id: number; type: string; title: string; metric: string }) {
+async function announceWeeklyResults(comp: { id: number; clanId: number; type: string; title: string; metric: string }) {
   try {
     const standings = await buildWeeklyStandings(comp.id);
-    await notifyWeeklyResults({ type: comp.type, title: comp.title, metric: comp.metric, standings });
+    await notifyWeeklyResults({ clanId: comp.clanId, type: comp.type, title: comp.title, metric: comp.metric, standings });
   } catch (err) {
     log.warn('weekly-cron.notify-results-fail', {}, err);
   }

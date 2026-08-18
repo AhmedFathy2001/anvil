@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
@@ -30,6 +31,7 @@ function seedKeyFor(label: string, tileType: string): string {
 }
 
 export async function GET(request: Request) {
+  const clan = await requireClan();
   const editor = await verifyTileEditorAnywhere();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -59,7 +61,7 @@ export async function GET(request: Request) {
       }));
     source = event.name;
   } else {
-    const library = await listLibrary();
+    const library = await listLibrary(clan.id);
     tasks = library.map((t) => ({
       key: t.seedKey ?? seedKeyFor(t.label, t.tileType),
       label: t.label,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { drawTasks } from '@/lib/tileLibrary';
 
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
 // short, so the caller can say "only 3 hard tasks in the library" instead of quietly building a
 // smaller board than asked for.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const editor = await verifyTileEditorAnywhere();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
   if (total === 0) return NextResponse.json({ error: 'Ask for at least one task' }, { status: 400 });
   if (total > 1000) return NextResponse.json({ error: 'Boards are capped at 1000 tiles' }, { status: 400 });
 
-  const result = await drawTasks({
+  const result = await drawTasks(clan.id, {
     counts: counts as Record<string, number>,
     categories: Array.isArray(body.categories) ? body.categories : undefined,
     exclude: Array.isArray(body.exclude) ? body.exclude.filter((n: unknown) => Number.isInteger(n)) : undefined,

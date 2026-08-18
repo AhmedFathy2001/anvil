@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -16,6 +17,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
@@ -92,7 +94,7 @@ export async function GET(
     // clock — must mirror the pick route exactly or the UI shows the wrong team.
     if (balanceMode === 'dynamic-order') {
       try {
-        const balance = await buildDraftBalance(id);
+        const balance = await buildDraftBalance(clan.id, id);
         currentTeamId = dynamicNextTeam(balance, teamOrder, picksTakenByTeam(eventPlayers));
       } catch {
         currentTeamId = getTeamForPick(teamOrder, currentPickNumber);
@@ -141,6 +143,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -244,6 +247,7 @@ export async function POST(
         .returning({ id: events.id });
       if (startFlipped.length > 0) {
         notifyDraftStart({
+          clanId: clan.id,
           eventName: event.name,
           teamCount: draftTeamOrder.length,
           eventId: id,
@@ -304,6 +308,7 @@ export async function POST(
         }));
 
         notifyDraftComplete({
+          clanId: clan.id,
           eventName: event.name,
           teams: teamsWithPlayers,
           eventId: id,
@@ -350,6 +355,7 @@ export async function POST(
       }));
 
       const success = await notifyDraftComplete({
+        clanId: clan.id,
         eventName: event.name,
         teams: teamsWithPlayers,
         eventId: id,

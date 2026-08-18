@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
@@ -13,6 +14,7 @@ export default async function EventSignupsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  const clan = await requireClan();
   const session = await verifyAdminOrModerator();
   if (!session) redirect('/admin');
 
@@ -21,7 +23,7 @@ export default async function EventSignupsPage({
 
   const [event, confirmationsRequired] = await Promise.all([
     db.query.events.findFirst({ where: eq(events.id, id) }),
-    getRequiredConfirmations(),
+    getRequiredConfirmations(clan.id),
   ]);
   if (!event) notFound();
 

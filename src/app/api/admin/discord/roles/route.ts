@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { fetchGuildRoles } from '@/lib/discord-roles';
@@ -23,10 +24,11 @@ function cleanIds(v: unknown): string[] {
 
 // GET — the guild's roles (for the picker) + which are currently assigned as default / guest roles.
 export async function GET() {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const roles = await fetchGuildRoles();
+  const roles = await fetchGuildRoles(clan.id);
   // Top-of-server first (matches Discord); drop @everyone and bot-managed roles (can't be assigned).
   const sorted = roles
     .filter((r) => r.name !== '@everyone' && !r.managed)
@@ -34,13 +36,14 @@ export async function GET() {
 
   return NextResponse.json({
     roles: sorted,
-    defaultRoleIds: parseIds(await getSetting('discord_default_role_ids')),
-    guestRoleIds: parseIds(await getSetting('discord_guest_role_ids')),
+    defaultRoleIds: parseIds(await getSetting(clan.id, 'discord_default_role_ids')),
+    guestRoleIds: parseIds(await getSetting(clan.id, 'discord_guest_role_ids')),
   });
 }
 
 // POST — save which roles the sync gives every member (default) and every guest.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -49,8 +52,8 @@ export async function POST(request: Request) {
     | null;
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  await setSetting('discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
-  await setSetting('discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
+  await setSetting(clan.id, 'discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
+  await setSetting(clan.id, 'discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
 
   return NextResponse.json({ success: true });
 }

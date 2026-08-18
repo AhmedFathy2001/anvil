@@ -18,8 +18,8 @@ export type { HiscoresSnapshot };
 // doesn't get them back by surprise on the next comp they create.
 const WEEKLY_TRACK_GUESTS_KEY = 'weekly_track_guests';
 
-export async function defaultIncludeGuests(): Promise<boolean> {
-  const value = await getSetting(WEEKLY_TRACK_GUESTS_KEY);
+export async function defaultIncludeGuests(clanId: number): Promise<boolean> {
+  const value = await getSetting(clanId, WEEKLY_TRACK_GUESTS_KEY);
   // Only an explicit "off" opts out; unset means include, which is the new default.
   return !(value === 'false' || value === '0');
 }

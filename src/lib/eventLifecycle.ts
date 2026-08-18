@@ -152,6 +152,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       if (flipped.length > 0) {
         log.warn('event-lifecycle.start-held', { eventId: event.id, blockers: readiness.blockers });
         await notifyEventStartHeld({
+          clanId: event.clanId,
           eventName: event.name,
           scheduledStart: event.startDate,
           blockers: readiness.blockers,
@@ -175,6 +176,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // Draw BEFORE announcing so the embed can carry the location players have to be at.
       const startProof = await drawStartProof(event).catch(() => null);
       await notifyEventStart({
+          clanId: event.clanId,
         eventId: event.id,
         eventName: event.name,
         startDate: event.startDate,
@@ -241,6 +243,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
 
       log.info('event-lifecycle.end', { eventId: event.id });
       await notifyEventEnd({
+          clanId: event.clanId,
         eventId: event.id,
         eventName: event.name,
         standings,
@@ -254,7 +257,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // only ever touches fees a mod already marked collected, never unpaid ones. Best-effort: a
       // fee hiccup must not block the end announcement or the payouts below.
       try {
-        if (await shouldAutoConfirmOnEventEnd()) {
+        if (await shouldAutoConfirmOnEventEnd(event.clanId)) {
           const closed = await autoConfirmEventFees(event.id);
           if (closed > 0) log.info('event-lifecycle.fees-auto-confirmed', { eventId: event.id, closed });
         }

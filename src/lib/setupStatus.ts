@@ -53,8 +53,8 @@ const WANTED_KEYS = [
   'setup_completed',
 ];
 
-export async function getSetupStatus(): Promise<SetupStatus> {
-  const map = await getSettingMap(WANTED_KEYS);
+export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
+  const map = await getSettingMap(clanId, WANTED_KEYS);
   const get = (k: string) => map.get(k) || '';
 
   const clanName = get('clan_name');

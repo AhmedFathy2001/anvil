@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
@@ -14,6 +15,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
@@ -84,7 +86,7 @@ export async function POST(
   let balance: DraftBalance | null = null;
   if (balanceMode === 'dynamic-order' || balanceMode === 'tiered-snake' || balanceMode === 'spread-cap') {
     try {
-      balance = await buildDraftBalance(eId);
+      balance = await buildDraftBalance(clan.id, eId);
     } catch {
       balance = null; // profile hiccup → classic behaviour, never a stuck draft
     }
@@ -201,6 +203,7 @@ export async function POST(
       }));
 
       notifyDraftComplete({
+        clanId: clan.id,
         eventName: event.name,
         teams: teamsWithPlayers,
         eventId: event.id,

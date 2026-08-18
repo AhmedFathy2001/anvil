@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { settings } from '@/db/schema';
 
@@ -28,6 +28,11 @@ import { settings } from '@/db/schema';
 // Neither swallows errors: a database failure is a real failure and hiding it cost us debugging time
 // before. Callers that genuinely must not throw — a Discord notify, say — keep their own try/catch,
 // where the decision is visible.
+//
+// clanId is EXPLICIT on every function rather than read from request context. Resolving it implicitly
+// would work for requests and silently break the cron sweeps, which iterate clans and have no request
+// to read from — and it would hide "which clan did this touch?" at the call site, which is the one
+// question this table's bugs are always about.
 
 /**
  * Raw setting value. `null` when the key has no row or the row's value is NULL.
@@ -35,8 +40,10 @@ import { settings } from '@/db/schema';
  * An empty string is returned AS an empty string, because for several toggles '' is a meaningful
  * value ("explicitly off") distinct from absence ("use the default").
  */
-export async function getSetting(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+export async function getSetting(clanId: number, key: string): Promise<string | null> {
+  const row = await db.query.settings.findFirst({
+    where: and(eq(settings.clanId, clanId), eq(settings.key, key)),
+  });
   return row?.value ?? null;
 }
 
@@ -44,8 +51,10 @@ export async function getSetting(key: string): Promise<string | null> {
  * Trimmed setting value, with empty treated as absent. Use for anything where blank means unset —
  * clan names, invite URLs, Discord ids, tokens.
  */
-export async function getSettingText(key: string): Promise<string | null> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
+export async function getSettingText(clanId: number, key: string): Promise<string | null> {
+  const row = await db.query.settings.findFirst({
+    where: and(eq(settings.clanId, clanId), eq(settings.key, key)),
+  });
   return row?.value?.trim() || null;
 }
 
@@ -55,21 +64,21 @@ export async function getSettingText(key: string): Promise<string | null> {
  * The plugin config endpoint used to make roughly fifteen separate round trips to build one
  * response; this exists so the callers that need a batch can take one.
  */
-export async function getSettingMap(keys: string[]): Promise<Map<string, string | null>> {
+export async function getSettingMap(clanId: number, keys: string[]): Promise<Map<string, string | null>> {
   if (keys.length === 0) return new Map();
   const rows = await db
     .select({ key: settings.key, value: settings.value })
     .from(settings)
-    .where(inArray(settings.key, keys));
+    .where(and(eq(settings.clanId, clanId), inArray(settings.key, keys)));
   return new Map(rows.map((r) => [r.key, r.value ?? null]));
 }
 
 /** Upsert a setting. A null value stores NULL rather than deleting the row. */
-export async function setSetting(key: string, value: string | null): Promise<void> {
+export async function setSetting(clanId: number, key: string, value: string | null): Promise<void> {
   await db
     .insert(settings)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value } });
+    .values({ clanId, key, value })
+    .onConflictDoUpdate({ target: [settings.clanId, settings.key], set: { value } });
 }
 
 /**
@@ -78,6 +87,6 @@ export async function setSetting(key: string, value: string | null): Promise<voi
  * Distinct from `setSetting(key, null)` on purpose: some callers need "no opinion recorded" (row
  * absent) rather than "recorded as null", because their default differs from their off state.
  */
-export async function deleteSetting(key: string): Promise<void> {
-  await db.delete(settings).where(eq(settings.key, key));
+export async function deleteSetting(clanId: number, key: string): Promise<void> {
+  await db.delete(settings).where(and(eq(settings.clanId, clanId), eq(settings.key, key)));
 }

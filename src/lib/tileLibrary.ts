@@ -1,4 +1,4 @@
-import { eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { tileLibrary } from '@/db/schema';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -62,28 +62,28 @@ function toTask(
 }
 
 /** Every task in the catalogue, tier-annotated with the clan's current bands. */
-export async function listLibrary(): Promise<LibraryTask[]> {
+export async function listLibrary(clanId: number): Promise<LibraryTask[]> {
   const [rows, bands] = await Promise.all([
-    db.select().from(tileLibrary).orderBy(tileLibrary.points, tileLibrary.label),
-    getTierBands(),
+    db.select().from(tileLibrary).where(eq(tileLibrary.clanId, clanId)).orderBy(tileLibrary.points, tileLibrary.label),
+    getTierBands(clanId),
   ]);
   return rows.map((r) => toTask(r, bands));
 }
 
 /** Seed keys this clan already has — the basis for "N new starter tasks available". */
-export async function seededKeys(): Promise<Set<string>> {
+export async function seededKeys(clanId: number): Promise<Set<string>> {
   const rows = await db
     .select({ seedKey: tileLibrary.seedKey })
     .from(tileLibrary)
-    .where(isNotNull(tileLibrary.seedKey));
+    .where(and(eq(tileLibrary.clanId, clanId), isNotNull(tileLibrary.seedKey)));
   return new Set(rows.map((r) => r.seedKey).filter((k): k is string => !!k));
 }
 
 /** Starter tasks this clan has never had. Excludes ones they imported and then deleted? No — a
  *  deleted row frees its key, so a delete is a "give it back later" rather than a permanent no.
  *  That's the honest reading of a catalogue the clan owns: nothing is hidden from them forever. */
-export async function pendingSeedTasks(): Promise<SeedTask[]> {
-  const have = await seededKeys();
+export async function pendingSeedTasks(clanId: number): Promise<SeedTask[]> {
+  const have = await seededKeys(clanId);
   return SEED_TASKS.filter((t) => !have.has(t.key));
 }
 
@@ -92,7 +92,7 @@ export async function pendingSeedTasks(): Promise<SeedTask[]> {
  * index on seed_key means a double-click can't duplicate anything, and we skip what's already there.
  */
 export async function importSeedTasks(clanId: number, keys?: string[], userId?: number | null): Promise<number> {
-  const pending = await pendingSeedTasks();
+  const pending = await pendingSeedTasks(clanId);
   const wanted = keys?.length ? pending.filter((t) => keys.includes(t.key)) : pending;
   if (wanted.length === 0) return 0;
 
@@ -133,8 +133,8 @@ export interface DrawResult {
  * few tasks returns what it has and reports the shortfall — the caller shows it rather than
  * pretending the board is full.
  */
-export async function drawTasks(req: DrawRequest): Promise<DrawResult> {
-  const all = await listLibrary();
+export async function drawTasks(clanId: number, req: DrawRequest): Promise<DrawResult> {
+  const all = await listLibrary(clanId);
   const exclude = new Set(req.exclude ?? []);
   const cats = (req.categories ?? []).map((c) => c.toLowerCase()).filter(Boolean);
 
@@ -190,17 +190,17 @@ export async function addTasksFromRows(
 }
 
 /** Distinct categories present in the catalogue — drives the generator's filter. */
-export async function libraryCategories(): Promise<string[]> {
+export async function libraryCategories(clanId: number): Promise<string[]> {
   const rows = await db
     .selectDistinct({ category: tileLibrary.category })
     .from(tileLibrary)
-    .where(isNotNull(tileLibrary.category));
+    .where(and(eq(tileLibrary.clanId, clanId), isNotNull(tileLibrary.category)));
   return rows.map((r) => r.category).filter((c): c is string => !!c).sort();
 }
 
 /** Per-tier counts for the whole catalogue — shown beside each spinner so admins know the ceiling. */
-export async function libraryTierCounts(): Promise<Record<string, number>> {
-  const all = await listLibrary();
+export async function libraryTierCounts(clanId: number): Promise<Record<string, number>> {
+  const all = await listLibrary(clanId);
   const out: Record<string, number> = {};
   all.forEach((t) => {
     if (!t.tier) return;

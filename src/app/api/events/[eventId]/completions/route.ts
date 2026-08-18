@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { completions, tiles, teams, events } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -45,6 +46,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
@@ -164,6 +166,7 @@ export async function POST(
 
     // Send Discord notification for tile completion
     notifyTileCompletion({
+      clanId: clan.id,
       eventName: event?.name || 'Unknown Event',
       tileLabel: tile.label,
       teamName: team.name,
@@ -187,6 +190,7 @@ export async function POST(
 
     if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
       notifyTeamWin({
+        clanId: clan.id,
         eventName: event.name,
         teamName: team.name,
         teamColor: team.color,

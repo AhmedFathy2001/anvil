@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
 import { createGuildRole, getBotCredentials } from '@/lib/discord-roles';
 
@@ -6,6 +7,7 @@ import { createGuildRole, getBotCredentials } from '@/lib/discord-roles';
 // select a freshly-made role without leaving the page. Admin-only; needs the bot connected with
 // Manage Roles.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
       : undefined;
   const mentionable = body?.mentionable === true;
 
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clan.id);
   if (!creds) {
     return NextResponse.json(
       { error: 'Connect the Discord bot first (bot token + server ID in the Discord bot tab).' },
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const role = await createGuildRole(name, { color, mentionable });
+  const role = await createGuildRole(clan.id, name, { color, mentionable });
   if (!role) {
     return NextResponse.json(
       { error: 'Discord rejected the role — check the bot has Manage Roles and its role is high enough.' },

@@ -236,6 +236,7 @@ export async function syncDropTileCompletion(
       if (team && event) {
         if (notifyCompletion && !silent) {
           notifyTileCompletion({
+            clanId: event.clanId,
             eventName: event.name,
             tileLabel: tile.label,
             teamName: team.name,
@@ -260,6 +261,7 @@ export async function syncDropTileCompletion(
 
         if (!silent && completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
           notifyTeamWin({
+            clanId: event.clanId,
             eventName: event.name,
             teamName: team.name,
             teamColor: team.color,

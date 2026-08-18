@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanMembers, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -10,6 +11,7 @@ import { isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
 // stragglers auto-resolution can't reach). Validates the user is in the guild, caches the id on the
 // member (and links the site user if one owns that Discord account), then syncs their roles.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
   const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
-  if (!(await isGuildMember(discordUserId))) {
+  if (!(await isGuildMember(clan.id, discordUserId))) {
     return NextResponse.json({ error: "That Discord user isn't in the server." }, { status: 400 });
   }
 

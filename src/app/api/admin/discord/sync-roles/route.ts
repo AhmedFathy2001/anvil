@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanMembers } from '@/db/schema';
 import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
@@ -14,10 +15,11 @@ export const maxDuration = 300;
 // active non-guest member. Mods can use this to bulk-apply after a rank-role-map
 // change or to retrofit roles after first turning the feature on.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const cfg = await loadRoleSyncConfig();
+  const cfg = await loadRoleSyncConfig(clan.id);
   if (!cfg) {
     return NextResponse.json(
       { error: 'Discord role sync is disabled or missing credentials (DISCORD_BOT_TOKEN / discord_guild_id / discord_role_sync_enabled)' },
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
   // Bulk mode: fetch the whole guild once (needs the Server Members Intent) and match in memory —
   // no per-member API calls, so a 600+ roster syncs fast without rate-limiting. Null = intent not
   // granted → fall back to the live per-member path (fine up to a couple hundred members).
-  const ctx = (await buildSweepContext()) ?? undefined;
+  const ctx = (await buildSweepContext(clan.id)) ?? undefined;
 
   let synced = 0;
   let skipped = 0;

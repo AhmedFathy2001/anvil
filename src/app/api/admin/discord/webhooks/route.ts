@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { getBotCredentials } from '@/lib/discord-roles';
@@ -31,17 +32,18 @@ const NAME_MAX = 80;
 //                       (checked live when the admin picks a channel).
 //   (no param)       → { enabled, channels } for the picker. `enabled` false = no bot configured.
 export async function GET(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const channelId = new URL(request.url).searchParams.get('channelId');
   if (channelId) {
-    const creds = await getBotCredentials();
+    const creds = await getBotCredentials(clan.id);
     if (!creds) return NextResponse.json({ ok: false, reason: 'Discord bot is not configured.' });
     const result = await botCanManageWebhooks(creds.botToken, creds.guildId, channelId);
     return NextResponse.json(result);
   }
 
-  const data = await listBotChannels();
+  const data = await listBotChannels(clan.id);
   return NextResponse.json(data);
 }
 
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
 //   append  → create an additional webhook and push it onto the key's round-robin URL list.
 // Returns { urls } — the full stored list after the change — so the client reflects state.
 export async function POST(request: Request) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const payload = await request.json().catch(() => null);
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
   }
   const baseName = (typeof name === 'string' && name.trim() ? name.trim() : DEFAULT_WEBHOOK_NAME).slice(0, NAME_MAX);
 
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clan.id);
   if (!creds) {
     return NextResponse.json(
       { error: 'Discord bot is not configured. Set DISCORD_BOT_TOKEN and the Server ID first.' },
@@ -86,12 +89,12 @@ export async function POST(request: Request) {
     } else {
       // Append a distinct new webhook. Suffix the name (Anvil 2, Anvil 3…) so multiple webhooks in
       // one channel stay tellable apart in Discord's UI.
-      const existing = parseWebhookUrls(await getSetting(settingKey));
+      const existing = parseWebhookUrls(await getSetting(clan.id, settingKey));
       const suffixed = existing.length === 0 ? baseName : `${baseName} ${existing.length + 1}`.slice(0, NAME_MAX);
       const wh = await createChannelWebhook(creds.botToken, channelId, suffixed);
       urls = [...existing, wh.url];
     }
-    await setSetting(settingKey, urls.length ? urls.join(' ') : null);
+    await setSetting(clan.id, settingKey, urls.length ? urls.join(' ') : null);
     return NextResponse.json({ urls });
   } catch (err) {
     // Lib functions throw a human-readable message (missing perm, channel gone, 15-webhook cap…).

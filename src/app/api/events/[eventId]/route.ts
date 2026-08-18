@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -72,6 +73,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -141,6 +143,7 @@ export async function PATCH(
     });
 
     notifyEventForceEnd({
+      clanId: clan.id,
       eventId: event.id,
       eventName: event.name,
       standings,
@@ -274,6 +277,7 @@ export async function PATCH(
       // Starting shot (lib/startProof): draw the location now, before the announcement that carries it.
       const startProof = await drawStartProof(updated).catch(() => null);
       notifyEventStart({
+        clanId: clan.id,
         eventId: updated.id,
         eventName: updated.name,
         startDate: updated.startDate!,
@@ -291,7 +295,7 @@ export async function PATCH(
     try {
       const eventTeams = await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, id));
       if (eventTeams.length >= 2) {
-        const balance = await buildDraftBalance(id);
+        const balance = await buildDraftBalance(clan.id, id);
         const teamIds = eventTeams.map((t) => t.id);
         const spreadPct = projectedSpreadPct(balance, teamIds);
         if (spreadPct >= 25) {

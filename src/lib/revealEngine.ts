@@ -133,6 +133,7 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
         flipped.some((f) => f.id === t.id) ? { ...t, revealedAt: now } : t,
       );
       notifyTilesRevealed({
+          clanId: event.clanId,
         eventName: event.name,
         tiles: flipped.map((t) => ({ label: t.label, points: t.points, icon: t.icon })),
         pointsMode: event.scoringMode === 'points',
@@ -222,6 +223,7 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
   if (flipped.length > 0) {
     log.info('reveal-engine.mission-announce', { eventId: event.id, count: flipped.length });
     notifyTilesRevealed({
+          clanId: event.clanId,
       eventName: event.name,
       tiles: flipped.map((t) => ({ label: t.label, points: t.points, icon: t.icon })),
       pointsMode: event.scoringMode === 'points',
@@ -271,7 +273,7 @@ async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: Til
       .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)))
       .returning({ id: tiles.id });
     if (done.length > 0 && claimed) {
-      void announceBountyClaim(event.id, event.name, { id: t.id, label: t.label, points: t.points }, t.id);
+      void announceBountyClaim(event.clanId, event.id, event.name, { id: t.id, label: t.label, points: t.points }, t.id);
     }
   }
 }
@@ -333,7 +335,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
     .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
   if (closed.length > 0) {
-    void announceBountyClaim(event.id, event.name, closed[0], tileId);
+    void announceBountyClaim(event.clanId, event.id, event.name, closed[0], tileId);
   }
   if (!engineActive(event, now)) return;
   await revealForEvent(event, rules, now);
@@ -343,6 +345,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
 // of the first (claiming) completion — stat tiles carry creditPlayerId, submission-backed tiles
 // resolve it from the latest submission on the tile. Fire-and-forget; failures never block rotation.
 async function announceBountyClaim(
+  clanId: number,
   eventId: number,
   eventName: string,
   tile: { id: number; label: string; points: number | null },
@@ -374,6 +377,7 @@ async function announceBountyClaim(
     }
 
     await notifyBountyClaim({
+      clanId,
       eventName,
       tileLabel: tile.label,
       points: awardedPoints ?? tile.points,

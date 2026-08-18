@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { players, teams, events } from '@/db/schema';
@@ -21,15 +22,15 @@ function delay(ms: number) {
 
 // Check + stamp a persisted cooldown for `key`. Returns blocked=true (with nextRefresh) if still
 // within the window; otherwise records "now" and returns blocked=false.
-async function takeCooldown(key: string): Promise<{ blocked: boolean; nextRefresh?: string }> {
-  const stored = await getSetting(key);
+async function takeCooldown(clanId: number, key: string): Promise<{ blocked: boolean; nextRefresh?: string }> {
+  const stored = await getSetting(clanId, key);
   const last = stored ? new Date(stored).getTime() : 0;
   const nowMs = Date.now();
   if (last && nowMs - last < REFRESH_COOLDOWN_MS) {
     return { blocked: true, nextRefresh: new Date(last + REFRESH_COOLDOWN_MS).toISOString() };
   }
   const nowIso = new Date(nowMs).toISOString();
-  await setSetting(key, nowIso);
+  await setSetting(clanId, key, nowIso);
   return { blocked: false };
 }
 
@@ -57,6 +58,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
@@ -124,7 +126,7 @@ export async function POST(
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
 
-    const cd = await takeCooldown(`refresh_cooldown:team:${teamId}`);
+    const cd = await takeCooldown(clan.id, `refresh_cooldown:team:${teamId}`);
     if (cd.blocked) {
       return NextResponse.json(
         { error: 'This team\'s stats were refreshed within the last hour — try again later.', nextRefresh: cd.nextRefresh },
@@ -141,7 +143,7 @@ export async function POST(
 
   // Admin: refresh every player in the event. 1h cooldown.
   if (isAdmin) {
-    const cd = await takeCooldown(`refresh_cooldown:event:${eId}`);
+    const cd = await takeCooldown(clan.id, `refresh_cooldown:event:${eId}`);
     if (cd.blocked) {
       return NextResponse.json(
         { error: 'Event stats were refreshed within the last hour — try again later.', nextRefresh: cd.nextRefresh },

@@ -514,6 +514,7 @@ export async function GET(request: Request) {
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
             if (team) {
               notifyTileCompletion({
+                clanId: ctx.event.clanId,
                 eventName: ctx.event.name,
                 tileLabel: tile.label,
                 teamName: team.name,
@@ -581,6 +582,7 @@ export async function GET(request: Request) {
               if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
               ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team.name, playerName: '(team total)' });
               notifyTileCompletion({
+                clanId: ctx.event.clanId,
                 eventName: ctx.event.name,
                 tileLabel: tile.label,
                 teamName: team.name,
@@ -606,7 +608,7 @@ export async function GET(request: Request) {
         }).length;
         if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
           if (ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) {
-            notifyTeamWin({ eventName: ctx.event.name, teamName: team.name, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
+            notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
           }
         }
       }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, players, completions, clanMembers, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
@@ -197,6 +198,7 @@ async function weeklyTrackedNames(): Promise<{ kc: string[]; skills: string[] }>
 }
 
 export async function GET(request: Request) {
+  const clan = await requireClan();
   const auth = await verifyPluginToken(request);
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
@@ -212,14 +214,14 @@ export async function GET(request: Request) {
           buildSchedule(),
           getActiveWeekly(),
           weeklyTrackedNames(),
-          getNotificationWebhooks(),
-          getFunDeathMessages(),
-          getDeathTaunts(),
-          getSpoonTaunts(),
-          getAlwaysNotifyItems(),
-          getAlwaysNotifyItemIds(),
-          getShowKillCount(),
-          getDropRarityFloor(),
+          getNotificationWebhooks(clan.id),
+          getFunDeathMessages(clan.id),
+          getDeathTaunts(clan.id),
+          getSpoonTaunts(clan.id),
+          getAlwaysNotifyItems(clan.id),
+          getAlwaysNotifyItemIds(clan.id),
+          getShowKillCount(clan.id),
+          getDropRarityFloor(clan.id),
           activeEventForUnlinkedRsn(request),
           homeBoardForUser(userOnly.userId),
         ]);
@@ -232,7 +234,7 @@ export async function GET(request: Request) {
         player: null,
         // The clan's display name — the sidebar's clan-filter label and the logged-out home card
         // need it even when no event/team is resolvable for this token.
-        clanName: await getClanDisplayName(),
+        clanName: await getClanDisplayName(clan.id),
         // Server-resolved board summary off the token's USER (linked member → live enrollment), so
         // the sidebar shows the home board even at the login screen. Null when not enrolled anywhere.
         homeBoard,
@@ -551,15 +553,15 @@ export async function GET(request: Request) {
     await Promise.all([
       buildSchedule(),
       getActiveWeekly(),
-      getNotificationWebhooks(),
-      getFunDeathMessages(),
-      getDeathTaunts(),
-      getSpoonTaunts(),
-      getAlwaysNotifyItems(),
-      getAlwaysNotifyItemIds(),
-      getShowKillCount(),
-      getDropRarityFloor(),
-      getTierBands(),
+      getNotificationWebhooks(clan.id),
+      getFunDeathMessages(clan.id),
+      getDeathTaunts(clan.id),
+      getSpoonTaunts(clan.id),
+      getAlwaysNotifyItems(clan.id),
+      getAlwaysNotifyItemIds(clan.id),
+      getShowKillCount(clan.id),
+      getDropRarityFloor(clan.id),
+      getTierBands(clan.id),
     ]);
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
@@ -720,7 +722,7 @@ export async function GET(request: Request) {
 
   return jsonWithEtag(request, {
     server: serverInfo(),
-    clanName: await getClanDisplayName(),
+    clanName: await getClanDisplayName(clan.id),
     event: {
       id: event.id,
       name: event.name,

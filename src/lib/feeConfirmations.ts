@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { clanAuditLog, eventSignups, signupFees } from '@/db/schema';
+import { clanAuditLog, eventSignups, events, signupFees } from '@/db/schema';
 import { and, eq, notInArray } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import {
@@ -17,8 +17,8 @@ export type { ConfirmOutcome, FeeConfirmation };
 // How many distinct staff confirmations a paid fee needs before it's settled. Admin-set via the
 // `fee_confirmations_required` setting; defaults to 1 (a single second pair of eyes). 0 means the
 // clan has turned the second signature off — see lib/feeRules for why that exists.
-export async function getRequiredConfirmations(): Promise<number> {
-  return clampRequiredConfirmations(await getSetting('fee_confirmations_required'));
+export async function getRequiredConfirmations(clanId: number): Promise<number> {
+  return clampRequiredConfirmations(await getSetting(clanId, 'fee_confirmations_required'));
 }
 
 export function parseConfirmations(json: string | null | undefined): FeeConfirmation[] {
@@ -53,13 +53,30 @@ export interface ConfirmResult {
  * it's gated behind an explicit clan setting instead, and `auto` is recorded in the audit trail so
  * the difference stays visible afterwards.
  */
+/**
+ * The clan a fee belongs to, two hops up: fee -> sign-up -> event.
+ *
+ * Derived rather than passed in, so a caller cannot hand this a clan that disagrees with the event
+ * the money was actually collected for.
+ */
+async function clanIdForSignup(signupId: number): Promise<number | null> {
+  const row = await db
+    .select({ clanId: events.clanId })
+    .from(eventSignups)
+    .innerJoin(events, eq(eventSignups.eventId, events.id))
+    .where(eq(eventSignups.id, signupId))
+    .limit(1);
+  return row[0]?.clanId ?? null;
+}
+
 export async function applyFeeConfirmation(
   feeId: number,
   actorUserId: number,
   opts: { auto?: boolean } = {},
 ): Promise<ConfirmResult> {
-  const required = await getRequiredConfirmations();
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, feeId) });
+  const clanId = fee ? await clanIdForSignup(fee.signupId) : null;
+  const required = clanId == null ? 1 : await getRequiredConfirmations(clanId);
   if (!fee) return { outcome: 'noop', confirmations: 0, required };
 
   const now = new Date().toISOString();
@@ -154,8 +171,8 @@ export async function recordFeeSettled(
  * Note what it does NOT do: fees nobody has collected (pending/reported/disputed) are untouched, so
  * this can never mark unpaid money as received. It only closes out fees a mod already said they had.
  */
-export async function shouldAutoConfirmOnEventEnd(): Promise<boolean> {
-  const value = await getSetting('fee_autoconfirm_on_event_end');
+export async function shouldAutoConfirmOnEventEnd(clanId: number): Promise<boolean> {
+  const value = await getSetting(clanId, 'fee_autoconfirm_on_event_end');
   return value === 'true' || value === '1';
 }
 
@@ -208,7 +225,8 @@ export async function markFeeCollected(
 
   // A dispute is the player naming a different collector — that needs a human either way.
   const disputed = fee.reportedCollectorUserId !== null && fee.reportedCollectorUserId !== actorUserId;
-  const required = await getRequiredConfirmations();
+  const feeClanId = await clanIdForSignup(fee.signupId);
+  const required = feeClanId == null ? 1 : await getRequiredConfirmations(feeClanId);
   const settleNow = !disputed && settlesOnCollect(required);
   const status = disputed ? 'disputed' : settleNow ? 'confirmed' : 'collected';
 

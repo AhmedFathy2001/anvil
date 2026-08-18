@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { computePlayerProfiles } from '@/lib/playerProfile';
 
@@ -7,6 +8,7 @@ import { computePlayerProfiles } from '@/lib/playerProfile';
 // are sensitive by design — staff and draft captains only, never public; players may later see
 // their OWN profile through a separate surface.
 export async function GET(request: Request) {
+  const clan = await requireClan();
   const staff = await verifyAdminOrModerator();
   if (!staff) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'eventId must be a number' }, { status: 400 });
   }
 
-  const profiles = await computePlayerProfiles({ eventId });
+  const profiles = await computePlayerProfiles(clan.id, { eventId });
   return NextResponse.json({
     eventId: eventId ?? null,
     count: profiles.length,

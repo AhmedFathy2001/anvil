@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
@@ -52,6 +53,7 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
 }
 
 export async function POST(request: Request) {
+  const clan = await requireClan();
   const auth = await verifyPluginTokenUser(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
@@ -124,7 +126,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unsupported clip format' }, { status: 415 });
   }
 
-  const webhooks = await getNotificationWebhooks();
+  const webhooks = await getNotificationWebhooks(clan.id);
   const url = pickWebhookUrl(webhooks.clips, 'plugin:clips');
   if (!url) {
     // No clips channel configured. A distinct code (not 204) so the plugin can say "your clan has

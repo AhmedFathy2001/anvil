@@ -22,6 +22,13 @@
       "when": 1786997829522,
       "tag": "0002_moments",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787013121693,
+      "tag": "0003_settings_per_clan",
+      "breakpoints": true
     }
   ]
 }

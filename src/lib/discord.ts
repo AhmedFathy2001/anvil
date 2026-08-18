@@ -38,11 +38,11 @@ const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
 
 // Wraps the shared reader because a notify must never throw on a database hiccup — the post is
 // best-effort, and losing it is better than failing whatever triggered it.
-async function getSettingUrl(key: string): Promise<string | null> {
+async function getSettingUrl(clanId: number, key: string): Promise<string | null> {
   try {
-    return await getSettingText(key);
+    return await getSettingText(clanId, key);
   } catch (error) {
-    log.warn('discord.db-read-fail', { key }, error);
+    log.warn('discord.db-read-fail', { clanId, key }, error);
     return null;
   }
 }
@@ -81,10 +81,11 @@ export function pickWebhookUrl(raw: string | null | undefined, cursorKey: string
 // URLs is chosen round-robin. Pass the master key (`discord_webhook_url`) last so every destination
 // falls back to it — set only the master and everything posts there ("simple" mode); set the
 // specific keys to split channels ("advanced" mode).
-async function resolveWebhookUrl(...keys: string[]): Promise<string | null> {
+async function resolveWebhookUrl(clanId: number, ...keys: string[]): Promise<string | null> {
   for (const key of keys) {
-    const urls = parseWebhookUrls(await getSettingUrl(key));
-    if (urls.length) return pickCycledUrl(urls, key);
+    const urls = parseWebhookUrls(await getSettingUrl(clanId, key));
+    // Round-robin cursor is per (clan, key): two clans sharing a key must not share a cursor.
+    if (urls.length) return pickCycledUrl(urls, `${clanId}:${key}`);
   }
   return null;
 }
@@ -192,35 +193,37 @@ export async function forwardPluginNotification(
 
 // General / master channel — clan-roster sync summaries and other non-event posts. This is the
 // webhook every other destination falls back to.
-export async function sendDiscordWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(GENERAL_WEBHOOK_KEY);
+export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
 // Bingo-event channel; falls back to the master webhook so single-webhook clans keep getting bingo
 // posts until they split the channel.
-export async function sendBingoWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+export async function sendBingoWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
-export async function sendWeeklyWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
 // Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
-export async function sendSignupWebhook(payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+export async function sendSignupWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }
 
 interface SignupApprovedNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventId: number;
   eventName: string;
   displayName: string;
@@ -256,7 +259,7 @@ export async function notifySignupApproved(params: SignupApprovedNotifyParams): 
     color: EMBED_COLOR.green,
   };
 
-  return sendSignupWebhook({
+  return sendSignupWebhook(params.clanId, {
     content: discordId ? `<@${discordId}>` : undefined,
     embeds: [embed],
     // Ping only the approved member; never @everyone/roles.
@@ -320,6 +323,8 @@ function discordTime(date: string | Date, style: 'F' | 'R' = 'F'): string {
 }
 
 interface SubmissionNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   tileLabel: string;
   teamName: string;
@@ -416,7 +421,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 // Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
@@ -425,6 +430,8 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
 // notification debounce so a kill spree (or a downtime boss ticking one kill at a time) is a single
 // embed instead of one per submission. Mirrors notifySubmission's layout so the feed reads uniformly.
 interface MergedSubmissionParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   tileLabel: string;
   teamName: string;
@@ -480,10 +487,12 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface SubmissionDeletedParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   tileLabel: string;
   teamName: string;
@@ -530,10 +539,12 @@ export async function notifySubmissionDeleted(params: SubmissionDeletedParams): 
     fields,
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface TileCompletionNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   tileLabel: string;
   teamName: string;
@@ -583,10 +594,12 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
   if (boardUrl) embed.url = boardUrl;
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface TilesRevealedNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   /** `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. */
   tiles: { label: string; points: number | null; icon?: string | null }[];
@@ -669,10 +682,12 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     ...(boardUrl ? { url: boardUrl } : {}),
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface BountyClaimNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   tileLabel: string;
   points: number | null;
@@ -693,7 +708,7 @@ export async function notifyBountyClaim(params: BountyClaimNotifyParams): Promis
     color: EMBED_COLOR.gold,
     ...(points != null ? { fields: [statField('Points', points)] } : {}),
   };
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface TeamWithPlayers {
@@ -703,6 +718,8 @@ interface TeamWithPlayers {
 }
 
 interface DraftCompleteNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   teams: TeamWithPlayers[];
   eventId?: number | null;
@@ -724,10 +741,12 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
     fields,
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface DraftStartNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   teamCount?: number;
   eventId?: number | null;
@@ -745,10 +764,12 @@ export async function notifyDraftStart(params: DraftStartNotifyParams): Promise<
   };
 
   // Ping members so captains show up for their picks (same reach as start/finish posts).
-  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
 }
 
 interface TeamWinNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   teamName: string;
   teamColor: string;
@@ -766,14 +787,14 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     color: teamColorToDecimal(teamColor),
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 // Role pinged on event start/finish posts so the whole clan is notified. Clan-specific, so it's
 // settings-driven (admin UI) with an env fallback; no role is pinged when neither is set.
 const MEMBER_ROLE_KEY = 'discord_member_ping_role_id';
-async function memberPingRoleId(): Promise<string | null> {
-  return (await getSettingUrl(MEMBER_ROLE_KEY)) || process.env.DISCORD_MEMBER_ROLE_ID?.trim() || null;
+async function memberPingRoleId(clanId: number): Promise<string | null> {
+  return (await getSettingUrl(clanId, MEMBER_ROLE_KEY)) || process.env.DISCORD_MEMBER_ROLE_ID?.trim() || null;
 }
 
 // Public site origin, derived from the OAuth redirect URI (cron has no request context to read a
@@ -804,8 +825,8 @@ function boardLinkLine(eventId: number): string {
 
 // Ping the member role: explicit allowed_mentions so it notifies reliably and nothing else pings.
 // Returns no content when no role is configured, so the post simply goes out without a ping.
-const memberPing = async (): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> => {
-  const roleId = await memberPingRoleId();
+const memberPing = async (clanId: number): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> => {
+  const roleId = await memberPingRoleId(clanId);
   if (!roleId) return {};
   return {
     content: `<@&${roleId}>`,
@@ -814,6 +835,8 @@ const memberPing = async (): Promise<Pick<DiscordWebhookPayload, 'content' | 'al
 };
 
 interface EventStartHeldNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventName: string;
   /** The start the admins scheduled (reached but not honored). */
   scheduledStart: string;
@@ -838,10 +861,12 @@ export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): 
     color: EMBED_COLOR.amber,
   };
 
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface EventStartNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventId: number;
   eventName: string;
   startDate: string;
@@ -912,10 +937,12 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     ...(eventLeaderboardUrl(eventId) ? { url: eventLeaderboardUrl(eventId)! } : {}),
   };
 
-  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
 }
 
 interface EventEndNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventId: number;
   eventName: string;
   // `tilesCompleted`/`totalTiles` carry summed point weights for points-scoring
@@ -948,7 +975,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
   };
 
   // No member ping on an admin force-end (abnormal termination, not a celebratory finish).
-  return sendBingoWebhook({ embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -978,10 +1005,12 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     fields,
   };
 
-  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
 }
 
 interface PayoutNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   eventId: number;
   eventName: string;
   // Total gp actually paid out (sum of paid rows).
@@ -1020,7 +1049,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
     fields,
   };
 
-  return sendBingoWebhook({ ...(await memberPing()), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
@@ -1043,6 +1072,8 @@ function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thum
 }
 
 interface WeeklyStartParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   type: string;   // 'skill' | 'boss'
   title: string;
   metric: string; // e.g. 'attack', 'zulrah'
@@ -1070,10 +1101,12 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     ],
   };
 
-  return sendWeeklyWebhook({ embeds: [embed] });
+  return sendWeeklyWebhook(params.clanId, { embeds: [embed] });
 }
 
 interface WeeklyResultsParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
   type: string;
   title: string;
   metric: string;
@@ -1112,5 +1145,5 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     fields: [field('Final standings', standingsText || 'No participants', false)],
   };
 
-  return sendWeeklyWebhook({ embeds: [embed] });
+  return sendWeeklyWebhook(params.clanId, { embeds: [embed] });
 }

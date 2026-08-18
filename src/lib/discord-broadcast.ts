@@ -58,11 +58,11 @@ interface RawRole {
  * `enabled` is false when the bot isn't configured — the UI shows a setup hint instead of an
  * empty picker. A failing Discord call degrades to an empty list (logged), never throws.
  */
-export async function listBotChannels(): Promise<{
+export async function listBotChannels(clanId: number): Promise<{
   enabled: boolean;
   channels: BroadcastChannel[];
 }> {
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return { enabled: false, channels: [] };
 
   let channels: BroadcastChannel[] = [];
@@ -92,15 +92,15 @@ export async function listBotChannels(): Promise<{
  * `enabled` is false when the bot isn't configured — the UI then shows a setup hint instead
  * of an empty picker. Failing Discord calls degrade to empty lists (logged), never throw.
  */
-export async function listBroadcastTargets(): Promise<{
+export async function listBroadcastTargets(clanId: number): Promise<{
   enabled: boolean;
   channels: BroadcastChannel[];
   roles: BroadcastRole[];
 }> {
-  const { enabled, channels } = await listBotChannels();
+  const { enabled, channels } = await listBotChannels(clanId);
   if (!enabled) return { enabled: false, channels: [], roles: [] };
 
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return { enabled: false, channels: [], roles: [] };
 
   let roles: BroadcastRole[] = [];
@@ -126,6 +126,8 @@ export async function listBroadcastTargets(): Promise<{
 }
 
 export interface SendOpts {
+  /** The clan whose bot and guild this posts through. */
+  clanId: number;
   channelId: string;
   title?: string;
   body: string;
@@ -197,7 +199,7 @@ async function describeSendError(res: Response): Promise<string> {
  * messages were sent, or a human reason on the first failure.
  */
 export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(opts.clanId);
   if (!creds) {
     return {
       ok: false,

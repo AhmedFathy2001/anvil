@@ -164,8 +164,8 @@ export type BotTokenSource = 'byo' | 'own-env' | 'shared' | 'none';
  * (deliberately kept OUT of the readable settings API — see /api/admin/discord/bot) so a clan can
  * point at its own bot without a redeploy, mirroring how guild ID is settings-first.
  */
-async function resolveBotToken(): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
-  const byo = (await getSetting('discord_bot_token'))?.trim();
+async function resolveBotToken(clanId: number): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
+  const byo = (await getSetting(clanId, 'discord_bot_token'))?.trim();
   if (byo) return { token: byo, source: 'byo' };
   const own = process.env.DISCORD_BOT_TOKEN;
   if (own) return { token: own, source: 'own-env' };
@@ -175,17 +175,17 @@ async function resolveBotToken(): Promise<{ token: string; source: Exclude<BotTo
 }
 
 /** The source of the effective bot token, for the admin UI. 'none' when nothing is configured. */
-export async function getBotTokenSource(): Promise<BotTokenSource> {
-  return (await resolveBotToken())?.source ?? 'none';
+export async function getBotTokenSource(clanId: number): Promise<BotTokenSource> {
+  return (await resolveBotToken(clanId))?.source ?? 'none';
 }
 
 /**
  * The effective bot token WITHOUT requiring a guild ID — for the admin bot-status surface, which
  * must still identify the bot (and build an invite link) before a server has been picked.
- * Feature code should use getBotCredentials() instead: no guild means nothing to act on.
+ * Feature code should use getBotCredentials(clanId) instead: no guild means nothing to act on.
  */
-export async function getBotTokenOnly(): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
-  return resolveBotToken();
+export async function getBotTokenOnly(clanId: number): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
+  return resolveBotToken(clanId);
 }
 
 /** True when a shared managed bot is available to fall back to (provisioner-injected env). */
@@ -202,10 +202,10 @@ export function isSharedBotAvailable(): boolean {
  * Guild ID is settings-driven (not env) so admins can change/test without redeploying; an env
  * override is allowed for local dev.
  */
-export async function getBotCredentials(): Promise<{ botToken: string; guildId: string } | null> {
-  const resolved = await resolveBotToken();
+export async function getBotCredentials(clanId: number): Promise<{ botToken: string; guildId: string } | null> {
+  const resolved = await resolveBotToken(clanId);
   if (!resolved) return null;
-  const guildId = (await getSetting('discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
+  const guildId = (await getSetting(clanId, 'discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
   if (!guildId) return null;
   return { botToken: resolved.token, guildId };
 }
@@ -246,28 +246,28 @@ function parseJsonArray(raw: string | null): string[] {
  * Resolve the live config. Returns null when the feature is disabled OR essential
  * credentials are missing — callers should treat that as "skip silently".
  */
-export async function loadRoleSyncConfig(): Promise<RoleSyncConfig | null> {
-  const enabled = (await getSetting('discord_role_sync_enabled')) === 'true';
+export async function loadRoleSyncConfig(clanId: number): Promise<RoleSyncConfig | null> {
+  const enabled = (await getSetting(clanId, 'discord_role_sync_enabled')) === 'true';
   if (!enabled) return null;
 
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return null;
 
   // Auto-match defaults to true — turn it off by setting the value to literal 'false'.
-  const autoMatchRaw = await getSetting('discord_auto_match_rank_by_name');
+  const autoMatchRaw = await getSetting(clanId, 'discord_auto_match_rank_by_name');
   const autoMatchRankByName = autoMatchRaw !== 'false';
 
   return {
     botToken: creds.botToken,
     guildId: creds.guildId,
-    rankRoleMap: parseJsonRecord(await getSetting('discord_rank_role_map')),
-    defaultRoleIds: parseJsonArray(await getSetting('discord_default_role_ids')),
-    guestRoleIds: parseJsonArray(await getSetting('discord_guest_role_ids')),
-    defaultRoleNames: parseJsonArray(await getSetting('discord_default_role_names')),
-    guestRoleNames: parseJsonArray(await getSetting('discord_guest_role_names')),
+    rankRoleMap: parseJsonRecord(await getSetting(clanId, 'discord_rank_role_map')),
+    defaultRoleIds: parseJsonArray(await getSetting(clanId, 'discord_default_role_ids')),
+    guestRoleIds: parseJsonArray(await getSetting(clanId, 'discord_guest_role_ids')),
+    defaultRoleNames: parseJsonArray(await getSetting(clanId, 'discord_default_role_names')),
+    guestRoleNames: parseJsonArray(await getSetting(clanId, 'discord_guest_role_names')),
     autoMatchRankByName,
-    setNicknameOnLink: (await getSetting('discord_nickname_sync_enabled')) === 'true',
-    overwriteNickname: (await getSetting('discord_nickname_overwrite')) === 'true',
+    setNicknameOnLink: (await getSetting(clanId, 'discord_nickname_sync_enabled')) === 'true',
+    overwriteNickname: (await getSetting(clanId, 'discord_nickname_overwrite')) === 'true',
   };
 }
 
@@ -367,11 +367,11 @@ export interface DiscordRole {
   managed: boolean;
 }
 
-export async function fetchGuildRoles(): Promise<DiscordRole[]> {
+export async function fetchGuildRoles(clanId: number): Promise<DiscordRole[]> {
   // Gated on the BOT being connected (token + guild), NOT on role-sync being enabled — the role
   // pickers (team channels, ping role, assigned roles) must list roles whenever the bot is up,
   // independent of the role-sync toggle.
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return [];
   const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/roles`);
   if (!res.ok) {
@@ -386,10 +386,11 @@ export async function fetchGuildRoles(): Promise<DiscordRole[]> {
  * when the bot isn't connected or Discord rejects it. New roles land at the bottom of the list.
  */
 export async function createGuildRole(
+  clanId: number,
   name: string,
   opts: { color?: number; mentionable?: boolean } = {},
 ): Promise<DiscordRole | null> {
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return null;
   const body: Record<string, unknown> = { name };
   if (typeof opts.color === 'number') body.color = opts.color;
@@ -466,8 +467,8 @@ async function fetchAllGuildMembers(cfg: RoleSyncConfig): Promise<DiscordGuildMe
  * Server Members Intent (the caller then syncs per-member, live). Fetching everyone up front means
  * a 600+ roster does ~1 member fetch + in-memory matching instead of hundreds of rate-limited calls.
  */
-export async function buildSweepContext(): Promise<SweepContext | null> {
-  const cfg = await loadRoleSyncConfig();
+export async function buildSweepContext(clanId: number): Promise<SweepContext | null> {
+  const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg) return null;
   const members = await fetchAllGuildMembers(cfg);
   if (!members) return null;
@@ -488,15 +489,16 @@ export async function buildSweepContext(): Promise<SweepContext | null> {
       if (key && !byAlias.has(key)) byAlias.set(key, id);
     }
   }
-  return { byId, byAlias, guildRoles: await fetchGuildRoles() };
+  return { byId, byAlias, guildRoles: await fetchGuildRoles(clanId) };
 }
 
 // Search the guild's members by name (nick / username), for the admin "link this member to a
 // Discord user" picker. Returns up to 10 candidates with a display label.
 export async function searchGuildMembersByName(
+  clanId: number,
   query: string,
 ): Promise<{ id: string; label: string }[]> {
-  const cfg = await loadRoleSyncConfig();
+  const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg || !query.trim()) return [];
   const res = await discordFetch(
     cfg,
@@ -514,8 +516,8 @@ export async function searchGuildMembersByName(
 }
 
 // True when a Discord user id is actually a member of the guild. Used to validate a manual link.
-export async function isGuildMember(discordUserId: string): Promise<boolean> {
-  const cfg = await loadRoleSyncConfig();
+export async function isGuildMember(clanId: number, discordUserId: string): Promise<boolean> {
+  const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg) return false;
   const gm = await getGuildMember(cfg, discordUserId);
   return !!gm.member;
@@ -583,8 +585,8 @@ function splitDisplayAliases(name: string | null | undefined): string[] {
  * applies the alias-split match client-side. Returns null when no match — that's
  * fine, the role-sync caller just skips this member.
  */
-export async function findDiscordIdByRsn(rsn: string): Promise<string | null> {
-  const cfg = await loadRoleSyncConfig();
+export async function findDiscordIdByRsn(clanId: number, rsn: string): Promise<string | null> {
+  const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg) return null;
   const target = normalizeRsn(rsn);
   if (!target) return null;
@@ -660,9 +662,10 @@ async function discordIdForUser(userId: number): Promise<string | null> {
  * member genuinely has no Discord link anywhere (the correct "skip until they link" case).
  */
 export async function resolveDiscordIdForMember(
+  clanId: number,
   member: MinimalClanMember,
 ): Promise<string | null> {
-  const cfg = await loadRoleSyncConfig();
+  const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg) return null;
   // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
   // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
@@ -674,7 +677,7 @@ export async function resolveDiscordIdForMember(
       return c;
     }
   }
-  const searched = await findDiscordIdByRsn(member.rsn);
+  const searched = await findDiscordIdByRsn(clanId, member.rsn);
   if (searched) {
     const gm = await getGuildMember(cfg, searched);
     if (gm.member) {
@@ -748,11 +751,11 @@ export async function syncRolesForClanMember(
   ctx?: SweepContext,
   skipNickname = false,
 ): Promise<SyncReport> {
-  const cfg = await loadRoleSyncConfig();
-  if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
-
+  // The member knows its clan; deriving it here means a caller can't pass one that disagrees.
   const member = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, memberId) });
   if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
+  const cfg = await loadRoleSyncConfig(member.clanId);
+  if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
   if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
 
   // Resolve the member to a Discord account that is ACTUALLY in the guild. Try every DB-known id
@@ -796,7 +799,7 @@ export async function syncRolesForClanMember(
       if (!gm.notFound) sawTransient = true;
     }
     if (!currentMember) {
-      const searched = await findDiscordIdByRsn(member.rsn);
+      const searched = await findDiscordIdByRsn(member.clanId, member.rsn);
       if (searched && !candidates.includes(searched)) {
         const gm = await getGuildMember(cfg, searched);
         if (gm.member) {

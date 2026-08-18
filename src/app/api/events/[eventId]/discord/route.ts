@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, teams, eventSignups } from '@/db/schema';
 import { and, count, eq } from 'drizzle-orm';
@@ -18,6 +19,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -27,7 +29,7 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const cfg = await loadTeamChannelConfig();
+  const cfg = await loadTeamChannelConfig(clan.id);
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
 
   // For the pre-draft "give bingo role" button: how many sign-ups are approved, and
@@ -64,6 +66,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -73,7 +76,7 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const cfg = await loadTeamChannelConfig();
+  const cfg = await loadTeamChannelConfig(clan.id);
   if (!cfg) {
     return NextResponse.json(
       { error: 'Discord team channels are disabled or unconfigured. Enable it under Integrations and set the bot token + server ID.' },

@@ -27,17 +27,17 @@ const ICON_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Wrapped because the icon cache is a convenience: a read failure must degrade to "no cached icon",
 // never break the seasonal banner.
-async function getSetting(key: string): Promise<string | null> {
+async function getSetting(clanId: number, key: string): Promise<string | null> {
   try {
-    return await getSettingText(key);
+    return await getSettingText(clanId, key);
   } catch {
     return null;
   }
 }
 
-async function putSetting(key: string, value: string): Promise<void> {
+async function putSetting(clanId: number, key: string, value: string): Promise<void> {
   try {
-    await setSetting(key, value);
+    await setSetting(clanId, key, value);
   } catch (err) {
     log.info('leagues.icon-cache-write-failed', { key, err: String(err) });
   }
@@ -51,12 +51,12 @@ async function putSetting(key: string, value: string): Promise<void> {
  * markup moved, between seasons — it falls back to the generic Leagues icon rather than leaving the
  * embed bare. A clan that wants control sets the icon themselves and this never runs.
  */
-export async function leaguesIconUrl(): Promise<string> {
-  const override = await getSetting(LEAGUES_ICON_SETTING);
+export async function leaguesIconUrl(clanId: number): Promise<string> {
+  const override = await getSetting(clanId, LEAGUES_ICON_SETTING);
   if (override) return override;
 
-  const cachedAt = Number(await getSetting(LEAGUES_ICON_CACHED_AT_SETTING) ?? 0);
-  const cached = await getSetting(LEAGUES_ICON_CACHE_SETTING);
+  const cachedAt = Number(await getSetting(clanId, LEAGUES_ICON_CACHED_AT_SETTING) ?? 0);
+  const cached = await getSetting(clanId, LEAGUES_ICON_CACHE_SETTING);
   if (cached && Number.isFinite(cachedAt) && Date.now() - cachedAt < ICON_TTL_MS) {
     return cached;
   }
@@ -64,8 +64,8 @@ export async function leaguesIconUrl(): Promise<string> {
   const resolved = await resolveLeagueIconFromWiki();
   const icon = resolved ?? GENERIC_LEAGUES_ICON;
   // Cache the fallback too — a wiki that's down shouldn't be retried on every single drop.
-  await putSetting(LEAGUES_ICON_CACHE_SETTING, icon);
-  await putSetting(LEAGUES_ICON_CACHED_AT_SETTING, String(Date.now()));
+  await putSetting(clanId, LEAGUES_ICON_CACHE_SETTING, icon);
+  await putSetting(clanId, LEAGUES_ICON_CACHED_AT_SETTING, String(Date.now()));
   return icon;
 }
 

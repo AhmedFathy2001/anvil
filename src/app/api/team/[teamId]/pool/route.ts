@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { draftShortlists, teams } from '@/db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
@@ -27,6 +28,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ teamId: string }> },
 ) {
+  const clan = await requireClan();
   const session = await verifyUser();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -38,6 +40,7 @@ export async function GET(
   if ('error' in found) return found.error;
 
   const warRoom = await buildWarRoom({
+    clanId: clan.id,
     eventId: found.team.eventId,
     teamId: tId,
     userId: session.userId,

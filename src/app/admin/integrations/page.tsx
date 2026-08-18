@@ -1,13 +1,15 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import SettingsTabs from './SettingsTabs';
 import { listBotChannels } from '@/lib/discord-broadcast';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminIntegrationsPage() {
+  const clan = await requireClan();
   // Fetch the bot's channel list once, server-side, and pass it to every WebhookField so the channel
   // pickers don't each fire their own request. `botEnabled` is false with no bot token.
-  const { enabled: botEnabled, channels } = await listBotChannels();
+  const { enabled: botEnabled, channels } = await listBotChannels(clan.id);
   return (
     <div className="max-w-3xl">
       <header className="mb-4">

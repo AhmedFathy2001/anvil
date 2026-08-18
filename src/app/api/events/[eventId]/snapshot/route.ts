@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { players, events } from '@/db/schema';
@@ -22,6 +23,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -40,7 +42,7 @@ export async function POST(
   // 30-minute cooldown (persisted, server-enforced) — skipped for a force-reset correction.
   const cooldownKey = statsPullKey(eId);
   if (!forceReset) {
-    const lastPull = await getSetting(cooldownKey);
+    const lastPull = await getSetting(clan.id, cooldownKey);
     if (lastPull) {
       const lastMs = new Date(lastPull).getTime();
       if (Number.isFinite(lastMs) && Date.now() - lastMs < STATS_PULL_COOLDOWN_MS) {
@@ -108,7 +110,7 @@ export async function POST(
   }
 
   // Record the pull time so the cooldown persists across refreshes and future requests.
-  await setSetting(cooldownKey, timestamp);
+  await setSetting(clan.id, cooldownKey, timestamp);
 
   return NextResponse.json({ snapshotted, refreshed, failed, pulledAt: timestamp });
 }

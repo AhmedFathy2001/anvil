@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting } from '@/lib/settings';
 import { events, teams, tiles, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -13,6 +14,7 @@ export default async function EventStatsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
@@ -29,7 +31,7 @@ export default async function EventStatsPage({
   const [statStandings, teamStandings, pullRow] = await Promise.all([
     getStatStandings(id),
     getTeamStandings(id, event.scoringMode),
-    getSetting(`stats_pull_at:${id}`),
+    getSetting(clan.id, `stats_pull_at:${id}`),
   ]);
 
   return (

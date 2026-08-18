@@ -80,17 +80,17 @@ async function getBotUserId(botToken: string): Promise<string | null> {
  * Resolve live config. Returns null when the feature is disabled OR the bot
  * credentials are missing — callers treat that as "skip silently".
  */
-export async function loadTeamChannelConfig(): Promise<TeamChannelConfig | null> {
-  const enabled = (await getSetting('discord_team_sync_enabled')) === 'true';
+export async function loadTeamChannelConfig(clanId: number): Promise<TeamChannelConfig | null> {
+  const enabled = (await getSetting(clanId, 'discord_team_sync_enabled')) === 'true';
   if (!enabled) return null;
-  const creds = await getBotCredentials();
+  const creds = await getBotCredentials(clanId);
   if (!creds) return null;
   return {
     botToken: creds.botToken,
     guildId: creds.guildId,
     botUserId: await getBotUserId(creds.botToken),
-    bingoRoleId: (await getSetting('discord_bingo_role_id')) || null,
-    captainRoleId: (await getSetting('discord_captain_role_id')) || null,
+    bingoRoleId: (await getSetting(clanId, 'discord_bingo_role_id')) || null,
+    captainRoleId: (await getSetting(clanId, 'discord_captain_role_id')) || null,
   };
 }
 
@@ -289,7 +289,7 @@ async function discordIdForPlayerClanMember(clanMemberId: number | null): Promis
   if (clanMemberId == null) return null;
   const cm = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, clanMemberId) });
   if (!cm) return null;
-  return resolveDiscordIdForMember({ id: cm.id, rsn: cm.rsn, userId: cm.userId, discordId: cm.discordId });
+  return resolveDiscordIdForMember(cm.clanId, { id: cm.id, rsn: cm.rsn, userId: cm.userId, discordId: cm.discordId });
 }
 
 // =============================================================================
@@ -312,10 +312,11 @@ export interface ProvisionReport {
  * partial failure (rate limit, perms) leaves a resumable state.
  */
 export async function provisionTeamDiscord(eventId: number): Promise<ProvisionReport> {
-  const cfg = await loadTeamChannelConfig();
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
+  const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', teams: [], captainsAssigned: 0 };
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
 
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
@@ -445,11 +446,10 @@ export interface AssignReport {
  * must have a discordRoleId). Players whose Discord account can't be resolved are skipped.
  */
 export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
-  const cfg = await loadTeamChannelConfig();
-  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
-
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+  const cfg = await loadTeamChannelConfig(event.clanId);
+  if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (event.draftStatus !== 'completed') {
     return { ok: false, reason: 'draft is not completed', assigned: 0, skipped: 0 };
   }
@@ -500,7 +500,9 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
  * Sign-ups whose Discord account can't be resolved are skipped.
  */
 export async function assignBingoRoleToApprovedSignups(eventId: number): Promise<AssignReport> {
-  const cfg = await loadTeamChannelConfig();
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+  const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (!cfg.bingoRoleId) {
     return {
@@ -510,9 +512,6 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
       skipped: 0,
     };
   }
-
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
 
   const approved = await db
     .select()
@@ -560,14 +559,13 @@ export interface UnassignReport {
  * callers should warn the admin.
  */
 export async function unassignSharedRoles(eventId: number): Promise<UnassignReport> {
-  const cfg = await loadTeamChannelConfig();
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
+  const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', bingoRemoved: 0, captainRemoved: 0 };
   if (!cfg.bingoRoleId && !cfg.captainRoleId) {
     return { ok: false, reason: 'No bingo or captain role is configured to remove.', bingoRemoved: 0, captainRemoved: 0 };
   }
-
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
 
   // Everyone who could hold the bingo role for this event: team captains, drafted players, and
   // sign-ups. Captains are also the only holders of the captain role. Members with no linked
@@ -639,10 +637,12 @@ export interface TeardownReport {
  * provisioned Discord resources yet (they'll be created with the new identity anyway).
  */
 export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
-  const cfg = await loadTeamChannelConfig();
-  if (!cfg) return;
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) return;
+  const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
+  if (!event) return;
+  const cfg = await loadTeamChannelConfig(event.clanId);
+  if (!cfg) return;
 
   if (team.discordRoleId) {
     const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`, {
@@ -674,12 +674,14 @@ export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
  */
 export async function teardownTeamDiscord(eventId: number): Promise<TeardownReport> {
   const empty = { rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false, rolesFailed: 0, channelsFailed: 0, categoryFailed: false };
-  const cfg = await loadTeamChannelConfig();
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, reason: 'event not found', ...empty };
+  const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) {
     return { ok: false, reason: 'team sync disabled or unconfigured', ...empty };
   }
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', ...empty };
 
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
@@ -747,8 +749,8 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
  */
 export function syncTeamDiscordOnDraftCompleteFireAndForget(eventId: number): void {
   (async () => {
-    const cfg = await loadTeamChannelConfig();
-    if (!cfg) return; // feature off — skip entirely
+    // Both calls resolve the clan from the event and no-op when the feature is off, so this is just
+    // the ordering — provision the roles/channels, then hand them out.
     await provisionTeamDiscord(eventId);
     await assignTeamRoles(eventId);
   })().catch((err) => {

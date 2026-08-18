@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, players, teams } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
@@ -32,13 +33,14 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
 
-  const control = await buildDraftControl(eId);
+  const control = await buildDraftControl(clan.id, eId);
   if (!control) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   return NextResponse.json(control);
 }
@@ -47,6 +49,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { eventId } = await params;
@@ -165,7 +168,7 @@ export async function POST(
       }
       const fromTeamId = body.teamId != null ? Number(body.teamId) : null;
       if (fromTeamId != null) {
-        const control = await buildDraftControl(eId);
+        const control = await buildDraftControl(clan.id, eId);
         if (!control) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         if (!control.teamOrder.includes(fromTeamId)) {
           return NextResponse.json({ error: 'That team is not in the draft order' }, { status: 400 });
@@ -186,7 +189,7 @@ export async function POST(
     // account of the person travels together — profiles are already per-person — and emptying the
     // pool completes the draft and posts the roster, exactly once.
     case 'pick-for': {
-      const control = await buildDraftControl(eId);
+      const control = await buildDraftControl(clan.id, eId);
       if (!control) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       if (control.draftStatus !== 'active') {
         return NextResponse.json({ error: 'The draft is not running' }, { status: 400 });
@@ -201,7 +204,7 @@ export async function POST(
         );
       }
 
-      const balance = await buildDraftBalance(eId);
+      const balance = await buildDraftBalance(clan.id, eId);
       const pool = balance.profiles.filter((p) => p.teamId == null && p.playerIds.length > 0);
       if (pool.length === 0) return NextResponse.json({ error: 'Nobody left to pick' }, { status: 400 });
 
@@ -249,6 +252,7 @@ export async function POST(
           const eventTeams = await db.select().from(teamsTable).where(eq(teamsTable.eventId, eId));
           const allPlayers = await db.select().from(players).where(eq(players.eventId, eId));
           notifyDraftComplete({
+            clanId: clan.id,
             eventName: event.name,
             teams: eventTeams.map((t) => ({
               name: t.name,

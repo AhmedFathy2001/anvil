@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { eventPresets, events } from '@/db/schema';
 import { count, desc } from 'drizzle-orm';
@@ -11,11 +12,12 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 export const dynamic = 'force-dynamic';
 
 export default async function NewEventPage() {
+  const clan = await requireClan();
   // Auto-name: "{Clan} Bingo #N" so the name field is never blank. Pull the clan name +
   // how many events exist so we can suggest the next number.
   const [clanName, [ec], savedRows] = await Promise.all([
     // Display name — the suggestion is prose ("{Clan} Bingo #3"), not an in-game match.
-    getClanDisplayName(''),
+    getClanDisplayName(clan.id, ''),
     db.select({ c: count() }).from(events),
     db.select().from(eventPresets).orderBy(desc(eventPresets.createdAt)),
   ]);

@@ -24,8 +24,8 @@ export interface DraftBalance {
   tierByPersonKey: Map<string, Tier>;
 }
 
-export async function buildDraftBalance(eventId: number): Promise<DraftBalance> {
-  const profiles = await computePlayerProfiles({ eventId });
+export async function buildDraftBalance(clanId: number, eventId: number): Promise<DraftBalance> {
+  const profiles = await computePlayerProfiles(clanId, { eventId });
   const byPlayerId = new Map<number, PlayerProfile>();
   for (const p of profiles) for (const id of p.playerIds) byPlayerId.set(id, p);
   // Quartile tiers within the pool (rating-sorted already): top 25% S, then A, then B, rest C.

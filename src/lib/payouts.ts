@@ -111,6 +111,7 @@ export async function announcePayouts(eventId: number): Promise<boolean> {
 
   const totalPaid = paid.reduce((sum, r) => sum + (r.amount || 0), 0);
   const ok = await notifyPayout({
+    clanId: event.clanId,
     eventId,
     eventName: event.name,
     totalPaid,

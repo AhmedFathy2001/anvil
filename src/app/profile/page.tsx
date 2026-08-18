@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanMembers, detectedAccounts, users } from '@/db/schema';
@@ -33,6 +34,7 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<{ welcome?: string }>;
 }) {
+  const clan = await requireClan();
   const session = await verifyUser();
   if (!session) {
     redirect('/login?return=/profile');
@@ -46,7 +48,7 @@ export default async function ProfilePage({
   const welcome = (await searchParams).welcome === '1';
   const [locker, clanName] = await Promise.all([
     buildLocker(user.id),
-    getClanDisplayName(),
+    getClanDisplayName(clan.id),
   ]);
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything

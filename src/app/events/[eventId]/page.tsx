@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -41,6 +42,7 @@ export default async function EventScoreboardPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
@@ -51,7 +53,7 @@ export default async function EventScoreboardPage({
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-  const tierBands = await getTierBands();
+  const tierBands = await getTierBands(clan.id);
 
   const tileIds = eventTiles.map((t) => t.id);
   let eventCompletions: {

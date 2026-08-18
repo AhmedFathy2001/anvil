@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { requireClan } from '@/lib/clanContext';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { getOAuthMode } from '@/lib/discord-oauth';
@@ -49,9 +50,10 @@ const SECTIONS = [
 ];
 
 export default async function PluginGuidePage() {
+  const clan = await requireClan();
   const origin = await siteOrigin();
-  const clanName = await getClanDisplayName('this clan');
-  const discordInvite = await getDiscordInviteUrl();
+  const clanName = await getClanDisplayName(clan.id, 'this clan');
+  const discordInvite = await getDiscordInviteUrl(clan.id);
 
   // Which login this instance uses decides one paragraph in step 2: a managed instance authenticates
   // Discord through the shared Anvil login (a visible hop to another domain, worth explaining before

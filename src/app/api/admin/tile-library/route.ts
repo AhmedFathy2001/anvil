@@ -20,14 +20,15 @@ export const dynamic = 'force-dynamic';
 
 /** GET — the whole catalogue plus what the generator needs to render its controls. */
 export async function GET() {
+  const clan = await requireClan();
   const editor = await verifyTileEditorAnywhere();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [tasks, categories, tierCounts, pending] = await Promise.all([
-    listLibrary(),
-    libraryCategories(),
-    libraryTierCounts(),
-    pendingSeedTasks(),
+    listLibrary(clan.id),
+    libraryCategories(clan.id),
+    libraryTierCounts(clan.id),
+    pendingSeedTasks(clan.id),
   ]);
   return NextResponse.json({
     tasks,

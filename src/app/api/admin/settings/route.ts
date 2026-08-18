@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
@@ -58,6 +59,7 @@ const EXPOSED_KEYS = [
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 
 export async function GET() {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -65,13 +67,14 @@ export async function GET() {
 
   // Only the exposed keys, rather than selecting the whole table and filtering in JS: secrets live
   // in the same table, and reading them into memory to throw them away is a needless exposure.
-  const map = await getSettingMap([...EXPOSED_KEYS]);
+  const map = await getSettingMap(clan.id, [...EXPOSED_KEYS]);
   const out: Record<string, string> = {};
   for (const key of EXPOSED_KEYS) out[key] = map.get(key) || '';
   return NextResponse.json(out);
 }
 
 export async function PUT(request: Request) {
+  const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -82,7 +85,7 @@ export async function PUT(request: Request) {
     const raw = body[key];
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
-    await setSetting(key, value ? value : null);
+    await setSetting(clan.id, key, value ? value : null);
   }
 
   return NextResponse.json({ success: true });

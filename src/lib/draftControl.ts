@@ -88,14 +88,14 @@ export interface DraftControl {
 
 const EMPTY_TIERS: Record<Tier, number> = { S: 0, A: 0, B: 0, C: 0 };
 
-export async function buildDraftControl(eventId: number): Promise<DraftControl | null> {
+export async function buildDraftControl(clanId: number, eventId: number): Promise<DraftControl | null> {
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return null;
 
   const [eventTeams, eventPlayers, balance] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(players).where(eq(players.eventId, eventId)),
-    buildDraftBalance(eventId),
+    buildDraftBalance(clanId, eventId),
   ]);
 
   const existing = new Set(eventTeams.map((t) => t.id));

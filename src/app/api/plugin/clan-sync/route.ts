@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
   // Gate on the IN-GAME clan name (settings.clan_ingame_name), never the display name — those two
   // are allowed to differ, and a site rename must not start rejecting the roster sync.
-  const expectedClanName = await getInGameClanName();
+  const expectedClanName = await getInGameClanName(clan.id);
   if (expectedClanName && clanName.toLowerCase() !== expectedClanName.toLowerCase()) {
     return NextResponse.json(
       { error: 'clanMismatch', serverClanName: expectedClanName, reportedClanName: clanName },
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
   //
   // Growth is all that ever stops. Existing members keep syncing — renames, rank changes, leaves,
   // returns — because a clan discovering it outgrew its plan shouldn't find its board half-broken.
-  const roster = await syncCapGrace();
+  const roster = await syncCapGrace(clan.id);
   const refusedNewMembers: string[] = [];
   if (newMemberAllowance(roster) === 0 && toInsert.length > 0) {
     refusedNewMembers.push(...toInsert.map((row) => row.rsn));
@@ -359,7 +359,7 @@ export async function POST(request: Request) {
       renamed: changes.filter((c) => c.type === 'renamed').length,
     },
   });
-  await setSetting('last_clan_sync', lastSyncSettingValue);
+  await setSetting(clan.id, 'last_clan_sync', lastSyncSettingValue);
 
   // ── 7) Discord summary (async, never blocks the response) ────────────────
   if (changes.length > 0) {
@@ -382,7 +382,7 @@ export async function POST(request: Request) {
       value: rankChanged.map((c) => `${c.rsn}: ${c.oldRank ?? '—'} → ${c.newRank ?? '—'}`).join('\n').slice(0, 1024),
     });
 
-    sendDiscordWebhook({
+    sendDiscordWebhook(clan.id, {
       embeds: [
         {
           author: { name: clanName || 'Clan roster' },
@@ -440,10 +440,11 @@ export async function POST(request: Request) {
 // post. Reads from settings (always stamped) rather than clan_audit_log (only stamped
 // when there were actual diffs), so a clean sync still surfaces.
 export async function GET(request: Request) {
+  const clan = await requireClanFromRequest(request);
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const stored = await getSetting('last_clan_sync');
+  const stored = await getSetting(clan.id, 'last_clan_sync');
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireClan } from '@/lib/clanContext';
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { verifyUser } from "@/lib/auth";
@@ -34,6 +35,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const clan = await requireClan();
   const session = await verifyUser();
   let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string } | null = null;
   if (session?.userId) {
@@ -58,7 +60,7 @@ export default async function RootLayout({
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
-  const discordInvite = await getDiscordInviteUrl();
+  const discordInvite = await getDiscordInviteUrl(clan.id);
 
   return (
     <html lang="en">

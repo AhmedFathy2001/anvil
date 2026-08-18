@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
@@ -18,9 +19,10 @@ export const dynamic = 'force-dynamic';
  * Everything here is assembled in lib/homeView from rows that already exist.
  */
 export default async function HomePage() {
+  const clan = await requireClan();
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(session?.userId ?? null);
-  const view = await buildHomeView(myMemberIds);
+  const view = await buildHomeView(clan.id, myMemberIds);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
 

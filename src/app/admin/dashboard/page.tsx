@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import {
@@ -40,13 +41,14 @@ function betweenDays(column: unknown, now: number, fromDaysAgo: number, toDaysAg
 }
 
 export default async function AdminDashboardPage() {
+  const clan = await requireClan();
   // First-run: a brand-new clan (no name, no webhook, never dismissed) is sent straight
   // to the guided wizard once. It's always escapable, and skipping sets the advisory flag
   // so this never becomes a trap.
-  const setup = await getSetupStatus();
+  const setup = await getSetupStatus(clan.id);
   if (setup.isFresh) redirect('/admin/setup?welcome=1');
   // Read-only: the grace clock is started by the roster sync, never by someone opening a page.
-  const capStatus = await rosterCapStatus();
+  const capStatus = await rosterCapStatus(clan.id);
 
   const now = Date.now();
   const today = dayOf(new Date(now));

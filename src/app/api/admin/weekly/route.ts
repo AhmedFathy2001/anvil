@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   // comps are announced by the cron when it flips them. Fire-and-forget so a webhook hiccup
   // never fails creation.
   if (status === 'active') {
-    notifyWeeklyStart({ type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
+    notifyWeeklyStart({ clanId: clan.id, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
   }
 
   return NextResponse.json({ ...comp, enrolled });

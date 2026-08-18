@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -17,6 +18,7 @@ export default async function EventOverviewPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
@@ -26,7 +28,7 @@ export default async function EventOverviewPage({
   const [eventTiles, eventTeams, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     db.select().from(teams).where(eq(teams.eventId, id)),
-    getTierBands(),
+    getTierBands(clan.id),
   ]);
 
   const tileIds = new Set(eventTiles.map((t) => t.id));

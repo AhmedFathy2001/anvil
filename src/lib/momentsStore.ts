@@ -80,6 +80,8 @@ export async function activeScopesFor(clanMemberId: number, now: Date = new Date
  * item was the other unique). That near-miss is precisely what a highlight feed is for.
  */
 async function eventScope(eventId: number): Promise<EventScope> {
+  const owner = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  const clanId = owner?.clanId ?? 0;
   const rows = await db
     .select({
       sourceNpcs: tiles.sourceNpcs,
@@ -109,12 +111,12 @@ async function eventScope(eventId: number): Promise<EventScope> {
     id: eventId,
     sources: [...sources],
     itemIds: [...itemIds],
-    minLootGp: await minLootGp(),
+    minLootGp: await minLootGp(clanId),
   };
 }
 
-async function minLootGp(): Promise<number> {
-  const value = await getSetting(MIN_LOOT_SETTING_KEY);
+async function minLootGp(clanId: number): Promise<number> {
+  const value = await getSetting(clanId, MIN_LOOT_SETTING_KEY);
   const parsed = value ? Number(value) : NaN;
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_MIN_LOOT_GP;
 }

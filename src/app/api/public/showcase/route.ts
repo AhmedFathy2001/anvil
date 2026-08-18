@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClan } from '@/lib/clanContext';
 import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
 import { db } from '@/db';
 import { getSettingText } from '@/lib/settings';
@@ -22,7 +23,8 @@ import { APP_VERSION } from '@/lib/serverInfo';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  if (!(await getPublicShowcase())) {
+  const clan = await requireClan();
+  if (!(await getPublicShowcase(clan.id))) {
     // 200, not 404: "this instance exists and declines to be listed" is a different answer from
     // "there is no Anvil here", and the poller stores the two differently.
     return NextResponse.json({ listed: false }, { headers: { 'Cache-Control': 'public, max-age=300' } });
@@ -54,7 +56,7 @@ export async function GET() {
     db.select({ n: count() }).from(weeklyCompetitions),
     db.select({ at: min(events.createdAt) }).from(events),
     db.select({ at: min(clanMembers.joinedAt) }).from(clanMembers),
-    getSettingText('discord_invite_url'),
+    getSettingText(clan.id, 'discord_invite_url'),
   ]);
 
   // "Running Anvil since" — the oldest thing in the DB that a human caused. Events first (a clan
@@ -64,7 +66,7 @@ export async function GET() {
   return NextResponse.json(
     {
       listed: true,
-      name: await getClanDisplayName(''),
+      name: await getClanDisplayName(clan.id, ''),
       discordInviteUrl: inviteRow,
       since,
       version: APP_VERSION,

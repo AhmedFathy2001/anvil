@@ -107,3 +107,42 @@ test('a spoofed Host cannot reach a clan it did not name', async () => {
   // And a clan's own slug on the WRONG apex is not that clan.
   assert.equal(await resolveClanByHost('theafkspot.evil.test'), null);
 });
+
+// ── Settings are per clan, and the accessor must actually say so ──────────────────────────────
+// This is a regression test for a bug that shipped past typecheck, lint and 25 green suites:
+// getSetting/getSettingText took a clanId and then filtered on `key` alone, so every clan read the
+// first clan's configuration — names, invite links, webhook URLs. Nothing errored. Two clans simply
+// had the same settings, and only a live two-host request showed it.
+//
+// The lesson these assertions encode: a scoped accessor is not scoped because it ACCEPTS a clanId.
+test('settings are isolated per clan', async () => {
+  const { getSetting, getSettingText, getSettingMap, setSetting, deleteSetting } =
+    await import('../src/lib/settings.ts');
+  const { db, schema } = await loadDb();
+
+  const [a] = await db.insert(schema.clans).values({ slug: 'settings-a', name: 'A' })
+    .returning({ id: schema.clans.id });
+  const [b] = await db.insert(schema.clans).values({ slug: 'settings-b', name: 'B' })
+    .returning({ id: schema.clans.id });
+
+  // The SAME key, different values. This is the shape the bug made impossible to tell apart.
+  await setSetting(a!.id, 'clan_name', 'Clan A');
+  await setSetting(b!.id, 'clan_name', 'Clan B');
+
+  assert.equal(await getSetting(a!.id, 'clan_name'), 'Clan A');
+  assert.equal(await getSetting(b!.id, 'clan_name'), 'Clan B', 'B must not read A\'s value');
+  assert.equal(await getSettingText(a!.id, 'clan_name'), 'Clan A');
+  assert.equal(await getSettingText(b!.id, 'clan_name'), 'Clan B', 'the trimmed reader needs scoping too');
+
+  const mapB = await getSettingMap(b!.id, ['clan_name']);
+  assert.equal(mapB.get('clan_name'), 'Clan B');
+
+  // A key only one clan has must not leak to the other.
+  await setSetting(a!.id, 'discord_invite_url', 'https://discord.gg/a');
+  assert.equal(await getSetting(b!.id, 'discord_invite_url'), null, 'absent for B, set for A');
+
+  // Deleting is scoped as well — one clan clearing a key must not clear anyone else's.
+  await deleteSetting(b!.id, 'clan_name');
+  assert.equal(await getSetting(b!.id, 'clan_name'), null);
+  assert.equal(await getSetting(a!.id, 'clan_name'), 'Clan A', "A's value survives B's delete");
+});

@@ -173,8 +173,8 @@ export const WEBHOOK_SETTING_KEYS = [
 ] as const;
 
 // Plugin-posted notification destinations, read from the settings key/value table.
-export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
-  const map = await getSettingMap([...WEBHOOK_SETTING_KEYS]);
+export async function getNotificationWebhooks(clanId: number): Promise<PluginWebhooks> {
+  const map = await getSettingMap(clanId, [...WEBHOOK_SETTING_KEYS]);
   return {
     rareDrops: map.get('webhook_rare_drops') || null,
     deaths: map.get('webhook_deaths') || null,
@@ -192,8 +192,8 @@ export const SPOON_TAUNTS_SETTING_KEY = 'spoon_taunts';
 export const ALWAYS_NOTIFY_SETTING_KEY = 'always_notify_items';
 
 // Reads a settings value stored as one entry per line, trimmed and blank-filtered.
-async function getLineSetting(key: string): Promise<string[]> {
-  const value = await getSetting(key);
+async function getLineSetting(clanId: number, key: string): Promise<string[]> {
+  const value = await getSetting(clanId, key);
   if (!value) return [];
   return value
     .split('\n')
@@ -203,26 +203,26 @@ async function getLineSetting(key: string): Promise<string[]> {
 
 // Server-managed 1/100 fun-death pool. Admin-editable; falls back to the curated constant when
 // the clan hasn't set its own.
-export async function getFunDeathMessages(): Promise<string[]> {
-  const custom = await getLineSetting(FUN_DEATHS_SETTING_KEY);
+export async function getFunDeathMessages(clanId: number): Promise<string[]> {
+  const custom = await getLineSetting(clanId, FUN_DEATHS_SETTING_KEY);
   return custom.length ? custom : FUN_DEATH_MESSAGES;
 }
 
 // Admin-set reaction lines appended to death / lucky-drop posts. Empty = use the plugin's baked-in
 // defaults (the plugin substitutes its own list when these are empty).
-export async function getDeathTaunts(): Promise<string[]> {
-  return getLineSetting(DEATH_TAUNTS_SETTING_KEY);
+export async function getDeathTaunts(clanId: number): Promise<string[]> {
+  return getLineSetting(clanId, DEATH_TAUNTS_SETTING_KEY);
 }
 
-export async function getSpoonTaunts(): Promise<string[]> {
-  return getLineSetting(SPOON_TAUNTS_SETTING_KEY);
+export async function getSpoonTaunts(clanId: number): Promise<string[]> {
+  return getLineSetting(clanId, SPOON_TAUNTS_SETTING_KEY);
 }
 
 // Admin-managed list of item names that always post to the rare-drops channel (prestige drops
 // the value/rarity thresholds miss). EXTENDS the plugin's baked-in defaults — the plugin unions
 // both lists — so this only needs to hold extras (e.g. new ornament kits). One name per line.
-export async function getAlwaysNotifyItems(): Promise<string[]> {
-  return getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+export async function getAlwaysNotifyItems(clanId: number): Promise<string[]> {
+  return getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
 }
 
 // Prestige/notable items that ALWAYS post to the rare-drop channel — resolved to item ids so the plugin
@@ -244,8 +244,8 @@ const NOTABLE_ID_TTL_MS = 5 * 60_000;
 // Substring-resolve the notable name patterns (baked-in + admin) to the set of matching item ids — the same
 // `.contains()` semantics the plugin used on names. Cached briefly (the list is essentially static); on an
 // item-data outage it degrades to the last good set (or empty), and the plugin's name allowlist still covers.
-export async function getAlwaysNotifyItemIds(): Promise<number[]> {
-  const admin = await getLineSetting(ALWAYS_NOTIFY_SETTING_KEY);
+export async function getAlwaysNotifyItemIds(clanId: number): Promise<number[]> {
+  const admin = await getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
   const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
   const key = patterns.join('');
   if (notableIdCache && notableIdCache.key === key && Date.now() - notableIdCache.at < NOTABLE_ID_TTL_MS) {
@@ -276,8 +276,8 @@ export async function getAlwaysNotifyItemIds(): Promise<number[]> {
 // admin can switch it off from Admin → Integrations. Stored as the string 'off' when disabled.
 export const SHOW_KILL_COUNT_SETTING_KEY = 'show_kill_count';
 
-export async function getShowKillCount(): Promise<boolean> {
-  return (await getSetting(SHOW_KILL_COUNT_SETTING_KEY)) !== 'off';
+export async function getShowKillCount(clanId: number): Promise<boolean> {
+  return (await getSetting(clanId, SHOW_KILL_COUNT_SETTING_KEY)) !== 'off';
 }
 
 // Clan-wide floor on rarity-triggered drop posts, as 1-in-N. Members set their own threshold in the
@@ -287,8 +287,8 @@ export async function getShowKillCount(): Promise<boolean> {
 export const DROP_RARITY_FLOOR_SETTING_KEY = 'drop_rarity_floor';
 export const DEFAULT_DROP_RARITY_FLOOR = 10_000;
 
-export async function getDropRarityFloor(): Promise<number> {
-  const parsed = Number(await getSetting(DROP_RARITY_FLOOR_SETTING_KEY));
+export async function getDropRarityFloor(clanId: number): Promise<number> {
+  const parsed = Number(await getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY));
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_DROP_RARITY_FLOOR;
   // Never below the plugin's own hard minimum — a "floor" that loosens the gate would be a trap.
   return Math.max(1000, Math.round(parsed));
@@ -307,8 +307,8 @@ export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
 // The clan's display name — plugin sidebar (clan filter label + logged-out home card), the web
 // home hero, guides, Discord posts. Resolution: settings row, provisioner
 // env, caller-supplied fallback (pages use softer prose fallbacks like "your clan").
-export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
-  const value = await getSettingText(CLAN_NAME_SETTING_KEY);
+export async function getClanDisplayName(clanId: number, fallback = 'Anvil'): Promise<string> {
+  const value = await getSettingText(clanId, CLAN_NAME_SETTING_KEY);
   return value || process.env.CLAN_NAME?.trim() || fallback;
 }
 
@@ -319,8 +319,8 @@ export async function getClanDisplayName(fallback = 'Anvil'): Promise<string> {
 // in-game one, silently gating on it would reject every sync after a rename. Existing installs are
 // backfilled from clan_name at boot (scripts/migrate.mjs) so their gate survives this split, and an
 // admin who clears the field is opting into "any clan" on purpose.
-export async function getInGameClanName(): Promise<string | null> {
-  const value = await getSettingText(CLAN_INGAME_NAME_SETTING_KEY);
+export async function getInGameClanName(clanId: number): Promise<string | null> {
+  const value = await getSettingText(clanId, CLAN_INGAME_NAME_SETTING_KEY);
   return value || process.env.CLAN_INGAME_NAME?.trim() || null;
 }
 
@@ -331,8 +331,8 @@ export async function getInGameClanName(): Promise<string | null> {
 // Lives here because three separate call sites had this exact `trim() || env || null` chain inlined.
 export const DISCORD_INVITE_SETTING_KEY = 'discord_invite_url';
 
-export async function getDiscordInviteUrl(): Promise<string | null> {
-  const value = await getSettingText(DISCORD_INVITE_SETTING_KEY);
+export async function getDiscordInviteUrl(clanId: number): Promise<string | null> {
+  const value = await getSettingText(clanId, DISCORD_INVITE_SETTING_KEY);
   return value || process.env.DISCORD_INVITE_URL?.trim() || null;
 }
 
@@ -342,8 +342,8 @@ export async function getDiscordInviteUrl(): Promise<string | null> {
 // default when unset or malformed.
 export const TIER_BANDS_SETTING_KEY = 'tier_bands';
 
-export async function getTierBands(): Promise<TierBand[]> {
-  const value = await getSetting(TIER_BANDS_SETTING_KEY);
+export async function getTierBands(clanId: number): Promise<TierBand[]> {
+  const value = await getSetting(clanId, TIER_BANDS_SETTING_KEY);
   if (!value) return DEFAULT_TIER_BANDS;
   try {
     const bands = normalizeTierBands(JSON.parse(value));
@@ -364,9 +364,9 @@ export async function getTierBands(): Promise<TierBand[]> {
 // as the default.
 export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
 
-export async function getPublicShowcase(): Promise<boolean> {
+export async function getPublicShowcase(clanId: number): Promise<boolean> {
   // default (no row) = listed; explicit 'off' opts out
-  return (await getSetting(PUBLIC_SHOWCASE_KEY)) !== 'off';
+  return (await getSetting(clanId, PUBLIC_SHOWCASE_KEY)) !== 'off';
 }
 
 /**

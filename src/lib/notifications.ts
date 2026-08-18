@@ -118,6 +118,7 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
   }
 
   await notifyMergedSubmission({
+    clanId: event.clanId,
     eventName: event.name,
     tileLabel: tile.label,
     teamName: team.name,
