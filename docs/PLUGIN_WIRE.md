@@ -209,8 +209,8 @@ retry after the player files their shot, rather than dropping the drop.
 
 ### `moments`
 
-The highlight feed: pets, uniques, big hauls and deaths that happen while a competition week or a
-bingo is running. `POST /api/plugin/moments`:
+The highlight feed: pets, uniques, big hauls, deaths and combat tasks that happen while a
+competition week or a bingo is running. `POST /api/plugin/moments`:
 
 ```json
 { "moments": [
@@ -218,7 +218,8 @@ bingo is running. `POST /api/plugin/moments`:
     "kc": 210, "at": "2026-08-17T10:00:00Z", "key": "pet-1755420000000" },
   { "kind": "drop", "itemId": 12922, "itemName": "Tanzanite fang", "quantity": 1,
     "valueGp": 3100000, "source": "Zulrah", "sourceKind": "npc", "kc": 1204, "at": "...", "key": "..." },
-  { "kind": "death", "source": "Great Olm", "at": "...", "key": "death-1755420100000" }
+  { "kind": "death", "source": "Great Olm", "at": "...", "key": "death-1755420100000" },
+  { "kind": "ca", "taskName": "Perfect Zulrah", "tier": "Master", "at": "...", "key": "ca|perfect zulrah|..." }
 ] }
 ```
 
@@ -232,6 +233,16 @@ everything plausible and the server (`src/lib/moments.ts`) keeps what belongs to
   absent by design, they match through their log page);
 - a **bingo** keeps every pet and death, plus any haul the board recognises (a source or item one of
   its tiles names — including when nothing was credited) or that clears `moments_min_loot_gp`.
+
+A `ca` observation carries only the task name and the tier the completion line claimed. Which boss
+it belongs to comes from the server's own CA dataset (`src/data/combatAchievements.json`, the same
+one the CA tile picker uses), which is what lets a task land on the week racing that boss without
+the plugin knowing a week exists. `tier` is a fallback, read only for a task the dataset doesn't
+carry yet. Two floors apply, both server-side so a clan can be retuned without a release: **Hard+**
+for a task about the boss being raced or a source the board names, **Master+** for anything else
+during a bingo. Only FIRST completions should be sent — the in-game "Repeat completion" setting
+re-fires the same chat line for tasks cleared years ago, and the plugin tells them apart by whether
+the CA points varbit actually rose.
 
 `key` is the client's idempotency key and is **required**: one pet fires three chat lines, one kill
 fires two loot events, and a retry after a timeout arrives again on purpose. The server scopes the
