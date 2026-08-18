@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import {
   bossCategoryViews,
   bossKcRows,
+  monsterCategoryViews,
   npcKillRows,
   parseNpcList,
   parsePoints,
@@ -48,6 +49,10 @@ export default function BossTileGenerator({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [npcText, setNpcText] = useState('');
   const [npcCategory, setNpcCategory] = useState('Slayer');
+  const monsterCategories = useMemo(() => monsterCategoryViews(), []);
+  const [monsterFilter, setMonsterFilter] = useState<string>('all');
+  const [monsterSearch, setMonsterSearch] = useState('');
+  const [pickedMonsters, setPickedMonsters] = useState<Set<string>>(new Set());
   const [thresholdText, setThresholdText] = useState('25, 50, 100');
   const [pointsText, setPointsText] = useState('');
   const [creating, setCreating] = useState(false);
@@ -62,7 +67,21 @@ export default function BossTileGenerator({
   }, [categories, filter, search]);
 
   const thresholds = parseThresholds(thresholdText);
-  const npcs = useMemo(() => parseNpcList(npcText), [npcText]);
+  const visibleMonsters = useMemo(() => {
+    const cats = monsterFilter === 'all' ? monsterCategories : monsterCategories.filter((c) => c.key === monsterFilter);
+    const q = monsterSearch.trim().toLowerCase();
+    // Searching across 121 task groups is how anyone finds one monster; the filter is how they take
+    // a whole group at once. Both narrow the same list rather than being separate modes.
+    return cats
+      .map((c) => ({ ...c, monsters: q ? c.monsters.filter((m) => m.name.toLowerCase().includes(q)) : c.monsters }))
+      .filter((c) => c.monsters.length > 0);
+  }, [monsterCategories, monsterFilter, monsterSearch]);
+  // Picked from the list, plus anything typed by hand — a host who wants an NPC the wiki never
+  // called a slayer monster (a quest boss, a random mob) shouldn't be blocked by our dataset.
+  const npcs = useMemo(
+    () => [...new Set([...pickedMonsters, ...parseNpcList(npcText)])],
+    [pickedMonsters, npcText],
+  );
   const sourceCount = mode === 'boss' ? selected.size : npcs.length;
   const willCreate = sourceCount * thresholds.length;
 
@@ -70,6 +89,7 @@ export default function BossTileGenerator({
     setOpen(false);
     setSelected(new Set());
     setNpcText('');
+    setPickedMonsters(new Set());
     setLastBatch(null);
   }
 
@@ -138,6 +158,7 @@ export default function BossTileGenerator({
       // Keep the thresholds — the next batch is usually the same ladder against different bosses.
       setSelected(new Set());
       setNpcText('');
+      setPickedMonsters(new Set());
     } finally {
       setCreating(false);
     }
@@ -263,26 +284,105 @@ export default function BossTileGenerator({
                 </div>
               </>
             ) : (
-              <div className="mb-3">
-                <div className="flex gap-2 mb-2">
+              <>
+                <div className="flex flex-wrap gap-1 mb-2 max-h-[4.5rem] overflow-y-auto">
+                  <button
+                    onClick={() => setMonsterFilter('all')}
+                    className={`text-[10px] px-2 py-1 rounded-lg border transition-colors ${
+                      monsterFilter === 'all' ? 'border-gold/40 bg-gold/15 text-gold' : 'border-card-border text-text-muted hover:text-foreground'
+                    }`}
+                  >
+                    All tasks
+                  </button>
+                  {monsterCategories.map((c) => (
+                    <button
+                      key={c.key}
+                      onClick={() => setMonsterFilter(c.key)}
+                      className={`text-[10px] px-2 py-1 rounded-lg border transition-colors ${
+                        monsterFilter === c.key ? 'border-gold/40 bg-gold/15 text-gold' : 'border-card-border text-text-muted hover:text-foreground'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Input
+                    value={monsterSearch}
+                    onChange={(e) => setMonsterSearch(e.target.value)}
+                    placeholder="Search monsters…"
+                    aria-label="Search monsters"
+                  />
+                  <span className="flex gap-2 text-[10px] shrink-0">
+                    <button
+                      onClick={() =>
+                        setPickedMonsters((prev) => {
+                          const next = new Set(prev);
+                          for (const c of visibleMonsters) for (const m of c.monsters) next.add(m.name);
+                          return next;
+                        })
+                      }
+                      className="text-gold/80 hover:text-gold"
+                    >
+                      Pick shown
+                    </button>
+                    <button onClick={() => setPickedMonsters(new Set())} className="text-text-muted hover:text-foreground">
+                      Clear
+                    </button>
+                  </span>
+                </div>
+
+                <div className="overflow-y-auto border border-card-border/60 rounded-lg p-2 mb-2 max-h-56 min-h-[6rem]">
+                  {visibleMonsters.map((c) => (
+                    <div key={c.key} className="mb-2 last:mb-0">
+                      <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">{c.label}</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-0.5">
+                        {c.monsters.map((m) => (
+                          <label key={`${c.key}:${m.name}`} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pickedMonsters.has(m.name)}
+                              onChange={() =>
+                                setPickedMonsters((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(m.name)) next.delete(m.name);
+                                  else next.add(m.name);
+                                  return next;
+                                })
+                              }
+                              className="accent-gold"
+                            />
+                            <span className={pickedMonsters.has(m.name) ? 'text-foreground' : 'text-text-muted'}>{m.name}</span>
+                            {m.slayerLevel != null && <span className="ml-auto text-[10px] text-text-muted/70">{m.slayerLevel}</span>}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {visibleMonsters.length === 0 && <p className="text-xs text-text-muted p-2">Nothing matches that search.</p>}
+                </div>
+
+                <div className="flex gap-2 mb-3">
                   <div className="w-40">
                     <label className="block text-[10px] text-text-muted mb-1">Category tag</label>
                     <Input value={npcCategory} onChange={(e) => setNpcCategory(e.target.value)} placeholder="Slayer" aria-label="Category" />
                   </div>
-                  <p className="flex-1 text-[11px] text-text-muted self-end pb-2">
-                    One name per line (or comma-separated). These become kill tiles the plugin credits
-                    directly — the hiscores never counted them.
-                  </p>
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-text-muted mb-1">
+                      Anything else, by name <span className="text-text-muted/70">(one per line)</span>
+                    </label>
+                    <textarea
+                      value={npcText}
+                      onChange={(e) => setNpcText(e.target.value)}
+                      rows={2}
+                      placeholder={'Man\nGiant rat'}
+                      aria-label="Extra NPC names"
+                      className="w-full rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs font-mono"
+                    />
+                  </div>
                 </div>
-                <textarea
-                  value={npcText}
-                  onChange={(e) => setNpcText(e.target.value)}
-                  rows={6}
-                  placeholder={'Abyssal demon\nGargoyle\nNechryael'}
-                  aria-label="NPC names"
-                  className="w-full rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs font-mono"
-                />
-              </div>
+              </>
             )}
 
             <div className="flex items-center justify-between gap-3">

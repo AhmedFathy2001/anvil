@@ -1,4 +1,5 @@
 import bossCategories from '@/data/bossCategories.json';
+import slayerMonsters from '@/data/slayerMonsters.json';
 import { BOSSES } from '@/lib/constants';
 
 /**
@@ -61,6 +62,45 @@ export function bossCategoryViews(): BossCategoryView[] {
       bosses: rest,
     });
   }
+  return out;
+}
+
+
+export interface MonsterOptionView {
+  name: string;
+  slayerLevel: number | null;
+  combatLevel: number | null;
+}
+
+export interface MonsterCategoryView {
+  key: string;
+  label: string;
+  monsters: MonsterOptionView[];
+}
+
+const slayerRaw = slayerMonsters as {
+  categories?: { label: string; monsters: MonsterOptionView[] }[];
+};
+
+/**
+ * Slayer task groups and what's in them (src/data/slayerMonsters.json, `npm run data:slayer`).
+ *
+ * The hiscores count nothing below a boss, so none of this can come from a stat sweep — it comes
+ * from the wiki's own monster infoboxes, which is also why it stays a shipped file rather than a
+ * hand-kept list: the game adds monsters, and a regen picks them up.
+ */
+export function monsterCategoryViews(): MonsterCategoryView[] {
+  return (slayerRaw.categories ?? []).map((c) => ({
+    key: c.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    label: c.label,
+    monsters: c.monsters,
+  }));
+}
+
+/** Every monster name we know — the picker's search, and a check on a pasted list. */
+export function knownMonsterNames(): Set<string> {
+  const out = new Set<string>();
+  for (const c of slayerRaw.categories ?? []) for (const m of c.monsters) out.add(m.name);
   return out;
 }
 

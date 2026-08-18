@@ -8,6 +8,8 @@ import {
   parseNpcList,
   parsePoints,
   parseThresholds,
+  monsterCategoryViews,
+  knownMonsterNames,
 } from '../src/lib/bossTileGen.ts';
 import { BOSSES } from '../src/lib/constants.ts';
 
@@ -103,4 +105,23 @@ test('a pasted NPC list splits on lines and commas, never on spaces', () => {
     'Abyssal demon', 'Dark beast', 'Smoke devil',
   ]);
   assert.deepEqual(parseNpcList('Cow, Cow, '), ['Cow']);
+});
+
+// ---- slayer monsters ----------------------------------------------------------------------------
+
+test('slayer categories carry real monsters with in-game names', () => {
+  const cats = monsterCategoryViews();
+  assert.ok(cats.length > 50, 'expected the wiki dataset to hold the task groups');
+  const abyssal = cats.find((c) => c.label === 'Abyssal Demons');
+  assert.ok(abyssal, 'Abyssal Demons should be a task group');
+  // The plain monster leads its group — a host wants a tile for "Abyssal demon" first, not for the
+  // Sire's respiratory system, which is what an unordered list put at the top.
+  assert.equal(abyssal?.monsters[0].name, 'Abyssal demon');
+  assert.equal(abyssal?.monsters[0].slayerLevel, 85);
+});
+
+test('monster names carry no wiki disambiguation, which a kill tile could never match', () => {
+  for (const name of knownMonsterNames()) {
+    assert.ok(!name.includes('('), `"${name}" still carries a wiki suffix`);
+  }
 });
