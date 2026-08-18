@@ -24,6 +24,7 @@ import {
   buildLuckBoards,
   buildPageItems,
   matchBestsToPages,
+  titleCaseActivity,
   type LuckSource,
 } from '../src/lib/clogProfile.ts';
 import { clogPageItems, clogPageNames } from '../src/lib/clogDataset.ts';
@@ -252,3 +253,21 @@ test('matchBestsToPages: an activity with no page is dropped, not guessed at', (
   assert.equal(matched.size, 0);
 });
 
+test("titleCaseActivity: an apostrophe doesn't start a word, and connectors stay small", () => {
+  // The bug this exists for: a word boundary sits between the apostrophe and the s.
+  assert.equal(titleCaseActivity("phosani's nightmare"), "Phosani's Nightmare");
+  assert.equal(titleCaseActivity("shades of mort'ton"), "Shades of Mort'ton");
+  // ...and the other half: "Chambers Of Xeric" is not how the game writes it.
+  assert.equal(titleCaseActivity('chambers of xeric'), 'Chambers of Xeric');
+  assert.equal(titleCaseActivity('temple of the eye'), 'Temple of the Eye');
+  // A colon starts a new clause, so the mode after it is named.
+  assert.equal(titleCaseActivity('chambers of xeric: challenge mode'), 'Chambers of Xeric: Challenge Mode');
+  assert.equal(titleCaseActivity('tombs of amascut: expert mode'), 'Tombs of Amascut: Expert Mode');
+  // A leading connector is the name's first word, not a connector.
+  assert.equal(titleCaseActivity('the gauntlet'), 'The Gauntlet');
+  assert.equal(titleCaseActivity('the corrupted gauntlet'), 'The Corrupted Gauntlet');
+  // Hyphens do start words.
+  assert.equal(titleCaseActivity("tzhaar-ket-rak's challenges"), "Tzhaar-Ket-Rak's Challenges");
+  // Anything already cased is left alone rather than re-cased.
+  assert.equal(titleCaseActivity('TzHaar-Ket-Rak'), 'TzHaar-Ket-Rak');
+});

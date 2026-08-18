@@ -156,6 +156,35 @@ function coreName(value: string): string {
   return normalizeActivity(value).replace(/^the /, '');
 }
 
+/** Words that only take a capital when they open the name (or the bit after a colon). */
+const MINOR_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'in', 'of', 'on', 'the', 'to']);
+
+/**
+ * "chambers of xeric: challenge mode" → "Chambers of Xeric: Challenge Mode". RuneLite hands these
+ * over lowercased, and the game's own capitalisation is what people expect to read back.
+ *
+ * The rule this replaces was `/\b[a-z]/` → uppercase, which is wrong in two ways an OSRS name hits
+ * immediately: a word boundary sits after an apostrophe, so "phosani's nightmare" came out as
+ * "Phosani'S Nightmare"; and it capitalised every connecting word, so "Chambers Of Xeric". Here a
+ * capital goes on the first letter of a word and after a hyphen — never after an apostrophe — and
+ * minor words keep their lowercase unless they start a clause.
+ */
+export function titleCaseActivity(activity: string): string {
+  let startsClause = true;
+  return activity
+    .split(' ')
+    .map((word) => {
+      const bare = word.replace(/[^a-z]/gi, '').toLowerCase();
+      const cased = startsClause || !MINOR_WORDS.has(bare)
+        ? word.replace(/(^|-)([a-z])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase())
+        : word;
+      // A colon starts a new clause: the mode after it is named, not a continuation.
+      startsClause = word.endsWith(':');
+      return cased;
+    })
+    .join(' ');
+}
+
 /**
  * Party size out of a label, so scales sort in the order a player thinks in.
  *
