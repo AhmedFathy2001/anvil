@@ -115,6 +115,7 @@ export async function getEventStartReadiness(eventId: number, draftStatus: strin
 // 3:05 wasn't announced until 4:00 — up to ~an hour late.) The hourly stats cron calls this
 // too, purely as a backstop.
 export async function processEventLifecycleNotifications(): Promise<void> {
+  // clan-scope: global -- the lifecycle tick is cron-driven and spans clans by design.
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
 

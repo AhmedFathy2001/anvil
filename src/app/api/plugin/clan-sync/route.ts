@@ -79,8 +79,10 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const changes: ChangeRecord[] = [];
 
-  // ── 1) Pre-fetch all existing rows ────────────────────────────────────────
-  const existingRows = await db.select().from(clanMembers);
+  // ── 1) Pre-fetch this clan's existing rows ────────────────────────────────
+  // Scoped to the clan: unscoped, the diff below would treat every OTHER clan's members as missing
+  // from this roster and soft-delete them.
+  const existingRows = await db.select().from(clanMembers).where(eq(clanMembers.clanId, clan.id));
   const byHash = new Map<string, typeof existingRows[number]>();
   const byRsn = new Map<string, typeof existingRows[number]>();
   for (const r of existingRows) {
@@ -321,6 +323,7 @@ export async function POST(request: Request) {
     .set({ leftAt: now })
     .where(
       and(
+        eq(clanMembers.clanId, clan.id),
         isNull(clanMembers.leftAt),
         ne(clanMembers.source, 'manual'),
         eq(clanMembers.isGuest, 0),

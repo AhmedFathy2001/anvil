@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import clanScope from "./eslint-rules/clan-scope.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -13,6 +14,15 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // Multi-clan safety: a query that forgets clan_id returns another clan's rows and nothing
+    // errors. Enforced here rather than by review because we already shipped one of these — see
+    // the rule's own header. Tests and scripts are exempt: they seed fixtures across clans on
+    // purpose, and the harness creates the clans it queries.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    plugins: { "clan-scope": { rules: { "require-clan-filter": clanScope } } },
+    rules: { "clan-scope/require-clan-filter": "warn" },
+  },
   {
     // React-compiler diagnostics (react-hooks v6): ~13 pre-existing hits, each needing a
     // per-component refactor (setState-in-effect restructuring, purity fixes). Kept visible as

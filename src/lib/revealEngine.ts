@@ -299,6 +299,8 @@ export async function announceNextMission(eventId: number): Promise<{ announced:
 /** Cron pass: run the board reveal engine and the mission announce track over every live event. */
 export async function processTileReveals(): Promise<void> {
   const now = new Date().toISOString();
+  // clan-scope: global -- one engine pass covers every clan's live boards; each event is then
+  // handled on its own clanId.
   const allEvents = await db.select().from(events);
   for (const event of allEvents) {
     const rules = parseEventRules(event.rules);

@@ -178,6 +178,8 @@ export async function GET(request: Request) {
   }
 
   // Bingo events → per-event ctx + per-player bingo tasks.
+  // clan-scope: global -- the stats sweep runs across every clan; that is what a cron tick IS.
+  // Each event carries its own clanId, which is what the per-event work below scopes on.
   const allEvents = await db.select().from(events);
   const activeEvents = allEvents.filter((e) => {
     if (e.forceEndedAt) return false;

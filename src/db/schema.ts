@@ -719,8 +719,16 @@ export const clanMembers = pgTable('clan_members', {
   // hundred bytes each. Written on the same ticks as the snapshot, from data already in hand.
   statsActivities: text('stats_activities')
 }, (table) => [
-  uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
-  uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
+  // Unique WITHIN a clan, not globally. These were global because there was one clan per database,
+  // and leaving them that way makes multi-clan structurally impossible: the same person legitimately
+  // appears on several rosters, and a global unique on the RSN means the second clan simply cannot
+  // add them.
+  //
+  // The GLOBAL uniqueness these once expressed is real, but it belongs to the account rather than to
+  // a membership — it moves to the `accounts` table when identity splits into person / account /
+  // membership. Until then the pair is the honest constraint.
+  uniqueIndex('clan_members_clan_rsn_unique').on(table.clanId, table.rsnNormalized),
+  uniqueIndex('clan_members_clan_account_hash_unique').on(table.clanId, table.accountHash),
   index('clan_members_left_at_idx').on(table.leftAt),
   index('clan_members_user_id_idx').on(table.userId),
   index('clan_members_provisional_idx').on(table.provisional),

@@ -79,6 +79,7 @@ export async function GET(request: Request) {
   const now = new Date().toISOString();
 
   // Update competition statuses based on dates
+  // clan-scope: global -- the lifecycle tick flips statuses for every clan's competitions.
   const allComps = await db.select().from(weeklyCompetitions);
 
   for (const comp of allComps) {

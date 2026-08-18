@@ -146,3 +146,45 @@ test('settings are isolated per clan', async () => {
   assert.equal(await getSetting(b!.id, 'clan_name'), null);
   assert.equal(await getSetting(a!.id, 'clan_name'), 'Clan A', "A's value survives B's delete");
 });
+
+// ── One RSN, two rosters ──────────────────────────────────────────────────────────────────────
+// The property the clan-sync bug violated. That handler pre-fetched EVERY clan's members to diff
+// against one clan's reported roster, and its soft-delete was unscoped too — so a single clan
+// syncing would have marked every other clan's members as having left. Data loss across tenants,
+// from a missing WHERE.
+//
+// The same person legitimately plays in several clans, so "this RSN is already a member" is only
+// ever a question about ONE clan.
+test('the same RSN is a separate member row in each clan', async () => {
+  const { findOrCreateClanMember } = await import('../src/lib/clan.ts');
+  const { db, schema } = await loadDb();
+  const { eq, and } = await import('drizzle-orm');
+
+  const [a] = await db.insert(schema.clans).values({ slug: 'roster-a', name: 'Roster A' })
+    .returning({ id: schema.clans.id });
+  const [b] = await db.insert(schema.clans).values({ slug: 'roster-b', name: 'Roster B' })
+    .returning({ id: schema.clans.id });
+
+  const inA = await findOrCreateClanMember(a!.id, 'Zezima');
+  const inB = await findOrCreateClanMember(b!.id, 'Zezima');
+  assert.notEqual(inA, inB, "one clan must not adopt another clan's member row");
+
+  // Asking again returns each clan's OWN row, rather than whichever existed first.
+  assert.equal(await findOrCreateClanMember(a!.id, 'Zezima'), inA);
+  assert.equal(await findOrCreateClanMember(b!.id, 'Zezima'), inB);
+
+  // And each clan sees exactly one Zezima.
+  for (const [clanId, expected] of [[a!.id, inA], [b!.id, inB]] as const) {
+    const rows = await db.select().from(schema.clanMembers)
+      .where(and(eq(schema.clanMembers.clanId, clanId), eq(schema.clanMembers.rsnNormalized, 'zezima')));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]!.id, expected);
+  }
+
+  // A soft-delete sweep scoped to A must leave B's roster untouched — the clan-sync failure mode.
+  await db.update(schema.clanMembers)
+    .set({ leftAt: new Date().toISOString() })
+    .where(eq(schema.clanMembers.clanId, a!.id));
+  const bRow = await db.query.clanMembers.findFirst({ where: eq(schema.clanMembers.id, inB) });
+  assert.equal(bRow?.leftAt, null, "B's members must survive A's roster sync");
+});

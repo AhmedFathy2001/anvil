@@ -29,6 +29,13 @@
       "when": 1787013121693,
       "tag": "0003_settings_per_clan",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787062026769,
+      "tag": "0004_roster_unique_per_clan",
+      "breakpoints": true
     }
   ]
 }
