@@ -3,7 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
 import { db } from '@/db';
 import { getSettingText } from '@/lib/settings';
-import { clanMembers, completions, events, submissions, weeklyCompetitions } from '@/db/schema';
+import { clanMembers, completions, events, submissions, tiles, weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName, getPublicShowcase } from '@/lib/pluginConfig';
 import { APP_VERSION } from '@/lib/serverInfo';
 
@@ -41,21 +41,35 @@ export async function GET() {
     [firstMember],
     inviteRow,
   ] = await Promise.all([
-    // Active roster: still in the clan (no leftAt) and not a guest.
+    // Every count below is scoped to THIS clan. They were not, and on a two-clan preview the numbers
+    // came back identical for both clans — the sum of the whole platform, served as each clan's own.
+    //
+    // completions and submissions reach the clan one hop up, through the tile's event, rather than
+    // carrying a clan_id of their own that could disagree with it.
     db
       .select({ n: count() })
       .from(clanMembers)
-      .where(and(isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0))),
-    db.select({ n: count() }).from(events),
+      .where(and(eq(clanMembers.clanId, clan.id), isNull(clanMembers.leftAt), eq(clanMembers.isGuest, 0))),
+    db.select({ n: count() }).from(events).where(eq(events.clanId, clan.id)),
     db
       .select({ n: count() })
       .from(events)
-      .where(and(isNotNull(events.endDate), lt(events.endDate, new Date().toISOString()))),
-    db.select({ n: count() }).from(completions),
-    db.select({ n: count() }).from(submissions),
-    db.select({ n: count() }).from(weeklyCompetitions),
-    db.select({ at: min(events.createdAt) }).from(events),
-    db.select({ at: min(clanMembers.joinedAt) }).from(clanMembers),
+      .where(and(eq(events.clanId, clan.id), isNotNull(events.endDate), lt(events.endDate, new Date().toISOString()))),
+    db
+      .select({ n: count() })
+      .from(completions)
+      .innerJoin(tiles, eq(completions.tileId, tiles.id))
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(eq(events.clanId, clan.id)),
+    db
+      .select({ n: count() })
+      .from(submissions)
+      .innerJoin(tiles, eq(submissions.tileId, tiles.id))
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(eq(events.clanId, clan.id)),
+    db.select({ n: count() }).from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clan.id)),
+    db.select({ at: min(events.createdAt) }).from(events).where(eq(events.clanId, clan.id)),
+    db.select({ at: min(clanMembers.joinedAt) }).from(clanMembers).where(eq(clanMembers.clanId, clan.id)),
     getSettingText(clan.id, 'discord_invite_url'),
   ]);
 
