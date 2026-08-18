@@ -280,6 +280,7 @@ export async function PATCH(
         endDate: updated.endDate,
         format: updated.format,
         startProofLocation: startProof?.location ?? null,
+        startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
         ...(await eventBoardSummary(updated)),
       }).catch(() => {});
     }

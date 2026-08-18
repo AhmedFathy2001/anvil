@@ -420,10 +420,21 @@ export default async function PluginGuidePage() {
               files it for you.
             </p>
             <p className="text-text-muted">
+              Two things it checks before it files anything, so you fix them in-game rather than in a
+              Discord argument afterwards. If the host pinned the spot on the map, the plugin knows
+              how far away you are and tells you rather than sending a shot from the wrong side of
+              Gielinor. And if the event asks for a fresh session, you need to{' '}
+              <span className="text-foreground font-medium">log out and back in</span> before taking
+              it: your hiscores are only saved when you log out, so a relog right before the shot is
+              what makes your starting totals — and therefore every XP and KC tile — correct.
+            </p>
+            <p className="text-text-muted">
               On mobile, or without the plugin: open{' '}
               <span className="text-foreground font-medium">My Team</span> on this site, read your
               keyword off the starting-shot card, type it into the in-game chatbox, screenshot the
-              game with your character and the keyword visible, and upload it on that same card.
+              game with your character and the keyword visible, and upload it on that same card. That
+              upload counts immediately — you can play the moment it&rsquo;s in, staff review it after
+              the fact. Log out and back in first if the card asks you to.
             </p>
           </Section>
 

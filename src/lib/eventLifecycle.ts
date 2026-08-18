@@ -37,14 +37,20 @@ const START_HOLD_MS = 2 * 60 * 1000;
  */
 export async function drawStartProof(
   event: { id: number; rules: string | null },
-): Promise<{ location: string; drawnAt: string } | null> {
+): Promise<{ location: string; drawnAt: string; maxSessionMinutes: number } | null> {
   const rules = parseEventRules(event.rules);
   if (!rules.startProof) return null;
 
+  // Coordinates are copied onto the event, not looked up from the pool later: editing the pool
+  // mid-event must never move a spot people have already been sent to.
+  const spot = drawStartLocation(rules.startProof.locations);
   const drawn = await db
     .update(events)
     .set({
-      startProofLocation: drawStartLocation(rules.startProof.locations),
+      startProofLocation: spot.label,
+      startProofX: spot.x,
+      startProofY: spot.y,
+      startProofRadius: spot.radius,
       startProofDrawnAt: new Date().toISOString(),
     })
     .where(and(eq(events.id, event.id), isNull(events.startProofDrawnAt)))
@@ -52,7 +58,11 @@ export async function drawStartProof(
 
   if (drawn.length > 0) {
     log.info('event-lifecycle.start-proof-drawn', { eventId: event.id, location: drawn[0].location });
-    return { location: drawn[0].location!, drawnAt: drawn[0].drawnAt! };
+    return {
+      location: drawn[0].location!,
+      drawnAt: drawn[0].drawnAt!,
+      maxSessionMinutes: rules.startProof.maxSessionMinutes,
+    };
   }
 
   // Already drawn (a retried start, or the other door won) — read back what's on file.
@@ -61,7 +71,9 @@ export async function drawStartProof(
     .from(events)
     .where(eq(events.id, event.id));
   const row = existing[0];
-  return row?.location && row.drawnAt ? { location: row.location, drawnAt: row.drawnAt } : null;
+  return row?.location && row.drawnAt
+    ? { location: row.location, drawnAt: row.drawnAt, maxSessionMinutes: rules.startProof.maxSessionMinutes }
+    : null;
 }
 
 // Fetch the start-readiness counts for one event and classify them (lib/eventReadiness). Shared by
@@ -181,6 +193,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         endDate: event.endDate,
         format: event.format,
         startProofLocation: startProof?.location ?? null,
+        startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
         ...(await eventBoardSummary(event)),
       });
     }
