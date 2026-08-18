@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
-import { buildClogProfile, matchBestsToPages, type BestTime } from '@/lib/clogProfile';
+import { buildClogProfile, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
 import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
 import { getItemPrices } from '@/lib/itemPrices';
 import { BOSSES } from '@/lib/constants';
@@ -21,11 +21,6 @@ export function formatPersonalBest(centis: number): string {
   const seconds = totalSeconds % 60;
   const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
   return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
-}
-
-/** "chambers of xeric" → "Chambers of Xeric". The game hands these over lowercased. */
-function titleCase(activity: string): string {
-  return activity.replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
 export async function getCollectionLog(clanMemberId: number, rsn: string): Promise<CollectionLogProps> {
@@ -138,7 +133,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
     bests: formatted
       .sort((a, b) => a.activity.localeCompare(b.activity))
       .map((b) => ({
-        activity: titleCase(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''),
+        activity: titleCaseActivity(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''),
         time: b.time,
         at: b.at,
       })),

@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { weeklyMetricLabel } from '@/lib/constants';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -59,6 +60,9 @@ export async function GET(request: Request) {
       title: comp.title,
       type: comp.type,
       metric: comp.metric,
+      // The key AND its label: the plugin can't turn "phosanisNightmare" into "Phosani's Nightmare"
+      // on its own, and it's the label people read in-game.
+      metricLabel: weeklyMetricLabel(comp.type, comp.metric),
       startDate: comp.startDate,
       endDate: comp.endDate,
     },

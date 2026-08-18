@@ -10,17 +10,22 @@ import assert from 'node:assert/strict';
 import {
   START_LOCATIONS,
   KEYWORD_WORDS,
+  DEFAULT_START_RADIUS,
   startKeyword,
   normalizeKeyword,
   keywordMatches,
   drawStartLocation,
+  drawnSpot,
+  startDistance,
+  sessionAgeMinutes,
+  evaluateStartProof,
   startProofGate,
   startProofState,
   autoAcceptDecision,
 } from '../src/lib/startProof.ts';
-import type { StartProofConfig } from '../src/lib/eventRules.ts';
+import type { StartProofConfig, StartLocation } from '../src/lib/eventRules.ts';
 
-const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [] };
+const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 };
 const DRAWN = '2026-08-16T18:00:00.000Z';
 
 test('startKeyword: deterministic, and shaped WORD-WORD-NN', () => {
@@ -63,14 +68,102 @@ test('normalizeKeyword / keywordMatches: retyped by hand off a screenshot', () =
 });
 
 test('drawStartLocation: host pool wins, built-ins are the fallback', () => {
-  const pool = ['Behind the Lumbridge cow pen', 'On the Draynor jail roof'];
-  assert.equal(drawStartLocation(pool, () => 1), pool[1]);
-  assert.equal(drawStartLocation([], () => 0), START_LOCATIONS[0]);
-  assert.equal(drawStartLocation(null, () => 3), START_LOCATIONS[3]);
+  const pool: StartLocation[] = [
+    { label: 'Behind the Lumbridge cow pen', x: null, y: null, radius: null },
+    { label: 'On the Draynor jail roof', x: 3120, y: 3245, radius: 10 },
+  ];
+  assert.deepEqual(drawStartLocation(pool, () => 1), pool[1]);
+  assert.deepEqual(drawStartLocation([], () => 0), START_LOCATIONS[0]);
+  assert.deepEqual(drawStartLocation(null, () => 3), START_LOCATIONS[3]);
   // Real draws stay inside the pool.
   for (let i = 0; i < 50; i++) {
     assert.ok(START_LOCATIONS.includes(drawStartLocation(undefined)));
   }
+});
+
+test('START_LOCATIONS: every built-in spot is pinned, and pinned inside the world', () => {
+  // A label-only built-in would silently turn position checking off for a quarter of all draws.
+  for (const loc of START_LOCATIONS) {
+    assert.ok(loc.x != null && loc.y != null, `${loc.label} has no pin`);
+    assert.ok(loc.x! > 1000 && loc.x! < 4000, `${loc.label} x out of the world`);
+    assert.ok(loc.y! > 2500 && loc.y! < 4200, `${loc.label} y out of the world`);
+  }
+});
+
+test('startDistance: Chebyshev, and null whenever there is nothing to measure', () => {
+  const spot = { x: 3094, y: 3491, radius: 25 };
+  assert.equal(startDistance(spot, { x: 3094, y: 3491 }), 0);
+  // The long side wins — 30 east and 4 north is 30 squares, not 34 and not 30.26.
+  assert.equal(startDistance(spot, { x: 3124, y: 3495 }), 30);
+  assert.equal(startDistance(spot, { x: 3064, y: 3491 }), 30);
+  assert.equal(startDistance(null, { x: 3094, y: 3491 }), null);
+  assert.equal(startDistance(spot, { x: null, y: null }), null);
+  assert.equal(startDistance(spot, null), null);
+});
+
+test('drawnSpot: coordinates only when the draw landed on a pinned entry', () => {
+  assert.deepEqual(
+    drawnSpot({ startProofLocation: 'Edgeville bank', startProofDrawnAt: DRAWN, startProofX: 3094, startProofY: 3491, startProofRadius: 40 }),
+    { x: 3094, y: 3491, radius: 40 },
+  );
+  // A pinned spot with no stored radius falls back to the default rather than to zero.
+  assert.deepEqual(
+    drawnSpot({ startProofLocation: 'x', startProofDrawnAt: DRAWN, startProofX: 3094, startProofY: 3491, startProofRadius: null }),
+    { x: 3094, y: 3491, radius: DEFAULT_START_RADIUS },
+  );
+  assert.equal(drawnSpot({ startProofLocation: 'x', startProofDrawnAt: DRAWN }), null);
+});
+
+test('sessionAgeMinutes: what the client claims, or null when it claims nonsense', () => {
+  const at = Date.parse('2026-08-16T18:30:00.000Z');
+  assert.equal(sessionAgeMinutes('2026-08-16T18:25:00.000Z', at), 5);
+  assert.equal(sessionAgeMinutes('2026-08-16T18:30:00.000Z', at), 0);
+  assert.equal(sessionAgeMinutes(null, at), null);
+  assert.equal(sessionAgeMinutes('not a date', at), null);
+  // A little skew is tolerated and reads as a brand-new session...
+  assert.equal(sessionAgeMinutes('2026-08-16T18:30:30.000Z', at), 0);
+  // ...a login stamp an hour in the future is a broken clock, and must not read as "0 minutes old".
+  assert.equal(sessionAgeMinutes('2026-08-16T19:30:00.000Z', at), null);
+});
+
+test('evaluateStartProof: position and session verdicts, with null for "cannot tell"', () => {
+  const spot = { x: 3094, y: 3491, radius: 25 };
+  const at = Date.parse('2026-08-16T18:30:00.000Z');
+  const cfg: StartProofConfig = { ...CFG, maxSessionMinutes: 15 };
+
+  const good = evaluateStartProof({
+    cfg, spot, keywordOk: true,
+    claim: { x: 3100, y: 3489, loginAt: '2026-08-16T18:22:00.000Z' }, atMs: at,
+  });
+  assert.equal(good.positionOk, true);
+  assert.equal(good.distance, 6);
+  assert.equal(good.sessionOk, true);
+  assert.equal(good.sessionMinutes, 8);
+
+  const bad = evaluateStartProof({
+    cfg, spot, keywordOk: true,
+    claim: { x: 2400, y: 3489, loginAt: '2026-08-16T14:00:00.000Z' }, atMs: at,
+  });
+  assert.equal(bad.positionOk, false);
+  assert.equal(bad.distance, 694);
+  assert.equal(bad.sessionOk, false);
+  assert.equal(bad.sessionMinutes, 270);
+
+  // Nothing reported (a web upload, or a plugin too old to say) — checks stay null, not false.
+  const quiet = evaluateStartProof({ cfg, spot, keywordOk: true, claim: {}, atMs: at });
+  assert.equal(quiet.positionOk, null);
+  assert.equal(quiet.sessionOk, null);
+
+  // Rule switched off / spot never pinned — the same "cannot tell", from the other direction.
+  const unchecked = evaluateStartProof({
+    cfg: CFG, spot: null, keywordOk: true,
+    claim: { x: 2400, y: 3489, loginAt: '2026-08-16T14:00:00.000Z' }, atMs: at,
+  });
+  assert.equal(unchecked.positionOk, null);
+  assert.equal(unchecked.distance, null);
+  assert.equal(unchecked.sessionOk, null);
+  // The age is still recorded even when nobody asked for a window — staff can see it.
+  assert.equal(unchecked.sessionMinutes, 270);
 });
 
 test('startProofGate: nothing to prove when it is not required or not drawn', () => {
@@ -94,12 +187,20 @@ test('startProofGate: the host picks how hard the belt is', () => {
 });
 
 test('autoAcceptDecision: only an authenticated plugin capture with a verified keyword', () => {
-  assert.equal(autoAcceptDecision(CFG, 'plugin', true), 'accepted');
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: true }), 'accepted');
   // A hand-typed match proves the player read the site, not that the screenshot shows the word.
-  assert.equal(autoAcceptDecision(CFG, 'web', true), 'pending');
-  assert.equal(autoAcceptDecision(CFG, 'plugin', false), 'pending');
-  assert.equal(autoAcceptDecision({ ...CFG, autoAcceptPlugin: false }, 'plugin', true), 'pending');
-  assert.equal(autoAcceptDecision(null, 'plugin', true), 'pending');
+  assert.equal(autoAcceptDecision(CFG, 'web', { keywordOk: true }), 'pending');
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: false }), 'pending');
+  assert.equal(autoAcceptDecision({ ...CFG, autoAcceptPlugin: false }, 'plugin', { keywordOk: true }), 'pending');
+  assert.equal(autoAcceptDecision(null, 'plugin', { keywordOk: true }), 'pending');
+});
+
+test('autoAcceptDecision: a failed check sends it to a human, an absent one never does', () => {
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: true, positionOk: false }), 'pending');
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: true, sessionOk: false }), 'pending');
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: true, positionOk: true, sessionOk: true }), 'accepted');
+  // null = the check didn't run (unpinned spot, window off, older plugin) — not a strike.
+  assert.equal(autoAcceptDecision(CFG, 'plugin', { keywordOk: true, positionOk: null, sessionOk: null }), 'accepted');
 });
 
 test('startProofState: nothing leaks before the draw', () => {
@@ -112,18 +213,24 @@ test('startProofState: nothing leaks before the draw', () => {
     required: true,
     drawn: false,
     location: null,
+    spot: null,
     keyword: null,
     needsUpload: false,
     status: null,
     imageUrl: null,
+    maxSessionMinutes: 0,
   });
 });
 
 test('startProofState: after the draw, the player owes a shot until one is on file', () => {
-  const event = { id: 3, startProofLocation: 'Edgeville bank', startProofDrawnAt: DRAWN };
+  const event = {
+    id: 3, startProofLocation: 'Edgeville bank', startProofDrawnAt: DRAWN,
+    startProofX: 3094, startProofY: 3491, startProofRadius: null,
+  };
   const owed = startProofState({ cfg: CFG, event, playerId: 9 });
   assert.equal(owed.drawn, true);
   assert.equal(owed.location, 'Edgeville bank');
+  assert.deepEqual(owed.spot, { x: 3094, y: 3491, radius: DEFAULT_START_RADIUS });
   assert.equal(owed.keyword, startKeyword(3, 9, DRAWN));
   assert.equal(owed.needsUpload, true);
 

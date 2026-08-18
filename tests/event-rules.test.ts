@@ -194,12 +194,14 @@ test('parseEventRules: startProof is off by default and tolerant when present', 
     onMissing: 'flag',
     autoAcceptPlugin: true,
     locations: [],
+    // A policy stored before the session window existed must not grow the demand on read.
+    maxSessionMinutes: 0,
   });
   // Garbage inside falls back rather than throwing.
   assert.deepEqual(
-    parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope' } }))
+    parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope', maxSessionMinutes: 'soon' } }))
       .startProof,
-    { onMissing: 'flag', autoAcceptPlugin: true, locations: [] },
+    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 },
   );
   assert.equal(
     parseEventRules(JSON.stringify({ startProof: { autoAcceptPlugin: false } })).startProof?.autoAcceptPlugin,
@@ -213,12 +215,46 @@ test('parseEventRules: startProof locations are trimmed, de-duped and capped', (
       startProof: { locations: ['  Varrock fountain  ', 'varrock FOUNTAIN', '', 42, 'Edgeville bank'] },
     }),
   );
-  assert.deepEqual(rules.startProof?.locations, ['Varrock fountain', 'Edgeville bank']);
+  // A bare string is still a legal entry — that's every pool stored before the map picker existed.
+  assert.deepEqual(rules.startProof?.locations, [
+    { label: 'Varrock fountain', x: null, y: null, radius: null },
+    { label: 'Edgeville bank', x: null, y: null, radius: null },
+  ]);
 
   const many = parseEventRules(
     JSON.stringify({ startProof: { locations: Array.from({ length: 60 }, (_, i) => `Spot ${i}`) } }),
   );
   assert.equal(many.startProof?.locations.length, 40);
+});
+
+test('parseEventRules: pinned locations keep their coordinates, junk pins drop to label-only', () => {
+  const rules = parseEventRules(
+    JSON.stringify({
+      startProof: {
+        locations: [
+          { label: 'Edgeville bank', x: 3094, y: 3491, radius: 30 },
+          // Half a pin is no pin — a spot can't be checked on one axis.
+          { label: 'Half pinned', x: 3094 },
+          // Off the map: dropped rather than drawn as a spot nobody can stand on.
+          { label: 'Out of the world', x: 99999, y: 3491 },
+          { label: 'Radius clamped', x: 3200, y: 3200, radius: 9000 },
+        ],
+      },
+    }),
+  );
+  assert.deepEqual(rules.startProof?.locations, [
+    { label: 'Edgeville bank', x: 3094, y: 3491, radius: 30 },
+    { label: 'Half pinned', x: null, y: null, radius: null },
+    { label: 'Out of the world', x: null, y: null, radius: null },
+    { label: 'Radius clamped', x: 3200, y: 3200, radius: 200 },
+  ]);
+});
+
+test('parseEventRules: the session window is minutes, 0 = off', () => {
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 15 } })).startProof?.maxSessionMinutes, 15);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 0 } })).startProof?.maxSessionMinutes, 0);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 9999 } })).startProof?.maxSessionMinutes, 720);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: -5 } })).startProof?.maxSessionMinutes, 0);
 });
 
 test('validateEventRules: startProof shape is enforced and round-trips', () => {
@@ -229,7 +265,12 @@ test('validateEventRules: startProof shape is enforced and round-trips', () => {
     error: "rules.startProof.onMissing must be 'flag' or 'reject'",
   });
   assert.deepEqual(validateEventRules({ startProof: { locations: 'Varrock' } }), {
-    error: 'rules.startProof.locations must be an array of strings',
+    error: 'rules.startProof.locations must be an array of places',
+  });
+  // A fat-fingered pin is refused loudly rather than silently parsed away.
+  assert.ok('error' in validateEventRules({ startProof: { locations: [{ label: 'Nowhere', x: 12, y: 3491 }] } }));
+  assert.deepEqual(validateEventRules({ startProof: { maxSessionMinutes: 1000 } }), {
+    error: 'rules.startProof.maxSessionMinutes must be an integer between 0 (off) and 720',
   });
 
   // Requiring a starting shot is on its own enough to stop being a "default" (NULL) rules column.
