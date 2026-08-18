@@ -9,7 +9,16 @@
 //
 // Everyone is also sent to a LOCATION drawn at the start moment, which is the only part that really
 // bites: you cannot be parked on stackable content at T0 if you have to be standing somewhere
-// nobody could predict.
+// nobody could predict. A location pinned on the map picker is checked rather than just read — the
+// plugin reports where the account actually stood and we measure the distance.
+//
+// The rule's third leg is the SESSION WINDOW: hiscores only flush on logout, so a player who never
+// logged out has a stale start baseline and their first sweep counts pre-event gains. Requiring a
+// session younger than N minutes forces the relog that flushes it, which is what makes the baseline
+// (not the screenshot) honest for stat and KC tiles.
+//
+// Position and session are both CLIENT-REPORTED, like the screenshot itself: they raise the cost of
+// cheating, they don't prove anything cryptographically. Treat them as deterrents.
 //
 // The keyword is an HMAC over the event's `startProofDrawnAt` stamp — a value that does not exist
 // until the start transaction runs — so it cannot be precomputed by anyone, admins included. After
@@ -22,35 +31,11 @@
 
 import crypto from 'crypto';
 import { requireSecret } from '@/lib/env';
-import type { StartProofConfig } from '@/lib/eventRules';
+import type { StartProofConfig, StartLocation } from '@/lib/eventRules';
+import { DEFAULT_START_RADIUS, START_LOCATIONS } from '@/lib/startLocations';
 
-/** Where players are sent for the shot. Towns and bank steps only — never next to stackable content. */
-export const START_LOCATIONS: readonly string[] = [
-  'Lumbridge castle courtyard',
-  'Grand Exchange centre',
-  'Varrock fountain',
-  'Falador east bank',
-  'Draynor Village market',
-  'Al Kharid bank',
-  'Edgeville bank',
-  'Barbarian Village bridge',
-  'Port Sarim docks',
-  'Catherby bank',
-  "Seers' Village bank",
-  'Camelot castle entrance',
-  'Ardougne market',
-  'Yanille bank',
-  'Taverley bank',
-  'Burthorpe castle steps',
-  'Canifis bank',
-  'Shilo Village bank',
-  'Kourend castle courtyard',
-  'Hosidius market',
-  'Piscarilius fishing docks',
-  'Prifddinas central fountain',
-  'Woodcutting Guild entrance',
-  'Farming Guild entrance',
-];
+// Re-exported so every caller keeps importing the starting shot from one place.
+export { DEFAULT_START_RADIUS, START_LOCATIONS };
 
 /**
  * Keyword vocabulary. Short, unambiguous words a phone player can read off a screen and re-type
@@ -114,11 +99,91 @@ export function keywordMatches(claim: string | null | undefined, expected: strin
  * so tests are deterministic; production passes nothing and gets a uniform crypto draw.
  */
 export function drawStartLocation(
-  pool: readonly string[] | null | undefined,
+  pool: readonly StartLocation[] | null | undefined,
   pick: (max: number) => number = (max) => crypto.randomInt(max),
-): string {
+): StartLocation {
   const options = pool && pool.length > 0 ? pool : START_LOCATIONS;
   return options[pick(options.length)];
+}
+
+/** Where the drawn spot is, once the draw has happened. Coordinates are null on a label-only spot. */
+export interface StartSpot {
+  x: number;
+  y: number;
+  /** How close counts, in game squares (Chebyshev — the way OSRS measures "within N squares"). */
+  radius: number;
+}
+
+/**
+ * Distance from the drawn spot, in game squares, or null when there's nothing to measure (the spot
+ * was never pinned, or the client didn't say where it was — a web upload never does).
+ *
+ * Chebyshev rather than Euclidean: a radius that means "this many squares in any direction" is what
+ * a host drawing a circle on a map expects, and it never refuses someone standing on the diagonal
+ * corner of the same building.
+ */
+export function startDistance(
+  spot: StartSpot | null | undefined,
+  pos: { x?: number | null; y?: number | null } | null | undefined,
+): number | null {
+  if (!spot || pos?.x == null || pos?.y == null) return null;
+  return Math.max(Math.abs(pos.x - spot.x), Math.abs(pos.y - spot.y));
+}
+
+/**
+ * How long this game session has been running when the shot was taken, in minutes, as the CLIENT
+ * reports it. Null when it didn't say, or said something impossible (a login stamp in the future is
+ * a broken clock, not a fresh session, and must never read as "0 minutes old").
+ */
+export function sessionAgeMinutes(
+  loginAt: string | null | undefined,
+  atMs: number,
+): number | null {
+  if (!loginAt) return null;
+  const loginMs = Date.parse(loginAt);
+  if (!Number.isFinite(loginMs)) return null;
+  const deltaMs = atMs - loginMs;
+  // Two minutes of slack for clock skew between the client and us; past that it's nonsense.
+  if (deltaMs < -120_000) return null;
+  return Math.max(0, Math.floor(deltaMs / 60_000));
+}
+
+/** The three things we can check about a filed shot. `null` on any of them means "can't tell". */
+export interface StartProofChecks {
+  /** Did the claimed keyword recompute to this player's? */
+  keywordOk: boolean;
+  /** Was the client where the spot is? Null = unpinned spot, or a client that didn't report. */
+  positionOk: boolean | null;
+  /** Squares from the spot, for the admin row. Null when there was nothing to measure. */
+  distance: number | null;
+  /** Reported session age at capture. Null when the client didn't say. */
+  sessionMinutes: number | null;
+  /** Was it inside the host's window? Null = not asked for, or not reported. */
+  sessionOk: boolean | null;
+}
+
+/**
+ * Score one filed shot against the event's rule. Pure — the route feeds it what the client claimed
+ * and what the draw put on the event row.
+ */
+export function evaluateStartProof(args: {
+  cfg: StartProofConfig | null;
+  spot: StartSpot | null;
+  keywordOk: boolean;
+  claim: { x?: number | null; y?: number | null; loginAt?: string | null };
+  atMs: number;
+}): StartProofChecks {
+  const { cfg, spot, keywordOk, claim, atMs } = args;
+  const distance = startDistance(spot, claim);
+  const sessionMinutes = sessionAgeMinutes(claim.loginAt, atMs);
+  const maxSession = cfg?.maxSessionMinutes ?? 0;
+  return {
+    keywordOk,
+    positionOk: distance == null || !spot ? null : distance <= spot.radius,
+    distance,
+    sessionMinutes,
+    sessionOk: maxSession <= 0 || sessionMinutes == null ? null : sessionMinutes <= maxSession,
+  };
 }
 
 export type StartProofStatus = 'pending' | 'accepted' | 'rejected';
@@ -137,6 +202,20 @@ export interface StartProofRecord {
 export interface StartProofEvent {
   startProofLocation: string | null;
   startProofDrawnAt: string | null;
+  /** The drawn spot's coordinates, when the pool entry carried a pin. Null on a label-only draw. */
+  startProofX?: number | null;
+  startProofY?: number | null;
+  startProofRadius?: number | null;
+}
+
+/** The drawn spot as coordinates, or null when the draw landed on a label-only entry. */
+export function drawnSpot(event: StartProofEvent): StartSpot | null {
+  if (event.startProofX == null || event.startProofY == null) return null;
+  return {
+    x: event.startProofX,
+    y: event.startProofY,
+    radius: event.startProofRadius ?? DEFAULT_START_RADIUS,
+  };
 }
 
 /**
@@ -170,6 +249,8 @@ export interface StartProofView {
   drawn: boolean;
   /** Where to stand. Null until the draw. */
   location: string | null;
+  /** The drawn spot's coordinates + radius, when it was pinned on the map. Null until the draw. */
+  spot: StartSpot | null;
   /** This player's keyword. Null until the draw. */
   keyword: string | null;
   /** Does this player still owe us a shot? */
@@ -178,6 +259,12 @@ export interface StartProofView {
   status: StartProofStatus | null;
   /** The proof image on file, if any. */
   imageUrl: string | null;
+  /**
+   * How fresh the game session has to be, in minutes (0 = not asked for). The plugin blocks its own
+   * button on this and tells the player to log out and back in — hiscores only flush on logout, so a
+   * session older than the event start means the start baseline is stale.
+   */
+  maxSessionMinutes: number;
 }
 
 /**
@@ -198,10 +285,12 @@ export function startProofState(args: {
     required,
     drawn,
     location: drawn ? event.startProofLocation : null,
+    spot: drawn ? drawnSpot(event) : null,
     keyword: drawn ? startKeyword(event.id, playerId, event.startProofDrawnAt!) : null,
     needsUpload: drawn && (status === null || status === 'rejected'),
     status,
     imageUrl: proof?.imageUrl ?? null,
+    maxSessionMinutes: cfg?.maxSessionMinutes ?? 0,
   };
 }
 
@@ -211,12 +300,17 @@ export function startProofState(args: {
  * string that did not exist before the event started. Web/mobile uploads always land `pending`:
  * their keyword is retyped by hand, so a match proves the player read the site, not that the
  * screenshot shows it.
+ *
+ * A check that came back FALSE (wrong side of the world, session older than the window) drops it to
+ * `pending` for a human. A check that came back null didn't run — an unpinned spot, a rule that
+ * isn't switched on, or a plugin too old to report — and can't be held against the player.
  */
 export function autoAcceptDecision(
   cfg: StartProofConfig | null,
   source: StartProofSource,
-  keywordOk: boolean,
+  checks: Pick<StartProofChecks, 'keywordOk'> & Partial<Pick<StartProofChecks, 'positionOk' | 'sessionOk'>>,
 ): StartProofStatus {
-  if (cfg?.autoAcceptPlugin && source === 'plugin' && keywordOk) return 'accepted';
-  return 'pending';
+  if (!cfg?.autoAcceptPlugin || source !== 'plugin' || !checks.keywordOk) return 'pending';
+  if (checks.positionOk === false || checks.sessionOk === false) return 'pending';
+  return 'accepted';
 }

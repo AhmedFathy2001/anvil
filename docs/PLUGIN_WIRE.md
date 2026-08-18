@@ -172,6 +172,7 @@ the button simply never appears:
 
 ```json
 { "required": true, "drawn": true, "location": "Edgeville bank",
+  "spot": { "x": 3094, "y": 3491, "radius": 25 }, "maxSessionMinutes": 15,
   "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null }
 ```
 
@@ -180,11 +181,26 @@ until the event starts — so it cannot be precomputed, by anyone. `location`/`k
 before the draw. Both are stable for the event's lifetime, so the block never churns the config
 ETag.
 
+`spot` is the drawn location as game coordinates, when the host pinned it on the map, and
+`null` when they only named a place (older sites omit the field entirely). `radius` is how many
+squares from it still counts, measured Chebyshev-style — `max(|dx|, |dy|)`.
+
+`maxSessionMinutes` is how long the game session may have been running when the shot is taken,
+`0` when the host isn't asking. The point is the LOGOUT before it: hiscores only flush on
+logout, so a player who has been logged in since before the event has a stale start baseline.
+A plugin that supports this should refuse to file a session older than the window and say so —
+"log out and back in, then take the shot" — rather than filing something staff must chase.
+
 Filing one: upload the PNG through `POST /api/upload` as usual, then
 `POST /api/events/:eventId/start-proof` with plugin-token auth and
-`{ imageUrl, keyword, capturedAt }`. The server recomputes the keyword; a plugin capture that
-matches is accepted outright (the host can turn that off), anything else lands `pending` for
-staff review. `409` means the event hasn't drawn yet or the player's shot is already accepted.
+`{ imageUrl, keyword, capturedAt, x, y, loginAt }`, where `x`/`y` are the account's world
+position at capture and `loginAt` is when this session began (both optional; omit what you
+can't answer). The server recomputes the keyword, measures the distance and ages the session,
+and answers `{ status, keywordOk, positionOk, distance, sessionMinutes, sessionOk }` — each
+check `null` when it couldn't run. A plugin capture that passes every check it could run is
+accepted outright (the host can turn that off); anything else lands `pending` for staff review,
+including a shot filed from the wrong side of the world. `409` means the event hasn't drawn yet
+or the player's shot is already accepted.
 
 The gate is on submissions, not on the plugin: a credit from a player with no shot on file is
 either flagged for review or refused with `409 { code: "start_proof_required" }`, per the

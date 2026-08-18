@@ -13,6 +13,10 @@ interface Props {
   rsn: string;
   location: string;
   keyword: string;
+  /** The drawn spot's coordinates, when the host pinned it on the map. Null = label only. */
+  spot?: { x: number; y: number; radius: number } | null;
+  /** Minutes the game session may have been running when the shot is taken. 0 = not asked for. */
+  maxSessionMinutes?: number;
   status: 'pending' | 'accepted' | 'rejected' | null;
   reviewNote?: string | null;
   /** True when the plugin can do this for them — hides the manual steps behind a "or do it by hand". */
@@ -78,6 +82,11 @@ export default function StartProofCard(props: Props) {
         <div className="border border-card-border rounded-lg p-3">
           <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Stand here</div>
           <div className="text-sm font-medium">{props.location}</div>
+          {props.spot && (
+            <div className="text-[11px] text-text-muted font-mono mt-0.5">
+              {props.spot.x}, {props.spot.y} · within {props.spot.radius} squares
+            </div>
+          )}
         </div>
         <div className="border border-card-border rounded-lg p-3">
           <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Your keyword</div>
@@ -110,6 +119,12 @@ export default function StartProofCard(props: Props) {
             {props.pluginHint && (
               <li className="text-gold/90">
                 Using the plugin? Press <strong>Take starting shot</strong> in the Anvil panel and you&apos;re done.
+              </li>
+            )}
+            {!!props.maxSessionMinutes && props.maxSessionMinutes > 0 && (
+              <li>
+                <strong>Log out and back in</strong>, then take the shot within {props.maxSessionMinutes} minutes —
+                your hiscores only save when you log out, and that&apos;s what sets your starting totals.
               </li>
             )}
             <li>Go to <strong>{props.location}</strong>.</li>

@@ -104,6 +104,12 @@ export const events = sqliteTable('events', {
   // NULL/NULL on every event that doesn't require a starting shot.
   startProofLocation: text('start_proof_location'),
   startProofDrawnAt: text('start_proof_drawn_at'),
+  // The drawn spot as game coordinates, frozen at the draw so a later edit to the location pool
+  // can't move the goalposts under shots already filed. NULL when the drawn entry was label-only
+  // (a place nobody pinned on the map) — then position simply isn't checked.
+  startProofX: integer('start_proof_x'),
+  startProofY: integer('start_proof_y'),
+  startProofRadius: integer('start_proof_radius'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -1396,6 +1402,19 @@ export const eventStartProofs = sqliteTable('event_start_proofs', {
   keywordOk: integer('keyword_ok', { mode: 'boolean' }).notNull().default(false),
   // Client-claimed capture time (the plugin's own UTC stamp). Advisory; createdAt is ours.
   capturedAt: text('captured_at'),
+  // Where the account stood when the frame was grabbed, as the plugin read it, and how far that is
+  // from the drawn spot. NULL on a web upload (a phone can't report a coordinate) and on a
+  // label-only draw. `positionOk` is the verdict at file time: 0/1, or NULL for "couldn't tell".
+  x: integer('x'),
+  y: integer('y'),
+  distance: integer('distance'),
+  positionOk: integer('position_ok', { mode: 'boolean' }),
+  // When this game session began, per the client, and how old it therefore was at capture. The
+  // point is the LOGOUT before it: hiscores only flush then, so a fresh session means the event's
+  // start baseline is honest. NULL when the client didn't report (web upload, older plugin).
+  loginAt: text('login_at'),
+  sessionMinutes: integer('session_minutes'),
+  sessionOk: integer('session_ok', { mode: 'boolean' }),
   // pending = on file, awaiting a look; accepted = counted; rejected = player must re-take.
   status: text('status').notNull().default('pending'),
   reviewNote: text('review_note'),
