@@ -29,6 +29,12 @@ interface Props {
   myPlayerId: number | null;
   myPlayerName: string | null;
   tierBands?: TierBand[];
+  /**
+   * The host hasn't unveiled the board yet. The team hub is a PLAYER surface — a captain is a
+   * player with extra buttons, not staff — so the tiles never even reach this component; this only
+   * says why the board is missing.
+   */
+  boardHidden?: boolean;
 }
 
 export default function MyTeamClient({
@@ -41,6 +47,7 @@ export default function MyTeamClient({
   myPlayerId,
   myPlayerName,
   tierBands = DEFAULT_TIER_BANDS,
+  boardHidden = false,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -524,6 +531,16 @@ export default function MyTeamClient({
             screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
         <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
           <div className="min-w-0">
+            {boardHidden ? (
+              <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+                <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
+                <p className="text-sm">
+                  The host will unveil the board before the event begins. Everything else about your
+                  team is here in the meantime.
+                </p>
+              </div>
+            ) : (
+              <>
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -539,6 +556,8 @@ export default function MyTeamClient({
               pointsMode={pointsMode}
               matchedTileIds={matchedTileIds}
             />
+              </>
+            )}
           </div>
           {selectedMember && (
             <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
