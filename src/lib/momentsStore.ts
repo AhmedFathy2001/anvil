@@ -185,6 +185,7 @@ export async function recordMoments(
         sourceKind: row.sourceKind,
         kc: row.kc,
         rarityDenominator: row.rarityDenominator,
+        tier: row.tier,
         occurredAt: row.occurredAt,
         dedupKey: row.dedupKey,
       })
@@ -206,6 +207,8 @@ export interface MomentRow {
   source: string | null;
   kc: number | null;
   rarityDenominator: number | null;
+  /** Combat tasks only — the feed line leads with it. */
+  tier: string | null;
   occurredAt: string;
 }
 
@@ -223,6 +226,7 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
@@ -245,6 +249,7 @@ export async function momentsForEvent(eventId: number, limit = 20): Promise<Mome
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
@@ -273,6 +278,7 @@ export async function momentsForMembers(clanMemberIds: number[], limit = 20): Pr
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)

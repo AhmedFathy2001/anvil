@@ -4,7 +4,7 @@ import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
 import type { Observation } from '@/lib/moments';
 
-// Highlight ingest: the pets, uniques, big hauls and deaths that happen while a competition week or
+// Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
 // live here rather than in the plugin).
 //
@@ -25,7 +25,7 @@ const MAX_KC = 1_000_000;
 /** A moment more than a day old is a replayed queue we no longer have the scopes to place. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-const KINDS = ['pet', 'drop', 'death'] as const;
+const KINDS = ['pet', 'drop', 'death', 'ca'] as const;
 
 function str(v: unknown, max = MAX_NAME): string | null {
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;
@@ -99,6 +99,11 @@ export async function POST(request: Request) {
       source: str(raw?.source),
       sourceKind: str(raw?.sourceKind, 16),
       kc: int(raw?.kc, MAX_KC),
+      // Combat tasks: the task as the completion line named it, and the tier that line claimed.
+      // Both are only ever read for kind 'ca' — the tier is a fallback for a task our own dataset
+      // doesn't carry yet, which is the one thing the client knows and we don't.
+      taskName: str(raw?.taskName, 80),
+      tier: str(raw?.tier, 16),
       occurredAt: occurredAt(raw?.at, now),
       dedupKey,
     });

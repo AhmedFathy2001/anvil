@@ -91,6 +91,8 @@ interface PersonStat {
   biggestHit: number;
   /** Minutes actually logged in during the event (plugin-pushed) — the denominator for rates. */
   minutesPlayed: number;
+  /** Combat tasks first completed during the event (plugin-pushed). */
+  caTasks: number;
   /** Tiles finished where this person was the ONLY contributor. */
   soloFinishes: number;
   /** Running sum of this person's share (0..1) of each tile they contributed to, and the count. */
@@ -137,6 +139,7 @@ function emptyStat(personKey: string): PersonStat {
     lootGpTotal: 0,
     biggestHit: 0,
     minutesPlayed: 0,
+    caTasks: 0,
     soloFinishes: 0,
     shareSum: 0,
     shareCount: 0,
@@ -285,6 +288,8 @@ async function computeRecap(eventId: number): Promise<{
       // duration, so it sums (two accounts can't be played at once in any meaningful sense).
       s.biggestHit = Math.max(s.biggestHit, p.biggestHit ?? 0);
       s.minutesPlayed += p.minutesPlayed ?? 0;
+      // Tasks are per-account achievements, so a two-account person really did clear both sets.
+      s.caTasks += p.caTasks ?? 0;
 
       // Biggest single-boss and single-skill grind, diffed out of the hiscores snapshots already on
       // the row. Covers EVERY boss and skill, not just the ones a tile tracks — so the person who
@@ -607,6 +612,13 @@ async function computeRecap(eventId: number): Promise<{
   );
 
   pushAward(
+    award('task-master', '⚔️', 'Task Master', 'Most combat tasks completed', (s) =>
+      s.caTasks > 0
+        ? toEntry(s, s.caTasks, `${s.caTasks.toLocaleString()} ${s.caTasks === 1 ? 'task' : 'tasks'}`)
+        : null,
+    ),
+  );
+  pushAward(
     award('heavy-hitter', '🔨', 'Heavy Hitter', 'Hardest single hit landed', (s) =>
       s.biggestHit > 0 ? toEntry(s, s.biggestHit, `${s.biggestHit.toLocaleString()} damage`) : null,
     ),
@@ -745,6 +757,7 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
     if (s.deaths > 0) stats.push({ key: 'deaths', label: 'Deaths', value: s.deaths.toLocaleString() });
     if (s.biggestHit > 0) stats.push({ key: 'hit', label: 'Biggest hit', value: s.biggestHit.toLocaleString() });
     if (s.minutesPlayed > 0) stats.push({ key: 'played', label: 'Time played', value: formatPlaytime(s.minutesPlayed) });
+    if (s.caTasks > 0) stats.push({ key: 'ca', label: 'Combat tasks', value: s.caTasks.toLocaleString() });
     if (s.topBossKc > 0) {
       stats.push({
         key: 'top-boss',

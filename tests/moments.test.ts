@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 
 import {
   bossUniqueIds,
+  caTask,
+  caTierRank,
   classifyObservation,
   dropRate,
   mappedPetNames,
@@ -221,5 +223,100 @@ test('the feed sentence reads as a sentence', () => {
   assert.equal(
     momentSentence({ kind: 'death', itemName: null, quantity: 1, source: 'Great Olm', valueGp: null }),
     'died to Great Olm',
+  );
+});
+
+// ── Combat tasks ──────────────────────────────────────────────────────────────────────────────
+
+function caObs(taskName: string, over: Partial<Observation> = {}): Observation {
+  return obs({ kind: 'ca', taskName, dedupKey: `ca-${taskName}`, ...over });
+}
+
+test('the CA dataset can place a task, and ranks its tier', () => {
+  const task = caTask('Zulrah Adept');
+  assert.equal(task?.monster, 'Zulrah');
+  assert.equal(task?.tier, 'Hard');
+  // Matching is loose the way every other name lookup here is — the client's spelling varies.
+  assert.equal(caTask('zulrah adept')?.name, 'Zulrah Adept');
+  assert.equal(caTask('a task that does not exist'), null);
+  assert.ok(caTierRank('Grandmaster') > caTierRank('Master'));
+  assert.ok(caTierRank('Master') > caTierRank('Hard'));
+  assert.equal(caTierRank('nonsense'), -1);
+});
+
+test('a boss week keeps a combat task for its own boss, from Hard up', () => {
+  const [moment] = classifyObservation(caObs('Zulrah Adept'), { weeklies: [BOTW], event: null });
+  assert.equal(moment.kind, 'ca');
+  assert.equal(moment.itemName, 'Zulrah Adept');
+  // The task names the boss, not the client — that's what puts it on this week at all.
+  assert.equal(moment.source, 'Zulrah');
+  assert.equal(moment.tier, 'Hard');
+  assert.equal(moment.weeklyCompetitionId, BOTW.id);
+});
+
+test('a boss week ignores a task for another boss, and the easy end of its own', () => {
+  assert.deepEqual(classifyObservation(caObs('Vorkath Master'), { weeklies: [BOTW], event: null }), []);
+  // Every Zulrah racer clears "kill one" in their first minute; a feed of those says nothing.
+  assert.deepEqual(classifyObservation(caObs('Noxious Foe'), { weeklies: [BOTW], event: null }), []);
+});
+
+test('a skill week and an efficiency week claim no combat tasks', () => {
+  assert.deepEqual(classifyObservation(caObs('Zulrah Adept'), { weeklies: [SOTW], event: null }), []);
+  const eotw: WeeklyScope = { id: 3, type: 'efficiency', metric: 'ehp' };
+  assert.deepEqual(classifyObservation(caObs('Zulrah Adept'), { weeklies: [eotw], event: null }), []);
+});
+
+test('a bingo keeps a task for a boss on its board, from Hard up', () => {
+  const [moment] = classifyObservation(caObs('Vorkath Veteran'), { weeklies: [], event: board });
+  assert.equal(moment.kind, 'ca');
+  assert.equal(moment.eventId, board.id);
+  assert.equal(moment.tier, 'Elite');
+});
+
+test('a bingo keeps a task from anywhere once it is Master or above', () => {
+  // Nothing on this board goes near the Alchemical Hydra — a Grandmaster task is its own news.
+  const [moment] = classifyObservation(caObs('No Pressure'), { weeklies: [], event: board });
+  assert.equal(moment.kind, 'ca');
+  assert.equal(moment.tier, 'Grandmaster');
+  // ...and the ordinary ones from off the board are not.
+  assert.deepEqual(classifyObservation(caObs('Barrows Novice'), { weeklies: [], event: board }), []);
+});
+
+test('a task the dataset has never heard of is judged on the tier the client claimed', () => {
+  const brandNew = caObs('Some Task Added Next Week', { tier: 'Grandmaster' });
+  const [moment] = classifyObservation(brandNew, { weeklies: [], event: board });
+  assert.equal(moment.kind, 'ca');
+  assert.equal(moment.tier, 'Grandmaster');
+  // With no monster we can't place it, so a boss week can't claim it...
+  assert.deepEqual(classifyObservation(brandNew, { weeklies: [BOTW], event: null }), []);
+  // ...and an unplaceable task below the off-topic floor is nothing to anyone.
+  assert.deepEqual(
+    classifyObservation(caObs('Another New Task', { tier: 'Hard' }), { weeklies: [], event: board }),
+    [],
+  );
+  // A client that names no tier at all can't clear a floor either.
+  assert.deepEqual(
+    classifyObservation(caObs('Nameless Tier Task'), { weeklies: [], event: board }),
+    [],
+  );
+});
+
+test('a task lands on the week AND the board when both are running', () => {
+  const planned = classifyObservation(caObs('Perfect Zulrah'), { weeklies: [BOTW], event: board });
+  assert.equal(planned.length, 2);
+  assert.deepEqual(planned.map((m) => m.kind), ['ca', 'ca']);
+  // Same observation, two scopes, two rows that can never collapse onto each other.
+  assert.notEqual(planned[0].dedupKey, planned[1].dedupKey);
+});
+
+test('the feed line leads with the tier', () => {
+  assert.equal(
+    momentSentence({ kind: 'ca', itemName: 'Perfect Zulrah', quantity: 1, source: 'Zulrah', valueGp: null, tier: 'Master' }),
+    'completed the Master combat task Perfect Zulrah',
+  );
+  // Nothing known but that it happened.
+  assert.equal(
+    momentSentence({ kind: 'ca', itemName: null, quantity: 1, source: null, valueGp: null, tier: null }),
+    'completed a combat task',
   );
 });

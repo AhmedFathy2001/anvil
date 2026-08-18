@@ -1,5 +1,6 @@
 import npcDrops from '@/data/npcDrops.json';
 import skillPets from '@/data/skillPets.json';
+import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 
@@ -20,11 +21,11 @@ import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
  */
 
 /** What we store. 'loot' is a haul that was notable for its price rather than its rarity. */
-export type MomentKind = 'pet' | 'unique' | 'death' | 'loot';
+export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca';
 
 /** What the plugin says it saw. Everything except `occurredAt`/`dedupKey` is best-effort. */
 export interface Observation {
-  kind: 'pet' | 'drop' | 'death';
+  kind: 'pet' | 'drop' | 'death' | 'ca';
   itemId?: number | null;
   itemName?: string | null;
   quantity?: number | null;
@@ -33,6 +34,10 @@ export interface Observation {
   source?: string | null;
   sourceKind?: string | null;
   kc?: number | null;
+  /** 'ca' only: the task as the completion line named it ("Vault of Death"). */
+  taskName?: string | null;
+  /** 'ca' only: the tier the line named. Only used when the task isn't in our own dataset. */
+  tier?: string | null;
   occurredAt: string;
   /** Client-side idempotency key — a pet fires three chat lines and a kill fires two loot events. */
   dedupKey: string;
@@ -66,6 +71,8 @@ export interface PlannedMoment {
   sourceKind: string | null;
   kc: number | null;
   rarityDenominator: number | null;
+  /** 'ca' only: which tier of combat task it was. */
+  tier: string | null;
   occurredAt: string;
   /** The client's key, suffixed with the scope — one observation can legitimately land on two boards. */
   dedupKey: string;
@@ -240,6 +247,68 @@ export function petsForSkill(skill: string): Set<string> {
   return set;
 }
 
+/**
+ * COMBAT TASKS.
+ *
+ * A completion line names the tier and the task and nothing else — "you've completed a Grandmaster
+ * combat task: Vault of Death" — so which boss it belongs to is ours to answer, out of the same
+ * dataset the CA tile picker uses. That's what lets a task land on the week that's racing its boss
+ * without the plugin knowing anything about the week.
+ */
+const CA_TIER_ORDER = ['Easy', 'Medium', 'Hard', 'Elite', 'Master', 'Grandmaster'];
+
+/**
+ * Two floors, because "notable" depends on what the clan is doing.
+ *
+ * ON TOPIC — a task for the boss being raced, or for something the board names. An Easy task is
+ * "kill one of these", which everyone racing that boss clears in their first minute, so the floor
+ * starts where a task means you did something deliberate.
+ *
+ * OFF TOPIC — anything else that happened during a bingo. Only the two tiers that are an
+ * achievement on their own terms, or the feed becomes a log of everyone's Tuesday.
+ */
+export const MIN_ON_TOPIC_CA_TIER = 'Hard';
+export const MIN_OFF_TOPIC_CA_TIER = 'Master';
+
+export interface CaTask {
+  name: string;
+  /** What the task is about, as the wiki files it. Null for the handful with no single monster. */
+  monster: string | null;
+  tier: string;
+}
+
+const caTasks = (combatAchievements as { tasks?: CaTask[] }).tasks ?? [];
+const caByName = new Map(caTasks.map((t) => [norm(t.name), t]));
+
+/** What our dataset knows about a task the client named. Null for one it has never heard of. */
+export function caTask(name: string | null | undefined): CaTask | null {
+  if (!name) return null;
+  return caByName.get(norm(name)) ?? null;
+}
+
+/** Rank of a tier, or -1 for a name we don't recognise. */
+export function caTierRank(tier: string | null | undefined): number {
+  if (!tier) return -1;
+  const wanted = tier.toLowerCase();
+  return CA_TIER_ORDER.findIndex((t) => t.toLowerCase() === wanted);
+}
+
+/** Is this tier at least that one? A tier we can't rank never clears a floor. */
+function caTierAtLeast(tier: string | null | undefined, floor: string): boolean {
+  const rank = caTierRank(tier);
+  return rank >= 0 && rank >= caTierRank(floor);
+}
+
+/**
+ * The tier and monster to judge (and display) a reported task by: ours when we know the task, the
+ * client's tier as a fallback so a task added to the game after this dataset was built still counts
+ * for the two tiers that never need context.
+ */
+export function caFacts(obs: Observation): { tier: string | null; monster: string | null } {
+  const known = caTask(obs.taskName);
+  return { tier: known?.tier ?? obs.tier ?? null, monster: known?.monster ?? null };
+}
+
 /** Every pet name we have an owning skill for — the guard the dataset test checks against clog.json. */
 export function mappedPetNames(): string[] {
   const all = new Set<string>();
@@ -261,14 +330,18 @@ export function classifyObservation(
   scopes: { weeklies: WeeklyScope[]; event: EventScope | null },
 ): PlannedMoment[] {
   const planned: PlannedMoment[] = [];
+  // A combat task has no item and no loot source, so it borrows the two columns that mean "what
+  // happened" and "what it was about": the task's name, and the monster our dataset files it under.
+  const ca = obs.kind === 'ca' ? caFacts(obs) : null;
   const base = {
     itemId: obs.itemId ?? null,
-    itemName: obs.itemName ?? null,
+    itemName: obs.kind === 'ca' ? obs.taskName ?? null : obs.itemName ?? null,
     quantity: Math.max(1, obs.quantity ?? 1),
     valueGp: obs.valueGp ?? null,
-    source: obs.source ?? null,
-    sourceKind: obs.sourceKind ?? null,
+    source: (obs.kind === 'ca' ? ca?.monster : obs.source) ?? null,
+    sourceKind: obs.kind === 'ca' ? 'ca' : obs.sourceKind ?? null,
     kc: obs.kc ?? null,
+    tier: ca?.tier ?? null,
     occurredAt: obs.occurredAt,
   };
   const info = dropInfo(obs.source, obs.itemId);
@@ -315,6 +388,14 @@ export function classifyObservation(
 function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null {
   if (weekly.type === 'efficiency') return null;
 
+  if (obs.kind === 'ca') {
+    // A combat task is boss content by definition, so a skill week has nothing to say about it.
+    if (weekly.type !== 'boss') return null;
+    const { tier, monster } = caFacts(obs);
+    if (!matchesBoss(monster, weekly.metric)) return null;
+    return caTierAtLeast(tier, MIN_ON_TOPIC_CA_TIER) ? 'ca' : null;
+  }
+
   if (weekly.type === 'skill') {
     // A skill week has no boss to drop from or die to, so only its pets qualify. Which pets those
     // are is the one thing the collection log can't tell us — see src/data/skillPets.json.
@@ -356,6 +437,13 @@ function eventKindFor(obs: Observation, event: EventScope, info: DropInfo | null
   if (obs.kind === 'pet') return 'pet';
   if (obs.kind === 'death') return 'death';
 
+  if (obs.kind === 'ca') {
+    const { tier, monster } = caFacts(obs);
+    // On the board — someone's tile sent them to that boss and they cleared a task while there.
+    const onBoard = !!monster && event.sources.some((s) => norm(s) === norm(monster));
+    return caTierAtLeast(tier, onBoard ? MIN_ON_TOPIC_CA_TIER : MIN_OFF_TOPIC_CA_TIER) ? 'ca' : null;
+  }
+
   const onBoardSource = !!obs.source && event.sources.some((s) => norm(s) === norm(obs.source!));
   const onBoardItem = obs.itemId != null && event.itemIds.includes(obs.itemId);
   const richEnough = (obs.valueGp ?? 0) >= event.minLootGp;
@@ -371,6 +459,7 @@ export function momentSentence(m: {
   quantity: number;
   source: string | null;
   valueGp: number | null;
+  tier?: string | null;
 }): string {
   const item = m.itemName ?? 'something';
   const qty = m.quantity > 1 ? `${m.quantity.toLocaleString()} × ` : '';
@@ -385,6 +474,13 @@ export function momentSentence(m: {
       return m.source ? `got ${qty}${item} from ${m.source}` : `got ${qty}${item}`;
     case 'death':
       return m.source ? `died to ${m.source}` : 'died';
+    case 'ca': {
+      // The tier is the whole size of the news, so it leads even when we can't name the task.
+      const tier = m.tier ? `${m.tier} ` : '';
+      return m.itemName
+        ? `completed the ${tier}combat task ${m.itemName}`
+        : `completed a ${tier}combat task`;
+    }
     default:
       return m.source ? `looted ${qty}${item} from ${m.source}` : `looted ${qty}${item}`;
   }
@@ -395,4 +491,5 @@ export const MOMENT_EMOJI: Record<string, string> = {
   unique: '✨',
   death: '💀',
   loot: '💰',
+  ca: '⚔️',
 };

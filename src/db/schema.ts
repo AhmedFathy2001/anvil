@@ -373,6 +373,10 @@ export const players = sqliteTable('players', {
   // their awards are omitted from the recap.
   biggestHit: integer('biggest_hit').default(0),
   minutesPlayed: integer('minutes_played').default(0),
+  // Same contract again: combat tasks genuinely completed during the event ("Task Master"). Only
+  // first completions count — the plugin gates on the CA points varbit actually rising, so the
+  // in-game "Repeat completion" setting can't inflate it.
+  caTasks: integer('ca_tasks').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -1571,7 +1575,7 @@ export const moments = sqliteTable('moments', {
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
   /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
   rsn: text('rsn').notNull(),
-  /** 'pet' | 'unique' | 'death' | 'loot' — see MOMENT_KINDS in lib/moments.ts. */
+  /** 'pet' | 'unique' | 'death' | 'loot' | 'ca' — see MomentKind in lib/moments.ts. */
   kind: text('kind').notNull(),
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
@@ -1589,6 +1593,12 @@ export const moments = sqliteTable('moments', {
   kc: integer('kc'),
   /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
   rarityDenominator: integer('rarity_denominator'),
+  /**
+   * COMBAT TASKS only: which tier it was. Read from our own CA dataset by task name (the client's
+   * tier is a fallback for a task added to the game since it was built), and stored rather than
+   * re-derived so an old line still reads right after the dataset moves on. NULL on every other kind.
+   */
+  tier: text('tier'),
   /** When it happened in game (client clock, clamped server-side) vs when we stored it. */
   occurredAt: text('occurred_at').notNull(),
   noticedAt: text('noticed_at').default(sql`(datetime('now'))`).notNull(),
