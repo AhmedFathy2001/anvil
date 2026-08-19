@@ -1,0 +1,104 @@
+/**
+ * Flag links and API calls that hard-code a clan-scoped path without the clan prefix.
+ *
+ * WHY A LINT RULE. A clan lives at `/c/<slug>/…`. A bare `/events/5` in a link or a fetch is wrong
+ * there, and the two failures are not equally visible:
+ *
+ *   - a LINK lands on the apex and 404s. Annoying, obvious, findable by clicking.
+ *   - a FETCH reaches the route with no clan at all. It does not error — the handler runs and
+ *     answers a different question, or writes somewhere else. That one is silent, and it is the
+ *     reason this is a rule and not a code review.
+ *
+ * TypeScript cannot help: `fetch('/api/admin/clan')` and `fetch(href('/api/admin/clan'))` are both
+ * perfectly typed strings.
+ *
+ * HOW. Any string literal starting with `/` that lib/clanScopedPaths calls clan-scoped must not
+ * appear directly as a `href`/`action` prop or as the first argument to `fetch`. Put it through
+ * `useClanHref()` (client) or `clanHref`/`clanHrefs` (server) instead.
+ *
+ * Platform paths — /profile, /clans, /u/, /staff, /api/profile … — are left alone, because they are
+ * the same URL from inside a clan or outside it. That list is the one in lib/clanScopedPaths, and
+ * this rule imports the decision rather than restating it: two copies would eventually disagree,
+ * and the disagreement would be invisible.
+ *
+ * ESCAPE HATCH. A deliberate link out of the clan writes the reason down:
+ *
+ *   // clan-prefix: platform -- the directory is the apex's, not this clan's
+ *
+ * on or above the line.
+ */
+
+import { isClanScopedPath } from '../src/lib/clanScopedPaths.ts';
+
+const ESCAPE = /clan-prefix:\s*platform/;
+
+/** Props whose value is a URL the browser will follow. */
+const URL_PROPS = new Set(['href', 'action', 'src']);
+
+export default {
+  meta: {
+    type: 'problem',
+    docs: { description: 'clan-scoped paths must carry the clan prefix' },
+    schema: [],
+    messages: {
+      bareLink:
+        '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
+        'component or clanHref()/clanHrefs() on the server. Without it this lands on the apex.',
+      bareFetch:
+        '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
+        'component or clanHref()/clanHrefs() on the server. Without it the request reaches the ' +
+        'route with NO clan — which does not error, it answers a different question.',
+    },
+  },
+  create(context) {
+    const source = context.sourceCode ?? context.getSourceCode();
+
+    /** Is this line (or the one above) excused? */
+    function excused(node) {
+      const before = source.getCommentsBefore(node) ?? [];
+      const line = source.lines[node.loc.start.line - 1] ?? '';
+      return ESCAPE.test(line) || before.some((c) => ESCAPE.test(c.value));
+    }
+
+    function check(node, value, messageId) {
+      if (typeof value !== 'string' || !isClanScopedPath(value)) return;
+      if (excused(node)) return;
+      context.report({ node, messageId, data: { path: value } });
+    }
+
+    return {
+      // href="/events/5" and href={"/events/5"}
+      JSXAttribute(node) {
+        if (!URL_PROPS.has(node.name?.name)) return;
+        const v = node.value;
+        if (v?.type === 'Literal') check(v, v.value, 'bareLink');
+        else if (v?.type === 'JSXExpressionContainer' && v.expression?.type === 'Literal') {
+          check(v.expression, v.expression.value, 'bareLink');
+        }
+      },
+
+      // fetch('/api/admin/clan')
+      "CallExpression[callee.name='fetch']"(node) {
+        const arg = node.arguments?.[0];
+        if (!arg) return;
+        if (arg.type === 'Literal') check(arg, arg.value, 'bareFetch');
+        // fetch(`/api/events/${id}/tiles`) — the leading quasi is enough to classify it.
+        else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
+          const head = arg.quasis[0].value.cooked ?? '';
+          if (head.startsWith('/')) check(arg, head, 'bareFetch');
+        }
+      },
+
+      // router.push('/events/5')
+      "CallExpression[callee.property.name=/^(push|replace)$/]"(node) {
+        const arg = node.arguments?.[0];
+        if (!arg) return;
+        if (arg.type === 'Literal') check(arg, arg.value, 'bareLink');
+        else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
+          const head = arg.quasis[0].value.cooked ?? '';
+          if (head.startsWith('/')) check(arg, head, 'bareLink');
+        }
+      },
+    };
+  },
+};
