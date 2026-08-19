@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ClanRow } from '@/lib/platformView';
+import type { ActAsGrant } from '@/lib/actAs';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 const PLANS = ['free', 'bronze', 'silver', 'gold'] as const;
@@ -20,11 +21,67 @@ const STATUS_STYLE: Record<string, string> = {
  * Editing in the row rather than behind a detail page: there are four fields, and the operator is
  * nearly always comparing clans at the moment they change one.
  */
-export default function ClansClient({ clans, canWrite }: { clans: ClanRow[]; canWrite: boolean }) {
+export default function ClansClient({
+  clans,
+  canWrite,
+  grants,
+}: {
+  clans: ClanRow[];
+  canWrite: boolean;
+  grants: ActAsGrant[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // Which clan's "act as" form is open. Null means none — this is never a default-on state.
+  const [acting, setActing] = useState<number | null>(null);
+  const [reason, setReason] = useState('');
+  const [hours, setHours] = useState(1);
+
+  const liveByClan = new Map(grants.map((g) => [g.clanId, g]));
+
+  async function actAs(clanId: number) {
+    setBusy(clanId);
+    setError(null);
+    try {
+      const res = await fetch('/api/staff/act-as', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clanId, reason, hours }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      setActing(null);
+      setReason('');
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handBack(id: number, clanId: number) {
+    setBusy(clanId);
+    setError(null);
+    try {
+      const res = await fetch('/api/staff/act-as', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function patch(id: number, body: Record<string, unknown>) {
     setBusy(id);
@@ -77,6 +134,7 @@ export default function ClansClient({ clans, canWrite }: { clans: ClanRow[]; can
               <th className="px-4 py-3 text-right">Events</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Plan</th>
+              {canWrite && <th className="px-4 py-3">Access</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-card-border">
@@ -128,6 +186,63 @@ export default function ClansClient({ clans, canWrite }: { clans: ClanRow[]; can
                     <span className="text-xs text-gray-300">{c.plan}</span>
                   )}
                 </td>
+                {canWrite && (
+                  <td className="px-4 py-3">
+                    {liveByClan.has(c.id) ? (
+                      <button
+                        onClick={() => handBack(liveByClan.get(c.id)!.id, c.id)}
+                        disabled={busy != null}
+                        className="rounded-lg border border-amber-700 px-2 py-1 text-xs text-amber-300"
+                        title={`until ${liveByClan.get(c.id)!.expiresAt}`}
+                      >
+                        Acting — hand back
+                      </button>
+                    ) : acting === c.id ? (
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          placeholder="Why (the clan sees this)"
+                          className="w-56 rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={1}
+                            max={24}
+                            value={hours}
+                            onChange={(e) => setHours(Number(e.target.value))}
+                            className="w-14 rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
+                          />
+                          <span className="text-xs text-gray-500">h</span>
+                          <button
+                            onClick={() => actAs(c.id)}
+                            disabled={busy != null}
+                            className="rounded-lg border border-gold/40 px-2 py-1 text-xs text-gold"
+                          >
+                            Take
+                          </button>
+                          <button
+                            onClick={() => setActing(null)}
+                            className="rounded-lg border border-card-border px-2 py-1 text-xs text-gray-400"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setActing(c.id);
+                          setReason('');
+                        }}
+                        className="rounded-lg border border-card-border px-2 py-1 text-xs text-gray-400 hover:text-gold"
+                      >
+                        Act as…
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

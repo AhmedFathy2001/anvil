@@ -16,6 +16,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { eq } from 'drizzle-orm';
+
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { hasPlatformRole, PLATFORM_ROLES } from '../src/lib/clanRoles.ts';
 
@@ -162,4 +164,121 @@ test('every platform role in the type is one the UI can actually set', () => {
   for (const role of PLATFORM_ROLES) {
     assert.ok(client.includes(`'${role}'`), `PeopleClient offers ${role}`);
   }
+});
+
+// ── Borrowed authority ────────────────────────────────────────────────────────────────────────
+//
+// The escape hatch from "platform staff get no clan write". What makes it safe is that it ends by
+// itself — so the tests that matter are the ones about it ENDING, not the one about it working.
+
+test('a live grant is found; an expired one is not', async () => {
+  const { db, schema: s } = await loadDb();
+  const { liveActAs } = await import('../src/lib/actAs.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'borrow', name: 'Borrow Clan' }).returning();
+  const [op] = await db
+    .insert(s.users)
+    .values({ displayName: 'Op', discordId: '950000000000000001', platformRole: 'staff' })
+    .returning();
+
+  assert.equal(await liveActAs(clan.id, op.id), null, 'nothing borrowed, nothing held');
+
+  await db.insert(s.platformActAs).values({
+    clanId: clan.id,
+    userId: op.id,
+    reason: 'investigating a stuck board',
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  const live = await liveActAs(clan.id, op.id);
+  assert.equal(live?.role, 'admin');
+
+  // The property the whole design rests on: forgetting to hand it back is not a permanent grant.
+  await db
+    .update(s.platformActAs)
+    .set({ expiresAt: new Date(Date.now() - 1000).toISOString() })
+    .where(eq(s.platformActAs.id, live!.id));
+  assert.equal(await liveActAs(clan.id, op.id), null, 'expired is gone without anyone acting');
+});
+
+test('revoking ends it immediately, and only the holder may revoke their own', async () => {
+  const { db, schema: s } = await loadDb();
+  const { liveActAs, revokeActAs } = await import('../src/lib/actAs.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'revoke', name: 'Revoke Clan' }).returning();
+  const people = await db
+    .insert(s.users)
+    .values([
+      { displayName: 'Holder', discordId: '950000000000000002', platformRole: 'staff' },
+      { displayName: 'Other', discordId: '950000000000000003', platformRole: 'staff' },
+    ])
+    .returning();
+  const [holder, other] = people;
+
+  const [row] = await db
+    .insert(s.platformActAs)
+    .values({
+      clanId: clan.id,
+      userId: holder.id,
+      reason: 'restoring a deleted tile',
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    })
+    .returning();
+
+  assert.equal(await revokeActAs(row.id, other.id), false, "not someone else's to hand back");
+  assert.notEqual(await liveActAs(clan.id, holder.id), null, 'and it is still live');
+
+  assert.equal(await revokeActAs(row.id, holder.id), true);
+  assert.equal(await liveActAs(clan.id, holder.id), null);
+});
+
+test('a grant is capped at admin and never carries the owner seat', async () => {
+  const { db, schema: s } = await loadDb();
+  const { grantActAs } = await import('../src/lib/actAs.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'capped', name: 'Capped Clan' }).returning();
+  const [op] = await db
+    .insert(s.users)
+    .values({ displayName: 'Capped op', discordId: '950000000000000004', platformRole: 'staff' })
+    .returning();
+
+  const grant = await grantActAs({
+    clanId: clan.id,
+    userId: op.id,
+    reason: 'a reason long enough',
+    hours: 999, // asked for far more than the ceiling
+    actorRole: 'staff',
+  });
+
+  assert.equal(grant.role, 'admin', 'never owner — that seat must not be takeable');
+  const hours = (Date.parse(grant.expiresAt) - Date.now()) / 3600_000;
+  assert.ok(hours <= 24.01, `clamped to the ceiling, got ${hours}h`);
+});
+
+test('taking a grant writes it into the CLAN\'s audit log, not a private one', async () => {
+  const { db, schema: s } = await loadDb();
+  const { grantActAs } = await import('../src/lib/actAs.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'logged', name: 'Logged Clan' }).returning();
+  const [op] = await db
+    .insert(s.users)
+    .values({ displayName: 'Logged op', discordId: '950000000000000005', platformRole: 'staff' })
+    .returning();
+
+  await grantActAs({
+    clanId: clan.id,
+    userId: op.id,
+    reason: 'members list showing duplicates',
+    hours: 1,
+    actorRole: 'staff',
+  });
+
+  const entries = await db
+    .select()
+    .from(s.clanAuditLog)
+    .where(eq(s.clanAuditLog.clanId, clan.id));
+
+  const entry = entries.find((e) => e.eventType === 'platform_act_as_granted');
+  assert.ok(entry, 'the clan can find out an operator was here');
+  // The reason is the only account the clan gets of WHY, so it has to survive into the log.
+  assert.match(entry!.newValue ?? '', /members list showing duplicates/);
 });

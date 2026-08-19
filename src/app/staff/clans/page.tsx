@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { allClans } from '@/lib/platformView';
+import { myLiveGrants } from '@/lib/actAs';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import ClansClient from './ClansClient';
@@ -13,7 +14,7 @@ export default async function StaffClansPage() {
   const actor = await requirePlatformPage('support');
   if (!actor) notFound();
 
-  const clans = await allClans();
+  const [clans, grants] = await Promise.all([allClans(), myLiveGrants(actor.user.userId)]);
 
   return (
     <div>
@@ -23,7 +24,7 @@ export default async function StaffClansPage() {
         — reaching those needs a grant in that clan, which this page does not confer.
       </p>
       <div className="mt-6">
-        <ClansClient clans={clans} canWrite={hasPlatformRole(actor.role, 'staff')} />
+        <ClansClient clans={clans} canWrite={hasPlatformRole(actor.role, 'staff')} grants={grants} />
       </div>
     </div>
   );

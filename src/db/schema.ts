@@ -920,6 +920,41 @@ export const clanRoster = pgView('clan_roster', {
 // Append-only history of what happened to clan_members rows: joined, left, returned,
 // renamed, verified, claimed, merged, promoted, demoted. Powers the admin audit view
 // and the Discord audit pings.
+/**
+ * An operator borrowing a clan's authority, for a while, on the record.
+ *
+ * Platform staff deliberately get NO clan write from being platform staff — that separation is the
+ * whole point of the two axes. But an operator sometimes genuinely has to fix a clan's data, and the
+ * two alternatives are both worse: give operators a standing clan grant (the conflation we refused),
+ * or reach into the database by hand (which leaves no trace the clan can see).
+ *
+ * So the grant is explicit, narrow, and self-expiring:
+ *   - it names a REASON, written into the clan's own audit log at grant time;
+ *   - it EXPIRES, so forgetting to hand it back is not a permanent escalation;
+ *   - it is capped at 'admin' — never 'owner', because the owner seat is the one thing an operator
+ *     must not be able to take;
+ *   - it is revocable at any time.
+ *
+ * VISIBLE TO THE CLAN. The audit entry lands in that clan's log, not in a separate operator log the
+ * clan cannot read. An operator acting inside someone's clan without them being able to find out is
+ * indistinguishable from a compromise.
+ */
+export const platformActAs = pgTable('platform_act_as', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // The operator. A login, not a person: this is a capability exercised through one.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Capped at admin by the route that writes it. Stored so a narrower grant stays possible.
+  role: text('role').notNull().default('admin'),
+  reason: text('reason').notNull(),
+  grantedAt: text('granted_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  // The whole point. A row past this is dead, whether or not anyone remembered to revoke it.
+  expiresAt: text('expires_at').notNull(),
+  revokedAt: text('revoked_at'),
+}, (table) => [
+  index('platform_act_as_lookup_idx').on(table.userId, table.clanId, table.expiresAt),
+]);
+
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
   // The clan whose log this entry belongs in. Nullable only so the column could be added to existing

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { atLeast } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
+import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
@@ -102,6 +103,10 @@ export interface UserPayload {
   isOwner: boolean;
   // The other axis entirely: capability over the PLATFORM, which no clan role can confer.
   platformRole: string;
+  // Set only while an operator is using a temporary borrowed grant in this clan. Present so the UI
+  // can say so out loud — someone acting with authority that is not theirs should be able to tell,
+  // and so should anyone looking over their shoulder.
+  actingAs: { clanId: number; expiresAt: string } | null;
 }
 
 export async function verifyUser(): Promise<UserPayload | null> {
@@ -151,15 +156,32 @@ export async function verifyUser(): Promise<UserPayload | null> {
     const clan = await currentClan();
     const grant = clan ? await clanGrant(clan.id, dbUser.id) : null;
 
+    // THE ONE EXCEPTION, and it is deliberately narrow.
+    //
+    // An operator holds no clan authority by being an operator. They can take a temporary, expiring,
+    // logged grant in a specific clan when they genuinely have to fix something — see lib/actAs for
+    // why that beats the alternatives. It applies only where a real grant is absent, so it can never
+    // quietly override what a clan actually decided about someone.
+    //
+    // Gated on platformRole first so this costs nothing for everyone else: a normal member has no
+    // clan_staff row either, and without that check every one of their requests would pay for a
+    // lookup that could only ever come back empty.
+    const platformRole = dbUser.platformRole ?? 'none';
+    const borrowed =
+      !grant && clan && platformRole !== 'none' ? await liveActAs(clan.id, dbUser.id) : null;
+
     return {
       userId: dbUser.id,
       playerId,
       username: typeof data.username === 'string' ? data.username : 'user',
-      role: grant?.role ?? 'member',
+      role: grant?.role ?? borrowed?.role ?? 'member',
       editorScope: grant?.editorScope ?? 'all',
-      canEditTiles: grant?.canEditTiles === true,
+      canEditTiles: grant?.canEditTiles === true || borrowed != null,
+      // Never. The owner seat is the one thing a borrowed grant must not confer, or an operator can
+      // transfer a clan away from the person who owns it.
       isOwner: grant?.isOwner === true,
-      platformRole: dbUser.platformRole ?? 'none',
+      platformRole,
+      actingAs: borrowed ? { clanId: borrowed.clanId, expiresAt: borrowed.expiresAt } : null,
     };
   } catch {
     return null;

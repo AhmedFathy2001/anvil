@@ -150,7 +150,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="lg:flex lg:gap-6">
       <AdminSidebar groups={groups} user={user} />
-      <div className="flex-1 min-w-0">{children}</div>
+      <div className="flex-1 min-w-0">
+        {session.actingAs && (
+          // Borrowed authority, said out loud. An operator working inside someone else's clan should
+          // never be able to forget that is what they are doing — and the clan's own audit log
+          // already carries the same fact, so this is the half the operator sees.
+          <div className="mb-4 rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+            You are acting as staff of <span className="font-semibold">{clan.name}</span> on a
+            temporary platform grant, not a role in this clan. It expires{' '}
+            {session.actingAs.expiresAt.replace('T', ' ').slice(0, 16)} UTC and this clan can see it
+            in their history.
+          </div>
+        )}
+        {children}
+      </div>
     </div>
   );
 }

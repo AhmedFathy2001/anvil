@@ -124,19 +124,23 @@ export async function allClans(): Promise<ClanRow[]> {
       plan: clans.plan,
       memberCap: clans.memberCap,
       createdAt: clans.createdAt,
+      // `clans.id` is written out rather than interpolated: drizzle renders an interpolated column
+      // unqualified inside a raw fragment, and every one of these subqueries has an `id` of its own,
+      // so it comes back as "column reference id is ambiguous" — at run time, from Postgres, since
+      // nothing about the fragment is typed.
       members: sql<number>`(
         select count(*) from ${clanMemberships} m
-        where m.clan_id = ${clans.id} and m.left_at is null and m.kind = 'member'
+        where m.clan_id = clans.id and m.left_at is null and m.kind = 'member'
       )`,
       guests: sql<number>`(
         select count(*) from ${clanMemberships} m
-        where m.clan_id = ${clans.id} and m.left_at is null and m.kind = 'guest'
+        where m.clan_id = clans.id and m.left_at is null and m.kind = 'guest'
       )`,
-      events: sql<number>`(select count(*) from ${eventsTable} e where e.clan_id = ${clans.id})`,
+      events: sql<number>`(select count(*) from ${eventsTable} e where e.clan_id = clans.id)`,
       owner: sql<string | null>`(
         select u.display_name from ${clanStaff} cs
         join ${users} u on u.id = cs.user_id
-        where cs.clan_id = ${clans.id} and cs.role = 'owner' limit 1
+        where cs.clan_id = clans.id and cs.role = 'owner' limit 1
       )`,
     })
     .from(clans)
