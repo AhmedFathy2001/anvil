@@ -32,6 +32,7 @@
     "test:clanbans": "npx tsx --test tests/clan-bans.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",
     "test:accountvis": "npx tsx --test tests/account-visibility.test.ts",
+    "test:clanpaths": "npx tsx --test tests/clan-paths.test.ts",
     "test:adminaccess": "npx tsx --test tests/admin-access.test.ts",
     "test:security": "node --experimental-strip-types --test tests/client-ip.test.ts tests/secret-box.test.ts",
     "test:stages": "node --experimental-strip-types --test tests/board-misconfig.test.ts tests/draft-control.test.ts tests/event-stage.test.ts tests/weekly-stage.test.ts",

@@ -68,17 +68,29 @@ export async function middleware(request: NextRequest) {
   //
   // API calls carry the prefix too — `/c/<slug>/api/...` — so a request is self-describing about
   // which clan it is for, rather than depending on a header the caller might forget to send.
+  // THESE HEADERS ARE OURS, NOT THE CALLER'S.
+  //
+  // `x-anvil-clan-slug` decides which clan a request is for, and lib/clanContext prefers it over
+  // the Host. A client can put any header on a request, so unless it is stripped here first, anyone
+  // can send `x-anvil-clan-slug: <someone else>` and have the app resolve that clan on a host that
+  // is not theirs — which is exactly the property the Host-as-allowlist-key design exists to hold.
+  //
+  // Stripped unconditionally, on every request, before anything sets it. Only the branch below,
+  // having read the slug out of the URL itself, is allowed to put it back.
+  const downstream = new Headers(request.headers);
+  downstream.delete('x-anvil-clan-slug');
+  downstream.delete('x-anvil-clan-prefix');
+
   const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
   if (clanPath) {
     const [, slug, rest] = clanPath;
     const url = request.nextUrl.clone();
     url.pathname = rest && rest !== '/' ? rest : '/';
-    const headers = new Headers(request.headers);
-    headers.set('x-anvil-clan-slug', slug);
+    downstream.set('x-anvil-clan-slug', slug);
     // The prefix, so anything building a link back out can reproduce it without re-parsing.
-    headers.set('x-anvil-clan-prefix', `/c/${slug}`);
-    headers.set('x-anvil-pathname', url.pathname);
-    return NextResponse.rewrite(url, { request: { headers } });
+    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    downstream.set('x-anvil-pathname', url.pathname);
+    return NextResponse.rewrite(url, { request: { headers: downstream } });
   }
 
   // ── The old per-clan hostname ──────────────────────────────────────────────────────────────
@@ -99,9 +111,11 @@ export async function middleware(request: NextRequest) {
   ) {
     const slug = host.slice(0, -(apex.length + 1));
     if (/^[a-z0-9-]{2,32}$/.test(slug) && !slug.includes('.')) {
-      const to = request.nextUrl.clone();
-      to.host = apex;
-      to.pathname = `/c/${slug}${pathname === '/' ? '' : pathname}`;
+      // Built from the apex rather than cloned from the request: the incoming URL carries the
+      // container's own port and http scheme (Caddy terminates TLS in front), and cloning hands
+      // both straight back to the browser as `https://apex:3000/...`.
+      const to = new URL(`/c/${slug}${pathname === '/' ? '' : pathname}`, `https://${apex}`);
+      to.search = request.nextUrl.search;
       return NextResponse.redirect(to, 301);
     }
   }
@@ -197,9 +211,10 @@ export async function middleware(request: NextRequest) {
   // token alone can't drive — e.g. the admin shell redirects a board-scoped editor (live editorScope
   // read from the DB) off any non-/admin/events page, even when their session token predates the
   // editorScope field. Middleware here is only the coarse gate.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-anvil-pathname', pathname);
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  // `downstream` above, not a fresh copy of the request: a fresh copy would carry the caller's
+  // own x-anvil-clan-slug straight back in, which is the whole bug.
+  downstream.set('x-anvil-pathname', pathname);
+  return NextResponse.next({ request: { headers: downstream } });
 }
 
 export const config = {

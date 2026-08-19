@@ -12,6 +12,7 @@
 // reads the prefix out of the URL it is already at.
 
 import { clanPrefix } from '@/lib/clanContext';
+import { withClanPrefix } from '@/lib/clanScopedPaths';
 
 /**
  * A path inside the current clan.
@@ -23,9 +24,7 @@ import { clanPrefix } from '@/lib/clanContext';
  * this clan's to rewrite.
  */
 export async function clanHref(path: string): Promise<string> {
-  if (!path.startsWith('/')) return path;
-  const prefix = await clanPrefix();
-  return prefix ? `${prefix}${path}` : path;
+  return withClanPrefix(await clanPrefix(), path);
 }
 
 /**
@@ -37,5 +36,5 @@ export async function clanHref(path: string): Promise<string> {
  */
 export async function clanHrefs(): Promise<(path: string) => string> {
   const prefix = await clanPrefix();
-  return (path: string) => (path.startsWith('/') && prefix ? `${prefix}${path}` : path);
+  return (path: string) => withClanPrefix(prefix, path);
 }

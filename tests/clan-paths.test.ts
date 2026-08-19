@@ -1,0 +1,117 @@
+// Which paths take the clan prefix.
+//
+// One list decides, because ~470 call sites would otherwise each have to get it right, and a wrong
+// answer is invisible in both directions: a missing prefix on a clan path 404s or — for an API call
+// — reaches a route with no clan, which does not error but answers a different question; a spurious
+// prefix on a platform path 404s a page that was working.
+//
+// So the interesting cases here are the ones where the two lists overlap by spelling: /api/profile
+// sits under /api, /api/player is not a clan's, /profile is the person's while /players is not a
+// route at all. Prefix-matching gets those wrong unless the order is deliberate.
+//
+// Run: npm run test:clanpaths
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { isClanScopedPath, withClanPrefix } from '../src/lib/clanScopedPaths.ts';
+
+const P = '/c/theafkspot';
+
+test('a clan owns its events, roster and administration', () => {
+  for (const p of ['/events', '/events/5', '/events/5/board', '/members', '/admin', '/admin/clan', '/weekly']) {
+    assert.equal(isClanScopedPath(p), true, p);
+  }
+});
+
+test('a person owns their profile and identity, wherever they are', () => {
+  // The whole point of the identity remodel: one human, one profile, not one per clan.
+  for (const p of ['/profile', '/u/2', '/p/Drenvox%20mdps', '/clans', '/login', '/staff', '/guide']) {
+    assert.equal(isClanScopedPath(p), false, p);
+  }
+});
+
+test('the API split does not follow the page split', () => {
+  // /profile is the person's page AND /api/profile is theirs — but /api/plugin is a clan's with no
+  // page at all, and /api/player is the platform's despite reading like a person's.
+  assert.equal(isClanScopedPath('/api/admin/clan'), true);
+  assert.equal(isClanScopedPath('/api/events/5/tiles'), true);
+  assert.equal(isClanScopedPath('/api/plugin/config'), true);
+  assert.equal(isClanScopedPath('/api/profile/accounts/1/share'), false);
+  assert.equal(isClanScopedPath('/api/staff/clans/1'), false);
+  assert.equal(isClanScopedPath('/api/player/login'), false);
+  assert.equal(isClanScopedPath('/api/cron/stats'), false);
+  assert.equal(isClanScopedPath('/api/webhooks/gumroad'), false);
+});
+
+test('a platform root that is a prefix of nothing still wins over the clan list', () => {
+  // /api/profile would fall through to /api/... matching if the platform list were checked second.
+  assert.equal(isClanScopedPath('/api/profile'), false);
+  assert.equal(isClanScopedPath('/api/clans'), false);
+});
+
+test('query strings do not defeat the match', () => {
+  assert.equal(isClanScopedPath('/events?tab=live'), true);
+  assert.equal(isClanScopedPath('/profile?welcome=1'), false);
+});
+
+test('anything not recognised is left alone rather than guessed at', () => {
+  // A wrong prefix is a 404; an unprefixed platform path still works. When unsure, do nothing.
+  assert.equal(isClanScopedPath('/something-new'), false);
+  assert.equal(isClanScopedPath('/'), false);
+});
+
+test('external and relative targets pass through untouched', () => {
+  assert.equal(withClanPrefix(P, 'https://discord.gg/x'), 'https://discord.gg/x');
+  assert.equal(withClanPrefix(P, '#top'), '#top');
+  assert.equal(withClanPrefix(P, 'events/5'), 'events/5');
+});
+
+test('with no prefix — the apex, or a clan subdomain — nothing changes', () => {
+  // The subdomain still serves clan pages at bare paths while it is being retired. Prefixing there
+  // would send people to an address that host does not have.
+  assert.equal(withClanPrefix('', '/events/5'), '/events/5');
+  assert.equal(withClanPrefix('', '/profile'), '/profile');
+});
+
+test('prefixing is applied exactly once', () => {
+  const once = withClanPrefix(P, '/events/5');
+  assert.equal(once, '/c/theafkspot/events/5');
+  // An already-prefixed path is a platform path by the list's reckoning (/c/ is a platform root),
+  // so running it through again is a no-op rather than doubling.
+  assert.equal(withClanPrefix(P, once), once);
+});
+
+// ── The clan header is ours, not the caller's ─────────────────────────────────────────────────
+//
+// `x-anvil-clan-slug` decides which clan a request is for, and clanContext prefers it over the
+// Host. It is an ordinary request header, so anyone can send one — and until middleware stripped it
+// first, sending `x-anvil-clan-slug: <someone else>` resolved that clan on a host that was not
+// theirs. Verified against the running preview: the spoofed header changed which clan answered.
+//
+// A source check rather than a behavioural one, because middleware runs in the edge runtime and
+// cannot be invoked from here. It is narrow on purpose: the claim is that two specific deletes
+// exist and happen before anything sets the header.
+
+test('middleware strips the clan headers before it trusts anything', () => {
+  const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
+
+  const del = src.indexOf("downstream.delete('x-anvil-clan-slug')");
+  const delPrefix = src.indexOf("downstream.delete('x-anvil-clan-prefix')");
+  assert.ok(del > 0, 'the slug header must be deleted');
+  assert.ok(delPrefix > 0, 'and the prefix header with it');
+
+  const set = src.indexOf("downstream.set('x-anvil-clan-slug'");
+  assert.ok(set > del, 'the delete has to come first, or it undoes nothing');
+});
+
+test('middleware never hands the raw request headers downstream', () => {
+  // The bug was a second `new Headers(request.headers)` further down, which reinstated whatever the
+  // caller sent. There must be exactly one copy, and everything after works from it.
+  const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
+  const copies = src.match(/new Headers\(request\.headers\)/g) ?? [];
+  assert.equal(copies.length, 1, 'one copy only — a second one re-admits the spoofed header');
+});

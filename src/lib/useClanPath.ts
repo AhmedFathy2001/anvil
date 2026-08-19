@@ -3,6 +3,8 @@
 import { usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 
+import { withClanPrefix } from '@/lib/clanScopedPaths';
+
 /**
  * The clan prefix a client component is currently under, read from the URL it is already at.
  *
@@ -33,5 +35,5 @@ export function useClanPrefix(): string {
  */
 export function useClanHref(): (path: string) => string {
   const prefix = useClanPrefix();
-  return useCallback((path: string) => (path.startsWith('/') && prefix ? `${prefix}${path}` : path), [prefix]);
+  return useCallback((path: string) => withClanPrefix(prefix, path), [prefix]);
 }
