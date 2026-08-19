@@ -122,7 +122,19 @@ export async function verifyUser(): Promise<UserPayload | null> {
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
+    //
+    // TWO BANS, TWO LEVELS. `users.banned` bars this login. `players.banned` is the PLATFORM ban and
+    // bars the human behind it — the one a clan admin is structurally unable to reach, set only from
+    // /staff. Checking only the first left the platform ban documented, writable, and enforced by
+    // nothing at all.
     if (!dbUser || dbUser.banned) return null;
+    if (dbUser.playerId != null) {
+      const person = await db.query.players.findFirst({
+        where: eq(players.id, dbUser.playerId),
+        columns: { banned: true },
+      });
+      if (person?.banned) return null;
+    }
     // Self-heal a login that predates persons. Cheap, because it only runs while player_id is null,
     // and the alternative is a session whose identity is a number in the wrong id space.
     const playerId = dbUser.playerId ?? (await personOfOrCreate(dbUser.id));

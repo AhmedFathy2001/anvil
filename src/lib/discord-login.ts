@@ -70,6 +70,34 @@ export async function seedClanAdmin(clanId: number, userId: number): Promise<voi
     });
 }
 
+/**
+ * The genesis platform grant: PLATFORM_ROOT_DISCORD_ID becomes `root`.
+ *
+ * Platform capability is written by nothing else — deliberately, since a clan role must never confer
+ * it — which means that without this there is no first operator, and /staff is unreachable by
+ * everyone, forever. Same shape as the clan bootstrap above, and needed for the same reason.
+ *
+ * ITS OWN ENV VAR, not ADMIN_DISCORD_ID. That one means "make me admin of the clan I sign in to".
+ * Overloading it would make a single variable grant authority on both axes at once, which is
+ * precisely the conflation the two-axis model exists to prevent — and either is legitimately held
+ * without the other.
+ *
+ * An env var is the right proof for this: whoever sets the deployment's environment already controls
+ * the deployment. Nothing weaker should be able to mint a root.
+ *
+ * Only ever promotes, and only from `none`, so that a root deliberately stepped down to `staff` is
+ * not silently restored on their next login, and a role granted through the UI is never clobbered by
+ * a stale env var.
+ */
+export async function seedPlatformRoot(userId: number, discordId: string): Promise<void> {
+  const seed = process.env.PLATFORM_ROOT_DISCORD_ID?.trim();
+  if (!seed || seed !== discordId) return;
+  await db
+    .update(users)
+    .set({ platformRole: 'root' })
+    .where(and(eq(users.id, userId), eq(users.platformRole, 'none')));
+}
+
 export async function completeDiscordLogin(
   discordUser: DiscordUser,
   opts: { returnTo: string; returnHost?: string; request: Request; clearCookies?: string[] },
@@ -160,6 +188,8 @@ export async function completeDiscordLogin(
     await seedClanAdmin(loginClan.id, user.id);
   }
 
+  await seedPlatformRoot(user.id, discordUser.id);
+
   // Auto-claim unlinked clan_members whose RSN matches the Discord display name. See the original
   // trust-model notes: OAuth proves the Discord identity, the admin's pending-role pre-assignment
   // asserts the RSN belongs to this person, the OSRS-aware (_↔space) display-name match closes it.
@@ -233,7 +263,13 @@ export async function completeDiscordLogin(
   const isProd = process.env.NODE_ENV === 'production';
 
   // Banned users complete the identity step but get no session cookie — refused at the door.
-  if (user.banned) {
+  // Either level bars them: this login, or the person behind it. The platform ban is the one set
+  // from /staff and it has to hold here too, or a banned human simply signs in again.
+  const personBanned = await db.query.players.findFirst({
+    where: eq(players.id, user.playerId ?? -1),
+    columns: { banned: true },
+  });
+  if (user.banned || personBanned?.banned) {
     // Same origin and cookie domain as the success path: a cookie set with a domain is only cleared
     // by a delete carrying that same domain, so omitting it here would leave the state cookies behind.
     const bannedOrigin = returnHost ? originForHost(returnHost) : publicOrigin(request);
