@@ -166,11 +166,20 @@ const SOURCE_OF = { event_participants: 'players', clan_memberships: 'clan_membe
 
 // ── plumbing ─────────────────────────────────────────────────────────────────────────────────
 
+// DELIBERATELY NOT A DEPENDENCY. This is an operator's script, run once per clan on a machine that
+// has the old SQLite file; the app never reads SQLite and the deployment image has no reason to
+// carry a native module for it. Declaring it made `npm ci` compile better-sqlite3 inside an image
+// with no toolchain, which failed the build — and because the deploy script hid build output, the
+// previous image kept serving and the deploy looked like it had worked.
+//
+// Install it when you need it:  npm i better-sqlite3
 let Database;
 try {
   Database = require('better-sqlite3');
 } catch {
-  console.error('better-sqlite3 is needed to read the source database: npm i -D better-sqlite3');
+  console.error('better-sqlite3 is needed to read the source database, and is deliberately not a');
+  console.error('dependency of the app. Install it for this run:');
+  console.error('  npm i better-sqlite3');
   process.exit(2);
 }
 
