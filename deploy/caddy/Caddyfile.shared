@@ -1,0 +1,73 @@
+# Caddy for the shared deployment. Replaces the per-clan routing in /opt/anvil/Caddyfile.
+#
+# ONE APP, TWO KINDS OF HOST. The apex and every clan subdomain go to the SAME container, because
+# the clan is decided per request from the Host header rather than by which container answered.
+# That is the whole conversion in four lines of proxy config: what used to need one upstream per
+# clan — and a Caddy change, or at least a working on-demand path, for every new one — now needs
+# nothing when a clan is created.
+#
+# BEFORE CUTTING OVER, the Site must actually serve what the apex serves today, or these URLs 404:
+#   /                marketing landing        (still in Anvil.Admin)
+#   /pricing         plans                    (still in Anvil.Admin)
+#   /portal          customer billing         (still in Anvil.Admin)
+#   /legal/*         privacy, terms, refunds  (still in Anvil.Admin)
+# The Gumroad webhook (/api/webhooks/gumroad) and the TLS gate (/api/tls-check) HAVE moved, so
+# billing notifications and certificate issuance survive the switch.
+#
+# Roll back by restoring the previous Caddyfile: the per-clan containers are not deleted by this,
+# and `caddy reload` is not a deploy.
+
+{
+	email {$ACME_EMAIL}
+	on_demand_tls {
+		# Which hosts may have a certificate. Now answered by the site, which is the thing that knows
+		# what a real clan is — see src/app/api/tls-check. Without a gate, anyone pointing DNS at this
+		# box makes us request a certificate for their name, which burns Let's Encrypt rate limits
+		# that real clans then cannot get certs from.
+		ask http://anvil-site:3000/api/tls-check
+	}
+}
+
+# The apex: the clan directory, global profiles, /staff, and the marketing surface. Belongs to no
+# clan, and the app enforces that — `currentClan()` is null here.
+anvilosrs.com, www.anvilosrs.com {
+	encode zstd gzip
+	reverse_proxy anvil-site:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+	}
+}
+
+# Every clan. No per-clan upstream any more: the same container serves all of them and reads the
+# Host to decide which. Adding a clan is an INSERT and needs nothing here.
+#
+# Host and X-Forwarded-Host are passed through deliberately — they are the ONLY input that decides
+# which clan a request belongs to. The app treats the header as a lookup key against a database
+# allowlist and never as a trusted value, so an unknown host 404s rather than falling back.
+*.anvilosrs.com {
+	encode zstd gzip
+	tls {
+		on_demand
+	}
+	reverse_proxy anvil-site:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+	}
+}
+
+# Custom domains a clan pointed at us by CNAME. Same upstream, same rule: resolution is by Host, and
+# on_demand + the ask above is what stops this becoming an open certificate mint.
+#
+# Uncomment when the first custom domain exists. Left commented rather than deleted so the shape is
+# on record: `tls { on_demand }` inside a catch-all site block is the piece that is easy to forget,
+# and forgetting it is what makes the gate above pointless.
+# :443 {
+# 	encode zstd gzip
+# 	tls {
+# 		on_demand
+# 	}
+# 	reverse_proxy anvil-site:3000 {
+# 		header_up Host {host}
+# 		header_up X-Forwarded-Host {host}
+# 	}
+# }
