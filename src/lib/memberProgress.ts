@@ -30,6 +30,39 @@ export interface ProgressKey {
 export const DIARY_REGIONS_READABLE = 11;
 export const DIARY_REGIONS_ELITE = 12;
 
+/** Tier bits inside a region's stored mask, and inside `caTiers`. */
+export const DIARY_EASY = 1;
+export const DIARY_MEDIUM = 2;
+export const DIARY_HARD = 4;
+export const DIARY_ELITE = 8;
+export const DIARY_TIERS: { bit: number; label: string; short: string }[] = [
+  { bit: DIARY_EASY, label: 'Easy', short: 'E' },
+  { bit: DIARY_MEDIUM, label: 'Medium', short: 'M' },
+  { bit: DIARY_HARD, label: 'Hard', short: 'H' },
+  { bit: DIARY_ELITE, label: 'Elite', short: 'El' },
+];
+
+/**
+ * The twelve diary regions, in the order the game's own interface lists them, with the key each
+ * one's tier mask is stored under. Karamja carries `unreadable`: only its ELITE tier has a
+ * completion varbit, so its other three are shown as unknown rather than as unfinished.
+ */
+export const DIARY_REGIONS: { key: string; label: string; unreadable?: number }[] = [
+  { key: 'diaryArdougne', label: 'Ardougne' },
+  { key: 'diaryDesert', label: 'Desert' },
+  { key: 'diaryFalador', label: 'Falador' },
+  { key: 'diaryFremennik', label: 'Fremennik' },
+  { key: 'diaryKandarin', label: 'Kandarin' },
+  // Easy | Medium | Hard are unreadable here — see DIARY_REGIONS_READABLE.
+  { key: 'diaryKaramja', label: 'Karamja', unreadable: DIARY_EASY | DIARY_MEDIUM | DIARY_HARD },
+  { key: 'diaryKourend', label: 'Kourend & Kebos' },
+  { key: 'diaryLumbridge', label: 'Lumbridge & Draynor' },
+  { key: 'diaryMorytania', label: 'Morytania' },
+  { key: 'diaryVarrock', label: 'Varrock' },
+  { key: 'diaryWestern', label: 'Western Provinces' },
+  { key: 'diaryWilderness', label: 'Wilderness' },
+];
+
 export const PROGRESS_KEYS: ProgressKey[] = [
   {
     key: 'questPoints',
@@ -39,7 +72,24 @@ export const PROGRESS_KEYS: ProgressKey[] = [
     max: null,
     ceiling: 10_000,
   },
+  {
+    key: 'questsCompleted',
+    label: 'Quests completed',
+    group: 'quests',
+    // The game keeps releasing them, so a denominator would be stale within a month.
+    max: null,
+    ceiling: 1_000,
+  },
   { key: 'caPoints', label: 'Combat achievement points', group: 'combat', max: null, ceiling: 100_000 },
+  {
+    key: 'caTiers',
+    label: 'Combat achievement tiers',
+    group: 'combat',
+    // A bitmask, not a count: bit 0 is Easy through bit 5 Grandmaster, so every tier the player has
+    // cleared lights up rather than only the highest.
+    max: null,
+    ceiling: 63,
+  },
   {
     key: 'caTier',
     label: 'Combat achievement tier',
@@ -52,6 +102,16 @@ export const PROGRESS_KEYS: ProgressKey[] = [
   { key: 'diaryMedium', label: 'Medium diaries', group: 'diaries', max: DIARY_REGIONS_READABLE, ceiling: 20 },
   { key: 'diaryHard', label: 'Hard diaries', group: 'diaries', max: DIARY_REGIONS_READABLE, ceiling: 20 },
   { key: 'diaryElite', label: 'Elite diaries', group: 'diaries', max: DIARY_REGIONS_ELITE, ceiling: 20 },
+  // One mask per region, so the grid can show WHICH diary rather than only how many. Kept alongside
+  // the four counts above rather than replacing them: a plugin that predates the regions still fills
+  // the summary line, and one that has them fills both.
+  ...DIARY_REGIONS.map((r) => ({
+    key: r.key,
+    label: r.label,
+    group: 'diaries' as const,
+    max: DIARY_EASY | DIARY_MEDIUM | DIARY_HARD | DIARY_ELITE,
+    ceiling: 15,
+  })),
 ];
 
 const byKey = new Map(PROGRESS_KEYS.map((k) => [k.key, k]));
@@ -147,4 +207,103 @@ export function progressView(rows: { key: string; value: number; updatedAt?: str
       updatedAt: row.updatedAt ?? null,
     }];
   });
+}
+
+// ── The shape a profile card wants ────────────────────────────────────────────────────────────
+
+export interface DiaryRegionView {
+  key: string;
+  label: string;
+  /** Per tier, in game order: done, not done, or unknown (Karamja's lower three). */
+  tiers: { label: string; short: string; state: 'done' | 'todo' | 'unknown' }[];
+}
+
+export interface ProgressSummary {
+  questPoints: number | null;
+  questsCompleted: number | null;
+  caPoints: number | null;
+  /** Every tier cleared, so the chips light up cumulatively rather than only the highest. */
+  caTiers: { name: string; cleared: boolean }[];
+  /** Highest cleared tier's name, or '—'. */
+  caTier: string;
+  regions: DiaryRegionView[];
+  /** Diary tiers finished / knowable, across every region we can read. */
+  diariesDone: number;
+  diariesKnowable: number;
+  /** True when we hold nothing at all — the card shouldn't render. */
+  empty: boolean;
+  updatedAt: string | null;
+}
+
+/**
+ * Fold stored rows into what a profile draws.
+ *
+ * Per-region masks are preferred when present; the four summary counts are the fallback for a member
+ * whose plugin predates them. Either way the numbers agree, because both are counted here rather
+ * than trusted from the client.
+ */
+export function progressSummary(rows: { key: string; value: number; updatedAt?: string | null }[]): ProgressSummary {
+  const byKeyStored = new Map(rows.map((r) => [r.key, r]));
+  const value = (key: string): number | null => byKeyStored.get(key)?.value ?? null;
+
+  const regions: DiaryRegionView[] = [];
+  let diariesDone = 0;
+  let diariesKnowable = 0;
+  for (const region of DIARY_REGIONS) {
+    const mask = value(region.key);
+    if (mask == null) continue;
+    regions.push({
+      key: region.key,
+      label: region.label,
+      tiers: DIARY_TIERS.map((tier) => ({
+        label: tier.label,
+        short: tier.short,
+        state: (region.unreadable ?? 0) & tier.bit
+          ? 'unknown'
+          : mask & tier.bit
+            ? 'done'
+            : 'todo',
+      })),
+    });
+    for (const tier of DIARY_TIERS) {
+      if ((region.unreadable ?? 0) & tier.bit) continue;
+      diariesKnowable += 1;
+      if (mask & tier.bit) diariesDone += 1;
+    }
+  }
+
+  // No region masks (an older plugin): fall back to the four counts, which say how many without
+  // saying which.
+  if (regions.length === 0) {
+    const counts = [
+      value('diaryEasy'), value('diaryMedium'), value('diaryHard'), value('diaryElite'),
+    ];
+    if (counts.some((c) => c != null)) {
+      diariesDone = counts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
+      diariesKnowable = DIARY_REGIONS_READABLE * 3 + DIARY_REGIONS_ELITE;
+    }
+  }
+
+  const tierMask = value('caTiers');
+  const highest = value('caTier') ?? 0;
+  const caTiers = CA_TIER_NAMES.slice(1).map((name, i) => ({
+    name,
+    // A mask says exactly which; without one, everything up to the highest cleared tier is implied.
+    cleared: tierMask != null ? (tierMask & (1 << i)) !== 0 : i < highest,
+  }));
+
+  const stamps = rows.map((r) => r.updatedAt).filter((v): v is string => !!v).sort();
+
+  return {
+    questPoints: value('questPoints'),
+    questsCompleted: value('questsCompleted'),
+    caPoints: value('caPoints'),
+    caTiers,
+    caTier: caTierName(highest),
+    regions,
+    diariesDone,
+    diariesKnowable,
+    empty: rows.length === 0,
+    updatedAt: stamps.length > 0 ? stamps[stamps.length - 1] : null,
+  };
 }
