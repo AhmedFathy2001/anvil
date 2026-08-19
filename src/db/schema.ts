@@ -983,6 +983,43 @@ export const platformActAs = pgTable('platform_act_as', {
   index('platform_act_as_lookup_idx').on(table.userId, table.clanId, table.expiresAt),
 ]);
 
+/**
+ * A clan barring someone from ITSELF. Not from the platform.
+ *
+ * These are two different acts and they were one flag. `users.banned` is read by verifyUser, which
+ * returns null for it — so the clan-side "ban" button removed the person from EVERY clan on the
+ * deployment, and from the platform, on the authority of one clan's moderator. That was fine when a
+ * clan owned its whole database; it is a privilege escalation now.
+ *
+ * So the clan level lives here: no seat, no re-application, no event entry IN THIS CLAN. It says
+ * nothing about any other clan, and the person keeps their account, their profile and their history
+ * everywhere — including the history they built here, which is theirs and also this clan's record.
+ *
+ * The platform level stays `players.banned`, set only from /staff. A clan surface that could reach
+ * it would be the same bug wearing a different column.
+ *
+ * KEYED ON THE PERSON, not the account. Someone barred from a clan should not walk back in on an
+ * alt — and the person is what the clan actually decided about. `accountId` records which account
+ * occasioned it, for the log, and is deliberately not what the check reads.
+ */
+export const clanBans = pgTable('clan_bans', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  // Which of their accounts prompted it. Context, not the key.
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  reason: text('reason'),
+  bannedByUserId: integer('banned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  bannedAt: text('banned_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  // Lifted rather than deleted, so "we un-banned them in March" survives as an answer.
+  liftedAt: text('lifted_at'),
+  liftedByUserId: integer('lifted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  // One live ban per person per clan. Partial, so a lifted ban does not block a later one.
+  uniqueIndex('clan_bans_live_unique').on(table.clanId, table.playerId).where(sql`lifted_at is null`),
+  index('clan_bans_clan_idx').on(table.clanId),
+]);
+
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
   // The clan whose log this entry belongs in. Nullable only so the column could be added to existing

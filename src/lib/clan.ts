@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
+import { isBannedFromClan } from '@/lib/clanBans';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 
@@ -31,7 +32,9 @@ export async function findOrCreateClanMember(
     if (options.discordId && !existing.discordId) {
       await db.update(accounts).set({ discordId: options.discordId }).where(eq(accounts.id, existing.accountId));
     }
-    if (existing.leftAt) {
+    // A live clan ban keeps the seat departed. Without this the ban is decorative: the next thing
+    // that touches this row puts them straight back on the roster.
+    if (existing.leftAt && !(await isBannedFromClan(clanId, existing.playerId))) {
       await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, existing.id));
     }
     return existing.id;

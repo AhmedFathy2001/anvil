@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { loginOf } from '@/lib/roster';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
+import { banFromClan, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
 
 // POST /api/admin/clan/bulk — apply one roster action to many members in a single round-trip.
 //
@@ -92,15 +93,31 @@ export async function POST(request: Request) {
     .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, ids)));
   if (!members.length) return NextResponse.json({ error: 'No matching members' }, { status: 404 });
 
-  // Linked users, for the ban guards.
-  const userIds = [...new Set(members.map((m) => m.playerId).filter((v): v is number => v != null))];
-  const userRows = userIds.length
+  // Their LOGINS, for the ban guards.
+  //
+  // Keyed by player_id, not by users.id. A seat names a PERSON; users and players are separate
+  // sequences, so looking a login up by a person's number matches whoever happens to share it. On
+  // this database that is 59 of 60 users — the guards below were reading a near-arbitrary
+  // stranger's row, and the ban then wrote to it.
+  const personIds = [...new Set(members.map((m) => m.playerId).filter((v): v is number => v != null))];
+  const userRows = personIds.length
     ? await db
-        .select({ id: users.id, isOwner: users.isOwner, role: users.role })
+        .select({ id: users.id, playerId: users.playerId, role: users.role })
         .from(users)
-        .where(inArray(users.id, userIds))
+        .where(inArray(users.playerId, personIds))
     : [];
-  const userById = new Map(userRows.map((u) => [u.id, u]));
+  const userByPerson = new Map(userRows.map((u) => [u.playerId, u]));
+
+  // Who owns THIS clan, as a person. Read from the grant rather than a flag on the user: being the
+  // owner of another clan confers nothing here, and must not.
+  const ownerGrant = await db
+    .select({ playerId: users.playerId })
+    .from(clanStaff)
+    .innerJoin(users, eq(users.id, clanStaff.userId))
+    .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.role, 'owner')))
+    .limit(1)
+    .then((r) => r[0] ?? null);
+  const ownerPersonId = ownerGrant?.playerId ?? null;
 
   const nowIso = new Date().toISOString();
   const skipped: { id: number; rsn: string; reason: string }[] = [];
@@ -110,7 +127,7 @@ export async function POST(request: Request) {
   let appliedNow = 0;
 
   for (const m of members) {
-    const linked = m.playerId != null ? userById.get(m.playerId) ?? null : null;
+    const linked = m.playerId != null ? userByPerson.get(m.playerId) ?? null : null;
 
     switch (action) {
       case 'set-role': {
@@ -160,42 +177,52 @@ export async function POST(request: Request) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'already on the roster' });
           break;
         }
+        // Says why rather than quietly succeeding-then-not: rejoining someone this clan has banned
+        // is a contradiction, and the fix is to lift the ban, which is a decision not a side effect.
+        if (m.playerId != null && (await isBannedFromClan(clan.id, m.playerId))) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: 'banned from this clan — lift the ban first' });
+          break;
+        }
         await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, m.id));
         applied++;
         break;
       }
       case 'ban':
       case 'unban': {
+        // Barring someone from THIS CLAN, and nothing more. This used to write `users.banned`,
+        // which verifyUser refuses a session on — so a moderator here signed the person out of
+        // every clan on the deployment and off the platform. That level is /staff's.
         const banning = action === 'ban';
-        if (!linked) {
-          skipped.push({ id: m.id, rsn: m.rsn, reason: 'no site account' });
+        if (m.playerId == null) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: 'unclaimed account' });
           break;
         }
-        if (linked.id === actor.userId) {
+        if (linked?.id === actor.userId) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'that’s you' });
           break;
         }
-        if (linked.isOwner) {
+        // Owner OF THIS CLAN, read from the grant. Owning some other clan is no protection here.
+        if (ownerPersonId != null && m.playerId === ownerPersonId) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'clan owner' });
           break;
         }
-        await db
-          .update(users)
-          .set({
-            banned: banning,
-            bannedAt: banning ? nowIso : null,
-            bannedReason: banning ? reason : null,
-            bannedByUserId: banning ? actor.userId : null,
-          })
-          .where(eq(users.id, linked.id));
-        db.insert(clanAuditLog)
-          .values({
-            clanMemberId: m.id,
-            eventType: banning ? 'banned' : 'unbanned',
-            newValue: JSON.stringify({ userId: linked.id, reason }),
-            actorUserId: actor.userId,
-          })
-          .catch(() => {});
+
+        if (banning) {
+          const r = await banFromClan({
+            clanId: clan.id,
+            playerId: m.playerId,
+            accountId: m.accountId,
+            reason,
+            byUserId: actor.userId,
+          });
+          if (!r.ok) {
+            skipped.push({ id: m.id, rsn: m.rsn, reason: r.error.toLowerCase() });
+            break;
+          }
+        } else if (!(await liftClanBan(clan.id, m.playerId, actor.userId))) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: 'not banned here' });
+          break;
+        }
         applied++;
         break;
       }

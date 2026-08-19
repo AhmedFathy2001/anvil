@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
+import { isBannedFromClan } from '@/lib/clanBans';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { requireClanFromRequest } from '@/lib/clanContext';
@@ -212,6 +213,8 @@ export async function POST(request: Request) {
     });
   }
 
+  const refusedBanned: string[] = [];
+
   if (toInsert.length > 0) {
     // THE grant. Membership is never assumed anywhere else in the codebase — this sweep is the
     // in-game roster itself, so it is the one writer allowed to seat someone as a member.
@@ -222,6 +225,17 @@ export async function POST(request: Request) {
         rsnNormalized: row.rsnNormalized,
         accountHash: row.accountHash,
       });
+
+      // A clan ban outranks the in-game roster HERE, and only here. If the two disagree — they are
+      // still in the in-game clan but this clan's staff barred them from the site — the staff
+      // decision is the one about the site, and the roster must not quietly undo it every sync.
+      // Reported back so it looks like a decision rather than a member who mysteriously never
+      // appears.
+      if (await isBannedFromClan(clan.id, account.playerId)) {
+        refusedBanned.push(row.rsn);
+        continue;
+      }
+
       const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'member', source: 'roster' });
       await db
         .update(clanMemberships)
@@ -446,6 +460,9 @@ export async function POST(request: Request) {
     roster,
     capNotice: capMessage(roster),
     refusedNewMembers,
+    // Anyone the in-game roster listed whom this clan has banned from the SITE. Named rather than
+    // dropped, so a roster that syncs 51 of 52 says which one and why.
+    refusedBanned,
     changes: changes.map((c) => ({
       type: c.type,
       rsn: c.rsn,

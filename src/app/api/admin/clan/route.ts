@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
-import { accounts, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
+import { accounts, clanBans, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
 // GET — list all clan members (active + departed) for the admin roster view.
@@ -23,18 +23,28 @@ export async function GET(request: Request) {
     .where(eq(clanRoster.clanId, clan.id))
     .orderBy(desc(clanRoster.joinedAt));
 
-  // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
-  // clan_members.discordId column) so the roster can show/toggle the site ban.
+  // Resolve ban state + authoritative Discord id (users.discordId beats the legacy
+  // clan_members.discordId column) so the roster can show/toggle the ban.
   // Found by PERSON, and keyed by person. A seat names the person who owns its account, and
   // users.id is a different sequence — matching it against a person id finds the wrong login.
   const personIds = [...new Set(rows.map((r) => r.playerId).filter((v): v is number => v != null))];
   const userRows = personIds.length
     ? await db
-        .select({ id: users.id, playerId: users.playerId, banned: users.banned, discordId: users.discordId })
+        .select({ id: users.id, playerId: users.playerId, discordId: users.discordId })
         .from(users)
         .where(inArray(users.playerId, personIds))
     : [];
-  const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.playerId));
+
+  // From clan_bans, not users.banned. The button beside a member asks "is this person barred from
+  // THIS clan" — reading the platform-level flag would answer a different question, and would show
+  // "not banned" for someone this clan had just banned.
+  const banRows = personIds.length
+    ? await db
+        .select({ playerId: clanBans.playerId })
+        .from(clanBans)
+        .where(and(eq(clanBans.clanId, clan.id), inArray(clanBans.playerId, personIds), isNull(clanBans.liftedAt)))
+    : [];
+  const bannedIds = new Set(banRows.map((b) => b.playerId));
   const userDiscordId = new Map(userRows.map((u) => [u.playerId, u.discordId]));
 
   // The role shown beside a member is their role IN THIS CLAN. Read from the grants rather than the

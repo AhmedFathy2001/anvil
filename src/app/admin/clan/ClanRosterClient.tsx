@@ -493,14 +493,14 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
     const confirmText: Record<string, string> = {
       remove: `Mark ${n} member${n === 1 ? '' : 's'} as left the clan?`,
-      ban: `Ban the site accounts of ${n} selected member${n === 1 ? '' : 's'}? They lose all access immediately.`,
+      ban: `Ban ${n} member${n === 1 ? '' : 's'} from this clan? They are removed and cannot rejoin until you lift it. They keep their account and any other clan they're in.`,
       demote: `Demote ${n} member${n === 1 ? '' : 's'} to guest?`,
     };
     if (confirmText[bulkAction] && !confirm(confirmText[bulkAction])) return;
 
     let reason: string | undefined;
     if (bulkAction === 'ban') {
-      const input = prompt(`Optional reason for banning ${n} account${n === 1 ? '' : 's'}:`);
+      const input = prompt(`Optional reason for banning ${n} member${n === 1 ? '' : 's'} from this clan:`);
       if (input === null) return; // cancelled
       reason = input.trim() || undefined;
     }
@@ -722,10 +722,15 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
     if (isAdmin && m.userId) {
       items.push({
-        label: m.userBanned ? 'Unban site account' : 'Ban site account',
+        // "from this clan", said out loud. The button used to ban someone off the whole platform
+        // while calling itself a site-account ban; the wording mattered because nobody pressing it
+        // could have known that is what it did.
+        label: m.userBanned ? 'Unban from this clan' : 'Ban from this clan',
         onClick: () => banUser(m),
         variant: m.userBanned ? 'default' : 'danger',
-        title: m.userBanned ? 'This site account is banned' : 'Ban this member’s site account',
+        title: m.userBanned
+          ? 'Barred from this clan. They keep their account and any other clan they’re in.'
+          : 'Remove them and block them from rejoining this clan. Affects this clan only.',
       });
     }
     return items;
@@ -946,8 +951,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   { value: 'demote', label: 'Demote to guest' },
                   { value: 'rejoin', label: 'Re-add to roster' },
                   { value: 'remove', label: 'Remove from roster' },
-                  { value: 'ban', label: 'Ban site accounts' },
-                  { value: 'unban', label: 'Unban site accounts' },
+                  { value: 'ban', label: 'Ban from this clan' },
+                  { value: 'unban', label: 'Unban from this clan' },
                 ]}
               />
               {bulkAction === 'set-role' && (

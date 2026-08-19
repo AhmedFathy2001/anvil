@@ -144,6 +144,12 @@ test('no clan-side route can reach the platform ban or the platform role', () =>
     if (/\bplayers\b[\s\S]{0,200}?\bbanned\s*:/.test(src) && /\.update\(\s*players\s*\)/.test(src)) {
       offenders.push(`${file}: writes players.banned`);
     }
+    // users.banned too, and this one is not hypothetical: both clan ban surfaces wrote it, and
+    // verifyUser refuses a session on it — so a clan moderator's "ban" removed the person from
+    // every clan on the deployment and from the platform. The clan level is clan_bans.
+    if (/\.update\(\s*users\s*\)[\s\S]{0,300}?\bbanned\s*:/.test(src)) {
+      offenders.push(`${file}: writes users.banned`);
+    }
   }
 
   assert.deepEqual(offenders, [], 'clan-side code must not touch platform authority');
