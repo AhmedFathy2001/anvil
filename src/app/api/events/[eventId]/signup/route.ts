@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { clanRoster, eventSignups, events, eventParticipants, signupFees } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { findRosterSeats } from '@/lib/roster';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
+import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 
 export async function GET(
   request: Request,
@@ -134,6 +135,7 @@ export async function POST(
     clanMemberId?: number;      // legacy single-account form (still accepted)
     clanMemberIds?: number[];   // multi-account selection (up to event.maxAccountsPerPerson)
     profile?: Record<string, unknown>;
+    inviteToken?: string;       // arrived through a team's invite link (lib/teamInvites)
   } | null;
 
   // Resolve the picked accounts: prefer the multi-account array, fall back to the legacy single id.
@@ -188,6 +190,25 @@ export async function POST(
       },
       { status: 403 },
     );
+  }
+
+  // AN INVITE (lib/teamInvites) re-checked here, never trusted from the page that rendered it: the
+  // link may have been revoked, filled or expired between the form loading and this submit. It
+  // decides two things and nothing else — the entry is approved without a host looking at it, and
+  // every account in this submission lands on that team instead of the draft pool.
+  let invite: typeof teamInvites.$inferSelect | null = null;
+  const inviteToken = body?.inviteToken;
+  if (isWellFormedToken(inviteToken)) {
+    const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
+    const verdict = checkInvite(row, { now: Date.now(), eventId: id, signupsOpen: window.open });
+    if (!verdict.ok) {
+      return NextResponse.json({ error: verdict.message, reason: verdict.refusal }, { status: 403 });
+    }
+    const team = row ? await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) }) : null;
+    if (!team || team.eventId !== id) {
+      return NextResponse.json({ error: 'That invite is for a team that no longer exists.' }, { status: 403 });
+    }
+    invite = row!;
   }
 
   // Confirm every chosen account belongs to this user, is verified, and still in clan.
@@ -245,13 +266,30 @@ export async function POST(
     if (prior) {
       [row] = await db
         .update(eventSignups)
-        .set({ profileData: data, updatedAt: now, ...(prior.status === 'withdrawn' ? { status: 'pending' as const } : {}) })
+        .set({
+          profileData: data,
+          updatedAt: now,
+          ...(invite && prior.status !== 'approved'
+            ? { status: 'approved' as const }
+            : prior.status === 'withdrawn'
+              ? { status: 'pending' as const }
+              : {}),
+        })
         .where(eq(eventSignups.id, prior.id))
         .returning();
     } else {
       [row] = await db
         .insert(eventSignups)
-        .values({ eventId: id, userId: session.userId, clanMemberId: cid, profileData: data, status: 'pending', signedUpAt: now, updatedAt: now })
+        .values({
+          eventId: id,
+          userId: session.userId,
+          clanMemberId: cid,
+          profileData: data,
+          // The team that invited them already decided; there is nobody left to approve it.
+          status: invite ? 'approved' : 'pending',
+          signedUpAt: now,
+          updatedAt: now,
+        })
         .returning();
     }
     rows.push({ row, account });
@@ -270,9 +308,14 @@ export async function POST(
         eventId: id,
         clanMemberId: account.id,
         name: account.rsn,
+        // An invite is a seat on ONE team, so the entry skips the pool entirely.
+        teamId: invite ? invite.teamId : null,
         timezone: profile.timezone ?? null, // the person's tz applies to all their accounts
         playerToken: generatePlayerToken(),
       });
+    } else if (invite && existingPlayer.teamId == null) {
+      // Already in the pool (signed up first, invited after) — the link moves them onto the team.
+      await db.update(eventParticipants).set({ teamId: invite.teamId }).where(eq(eventParticipants.id, existingPlayer.id));
     }
 
     if (event.signupFee && event.signupFee > 0) {
@@ -285,6 +328,16 @@ export async function POST(
         await db.delete(signupFees).where(eq(signupFees.id, existingFee.id));
       }
     }
+  }
+
+  // Spend a seat once per PERSON, not per account and not per edit: someone entering two accounts
+  // through one link took one of the seats the host offered, and coming back to fix an answer took
+  // none. `isEditingActive` is exactly "they were already in before this request".
+  if (invite && !isEditingActive) {
+    await db
+      .update(teamInvites)
+      .set({ uses: invite.uses + 1 })
+      .where(eq(teamInvites.id, invite.id));
   }
 
   const primaryRow = rows.find((r) => r.account.id === primaryId)?.row ?? rows[0].row;

@@ -8,6 +8,7 @@ import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
+import BossTileGenerator from './BossTileGenerator';
 import LibraryTileGenerator from './LibraryTileGenerator';
 import ScheduleView from './ScheduleView';
 import RotationView from './RotationView';
@@ -128,7 +129,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importing, setImporting] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   // Which generator dialog the Add tiles menu has open, if any.
-  const [generator, setGenerator] = useState<'clog' | 'skill' | 'library' | null>(null);
+  const [generator, setGenerator] = useState<'clog' | 'skill' | 'boss' | 'library' | null>(null);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
@@ -965,6 +966,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
                 { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
                 { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canEditTileSet },
+                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canEditTileSet },
                 {
                   label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
@@ -1009,6 +1011,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               hideTrigger
               open={generator === 'skill'}
               onOpenChange={(v) => setGenerator(v ? 'skill' : null)}
+            />
+            <BossTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'boss'}
+              onOpenChange={(v) => setGenerator(v ? 'boss' : null)}
             />
             <LibraryTileGenerator
               eventId={event.id}

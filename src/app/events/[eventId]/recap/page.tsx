@@ -7,7 +7,10 @@ import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded } from '@/lib/survey';
 import { getEventRecap } from '@/lib/eventRecap';
+import { allMomentsForEvent } from '@/lib/momentsStore';
+import { summariseMoments } from '@/lib/momentsAnalytics';
 import RecapClient from './RecapClient';
+import MomentsSummaryPanel from './MomentsSummaryPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,13 +56,21 @@ export default async function EventRecapPage({
     );
   }
 
-  const recap = await getEventRecap(id);
+  const [recap, feed] = await Promise.all([getEventRecap(id), allMomentsForEvent(id)]);
+  const summary = summariseMoments(feed);
   if (!recap || recap.awards.length === 0) {
+    // No superlatives doesn't mean nothing happened — a board can produce a feed full of deaths and
+    // drops without anyone qualifying for an award, and that's still the story of the week.
     return (
       <div>{header}
         <Notice title="No awards to hand out">
           {ended ? 'Nobody racked up any tracked activity this event.' : 'No tracked activity yet — awards fill in as players submit.'}
         </Notice>
+        {summary.counts.total > 0 && (
+          <div className="mt-8">
+            <MomentsSummaryPanel summary={summary} />
+          </div>
+        )}
       </div>
     );
   }
@@ -67,7 +78,11 @@ export default async function EventRecapPage({
   return (
     <div>
       {header}
-      <RecapClient recap={recap} preview={!ended} />
+      <RecapClient
+        recap={recap}
+        preview={!ended}
+        momentsPanel={<MomentsSummaryPanel summary={summary} />}
+      />
     </div>
   );
 }

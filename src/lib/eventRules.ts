@@ -52,6 +52,24 @@ export interface MissionConfig {
 // The keyword is derived from `events.startProofDrawnAt`, a value that does not exist until start,
 // so nothing about the shot can be staged in advance.
 export type StartProofMissing = 'flag' | 'reject';
+
+/**
+ * One spot the start location can be drawn from. The label is what everyone reads ("Edgeville
+ * bank"); the coordinates are optional and turn the spot from a written instruction into a CHECK —
+ * the plugin reports where the player actually stood and the server measures the distance.
+ *
+ * Coordinate-less entries stay legal (and are what a plain string parses into), so a host can name
+ * somewhere the map picker can't express and lose nothing but the automatic check.
+ */
+export interface StartLocation {
+  label: string;
+  /** Game coordinates of the spot, pinned on the map picker. Null/null = label only, no check. */
+  x: number | null;
+  y: number | null;
+  /** How close counts, in game squares. Null = the built-in default (lib/startProof). */
+  radius: number | null;
+}
+
 export interface StartProofConfig {
   /** What happens to a submission from a player with no accepted starting shot.
    *  'flag'   — take the submission, stamp submissions.flaggedReason for admin review (default;
@@ -61,7 +79,17 @@ export interface StartProofConfig {
   /** Accept a plugin capture outright when the server recomputes its keyword to a match. */
   autoAcceptPlugin: boolean;
   /** Host-supplied location pool to draw the start spot from. Empty = the built-in START_LOCATIONS. */
-  locations: string[];
+  locations: StartLocation[];
+  /**
+   * How fresh the player's game session has to be when they take the shot, in minutes. 0 = off.
+   *
+   * The point isn't the screenshot: hiscores only flush on LOGOUT, so a player who has been logged
+   * in since before the event started has a stale start baseline and their first sweep reads as
+   * gains they made before the whistle. Making them log out and back in right before the shot
+   * flushes it. The plugin knows when this session began and refuses to file a stale one; the
+   * server records the reported age so staff can see it.
+   */
+  maxSessionMinutes: number;
 }
 
 // How much the player-profile engine steers team formation (balance-engine plan, Part C).
@@ -106,6 +134,12 @@ export interface EventRules {
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
   startProof: StartProofConfig | null;
+  /**
+   * May a team's own captain (and its staff seats) mint invite links for it? Off by default: on a
+   * normal clan event the host builds the teams, and a captain handing out seats would be filling a
+   * roster nobody approved. On a clan-v-clan it's the whole point — see lib/teamInvites.
+   */
+  captainInvites: boolean;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -122,37 +156,77 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   pickSeconds: 0,
   mission: null,
   startProof: null,
+  captainInvites: false,
 };
 
-/** A starting-shot policy with nothing configured — what "just turn it on" stores. */
+/**
+ * A starting-shot policy with nothing configured — what "just turn it on" stores. The session
+ * window ships ON at 15 minutes: turning the rule on and not getting the baseline flush is the
+ * strictly worse setting, and a host who wants it off says so. Events that stored a policy BEFORE
+ * this field existed parse to 0 (off) and keep behaving exactly as they did.
+ */
 export const DEFAULT_START_PROOF: StartProofConfig = {
   onMissing: 'flag',
   autoAcceptPlugin: true,
   locations: [],
+  maxSessionMinutes: 15,
 };
 
 /** Host location pools stay small — this is a list to draw one line from, not a dataset. */
 const MAX_START_LOCATIONS = 40;
 const MAX_START_LOCATION_LEN = 80;
+/** Sanity bounds on a pinned coordinate. Wide enough for every surface region, tight enough that a
+ *  fat-fingered number is caught rather than drawn as the spot nobody can stand on. */
+const MIN_START_COORD = 1000;
+const MAX_START_COORD = 5000;
+/** How close counts, in game squares. Generous: a bank is ~10 squares across and the point is the
+ *  town, not the tile. */
+export const MIN_START_RADIUS = 3;
+export const MAX_START_RADIUS = 200;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
 const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
 
-/** Trim + de-dupe a host location pool down to the stored shape. Bad entries drop, never throw. */
-function cleanLocations(raw: unknown): string[] {
+/** One coordinate, or null when it's missing/out of the world. Never throws on garbage. */
+function cleanCoord(raw: unknown): number | null {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
+  const n = Math.round(raw);
+  return n >= MIN_START_COORD && n <= MAX_START_COORD ? n : null;
+}
+
+/**
+ * Trim + de-dupe a host location pool down to the stored shape. Bad entries drop, never throw.
+ *
+ * A bare string is still accepted — that's the shape every pool stored before the map picker
+ * existed, and it stays the shape a host gets by typing a place we have no pin for.
+ */
+function cleanLocations(raw: unknown): StartLocation[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: StartLocation[] = [];
   for (const entry of raw) {
-    if (typeof entry !== 'string') continue;
-    const trimmed = entry.trim().slice(0, MAX_START_LOCATION_LEN);
-    if (!trimmed) continue;
-    const key = trimmed.toLowerCase();
+    const obj = typeof entry === 'string'
+      ? { label: entry }
+      : (entry && typeof entry === 'object' && !Array.isArray(entry) ? entry as Record<string, unknown> : null);
+    if (!obj) continue;
+    const label = typeof obj.label === 'string' ? obj.label.trim().slice(0, MAX_START_LOCATION_LEN) : '';
+    if (!label) continue;
+    const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(trimmed);
+    const x = cleanCoord(obj.x);
+    const y = cleanCoord(obj.y);
+    out.push({
+      label,
+      // Half a pin is no pin: a spot is only checkable with both coordinates.
+      x: x != null && y != null ? x : null,
+      y: x != null && y != null ? y : null,
+      radius: x != null && y != null && obj.radius != null
+        ? clampInt(obj.radius, MIN_START_RADIUS, MAX_START_RADIUS, 20)
+        : null,
+    });
     if (out.length >= MAX_START_LOCATIONS) break;
   }
   return out;
@@ -198,7 +272,10 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     };
   }
   let startProof: EventRules['startProof'] = null;
-  const sp = obj.startProof as { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown } | null | undefined;
+  const sp = obj.startProof as
+    | { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown }
+    | null
+    | undefined;
   if (sp && typeof sp === 'object' && !Array.isArray(sp)) {
     startProof = {
       onMissing: START_PROOF_MISSING.includes(sp.onMissing as StartProofMissing)
@@ -207,6 +284,9 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       // Only an explicit false turns auto-accept off — an older/partial object keeps the default.
       autoAcceptPlugin: sp.autoAcceptPlugin !== false,
       locations: cleanLocations(sp.locations),
+      // Absent = 0 = off, so a policy stored before this field existed doesn't grow a new demand
+      // on its players mid-event. `DEFAULT_START_PROOF` is what a fresh turn-on gets.
+      maxSessionMinutes: clampInt(sp.maxSessionMinutes, 0, 720, 0),
     };
   }
   return {
@@ -228,6 +308,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     pickSeconds: obj.pickSeconds === 0 ? 0 : clampInt(obj.pickSeconds, 30, 3600, 0),
     mission,
     startProof,
+    captainInvites: obj.captainInvites === true,
   };
 }
 
@@ -300,8 +381,13 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.mission.intervalMinutes must be an integer between 5 and 10080' };
     }
   }
+  if (o.captainInvites !== undefined && typeof o.captainInvites !== 'boolean') {
+    return { error: 'rules.captainInvites must be a boolean' };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
-    const s = o.startProof as { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown };
+    const s = o.startProof as {
+      onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown;
+    };
     if (typeof s !== 'object' || Array.isArray(s)) {
       return { error: 'rules.startProof must be an object or null' };
     }
@@ -312,7 +398,26 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.startProof.autoAcceptPlugin must be a boolean' };
     }
     if (s.locations !== undefined && !Array.isArray(s.locations)) {
-      return { error: 'rules.startProof.locations must be an array of strings' };
+      return { error: 'rules.startProof.locations must be an array of places' };
+    }
+    // A pin that lands outside the world would be silently dropped by the parser and the host would
+    // never learn why their spot stopped being checked — so say it here instead.
+    if (Array.isArray(s.locations)) {
+      for (const entry of s.locations) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+        const e = entry as { x?: unknown; y?: unknown };
+        for (const key of ['x', 'y'] as const) {
+          const v = e[key];
+          if (v == null) continue;
+          if (typeof v !== 'number' || !Number.isFinite(v) || v < MIN_START_COORD || v > MAX_START_COORD) {
+            return { error: `rules.startProof.locations[].${key} must be a game coordinate between ${MIN_START_COORD} and ${MAX_START_COORD}` };
+          }
+        }
+      }
+    }
+    const ms = s.maxSessionMinutes;
+    if (ms !== undefined && (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > 720)) {
+      return { error: 'rules.startProof.maxSessionMinutes must be an integer between 0 (off) and 720' };
     }
   }
   // Canonicalise through the parser so what we store is exactly what reads produce.
@@ -326,7 +431,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.balanceSpreadCapPct === 10 &&
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
-    canonical.startProof === null;
+    canonical.startProof === null &&
+    !canonical.captainInvites;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 

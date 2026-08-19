@@ -5,7 +5,7 @@ import { events, eventParticipants, teams, eventStartProofs } from '@/db/schema'
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { parseEventRules } from '@/lib/eventRules';
-import { startKeyword, drawStartLocation } from '@/lib/startProof';
+import { startKeyword, drawStartLocation, drawnSpot } from '@/lib/startProof';
 
 // The starting-shot review panel's payload: every enrolled player, with their shot if they've filed
 // one. Driven off the ROSTER rather than the proofs table, because the interesting question at the
@@ -64,10 +64,19 @@ export async function POST(
     );
   }
 
-  const location = drawStartLocation(cfg.locations);
+  const spot = drawStartLocation(cfg.locations);
   const drawnAt = new Date().toISOString();
-  await db.update(events).set({ startProofLocation: location, startProofDrawnAt: drawnAt }).where(eq(events.id, id));
-  return NextResponse.json({ ok: true, location, drawnAt });
+  await db
+    .update(events)
+    .set({
+      startProofLocation: spot.label,
+      startProofX: spot.x,
+      startProofY: spot.y,
+      startProofRadius: spot.radius,
+      startProofDrawnAt: drawnAt,
+    })
+    .where(eq(events.id, id));
+  return NextResponse.json({ ok: true, location: spot.label, drawnAt });
 }
 
 export async function GET(
@@ -122,6 +131,11 @@ export async function GET(
             keyword: proof.keyword,
             keywordOk: proof.keywordOk,
             capturedAt: proof.capturedAt,
+            // The two automatic checks, as they scored at file time (null = couldn't tell).
+            distance: proof.distance,
+            positionOk: proof.positionOk,
+            sessionMinutes: proof.sessionMinutes,
+            sessionOk: proof.sessionOk,
             status: proof.status,
             reviewNote: proof.reviewNote,
             createdAt: proof.createdAt,
@@ -142,6 +156,9 @@ export async function GET(
     required: cfg != null,
     onMissing: cfg?.onMissing ?? null,
     location: event.startProofDrawnAt ? event.startProofLocation : null,
+    // The drawn spot, so the panel can say whether position is actually being checked this event.
+    spot: event.startProofDrawnAt ? drawnSpot(event) : null,
+    maxSessionMinutes: cfg?.maxSessionMinutes ?? 0,
     drawnAt: event.startProofDrawnAt,
     counts,
     rows,

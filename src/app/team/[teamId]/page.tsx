@@ -103,9 +103,15 @@ export default async function MyTeamPage({
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
     getTierBands(clan.id),
   ]);
-  // Reveal-policy events (lib/eventRules): the team hub is a player surface — only revealed
-  // tiles ever reach the client, even for staff viewing their own team.
-  const eventTiles = visibleTiles(parseEventRules(event.rules), allEventTiles);
+  // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
+  // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
+  // page is built, not hidden in the client. Clan staff (admin / treasurer / moderator) still see
+  // their own board here, the same exception every other surface makes.
+  const isClanStaff = user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator';
+  const boardHidden = !event.tilesRevealed && !isClanStaff;
+  // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
+  // staff viewing their own team.
+  const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
   // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
   // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
   const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
@@ -132,7 +138,9 @@ export default async function MyTeamPage({
         <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; {backLabel}
         </Link>
-        {membership.isCaptain && !eventStarted && (
+        {/* The war room has ONE way in. When the draft hasn't started the banner below says why to
+            go there, so a second identical button above it was noise; once it has, this is it. */}
+        {membership.isCaptain && !eventStarted && event.draftStatus !== 'none' && (
           <Link
             href={`/team/${tId}/applicants`}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
@@ -159,6 +167,7 @@ export default async function MyTeamPage({
       )}
       {membership.canManage && (
         <div className="mb-6">
+          {/* Roster, proof, fees and invite links in one shut card — see TeamManageClient. */}
           <TeamManageClient teamId={tId} />
         </div>
       )}
@@ -169,6 +178,7 @@ export default async function MyTeamPage({
         completions={teamCompletions}
         players={eventPlayers}
         isCaptain={membership.isCaptain}
+        boardHidden={boardHidden}
         myPlayerId={membership.playerId}
         myPlayerName={myPlayer?.name ?? null}
         tierBands={tierBands}

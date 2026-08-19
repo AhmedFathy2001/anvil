@@ -171,6 +171,7 @@ the button simply never appears:
 
 ```json
 { "required": true, "drawn": true, "location": "Edgeville bank",
+  "spot": { "x": 3094, "y": 3491, "radius": 25 }, "maxSessionMinutes": 15,
   "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null }
 ```
 
@@ -179,21 +180,71 @@ until the event starts — so it cannot be precomputed, by anyone. `location`/`k
 before the draw. Both are stable for the event's lifetime, so the block never churns the config
 ETag.
 
+`spot` is the drawn location as game coordinates, when the host pinned it on the map, and
+`null` when they only named a place (older sites omit the field entirely). `radius` is how many
+squares from it still counts, measured Chebyshev-style — `max(|dx|, |dy|)`.
+
+`maxSessionMinutes` is how long the game session may have been running when the shot is taken,
+`0` when the host isn't asking. The point is the LOGOUT before it: hiscores only flush on
+logout, so a player who has been logged in since before the event has a stale start baseline.
+A plugin that supports this should refuse to file a session older than the window and say so —
+"log out and back in, then take the shot" — rather than filing something staff must chase.
+
 Filing one: upload the PNG through `POST /api/upload` as usual, then
 `POST /api/events/:eventId/start-proof` with plugin-token auth and
-`{ imageUrl, keyword, capturedAt }`. The server recomputes the keyword; a plugin capture that
-matches is accepted outright (the host can turn that off), anything else lands `pending` for
-staff review. `409` means the event hasn't drawn yet or the player's shot is already accepted.
+`{ imageUrl, keyword, capturedAt, x, y, loginAt }`, where `x`/`y` are the account's world
+position at capture and `loginAt` is when this session began (both optional; omit what you
+can't answer). The server recomputes the keyword, measures the distance and ages the session,
+and answers `{ status, keywordOk, positionOk, distance, sessionMinutes, sessionOk }` — each
+check `null` when it couldn't run. A plugin capture that passes every check it could run is
+accepted outright (the host can turn that off); anything else lands `pending` for staff review,
+including a shot filed from the wrong side of the world. `409` means the event hasn't drawn yet
+or the player's shot is already accepted.
 
 The gate is on submissions, not on the plugin: a credit from a player with no shot on file is
 either flagged for review or refused with `409 { code: "start_proof_required" }`, per the
 host's setting. A plugin that sees that code should KEEP the pending submission on disk and
 retry after the player files their shot, rather than dropping the drop.
 
+### `progress`
+
+Account progress the hiscores never publish: quest points, combat-achievement points and tier,
+achievement diaries per tier. `POST /api/plugin/progress`:
+
+```json
+{ "progress": [
+  { "key": "questPoints", "value": 302 },
+  { "key": "caPoints", "value": 1465 },
+  { "key": "caTier", "value": 4 },
+  { "key": "diaryElite", "value": 7 }
+] }
+```
+
+Member-level auth (`Bearer <accountToken>` + `X-RSN`) — this is account state, not event scoring, so
+no live event is required and nothing here moves a standing.
+
+Send only the keys whose value **changed** since the last successful push: the server writes only
+what moved, so the steady state is no request at all. Values are **max-merged**, because none of
+these can go down in a live game — a lower number means a client that read a varbit before the game
+populated it, which is what every login looks like for a few ticks. Unknown keys are dropped
+individually rather than failing the request, so a newer plugin can add one before the server knows
+it. The accepted keys are `questPoints`, `questsCompleted`, `caPoints`, `caTier` (0 = none … 6 =
+Grandmaster), `caTiers` (a bitmask, bit 0 Easy … bit 5 Grandmaster, so a profile can light every
+cleared tier rather than only the highest), the four counts `diaryEasy` / `diaryMedium` /
+`diaryHard` / `diaryElite`, and one mask per region — `diaryArdougne`, `diaryDesert`,
+`diaryFalador`, `diaryFremennik`, `diaryKandarin`, `diaryKaramja`, `diaryKourend`,
+`diaryLumbridge`, `diaryMorytania`, `diaryVarrock`, `diaryWestern`, `diaryWilderness` — whose value
+is `1` easy | `2` medium | `4` hard | `8` elite. Send both the counts and the masks: the counts are
+what an older server understands, the masks are what a profile grid draws.
+
+Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
+varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
+regions are counted at those three tiers and twelve at elite. The site says so where it shows them.
+
 ### `moments`
 
-The highlight feed: pets, uniques, big hauls and deaths that happen while a competition week or a
-bingo is running. `POST /api/plugin/moments`:
+The highlight feed: pets, uniques, big hauls, deaths and combat tasks that happen while a
+competition week or a bingo is running. `POST /api/plugin/moments`:
 
 ```json
 { "moments": [
@@ -201,7 +252,8 @@ bingo is running. `POST /api/plugin/moments`:
     "kc": 210, "at": "2026-08-17T10:00:00Z", "key": "pet-1755420000000" },
   { "kind": "drop", "itemId": 12922, "itemName": "Tanzanite fang", "quantity": 1,
     "valueGp": 3100000, "source": "Zulrah", "sourceKind": "npc", "kc": 1204, "at": "...", "key": "..." },
-  { "kind": "death", "source": "Great Olm", "at": "...", "key": "death-1755420100000" }
+  { "kind": "death", "source": "Great Olm", "at": "...", "key": "death-1755420100000" },
+  { "kind": "ca", "taskName": "Perfect Zulrah", "tier": "Master", "at": "...", "key": "ca|perfect zulrah|..." }
 ] }
 ```
 
@@ -215,6 +267,16 @@ everything plausible and the server (`src/lib/moments.ts`) keeps what belongs to
   absent by design, they match through their log page);
 - a **bingo** keeps every pet and death, plus any haul the board recognises (a source or item one of
   its tiles names — including when nothing was credited) or that clears `moments_min_loot_gp`.
+
+A `ca` observation carries only the task name and the tier the completion line claimed. Which boss
+it belongs to comes from the server's own CA dataset (`src/data/combatAchievements.json`, the same
+one the CA tile picker uses), which is what lets a task land on the week racing that boss without
+the plugin knowing a week exists. `tier` is a fallback, read only for a task the dataset doesn't
+carry yet. Two floors apply, both server-side so a clan can be retuned without a release: **Hard+**
+for a task about the boss being raced or a source the board names, **Master+** for anything else
+during a bingo. Only FIRST completions should be sent — the in-game "Repeat completion" setting
+re-fires the same chat line for tasks cleared years ago, and the plugin tells them apart by whether
+the CA points varbit actually rose.
 
 `key` is the client's idempotency key and is **required**: one pet fires three chat lines, one kill
 fires two loot events, and a retry after a timeout arrives again on purpose. The server scopes the

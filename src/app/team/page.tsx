@@ -54,6 +54,9 @@ export default async function MyTeamsHubPage() {
     rules: string | null;
     startProofLocation: string | null;
     startProofDrawnAt: string | null;
+    startProofX: number | null;
+    startProofY: number | null;
+    startProofRadius: number | null;
     eventId: number;
     eventName: string;
     endDate: string | null;
@@ -85,6 +88,9 @@ export default async function MyTeamsHubPage() {
         rules: events.rules,
         startProofLocation: events.startProofLocation,
         startProofDrawnAt: events.startProofDrawnAt,
+        startProofX: events.startProofX,
+        startProofY: events.startProofY,
+        startProofRadius: events.startProofRadius,
         teamId: teams.id,
         teamName: teams.name,
         teamColor: teams.color,
@@ -187,6 +193,8 @@ export default async function MyTeamsHubPage() {
     playerId: number;
     rsn: string;
     location: string;
+    spot: { x: number; y: number; radius: number } | null;
+    maxSessionMinutes: number;
     keyword: string;
     status: 'pending' | 'rejected' | null;
     reviewNote: string | null;
@@ -204,7 +212,14 @@ export default async function MyTeamsHubPage() {
       if (proof?.status === 'accepted') continue; // settled — nothing to nag about
       const state = startProofState({
         cfg,
-        event: { id: r.eventId, startProofLocation: r.startProofLocation, startProofDrawnAt: r.startProofDrawnAt },
+        event: {
+          id: r.eventId,
+          startProofLocation: r.startProofLocation,
+          startProofDrawnAt: r.startProofDrawnAt,
+          startProofX: r.startProofX,
+          startProofY: r.startProofY,
+          startProofRadius: r.startProofRadius,
+        },
         playerId: r.playerId,
         proof,
       });
@@ -216,6 +231,8 @@ export default async function MyTeamsHubPage() {
         playerId: r.playerId,
         rsn: r.playerName,
         location: state.location,
+        spot: state.spot,
+        maxSessionMinutes: state.maxSessionMinutes,
         keyword: state.keyword,
         status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
         reviewNote: proof?.reviewNote ?? null,
@@ -243,6 +260,8 @@ export default async function MyTeamsHubPage() {
                 playerId={c.playerId}
                 rsn={c.rsn}
                 location={c.location}
+                spot={c.spot}
+                maxSessionMinutes={c.maxSessionMinutes}
                 keyword={c.keyword}
                 status={c.status}
                 reviewNote={c.reviewNote}

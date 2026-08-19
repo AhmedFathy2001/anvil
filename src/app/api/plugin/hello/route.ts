@@ -6,6 +6,7 @@ import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/ros
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { weeklyMetricLabel } from '@/lib/constants';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
 // live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route —
@@ -29,7 +30,12 @@ async function activeNow(clan: { id: number }) {
         ),
       ),
   ]);
-  return { activeWeekly, activeBingos };
+  // The greeting names the metric, so it ships the label with the key — "Phosani's Nightmare",
+  // not the hiscores spelling of it.
+  return {
+    activeWeekly: activeWeekly.map((w) => ({ ...w, metricLabel: weeklyMetricLabel(w.type, w.metric) })),
+    activeBingos,
+  };
 }
 
 // POST — plugin says "this RSN just logged in". If unknown, auto-register as guest.

@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
-import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
+import { weeklyMetricLabel } from '@/lib/constants';
 import { computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
 import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot } from '@/lib/statTracking';
@@ -180,12 +180,6 @@ export interface LockerData {
 }
 
 const WEEKLY_KIND: Record<string, LockerLiveWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', efficiency: 'EOTW' };
-
-function weeklyMetricLabel(type: string, metric: string): string {
-  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
-  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label ?? metric;
-}
 
 /** Monday-based week key, so a streak counts weeks the way a person does. */
 function weekKey(iso: string): string {

@@ -880,10 +880,12 @@ interface EventStartNotifyParams {
   totalPoints?: number | null;
   /** Starting shot required (lib/startProof): where everyone has to be for their proof screenshot. */
   startProofLocation?: string | null;
+  /** Minutes the session may have been running when the shot is taken. 0/null = not asked for. */
+  startProofSessionMinutes?: number | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation } = params;
+  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes } = params;
   // Wording follows who is competing, not the format name — a board that ranks people can't be
   // wished luck "to all teams", and its entries are tasks.
   const axes = eventAxes({ format, scoringMode: 'points', endDate });
@@ -916,10 +918,15 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
   // Starting shot: the location is drawn at this exact moment, so this post is the first place
   // anyone can learn it. Each player's keyword is personal and lives on the site, never here.
   if (startProofLocation) {
+    // The relog isn't ceremony: hiscores only flush on logout, so a session that predates the start
+    // leaves everyone's baseline stale. Say WHY, or people will read it as busywork and skip it.
+    const relog = startProofSessionMinutes && startProofSessionMinutes > 0
+      ? `\n**Log out and back in first** (within ${startProofSessionMinutes} min of your shot) — that's what flushes your hiscores so your starting totals are right.`
+      : '';
     fields.push(
       field(
         '📸 Starting shot required',
-        `Go to **${startProofLocation}** and take your shot before you play.\n` +
+        `Go to **${startProofLocation}** and take your shot before you play.${relog}\n` +
           'Plugin users: press **Take starting shot** in the Anvil panel. ' +
           'Everyone else: grab your keyword on the site and type it in-game.',
       ),

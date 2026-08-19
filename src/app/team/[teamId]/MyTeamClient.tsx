@@ -29,6 +29,12 @@ interface Props {
   myPlayerId: number | null;
   myPlayerName: string | null;
   tierBands?: TierBand[];
+  /**
+   * The host hasn't unveiled the board yet. The team hub is a PLAYER surface — a captain is a
+   * player with extra buttons, not staff — so the tiles never even reach this component; this only
+   * says why the board is missing.
+   */
+  boardHidden?: boolean;
 }
 
 export default function MyTeamClient({
@@ -41,6 +47,7 @@ export default function MyTeamClient({
   myPlayerId,
   myPlayerName,
   tierBands = DEFAULT_TIER_BANDS,
+  boardHidden = false,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -413,23 +420,34 @@ export default function MyTeamClient({
       </p>
 
       {eventCountdown && (
-        <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
-          <p className="text-xs text-text-muted mb-1">Event starts in</p>
-          <p className="text-lg font-bold text-gold">{eventCountdown}</p>
-          {event.startDate && <p className="text-xs text-text-muted mt-1"><LocalTime date={event.startDate} /></p>}
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gradient-to-b from-gold/15 to-transparent p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-text-muted">Event starts in</p>
+            <p className="text-2xl font-extrabold text-gold tabular-nums leading-tight">{eventCountdown}</p>
+            {event.startDate && (
+              <p className="text-xs text-text-muted"><LocalTime date={event.startDate} /></p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide text-text-muted">On the board</p>
+            <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: team.color }}>
+              {total.toLocaleString()} {pointsMode ? 'pts' : 'tiles'}
+            </p>
+            <p className="text-xs text-text-muted">{players.filter((p) => p.teamId === team.id).length} on the team</p>
+          </div>
         </div>
       )}
 
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
-      {isCaptain && (
+      {isCaptain && eventStarted && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
-            disabled={refreshing || !!countdown || !eventStarted}
+            disabled={refreshing || !!countdown}
             className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh Team Stats'}
+            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : 'Refresh Team Stats'}
           </button>
           {lastFetch && <span className="text-xs text-text-muted">Last updated: <LocalTime date={lastFetch} /></span>}
         </div>
@@ -524,6 +542,16 @@ export default function MyTeamClient({
             screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
         <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
           <div className="min-w-0">
+            {boardHidden ? (
+              <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
+                <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
+                <p className="text-sm">
+                  The host will unveil the board before the event begins. Everything else about your
+                  team is here in the meantime.
+                </p>
+              </div>
+            ) : (
+              <>
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -539,6 +567,8 @@ export default function MyTeamClient({
               pointsMode={pointsMode}
               matchedTileIds={matchedTileIds}
             />
+              </>
+            )}
           </div>
           {selectedMember && (
             <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">

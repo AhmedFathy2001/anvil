@@ -39,6 +39,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Every suite, not a sample of two. The list grew for months while CI ran only these first
+      # two, so a broken rule in any of the others reached beta with a green tick. Explicit rather
+      # than a glob, because they don't share one runner — some need tsx, one needs a scratch DB.
       - name: Unit tests
         run: npm test
 

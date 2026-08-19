@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { events, tiles, weeklyCompetitions } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
-import { BOSSES, FUN_DEATH_MESSAGES } from '@/lib/constants';
+import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
 
@@ -30,6 +30,8 @@ export interface ScheduleWeekly {
   title: string;
   type: string;
   metric: string;
+  /** The metric as a person writes it ("Phosani's Nightmare") — see weeklyMetricLabel. */
+  metricLabel: string;
   status: string;
   startDate: string;
   endDate: string;
@@ -86,6 +88,7 @@ export async function buildSchedule(): Promise<PluginSchedule> {
       title: w.title,
       type: w.type,
       metric: w.metric,
+      metricLabel: weeklyMetricLabel(w.type, w.metric),
       status: w.status,
       startDate: w.startDate,
       endDate: w.endDate,
@@ -108,6 +111,7 @@ export interface ActiveWeekly {
   title: string;
   type: string;
   metric: string;
+  metricLabel: string;
   startDate: string;
   endDate: string;
 }
@@ -124,6 +128,7 @@ export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
     title: active.title,
     type: active.type,
     metric: active.metric,
+    metricLabel: weeklyMetricLabel(active.type, active.metric),
     startDate: active.startDate,
     endDate: active.endDate,
   };

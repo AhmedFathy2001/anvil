@@ -327,6 +327,12 @@ export const events = pgTable('events', {
   // NULL/NULL on every event that doesn't require a starting shot.
   startProofLocation: text('start_proof_location'),
   startProofDrawnAt: text('start_proof_drawn_at'),
+  // The drawn spot as game coordinates, frozen at the draw so a later edit to the location pool
+  // can't move the goalposts under shots already filed. NULL when the drawn entry was label-only
+  // (a place nobody pinned on the map) — then position simply isn't checked.
+  startProofX: integer('start_proof_x'),
+  startProofY: integer('start_proof_y'),
+  startProofRadius: integer('start_proof_radius'),
 });
 
 export const tiles = pgTable('tiles', {
@@ -596,6 +602,10 @@ export const eventParticipants = pgTable('event_participants', {
   // their awards are omitted from the recap.
   biggestHit: integer('biggest_hit').default(0),
   minutesPlayed: integer('minutes_played').default(0),
+  // Same contract again: combat tasks genuinely completed during the event ("Task Master"). Only
+  // first completions count — the plugin gates on the CA points varbit actually rising, so the
+  // in-game "Repeat completion" setting can't inflate it.
+  caTasks: integer('ca_tasks').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -1472,6 +1482,19 @@ export const eventStartProofs = pgTable('event_start_proofs', {
   keywordOk: boolean('keyword_ok').notNull().default(false),
   // Client-claimed capture time (the plugin's own UTC stamp). Advisory; createdAt is ours.
   capturedAt: text('captured_at'),
+  // Where the account stood when the frame was grabbed, as the plugin read it, and how far that is
+  // from the drawn spot. NULL on a web upload (a phone can't report a coordinate) and on a
+  // label-only draw. `positionOk` is the verdict at file time: 0/1, or NULL for "couldn't tell".
+  x: integer('x'),
+  y: integer('y'),
+  distance: integer('distance'),
+  positionOk: boolean('position_ok'),
+  // When this game session began, per the client, and how old it therefore was at capture. The
+  // point is the LOGOUT before it: hiscores only flush then, so a fresh session means the event's
+  // start baseline is honest. NULL when the client didn't report (web upload, older plugin).
+  loginAt: text('login_at'),
+  sessionMinutes: integer('session_minutes'),
+  sessionOk: boolean('session_ok'),
   // pending = on file, awaiting a look; accepted = counted; rejected = player must re-take.
   status: text('status').notNull().default('pending'),
   reviewNote: text('review_note'),
@@ -1481,6 +1504,38 @@ export const eventStartProofs = pgTable('event_start_proofs', {
 }, (table) => [
   uniqueIndex('event_start_proof_player_unique').on(table.eventId, table.playerId),
   index('event_start_proof_event_status_idx').on(table.eventId, table.status),
+]);
+
+/**
+ * A link that puts whoever opens it straight onto one team (lib/teamInvites).
+ *
+ * Clan-v-clan is the case this exists for: the visiting side fields its own roster, and collecting
+ * a dozen RSNs by hand — then dragging each onto the right team — is work the other clan's own
+ * moderator could do in a minute. The link decides ONE thing: which team the resulting sign-up
+ * belongs to, and that it needs no approval. It is not a login and not a way around verification —
+ * whoever opens it still signs in with Discord and still needs a verified RSN on the roster.
+ *
+ * Deleted with its team or event; `revokedAt` is the host turning one off without deleting the
+ * history of who came through it.
+ */
+export const teamInvites = pgTable('team_invites', {
+  id: serial('id').primaryKey(),
+  /** 16 chars of an unambiguous alphabet — see TOKEN_ALPHABET in lib/teamInvites. */
+  token: text('token').notNull(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  /** Denormalised from the team so a link can be refused for the wrong event without a join. */
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  /** How many people may come through it. NULL = no limit. */
+  maxUses: integer('max_uses'),
+  uses: integer('uses').default(0).notNull(),
+  expiresAt: text('expires_at'),
+  revokedAt: text('revoked_at'),
+  /** Who minted it — an admin, or a captain when the event lets them. */
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('team_invite_token_unique').on(table.token),
+  index('team_invite_team_idx').on(table.teamId),
 ]);
 
 /**
@@ -1605,6 +1660,30 @@ export const memberClogKc = pgTable('member_clog_kc', {
  * `teamSize` is part of the key because a solo Chambers PB and a five-man one are different records;
  * null means the activity doesn't have team sizes (or the client didn't say).
  */
+/**
+ * Account progress the hiscores don't publish: quest points, combat-achievement points and tier,
+ * diaries per tier. See lib/memberProgress for the key registry.
+ *
+ * One row per (member, key) rather than a wide row per member. A login pushes only the keys that
+ * actually moved — usually none — so an idle clan writes nothing, and a key added later is a
+ * registry entry instead of a migration. Values only ever rise; the ingest max-merges, which makes
+ * a re-push idempotent and stops a client that read a varbit before the game populated it from
+ * erasing somebody's account.
+ */
+export const memberProgress = pgTable('member_progress', {
+  id: serial('id').primaryKey(),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  /** A key from PROGRESS_KEYS — 'questPoints', 'caPoints', 'caTier', 'diaryElite', … */
+  key: text('key').notNull(),
+  value: integer('value').notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_member_key_unique').on(table.clanMemberId, table.key),
+  index('member_progress_key_idx').on(table.key),
+]);
+
 export const memberPersonalBests = pgTable('member_personal_bests', {
   id: serial('id').primaryKey(),
   clanMemberId: integer('clan_member_id')
@@ -1647,7 +1726,7 @@ export const moments = pgTable('moments', {
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
   rsn: text('rsn').notNull(),
-  /** 'pet' | 'unique' | 'death' | 'loot' — see MOMENT_KINDS in lib/moments.ts. */
+  /** 'pet' | 'unique' | 'death' | 'loot' | 'ca' — see MomentKind in lib/moments.ts. */
   kind: text('kind').notNull(),
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
@@ -1665,6 +1744,12 @@ export const moments = pgTable('moments', {
   kc: integer('kc'),
   /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
   rarityDenominator: integer('rarity_denominator'),
+  /**
+   * COMBAT TASKS only: which tier it was. Read from our own CA dataset by task name (the client's
+   * tier is a fallback for a task added to the game since it was built), and stored rather than
+   * re-derived so an old line still reads right after the dataset moves on. NULL on every other kind.
+   */
+  tier: text('tier'),
   /** When it happened in game (client clock, clamped server-side) vs when we stored it. */
   occurredAt: text('occurred_at').notNull(),
   noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),

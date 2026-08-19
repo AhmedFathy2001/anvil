@@ -188,6 +188,7 @@ export async function recordMoments(
         sourceKind: row.sourceKind,
         kc: row.kc,
         rarityDenominator: row.rarityDenominator,
+        tier: row.tier,
         occurredAt: row.occurredAt,
         dedupKey: row.dedupKey,
       })
@@ -209,6 +210,8 @@ export interface MomentRow {
   source: string | null;
   kc: number | null;
   rarityDenominator: number | null;
+  /** Combat tasks only — the feed line leads with it. */
+  tier: string | null;
   occurredAt: string;
 }
 
@@ -226,6 +229,7 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
@@ -248,12 +252,23 @@ export async function momentsForEvent(eventId: number, limit = 20): Promise<Mome
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
     .where(eq(moments.eventId, eventId))
     .orderBy(desc(moments.occurredAt))
     .limit(limit);
+}
+
+/**
+ * Every moment a board produced, for the end-of-event summary (lib/momentsAnalytics).
+ *
+ * Unlimited on purpose — a count of deaths that quietly stopped at twenty would be a lie — but
+ * capped high enough that a runaway feed can't hand the page a million rows.
+ */
+export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<MomentRow[]> {
+  return momentsForEvent(eventId, cap);
 }
 
 /**
@@ -276,6 +291,7 @@ export async function momentsForMembers(clanMemberIds: number[], limit = 20): Pr
       source: moments.source,
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
+      tier: moments.tier,
       occurredAt: moments.occurredAt,
     })
     .from(moments)

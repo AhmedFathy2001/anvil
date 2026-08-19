@@ -307,6 +307,13 @@ export default async function AdminGuidePage() {
             advance by anyone.
           </p>
           <p>
+            Pin the spots on the world map (the pool editor has one) and the plugin checks players are
+            actually standing there instead of just being told to. You can also require a{' '}
+            <span className="text-foreground">fresh session</span> — 15 minutes by default: hiscores
+            only save when a player logs out, so making everyone relog right before their shot is what
+            makes the starting totals behind every XP and KC tile honest.
+          </p>
+          <p>
             Plugin users press one button. Everyone else types their keyword in-game and uploads on My
             Team. You choose what happens to a credit from someone who hasn&rsquo;t filed: flag it for
             review (default) or refuse it until they do. The same Overview panel is the review list —

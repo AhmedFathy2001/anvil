@@ -1,10 +1,11 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
-import { clanRoster, eventSignups, events, signupFees } from '@/db/schema';
+import { clanRoster, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
+import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
@@ -13,10 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function EventSignupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ invite?: string }>;
 }) {
   const { eventId } = await params;
+  const { invite: inviteToken } = await searchParams;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);
@@ -29,6 +33,23 @@ export default async function EventSignupPage({
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
+
+  // Arrived through a team's invite link (lib/teamInvites). The token is re-checked when the form
+  // posts — this only decides whether to SAY where they're heading, so a stale link can't promise
+  // a seat it no longer has.
+  let invite: { token: string; teamName: string } | null = null;
+  if (isWellFormedToken(inviteToken)) {
+    const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
+    const window = signupWindowState({
+      signupOpensAt: event.signupOpensAt,
+      signupDeadline: event.signupDeadline,
+      startDate: event.startDate,
+    });
+    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
+      const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
+      if (team) invite = { token: row.token, teamName: team.name };
+    }
+  }
 
   const myAccounts = await db
     .select({
@@ -164,6 +185,7 @@ export default async function EventSignupPage({
             : null
         }
         fee={fee ?? null}
+        invite={invite}
         prefillClanMemberId={prefillClanMemberId}
         prefillProfile={prefillProfile}
         windowOpen={window.open}

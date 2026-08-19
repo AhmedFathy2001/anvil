@@ -11,6 +11,8 @@ import { isManagedMediaUrl } from '@/lib/storage';
 import { parseEventRules } from '@/lib/eventRules';
 import {
   autoAcceptDecision,
+  drawnSpot,
+  evaluateStartProof,
   keywordMatches,
   startKeyword,
   startProofState,
@@ -82,8 +84,9 @@ export async function POST(
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ error: 'Body must be JSON' }, { status: 400 });
   }
-  const { imageUrl, keyword, capturedAt, playerId: bodyPlayerId } = body as {
+  const { imageUrl, keyword, capturedAt, playerId: bodyPlayerId, x, y, loginAt } = body as {
     imageUrl?: unknown; keyword?: unknown; capturedAt?: unknown; playerId?: unknown;
+    x?: unknown; y?: unknown; loginAt?: unknown;
   };
 
   const resolved = await resolveCaller(request, eId, typeof bodyPlayerId === 'number' ? bodyPlayerId : null);
@@ -117,6 +120,13 @@ export async function POST(
   if (capturedAt != null && (typeof capturedAt !== 'string' || capturedAt.length > 40)) {
     return NextResponse.json({ error: 'capturedAt must be an ISO timestamp' }, { status: 400 });
   }
+  if (loginAt != null && (typeof loginAt !== 'string' || loginAt.length > 40)) {
+    return NextResponse.json({ error: 'loginAt must be an ISO timestamp' }, { status: 400 });
+  }
+  // Where the client says it stood. Junk is dropped rather than refused — a shot with an unreadable
+  // coordinate is still a shot, and it simply doesn't get the position check.
+  const claimX = typeof x === 'number' && Number.isFinite(x) ? Math.round(x) : null;
+  const claimY = typeof y === 'number' && Number.isFinite(y) ? Math.round(y) : null;
 
   // An accepted shot is settled — re-uploading over it would let a player swap the evidence after
   // it passed review. Staff clear it from the admin panel if there's a genuine reason to re-take.
@@ -132,7 +142,17 @@ export async function POST(
 
   const expected = startKeyword(eId, player.id, event.startProofDrawnAt);
   const keywordOk = keywordMatches(typeof keyword === 'string' ? keyword : null, expected);
-  const status = autoAcceptDecision(cfg, source, keywordOk);
+  // Scored against the moment the client says it took the frame, falling back to now — a shot that
+  // took a few seconds to upload shouldn't age its own session out of the window.
+  const capturedMs = typeof capturedAt === 'string' ? Date.parse(capturedAt) : NaN;
+  const checks = evaluateStartProof({
+    cfg,
+    spot: drawnSpot(event),
+    keywordOk,
+    claim: { x: claimX, y: claimY, loginAt: typeof loginAt === 'string' ? loginAt : null },
+    atMs: Number.isFinite(capturedMs) ? capturedMs : Date.now(),
+  });
+  const status = autoAcceptDecision(cfg, source, checks);
 
   const row = {
     eventId: eId,
@@ -144,6 +164,13 @@ export async function POST(
     keyword: typeof keyword === 'string' ? keyword.slice(0, 64) : null,
     keywordOk,
     capturedAt: typeof capturedAt === 'string' ? capturedAt : null,
+    x: claimX,
+    y: claimY,
+    distance: checks.distance,
+    positionOk: checks.positionOk,
+    loginAt: typeof loginAt === 'string' ? loginAt : null,
+    sessionMinutes: checks.sessionMinutes,
+    sessionOk: checks.sessionOk,
     status,
     // A re-upload clears the previous verdict — the note and reviewer belonged to the old image.
     reviewNote: null,
@@ -157,7 +184,17 @@ export async function POST(
     await db.insert(eventStartProofs).values(row);
   }
 
-  return NextResponse.json({ ok: true, status, keywordOk });
+  // The client is told what we made of it, so the plugin can say "filed, but you were 300 squares
+  // out — staff will look at it" instead of a bare success.
+  return NextResponse.json({
+    ok: true,
+    status,
+    keywordOk,
+    positionOk: checks.positionOk,
+    distance: checks.distance,
+    sessionMinutes: checks.sessionMinutes,
+    sessionOk: checks.sessionOk,
+  });
 }
 
 /**

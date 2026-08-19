@@ -69,6 +69,10 @@ export const PLUGIN_CAPABILITIES = [
   // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
   // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
   'start-proof',
+  // Account progress: POST /api/plugin/progress stores quest points, combat-achievement points and
+  // tier, and diary counts per member (lib/memberProgress). Gated so a plugin doesn't push into a
+  // 404 on a site that predates the table.
+  'progress',
   // Highlight feed: POST /api/plugin/moments takes pets/drops/deaths as the client saw them and the
   // server decides which competition week or board they belong to (lib/moments). Gated because a
   // plugin that pushed these at a site without the endpoint would just collect 404s.
