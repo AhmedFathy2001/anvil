@@ -3,7 +3,7 @@ import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
-import { ClanWeek, EventGrid, Hero, LiveNow, WeeklyRail, YouStrip } from '@/components/home/HomeSections';
+import { ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +29,7 @@ export default async function HomePage() {
       <Hero view={view} />
       <YouStrip you={view.you} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
-      <WeeklyRail weeklies={view.weeklies} />
-      <EventGrid events={view.events} />
+      <Competitions view={view} />
       <ClanWeek view={view} />
 
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
