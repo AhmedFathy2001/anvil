@@ -142,3 +142,42 @@ test('a clan role confers no platform capability', async () => {
   // Boss runs a clan. That is all it makes them.
   assert.equal(await platformRoleOf(boss), 'none');
 });
+
+
+// ── The escape hatch ──────────────────────────────────────────────────────────────────────────
+// Authority is read from clan_staff and nowhere else, so a deployment whose bootstrap admin never
+// got a row would be unadministrable — including by the person who would have to fix it. The
+// ADMIN_DISCORD_ID login grants that row, and the FIRST grant in a clan is its owner.
+
+test('the first bootstrap grant in a clan is its owner, the next is an admin', async () => {
+  const { db, schema: s } = await loadDb();
+  const { seedClanAdminForTest } = await import('../src/lib/discord-login.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'fresh', name: 'Fresh Clan' }).returning();
+  const people = await db
+    .insert(s.users)
+    .values([
+      { displayName: 'First', discordId: '10' },
+      { displayName: 'Second', discordId: '11' },
+    ])
+    .returning();
+
+  await seedClanAdminForTest(clan.id, people[0].id);
+  assert.equal((await clanGrant(clan.id, people[0].id))?.role, 'owner', 'a clan gets exactly one');
+
+  await seedClanAdminForTest(clan.id, people[1].id);
+  assert.equal((await clanGrant(clan.id, people[1].id))?.role, 'admin', 'and never a second');
+});
+
+test('the bootstrap grant never demotes someone who already holds more', async () => {
+  const { db, schema: s } = await loadDb();
+  const { seedClanAdminForTest } = await import('../src/lib/discord-login.ts');
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'held', name: 'Held Clan' }).returning();
+  const [person] = await db.insert(s.users).values({ displayName: 'Held', discordId: '12' }).returning();
+  await db.insert(s.clanStaff).values({ clanId: clan.id, userId: person.id, role: 'owner' });
+
+  // Signing in again must not take the owner's seat away from them.
+  await seedClanAdminForTest(clan.id, person.id);
+  assert.equal((await clanGrant(clan.id, person.id))?.role, 'owner');
+});

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanRoster, players, users } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { accounts, clanAuditLog, clanRoster, clanStaff, players, users } from '@/db/schema';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
-import { originForHost, sessionCookieDomain } from '@/lib/clanContext';
+import { originForHost, resolveClanByHost, sessionCookieDomain } from '@/lib/clanContext';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
@@ -42,6 +42,34 @@ export function loginFailPage(message: string, status = 400): NextResponse {
  * on the site, exactly as a self-hosted instance does. Throws only on an unexpected DB failure (the
  * caller renders loginFailPage); a banned user gets a cookieless redirect, never a session.
  */
+/**
+ * The bootstrap grant: ADMIN_DISCORD_ID becomes staff of the clan they sign in to.
+ *
+ * This is the escape hatch that stops a deployment being unadministrable, so it has to write a
+ * clan_staff row — authority is read from there now, and a role on the user is read by nothing.
+ *
+ * The first such grant in a clan is its OWNER, which is how a clan acquires the undemotable seat
+ * that the transfer flow later moves. After that the grant is admin: the check is "does this clan
+ * have an owner", not "is this person special", so it can never mint a second one or take the seat
+ * back from whoever holds it.
+ */
+export async function seedClanAdmin(clanId: number, userId: number): Promise<void> {
+  const owner = await db.query.clanStaff.findFirst({
+    where: and(eq(clanStaff.clanId, clanId), eq(clanStaff.role, 'owner')),
+    columns: { id: true },
+  });
+  const role = owner ? 'admin' : 'owner';
+  await db
+    .insert(clanStaff)
+    .values({ clanId, userId, role, canEditTiles: true })
+    .onConflictDoUpdate({
+      target: [clanStaff.clanId, clanStaff.userId],
+      // Never demote an existing grant: someone already made admin here stays admin, and an owner
+      // stays owner.
+      set: { role: sql`CASE WHEN ${clanStaff.role} IN ('owner', 'admin') THEN ${clanStaff.role} ELSE ${role} END` },
+    });
+}
+
 export async function completeDiscordLogin(
   discordUser: DiscordUser,
   opts: { returnTo: string; returnHost?: string; request: Request; clearCookies?: string[] },
@@ -50,25 +78,22 @@ export async function completeDiscordLogin(
   const nowIso = new Date().toISOString();
   const displayName = discordUser.globalName || discordUser.username;
 
+  // Which clan they are signing in TO. Login runs on the apex — one Discord app means one
+  // registered callback — and hands back to the clan they came from, so that host is the clan whose
+  // staff they may become.
+  const loginClan = returnHost ? await resolveClanByHost(returnHost) : null;
+
   // Find existing user by Discord ID
   let user = await db.query.users.findFirst({ where: eq(users.discordId, discordUser.id) });
   const isNewUser = !user;
 
-  // Bootstrap path: if ADMIN_DISCORD_ID matches, this user is promoted to admin so we never end up
+  // Bootstrap path: if ADMIN_DISCORD_ID matches, this user is granted admin so we never end up
   // locked out of staff functions.
   const seedAdminDiscordId = process.env.ADMIN_DISCORD_ID?.trim();
   let role: 'admin' | 'moderator' | 'member' = 'member';
   if (seedAdminDiscordId && seedAdminDiscordId === discordUser.id) {
     role = 'admin';
   }
-
-  // Genesis ownership: on a brand-new instance, the very first ADMIN_DISCORD_ID login becomes the
-  // protected owner (users.isOwner). Gated on "no owner exists yet" purely to avoid ever minting a
-  // second owner — NOT a reclaim path. Only fires while inserting a brand-new user.
-  const grantOwner =
-    !user &&
-    role === 'admin' &&
-    (await db.query.users.findFirst({ where: eq(users.isOwner, true) })) == null;
 
   if (!user) {
     // The PERSON first. A login is how someone signs in, not who they are — accounts hang off the
@@ -89,7 +114,6 @@ export async function completeDiscordLogin(
         discordAvatar: discordUser.avatar,
         email: discordUser.email,
         role,
-        isOwner: grantOwner,
         lastLoginAt: nowIso,
       })
       .returning();
@@ -97,6 +121,7 @@ export async function completeDiscordLogin(
 
     db.insert(clanAuditLog)
       .values({
+        clanId: loginClan?.id ?? null,
         eventType: 'user_signed_up',
         actorUserId: user.id,
         newValue: JSON.stringify({
@@ -127,6 +152,13 @@ export async function completeDiscordLogin(
   }
 
   if (!user) throw new Error('Could not load or create user.');
+
+  // The bootstrap grant, on every sign-in rather than only the first. This is the escape hatch that
+  // keeps a deployment administrable, so it has to survive a grant being removed by hand, and a clan
+  // being created after the account already existed.
+  if (role === 'admin' && loginClan) {
+    await seedClanAdmin(loginClan.id, user.id);
+  }
 
   // Auto-claim unlinked clan_members whose RSN matches the Discord display name. See the original
   // trust-model notes: OAuth proves the Discord identity, the admin's pending-role pre-assignment
@@ -252,3 +284,11 @@ export async function completeDiscordLogin(
   }
   return res;
 }
+
+/**
+ * seedClanAdmin, exported for the authority tests.
+ *
+ * An unadministrable deployment is the worst thing this file can produce, and it is invisible until
+ * someone tries to sign in and cannot reach anything — so the rule gets a test rather than a hope.
+ */
+export const seedClanAdminForTest = seedClanAdmin;
