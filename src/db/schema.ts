@@ -902,6 +902,10 @@ export const clanRoster = pgView('clan_roster', {
 // and the Discord audit pings.
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
+  // The clan whose log this entry belongs in. Nullable only so the column could be added to existing
+  // rows; every writer sets it. Not derivable from clanMemberId, because the entries that matter
+  // most here — a role granted, an owner transferred — concern the clan rather than any one seat.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
   clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
   eventType: text('event_type').notNull(),
   // Snapshots of relevant fields before/after the event, JSON-encoded. Examples:
@@ -914,6 +918,7 @@ export const clanAuditLog = pgTable('clan_audit_log', {
   notes: text('notes'),
   occurredAt: text('occurred_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
+  index('clan_audit_log_clan_idx').on(table.clanId, table.occurredAt),
   index('clan_audit_log_member_id_idx').on(table.clanMemberId),
   index('clan_audit_log_occurred_at_idx').on(table.occurredAt),
   index('clan_audit_log_event_type_idx').on(table.eventType),

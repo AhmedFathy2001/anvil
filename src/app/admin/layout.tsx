@@ -1,4 +1,6 @@
 import { headers } from 'next/headers';
+import { redirectFor } from '@/lib/adminAccess';
+import { atLeast, isStaffRole } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
@@ -14,15 +16,25 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 // two-column layout with a contextual sidebar.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
-  // Staff roles that get the admin shell — must mirror src/middleware.ts (admin, treasurer,
-  // moderator, editor). Treasurer was missing here, so a treasurer rendered admin pages with no
-  // sidebar (middleware let them in, but the shell dropped them to plain children).
-  const staffRoles = ['admin', 'treasurer', 'moderator', 'editor'];
-  if (!session || !staffRoles.includes(session.role)) {
-    // No session (or wrong role) — render plain children. /admin itself is the
-    // login page, so this is the expected path for unauthed users.
-    return <>{children}</>;
-  }
+
+  // THE GATE. It used to be ninety lines of middleware deciding from the role baked into the session
+  // cookie; it runs here because only this layer can ask the database whose clan this host is and
+  // what this person holds in it. Middleware still refuses an unsigned or stale session at the edge,
+  // which is the most it can honestly judge.
+  //
+  // A REDIRECT, NOT plain children. Falling through to render the page was safe only while
+  // middleware blocked the request first — every admin page would otherwise render for anyone with
+  // a session, and most of them carry no guard of their own.
+  const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+  if (!session) redirect('/login?return=' + encodeURIComponent(pathname || '/admin'));
+
+  const access = { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope };
+  const target = redirectFor(pathname || '/admin/dashboard', access);
+  if (target && target !== pathname) redirect(target);
+
+  // Moderator-or-better, or the authoring capability: anything less was turned away above.
+  const isStaffHere = isStaffRole(session.role) || session.canEditTiles;
+  if (!isStaffHere) redirect('/');
 
   const userRow = session.userId > 0
     ? await db.query.users.findFirst({
@@ -38,19 +50,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .then((r) => r[0]?.c ?? 0);
 
-  const isAdmin = session.role === 'admin';
-  // Board-scoped editors (role 'editor' + scope 'assigned') aren't mod-tier — their whole world is
-  // the boards they're granted. Give them ONLY "All events" (filtered to their boards server-side);
-  // no dashboard/weekly/clan/schedule. Global editors + all other staff keep the full shell below.
-  const isScopedEditor = session.role === 'editor' && session.editorScope === 'assigned';
+  const isAdmin = atLeast(session.role, 'admin');
+  // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
+  // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
+  const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
   if (isScopedEditor) {
-    // Server-side backstop for the middleware gate: a board editor may only be on /admin/events*.
-    // This reads the LIVE editorScope (verifyUser → DB), so it holds even when the session token
-    // predates editorScope (middleware would otherwise wave a stale-token scoped editor through).
-    const pathname = (await headers()).get('x-anvil-pathname') ?? '';
-    if (pathname && !pathname.startsWith('/admin/events')) {
-      redirect('/admin/events');
-    }
     const scopedGroups: SidebarGroup[] = [
       {
         label: 'Events',
@@ -73,7 +77,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Who can open the event pages (/admin/events) — admins manage everything, editors open a
   // board's Tiles tab. Mirrors the middleware gate; mods/treasurers are blocked there, so we don't
   // show them an "All events" item that would just bounce back to the dashboard.
-  const canManageEvents = isAdmin || session.role === 'editor';
+  const canManageEvents = isAdmin || session.canEditTiles;
 
   const groups: SidebarGroup[] = [];
 

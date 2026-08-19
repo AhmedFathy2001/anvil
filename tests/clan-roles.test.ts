@@ -22,7 +22,7 @@ import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/
 const DB = useTestDatabase('clan-roles');
 
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
-let roles: typeof import('../src/lib/clanRoles.ts');
+let roles: typeof import('../src/lib/clanRoles.ts') & typeof import('../src/lib/clanGrants.ts');
 let clanA: number;
 let clanB: number;
 let adminOfA: number;
@@ -32,7 +32,8 @@ before(async () => {
   await resetDatabase(DB);
   const { db, pool: p, schema: s } = await loadDb();
   pool = p;
-  roles = await import('../src/lib/clanRoles.ts');
+  // The comparators and the lookups live in two files now — one pure, one with a database.
+  roles = { ...(await import('../src/lib/clanRoles.ts')), ...(await import('../src/lib/clanGrants.ts')) };
 
   const [a] = await db.insert(s.clans).values({ slug: 'a', name: 'Clan A' }).returning({ id: s.clans.id });
   const [b] = await db.insert(s.clans).values({ slug: 'b', name: 'Clan B' }).returning({ id: s.clans.id });

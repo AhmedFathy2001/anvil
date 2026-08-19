@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { eventEditors, users } from '@/db/schema';
+import { clanGrant } from '@/lib/clanGrants';
+import { clanStaff, eventEditors, events, users } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 
 // Board-scoped tile-editing grants (event_editors). A grant lets someone author one event's tiles
@@ -43,12 +44,23 @@ export async function grantEventEditor(
   grantedByUserId: number | null,
 ): Promise<void> {
   await db.insert(eventEditors).values({ eventId, userId, grantedByUserId }).onConflictDoNothing();
-  const u = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { role: true },
-  });
-  if (u && u.role === 'member') {
-    await db.update(users).set({ role: 'editor', editorScope: 'assigned' }).where(eq(users.id, userId));
+
+  // The capability is provisioned IN THE BOARD'S CLAN. A board belongs to exactly one clan, so
+  // granting someone one board there must not make them an authoring member of any other.
+  const [event] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId));
+  if (!event) return;
+
+  const existing = await clanGrant(event.clanId, userId);
+  if (!existing) {
+    await db
+      .insert(clanStaff)
+      .values({ clanId: event.clanId, userId, role: 'member', canEditTiles: true, editorScope: 'assigned' })
+      .onConflictDoNothing();
+  } else if (!existing.canEditTiles) {
+    await db
+      .update(clanStaff)
+      .set({ canEditTiles: true, editorScope: 'assigned' })
+      .where(and(eq(clanStaff.clanId, event.clanId), eq(clanStaff.userId, userId)));
   }
 }
 
@@ -59,17 +71,22 @@ export async function revokeEventEditor(eventId: number, userId: number): Promis
   await db
     .delete(eventEditors)
     .where(and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, userId)));
-  const u = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { role: true, editorScope: true },
-  });
-  if (u && u.role === 'editor' && u.editorScope === 'assigned') {
+  const [event] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId));
+  if (!event) return;
+
+  // Reverse the auto-provision only for a scoped grant with nothing left to reach. A clan-wide
+  // authoring capability, or any real tier, was somebody's deliberate decision and is not ours to
+  // undo because one board grant went away.
+  const existing = await clanGrant(event.clanId, userId);
+  if (existing && existing.role === 'member' && existing.editorScope === 'assigned') {
     const remaining = await db.query.eventEditors.findFirst({
       where: eq(eventEditors.userId, userId),
       columns: { id: true },
     });
     if (!remaining) {
-      await db.update(users).set({ role: 'member', editorScope: 'all' }).where(eq(users.id, userId));
+      await db
+        .delete(clanStaff)
+        .where(and(eq(clanStaff.clanId, event.clanId), eq(clanStaff.userId, userId)));
     }
   }
 }

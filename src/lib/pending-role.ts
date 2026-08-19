@@ -1,13 +1,11 @@
 import { db } from '@/db';
-import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
+import { atLeast, rankOf } from '@/lib/clanRoles';
+import { clanGrant } from '@/lib/clanGrants';
+import { clanAuditLog, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 
-// Rank for the "never downgrade on apply" guard. Editor and treasurer are both moderator-tier +
-// one capability, so they share rank 2 (a pending sibling won't replace the other — use the Users
-// page for a direct swap). member < moderator < {editor, treasurer} < admin.
-const ROLE_RANK: Record<string, number> = { member: 0, moderator: 1, editor: 2, treasurer: 2, admin: 3 };
-const PENDING_ROLES = new Set(['admin', 'moderator', 'editor', 'treasurer']);
+const PENDING_ROLES = new Set(['admin', 'moderator', 'treasurer']);
 
 /**
  * Applies a pre-assigned `pending_role` from a clan_member onto its linked user.
@@ -39,22 +37,37 @@ export async function applyPendingRole(
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!user) return false;
 
-  const currentRank = ROLE_RANK[user.role] ?? 0;
-  const pendingRank = ROLE_RANK[pending] ?? 0;
-  if (pendingRank <= currentRank) {
+  // The role lands in THIS clan — the one whose roster the pending role was set on. A pre-assigned
+  // role is a clan's decision about its own staff; granting it globally would make an invitation
+  // from one clan into authority over every other.
+  const existing = await clanGrant(member.clanId, userId);
+  if (!atLeast(pending, 'moderator') || rankOf(pending) <= rankOf(existing?.role)) {
     // Already at or above the pending role — clear and exit.
     await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
     return false;
   }
 
-  await db.update(users).set({ role: pending }).where(eq(users.id, userId));
+  await db
+    .insert(clanStaff)
+    .values({
+      clanId: member.clanId,
+      userId,
+      role: pending,
+      canEditTiles: existing?.canEditTiles ?? false,
+      editorScope: existing?.editorScope ?? 'all',
+    })
+    .onConflictDoUpdate({
+      target: [clanStaff.clanId, clanStaff.userId],
+      set: { role: pending },
+    });
   await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
 
   db.insert(clanAuditLog)
     .values({
       clanMemberId,
       eventType: source === 'plugin' ? 'role_auto_promoted' : 'role_promoted_on_approval',
-      oldValue: JSON.stringify({ userId, role: user.role }),
+      clanId: member.clanId,
+      oldValue: JSON.stringify({ userId, role: existing?.role ?? 'member' }),
       newValue: JSON.stringify({ userId, role: pending }),
       actorUserId: userId,
       notes: source === 'plugin'

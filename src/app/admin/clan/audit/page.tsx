@@ -1,6 +1,7 @@
 import { db } from '@/db';
+import { requireClan } from '@/lib/clanContext';
 import { clanAuditLog, clanRoster, users } from '@/db/schema';
-import { desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import AuditLogClient, { type AuditEntry, type LeftMember, type JoinedMember } from './AuditLogClient';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 const AUDIT_LIMIT = 200;
 
 export default async function ClanAuditPage() {
+  const clan = await requireClan();
   const rows = await db
     .select({
       id: clanAuditLog.id,
@@ -24,6 +26,7 @@ export default async function ClanAuditPage() {
     .from(clanAuditLog)
     .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
     .leftJoin(users, eq(clanAuditLog.actorUserId, users.id))
+    .where(eq(clanAuditLog.clanId, clan.id))
     .orderBy(desc(clanAuditLog.occurredAt))
     .limit(AUDIT_LIMIT);
 
@@ -32,14 +35,14 @@ export default async function ClanAuditPage() {
   const recentLeft = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, leftAt: clanRoster.leftAt, rank: clanRoster.rank })
     .from(clanRoster)
-    .where(ne(clanRoster.leftAt, ''))
+    .where(and(eq(clanRoster.clanId, clan.id), ne(clanRoster.leftAt, '')))
     .orderBy(desc(clanRoster.leftAt))
     .limit(50);
 
   const recentActive = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, joinedAt: clanRoster.joinedAt, rank: clanRoster.rank })
     .from(clanRoster)
-    .where(isNull(clanRoster.leftAt))
+    .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
     .orderBy(desc(clanRoster.joinedAt))
     .limit(100);
 

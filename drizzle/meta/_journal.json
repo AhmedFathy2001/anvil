@@ -64,6 +64,13 @@
       "when": 1787063035225,
       "tag": "0008_roster_is_a_view",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787063036225,
+      "tag": "0009_audit_log_clan",
+      "breakpoints": true
     }
   ]
 }

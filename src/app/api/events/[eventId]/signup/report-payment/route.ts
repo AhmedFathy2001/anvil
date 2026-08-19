@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { eventSignups, signupFees, users } from '@/db/schema';
+import { clanStaff, eventSignups, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
@@ -23,7 +23,8 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  const event = await eventForRequest(request, id);
+  if (!event) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isFinite(id)) {
@@ -35,10 +36,11 @@ export async function GET(
       id: users.id,
       displayName: users.displayName,
       discordUsername: users.discordUsername,
-      role: users.role,
+      role: clanStaff.role,
     })
     .from(users)
-    .where(inArray(users.role, ['admin', 'treasurer']));
+    .innerJoin(clanStaff, eq(clanStaff.userId, users.id))
+    .where(and(eq(clanStaff.clanId, event.clanId), inArray(clanStaff.role, ['admin', 'owner', 'treasurer'])));
 
   const signup = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),

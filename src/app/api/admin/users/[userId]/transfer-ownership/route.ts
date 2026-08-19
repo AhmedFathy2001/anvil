@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { clanGrant } from '@/lib/clanGrants';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanAuditLog, users } from '@/db/schema';
+import { clanAuditLog, clanStaff, users } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 
 // Transfer the protected owner flag to another admin. Only the current owner may call this — it is
@@ -17,12 +19,17 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // The caller must be the current owner. We check the flag in the DB, not the session token, so a
-  // stale token can't be used to seize ownership.
-  const caller = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
-  if (!caller?.isOwner) {
+  // Ownership is OF A CLAN, so the clan comes from the host and the caller must own that one.
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Read live from the grant rather than the session, so a stale token cannot seize ownership.
+  const callerGrant = await clanGrant(clan.id, session.userId);
+  if (!callerGrant?.isOwner) {
     return NextResponse.json({ error: 'Only the current owner can transfer ownership' }, { status: 403 });
   }
+  const caller = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { userId } = await params;
   const targetId = parseInt(userId, 10);
@@ -37,7 +44,8 @@ export async function POST(
   if (!target) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
-  if (target.role !== 'admin') {
+  const targetGrant = await clanGrant(clan.id, targetId);
+  if (targetGrant?.role !== 'admin') {
     return NextResponse.json({ error: 'Ownership can only be transferred to an admin' }, { status: 400 });
   }
 
@@ -47,15 +55,19 @@ export async function POST(
       // row — that means they were demoted out from under us, and rolling back keeps the current
       // owner in place rather than leaving the instance with zero owners.
       const crowned = await tx
-        .update(users)
-        .set({ isOwner: true })
-        .where(and(eq(users.id, targetId), eq(users.role, 'admin')))
-        .returning({ id: users.id });
+        .update(clanStaff)
+        .set({ role: 'owner' })
+        .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, targetId), eq(clanStaff.role, 'admin')))
+        .returning({ id: clanStaff.id });
       if (crowned.length !== 1) {
         throw new Error('target-not-admin');
       }
-      // Then demote the outgoing owner to a plain admin, in the same transaction.
-      await tx.update(users).set({ isOwner: false }).where(eq(users.id, caller.id));
+      // Then demote the outgoing owner to a plain admin, in the same transaction — so the clan is
+      // never left with two owners or none.
+      await tx
+        .update(clanStaff)
+        .set({ role: 'admin' })
+        .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, caller.id)));
     });
   } catch {
     return NextResponse.json({ error: 'Ownership can only be transferred to an admin' }, { status: 400 });
@@ -63,6 +75,7 @@ export async function POST(
 
   db.insert(clanAuditLog)
     .values({
+      clanId: clan.id,
       eventType: 'ownership_transferred',
       actorUserId: caller.id,
       oldValue: JSON.stringify({ userId: caller.id }),

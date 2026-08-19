@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { loginOf } from '@/lib/roster';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
@@ -125,8 +126,11 @@ export async function POST(request: Request) {
           .catch(() => {});
         // Already-verified, non-provisional members get it immediately — same rule as the single-row
         // route. applyPendingRole never downgrades, so an existing admin is left alone.
-        if (role && m.playerId && !m.provisional) {
-          if (await applyPendingRole(m.id, m.playerId, 'manual_approval')) appliedNow++;
+        // applyPendingRole promotes a LOGIN; a seat names a person. Resolve one to the other
+        // rather than passing a number from the wrong sequence.
+        const owner = m.claimedAt ? await loginOf(m.playerId) : null;
+        if (role && owner != null && !m.provisional) {
+          if (await applyPendingRole(m.id, owner, 'manual_approval')) appliedNow++;
         }
         applied++;
         break;

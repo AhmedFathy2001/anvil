@@ -1,4 +1,7 @@
 import { cookies } from 'next/headers';
+import { atLeast } from '@/lib/clanRoles';
+import { clanGrant } from '@/lib/clanGrants';
+import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
@@ -93,8 +96,12 @@ export interface UserPayload {
   // board-scoped editor (edits only granted events). Always present so callers don't branch on
   // undefined; non-editor roles carry 'all' but never consult it. See users.editorScope.
   editorScope: string;
-  // Tile authoring, independent of role — see users.canEditTiles. Admins always have it.
+  // Tile authoring, independent of role. A capability, not a tier.
   canEditTiles: boolean;
+  // Owner OF THIS CLAN. Undemotable here, and meaningless anywhere else.
+  isOwner: boolean;
+  // The other axis entirely: capability over the PLATFORM, which no clan role can confer.
+  platformRole: string;
 }
 
 export async function verifyUser(): Promise<UserPayload | null> {
@@ -111,7 +118,7 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, playerId: true, displayName: true, role: true, banned: true, editorScope: true, canEditTiles: true },
+      columns: { id: true, playerId: true, displayName: true, banned: true, platformRole: true },
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
@@ -119,14 +126,28 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // Self-heal a login that predates persons. Cheap, because it only runs while player_id is null,
     // and the alternative is a session whose identity is a number in the wrong id space.
     const playerId = dbUser.playerId ?? (await personOfOrCreate(dbUser.id));
+
+    // AUTHORITY IS PER CLAN, and the clan is whichever one this request's host names.
+    //
+    // users.role is global. Left as the answer it made every admin an admin of every clan on the
+    // deployment, which is the single worst thing a shared app can get wrong. The grant is read
+    // live from clan_staff, so a demotion takes effect on the next request rather than whenever the
+    // 30-day cookie happens to be replaced.
+    //
+    // No clan (the apex, or a host that names none) means no clan authority: the apex has no roster
+    // to administer, and platform capability is a separate axis that lives on users.platformRole.
+    const clan = await currentClan();
+    const grant = clan ? await clanGrant(clan.id, dbUser.id) : null;
+
     return {
       userId: dbUser.id,
       playerId,
       username: typeof data.username === 'string' ? data.username : 'user',
-      role: dbUser.role,
-      editorScope: dbUser.editorScope ?? 'all',
-      // Admins can always author; for everyone else it's the explicit grant.
-      canEditTiles: dbUser.role === 'admin' || dbUser.canEditTiles === true,
+      role: grant?.role ?? 'member',
+      editorScope: grant?.editorScope ?? 'all',
+      canEditTiles: grant?.canEditTiles === true,
+      isOwner: grant?.isOwner === true,
+      platformRole: dbUser.platformRole ?? 'none',
     };
   } catch {
     return null;
@@ -135,21 +156,18 @@ export async function verifyUser(): Promise<UserPayload | null> {
 
 export async function verifyAdmin(): Promise<boolean> {
   const user = await verifyUser();
-  return user?.role === 'admin';
+  return atLeast(user?.role, 'admin');
 }
 
 export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  // A board-scoped editor (role 'editor' + scope 'assigned') is NOT mod-tier — they can only
-  // author tiles on their granted boards. Exclude them so they can't reach clan/verification/weekly
-  // moderator surfaces. A GLOBAL editor (scope 'all') keeps full moderator access.
-  if (user.role === 'editor' && user.editorScope === 'assigned') return null;
-  // Treasurers and (global) editors do everything moderators can; this gate accepts all mod-tier roles.
-  if (user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator' || user.role === 'editor') {
-    return user;
-  }
-  return null;
+  // Moderator-tier and up in THIS clan. Treasurer ties with moderator by rank — same tier, different
+  // extra capability — so one comparison covers both.
+  //
+  // Tile authoring is deliberately not enough. It is a capability, not a tier: someone granted one
+  // board must not reach the roster, verification or weekly moderation surfaces through it.
+  return atLeast(user.role, 'moderator') ? user : null;
 }
 
 // Per-event bingo-authoring gate. A caller may build/edit THIS event's tiles (Quick Build grid, CSV
@@ -162,10 +180,10 @@ export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
 export async function verifyTileEditorForEvent(eventId: number): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.canEditTiles) return user;
-  // Legacy: a global 'editor' role from before the capability column existed (migration 0049
-  // converts these, but a session minted just before it lands still says 'editor').
-  if (user.role === 'editor' && user.editorScope === 'all') return user;
+  // The capability, held in this clan.
+  if (user.canEditTiles && user.editorScope === 'all') return user;
+  // Or a grant on this specific board. The board belongs to one clan, so a grant on it is already
+  // clan-scoped — a stranger holding no grant here reaches nothing.
   const grant = await db.query.eventEditors.findFirst({
     where: and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, user.userId)),
     columns: { id: true },
@@ -180,7 +198,6 @@ export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
   if (user.canEditTiles) return user;
-  if (user.role === 'editor' && user.editorScope === 'all') return user; // legacy, see above
   const grant = await db.query.eventEditors.findFirst({
     where: eq(eventEditors.userId, user.userId),
     columns: { id: true },
@@ -193,7 +210,9 @@ export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
 export async function verifyFeeCollector(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin' || user.role === 'treasurer') return user;
+  // Treasurer or admin IN THIS CLAN. Moderators are mod-tier but deliberately excluded: collecting
+  // money is the treasurer's job, and rank alone does not confer it.
+  if (user.role === 'treasurer' || atLeast(user.role, 'admin')) return user;
   return null;
 }
 

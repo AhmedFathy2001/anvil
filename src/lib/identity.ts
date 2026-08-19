@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { users, clanRoster, eventSignups } from '@/db/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { accounts, clanMemberships, clanRoster, clanStaff, eventSignups, users } from '@/db/schema';
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
 export interface Character {
@@ -46,15 +46,21 @@ function toCharacter(row: {
   };
 }
 
-// Every site user with the characters they own. Sorted person-first for the admin surface.
-export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]> {
+/**
+ * The people with a presence in this clan, and the characters they own.
+ *
+ * Scoped twice over, and both matter. Every user on the deployment is not this clan's business —
+ * the admin surface would otherwise list every other clan's members by name and Discord handle. And
+ * the role shown is the one they hold HERE: a global role would advertise someone's standing
+ * elsewhere and, worse, invite an admin to act on it.
+ */
+export async function getPeopleWithCharacters(clanId: number): Promise<PersonWithCharacters[]> {
   const allUsers = await db
-    .select({
+    .selectDistinct({
       id: users.id,
       displayName: users.displayName,
-      role: users.role,
-      canEditTiles: users.canEditTiles,
-      isOwner: users.isOwner,
+      role: clanStaff.role,
+      canEditTiles: clanStaff.canEditTiles,
       banned: users.banned,
       createdAt: users.createdAt,
       discordId: users.discordId,
@@ -62,7 +68,16 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
       discordAvatar: users.discordAvatar,
       lastLoginAt: users.lastLoginAt,
     })
-    .from(users);
+    .from(users)
+    .leftJoin(clanStaff, and(eq(clanStaff.userId, users.id), eq(clanStaff.clanId, clanId)))
+    .leftJoin(accounts, eq(accounts.playerId, users.playerId))
+    .leftJoin(
+      clanMemberships,
+      and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId)),
+    )
+    // A presence here is either a staff grant or a seat on the roster. Someone with neither is a
+    // stranger to this clan and does not belong on its people list.
+    .where(or(isNotNull(clanStaff.id), isNotNull(clanMemberships.id)));
 
   const userIds = allUsers.map((u) => u.id);
   const chars = userIds.length
@@ -95,7 +110,11 @@ export async function getPeopleWithCharacters(): Promise<PersonWithCharacters[]>
 
   return allUsers.map((u) => ({
     ...u,
-    isOwner: !!u.isOwner,
+    // No grant here means no authority here — a plain member of this clan, whatever they hold
+    // anywhere else.
+    role: u.role ?? 'member',
+    canEditTiles: u.canEditTiles === true,
+    isOwner: u.role === 'owner',
     banned: !!u.banned,
     characters: byUser.get(u.id) ?? [],
   }));
@@ -133,10 +152,11 @@ export async function onCharacterLinked(clanMemberId: number, userId: number): P
 
 // Unowned game accounts (roster members + guests not yet attached to a person, still in the clan).
 // The pool an admin picks from when assigning a character — so common cases don't need retyping.
-export async function getUnlinkedCharacters(): Promise<{ id: number; rsn: string; isGuest: boolean }[]> {
+export async function getUnlinkedCharacters(clanId: number): Promise<{ id: number; rsn: string; isGuest: boolean }[]> {
   const rows = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, kind: clanRoster.kind })
     .from(clanRoster)
-    .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
+    // This clan's unclaimed seats. An admin assigns accounts on their own roster, not on anyone else's.
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
   return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.kind === 'guest' }));
 }

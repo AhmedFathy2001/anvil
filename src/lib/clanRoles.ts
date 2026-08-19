@@ -1,8 +1,8 @@
-import { and, eq } from 'drizzle-orm';
-import { db } from '@/db';
-import { clanStaff, users } from '@/db/schema';
-
 // Authority in a clan: what someone may do, and where.
+//
+// PURE. No database, no imports — so the comparators can be used by edge code and by tests that
+// should not need a connection to check that a moderator cannot promote themselves. The lookups
+// that read clan_staff live in lib/clanGrants.
 //
 // This is the one definition. Before the multi-clan conversion the staff-role list existed in four
 // places — lib/auth, middleware, the admin layout and the roster client — and the only ordering
@@ -38,42 +38,6 @@ export function atLeast(role: string | null | undefined, min: ClanRole): boolean
 /** Roles that see the admin area at all. */
 export function isStaffRole(role: string | null | undefined): boolean {
   return rankOf(role) >= RANK.moderator;
-}
-
-export interface ClanGrant {
-  clanId: number;
-  userId: number;
-  role: ClanRole;
-  canEditTiles: boolean;
-  editorScope: 'all' | 'assigned';
-  isOwner: boolean;
-}
-
-/**
- * What this person may do in this clan. Null when they hold no grant here — which is the common
- * case and is not an error: most people are members of one clan and strangers to every other.
- */
-export async function clanGrant(clanId: number, userId: number): Promise<ClanGrant | null> {
-  const row = await db.query.clanStaff.findFirst({
-    where: and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, userId)),
-  });
-  if (!row) return null;
-  const role = (row.role as ClanRole) ?? 'member';
-  return {
-    clanId,
-    userId,
-    role,
-    // An admin authors tiles implicitly; the flag is for granting it to lower tiers.
-    canEditTiles: row.canEditTiles || atLeast(role, 'admin'),
-    editorScope: (row.editorScope as 'all' | 'assigned') ?? 'all',
-    isOwner: role === 'owner',
-  };
-}
-
-/** True when the person holds at least `min` in this clan. */
-export async function hasClanRole(clanId: number, userId: number, min: ClanRole): Promise<boolean> {
-  const grant = await clanGrant(clanId, userId);
-  return grant != null && atLeast(grant.role, min);
 }
 
 // ── Escalation guards ────────────────────────────────────────────────────────────────────────
@@ -115,10 +79,4 @@ const PLATFORM_RANK: Record<PlatformRole, number> = { none: 0, support: 1, staff
 
 export function hasPlatformRole(role: string | null | undefined, min: PlatformRole): boolean {
   return (PLATFORM_RANK[(role ?? 'none') as PlatformRole] ?? 0) >= PLATFORM_RANK[min];
-}
-
-/** The caller's platform role, read live from the row rather than trusted from a session. */
-export async function platformRoleOf(userId: number): Promise<PlatformRole> {
-  const row = await db.query.users.findFirst({ where: eq(users.id, userId) });
-  return ((row?.platformRole as PlatformRole) ?? 'none');
 }

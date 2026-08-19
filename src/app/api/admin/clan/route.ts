@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
-import { accounts, clanMemberships, clanRoster, users } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
@@ -28,16 +28,30 @@ export async function GET(request: Request) {
   // Found by PERSON, and keyed by person. A seat names the person who owns its account, and
   // users.id is a different sequence — matching it against a person id finds the wrong login.
   const personIds = [...new Set(rows.map((r) => r.playerId).filter((v): v is number => v != null))];
-  // users.role rides along so the roster can filter by site role without a second round-trip.
   const userRows = personIds.length
     ? await db
-        .select({ playerId: users.playerId, banned: users.banned, discordId: users.discordId, role: users.role })
+        .select({ id: users.id, playerId: users.playerId, banned: users.banned, discordId: users.discordId })
         .from(users)
         .where(inArray(users.playerId, personIds))
     : [];
   const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.playerId));
   const userDiscordId = new Map(userRows.map((u) => [u.playerId, u.discordId]));
-  const userRole = new Map(userRows.map((u) => [u.playerId, u.role]));
+
+  // The role shown beside a member is their role IN THIS CLAN. Read from the grants rather than the
+  // person, so the roster of one clan never advertises someone's standing in another.
+  const grants = userRows.length
+    ? await db
+        .select({ userId: clanStaff.userId, role: clanStaff.role })
+        .from(clanStaff)
+        .where(
+          and(
+            eq(clanStaff.clanId, clan.id),
+            inArray(clanStaff.userId, userRows.map((u) => u.id)),
+          ),
+        )
+    : [];
+  const roleByUserId = new Map(grants.map((g) => [g.userId, g.role]));
+  const userRole = new Map(userRows.map((u) => [u.playerId, roleByUserId.get(u.id) ?? 'member']));
 
   // Effective Discord id per member: users.discordId beats the legacy clan_members.discordId column.
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
