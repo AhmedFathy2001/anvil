@@ -245,7 +245,10 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
 
   // ---- Events: what's live and what it came to --------------------------------------------------
   // Shared with the events index so the two pages can never disagree about who is leading.
-  const homeEvents = await loadEventCards({ pastLimit: 6 }, now);
+  // Upcoming boards included: a bingo scheduled for next month is the single thing members most
+  // want to see on the front page, and leaving the flag off meant an event was invisible here from
+  // the moment it was created until the day it started -- exactly the window it needs sign-ups in.
+  const homeEvents = await loadEventCards({ includeUpcoming: true, pastLimit: 6 }, now);
   // The same predicate the events index uses for "live", asked of SQLite instead of read out of
   // every event the clan has ever run: started, not force-ended, and not past its end date.
   // Several boards can be live at once, so this is a list, not a lookup.
