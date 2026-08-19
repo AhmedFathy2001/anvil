@@ -216,12 +216,15 @@ export default async function EventScoreboardPage({
     ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
     : [];
 
-  // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
-  // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
-  // always see it so they can finish configuring tiles ahead of the public launch.
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  // Hide the board when either (a) sign-ups haven't opened yet, or (b) the host hasn't revealed the
+  // tiles.
+  //
+  // No staff exception. This is the PUBLIC page — the one the admin rail links to as "Player view" —
+  // and a host who can't see what a member sees can't tell whether the curtain is actually drawn.
+  // Staff who want the real board have the admin panel's Tiles tab and its team boards, where
+  // looking is a deliberate act.
   const tilesHidden = !event.tilesRevealed;
-  const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
+  const hideBoardFromPlayer = window.reason === 'not_open_yet' || tilesHidden;
 
   // Reveal-policy events (lib/eventRules): members only receive the revealed subset — hidden
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
@@ -233,14 +236,11 @@ export default async function EventScoreboardPage({
   // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
   // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
   const eventMoments = await momentsForEvent(event.id, 12);
-  const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
+  const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
-  // Staff keep the full board, so tell the client WHICH of those tiles a member wouldn't see —
-  // otherwise an armed reveal board looks exactly like a fully-revealed one to the host. Not gated
-  // on the reveal policy: an un-announced MISSION is member-hidden on an otherwise classic board too.
-  const staffOnlyTileIds = isStaff
-    ? eventTiles.filter((t) => !isTileRevealed(rules, t)).map((t) => t.id)
-    : [];
+  // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
+  // can't they see" overlay lives on the admin team boards, which is where a host checks that.
+  const staffOnlyTileIds: number[] = [];
   const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
 
   // A SHOWDOWN advertises its schedule: every slot's time and value are public from the start, and
@@ -248,7 +248,7 @@ export default async function EventScoreboardPage({
   // exactly what the format is built to withhold), so they get placeholders carrying nothing but
   // when it lands and what it's worth. Staff already receive the real tiles.
   const hiddenSchedule =
-    rules.revealPolicy === 'scheduled' && !isStaff
+    rules.revealPolicy === 'scheduled'
       ? eventTiles
           .filter((t) => !isTileRevealed(rules, t))
           .map((t) => ({ revealAt: t.revealAt, points: t.points }))
@@ -321,7 +321,7 @@ export default async function EventScoreboardPage({
 
   if (ladderView) {
     // Members see only what's been revealed; staff see the whole pool so they can still configure it.
-    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isStaff || isTileRevealed(rules, t));
+    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isTileRevealed(rules, t));
     const expiries = rotationExpiries(
       rules,
       ladderTiles.filter((t) => t.revealedAt && !t.closedAt),
