@@ -31,6 +31,15 @@ interface ProofRow {
   createdAt: string;
 }
 
+/** Somebody asking to join this team on a team-choice event (rules.teamChoice). */
+interface RequestRow {
+  id: number;
+  rsn: string;
+  displayName: string | null;
+  signedUpAt: string;
+  profile: { notes?: string; timezone?: string };
+}
+
 interface FeeRow {
   id: number;
   amount: number;
@@ -59,19 +68,21 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
   const [eventStarted, setStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'roster' | 'proof' | 'fees' | 'invites'>('roster');
+  const [tab, setTab] = useState<'roster' | 'requests' | 'proof' | 'fees' | 'invites'>('roster');
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rosterRes, feesRes] = await Promise.all([
+      const [rosterRes, feesRes, requestsRes] = await Promise.all([
         fetch(`/api/team/${teamId}/roster`),
         fetch(`/api/team/${teamId}/fees`),
+        fetch(`/api/team/${teamId}/requests`),
       ]);
       if (rosterRes.ok) {
         const data = await rosterRes.json();
@@ -80,6 +91,8 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         setStarted(!!data.eventStarted);
       }
       if (feesRes.ok) setFees((await feesRes.json()).fees ?? []);
+      // Empty on a drafted event — nobody can request a team there, so the tab just never appears.
+      if (requestsRes.ok) setRequests((await requestsRes.json()).requests ?? []);
     } finally {
       setLoading(false);
     }
@@ -98,6 +111,29 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Could not remove them');
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const answerRequest = async (signupId: number, action: 'approve' | 'decline', name: string) => {
+    if (action === 'decline' && !confirm(`Turn down ${name}'s request? They stay in the event — they just aren't on this team.`)) {
+      return;
+    }
+    setBusy(signupId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/team/${teamId}/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signupId, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Could not answer that request');
         return;
       }
       await load();
@@ -132,6 +168,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   // What the card says about itself while shut — the numbers that decide whether to open it.
   const summary = [
     `${roster.length} on the roster`,
+    requests.length > 0 ? `${requests.length} waiting to join` : null,
     owed > 0 ? `${owed} fee${owed === 1 ? '' : 's'} owed` : null,
     proof.length > 0 ? `${proof.length} proof` : null,
   ]
@@ -164,6 +201,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
           {(
             [
               ['roster', `Roster · ${roster.length}`],
+              ...(requests.length > 0 ? ([['requests', `Requests · ${requests.length}`]] as const) : []),
               ['proof', `Proof · ${proof.length}`],
               ['fees', owed > 0 ? `Fees · ${owed} owed` : `Fees · ${fees.length}`],
               ['invites', 'Invite links'],
@@ -229,6 +267,51 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                   The event is live, so the roster is fixed here — subbing someone out changes what
                   their tiles scored, so it stays with the host.
                 </p>
+              )}
+            </div>
+          )}
+
+          {tab === 'requests' && (
+            <div className="grid gap-1.5">
+              {requests.length === 0 ? (
+                <p className="text-sm text-text-muted">Nobody is waiting to join.</p>
+              ) : (
+                requests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {r.rsn}
+                        {r.displayName && r.displayName !== r.rsn && (
+                          <span className="text-text-muted font-normal"> · {r.displayName}</span>
+                        )}
+                      </div>
+                      {r.profile.notes && (
+                        <div className="text-[11px] text-text-muted truncate">{r.profile.notes}</div>
+                      )}
+                    </div>
+                    <div className="ml-auto flex gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={busy === r.id}
+                        onClick={() => answerRequest(r.id, 'approve', r.rsn)}
+                        className="text-xs font-semibold px-2.5 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy === r.id}
+                        onClick={() => answerRequest(r.id, 'decline', r.rsn)}
+                        className="text-xs font-medium px-2.5 py-1 rounded border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Not this time
+                      </button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}

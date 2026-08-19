@@ -140,6 +140,15 @@ export interface EventRules {
    * roster nobody approved. On a clan-v-clan it's the whole point — see lib/teamInvites.
    */
   captainInvites: boolean;
+  /**
+   * Do players choose their own team when they sign up?
+   *
+   * The alternative to a draft AND to handing out invite links: the host builds the teams up front,
+   * sign-ups stay open to everyone, and each applicant names the team they're joining. It is a
+   * REQUEST — approving the sign-up is what seats them — so a team can't be filled by strangers
+   * picking it off a list. Off by default: a normal clan event drafts.
+   */
+  teamChoice: boolean;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -157,6 +166,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   mission: null,
   startProof: null,
   captainInvites: false,
+  teamChoice: false,
 };
 
 /**
@@ -309,6 +319,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     mission,
     startProof,
     captainInvites: obj.captainInvites === true,
+    teamChoice: obj.teamChoice === true,
   };
 }
 
@@ -384,6 +395,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.captainInvites !== undefined && typeof o.captainInvites !== 'boolean') {
     return { error: 'rules.captainInvites must be a boolean' };
   }
+  if (o.teamChoice !== undefined && typeof o.teamChoice !== 'boolean') {
+    return { error: 'rules.teamChoice must be a boolean' };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown;
@@ -432,7 +446,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
     canonical.startProof === null &&
-    !canonical.captainInvites;
+    !canonical.captainInvites &&
+    !canonical.teamChoice;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 

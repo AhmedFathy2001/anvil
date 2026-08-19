@@ -50,10 +50,26 @@ export async function GET(
     .from(teams)
     .where(eq(teams.eventId, id));
   const captainTeamByUser = new Map<number, { id: number; name: string; color: string }>();
+  const teamById = new Map<number, { id: number; name: string; color: string }>();
   for (const t of eventTeams) {
+    teamById.set(t.id, { id: t.id, name: t.name, color: t.color });
     if (t.captainUserId !== null) {
       captainTeamByUser.set(t.captainUserId, { id: t.id, name: t.name, color: t.color });
     }
+  }
+
+  // Where each sign-up ended up. The draft writes teams onto `players`, not onto the sign-up, so
+  // "show me everyone on the Red team" was a question the Sign-ups tab couldn't answer at all —
+  // you had to hold the roster in your head while reading a flat list of 40 names.
+  const eventPlayers = await db
+    .select({ clanMemberId: players.clanMemberId, teamId: players.teamId })
+    .from(players)
+    .where(eq(players.eventId, id));
+  const teamByMember = new Map<number, { id: number; name: string; color: string }>();
+  for (const p of eventPlayers) {
+    if (p.clanMemberId == null || p.teamId == null) continue;
+    const team = teamById.get(p.teamId);
+    if (team) teamByMember.set(p.clanMemberId, team);
   }
 
   const signups = rows.map((r) => ({
@@ -67,6 +83,11 @@ export async function GET(
     user: r.user && r.user.id != null ? r.user : null,
     account: r.account,
     captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,
+    // The team they actually play on — a captain's own team for a captain, the drafted team for
+    // everyone else, null while they're still in the pool.
+    team: teamByMember.get(r.signup.clanMemberId) ?? null,
+    // The team they ASKED for on a team-choice event, until someone answers the request.
+    requestedTeam: r.signup.requestedTeamId != null ? teamById.get(r.signup.requestedTeamId) ?? null : null,
     fee: r.fee
       ? {
           id: r.fee.id,

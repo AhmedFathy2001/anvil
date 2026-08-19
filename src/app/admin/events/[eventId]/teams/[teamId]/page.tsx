@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, players } from '@/db/schema';
+import { clanMembers, events, tiles, teams, completions, players } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -40,11 +40,26 @@ export default async function AdminTeamBoardPage({
     teamCompletions = allCompletions.filter((c) => tileIds.includes(c.tileId));
   }
 
+  // Is the captain actually ON this team? Naming one is supposed to enter them, but a captain named
+  // before that was true — or one whose seating failed at the time — sits outside their own roster
+  // with nothing to say so. The card offers to fix it when this comes back false.
+  let captainSeated = true;
+  if (team.captainUserId != null) {
+    const accounts = await db
+      .select({ id: clanMembers.id })
+      .from(clanMembers)
+      .where(eq(clanMembers.userId, team.captainUserId));
+    const accountIds = new Set(accounts.map((a) => a.id));
+    captainSeated = eventPlayers.some(
+      (p) => p.clanMemberId != null && accountIds.has(p.clanMemberId) && p.teamId === tId,
+    );
+  }
+
   const { captainPassword: _, ...safeTeam } = team;
 
   return (
     <>
-      <CaptainAssignment teamId={team.id} currentCaptainUserId={team.captainUserId} />
+      <CaptainAssignment teamId={team.id} currentCaptainUserId={team.captainUserId} captainSeated={captainSeated} />
       <TeamStaffPanel teamId={team.id} />
       <div className="mb-6">
         <TeamInvitePanel teamId={team.id} captainToggle={{ eventId: event.id, rules: event.rules ?? null }} />

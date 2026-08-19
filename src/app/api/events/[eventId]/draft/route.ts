@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { seatEventCaptains } from '@/lib/teamCaptain';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { parseEventRules } from '@/lib/eventRules';
 import { parseStamp } from '@/lib/dbTime';
@@ -221,6 +222,11 @@ export async function POST(
         ...cleaned,
         ...eventTeams.filter((t) => !placed.has(t.id)).map((t) => t.id),
       ];
+
+      // Last chance to take the captains out of the pool: seating them happens when they're named,
+      // but that can fail at the time (RSN not verified yet) and nothing retried it — so a captain
+      // could be sitting there for another team to draft. See lib/teamCaptain#seatEventCaptains.
+      await seatEventCaptains(id);
 
       const poolCount = await db
         .select()

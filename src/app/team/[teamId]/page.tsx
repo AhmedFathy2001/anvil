@@ -103,10 +103,14 @@ export default async function MyTeamPage({
   ]);
   // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
-  // page is built, not hidden in the client. Clan staff (admin / treasurer / moderator) still see
-  // their own board here, the same exception every other surface makes.
-  const isClanStaff = user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator';
-  const boardHidden = !event.tilesRevealed && !isClanStaff;
+  // page is built, not hidden in the client.
+  //
+  // No staff exception. Every other surface lets an admin see through the curtain, but here that
+  // put the board in front of a host who is ALSO playing on a team — which is the one place seeing
+  // it early actually matters. Staff who need to look at an unrevealed board have the Tiles tab in
+  // the admin panel, where looking is a deliberate act rather than a side effect of opening their
+  // own team page.
+  const boardHidden = !event.tilesRevealed;
   // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
   // staff viewing their own team.
   const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
@@ -147,28 +151,6 @@ export default async function MyTeamPage({
           </Link>
         )}
       </div>
-      {membership.isCaptain && !eventStarted && event.draftStatus === 'none' && (
-        <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>
-            <p className="text-sm text-text-muted">
-              Scout the pool, read their sign-up answers, and put your picks in the order you want them.
-            </p>
-          </div>
-          <Link
-            href={`/team/${tId}/applicants`}
-            className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
-          >
-            Open the war room &rarr;
-          </Link>
-        </div>
-      )}
-      {membership.canManage && (
-        <div className="mb-6">
-          {/* Roster, proof, fees and invite links in one shut card — see TeamManageClient. */}
-          <TeamManageClient teamId={tId} />
-        </div>
-      )}
       <MyTeamClient
         event={event}
         team={safeTeam}
@@ -177,6 +159,35 @@ export default async function MyTeamPage({
         players={eventPlayers}
         isCaptain={membership.isCaptain}
         boardHidden={boardHidden}
+        tools={
+          /* The captain's own blocks, handed to the client so they sit UNDER the team's name and
+             countdown instead of above them. Arriving at your own team page and reading two
+             control panels before the team's name was the wrong way round. */
+          <>
+            {membership.isCaptain && !eventStarted && event.draftStatus === 'none' && (
+              <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>
+                  <p className="text-sm text-text-muted">
+                    Scout the pool, read their sign-up answers, and put your picks in the order you want them.
+                  </p>
+                </div>
+                <Link
+                  href={`/team/${tId}/applicants`}
+                  className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+                >
+                  Open the war room &rarr;
+                </Link>
+              </div>
+            )}
+            {membership.canManage && (
+              <div className="mb-6">
+                {/* Roster, requests, proof, fees and invite links in one shut card. */}
+                <TeamManageClient teamId={tId} />
+              </div>
+            )}
+          </>
+        }
         myPlayerId={membership.playerId}
         myPlayerName={myPlayer?.name ?? null}
         tierBands={tierBands}

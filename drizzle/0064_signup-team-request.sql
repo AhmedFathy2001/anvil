@@ -1,0 +1,1 @@
+ALTER TABLE `event_signups` ADD `requested_team_id` integer REFERENCES teams(id);
