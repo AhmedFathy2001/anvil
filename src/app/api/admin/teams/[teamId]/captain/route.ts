@@ -46,10 +46,13 @@ export async function PUT(
 
   await db.update(teams).set({ captainUserId: newCaptainUserId }).where(eq(teams.id, id));
 
-  // Seat the newly-assigned captain on their own team (if they're an unassigned contestant), and
-  // say so when that couldn't happen — see lib/teamCaptain#captainSeatNotice.
+  // Seat the captain on their own team, and say so when that couldn't happen — see
+  // lib/teamCaptain#captainSeatNotice.
+  //
+  // Every save, not only a change of person: it's idempotent, and re-assigning the SAME captain is
+  // how the admin card repairs one who was named back when seating didn't happen (or failed).
   let captainNotice: string | null = null;
-  if (newCaptainUserId != null && newCaptainUserId !== team.captainUserId) {
+  if (newCaptainUserId != null) {
     captainNotice = captainSeatNotice(await placeCaptainOnTeam(team.eventId, id, newCaptainUserId));
   }
 

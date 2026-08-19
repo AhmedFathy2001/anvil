@@ -15,7 +15,7 @@ import { generatePlayerToken } from '@/lib/auth';
  * What it will NOT do:
  *  - move a captain who is already on a DIFFERENT team. That's a mid-draft roster the host built
  *    on purpose; yanking it from under them is worse than the inconsistency.
- *  - invent an account. A captain with no verified, in-clan RSN can't be a player here — that's a
+ *  - invent an account. A captain with no roster account at all can't be a player here — that's a
  *    non-playing captain, and it stays a valid case.
  *
  * Their sign-up is created (or promoted) as APPROVED with empty answers — the host naming them is
@@ -32,11 +32,10 @@ export type CaptainSeatResult =
       playerId: null;
       /**
        * no-account — the user has no roster account at all (nothing to play as).
-       * unverified — they have one, but no VERIFIED RSN, the same gate the sign-up form enforces.
        * other-team — already playing on a different team; the host put them there on purpose.
        * no-team    — the team id doesn't belong to this event.
        */
-      reason: 'no-account' | 'unverified' | 'other-team' | 'no-team';
+      reason: 'no-account' | 'other-team' | 'no-team';
     };
 
 export async function placeCaptainOnTeam(
@@ -81,10 +80,16 @@ export async function placeCaptainOnTeam(
   // On somebody else's team — the host put them there, so it isn't ours to undo.
   if (existing.length > 0) return { playerId: null, reason: 'other-team' };
 
-  // Not entered at all: enrol them. Only a verified account can play, same gate the sign-up form
-  // enforces — the captaincy vouches for the person, not for an unverified RSN.
-  const account = memberRows.find((m) => m.verifiedAt);
-  if (!account) return { playerId: null, reason: 'unverified' };
+  // Not entered at all: enrol them, on their verified account if they have one and on the account
+  // the host was looking at when they named them if they don't.
+  //
+  // This used to insist on a verified RSN, the same gate the sign-up form enforces — and that gate
+  // is about a STRANGER claiming an RSN. Here an admin has just pointed at a person and put them in
+  // charge of a team, which is a stronger vouch than a verification code. It also failed exactly
+  // where captains matter most: the visiting side of a clan-v-clan, whose players are guests on
+  // this roster and verify nothing, so their captain silently never joined their own team.
+  const account = memberRows.find((m) => m.verifiedAt) ?? memberRows[0];
+  if (!account) return { playerId: null, reason: 'no-account' };
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team || team.eventId !== eventId) return { playerId: null, reason: 'no-team' };
@@ -162,8 +167,6 @@ export function captainSeatNotice(result: CaptainSeatResult, name = 'That captai
       return null;
     case 'no-account':
       return `${name} has no account on the roster, so they aren't entered as a player. Add their RSN to the roster and set them as captain again.`;
-    case 'unverified':
-      return `${name} has no verified RSN yet, so they aren't entered as a player. They can enter once they verify an account.`;
     case 'other-team':
       return `${name} is already playing on another team, so they were left there. Move them off it first if they should play for this one.`;
   }

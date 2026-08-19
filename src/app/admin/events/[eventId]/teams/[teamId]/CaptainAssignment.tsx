@@ -17,9 +17,11 @@ interface UserRow {
 interface Props {
   teamId: number;
   currentCaptainUserId: number | null;
+  /** Does the captain have a player row on this team? False = named but not playing on it. */
+  captainSeated?: boolean;
 }
 
-export default function CaptainAssignment({ teamId, currentCaptainUserId }: Props) {
+export default function CaptainAssignment({ teamId, currentCaptainUserId, captainSeated = true }: Props) {
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState('');
@@ -94,6 +96,24 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
           {open ? 'Close' : current ? 'Change' : 'Assign'}
         </button>
       </div>
+
+      {/* Named but not on the roster. Assigning again re-runs the seating — which is all the repair
+          a captain from a visiting clan needed, since the old rule refused to enter anyone without
+          a verified RSN and quietly left them off their own team. */}
+      {current && !captainSeated && !notice && (
+        <div className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-yellow-300 min-w-0">
+            {current.displayName} captains this team but isn&apos;t playing on it — they aren&apos;t on the roster.
+          </p>
+          <button
+            onClick={() => assign(current.id)}
+            disabled={saving}
+            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/40 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Adding…' : 'Put them on the roster'}
+          </button>
+        </div>
+      )}
 
       {notice && (
         <p className="mt-3 text-xs text-amber-300 border border-amber-300/30 bg-amber-300/10 rounded-lg p-2">
