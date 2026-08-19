@@ -299,9 +299,14 @@ export default function CollectionLog({
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-[16rem_1fr]">
+      {/* Both panels are the SAME fixed height and scroll inside it. Letting them size to their
+          content meant the row tracked whichever was taller: Treasure Trails is six hundred items,
+          so picking it stretched the row and left the page list sitting in a gap, and picking a
+          six-item boss snapped everything back up. The page list must not move when you're reading
+          down it. */}
+      <div className="grid gap-4 md:grid-cols-[16rem_1fr] md:h-[32rem]">
         {/* Pages */}
-        <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
+        <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden flex flex-col min-h-0">
           <div className="p-2 border-b border-card-border">
             <input
               value={filter}
@@ -310,7 +315,7 @@ export default function CollectionLog({
               className="w-full px-2 py-1.5 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
             />
           </div>
-          <div className="max-h-[28rem] overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {grouped.map(({ group, pages: groupPages, done }) => (
               <div key={group}>
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-3 py-1 bg-brown-dark/95 border-y border-card-border text-[10px] uppercase tracking-widest text-text-muted">
@@ -351,7 +356,7 @@ export default function CollectionLog({
         </div>
 
         {/* Items on the chosen page */}
-        <div className="border border-card-border rounded-xl bg-card-bg p-4">
+        <div className="border border-card-border rounded-xl bg-card-bg p-4 flex flex-col min-h-0">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h3 className={`font-semibold text-sm ${page?.complete ? 'text-accent-green-light' : ''}`}>
               {page?.name}
@@ -404,7 +409,7 @@ export default function CollectionLog({
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 flex-1 min-h-0 overflow-y-auto content-start">
             {gridItems.map((item) => {
               const has = owned.has(item.id);
               const qty = quantities[item.id] ?? 0;
