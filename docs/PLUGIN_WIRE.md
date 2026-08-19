@@ -238,6 +238,22 @@ cleared tier rather than only the highest), the four counts `diaryEasy` / `diary
 is `1` easy | `2` medium | `4` hard | `8` elite. Send both the counts and the masks: the counts are
 what an older server understands, the masks are what a profile grid draws.
 
+A push may also carry item LISTS — the quests themselves, not just how many:
+
+```json
+{ "items": [ { "category": "quest", "items": [
+  { "id": 26, "name": "Dragon Slayer II", "state": 0 },
+  { "id": 12, "name": "Cook's Assistant", "state": 2 }
+] } ] }
+```
+
+`state` is the game's own three: `0` not started, `1` in progress, `2` finished. Send EVERY quest,
+not only the finished ones — "which of these haven't I done" is the question the list exists to
+answer, and a list of completions can't answer it. Names travel with the ids so the server needs no
+quest dataset of its own, and one released next month lists itself. The list is stored whole and
+only when it differs from what's held, so re-sending an unchanged list costs one comparison. The
+category `ca` is reserved for combat tasks, whose per-task state needs the game's struct walk.
+
 Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
 varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
 regions are counted at those three tiers and twelve at elite. The site says so where it shows them.

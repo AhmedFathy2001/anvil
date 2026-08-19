@@ -1594,6 +1594,32 @@ export const memberClogKc = sqliteTable('member_clog_kc', {
  * a re-push idempotent and stops a client that read a varbit before the game populated it from
  * erasing somebody's account.
  */
+/**
+ * The item-by-item half of a member's progress: which quests, and later which combat tasks — the
+ * list a player browses, as opposed to the counters in `member_progress`.
+ *
+ * One row per (member, category) holding a JSON payload, rather than a row per item: a quest list is
+ * ~200 entries that change a handful of times a year, so a row each would be 40,000 rows for a
+ * mid-sized clan to say what one 10 kB document says. The payload carries the NAMES as the client
+ * knows them, so a quest released next month lists itself without waiting on a dataset here.
+ */
+export const memberProgressItems = sqliteTable('member_progress_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** 'quest' today; 'ca' when the combat-task walk is confirmed against a live client. */
+  category: text('category').notNull(),
+  /** JSON — see lib/memberProgressItems for the shape and how it's validated. */
+  payload: text('payload').notNull(),
+  /** Denormalised so a list doesn't have to be parsed to be counted. */
+  doneCount: integer('done_count').default(0).notNull(),
+  totalCount: integer('total_count').default(0).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_items_unique').on(table.clanMemberId, table.category),
+]);
+
 export const memberProgress = sqliteTable('member_progress', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   clanMemberId: integer('clan_member_id')
