@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { eventStage } from '@/lib/eventStage';
+import { parseEventRules } from '@/lib/eventRules';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
 import Select from '@/components/Select';
@@ -44,6 +45,8 @@ interface SignupRow {
   captainTeam: { id: number; name: string; color: string } | null;
   /** Where they play. Null while they're still in the draft pool. */
   team: { id: number; name: string; color: string } | null;
+  /** On a team-choice event: the team they asked to join, until the request is answered. */
+  requestedTeam: { id: number; name: string; color: string } | null;
   fee: {
     id: number;
     amount: number;
@@ -113,6 +116,8 @@ export default function SignupAdminPanel({
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [closingFees, setClosingFees] = useState(false);
   const [mountedAt] = useState(() => new Date().getTime());
+  // How players get onto a team: drafted (default) or by asking for one when they sign up.
+  const [teamChoice, setTeamChoice] = useState(() => parseEventRules(event.rules).teamChoice);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/events/${event.id}/signups`);
@@ -328,6 +333,7 @@ export default function SignupAdminPanel({
           signupDeadline: signupDeadline || null,
           paymentDeadline: paymentDeadline || null,
           captainSelectionDeadline: captainDeadline || null,
+          rules: { ...parseEventRules(event.rules), teamChoice },
         }),
       });
       if (!res.ok) {
@@ -534,6 +540,23 @@ export default function SignupAdminPanel({
             </p>
           </div>
         </div>
+
+        <label className="flex items-start gap-2.5 rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={teamChoice}
+            onChange={(e) => setTeamChoice(e.target.checked)}
+            className="mt-0.5 accent-gold"
+          />
+          <span className="min-w-0">
+            <span className="text-sm font-medium">Players pick their own team when they sign up</span>
+            <span className="block text-xs text-text-muted mt-0.5">
+              For a board whose teams already exist and aren&apos;t drafted. Sign-ups stay open to
+              everyone and each applicant names the team they&apos;re joining — you or that team&apos;s
+              captain approves them, and approving is what puts them on the roster. Leave off to draft.
+            </span>
+          </span>
+        </label>
 
         <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">
@@ -759,6 +782,25 @@ export default function SignupAdminPanel({
                           }}
                         >
                           captain · {s.captainTeam.name}
+                        </span>
+                      )}
+                      {/* Where they ended up, or what they asked for — the two things the team
+                          filter sorts by, said on the row so a filtered list explains itself. */}
+                      {!s.captainTeam && s.team && (
+                        <span
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[7.5rem] sm:max-w-[20rem]"
+                          style={{
+                            color: s.team.color,
+                            borderColor: `${s.team.color}55`,
+                            background: `${s.team.color}1a`,
+                          }}
+                        >
+                          {s.team.name}
+                        </span>
+                      )}
+                      {!s.team && s.requestedTeam && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-dashed border-card-border text-text-muted truncate max-w-[7.5rem] sm:max-w-[20rem]">
+                          wants {s.requestedTeam.name}
                         </span>
                       )}
                       <SignupStatusBadge status={s.status} />

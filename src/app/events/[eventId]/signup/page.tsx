@@ -6,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
 
@@ -137,6 +138,15 @@ export default async function EventSignupPage({
     approvedCount,
   });
 
+  const eventRules = parseEventRules(event.rules);
+  const choosableTeams = eventRules.teamChoice
+    ? await db
+        .select({ id: teams.id, name: teams.name, color: teams.color })
+        .from(teams)
+        .where(eq(teams.eventId, event.id))
+        .orderBy(teams.name)
+    : [];
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-2 mb-2">
@@ -158,6 +168,14 @@ export default async function EventSignupPage({
 
       <SignupForm
         eventId={event.id}
+        teamChoice={
+          // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
+          // they're joining, and approving the sign-up is what seats them. An invite link already
+          // decided the team, so it wins — there is nothing left to choose.
+          eventRules.teamChoice && !invite
+            ? { teams: choosableTeams, requestedTeamId: signup?.requestedTeamId ?? null }
+            : null
+        }
         event={{
           signupFee: event.signupFee,
           signupOpensAt: event.signupOpensAt,

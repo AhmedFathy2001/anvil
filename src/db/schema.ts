@@ -812,6 +812,10 @@ export const eventSignups = sqliteTable('event_signups', {
   // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
   // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
   excludeFromPrizePool: integer('exclude_from_prize_pool', { mode: 'boolean' }).notNull().default(false),
+  // Which team they asked to join, on an event where the host runs teams by application rather than
+  // by draft (rules.teamChoice). It is a REQUEST: approving the sign-up is what puts them on the
+  // team. Null on a normal drafted event, and on a sign-up with no preference.
+  requestedTeamId: integer('requested_team_id').references(() => teams.id, { onDelete: 'set null' }),
   signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [

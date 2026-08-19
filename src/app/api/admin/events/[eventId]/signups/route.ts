@@ -86,6 +86,8 @@ export async function GET(
     // The team they actually play on — a captain's own team for a captain, the drafted team for
     // everyone else, null while they're still in the pool.
     team: teamByMember.get(r.signup.clanMemberId) ?? null,
+    // The team they ASKED for on a team-choice event, until someone answers the request.
+    requestedTeam: r.signup.requestedTeamId != null ? teamById.get(r.signup.requestedTeamId) ?? null : null,
     fee: r.fee
       ? {
           id: r.fee.id,
