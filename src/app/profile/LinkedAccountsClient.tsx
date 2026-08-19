@@ -156,8 +156,8 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
               className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none"
               title={
                 m.shared
-                  ? 'Clans you are not in can see this account.'
-                  : 'Only clans you are in can see this account.'
+                  ? 'On: clans you are NOT in can also see this account.'
+                  : 'Off: only clans you are in — which already have it on their roster — can see this account.'
               }
             >
               <input

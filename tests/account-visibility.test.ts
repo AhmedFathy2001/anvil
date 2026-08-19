@@ -237,3 +237,58 @@ test('and never a character belonging to whoever shares an id number', async () 
     "the id-sharing stranger's character must not appear under this person",
   );
 });
+
+// ── Your own page is not the clan's view ──────────────────────────────────────────────────────
+//
+// The locker lists the accounts a clan CANNOT see, so the Share switch is reachable for exactly the
+// accounts a person most wants to decide about. That is safe only because the page is always the
+// signed-in person's own — buildLocker is called in one place, with session.playerId. Read as the
+// clan's view instead, the same list would be a disclosure of everything the rule exists to hide.
+//
+// So this pins the boundary from both sides: what the locker shows its owner, and what the clan gets.
+
+test("the locker lists a person's accounts that this clan has no seat for", async () => {
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+
+  // On alpha, `The Alt` (seated in bravo) and `The Hermit` (seated nowhere) are the hidden ones.
+  const locker = await buildLocker(alpha, person, loginId);
+  assert.deepEqual(
+    locker.accounts.map((a) => a.rsn),
+    ['The Main'],
+    'the clan-scoped list is still only what alpha holds',
+  );
+  assert.deepEqual(
+    locker.otherAccounts.map((a) => a.rsn).sort(),
+    ['The Alt', 'The Hermit'],
+    'and the rest are reachable so their switch is',
+  );
+});
+
+test('but the clan itself still sees only what the rule allows', async () => {
+  // The same person, the same clan, asked the other way round. If these two ever agree, the locker
+  // has become a leak.
+  const seen = await accountsVisibleToClan(alpha, person);
+  assert.deepEqual(seen.map((a) => a.rsn), ['The Main']);
+});
+
+test('an unshared account is invisible to a clan even while its owner sees it listed', async () => {
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+
+  const hermit = await db.query.accounts.findFirst({ where: eq(s.accounts.id, hermitId) });
+  assert.equal(hermit!.shared, false, 'nothing has been shared');
+
+  const locker = await buildLocker(bravo, person, loginId);
+  assert.ok(
+    locker.otherAccounts.some((a) => a.rsn === 'The Hermit'),
+    'their own page shows it, so they can decide about it',
+  );
+  assert.equal(
+    (await accountsVisibleToClan(bravo, person)).some((a) => a.rsn === 'The Hermit'),
+    false,
+    'and bravo cannot see it',
+  );
+});

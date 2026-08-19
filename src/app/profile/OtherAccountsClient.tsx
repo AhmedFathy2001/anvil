@@ -43,11 +43,12 @@ export default function OtherAccountsClient({ accounts }: { accounts: LockerOthe
   return (
     <div className="mt-4">
       <div className="text-xs uppercase tracking-wider text-text-muted mb-2">
-        Your other accounts
+        Your other accounts &mdash; this clan cannot see these
       </div>
       <p className="text-xs text-text-muted mb-2.5">
-        Not on this clan&rsquo;s roster. Sharing one lets clans you aren&rsquo;t in see it &mdash; when
-        you apply somewhere, or play against them.
+        They&rsquo;re not on this clan&rsquo;s roster, so nobody here can see them. Only you see this
+        list. Turning on Share lets clans you aren&rsquo;t in see that account &mdash; useful when you
+        apply somewhere or play against them, and off until you say otherwise.
       </p>
       {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
       <div className="space-y-1.5">
