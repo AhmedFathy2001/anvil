@@ -6,7 +6,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
 import { cleanItems, countDone, isItemCategory, serializeItems } from '@/lib/memberProgressItems';
-import { completedTasksFromVarps } from '@/lib/combatTasks';
+import { decodeCombatTasks } from '@/lib/combatTasks';
 
 // POST /api/plugin/progress — quest points, combat-achievement points/tier, and diary counts.
 //
@@ -45,10 +45,11 @@ export async function POST(request: Request) {
   // COMBAT TASKS arrive as the game's own bits: twenty-one varps the plugin read without knowing
   // what any of them mean. Decoding happens here, where the catalogue is, and is thrown away unless
   // the points it implies match the total the game itself reports (lib/combatTasks).
-  const decodedTasks = completedTasksFromVarps(
+  const decode = decodeCombatTasks(
     body?.caVarps && typeof body.caVarps === 'object' ? (body.caVarps as Record<string, number>) : null,
     typeof body?.caPoints === 'number' ? body.caPoints : null,
   );
+  const decodedTasks = decode.items;
 
   // The item lists — which quests, later which combat tasks. Sent whole rather than diffed: the
   // list is one document per category, it changes a handful of times a year, and half a list is
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
   }
 
   const incoming = cleanProgress(Array.isArray(body?.progress) ? body.progress : []);
-  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored });
+  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
 
   const keys = [...incoming.keys()];
   const existing = await db
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     .where(and(eq(memberProgress.clanMemberId, member.clanMemberId), inArray(memberProgress.key, keys)));
 
   const updates = progressUpdates(new Map(existing.map((r) => [r.key, r.value])), incoming);
-  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored });
+  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
 
   const now = new Date().toISOString();
   for (const [key, value] of updates) {
@@ -115,5 +116,20 @@ export async function POST(request: Request) {
       });
   }
 
-  return NextResponse.json({ ok: true, updated: updates.size, itemsStored });
+  return NextResponse.json({ ok: true, updated: updates.size, itemsStored, combatTasks: decodeReport(decode) });
+}
+
+/**
+ * What the server made of the combat-achievement bits, echoed back so a client that sent them can
+ * say why nothing appeared. Without this, "didn't reconcile" and "never arrived" look identical
+ * from the outside — which is exactly the hour this cost the first time.
+ */
+function decodeReport(decode: ReturnType<typeof decodeCombatTasks>) {
+  return {
+    stored: decode.items != null,
+    tasks: decode.items?.length ?? 0,
+    knownPoints: decode.knownPoints,
+    unknownTasks: decode.unknownTasks,
+    claimedPoints: decode.claimedPoints,
+  };
 }
