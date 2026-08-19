@@ -26,6 +26,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -52,6 +53,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
   async function assign(userId: number | null) {
     setSaving(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch(`/api/admin/teams/${teamId}/captain`, {
         method: 'PUT',
@@ -62,6 +64,11 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
       if (!res.ok) {
         setError(data.error || 'Could not save');
       } else {
+        // Naming a captain is supposed to enter them as a player too. When it couldn't (no roster
+        // account, unverified RSN, already on another team) the API says why — showing that here is
+        // the difference between the host fixing it now and the captain being told to go and sign
+        // up like a stranger.
+        setNotice(typeof data.captainNotice === 'string' ? data.captainNotice : null);
         setOpen(false);
         setSearch('');
         router.refresh();
@@ -87,6 +94,12 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
           {open ? 'Close' : current ? 'Change' : 'Assign'}
         </button>
       </div>
+
+      {notice && (
+        <p className="mt-3 text-xs text-amber-300 border border-amber-300/30 bg-amber-300/10 rounded-lg p-2">
+          {notice}
+        </p>
+      )}
 
       <div className="mt-3 flex items-center gap-3">
         {current ? (

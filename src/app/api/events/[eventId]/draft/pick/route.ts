@@ -117,6 +117,32 @@ export async function POST(
     return NextResponse.json({ error: 'Player has already been picked' }, { status: 400 });
   }
 
+  // A captain is not draftable. Seating one on their own team normally takes them out of the pool
+  // the moment they're named, but that can fail quietly (no verified RSN yet, added to the event
+  // afterwards), and a captain sitting in the pool is a captain another team can draft — which
+  // ends with two captains on one team and one team with none.
+  if (player.clanMemberId != null) {
+    const owner = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
+    if (owner?.userId != null) {
+      const captains = await db
+        .select({ id: teams.id, name: teams.name })
+        .from(teams)
+        .where(and(eq(teams.eventId, eId), eq(teams.captainUserId, owner.userId)));
+      const ownTeam = captains[0];
+      if (ownTeam) {
+        return NextResponse.json(
+          {
+            error:
+              ownTeam.id === expectedTeamId
+                ? `${player.name} captains this team — they're already yours, not a pick.`
+                : `${player.name} captains ${ownTeam.name} and can't be drafted.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+  }
+
   // Tiered-snake coverage: no second S while a team has none (same for A). Admins can override —
   // they can already pick out of turn; the constraint is for captains.
   if (!isAdmin && balanceMode === 'tiered-snake' && balance) {

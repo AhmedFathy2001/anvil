@@ -22,13 +22,28 @@ import { generatePlayerToken } from '@/lib/auth';
  * the approval — and it carries the event's entry fee like any other entry, so the prize pool still
  * counts the same money. A host who comps their captains marks it on the Sign-ups tab.
  *
- * Returns the player id now sitting on the team, or null when nothing could be done. Idempotent.
+ * Returns the player now sitting on the team, or why nobody is. The caller surfaces that reason:
+ * seating a captain that silently does nothing is how you end up with a captain who is told to go
+ * and sign up like everyone else. Idempotent.
  */
+export type CaptainSeatResult =
+  | { playerId: number; reason: null }
+  | {
+      playerId: null;
+      /**
+       * no-account — the user has no roster account at all (nothing to play as).
+       * unverified — they have one, but no VERIFIED RSN, the same gate the sign-up form enforces.
+       * other-team — already playing on a different team; the host put them there on purpose.
+       * no-team    — the team id doesn't belong to this event.
+       */
+      reason: 'no-account' | 'unverified' | 'other-team' | 'no-team';
+    };
+
 export async function placeCaptainOnTeam(
   eventId: number,
   teamId: number,
   captainUserId: number,
-): Promise<number | null> {
+): Promise<CaptainSeatResult> {
   const memberRows = await db
     .select({
       id: clanMembers.id,
@@ -39,7 +54,7 @@ export async function placeCaptainOnTeam(
     .from(clanMembers)
     .where(and(eq(clanMembers.userId, captainUserId), isNull(clanMembers.leftAt)))
     .orderBy(desc(clanMembers.isPrimary), desc(clanMembers.verifiedAt));
-  if (memberRows.length === 0) return null;
+  if (memberRows.length === 0) return { playerId: null, reason: 'no-account' };
   const memberIds = memberRows.map((m) => m.id);
 
   // Every player row this person already has in the event, across all their accounts.
@@ -51,28 +66,28 @@ export async function placeCaptainOnTeam(
   const alreadyHere = existing.find((p) => p.teamId === teamId);
   if (alreadyHere) {
     // A player row can belong to a guest with no roster account, hence the null check — there is
-    // no sign-up to promote for one of those.
-    if (alreadyHere.clanMemberId != null) await approveSignup(eventId, alreadyHere.clanMemberId);
-    return alreadyHere.id;
+    // no sign-up to write for one of those.
+    if (alreadyHere.clanMemberId != null) await enrolSignup(eventId, captainUserId, alreadyHere.clanMemberId);
+    return { playerId: alreadyHere.id, reason: null };
   }
 
   const unassigned = existing.find((p) => p.teamId == null);
   if (unassigned) {
     await db.update(players).set({ teamId }).where(eq(players.id, unassigned.id));
-    if (unassigned.clanMemberId != null) await approveSignup(eventId, unassigned.clanMemberId);
-    return unassigned.id;
+    if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+    return { playerId: unassigned.id, reason: null };
   }
 
   // On somebody else's team — the host put them there, so it isn't ours to undo.
-  if (existing.length > 0) return null;
+  if (existing.length > 0) return { playerId: null, reason: 'other-team' };
 
   // Not entered at all: enrol them. Only a verified account can play, same gate the sign-up form
   // enforces — the captaincy vouches for the person, not for an unverified RSN.
   const account = memberRows.find((m) => m.verifiedAt);
-  if (!account) return null;
+  if (!account) return { playerId: null, reason: 'unverified' };
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!team || team.eventId !== eventId) return null;
+  if (!team || team.eventId !== eventId) return { playerId: null, reason: 'no-team' };
 
   const [player] = await db
     .insert(players)
@@ -86,22 +101,17 @@ export async function placeCaptainOnTeam(
     .returning({ id: players.id });
 
   await enrolSignup(eventId, captainUserId, account.id);
-  return player?.id ?? null;
+  return player?.id != null ? { playerId: player.id, reason: null } : { playerId: null, reason: 'no-account' };
 }
 
-/** Promote an existing sign-up to approved — a captain doesn't wait in the approval queue. */
-async function approveSignup(eventId: number, clanMemberId: number): Promise<void> {
-  const row = await db.query.eventSignups.findFirst({
-    where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, clanMemberId)),
-  });
-  if (!row || row.status === 'approved') return;
-  await db
-    .update(eventSignups)
-    .set({ status: 'approved', updatedAt: new Date().toISOString() })
-    .where(eq(eventSignups.id, row.id));
-}
-
-/** Create the sign-up a captain never filled in, plus the fee it would have carried. */
+/**
+ * Create-or-approve the sign-up a captain never filled in, plus the fee it would have carried.
+ *
+ * Every seating path runs this, not just the one that enrols a brand new player. The earlier
+ * version only APPROVED an existing sign-up on the two paths where the captain already had a
+ * player row — so a captain who was already in the draft pool (roster sync, or added by hand) came
+ * out of this with a team, no sign-up, and a site still telling them to go and apply.
+ */
 async function enrolSignup(eventId: number, userId: number, clanMemberId: number): Promise<void> {
   const now = new Date().toISOString();
   const existing = await db.query.eventSignups.findFirst({
@@ -134,5 +144,47 @@ async function enrolSignup(eventId: number, userId: number, clanMemberId: number
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });
   if (!fee) {
     await db.insert(signupFees).values({ signupId: row.id, amount: event.signupFee, status: 'pending' });
+  }
+}
+
+/**
+ * One sentence for the host when a captain couldn't be seated.
+ *
+ * Naming a captain is supposed to BE their entry, so when it isn't, silence is the worst possible
+ * answer — the captain finds out by being told to sign up like a stranger. Every reason here is
+ * something the host can act on.
+ */
+export function captainSeatNotice(result: CaptainSeatResult, name = 'That captain'): string | null {
+  switch (result.reason) {
+    case null:
+    // A team id that isn't in this event is a bug, not something to explain to a host.
+    case 'no-team':
+      return null;
+    case 'no-account':
+      return `${name} has no account on the roster, so they aren't entered as a player. Add their RSN to the roster and set them as captain again.`;
+    case 'unverified':
+      return `${name} has no verified RSN yet, so they aren't entered as a player. They can enter once they verify an account.`;
+    case 'other-team':
+      return `${name} is already playing on another team, so they were left there. Move them off it first if they should play for this one.`;
+  }
+}
+
+/**
+ * Seat every captain in an event on their own team.
+ *
+ * Called as the draft starts. Seating happens when a captain is NAMED, but that can fail at the
+ * time (their RSN wasn't verified yet, they joined the event afterwards) and nothing retried it —
+ * leaving a captain in the pool for another team to draft. Running it here means the pool the
+ * draft opens with is captain-free, whatever happened earlier. Idempotent and best-effort: a
+ * captain who still can't be seated (no verified account) is simply not a player.
+ */
+export async function seatEventCaptains(eventId: number): Promise<void> {
+  const rows = await db
+    .select({ id: teams.id, captainUserId: teams.captainUserId })
+    .from(teams)
+    .where(eq(teams.eventId, eventId));
+  for (const row of rows) {
+    if (row.captainUserId == null) continue;
+    await placeCaptainOnTeam(eventId, row.id, row.captainUserId);
   }
 }
