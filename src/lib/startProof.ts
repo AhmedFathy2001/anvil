@@ -219,6 +219,34 @@ export function drawnSpot(event: StartProofEvent): StartSpot | null {
 }
 
 /**
+ * How long after the start a shot is still worth asking for.
+ *
+ * The starting shot exists to stop someone parking on stacked content and cashing it in the moment
+ * the board opens. That trick needs a session that was already running when the event began — and
+ * OSRS logs you out after six hours no matter what, so by then the stack has been broken by the
+ * game itself. Everyone who has played since is on a session that started after the event did, and
+ * has nothing left to hide.
+ *
+ * Past the window the requirement lapses: no nag, no flag, no refusal. Credits FLAGGED inside the
+ * window stay flagged — that judgement was made at the time and this doesn't rewrite it.
+ */
+export const START_PROOF_WINDOW_HOURS = 6;
+
+/** When the requirement lapses, or null before the draw (the event isn't live). */
+export function startProofWindowEndsAt(event: StartProofEvent): string | null {
+  if (!event.startProofDrawnAt) return null;
+  const drawn = Date.parse(event.startProofDrawnAt);
+  if (!Number.isFinite(drawn)) return null;
+  return new Date(drawn + START_PROOF_WINDOW_HOURS * 3_600_000).toISOString();
+}
+
+/** Is a starting shot still being asked for? False before the draw and after the window. */
+export function startProofWindowOpen(event: StartProofEvent, nowMs: number = Date.now()): boolean {
+  const ends = startProofWindowEndsAt(event);
+  return ends != null && nowMs < Date.parse(ends);
+}
+
+/**
  * What a submission from this player should do. A proof that EXISTS and is not rejected satisfies
  * the gate — holding credits hostage to admin review would punish players for our queue, and the
  * flag/reject decision is about people who never showed up at all.
@@ -229,10 +257,13 @@ export function startProofGate(
   cfg: StartProofConfig | null,
   event: StartProofEvent,
   proof: StartProofRecord | null | undefined,
+  nowMs: number = Date.now(),
 ): StartProofGate {
   // Not required, or the event hasn't drawn yet (not live) — nothing to prove.
   if (!cfg || !event.startProofDrawnAt) return 'ok';
   if (proof && proof.status !== 'rejected') return 'ok';
+  // Past the window there is no stack left to hide, so a missing shot stops meaning anything.
+  if (!startProofWindowOpen(event, nowMs)) return 'ok';
   return cfg.onMissing === 'reject' ? 'reject' : 'flag';
 }
 
@@ -253,8 +284,12 @@ export interface StartProofView {
   spot: StartSpot | null;
   /** This player's keyword. Null until the draw. */
   keyword: string | null;
-  /** Does this player still owe us a shot? */
+  /** Does this player still owe us a shot? False once the window has closed — see below. */
   needsUpload: boolean;
+  /** Is the shot still being asked for at all (START_PROOF_WINDOW_HOURS after the draw)? */
+  windowOpen: boolean;
+  /** When the requirement lapses. Null until the draw. */
+  windowEndsAt: string | null;
   /** Status of the shot on file, or null if none. */
   status: StartProofStatus | null;
   /** The proof image on file, if any. */
@@ -276,18 +311,24 @@ export function startProofState(args: {
   event: StartProofEvent & { id: number };
   playerId: number;
   proof?: StartProofRecord | null;
+  nowMs?: number;
 }): StartProofView {
-  const { cfg, event, playerId, proof } = args;
+  const { cfg, event, playerId, proof, nowMs = Date.now() } = args;
   const required = cfg != null;
   const drawn = required && event.startProofDrawnAt != null;
   const status = (proof?.status as StartProofStatus | undefined) ?? null;
+  const windowOpen = required && startProofWindowOpen(event, nowMs);
   return {
     required,
     drawn,
     location: drawn ? event.startProofLocation : null,
     spot: drawn ? drawnSpot(event) : null,
     keyword: drawn ? startKeyword(event.id, playerId, event.startProofDrawnAt!) : null,
-    needsUpload: drawn && (status === null || status === 'rejected'),
+    // Nobody owes a shot once the window has shut: the card, the plugin banner and the chat nudge
+    // all read this, so they go quiet together rather than one of them still asking.
+    needsUpload: drawn && windowOpen && (status === null || status === 'rejected'),
+    windowOpen,
+    windowEndsAt: required ? startProofWindowEndsAt(event) : null,
     status,
     imageUrl: proof?.imageUrl ?? null,
     maxSessionMinutes: cfg?.maxSessionMinutes ?? 0,
