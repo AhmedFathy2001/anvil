@@ -38,14 +38,21 @@ interface FeeRow {
   rsn: string;
   displayName: string | null;
   collectedAt: string | null;
+  collectedByName: string | null;
+  collectedByViewer: boolean;
 }
 
-const FEE_STYLE: Record<string, string> = {
-  pending: 'text-yellow-400 border-yellow-500/30',
-  reported: 'text-blue-400 border-blue-500/30',
-  collected: 'text-blue-400 border-blue-500/30',
-  confirmed: 'text-accent-green-light border-accent-green/30',
-  disputed: 'text-red-400 border-red-500/30',
+// Friendly buckets over the raw statuses, the same way the admin panel reads them. "collected" is
+// the ledger's word for "the money arrived, a second pair of eyes hasn't signed it off yet", and
+// showing it raw next to a button still offering "Mark paid" made a successful click look like a
+// no-op to the captain who had just made it.
+const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'Unpaid', cls: 'text-yellow-400 border-yellow-500/30' },
+  reported: { label: 'Reported', cls: 'text-blue-400 border-blue-500/30' },
+  collected: { label: 'Paid', cls: 'text-blue-400 border-blue-500/30' },
+  confirmed: { label: 'Settled', cls: 'text-accent-green-light border-accent-green/30' },
+  disputed: { label: 'Disputed', cls: 'text-red-400 border-red-500/30' },
+  closed: { label: 'Closed', cls: 'text-text-muted border-card-border' },
 };
 
 export default function TeamManageClient({ teamId }: { teamId: number }) {
@@ -120,6 +127,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   };
 
   const owed = fees.filter((f) => f.status === 'pending' || f.status === 'disputed').length;
+
 
   // What the card says about itself while shut — the numbers that decide whether to open it.
   const summary = [
@@ -277,25 +285,43 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                   >
                     <div className="min-w-0">
                       <div className="text-sm font-medium truncate">{f.rsn}</div>
-                      <div className="text-[11px] text-text-muted">
+                      <div className="text-[11px] text-text-muted truncate">
                         {(f.amount / 1_000_000).toFixed(1)}M
+                        {f.collectedByName && (
+                          <>
+                            {' · '}
+                            {f.collectedByViewer ? 'you took this' : `${f.collectedByName} took this`}
+                            {f.status === 'collected' && ' · waiting on the host'}
+                          </>
+                        )}
                       </div>
                     </div>
                     <span
                       className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${
-                        FEE_STYLE[f.status] ?? 'text-text-muted border-card-border'
+                        (FEE_BUCKET[f.status] ?? { cls: 'text-text-muted border-card-border' }).cls
                       }`}
                     >
-                      {f.status}
+                      {FEE_BUCKET[f.status]?.label ?? f.status}
                     </span>
-                    {f.status !== 'confirmed' && (
+                    {f.status !== 'confirmed' && f.status !== 'closed' && (
                       <button
                         type="button"
                         disabled={busy === f.id}
                         onClick={() => markPaid(f.id)}
-                        className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 border border-gold/40 text-gold rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-50"
+                        // Already collected: the action is still available (money can change hands
+                        // twice) but it stops SHOUTING, so the row reads as done rather than as a
+                        // request that never went through.
+                        className={`ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 border ${
+                          f.status === 'pending' || f.status === 'reported'
+                            ? 'border-gold/40 text-gold hover:bg-gold/10'
+                            : 'border-card-border text-text-muted hover:text-foreground'
+                        }`}
                       >
-                        {busy === f.id ? 'Saving…' : 'Mark paid'}
+                        {busy === f.id
+                          ? 'Saving…'
+                          : f.status === 'pending' || f.status === 'reported'
+                            ? 'Mark paid'
+                            : 'Re-mark'}
                       </button>
                     )}
                   </div>
