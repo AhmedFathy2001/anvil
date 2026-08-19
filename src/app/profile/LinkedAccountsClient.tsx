@@ -15,6 +15,10 @@ export type LinkedAccount = {
   playingIn: string | null;
   /** Last plugin push for this account. */
   lastPingAt: string | null;
+  /** Visible to clans this account is NOT in. Off by default. */
+  shared: boolean;
+  /** Sharing is set on the ACCOUNT; `id` above is the per-clan seat. */
+  accountId: number;
 };
 
 const METHOD_LABEL: Record<string, string> = {
@@ -31,9 +35,35 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [promotingId, setPromotingId] = useState<number | null>(null);
+  const [sharingId, setSharingId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => setNowMs(Date.now()), []);
+
+  // Publish this account to clans it is NOT in.
+  //
+  // Clans you are in can already see the account you are in them with — a seat IS that clan knowing.
+  // This is about the rest: whether a clan you are applying to, or playing against, gets a name or a
+  // blank. Off by default and instantly reversible, so no confirm step.
+  async function setShared(accountId: number, shared: boolean) {
+    setSharingId(accountId);
+    setError('');
+    try {
+      const res = await fetch(`/api/profile/accounts/${accountId}/share`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shared }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? 'Could not change that.');
+        return;
+      }
+      router.refresh();
+    } finally {
+      setSharingId(null);
+    }
+  }
 
   // Promote to primary — the account that names your team in per-person events and leads your
   // Discord nickname. Reversible, so no confirm step.
@@ -122,6 +152,23 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
             </div>
           </div>
           <div className="ml-auto shrink-0 flex items-center gap-2">
+            <label
+              className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none"
+              title={
+                m.shared
+                  ? 'Clans you are not in can see this account.'
+                  : 'Only clans you are in can see this account.'
+              }
+            >
+              <input
+                type="checkbox"
+                checked={m.shared}
+                disabled={sharingId === m.accountId}
+                onChange={(e) => setShared(m.accountId, e.target.checked)}
+                className="accent-gold"
+              />
+              Share
+            </label>
             {/* Only offered when there's something to switch to — a lone account is already primary. */}
             {!m.isPrimary && accounts.length > 1 && (
               <button

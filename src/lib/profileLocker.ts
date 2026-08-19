@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { weeklyMetricLabel } from '@/lib/constants';
@@ -39,6 +39,13 @@ const MILESTONE_LIMIT = 4;
 /** Daily rows to read for the activity streak. */
 const STREAK_WINDOW_DAYS = 140;
 
+/** An account of theirs this clan has no seat for. Deliberately thin: a name and its switch. */
+export interface LockerOtherAccount {
+  accountId: number;
+  rsn: string;
+  shared: boolean;
+}
+
 export interface LockerAccount {
   id: number;
   rsn: string;
@@ -50,6 +57,10 @@ export interface LockerAccount {
   inActiveEvent: boolean;
   /** Name of a live event this account is playing, for the account row's status line. */
   playingIn: string | null;
+  /** Published to clans this account is NOT in. Off by default; see lib/accountVisibility. */
+  shared: boolean;
+  /** The underlying account, which is what sharing is set on — the seat id is per clan. */
+  accountId: number;
   /** Last plugin push, or null if this account has never talked to us. */
   lastPingAt: string | null;
 }
@@ -160,6 +171,8 @@ export interface LockerBests {
 
 export interface LockerData {
   accounts: LockerAccount[];
+  /** Theirs, but with no seat in this clan — listed only so sharing is reachable. */
+  otherAccounts: LockerOtherAccount[];
   connection: LockerConnection;
   /** True while the page's job is still "get this person connected". */
   setupNeeded: boolean;
@@ -241,6 +254,7 @@ export async function buildLocker(
   if (memberIds.length === 0) {
     return {
       accounts: [],
+      otherAccounts: [],
       connection,
       setupNeeded: true,
       career: null,
@@ -309,7 +323,31 @@ export async function buildLocker(
     inActiveEvent: activeMemberIds.has(m.id),
     playingIn: liveEventNameByMember.get(m.id) ?? null,
     lastPingAt: m.liveStatsAt,
+    shared: sharedByAccount.get(m.accountId) === true,
+    accountId: m.accountId,
   }));
+
+  // Sharing state for every account they own, in one read. Keyed by account id because that is what
+  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
+  const allOwnedAccounts = await db
+    .select({ id: accountsTable.id, rsn: accountsTable.rsn, shared: accountsTable.shared, isPrimary: accountsTable.isPrimary })
+    .from(accountsTable)
+    .where(eq(accountsTable.playerId, playerId));
+  const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
+
+  // Their accounts that hold no seat in THIS clan.
+  //
+  // Everything else on this page is deliberately clan-scoped — it is the locker for the clan whose
+  // site you are on. Sharing is the exception, because the accounts a person most wants to publish
+  // or keep back are exactly the ones this clan cannot see, and a toggle you can only reach from a
+  // clan that already knows about the account would be useless.
+  //
+  // Safe to widen here and nowhere else: this page is the person looking at themselves.
+  const seatedAccountIds = new Set(memberRows.map((m) => m.accountId));
+  const otherAccounts: LockerOtherAccount[] = allOwnedAccounts
+    .filter((a) => !seatedAccountIds.has(a.id))
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.rsn.localeCompare(b.rsn))
+    .map((a) => ({ accountId: a.id, rsn: a.rsn, shared: a.shared === true }));
 
   // ── Live events: the team's board, and this member's share of it ──────────────────────────────
   // A host still building an event has no start date and it isn't public yet — being drafted into
@@ -662,6 +700,7 @@ export async function buildLocker(
 
   return {
     accounts,
+    otherAccounts,
     connection,
     setupNeeded,
     career,

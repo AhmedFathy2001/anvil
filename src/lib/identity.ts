@@ -58,6 +58,9 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
   const allUsers = await db
     .selectDistinct({
       id: users.id,
+      // The person behind the login. Needed because characters hang off the PERSON, and using the
+      // login's id in their place is the bug described below.
+      playerId: users.playerId,
       displayName: users.displayName,
       role: clanStaff.role,
       canEditTiles: clanStaff.canEditTiles,
@@ -79,30 +82,41 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     // stranger to this clan and does not belong on its people list.
     .where(or(isNotNull(clanStaff.id), isNotNull(clanMemberships.id)));
 
-  const userIds = allUsers.map((u) => u.id);
-  const chars = userIds.length
+  // Keyed by PERSON, and scoped to THIS clan. Two separate bugs lived in the line this replaces.
+  //
+  // It matched `clanRoster.playerId` — a person id — against `users.id`. Those are different
+  // sequences, so the list showed whichever unrelated person happened to share the number: on the
+  // live database 59 of 60 users collide, and a member with four characters was displayed with one
+  // that was not theirs.
+  //
+  // And it carried no clan filter, so every character a person holds ANYWHERE would have been listed
+  // on one clan's people page — which is precisely what a clan is not entitled to know.
+  const personIds = allUsers
+    .map((u) => u.playerId)
+    .filter((v): v is number => v != null);
+  const chars = personIds.length
     ? await db
         .select({
           id: clanRoster.id,
           rsn: clanRoster.rsn,
-          userId: clanRoster.playerId,
+          personId: clanRoster.playerId,
           kind: clanRoster.kind,
           verifiedAt: clanRoster.verifiedAt,
           leftAt: clanRoster.leftAt,
         })
         .from(clanRoster)
-        .where(inArray(clanRoster.playerId, userIds))
+        .where(and(eq(clanRoster.clanId, clanId), inArray(clanRoster.playerId, personIds)))
     : [];
 
-  const byUser = new Map<number, Character[]>();
+  const byPerson = new Map<number, Character[]>();
   for (const c of chars) {
-    if (c.userId == null) continue;
-    const list = byUser.get(c.userId) ?? [];
+    if (c.personId == null) continue;
+    const list = byPerson.get(c.personId) ?? [];
     list.push(toCharacter(c));
-    byUser.set(c.userId, list);
+    byPerson.set(c.personId, list);
   }
   // Active characters first, then verified, then name.
-  for (const list of byUser.values()) {
+  for (const list of byPerson.values()) {
     list.sort(
       (a, b) => Number(a.left) - Number(b.left) || Number(b.verified) - Number(a.verified) || a.rsn.localeCompare(b.rsn),
     );
@@ -116,7 +130,7 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     canEditTiles: u.canEditTiles === true,
     isOwner: u.role === 'owner',
     banned: !!u.banned,
-    characters: byUser.get(u.id) ?? [],
+    characters: u.playerId != null ? byPerson.get(u.playerId) ?? [] : [],
   }));
 }
 

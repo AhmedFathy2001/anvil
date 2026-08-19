@@ -184,6 +184,15 @@ export const accounts = pgTable('accounts', {
   verifiedByUserId: integer('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // On the watchlist: matched by a signal weak enough to be coincidence, awaiting a mod's confirm.
   provisional: integer('provisional').default(0).notNull(),
+  // Whether clans this account is NOT in may see it.
+  //
+  // One token covers every account a person owns, so a clan holding one of them must not thereby
+  // learn the rest: guesting somewhere with an alt is not telling that clan about your main. The
+  // rule is enforced in lib/accountVisibility — seat in the clan, or shared.
+  //
+  // Per account rather than per person, because "my main is public, my ironman is nobody's
+  // business" is the real want and a person-level flag cannot express it.
+  shared: boolean('shared').notNull().default(false),
   claimedAt: text('claimed_at'),
 
   // ── Hiscores state ───────────────────────────────────────────────────────────────────────

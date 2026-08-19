@@ -17,6 +17,7 @@ import LiveForYou from './LiveForYou';
 import RunSoFar from './RunSoFar';
 import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail';
 import LinkedAccountsClient from './LinkedAccountsClient';
+import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import SecurityDrawer from './SecurityDrawer';
 import { atLeast } from '@/lib/clanRoles';
@@ -214,8 +215,17 @@ export default async function ProfilePage({
                   inActiveEvent: a.inActiveEvent,
                   playingIn: a.playingIn,
                   lastPingAt: a.lastPingAt,
+                  shared: a.shared,
+                  accountId: a.accountId,
                 }))}
               />
+            )}
+
+            {/* Accounts of theirs this clan has no seat for. Listed only so the Share switch is
+                reachable — the accounts a person most wants to publish or hold back are exactly the
+                ones the clan they're looking at cannot see. */}
+            {locker.otherAccounts.length > 0 && (
+              <OtherAccountsClient accounts={locker.otherAccounts} />
             )}
           </section>
         </div>
