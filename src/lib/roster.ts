@@ -168,15 +168,37 @@ export async function personOf(userId: number | null | undefined): Promise<numbe
 }
 
 /**
- * A condition matching the roster seats whose account belongs to this LOGIN's person — and matching
- * nothing at all when the login has no person, or does not exist.
+ * This login's seats IN ONE CLAN.
  *
- * The `false` matters. `eq(playerId, null)` is not valid SQL and a sentinel id would be a guess, but
- * the real risk is the shape this replaced: passing the user id straight in, which matched whichever
- * unrelated person happened to share the number. "No person, therefore no seats" is the only honest
- * answer.
+ * The clan argument is required, and that is the whole point of this function's shape. Without it
+ * the condition was `eq(playerId, …)` alone — every seat this person holds anywhere — and its
+ * callers are clan-side routes acting on behalf of one clan. An admin of clan A passing a seat id
+ * from clan B got a match whenever the same person owned both, which is how
+ * `admin/users/[id]/characters/[memberId]` could unclaim another clan's row.
+ *
+ * The `false` matters too. `eq(playerId, null)` is not valid SQL and a sentinel id would be a guess,
+ * but the real risk is the shape this replaced: passing the user id straight in, which matched
+ * whichever unrelated person happened to share the number. "No person, therefore no seats" is the
+ * only honest answer.
  */
-export async function seatsOwnedBy(userId: number | null | undefined): Promise<SQL> {
+export async function seatsOwnedBy(clanId: number, userId: number | null | undefined): Promise<SQL> {
+  const playerId = await personOf(userId);
+  if (playerId == null) return sql`false`;
+  return and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId))!;
+}
+
+/**
+ * This login's seats EVERYWHERE, across every clan.
+ *
+ * Named awkwardly on purpose. Almost every caller wants the clan-scoped one above, so the safe call
+ * is the short one and reaching across clans has to be spelled out — the reverse of the arrangement
+ * that produced the bug.
+ *
+ * Legitimate uses are the ones answering a question about the PERSON rather than about a clan:
+ * resolving which of their own accounts a plugin request is for, or listing someone their own
+ * characters. Anything acting on behalf of a clan wants `seatsOwnedBy`.
+ */
+export async function seatsOwnedByAnywhere(userId: number | null | undefined): Promise<SQL> {
   const playerId = await personOf(userId);
   return playerId == null ? sql`false` : eq(clanRoster.playerId, playerId);
 }

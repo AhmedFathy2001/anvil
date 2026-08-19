@@ -68,7 +68,7 @@ export default async function HomePage() {
   const myMemberIds = await viewerMemberIds(clan.id, session);
   const view = await buildHomeView(clan.id, myMemberIds);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
-  const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
+  const myTeams = session?.userId ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;
 
   return (
     <div>

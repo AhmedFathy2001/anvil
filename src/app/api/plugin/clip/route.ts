@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireClan } from '@/lib/clanContext';
+import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
@@ -40,9 +40,12 @@ const ALLOWED_TYPES = new Set(['video/mp4', 'video/x-matroska', 'video/quicktime
 async function posterRsn(request: Request, userId: number): Promise<string | null> {
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
   if (accountHash) {
+    // The name shown is the one THIS clan knows them by. Their seat in another clan may carry a
+    // different RSN, and is none of this clan's business either way.
+    const clan = await requireClanFromRequest(request);
     const owned = await findRosterSeat(and(
         eq(clanRoster.accountHash, accountHash),
-        await seatsOwnedBy(userId),
+        await seatsOwnedBy(clan.id, userId),
         isNull(clanRoster.leftAt),
       ));
     if (owned?.rsn) return owned.rsn;

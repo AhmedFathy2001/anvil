@@ -16,7 +16,11 @@ import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
  * teams are excluded on purpose — they stay reachable from the locker, which is where a finished
  * event belongs.
  */
-export async function countLiveTeamInvolvements(userId: number, now: Date = new Date()): Promise<number> {
+export async function countLiveTeamInvolvements(
+  clanId: number,
+  userId: number,
+  now: Date = new Date(),
+): Promise<number> {
   const nowIso = now.toISOString();
   const live = or(isNull(events.endDate), gt(events.endDate, nowIso));
   const notForceEnded = isNull(events.forceEndedAt);
@@ -42,7 +46,7 @@ export async function countLiveTeamInvolvements(userId: number, now: Date = new 
       .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
       .where(
         and(
-          await seatsOwnedBy(userId),
+          await seatsOwnedBy(clanId, userId),
           isNull(clanRoster.leftAt),
           isNotNull(eventParticipants.teamId),
           notForceEnded,

@@ -82,7 +82,7 @@ function generateCodeword(playerId: number, eventId: number): string {
  * (nearest tiles, active-now) still wait for a playing account. Null when the user isn't enrolled
  * anywhere live.
  */
-async function homeBoardForUser(userId: number): Promise<{
+async function homeBoardForUser(clanId: number, userId: number): Promise<{
   eventName: string;
   tilesComplete: number;
   tilesTotal: number;
@@ -91,7 +91,7 @@ async function homeBoardForUser(userId: number): Promise<{
   const myMembers = await db
     .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(await seatsOwnedBy(userId), isNull(clanRoster.leftAt)));
+    .where(and(await seatsOwnedBy(clanId, userId), isNull(clanRoster.leftAt)));
   if (myMembers.length === 0) return null;
   const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
 
@@ -224,7 +224,7 @@ export async function GET(request: Request) {
           getShowKillCount(clan.id),
           getDropRarityFloor(clan.id),
           activeEventForUnlinkedRsn(request),
-          homeBoardForUser(userOnly.userId),
+          homeBoardForUser(clan.id, userOnly.userId),
         ]);
       return jsonWithEtag(request, {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the

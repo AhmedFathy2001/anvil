@@ -30,8 +30,17 @@ export async function placeCaptainOnTeam(
   teamId: number,
   captainUserId: number,
 ): Promise<number | null> {
-  // The captain's own accounts, seated on this event's clan. seatsOwnedBy resolves the login to the
-  // person who owns the accounts — the two are different id sequences.
+  // The captain's own accounts, seated on this event's clan — which the filter now actually says.
+  // seatsOwnedBy resolves the login to the person who owns the accounts; the two are different id
+  // sequences.
+  const eventRow = await db
+    .select({ clanId: events.clanId })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1)
+    .then((r) => r[0] ?? null);
+  if (!eventRow) return null;
+
   const memberRows = await db
     .select({
       id: clanRoster.id,
@@ -40,7 +49,7 @@ export async function placeCaptainOnTeam(
       verifiedAt: clanRoster.verifiedAt,
     })
     .from(clanRoster)
-    .where(and(await seatsOwnedBy(captainUserId), isNull(clanRoster.leftAt)))
+    .where(and(await seatsOwnedBy(eventRow.clanId, captainUserId), isNull(clanRoster.leftAt)))
     .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
   if (memberRows.length === 0) return null;
   const memberIds = memberRows.map((m) => m.id);

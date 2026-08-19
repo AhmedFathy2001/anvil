@@ -50,7 +50,7 @@ export default async function RootLayout({
   // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
-  const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
+  const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;
 
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
   // Any staff role gets the Admin link — it lands on /admin/dashboard, which every staff role can

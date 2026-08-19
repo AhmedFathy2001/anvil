@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
+import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -789,7 +789,11 @@ export async function claimAccountForUser(
     .catch(() => {});
 
   // First account a user attributes becomes their primary.
-  const owned = await findRosterSeats(and(await seatsOwnedBy(userId), isNull(clanRoster.leftAt)));
+  //
+  // ANYWHERE on purpose: `isPrimary` lives on the account, which is global, so "do they already have
+  // a primary" is a question about the person and not about this clan. Scoping it would hand someone
+  // a second primary the moment they joined a second clan.
+  const owned = await findRosterSeats(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)));
   if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
     await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
@@ -884,7 +888,11 @@ export async function resolvePluginMember(
       accountHash: clanRoster.accountHash,
     })
     .from(clanRoster)
-    .where(and(await seatsOwnedBy(user.id), isNull(clanRoster.leftAt)));
+    // Scoped to the clan this plugin request named. The token identifies the PERSON, so unscoped
+    // this hands back every seat they hold anywhere — and the code below picks one of them to serve
+    // config, auto-submit scope and weekly credit for. That is the same leak the RSN-hint check
+    // further down exists to prevent, one level up.
+    .where(and(await seatsOwnedBy(clan.id, user.id), isNull(clanRoster.leftAt)));
   if (memberRows.length === 0) return null;
 
   // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT guess.
