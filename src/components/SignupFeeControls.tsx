@@ -32,6 +32,10 @@ function bucket(status: string): { label: string; cls: string } {
       return { label: 'Confirmed', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' };
     case 'disputed':
       return { label: 'Disputed', cls: 'bg-red-500/15 text-red-400 border-red-500/25' };
+    // Written off when the board closed: never paid, nobody chasing it. Deliberately quiet —
+    // it's a settled fact, not something to act on.
+    case 'closed':
+      return { label: 'Closed', cls: 'bg-text-muted/10 text-text-muted border-card-border' };
     default:
       return { label: 'Unpaid', cls: 'bg-text-muted/15 text-text-muted border-text-muted/25' };
   }
@@ -55,6 +59,9 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   const isPaid = fee.status === 'collected';
   const isConfirmed = fee.status === 'confirmed';
   const isDisputed = fee.status === 'disputed';
+  // A written-off fee has no live actions — only an admin Reset, for the one that was closed by
+  // mistake or paid late.
+  const isClosed = fee.status === 'closed';
   const collectedByViewer = fee.collectedByUserId === viewerId;
   const confirmsLeft = Math.max(0, confirmationsRequired - fee.confirmationsCount);
   // A clan that requires no second signature has nobody for the collector to be separate from, so
@@ -140,7 +147,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
 
       <div className="flex flex-wrap gap-2">
         {/* Mark paid — for unpaid or disputed fees */}
-        {canCollect && !isConfirmed && (
+        {canCollect && !isConfirmed && !isClosed && (
           <>
             <button
               onClick={() => markPaid(false)}
@@ -160,7 +167,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         )}
 
         {/* Confirm vote */}
-        {canConfirm && isPaid && (
+        {canConfirm && isPaid && !isClosed && (
           collectedByViewer && needsSecondSignature ? (
             <span className="text-xs text-text-muted px-2 py-1">You collected this — needs another admin</span>
           ) : (
@@ -181,7 +188,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         )}
 
         {/* Dispute */}
-        {canDispute && !isConfirmed && !isDisputed && (
+        {canDispute && !isConfirmed && !isDisputed && !isClosed && (
           <button
             onClick={() => act(`/api/admin/fees/${fee.id}/dispute`, 'dispute')}
             disabled={busy !== null}
@@ -192,7 +199,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         )}
 
         {/* Reset — admin escape hatch */}
-        {canReset && (isPaid || isConfirmed || isDisputed) && (
+        {canReset && (isPaid || isConfirmed || isDisputed || isClosed) && (
           <button
             onClick={() => {
               if (confirm('Reset this fee back to unpaid? Any proof and confirmations are cleared.')) {

@@ -856,6 +856,8 @@ function FeeStatusBadge({ status }: { status: string }) {
     collected: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
     confirmed: 'bg-accent-green/15 text-accent-green-light border-accent-green/25',
     disputed: 'bg-red-500/15 text-red-400 border-red-500/25',
+    // Written off when the board closed — see lib/feeConfirmations#closeOutEventFees.
+    closed: 'bg-text-muted/10 text-text-muted border-card-border',
   };
   const cls = map[status] ?? map.pending;
   return (
