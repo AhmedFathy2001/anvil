@@ -6,6 +6,7 @@ import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, personOfOrCreate
 import { eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
+import { atLeast } from '@/lib/clanRoles';
 
 // POST /api/admin/users/[userId]/characters   Body: { rsn }
 //
@@ -15,7 +16,7 @@ import { onCharacterLinked } from '@/lib/identity';
 // move between people.
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const actor = await verifyUser();
-  if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!actor || !atLeast(actor.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   const clan = await requireClan();
 
   const { userId: idParam } = await params;

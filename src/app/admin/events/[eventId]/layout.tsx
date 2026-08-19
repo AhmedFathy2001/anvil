@@ -16,6 +16,7 @@ import { getStageCounts } from '@/lib/eventStageCounts';
 import { eventRailGroups } from '@/lib/eventRail';
 import { authoringModel } from '@/lib/tileAuthoring';
 import AdminSidebar from '@/app/admin/_components/AdminSidebar';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,7 +96,7 @@ export default async function EventLayout({
       </Link>
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
-        <EventTitle eventId={id} initialName={event.name} canEdit={session?.role === 'admin'} />
+        <EventTitle eventId={id} initialName={event.name} canEdit={atLeast(session?.role, 'admin')} />
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${status.cls}`}>
           {status.label}
         </span>
@@ -140,7 +141,7 @@ export default async function EventLayout({
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
           give admins the explicit unlock/re-lock control. */}
       {isEventOver(event) && (
-        <EventLockBanner eventId={id} locked={eventEditLocked(event)} canToggle={session?.role === 'admin'} />
+        <EventLockBanner eventId={id} locked={eventEditLocked(event)} canToggle={atLeast(session?.role, 'admin')} />
       )}
 
       {children}

@@ -7,6 +7,7 @@ import { asc, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { TILE_CSV_COLUMNS, tileToCsvCells } from '@/lib/csvTiles';
 import type { Tile } from '@/lib/types';
+import { atLeast } from '@/lib/clanRoles';
 
 // Save an existing event as a reusable template. Captures the event's shape (format / scoring /
 // size) plus its tiles serialized to the canonical tile CSV, so re-applying the preset runs the
@@ -28,7 +29,7 @@ export async function POST(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
-  if (!session || session.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   }
 

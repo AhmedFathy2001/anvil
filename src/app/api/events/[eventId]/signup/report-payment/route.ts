@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { clanStaff, eventSignups, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 
 // Returns the list of staff who can collect fees, plus the authenticated user's
 // own existing payment report (if any) so the form can pre-populate.
@@ -97,7 +98,7 @@ export async function POST(
 
   if (body.collectorUserId !== null) {
     const collector = await db.query.users.findFirst({ where: eq(users.id, body.collectorUserId) });
-    if (!collector || (collector.role !== 'admin' && collector.role !== 'treasurer')) {
+    if (!collector || (!atLeast(collector.role, 'admin') && collector.role !== 'treasurer')) {
       return NextResponse.json(
         { error: 'Selected user is not authorized to collect fees' },
         { status: 400 },

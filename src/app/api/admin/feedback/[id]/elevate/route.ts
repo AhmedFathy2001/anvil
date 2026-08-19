@@ -4,12 +4,13 @@ import { feedback, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { elevateToAdmin, isElevationAvailable } from '@/lib/feedback-elevation';
+import { atLeast } from '@/lib/clanRoles';
 
 // POST /api/admin/feedback/[id]/elevate — admin sends a report up to the central Anvil.Admin so the
 // operator sees it. Admin-only, and only where elevation is configured (managed hosting).
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await verifyUser();
-  if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!actor || !atLeast(actor.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   if (!isElevationAvailable()) {
     return NextResponse.json({ error: 'Elevation isn’t available on this instance.' }, { status: 400 });
   }

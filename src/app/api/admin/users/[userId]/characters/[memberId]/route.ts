@@ -5,6 +5,7 @@ import { findRosterSeat, personOf, seatsOwnedBy, unclaimAccountOfSeat, updateAcc
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { and, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 
 // DELETE /api/admin/users/[userId]/characters/[memberId]
 //
@@ -13,7 +14,7 @@ import { verifyUser } from '@/lib/auth';
 // characters so an admin can't accidentally unlink from the wrong person via a mismatched id.
 export async function DELETE(request: Request, { params }: { params: Promise<{ userId: string; memberId: string }> }) {
   const actor = await verifyUser();
-  if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!actor || !atLeast(actor.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { userId: userParam, memberId: memberParam } = await params;
   const targetId = Number(userParam);

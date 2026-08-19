@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import SettingsClient from './SettingsClient';
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function EventSettingsPage({ params }: { params: Promise<{ 
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     verifyUser(),
   ]);
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = atLeast(session?.role, 'admin');
 
   return (
     <>

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded } from '@/lib/survey';
 import { getEventRecap } from '@/lib/eventRecap';
+import { atLeast } from '@/lib/clanRoles';
 
 // The fun end-of-event superlatives ("Warmonger", "Big Baller", …), derived on read. Public once the
 // event has ended; staff (admin/treasurer/moderator) can preview it earlier to see what players will
@@ -27,7 +28,7 @@ export async function GET(
 
   const ended = isEventEnded(event);
   const session = await verifyUser();
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
 
   if (!ended && !isStaff) {
     return NextResponse.json({ eventId: id, eventName: event.name, ended: false, awards: [], totals: null, preview: false });

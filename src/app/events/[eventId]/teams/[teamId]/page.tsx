@@ -12,6 +12,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +77,7 @@ export default async function TeamBoardPage({
   // until sign-ups have opened AND the host has revealed the tiles. Staff bypass for
   // setup access.
   const session = await verifyUser();
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
   const window = signupWindowState({
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,

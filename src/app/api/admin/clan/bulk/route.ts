@@ -7,6 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { banFromClan, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
+import { atLeast } from '@/lib/clanRoles';
 
 // POST /api/admin/clan/bulk — apply one roster action to many members in a single round-trip.
 //
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
 
   const action = body.action as BulkAction;
   if (!ACTIONS.has(action)) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-  if (actor.role !== 'admin' && !MODERATOR_ACTIONS.has(action)) {
+  if (!atLeast(actor.role, 'admin') && !MODERATOR_ACTIONS.has(action)) {
     return NextResponse.json(
       { error: 'Only an admin can change site roles.' },
       { status: 403 },

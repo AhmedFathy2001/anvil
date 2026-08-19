@@ -7,6 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
+import { atLeast } from '@/lib/clanRoles';
 
 export async function GET(
   request: Request,
@@ -103,7 +104,7 @@ export async function POST(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
-  if (!session || session.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   }
 

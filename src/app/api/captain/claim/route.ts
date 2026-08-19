@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { signCaptainToken, verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 
 // POST /api/captain/claim { teamId }
 // A Discord-authenticated user picks a team they've been assigned as captain of.
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
 
   // Admins can also claim any team's captain seat — useful for handling captain absence
   // mid-event without rotating the password.
-  const isAdmin = user.role === 'admin';
+  const isAdmin = atLeast(user.role, 'admin');
   if (team.captainUserId !== user.userId && !isAdmin) {
     return NextResponse.json({ error: 'You are not assigned as captain of this team.' }, { status: 403 });
   }

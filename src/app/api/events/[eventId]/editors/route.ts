@@ -5,6 +5,7 @@ import { eventEditors, events, users, clanAuditLog } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { grantEventEditor, revokeEventEditor } from '@/lib/eventEditors';
+import { atLeast } from '@/lib/clanRoles';
 
 // Board-scoped tile-editing grants for one event. Admin-only — this hands out authoring access.
 // GET   → current board editors + assignable users
@@ -20,7 +21,7 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
-  if (session?.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { eventId } = await params;
@@ -69,7 +70,7 @@ export async function POST(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
-  if (session?.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { eventId } = await params;
@@ -110,7 +111,7 @@ export async function DELETE(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await verifyUser();
-  if (session?.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { eventId } = await params;

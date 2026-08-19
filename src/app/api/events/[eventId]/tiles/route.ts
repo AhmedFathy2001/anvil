@@ -8,6 +8,7 @@ import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
 import { parseEventRules, hasRevealPolicy, visibleTiles, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
 import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
+import { atLeast } from '@/lib/clanRoles';
 
 export async function GET(
   request: Request,
@@ -102,7 +103,7 @@ export async function PUT(
   // live override in the tile history. Editors (non-admin tile authors) can't invoke it; they get a
   // 403 rather than a silent skip so the UI can explain why. No-op when the event hasn't started.
   const liveOverrideActive = !!eventStarted && liveOverride === true;
-  if (liveOverrideActive && editor.role !== 'admin') {
+  if (liveOverrideActive && !atLeast(editor.role, 'admin')) {
     return NextResponse.json(
       { error: 'Editing a locked field (label, kind, or required amount) on a live event is admin-only.' },
       { status: 403 },
@@ -263,7 +264,7 @@ export async function PUT(
     if (revealState !== 'live' && revealState !== 'hidden') {
       return NextResponse.json({ error: "revealState must be 'live' or 'hidden'" }, { status: 400 });
     }
-    if (editor.role !== 'admin') {
+    if (!atLeast(editor.role, 'admin')) {
       return NextResponse.json({ error: 'Revealing or hiding a tile is admin-only.' }, { status: 403 });
     }
     const [updated] = await db

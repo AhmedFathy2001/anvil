@@ -6,11 +6,12 @@ import { accounts, clanBans, clanMemberships, clanRoster, clanStaff, users } fro
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
   const user = await verifyUser();
-  if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+  if (!user || (!atLeast(user.role, 'admin') && user.role !== 'moderator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

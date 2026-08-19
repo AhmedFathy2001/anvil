@@ -10,6 +10,7 @@ import { verifyUser } from '@/lib/auth';
 import { eventEditLocked } from '@/lib/eventLock';
 import { parseEventRules, hasMissions } from '@/lib/eventRules';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,7 @@ export default async function EventTilesPage({
       event={event}
       tiles={eventTiles}
       tierBands={tierBands}
-      isAdmin={user?.role === 'admin'}
+      isAdmin={atLeast(user?.role, 'admin')}
       editLocked={eventEditLocked(event)}
       teamPlay={teamPlay}
       missionsAllowed={missionsAllowed}

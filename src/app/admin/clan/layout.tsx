@@ -4,6 +4,7 @@ import { clanRoster } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import ClanTabNav from './ClanTabNav';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // provisional-member badge, then render the tab nav above whichever sub-route is active.
 export default async function ClanLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = atLeast(session?.role, 'admin');
 
   const clan = await requireClan();
   const provisionalCount = await db

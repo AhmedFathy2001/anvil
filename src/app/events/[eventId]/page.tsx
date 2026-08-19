@@ -35,6 +35,7 @@ import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -222,7 +223,7 @@ export default async function EventScoreboardPage({
   // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
   // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
   // always see it so they can finish configuring tiles ahead of the public launch.
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
   const tilesHidden = !event.tilesRevealed;
   const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
 

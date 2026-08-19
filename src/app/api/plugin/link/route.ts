@@ -9,6 +9,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { atLeast } from '@/lib/clanRoles';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -224,7 +225,7 @@ export async function POST(request: Request) {
   // Admins additionally get a long-lived pluginLinks token for clan-sync etc.
   // One active token per admin user — reused across in-game characters.
   let adminToken: string | null = null;
-  if (issuingUser.role === 'admin') {
+  if (atLeast(issuingUser.role, 'admin')) {
     const existing = await db.query.pluginLinks.findFirst({
       where: and(eq(pluginLinks.userId, issuingUser.id), isNull(pluginLinks.revokedAt)),
     });
@@ -252,7 +253,7 @@ export async function POST(request: Request) {
     role: issuingUser.role,
     rsn,
     clanMemberId,
-    isAdmin: issuingUser.role === 'admin',
+    isAdmin: atLeast(issuingUser.role, 'admin'),
     adminToken,
   });
 }

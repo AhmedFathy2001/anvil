@@ -15,6 +15,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,7 +108,7 @@ export default async function MyTeamPage({
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
   // page is built, not hidden in the client. Clan staff (admin / treasurer / moderator) still see
   // their own board here, the same exception every other surface makes.
-  const isClanStaff = user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator';
+  const isClanStaff = atLeast(user.role, 'admin') || user.role === 'treasurer' || user.role === 'moderator';
   const boardHidden = !event.tilesRevealed && !isClanStaff;
   // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
   // staff viewing their own team.

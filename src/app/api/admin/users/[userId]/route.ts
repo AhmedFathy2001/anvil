@@ -134,7 +134,7 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   const currentUser = await verifyUser();
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || !atLeast(currentUser.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

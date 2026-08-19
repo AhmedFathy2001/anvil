@@ -9,6 +9,7 @@ import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
+import { atLeast } from '@/lib/clanRoles';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -33,7 +34,7 @@ export async function PATCH(
 ) {
   const clan = await requireClan();
   const session = await verifyUser();
-  if (!session || session.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   }
 

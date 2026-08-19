@@ -4,6 +4,7 @@ import { teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { atLeast } from '@/lib/clanRoles';
 
 // PUT /api/admin/teams/[teamId]/captain { userId: number | null }
 // Admin (or moderator) assigns or clears the Discord-linked captain for a team.
@@ -13,7 +14,7 @@ export async function PUT(
   { params }: { params: Promise<{ teamId: string }> },
 ) {
   const session = await verifyUser();
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || (!atLeast(session.role, 'admin') && session.role !== 'moderator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

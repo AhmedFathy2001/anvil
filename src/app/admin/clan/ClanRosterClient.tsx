@@ -608,10 +608,13 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const banning = !member.userBanned;
     let reason: string | undefined;
     if (banning) {
-      const input = prompt(`Ban ${member.rsn}'s site account? They lose all access immediately.\nOptional reason:`);
+      const input = prompt(
+        `Ban ${member.rsn} from this clan? They are removed and cannot rejoin until you lift it.\n` +
+          `They keep their account and any other clan they're in.\nOptional reason:`,
+      );
       if (input === null) return; // cancelled
       reason = input.trim() || undefined;
-    } else if (!confirm(`Unban ${member.rsn}'s site account?`)) {
+    } else if (!confirm(`Let ${member.rsn} rejoin this clan? They are not added back automatically.`)) {
       return;
     }
     const res = await fetch(`/api/admin/users/${member.userId}/ban`, {

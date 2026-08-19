@@ -11,6 +11,7 @@ import { allMomentsForEvent } from '@/lib/momentsStore';
 import { summariseMoments } from '@/lib/momentsAnalytics';
 import RecapClient from './RecapClient';
 import MomentsSummaryPanel from './MomentsSummaryPanel';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export default async function EventRecapPage({
 
   const ended = isEventEnded(event);
   const session = await verifyUser();
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
 
   // The recap opens to everyone once the event ends; staff can peek early to see what players will get.
   if (!ended && !isStaff) {

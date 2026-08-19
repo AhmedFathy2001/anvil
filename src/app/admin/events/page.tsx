@@ -14,6 +14,7 @@ import {
   type AttentionItem,
 } from '@/lib/adminEventsOverview';
 import EventsClient, { type ListItem } from './EventsClient';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,7 +118,7 @@ export default async function AdminEventsPage() {
     });
   const past = all.filter(isPast).sort(byDateDesc);
 
-  const canManage = session?.role === 'admin';
+  const canManage = atLeast(session?.role, 'admin');
 
   // ---- the numbers ------------------------------------------------------------------------
   // Editors don't get the operational reads: they author tiles, and every href in the attention

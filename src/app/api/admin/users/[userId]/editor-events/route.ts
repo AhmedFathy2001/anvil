@@ -5,6 +5,7 @@ import { events, users, clanAuditLog } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser, setUserAssignedEvents } from '@/lib/eventEditors';
+import { atLeast } from '@/lib/clanRoles';
 
 // Per-user board-editing assignment (the Users-page counterpart to the per-event editors panel).
 // Admin-only. Manages the board grants for role 'member' / scoped 'editor' users; a global editor
@@ -17,7 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> },
 ) {
   const session = await verifyUser();
-  if (session?.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { userId } = await params;
@@ -64,7 +65,7 @@ export async function PUT(
   { params }: { params: Promise<{ userId: string }> },
 ) {
   const session = await verifyUser();
-  if (session?.role !== 'admin') {
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { userId } = await params;

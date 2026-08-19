@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded, toQuestionView, type SurveyAnswerMap } from '@/lib/survey';
 import SurveyResponseClient from './SurveyResponseClient';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ export default async function EventSurveyPage({
   }
 
   const session = await verifyUser();
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
   const ended = isEventEnded(event);
 
   // Is this viewer an approved participant who can actually submit?

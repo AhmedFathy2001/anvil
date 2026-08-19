@@ -7,6 +7,7 @@ import { personOf } from '@/lib/roster';
 import { verifyUser } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { banFromClan, liftClanBan } from '@/lib/clanBans';
+import { atLeast } from '@/lib/clanRoles';
 
 // POST /api/admin/users/[userId]/ban   Body: { banned: boolean, reason?: string }
 //
@@ -21,7 +22,7 @@ import { banFromClan, liftClanBan } from '@/lib/clanBans';
 // ever writes that column again.
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const actor = await verifyUser();
-  if (actor?.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!actor || !atLeast(actor.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   // The clan doing the barring is the one whose site this is.
   const clan = await requireClanFromRequest(request);

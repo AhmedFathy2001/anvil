@@ -19,6 +19,7 @@ import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail'
 import LinkedAccountsClient from './LinkedAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import SecurityDrawer from './SecurityDrawer';
+import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,7 +81,7 @@ export default async function ProfilePage({
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
-  const isStaff = user.role === 'admin' || user.role === 'moderator';
+  const isStaff = atLeast(user.role, 'admin') || user.role === 'moderator';
   // Server component — Date.now() runs once per request, not on client renders.
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();

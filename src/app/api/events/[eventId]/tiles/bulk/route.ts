@@ -6,6 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { diffTiles, logTileAudit } from '@/lib/tile-audit';
+import { atLeast } from '@/lib/clanRoles';
 
 // Set one thing on many tiles at once.
 //
@@ -88,7 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     if (revealState !== 'live' && revealState !== 'hidden') {
       return NextResponse.json({ error: "revealState must be 'live' or 'hidden'." }, { status: 400 });
     }
-    if (editor.role !== 'admin') {
+    if (!atLeast(editor.role, 'admin')) {
       return NextResponse.json({ error: 'Revealing or hiding tiles is admin-only.' }, { status: 403 });
     }
     Object.assign(

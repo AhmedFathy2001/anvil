@@ -17,6 +17,7 @@ import {
   isWellFormedToken,
   mayMintInvite,
 } from '@/lib/teamInvites';
+import { atLeast } from '@/lib/clanRoles';
 
 // The links that put someone straight onto one team (lib/teamInvites). Minting is the whole
 // permission question here: a host may always, a captain or a staff seat only when the event's
@@ -28,7 +29,7 @@ async function gate(teamId: number) {
   if (!session) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const membership = await resolveTeamManagement(teamId);
-  const isAdmin = session.role === 'admin' || session.role === 'moderator';
+  const isAdmin = atLeast(session.role, 'admin') || session.role === 'moderator';
   if (!membership && !isAdmin) {
     return { error: NextResponse.json({ error: 'Not your team' }, { status: 403 }) };
   }

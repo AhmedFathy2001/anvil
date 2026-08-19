@@ -3,13 +3,14 @@ import { verifyUser } from '@/lib/auth';
 import { listEventIndex } from '@/lib/eventIndex';
 import { lifecycleSteps } from '@/lib/eventStage';
 import { getEventRow, getStageCounts } from '@/lib/eventStageCounts';
+import { atLeast } from '@/lib/clanRoles';
 
 // GET — everything this clan runs, boards and weeklies together, for the admin schedule calendar.
 // One shape for both (lib/eventIndex) rather than two lists the client has to reconcile; the
 // weekly links land on their admin workspace, not the player page. Any admin/moderator may view.
 export async function GET() {
   const user = await verifyUser();
-  if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+  if (!user || (!atLeast(user.role, 'admin') && user.role !== 'moderator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
