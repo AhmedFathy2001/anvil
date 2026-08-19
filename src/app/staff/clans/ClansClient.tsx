@@ -41,6 +41,40 @@ export default function ClansClient({
 
   const liveByClan = new Map(grants.map((g) => [g.clanId, g]));
 
+  // Appointing an owner is only ever offered where a clan HAS none — see the route for why that
+  // restriction is the whole safety of it. Candidates are fetched on demand rather than joined into
+  // every row, because this is a repair for a rare broken state, not part of the normal view.
+  const [ownerFor, setOwnerFor] = useState<number | null>(null);
+  const [candidates, setCandidates] = useState<{ userId: number; role: string; name: string | null }[]>([]);
+
+  async function openOwner(clanId: number) {
+    setOwnerFor(clanId);
+    setCandidates([]);
+    const res = await fetch(`/api/staff/clans/${clanId}/owner`);
+    if (res.ok) setCandidates((await res.json()).candidates ?? []);
+  }
+
+  async function appointOwner(clanId: number, userId: number) {
+    setBusy(clanId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/staff/clans/${clanId}/owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      setOwnerFor(null);
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function actAs(clanId: number) {
     setBusy(clanId);
     setError(null);
@@ -146,7 +180,47 @@ export default function ClansClient({
                   </a>
                   <div className="text-xs text-gray-500">{c.host}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-300">{c.owner ?? <span className="text-gray-600">—</span>}</td>
+                <td className="px-4 py-3 text-gray-300">
+                  {c.owner ? (
+                    c.owner
+                  ) : ownerFor === c.id ? (
+                    <div className="flex flex-col gap-1">
+                      {candidates.length === 0 ? (
+                        <span className="text-xs text-gray-500">No staff here to promote.</span>
+                      ) : (
+                        candidates.map((cand) => (
+                          <button
+                            key={cand.userId}
+                            onClick={() => appointOwner(c.id, cand.userId)}
+                            disabled={busy != null}
+                            className="rounded-lg border border-gold/40 px-2 py-1 text-left text-xs text-gold"
+                          >
+                            {cand.name ?? `#${cand.userId}`} ({cand.role})
+                          </button>
+                        ))
+                      )}
+                      <button
+                        onClick={() => setOwnerFor(null)}
+                        className="text-left text-xs text-gray-500"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600">
+                      —
+                      {canWrite && (
+                        <button
+                          onClick={() => openOwner(c.id)}
+                          className="ml-2 text-xs text-gray-500 underline hover:text-gold"
+                          title="This clan has no owner, so its own transfer flow cannot give it one"
+                        >
+                          appoint
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-right tabular-nums">{c.members}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-400">{c.guests}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{c.events}</td>

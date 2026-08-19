@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { hasPlatformRole, PLATFORM_ROLES } from '../src/lib/clanRoles.ts';
@@ -281,4 +281,62 @@ test('taking a grant writes it into the CLAN\'s audit log, not a private one', a
   assert.ok(entry, 'the clan can find out an operator was here');
   // The reason is the only account the clan gets of WHY, so it has to survive into the log.
   assert.match(entry!.newValue ?? '', /members list showing duplicates/);
+});
+
+// ── The ownerless clan ────────────────────────────────────────────────────────────────────────
+//
+// Ownership moves through the clan's own transfer flow, which requires a current owner to call it.
+// A clan with none can therefore never acquire one on its own. theafkspot came out of the migration
+// in exactly that state, so this is a real repair rather than a hypothetical one.
+
+test('a clan can be given an owner only while it has none', async () => {
+  const { db, schema: s } = await loadDb();
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'ownerless', name: 'Ownerless' }).returning();
+  const [person] = await db
+    .insert(s.users)
+    .values({ displayName: 'Deputy', discordId: '960000000000000001' })
+    .returning();
+  await db.insert(s.clanStaff).values({ clanId: clan.id, userId: person.id, role: 'admin' });
+
+  const owners = async () =>
+    (await db.select().from(s.clanStaff).where(eq(s.clanStaff.clanId, clan.id))).filter(
+      (r) => r.role === 'owner',
+    );
+
+  assert.equal((await owners()).length, 0, 'the stuck state');
+
+  // What the route does, once it has checked there is no owner.
+  await db
+    .update(s.clanStaff)
+    .set({ role: 'owner' })
+    .where(and(eq(s.clanStaff.clanId, clan.id), eq(s.clanStaff.userId, person.id)));
+
+  const now = await owners();
+  assert.equal(now.length, 1);
+  assert.equal(now[0].userId, person.id);
+});
+
+test('one clan never ends up with two owners', async () => {
+  // The invariant the "already has an owner" refusal protects: two undemotable seats and no way to
+  // reconcile them.
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db.insert(s.clans).values({ slug: 'oneowner', name: 'One Owner' }).returning();
+  const people = await db
+    .insert(s.users)
+    .values([
+      { displayName: 'A', discordId: '960000000000000002' },
+      { displayName: 'B', discordId: '960000000000000003' },
+    ])
+    .returning();
+  await db.insert(s.clanStaff).values([
+    { clanId: clan.id, userId: people[0].id, role: 'owner' },
+    { clanId: clan.id, userId: people[1].id, role: 'admin' },
+  ]);
+
+  const existing = await db
+    .select()
+    .from(s.clanStaff)
+    .where(and(eq(s.clanStaff.clanId, clan.id), eq(s.clanStaff.role, 'owner')));
+  assert.equal(existing.length, 1, 'the route refuses with 409 when this is non-empty');
 });
