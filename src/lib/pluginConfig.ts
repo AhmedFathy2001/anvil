@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
-import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
+import { BOSSES, COUNTER_TARGETS, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
 
@@ -490,8 +490,16 @@ export async function getBrokerBaseUrl(): Promise<string | null> {
 export function personalBestActivities(): string[] {
   const names = new Set<string>();
   for (const boss of BOSSES) {
-    names.add(boss.label.toLowerCase());
+    const label = boss.label.toLowerCase();
+    names.add(label);
+    // RuneLite files the PB under the name the game prints, which drops the article:
+    // "The Whisperer" on the hiscores is stored as "whisperer".
+    if (label.startsWith('the ')) names.add(label.slice(4));
     for (const alias of boss.aliases ?? []) names.add(alias.toLowerCase());
+  }
+  // Awakened DT2 variants keep their own PB, but they aren't on the hiscores so BOSSES has no entry.
+  for (const target of COUNTER_TARGETS) {
+    if (target.name.toLowerCase().endsWith('(awakened)')) names.add(target.name.toLowerCase());
   }
   // Timed content that isn't a hiscores boss, so it has no BOSSES entry to come from.
   for (const extra of [
