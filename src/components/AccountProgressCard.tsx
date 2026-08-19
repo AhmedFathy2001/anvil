@@ -12,7 +12,7 @@ import {
   taskTypes,
 } from '@/lib/combatTasks';
 import { PANEL, RS_ORANGE, RS_STATE, RS_TEXT, TAB, TAB_ON, WELL } from '@/components/gameChrome';
-import Combobox from '@/components/Combobox';
+import Select from '@/components/Select';
 
 /**
  * Quests, diaries and combat achievements, drawn the way the game draws them.
@@ -190,7 +190,12 @@ function DiaryTab({ summary }: { summary: ProgressSummary }) {
   );
 }
 
-/** One of the interface's dropdowns: a label above a select, in the game's chrome. */
+/**
+ * One of the interface's dropdowns — the game's label above the site's own Select, which brings a
+ * search box of its own once a list gets long. That last part is why the monster picker is one of
+ * these too: in-game it's a dropdown of every monster there is, and scrolling past two hundred of
+ * them to reach Phosani's Nightmare is the single worst thing about the screen we're copying.
+ */
 function FilterSelect({
   label,
   value,
@@ -203,21 +208,10 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block mb-3">
+    <div className="mb-3">
       <span className="block text-xs mb-1" style={{ color: RS_ORANGE }}>{label}:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`${WELL} w-full px-2 py-1 text-xs outline-none`}
-        style={{ color: RS_TEXT }}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} style={{ backgroundColor: '#2b2620' }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select value={value} onChange={onChange} options={options} ariaLabel={label} />
+    </div>
   );
 }
 
@@ -293,19 +287,12 @@ function CombatTab({ summary, tasks }: { summary: ProgressSummary; tasks: Progre
               onChange={setType}
               options={[{ value: 'all', label: 'All' }, ...types.map((t) => ({ value: t, label: t }))]}
             />
-            {/* The game gives you a dropdown of every monster in it, which is the worst part of the
-                interface: finding "Phosani's Nightmare" means scrolling past two hundred others.
-                Type instead — an exact match filters, anything else means no filter. */}
-            <label className="block mb-3">
-              <span className="block text-xs mb-1" style={{ color: RS_ORANGE }}>Monster:</span>
-              <Combobox
-                value={monster === 'all' ? '' : monster}
-                onChange={(v) => setMonster(v.trim() === '' ? 'all' : v)}
-                suggestions={monsters}
-                placeholder="Any monster"
-                ariaLabel="Filter by monster"
-              />
-            </label>
+            <FilterSelect
+              label="Monster"
+              value={monster}
+              onChange={setMonster}
+              options={[{ value: 'all', label: 'All' }, ...monsters.map((m) => ({ value: m, label: m }))]}
+            />
             <FilterSelect
               label="Completed"
               value={completed}
