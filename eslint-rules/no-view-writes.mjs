@@ -78,6 +78,9 @@ export default {
     docs: { description: 'clan_roster is a view; it cannot appear in a write statement' },
     schema: [],
     messages: {
+      viewAsTarget:
+        'clan_roster is a VIEW and cannot be the target of a {{verb}} — it has no rules or triggers, ' +
+        'so Postgres refuses the write. Write clanMemberships / accounts instead.',
       viewInWrite:
         'clan_roster is a VIEW and cannot appear in a {{verb}} — Postgres rejects the statement at ' +
         'parse time and the write never applies. Name the real table (accounts / clanMemberships) ' +
@@ -86,6 +89,16 @@ export default {
   },
   create(context) {
     return {
+      // `db.update(clanRoster)` / `.delete(...)` / `.insert(...)` — the view as the write TARGET,
+      // passed as a bare identifier rather than a `clanRoster.col` reference, so the selector below
+      // never sees it. None exist today; this keeps it that way.
+      'CallExpression > MemberExpression.callee'(node) {
+        if (!WRITES.has(node.property?.name)) return;
+        const arg = node.parent.arguments?.[0];
+        if (arg?.type === 'Identifier' && arg.name === VIEW) {
+          context.report({ node: arg, messageId: 'viewAsTarget', data: { verb: node.property.name.toUpperCase() } });
+        }
+      },
       // Any `clanRoster.<col>` reference; then ask what kind of statement it sits in.
       [`MemberExpression[object.name="${VIEW}"]`](node) {
         for (let p = node.parent, hops = 0; p && hops < 40; p = p.parent, hops++) {

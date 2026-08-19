@@ -79,3 +79,20 @@ test('allows a subquery that READS the view inside a write', () => {
 test('does not flag the view outside a write statement', () => {
   assert.equal(lint(`const seat = rows.find((r) => r.id === clanRoster.id);`).length, 0);
 });
+
+test('flags the view as a write TARGET, passed bare', () => {
+  // `db.update(clanRoster)` never contains a `clanRoster.col` reference, so it needs its own
+  // selector. None exist today — this is what keeps it that way.
+  const msgs = lint(`db.update(clanRoster).set({ status: 'x' }).where(eq(accounts.id, id));`);
+  assert.equal(msgs.length, 1);
+  assert.match(msgs[0].message, /target of a UPDATE/);
+});
+
+test('flags inserting into the view', () => {
+  assert.equal(lint(`db.insert(clanRoster).values(row);`).length, 1);
+});
+
+test('does not flag writes to the real tables', () => {
+  assert.equal(lint(`db.insert(clanMemberships).values(row);`).length, 0);
+  assert.equal(lint(`db.update(accounts).set({ x: 1 }).where(eq(accounts.id, id));`).length, 0);
+});
