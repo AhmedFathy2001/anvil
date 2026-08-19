@@ -94,6 +94,21 @@ export function slugFromHost(rawHost: string | null | undefined): string | null 
   return label;
 }
 
+/** One place that turns a clans row into the context, so the two lookups cannot drift. */
+function toContext(row: typeof clans.$inferSelect): ClanContext {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    inGameName: row.inGameName,
+    status: row.status,
+    plan: row.plan,
+    memberCap: row.memberCap,
+    customDomain: row.customDomain,
+    host: row.customDomain || `${row.slug}.${apexDomain()}`,
+  };
+}
+
 /**
  * Look a host up in the clan table. Null when nothing matches — callers 404 rather than guessing.
  *
@@ -108,29 +123,44 @@ export const resolveClanByHost = cache(async (rawHost: string | null | undefined
   const row = await db.query.clans.findFirst({
     where: slug ? or(eq(clans.customDomain, host), eq(clans.slug, slug)) : eq(clans.customDomain, host),
   });
-  if (!row) return null;
+  return row ? toContext(row) : null;
+});
 
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    inGameName: row.inGameName,
-    status: row.status,
-    plan: row.plan,
-    memberCap: row.memberCap,
-    customDomain: row.customDomain,
-    host: row.customDomain || `${row.slug}.${apexDomain()}`,
-  };
+/** Look a clan up by slug — the path-addressed half of the same question. */
+export const resolveClanBySlug = cache(async (slug: string | null | undefined): Promise<ClanContext | null> => {
+  const s = slug?.trim().toLowerCase();
+  if (!s) return null;
+  const row = await db.query.clans.findFirst({ where: eq(clans.slug, s) });
+  return row ? toContext(row) : null;
 });
 
 /**
- * The clan for the CURRENT request, from its Host header. Null on the apex or an unknown host.
+ * The clan for the CURRENT request. Null on the apex, or on a host and path that name none.
  *
- * For server components and route handlers that don't already hold a Request.
+ * THE PATH WINS. `/c/<slug>/…` is the canonical address; middleware rewrites it back onto the route
+ * that already exists and leaves the slug in a header. The Host is the fallback, still answering for
+ * the per-clan subdomains that plugins have stored in them.
+ *
+ * Order matters and is not arbitrary: if a request carries both — a clan-prefixed path on a clan's
+ * own subdomain — the path is the one the person typed.
  */
 export const currentClan = cache(async (): Promise<ClanContext | null> => {
   const h = await headers();
+  const fromPath = await resolveClanBySlug(h.get('x-anvil-clan-slug'));
+  if (fromPath) return fromPath;
   return resolveClanByHost(h.get('host'));
+});
+
+/**
+ * The `/c/<slug>` this request is under, or '' when it isn't.
+ *
+ * Everything building a link inside a clan needs this, and it must come from the request rather than
+ * be recomputed from the clan — a request on the old subdomain has a clan but no prefix, and
+ * prefixing its links would send people somewhere they aren't.
+ */
+export const clanPrefix = cache(async (): Promise<string> => {
+  const h = await headers();
+  return h.get('x-anvil-clan-prefix') ?? '';
 });
 
 /**
@@ -157,6 +187,11 @@ export async function requireClan(): Promise<ClanContext> {
  * the async-local store isn't available.
  */
 export async function resolveClanFromRequest(request: Request): Promise<ClanContext | null> {
+  // Same order as currentClan: the prefixed path is the canonical address, the Host is the
+  // fallback that keeps every installed plugin working. A route handler reached at
+  // `/c/<slug>/api/...` sees the slug here because middleware put it on the request.
+  const fromPath = await resolveClanBySlug(request.headers.get('x-anvil-clan-slug'));
+  if (fromPath) return fromPath;
   return resolveClanByHost(request.headers.get('host'));
 }
 
