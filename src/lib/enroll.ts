@@ -86,7 +86,11 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
     if (existing) continue;
     await db
       .insert(eventSignups)
-      .values({ eventId, userId: m.playerId ?? null, clanMemberId: m.id, status: 'approved', profileData: '{}' })
+      // `login`, not the person id. The comment above says exactly this and the dedup check three
+      // lines up already uses it — the insert did not, so it wrote a PERSON id into a column that is
+      // a foreign key to users.id. It does not fail: some unrelated login usually holds that number,
+      // and the sign-up then belongs to them.
+      .values({ eventId, userId: login, clanMemberId: m.id, status: 'approved', profileData: '{}' })
       .catch(() => {}); // unique (event,user) race — ignore
   }
 }

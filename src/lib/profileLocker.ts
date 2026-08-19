@@ -313,6 +313,14 @@ export async function buildLocker(
     liveEventNameByMember.set(p.clanMemberId, p.eventName);
   }
 
+  // Sharing state for every account they own, in one read. Keyed by account id because that is what
+  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
+  const allOwnedAccounts = await db
+    .select({ id: accountsTable.id, rsn: accountsTable.rsn, shared: accountsTable.shared, isPrimary: accountsTable.isPrimary })
+    .from(accountsTable)
+    .where(eq(accountsTable.playerId, playerId));
+  const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
+
   const accounts: LockerAccount[] = memberRows.map((m) => ({
     id: m.id,
     rsn: m.rsn,
@@ -326,14 +334,6 @@ export async function buildLocker(
     shared: sharedByAccount.get(m.accountId) === true,
     accountId: m.accountId,
   }));
-
-  // Sharing state for every account they own, in one read. Keyed by account id because that is what
-  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
-  const allOwnedAccounts = await db
-    .select({ id: accountsTable.id, rsn: accountsTable.rsn, shared: accountsTable.shared, isPrimary: accountsTable.isPrimary })
-    .from(accountsTable)
-    .where(eq(accountsTable.playerId, playerId));
-  const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
 
   // Their accounts that hold no seat in THIS clan.
   //
