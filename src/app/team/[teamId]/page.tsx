@@ -103,10 +103,14 @@ export default async function MyTeamPage({
   ]);
   // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
-  // page is built, not hidden in the client. Clan staff (admin / treasurer / moderator) still see
-  // their own board here, the same exception every other surface makes.
-  const isClanStaff = user.role === 'admin' || user.role === 'treasurer' || user.role === 'moderator';
-  const boardHidden = !event.tilesRevealed && !isClanStaff;
+  // page is built, not hidden in the client.
+  //
+  // No staff exception. Every other surface lets an admin see through the curtain, but here that
+  // put the board in front of a host who is ALSO playing on a team — which is the one place seeing
+  // it early actually matters. Staff who need to look at an unrevealed board have the Tiles tab in
+  // the admin panel, where looking is a deliberate act rather than a side effect of opening their
+  // own team page.
+  const boardHidden = !event.tilesRevealed;
   // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
   // staff viewing their own team.
   const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
