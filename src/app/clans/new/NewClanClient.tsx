@@ -1,0 +1,170 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+/**
+ * Create a clan.
+ *
+ * What this form is NOT any more is most of the story: no plan picker, no payment step, no Discord
+ * application, no bot invite, no "we're building your site, check back in a few minutes". A clan is
+ * a row, so it exists as soon as this succeeds and the button goes straight there.
+ */
+export default function NewClanClient({ apex, signedIn }: { apex: string; signedIn: boolean }) {
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [inGameName, setInGameName] = useState('');
+  const [touchedSlug, setTouchedSlug] = useState(false);
+  const [check, setCheck] = useState<{ ok: boolean; message: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  // Suggest the subdomain from the name until they edit it themselves, then leave it alone —
+  // silently rewriting a field someone has typed in is worse than a bad suggestion.
+  useEffect(() => {
+    if (touchedSlug) return;
+    setSlug(
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 32),
+    );
+  }, [name, touchedSlug]);
+
+  useEffect(() => {
+    if (!slug) {
+      setCheck(null);
+      return;
+    }
+    // Debounced: this fires on every keystroke otherwise, and availability is a database read.
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}`);
+      if (res.ok) setCheck((await res.json()).slug ?? null);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [slug]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/clans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, slug, inGameName }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      setDone(j.clan?.slug ?? slug);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    const host = `${done}.${apex}`;
+    return (
+      <div className="rounded-xl border border-card-border bg-card-bg p-6">
+        <h2 className="text-xl font-semibold text-gold">Your clan is live.</h2>
+        <p className="mt-2 text-sm text-gray-300">
+          Nothing to wait for — it is already serving. You are its owner.
+        </p>
+        <a
+          href={`https://${host}`}
+          className="mt-4 inline-block rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold"
+        >
+          Go to {host}
+        </a>
+      </div>
+    );
+  }
+
+  if (!signedIn) {
+    return (
+      <div className="rounded-xl border border-card-border bg-card-bg p-6">
+        <p className="text-sm text-gray-300">
+          Sign in with Discord first — a clan needs an owner, and that is how we know who you are.
+        </p>
+        <a
+          href="/login?return=/clans/new"
+          className="mt-4 inline-block rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold"
+        >
+          Sign in with Discord
+        </a>
+      </div>
+    );
+  }
+
+  const slugBad = check != null && !check.ok;
+
+  return (
+    <form onSubmit={submit} className="space-y-5 rounded-xl border border-card-border bg-card-bg p-6">
+      <div>
+        <label className="mb-1.5 block text-sm text-gray-300">Clan name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="The Afk Spot"
+          className="w-full rounded-xl border border-card-border bg-brown-dark px-4 py-2.5 text-sm outline-none focus:border-gold"
+        />
+        <p className="mt-1 text-xs text-gray-500">Shown on your site and in Discord posts.</p>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm text-gray-300">Address</label>
+        <div className="flex items-center gap-2">
+          <input
+            value={slug}
+            onChange={(e) => {
+              setTouchedSlug(true);
+              setSlug(e.target.value.toLowerCase());
+            }}
+            required
+            className={`flex-1 rounded-xl border bg-brown-dark px-4 py-2.5 text-sm outline-none ${
+              slugBad ? 'border-red-900 focus:border-red-700' : 'border-card-border focus:border-gold'
+            }`}
+          />
+          <span className="text-sm text-gray-500">.{apex}</span>
+        </div>
+        {check && (
+          <p className={`mt-1 text-xs ${check.ok ? 'text-emerald-400' : 'text-red-300'}`}>
+            {check.ok ? 'Available.' : check.message}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm text-gray-300">
+          In-game clan name <span className="text-gray-600">(optional)</span>
+        </label>
+        <input
+          value={inGameName}
+          onChange={(e) => setInGameName(e.target.value)}
+          placeholder="The Afk Spot"
+          className="w-full rounded-xl border border-card-border bg-brown-dark px-4 py-2.5 text-sm outline-none focus:border-gold"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Exactly as it appears in OSRS. The plugin&rsquo;s roster sync refuses a roster from a
+          different clan, so this is what stops someone else&rsquo;s member list landing on your site.
+          You can set it later.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-red-300">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={busy || slugBad || !name || !slug}
+        className="rounded-xl border border-gold/40 px-5 py-2.5 text-sm text-gold disabled:opacity-40"
+      >
+        {busy ? 'Creating…' : 'Create clan'}
+      </button>
+    </form>
+  );
+}

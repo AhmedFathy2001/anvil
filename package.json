@@ -28,6 +28,7 @@
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
     "test:billing": "npx tsx --test tests/billing-webhook.test.ts",
+    "test:clancreate": "npx tsx --test tests/clan-create.test.ts",
     "test:adminaccess": "npx tsx --test tests/admin-access.test.ts",
     "test:security": "node --experimental-strip-types --test tests/client-ip.test.ts tests/secret-box.test.ts",
     "test:stages": "node --experimental-strip-types --test tests/board-misconfig.test.ts tests/draft-control.test.ts tests/event-stage.test.ts tests/weekly-stage.test.ts",
