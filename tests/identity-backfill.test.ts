@@ -342,3 +342,36 @@ test('claiming resolves a login to its own person before writing ownership', asy
   // Asking twice is the same person, not a second one.
   assert.equal(await personOfOrCreate(login.id), personId);
 });
+
+
+// ── "Unclaimed" is not "has no person" ────────────────────────────────────────────────────────
+// Every account gets a person the moment it exists, so an unclaimed roster entry has an identity to
+// accumulate history against and a later claim MERGES two people instead of filling in a blank.
+//
+// That makes `player_id IS NULL` permanently false, and it was the test for "has anyone claimed
+// this?" in a dozen places — five SQL predicates and seven JavaScript ones. Two of the SQL ones
+// guarded the auto-link paths against a concurrent claim, so instead of refusing a racing write they
+// would have refused every write; the JS ones gated auto-linking itself, which simply stopped.
+//
+// The honest test is claimed_at: the moment a LOGIN asserted ownership.
+test('an unclaimed account still has a person', async () => {
+  const [zezima] = await db.select().from(s2.accounts).where(eq(s2.accounts.rsnNormalized, 'zezima'));
+  assert.ok(zezima.playerId != null, 'nobody has claimed Zezima, and it still has an owner');
+  assert.equal(zezima.claimedAt, null, 'which is exactly why claimed_at is the test, not player_id');
+});
+
+test('a claimed account is told apart from an unclaimed one by claimed_at alone', async () => {
+  const all = await db.select().from(s2.accounts);
+  assert.ok(all.length > 1);
+
+  // If player_id could still answer this, every account would look claimed.
+  assert.equal(
+    all.filter((a) => a.playerId != null).length,
+    all.length,
+    'every account has a person, claimed or not',
+  );
+  assert.ok(
+    all.some((a) => a.claimedAt == null),
+    'and some are unclaimed, which only claimed_at reveals',
+  );
+});

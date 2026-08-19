@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const renamed =
     existing && accountHash && existing.accountHash === accountHash && existing.rsnNormalized !== rsnNormalized;
   // Ghost being claimed: a row exists but has no user attached yet.
-  const claimingGhost = existing && existing.playerId == null;
+  const claimingGhost = existing && existing.claimedAt == null;
 
   let clanMemberId: number;
 
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
 
     // If another user already owns this clanMember, refuse to overwrite — the link
     // belongs to whoever first claimed it. The site can offer a transfer flow elsewhere.
-    if (existing.playerId && existing.playerId !== issuingUser.id) {
+    if (existing.claimedAt && existing.playerId !== (await personOf(issuingUser.id))) {
       return NextResponse.json(
         { error: 'This RuneScape account is already linked to a different site user.' },
         { status: 409 },

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, teams, eventSignups } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
@@ -71,11 +72,15 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
   if (clanMemberIds.length === 0) return;
   const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
   for (const m of members) {
-    // Dedup: linked → by (event, user); guest → by (event, clan member).
+    // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
+    //
+    // eventSignups.userId names a LOGIN and a seat names a PERSON, so the person has to be resolved
+    // to their login rather than passed straight in — the two are different id sequences.
+    const login = m.claimedAt ? await loginOf(m.playerId) : null;
     const existing = await db.query.eventSignups.findFirst({
       where:
-        m.playerId != null
-          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, m.playerId))
+        login != null
+          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, login))
           : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
     });
     if (existing) continue;

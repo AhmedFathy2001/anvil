@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   // Refuse if both are actively claimed by different users — that's a real conflict that
   // needs the users involved to resolve, not an admin merge.
-  if (source.playerId && target.playerId && source.playerId !== target.playerId) {
+  if (source.claimedAt && target.claimedAt && source.playerId !== target.playerId) {
     return NextResponse.json(
       { error: 'Both records are claimed by different users. Resolve ownership before merging.' },
       { status: 409 },

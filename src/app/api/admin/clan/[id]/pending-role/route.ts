@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { seatForRequest } from '@/lib/roster';
+import { loginOf, seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
 import { clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -61,9 +61,10 @@ export async function PUT(
     .catch(() => {});
 
   let appliedNow = false;
-  if (role && member.playerId && !member.provisional) {
+  const owner = member.claimedAt ? await loginOf(member.playerId) : null;
+  if (role && owner != null && !member.provisional) {
     // Already verified non-provisional account — apply immediately.
-    appliedNow = await applyPendingRole(memberId, member.playerId, 'manual_approval');
+    appliedNow = await applyPendingRole(memberId, owner, 'manual_approval');
   }
 
   // Echo the resolved state for the client.

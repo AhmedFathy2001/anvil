@@ -157,7 +157,7 @@ export async function POST(
     ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
     : null;
   const groupIds = [playerId];
-  if (pickedMember?.playerId != null) {
+  if (pickedMember?.claimedAt != null && pickedMember.playerId != null) {
     const siblings = await db
       .select({ id: eventParticipants.id })
       .from(eventParticipants)

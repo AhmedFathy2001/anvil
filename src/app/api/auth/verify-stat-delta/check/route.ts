@@ -135,7 +135,7 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    const claimingGhost = existing.playerId == null;
+    const claimingGhost = existing.claimedAt == null;
     await db
       .update(accounts)
       .set({

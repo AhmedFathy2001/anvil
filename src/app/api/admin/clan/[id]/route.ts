@@ -41,10 +41,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const existing = await seatForRequest(request, memberId);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Set-primary: demote the person's other accounts, promote this one. Only meaningful for a linked
-  // account (a person is a users row) — a ghost/unlinked account has no siblings to be primary among.
+  // Set-primary: demote the person's other accounts, promote this one. Only meaningful once someone
+  // has claimed the account — an unclaimed one has a person of its own and no siblings to be main among.
   if (body.setPrimary) {
-    if (existing.playerId == null) {
+    if (existing.claimedAt == null || existing.playerId == null) {
       return NextResponse.json({ error: 'Only a linked account can be set as the main.' }, { status: 400 });
     }
     // Across every account this person owns, in every clan — a main is a main everywhere.

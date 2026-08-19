@@ -282,9 +282,9 @@ export async function PATCH(
       const currentMember = player.clanMemberId != null
         ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
         : null;
-      const ownerUserId = currentMember?.playerId ?? null;
-      if (ownerUserId != null && member.playerId == null) {
-        await updateAccountOfSeat(cmId, { playerId: ownerUserId });
+      const owner = currentMember?.claimedAt ? currentMember.playerId : null;
+      if (owner != null && member.claimedAt == null) {
+        await updateAccountOfSeat(cmId, { playerId: owner, claimedAt: currentMember!.claimedAt });
       }
     }
   }

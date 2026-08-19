@@ -237,3 +237,15 @@ export async function seatForRequest(request: Request, seatId: number): Promise<
   if (!clan) return null;
   return seatInClan(clan.id, seatId);
 }
+
+/**
+ * The login belonging to a person, or null if they have never signed in.
+ *
+ * The reverse of personOf, for the paths that act on a USER — applying a pending site role, say —
+ * starting from a roster seat, which names a person rather than a login.
+ */
+export async function loginOf(playerId: number | null | undefined): Promise<number | null> {
+  if (playerId == null) return null;
+  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId)).limit(1);
+  return row?.id ?? null;
+}

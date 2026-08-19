@@ -25,17 +25,19 @@ export async function GET(request: Request) {
 
   // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
   // clan_members.discordId column) so the roster can show/toggle the site ban.
-  const userIds = [...new Set(rows.map((r) => r.playerId).filter((v): v is number => v != null))];
+  // Found by PERSON, and keyed by person. A seat names the person who owns its account, and
+  // users.id is a different sequence — matching it against a person id finds the wrong login.
+  const personIds = [...new Set(rows.map((r) => r.playerId).filter((v): v is number => v != null))];
   // users.role rides along so the roster can filter by site role without a second round-trip.
-  const userRows = userIds.length
+  const userRows = personIds.length
     ? await db
-        .select({ id: users.id, banned: users.banned, discordId: users.discordId, role: users.role })
+        .select({ playerId: users.playerId, banned: users.banned, discordId: users.discordId, role: users.role })
         .from(users)
-        .where(inArray(users.id, userIds))
+        .where(inArray(users.playerId, personIds))
     : [];
-  const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.id));
-  const userDiscordId = new Map(userRows.map((u) => [u.id, u.discordId]));
-  const userRole = new Map(userRows.map((u) => [u.id, u.role]));
+  const bannedIds = new Set(userRows.filter((u) => u.banned).map((u) => u.playerId));
+  const userDiscordId = new Map(userRows.map((u) => [u.playerId, u.discordId]));
+  const userRole = new Map(userRows.map((u) => [u.playerId, u.role]));
 
   // Effective Discord id per member: users.discordId beats the legacy clan_members.discordId column.
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>

@@ -436,7 +436,9 @@ async function autoLinkOrSuggestOnPlay(
     const existing = byHash ?? byRsn;
 
     // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
-    if (existing?.playerId != null) return;
+    // Claimed, not "has a person": every account has a person, so player_id says nothing about
+    // whether anyone has claimed it, and testing it here stopped this path linking anything at all.
+    if (existing?.claimedAt != null) return;
 
     // Minimal guard: ONLY a row carrying a pre-assigned role stays opt-in when matched by name alone,
     // so nobody can auto-grant themselves admin/mod by typing a member's public RSN. Every other
@@ -555,7 +557,7 @@ async function maybeAutoClaimEstablishedOnPlay(
   try {
     const existing = await findRosterSeat(eq(clanRoster.accountHash, accountHash));
     if (!existing) return; // no row anchored to this hash — opt-in flow handles the rest
-    if (existing.playerId != null) return; // already owned (theirs or someone else's) — never steal
+    if (existing.claimedAt != null) return; // already claimed (theirs or someone else's) — never steal
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
     if (existing.verifiedAt == null && existing.kind !== 'member') return;
 
@@ -623,8 +625,8 @@ export async function claimAccountForUser(
     (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
   const existing = byHash ?? byRsn;
 
-  if (existing?.playerId != null) {
-    if (existing.playerId === userId) return { ok: true, clanMemberId: existing.id };
+  if (existing?.claimedAt != null) {
+    if (existing.playerId === (await personOf(userId))) return { ok: true, clanMemberId: existing.id };
     return { ok: false, reason: 'owned-by-other' };
   }
 
