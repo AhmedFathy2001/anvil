@@ -1,6 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
+import type { ReactNode } from 'react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -35,6 +36,12 @@ interface Props {
    * says why the board is missing.
    */
   boardHidden?: boolean;
+  /**
+   * The manager's blocks (war-room banner, the manage card) — rendered here rather than above the
+   * page so the team leads with what it IS. A captain arriving at their own team page was reading
+   * two control panels before they got to the team's name.
+   */
+  tools?: ReactNode;
 }
 
 export default function MyTeamClient({
@@ -48,6 +55,7 @@ export default function MyTeamClient({
   myPlayerName,
   tierBands = DEFAULT_TIER_BANDS,
   boardHidden = false,
+  tools = null,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -416,7 +424,7 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {isCaptain && ' · Click tiles to toggle or submit'}
+        {isCaptain && !boardHidden && ' · Click tiles to toggle or submit'}
       </p>
 
       {eventCountdown && (
@@ -429,14 +437,24 @@ export default function MyTeamClient({
             )}
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-text-muted">On the board</p>
-            <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: team.color }}>
-              {total.toLocaleString()} {pointsMode ? 'pts' : 'tiles'}
+            {/* With the board hidden the tiles never reached this component, so "on the board" would
+                read 0 — which is a wrong number, not a missing one. Say the roster instead. */}
+            <p className="text-xs uppercase tracking-wide text-text-muted">
+              {boardHidden ? 'On the team' : 'On the board'}
             </p>
-            <p className="text-xs text-text-muted">{players.filter((p) => p.teamId === team.id).length} on the team</p>
+            <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: team.color }}>
+              {boardHidden
+                ? players.filter((p) => p.teamId === team.id).length
+                : `${total.toLocaleString()} ${pointsMode ? 'pts' : 'tiles'}`}
+            </p>
+            <p className="text-xs text-text-muted">
+              {boardHidden ? 'board revealed by the host' : `${players.filter((p) => p.teamId === team.id).length} on the team`}
+            </p>
           </div>
         </div>
       )}
+
+      {tools}
 
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
@@ -471,7 +489,9 @@ export default function MyTeamClient({
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
         {/* Summary column */}
         <div className="space-y-5 lg:sticky lg:top-20">
-          {/* Progress */}
+          {/* Progress — nothing to show while the board is hidden: total is 0 because the tiles
+              never arrived, so the bar would read "0/0 · 0%" and mean nothing. */}
+          {!boardHidden && (
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
@@ -481,9 +501,11 @@ export default function MyTeamClient({
               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, background: `linear-gradient(90deg, ${team.color}cc, ${team.color})` }} />
             </div>
           </div>
+          )}
 
-          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed */}
-          {teamPlayers.length > 0 && (
+          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed.
+              Hidden with the board: with no tiles every row is a zero. */}
+          {!boardHidden && teamPlayers.length > 0 && (
             <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
               <button
                 type="button"
@@ -543,12 +565,24 @@ export default function MyTeamClient({
         <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
           <div className="min-w-0">
             {boardHidden ? (
-              <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
-                <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
-                <p className="text-sm">
-                  The host will unveil the board before the event begins. Everything else about your
-                  team is here in the meantime.
+              <div className="border border-dashed border-card-border rounded-xl p-8 sm:p-10 text-center">
+                <p className="text-lg font-semibold mb-1">The board is sealed</p>
+                <p className="text-sm text-text-muted max-w-md mx-auto">
+                  The host unveils the tiles before the event starts — nobody has seen them yet, so
+                  there is nothing to plan around and nothing to miss.
                 </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+                  <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">
+                    <span className="font-semibold" style={{ color: team.color }}>{teamPlayers.length}</span>
+                    <span className="text-text-muted"> on your roster</span>
+                  </span>
+                  {eventCountdown && (
+                    <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">
+                      <span className="font-semibold text-gold">{eventCountdown}</span>
+                      <span className="text-text-muted"> until it starts</span>
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <>
