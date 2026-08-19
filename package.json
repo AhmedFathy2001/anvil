@@ -23,6 +23,7 @@
     "test:clan": "npx tsx --test tests/clan-host.test.ts",
     "test:db": "npx tsx --test tests/db-semantics.test.ts",
     "test:identity": "npx tsx --test tests/identity-backfill.test.ts",
+    "test:lintview": "npx tsx --test tests/lint-view-writes.test.ts",
     "test:eventscope": "npx tsx --test tests/event-scope.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:adminaccess": "npx tsx --test tests/admin-access.test.ts",

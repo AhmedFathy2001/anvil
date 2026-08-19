@@ -616,7 +616,11 @@ async function maybeAutoClaimEstablishedOnPlay(
       // Row COUNT is the guard, and it has to be read portably: the driver-specific field this used
       // to read (rowsAffected) is absent on other drivers and came back undefined, which compiled
       // fine and silently disabled the check.
-      .returning({ id: clanRoster.id });
+      //
+      // RETURNING the ACCOUNT's own column, not the view's. Naming the view here is rejected by
+      // Postgres at parse time — the update never applies — and this function swallows its own
+      // errors, so it fails as a silent no-op rather than anything you could notice.
+      .returning({ id: accounts.id });
 
     if (result.length === 0) return;
 

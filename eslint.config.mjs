@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import clanScope from "./eslint-rules/clan-scope.mjs";
+import noViewWrites from "./eslint-rules/no-view-writes.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -20,8 +21,16 @@ const eslintConfig = defineConfig([
     // the rule's own header. Tests and scripts are exempt: they seed fixtures across clans on
     // purpose, and the harness creates the clans it queries.
     files: ["src/**/*.ts", "src/**/*.tsx"],
-    plugins: { "clan-scope": { rules: { "require-clan-filter": clanScope } } },
-    rules: { "clan-scope/require-clan-filter": "warn" },
+    plugins: {
+      "clan-scope": { rules: { "require-clan-filter": clanScope, "no-view-writes": noViewWrites } },
+    },
+    rules: {
+      "clan-scope/require-clan-filter": "warn",
+      // An error, not a warning: unlike a missing clan filter this has no gradient of correctness —
+      // the statement simply never runs, and one of the four we shipped failed silently inside a
+      // try/catch. There are zero violations left, so it can be held at zero.
+      "clan-scope/no-view-writes": "error",
+    },
   },
   {
     // React-compiler diagnostics (react-hooks v6): ~13 pre-existing hits, each needing a

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -611,11 +611,23 @@ export async function GET(request: Request) {
   }
 
   // Apply unranked flips in one statement (don't churn status_last_checked mid-loop).
+  //
+  // The ids collected above are SEATS; the status belongs to the ACCOUNT sitting in each, so the
+  // hop is made in the statement rather than by naming the view — a view cannot appear in an
+  // UPDATE's WHERE, and Postgres rejects the whole statement when it does.
   if (unrankedMemberIds.size > 0) {
     await db
       .update(accounts)
       .set({ status: 'unranked', statusLastChecked: new Date().toISOString() })
-      .where(inArray(clanRoster.id, Array.from(unrankedMemberIds)));
+      .where(
+        inArray(
+          accounts.id,
+          db
+            .select({ id: clanMemberships.accountId })
+            .from(clanMemberships)
+            .where(inArray(clanMemberships.id, Array.from(unrankedMemberIds))),
+        ),
+      );
   }
 
   const durationMs = Date.now() - start;

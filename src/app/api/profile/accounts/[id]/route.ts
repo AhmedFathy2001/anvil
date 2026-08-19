@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.playerId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
 
-  await db.update(accounts).set({ isPrimary: 0 }).where(eq(clanRoster.playerId, session.playerId));
+  await db.update(accounts).set({ isPrimary: 0 }).where(eq(accounts.playerId, session.playerId));
   await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, id));
 
   // The nickname is built from the person's verified RSNs ordered primary-first, so re-sync to put

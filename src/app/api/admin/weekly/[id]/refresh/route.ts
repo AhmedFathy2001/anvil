@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { accounts, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
@@ -120,9 +120,16 @@ export async function POST(
 
   if (unrankedMemberIds.size > 0) {
     const ids = Array.from(unrankedMemberIds);
+    // Seat ids in, account rows out: the status belongs to the account, and a view cannot appear in
+    // an UPDATE's WHERE — Postgres rejects the whole statement when it does.
     await db.update(accounts)
       .set({ status: 'unranked', statusLastChecked: new Date().toISOString() })
-      .where(inArray(clanRoster.id, ids));
+      .where(
+        inArray(
+          accounts.id,
+          db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(inArray(clanMemberships.id, ids)),
+        ),
+      );
     markedUnranked = ids.length;
   }
 

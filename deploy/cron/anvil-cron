@@ -1,0 +1,27 @@
+# Scheduled work for the shared deployment. Install to /etc/cron.d/anvil-cron, root-owned, 0644.
+#
+# ONE DEPLOYMENT, ONE CALL PER JOB. This replaces the control-plane dispatcher, which existed
+# because every clan was its own container and something had to know the list. It is not merely
+# unnecessary now — it is harmful. Every one of these endpoints already sweeps the whole database
+# and derives each row's clan from the row, so fanning out per clan would run the SAME global sweep
+# once per clan: N concurrent passes over the same accounts, all of them hitting the Jagex hiscores.
+#
+# The poll budget is the scarce resource in this system. Keeping it to one call is the whole point.
+#
+# Cadence matches what the dispatcher used to stagger:
+#   flush-notifications  every minute   — the debounce backstop, plus scheduled start/end posts
+#   stats                every 15 min   — the hiscores sweep; self-limiting (oldest-first, bounded)
+#   weekly               every 15 min   — competition lifecycle: enrol, flip status, announce
+#   backup               daily          — pg_dump to object storage
+#
+# Staggering is by minute offset rather than by a queue: stats and weekly both want the quarter
+# hour, and running them in the same second means the weekly enrolment races the sweep that is about
+# to read it.
+
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+
+* * * * *      root /opt/anvil/site-cron.sh flush-notifications
+2,17,32,47 * * * * root /opt/anvil/site-cron.sh stats
+5,20,35,50 * * * * root /opt/anvil/site-cron.sh weekly
+17 4 * * *     root /opt/anvil/site-cron.sh backup
