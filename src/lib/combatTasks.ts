@@ -1,4 +1,5 @@
 import caData from '@/data/combatAchievements.json';
+import caVarps from '@/data/combatAchievementVarps.json';
 import type { ProgressItem } from '@/lib/memberProgressItems';
 
 // The combat-achievement task list as the site draws it: every task the game has, joined with the
@@ -137,4 +138,62 @@ export function taskPoints(tasks: CombatTask[]): {
     }
   }
   return { earned, total, nextTier: null, nextAt: null };
+}
+
+// ── Reading completion out of the game's own bits ───────────────────────────────────────────────
+//
+// The game stores task completion bit-packed across a handful of player varps: task `i` is bit
+// `i % 32` of varp number `i / 32` in the published order. So the plugin doesn't need to know
+// anything about tasks at all — it reads twenty-one integers and sends them, and the meaning is
+// applied here, where the catalogue already lives. A game update that adds a varp is then a data
+// change in this repo rather than a plugin release.
+
+const VARP_ORDER: number[] = (caVarps as { varps?: number[] }).varps ?? [];
+const BITS_PER_VARP: number = (caVarps as { bitsPerVarp?: number }).bitsPerVarp ?? 32;
+
+/** The varp ids the plugin should read, in the order the bits are laid out. */
+export function combatTaskVarps(): number[] {
+  return VARP_ORDER;
+}
+
+/** Task ids the bits say are complete. Unknown varps are ignored rather than shifting the order. */
+export function decodeCompletedTaskIds(varps: Record<string, number> | null | undefined): Set<number> {
+  const done = new Set<number>();
+  if (!varps) return done;
+  VARP_ORDER.forEach((varpId, index) => {
+    const raw = varps[String(varpId)];
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return;
+    // Varps are signed 32-bit; >>> makes the top bit readable as a bit rather than a sign.
+    const value = raw >>> 0;
+    for (let bit = 0; bit < BITS_PER_VARP; bit++) {
+      if (value & (1 << bit)) done.add(index * BITS_PER_VARP + bit);
+    }
+  });
+  return done;
+}
+
+/**
+ * Turn decoded ids into the stored item list — but only if they reconcile.
+ *
+ * The points a decode implies are compared against the game's own total, which the plugin reads
+ * from a varbit and sends alongside. Hundreds of tasks summing to exactly the right number is not
+ * something a misaligned decode achieves by accident, so a mismatch means the bit layout moved and
+ * we store nothing rather than marking tasks wrong. Null = "we don't know", never "none done".
+ */
+export function completedTasksFromVarps(
+  varps: Record<string, number> | null | undefined,
+  caPoints: number | null | undefined,
+): ProgressItem[] | null {
+  if (!varps || !caPoints || caPoints <= 0) return null;
+  const ids = decodeCompletedTaskIds(varps);
+  if (ids.size === 0) return null;
+
+  let points = 0;
+  const items: ProgressItem[] = [];
+  for (const task of RAW) {
+    if (!ids.has(task.id)) continue;
+    points += TIER_POINTS[task.tier] ?? 0;
+    items.push({ id: task.id, name: task.name, state: 2, group: task.monster ?? null });
+  }
+  return points === caPoints ? items : null;
 }

@@ -6,6 +6,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
 import { cleanItems, countDone, isItemCategory, serializeItems } from '@/lib/memberProgressItems';
+import { completedTasksFromVarps } from '@/lib/combatTasks';
 
 // POST /api/plugin/progress — quest points, combat-achievement points/tier, and diary counts.
 //
@@ -34,18 +35,29 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { progress?: unknown; items?: unknown };
+  let body: { progress?: unknown; items?: unknown; caVarps?: unknown; caPoints?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
+  // COMBAT TASKS arrive as the game's own bits: twenty-one varps the plugin read without knowing
+  // what any of them mean. Decoding happens here, where the catalogue is, and is thrown away unless
+  // the points it implies match the total the game itself reports (lib/combatTasks).
+  const decodedTasks = completedTasksFromVarps(
+    body?.caVarps && typeof body.caVarps === 'object' ? (body.caVarps as Record<string, number>) : null,
+    typeof body?.caPoints === 'number' ? body.caPoints : null,
+  );
+
   // The item lists — which quests, later which combat tasks. Sent whole rather than diffed: the
   // list is one document per category, it changes a handful of times a year, and half a list is
   // worse than none. Stored only when it actually differs from what's held.
   let itemsStored = 0;
-  const itemSets = Array.isArray(body?.items) ? body.items : [];
+  const itemSets: unknown[] = [
+    ...(Array.isArray(body?.items) ? body.items : []),
+    ...(decodedTasks ? [{ category: 'ca', items: decodedTasks }] : []),
+  ];
   for (const raw of itemSets) {
     if (!raw || typeof raw !== 'object') continue;
     const set = raw as { category?: unknown; items?: unknown };
