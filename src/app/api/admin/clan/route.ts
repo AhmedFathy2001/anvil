@@ -62,6 +62,10 @@ export async function GET(request: Request) {
       const did = effectiveDiscordId(r);
       return {
         ...r,
+        // The roster UI speaks isGuest; the database speaks kind. Translated here rather than
+        // spread through, because spreading the row is what quietly dropped it: the client read
+        // `isGuest`, got undefined, and drew every guest as a member.
+        isGuest: r.kind === 'guest' ? 1 : 0,
         userBanned: r.playerId != null && bannedIds.has(r.playerId),
         userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,

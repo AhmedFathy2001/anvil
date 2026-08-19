@@ -84,6 +84,22 @@ const SKIP = new Set([
 const RENAMED = { players: 'event_participants' };
 
 /**
+ * Source tables whose `clan_member_id` describes an ACCOUNT rather than a seat, and so becomes
+ * `account_id` here. These are the histories that follow a player between clans: one series per
+ * account, not one per roster they happen to sit on.
+ */
+const HISTORY_ON_ACCOUNT = new Set([
+  'player_snapshots',
+  'member_daily_stats',
+  'member_milestones',
+  'member_personal_bests',
+  'member_clog',
+  'member_clog_items',
+  'member_clog_kc',
+  'member_progress',
+]);
+
+/**
  * Copy order. FK parents first, so a child's remapped id always has something to point at.
  *
  * clan_members is absent because it is not copied — it is TRANSFORMED, before any of this, into the
@@ -194,6 +210,15 @@ const srcCount = (t) => src.prepare(`SELECT count(*) AS n FROM "${t}"`).get().n;
 
 /** old id -> new id, per source table. */
 const idMap = new Map();
+
+/**
+ * Imported seat id -> the account sitting in it.
+ *
+ * The eight history tables (daily stats, snapshots, milestones, bests, the clog, progress) name the
+ * ACCOUNT now. Their source rows name a seat, because that was the same thing when one clan owned
+ * the database. This is the translation.
+ */
+const accountOfSeat = new Map();
 const mapOf = (t) => {
   if (!idMap.has(t)) idMap.set(t, new Map());
   return idMap.get(t);
@@ -384,6 +409,7 @@ async function importRoster(client, clanId) {
       ],
     );
     seatMap.set(cm.id, seat[0].id);
+    accountOfSeat.set(seat[0].id, account.id);
   }
 
   stats.push({ table: 'clan_members', rows: rows.length, note: `${newAccounts} new accounts, ${reusedAccounts} already known` });
@@ -436,13 +462,17 @@ async function copyTable(client, srcTable, clanId, fks) {
   }
 
   const sCols = srcCols(srcTable);
-  const shared = sCols.filter((c) => tCols.has(c) && c !== 'id');
-  const dropped = sCols.filter((c) => !tCols.has(c) && c !== 'id');
+  const toAccount = HISTORY_ON_ACCOUNT.has(srcTable) && tCols.has('account_id');
+  const shared = sCols.filter((c) => (tCols.has(c) || (toAccount && c === 'clan_member_id')) && c !== 'id');
+  const dropped = sCols.filter(
+    (c) => !tCols.has(c) && c !== 'id' && !(toAccount && c === 'clan_member_id'),
+  );
   const rows = src.prepare(`SELECT * FROM "${srcTable}"`).all();
   if (!rows.length) return;
 
   const wantsClan = tCols.has('clan_id') && !sCols.includes('clan_id');
-  const cols = [...shared, ...(wantsClan ? ['clan_id'] : [])];
+  const cols = [...shared.map((c) => (toAccount && c === 'clan_member_id' ? 'account_id' : c)),
+                ...(wantsClan ? ['clan_id'] : [])];
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(',');
   // Not every table has a surrogate id — settings is keyed (clan_id, key) — and asking one for a
   // column it does not have fails the whole import.
@@ -462,6 +492,18 @@ async function copyTable(client, srcTable, clanId, fks) {
       let v = row[c];
       // The parent this column points at, in TARGET terms, translated back to the source table
       // whose ids were mapped. clan_id is ours, not the source's, so it is never remapped.
+      // A history row's clan_member_id names the account behind that seat.
+      if (toAccount && c === 'clan_member_id') {
+        const seatId = v == null ? null : mapOf('clan_members').get(v);
+        const acct = seatId == null ? null : accountOfSeat.get(seatId);
+        if (acct == null) {
+          orphaned++;
+          skip = true;
+          break;
+        }
+        values.push(acct);
+        continue;
+      }
       const parent = c === 'clan_id' ? null : fks.get(`${dest}.${c}`);
       const fkTable = parent ? SOURCE_OF[parent] ?? parent : null;
       if (fkTable && v != null) {
@@ -545,6 +587,18 @@ async function verify(client, clanId) {
           : 'SELECT count(*)::int AS n FROM submissions s JOIN tiles t ON t.id = s.tile_id JOIN events e ON e.id = t.event_id WHERE e.clan_id = $1';
     const { rows } = await client.query(q, [clanId]);
     if (rows[0].n !== want) problems.push(`${dest}: ${rows[0].n} imported, ${want} in source`);
+  }
+
+  // The guest/member split, exactly. is_guest became `kind`, and a translation that silently
+  // collapsed the two would leave a clan looking like it had no guests — or worse, like every guest
+  // were a member, which is a membership claim nobody made.
+  for (const [guestFlag, kind] of [[0, 'member'], [1, 'guest']]) {
+    const want = src.prepare('SELECT count(*) AS n FROM clan_members WHERE is_guest = ?').get(guestFlag).n;
+    const { rows } = await client.query(
+      'SELECT count(*)::int AS n FROM clan_memberships WHERE clan_id = $1 AND kind = $2',
+      [clanId, kind],
+    );
+    if (rows[0].n !== want) problems.push(`${kind}s: ${rows[0].n} imported, ${want} in source`);
   }
 
   // Every seat must have an account, and every account a person.
