@@ -1,0 +1,83 @@
+// The item-by-item lists behind the progress counters (lib/memberProgressItems): what a push may
+// say, and what a browser shows.
+//
+// Run: node --experimental-strip-types --test tests/member-progress-items.test.ts
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  cleanItems,
+  countDone,
+  filterItems,
+  isItemCategory,
+  itemGroups,
+  parseItems,
+  serializeItems,
+  type ProgressItem,
+} from '../src/lib/memberProgressItems.ts';
+
+const QUESTS: ProgressItem[] = [
+  { id: 1, name: 'Cook\'s Assistant', state: 2, group: 'Novice' },
+  { id: 2, name: 'Dragon Slayer II', state: 0, group: 'Grandmaster' },
+  { id: 3, name: 'Monkey Madness II', state: 1, group: 'Master' },
+  { id: 4, name: 'Recipe for Disaster', state: 0, group: 'Grandmaster' },
+];
+
+test('cleanItems: drops the bad rows one at a time, never the whole list', () => {
+  const clean = cleanItems([
+    { id: 1, name: 'Cook\'s Assistant', state: 2 },
+    { id: 1, name: 'A duplicate id', state: 0 },   // same id twice
+    { id: 2, name: '', state: 0 },                  // no name
+    { id: -3, name: 'Negative', state: 0 },         // impossible id
+    { id: 4, name: 'Bad state', state: 9 },         // outside the three states
+    'not an object',
+    { id: 5, name: 'Fine', state: 1, group: 'Master' },
+  ]);
+  assert.deepEqual(clean.map((i) => i.name), ["Cook's Assistant", 'Fine']);
+  assert.equal(clean[1].group, 'Master');
+  assert.equal(cleanItems(null).length, 0);
+});
+
+test('serialize/parse: a stored payload round-trips, name-sorted so it is diffable', () => {
+  const payload = serializeItems(QUESTS);
+  assert.deepEqual(JSON.parse(payload).items.map((i: ProgressItem) => i.name), [
+    "Cook's Assistant", 'Dragon Slayer II', 'Monkey Madness II', 'Recipe for Disaster',
+  ]);
+  assert.equal(parseItems(payload).length, 4);
+  // Anything unreadable is an empty list rather than a crash on a profile page.
+  assert.deepEqual(parseItems('not json'), []);
+  assert.deepEqual(parseItems(null), []);
+  assert.equal(countDone(QUESTS), 1);
+});
+
+test('filterItems: what is LEFT comes first, because that is the question', () => {
+  const all = filterItems(QUESTS, { filter: 'all' });
+  assert.deepEqual(all.map((i) => i.name), [
+    'Dragon Slayer II', 'Recipe for Disaster',  // not started
+    'Monkey Madness II',                        // in progress
+    "Cook's Assistant",                         // finished, last
+  ]);
+  assert.deepEqual(filterItems(QUESTS, { filter: 'done' }).map((i) => i.name), ["Cook's Assistant"]);
+  assert.deepEqual(filterItems(QUESTS, { filter: 'started' }).map((i) => i.name), ['Monkey Madness II']);
+  assert.equal(filterItems(QUESTS, { filter: 'todo' }).length, 3);
+});
+
+test('filterItems: search and category narrow together', () => {
+  assert.deepEqual(filterItems(QUESTS, { search: 'dragon' }).map((i) => i.name), ['Dragon Slayer II']);
+  // Case and partial words both work — nobody types a quest name exactly.
+  assert.equal(filterItems(QUESTS, { search: 'MADNESS' }).length, 1);
+  assert.deepEqual(filterItems(QUESTS, { group: 'Grandmaster' }).map((i) => i.name), [
+    'Dragon Slayer II', 'Recipe for Disaster',
+  ]);
+  // A search with nothing behind it is empty, not everything.
+  assert.equal(filterItems(QUESTS, { search: 'zzz' }).length, 0);
+  assert.deepEqual(itemGroups(QUESTS), ['Grandmaster', 'Master', 'Novice']);
+});
+
+test('isItemCategory: only the two we store', () => {
+  assert.equal(isItemCategory('quest'), true);
+  assert.equal(isItemCategory('ca'), true);
+  assert.equal(isItemCategory('diary'), false);
+  assert.equal(isItemCategory(7), false);
+});

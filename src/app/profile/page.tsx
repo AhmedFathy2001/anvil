@@ -7,7 +7,7 @@ import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
 import { buildLocker } from '@/lib/profileLocker';
-import { getMemberProgress } from '@/lib/memberProgressRead';
+import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import PlayerCard from './PlayerCard';
 import ConnectCard from './ConnectCard';
@@ -56,7 +56,9 @@ export default async function ProfilePage({
   // falling back to the first linked. A person with several accounts sees the one this profile is
   // really about rather than a merge of all of them, which would be true of nobody.
   const progressAccount = locker.accounts.find((a) => a.isPrimary) ?? locker.accounts[0] ?? null;
-  const progress = progressAccount ? await getMemberProgress(progressAccount.id) : null;
+  const [progress, questItems] = progressAccount
+    ? await Promise.all([getMemberProgress(progressAccount.id), getMemberItems(progressAccount.id, 'quest')])
+    : [null, null];
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
   // they already own through another path so we never suggest an account that's on the list above.
@@ -167,9 +169,10 @@ export default async function ProfilePage({
 
           <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={locker.focusRsn} />
 
-          {progress && !progress.empty && (
+          {progress && (!progress.empty || questItems) && (
             <AccountProgressCard
               summary={progress}
+              quests={questItems}
               title={progressAccount ? `${progressAccount.rsn}'s progress` : 'Account progress'}
             />
           )}

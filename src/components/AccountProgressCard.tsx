@@ -1,4 +1,6 @@
 import type { ProgressSummary } from '@/lib/memberProgress';
+import type { ProgressItem } from '@/lib/memberProgressItems';
+import ProgressItemBrowser from '@/components/ProgressItemBrowser';
 
 /**
  * Quest points, combat achievements and achievement diaries, laid out the way a player is used to
@@ -29,11 +31,14 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
 export default function AccountProgressCard({
   summary,
   title = 'Account progress',
+  quests = null,
 }: {
   summary: ProgressSummary;
   title?: string;
+  /** Every quest with its state, when the plugin has sent the list. */
+  quests?: { items: ProgressItem[]; done: number; total: number } | null;
 }) {
-  if (summary.empty) return null;
+  if (summary.empty && !quests) return null;
   const { questPoints, questsCompleted, caPoints, caTiers, caTier, regions } = summary;
   const anyUnknown = regions.some((r) => r.tiers.some((t) => t.state === 'unknown'));
 
@@ -109,6 +114,10 @@ export default function AccountProgressCard({
             </p>
           )}
         </>
+      )}
+
+      {quests && (
+        <ProgressItemBrowser items={quests.items} label="Quests" done={quests.done} total={quests.total} />
       )}
     </section>
   );
