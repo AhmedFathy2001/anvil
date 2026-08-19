@@ -1,0 +1,59 @@
+# The shared deployment: one Site container for every clan, and the Postgres behind it.
+#
+# Merge into /opt/anvil/docker-compose.yml (or run with `-f`). It deliberately does NOT define caddy
+# or anvil-admin — those already exist there and this must not restate them, or a `compose up` would
+# recreate the control plane as a side effect of deploying the site.
+#
+# WHAT REPLACES WHAT. Every `clan-<slug>` container goes away. There is no per-clan container, no
+# per-clan volume, and no per-clan env file: a clan is a row, resolved from the Host header on each
+# request. Provisioning a clan becomes an INSERT.
+#
+# Cutover is not a compose change alone — Caddy has to stop routing `<slug>.anvilosrs.com` at
+# `clan-<slug>` and point at this container instead. See deploy/caddy/.
+
+services:
+  anvil-postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: anvil
+      POSTGRES_DB: anvil
+      # From the environment or an .env file next to the compose file. No default on purpose: a
+      # default password on the database holding every clan is not a thing to be one typo away from.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # Postgres builds its cluster on first start and never revisits these. Setting them at initdb
+      # time is the only chance to get a deterministic collation, and a collation change under a
+      # running cluster silently corrupts text indexes.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    volumes:
+      - anvil_pgdata:/var/lib/postgresql/data
+    # No published ports. The database is reachable only from this compose network; backups run
+    # inside the site container, which already holds the credentials.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U anvil -d anvil']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  anvil-site:
+    image: ghcr.io/ahmedfathy2001/anvil-site:latest
+    restart: unless-stopped
+    # The migrator runs at boot and takes a pg_dump snapshot first when anything is pending, so a
+    # bad migration is recoverable. It needs the database actually accepting connections, not merely
+    # started — hence the healthcheck above rather than a plain depends_on.
+    depends_on:
+      anvil-postgres:
+        condition: service_healthy
+    env_file: ./site.env
+    environment:
+      DATABASE_URL: postgres://anvil:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@anvil-postgres:5432/anvil
+    volumes:
+      # Pre-migration snapshots. On a named volume so they survive the container being recreated —
+      # which is exactly when they matter, since a deploy is what triggers a migration.
+      - anvil_site_data:/data
+    # Not Watchtower-managed: CI deploys this by recreating the container, which reloads site.env.
+    # Watchtower swaps only the image and keeps the old environment, silently dropping env changes.
+
+volumes:
+  anvil_pgdata:
+  anvil_site_data:

@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 
 import type { ClanRow } from '@/lib/platformView';
 import type { ActAsGrant } from '@/lib/actAs';
+import { PLAN_IDS } from '@/lib/plans';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
-const PLANS = ['free', 'bronze', 'silver', 'gold'] as const;
 
 const STATUS_STYLE: Record<string, string> = {
   active: 'text-emerald-400',
@@ -250,7 +250,7 @@ export default function ClansClient({
                       onChange={(e) => patch(c.id, { plan: e.target.value })}
                       className="rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
                     >
-                      {PLANS.map((p) => (
+                      {PLAN_IDS.map((p) => (
                         <option key={p} value={p}>
                           {p}
                         </option>

@@ -44,11 +44,39 @@ export const clans = pgTable('clans', {
   plan: text('plan').notNull().default('free'),
   // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
   memberCap: integer('member_cap'),
+
+  // ── Billing ───────────────────────────────────────────────────────────────────────────────
+  // These lived in the control plane's own database, which existed to know which CONTAINER belonged
+  // to which subscription. There are no containers, so the subscription belongs on the clan.
+  //
+  // Note what `status` does NOT do here: under freemium a clan exists from the moment it is created,
+  // on the free tier, so paying changes `plan` (what it may do) rather than `status` (whether it
+  // serves at all). The control plane needed awaiting_payment/provisioning precisely because a clan
+  // did not exist until it was paid for. Refunds and disputes still touch status — those are the
+  // cases where a clan should stop serving.
+  contactEmail: text('contact_email'),
+  gumroadSaleId: text('gumroad_sale_id'),
+  gumroadSubscriptionId: text('gumroad_subscription_id'),
+  gumroadProductId: text('gumroad_product_id'),
+  gumroadProductPermalink: text('gumroad_product_permalink'),
+  // The correlation token appended to the checkout URL and echoed back by Gumroad — how a payment
+  // finds the clan that started it.
+  gumroadRef: text('gumroad_ref'),
+  trialEndsAt: text('trial_ends_at'),
+  currentPeriodEnd: text('current_period_end'),
+  // Cancelled but still inside the paid term. Gumroad keeps serving it, so we do too: dropping them
+  // to free the moment they cancel takes away time they already paid for.
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('clans_slug_unique').on(table.slug),
   uniqueIndex('clans_custom_domain_unique').on(table.customDomain),
   index('clans_status_idx').on(table.status),
+  // One subscription is one clan. Two clans claiming the same paid subscription is a billing bug
+  // that should be impossible rather than merely unlikely.
+  uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
+  uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
 ]);
 
 /**

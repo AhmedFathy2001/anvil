@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, clanAuditLog } from '@/db/schema';
 import { requirePlatformApi, CAN_WRITE } from '@/lib/platformAccess';
+import { PLANS, isPlanId } from '@/lib/plans';
 
 /**
  * Clan lifecycle, the platform half.
@@ -17,7 +18,6 @@ import { requirePlatformApi, CAN_WRITE } from '@/lib/platformAccess';
  */
 
 const STATUSES = new Set(['active', 'suspended', 'archived']);
-const PLANS = new Set(['free', 'bronze', 'silver', 'gold']);
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requirePlatformApi(CAN_WRITE);
@@ -44,8 +44,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     patch.status = body.status;
   }
   if ('plan' in body) {
-    if (!PLANS.has(body.plan)) return NextResponse.json({ error: 'Bad plan' }, { status: 400 });
-    patch.plan = body.plan;
+    // Validated against the one plan vocabulary rather than a copy of it, so a tier added in
+    // lib/plans is immediately settable here instead of silently rejected.
+    const plan = String(body.plan ?? '');
+    if (!isPlanId(plan)) return NextResponse.json({ error: 'Bad plan' }, { status: 400 });
+    patch.plan = plan;
+    // The cap follows the plan unless this same request overrides it. An operator moving a clan to
+    // Silver means the Silver cap; leaving a stale cap behind is the bug this prevents.
+    if (!('memberCap' in body)) patch.memberCap = PLANS[plan].memberCap;
   }
   if ('name' in body) {
     const name = String(body.name ?? '').trim();

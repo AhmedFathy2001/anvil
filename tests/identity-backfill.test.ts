@@ -30,6 +30,20 @@ import { useTestDatabase, resetDatabase, migrateRest, dropDatabase, loadDb } fro
  * This should NOT be updated to track schema.ts. It is a historical record; drifting it forward
  * would quietly stop testing the migration.
  */
+/**
+ * `clans` with only the columns that exist AT THIS POINT in the chain.
+ *
+ * Same hazard as the two below, from the other direction: this table is not dropped or reshaped by
+ * the migration under test, it simply grows columns later (billing landed in 0014). Seeding through
+ * schema.ts would name those columns against a database that is deliberately held at 0005, and the
+ * insert fails. Only the columns this test actually sets are listed.
+ */
+const clansAtThisPoint = pgTable('clans', {
+  id: serial('id').primaryKey(),
+  slug: text('slug').notNull(),
+  name: text('name').notNull(),
+});
+
 const usersBeforeIdentity = pgTable('users', {
   id: serial('id').primaryKey(),
   displayName: text('display_name').notNull(),
@@ -102,7 +116,7 @@ before(async () => {
   ({ personOf, personOfOrCreate } = await import('../src/lib/roster.ts'));
 
   const clans = await db
-    .insert(s.clans)
+    .insert(clansAtThisPoint)
     .values([
       { slug: 'alpha', name: 'Alpha Clan' },
       { slug: 'bravo', name: 'Bravo Clan' },
