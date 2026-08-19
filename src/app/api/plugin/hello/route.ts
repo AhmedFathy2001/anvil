@@ -8,19 +8,21 @@ import { normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
-// live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route.
-async function activeNow() {
+// live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route —
+// but public means THIS clan's board, so the clan is a parameter rather than an assumption.
+async function activeNow(clan: { id: number }) {
   const nowIso = new Date().toISOString();
   const [activeWeekly, activeBingos] = await Promise.all([
     db
       .select({ type: weeklyCompetitions.type, title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
       .from(weeklyCompetitions)
-      .where(eq(weeklyCompetitions.status, 'active')),
+      .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active'))),
     db
       .select({ name: events.name })
       .from(events)
       .where(
         and(
+          eq(events.clanId, clan.id),
           isNull(events.forceEndedAt),
           lte(events.startDate, nowIso),
           or(isNull(events.endDate), gt(events.endDate, nowIso)),
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
       .update(clanMemberships)
       .set({ lastSeenInClan: new Date().toISOString() })
       .where(eq(clanMemberships.id, seatId));
-    return NextResponse.json({ knownMember: false, isGuest: true, ...(await activeNow()) });
+    return NextResponse.json({ knownMember: false, isGuest: true, ...(await activeNow(clan)) });
   }
 
   // A login ping is NOT roster evidence — never resurrect a departed row here.
@@ -81,6 +83,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     knownMember,
     isGuest: !knownMember,
-    ...(await activeNow()),
+    ...(await activeNow(clan)),
   });
 }

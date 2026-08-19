@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import WeeklyRosterClient from '../WeeklyRosterClient';
 
@@ -8,7 +9,9 @@ export default async function WeeklyBaselinesPage({ params }: { params: Promise<
   const { weeklyId } = await params;
   const id = parseInt(weeklyId, 10);
 
-  const comp = await getWeeklyRow(id);
+  // Whose competition is this? The id came from the URL.
+  const clan = await requireClan();
+  const comp = await getWeeklyRow(clan.id, id);
   if (!comp) notFound();
 
   const standings = await getWeeklyStandings(id);

@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   }
 
   const all = new URL(request.url).searchParams.get('all') === '1';
+  // clan-scope: global -- a maintenance backfill over every event the deployment holds.
   const allEvents = await db.select().from(events);
   const existing = new Set(
     (await db.select({ eventId: playerEventFacts.eventId }).from(playerEventFacts)).map((r) => r.eventId),

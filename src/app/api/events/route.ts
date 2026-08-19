@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
@@ -6,9 +7,12 @@ import { verifyAdmin } from '@/lib/auth';
 import { validateEventRules } from '@/lib/eventRules';
 
 export async function GET() {
-  const allEvents = await db.query.events.findMany({
-    orderBy: (events, { desc }) => [desc(events.createdAt)],
-  });
+  const clan = await requireClan();
+  const allEvents = await db
+    .select()
+    .from(events)
+    .where(eq(events.clanId, clan.id))
+    .orderBy(desc(events.createdAt));
   return NextResponse.json(allEvents);
 }
 

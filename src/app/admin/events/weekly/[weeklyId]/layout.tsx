@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireClan } from '@/lib/clanContext';
 import { notFound } from 'next/navigation';
 import EventLifecycleBar from '../../[eventId]/EventLifecycleBar';
 import { getWeeklyCounts, getWeeklyRow } from '@/lib/weeklyWorkspace';
@@ -26,7 +27,9 @@ export default async function WeeklyLayout({
   const { weeklyId } = await params;
   const id = parseInt(weeklyId, 10);
 
-  const comp = await getWeeklyRow(id);
+  // Whose competition is this? The id came from the URL.
+  const clan = await requireClan();
+  const comp = await getWeeklyRow(clan.id, id);
   if (!comp) notFound();
 
   const counts = await getWeeklyCounts(id);

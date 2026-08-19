@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { accounts, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -28,7 +29,7 @@ export async function POST(
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const comp = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  const comp = await competitionForRequest(request, compId).then((c) => (c ? [c] : []));
   if (comp.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

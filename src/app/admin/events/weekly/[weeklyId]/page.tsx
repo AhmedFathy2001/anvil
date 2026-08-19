@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { requireClan } from '@/lib/clanContext';
 import { getWeeklyCounts, getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import { weeklyStage } from '@/lib/weeklyStage';
 import WeeklyHomeClient from './WeeklyHomeClient';
@@ -9,7 +10,9 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
   const { weeklyId } = await params;
   const id = parseInt(weeklyId, 10);
 
-  const comp = await getWeeklyRow(id);
+  // Whose competition is this? The id came from the URL.
+  const clan = await requireClan();
+  const comp = await getWeeklyRow(clan.id, id);
   if (!comp) notFound();
 
   const [standings, counts] = await Promise.all([getWeeklyStandings(id), getWeeklyCounts(id)]);

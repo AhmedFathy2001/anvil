@@ -14,7 +14,7 @@ import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { db } from '@/db';
-import { events } from '@/db/schema';
+import { events, weeklyCompetitions } from '@/db/schema';
 import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 
 export type ScopedEvent = typeof events.$inferSelect;
@@ -48,4 +48,36 @@ export async function requireEventForPage(eventId: number): Promise<ScopedEvent>
   const event = await eventInClan(clan.id, eventId);
   if (!event) notFound();
   return event;
+}
+
+// ── Weekly competitions, same story ──────────────────────────────────────────────────────────
+//
+// SOTW/BOTW ids are global and reach the routes from the URL exactly as event ids do, so the same
+// guard applies. Kept here rather than in a file of its own because it is one question — "does this
+// clan own the thing this id names?" — asked about the two kinds of thing that have ids in URLs.
+
+/** The weekly competition with this id, but only if `clanId` owns it. */
+export async function competitionInClan(clanId: number, competitionId: number) {
+  if (!Number.isInteger(competitionId)) return null;
+  const [row] = await db
+    .select()
+    .from(weeklyCompetitions)
+    .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.id, competitionId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** The competition named by this id on the requesting clan's host, or null. */
+export async function competitionForRequest(request: Request, competitionId: number) {
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) return null;
+  return competitionInClan(clan.id, competitionId);
+}
+
+/** The same, for a server page: renders the not-found page rather than returning null. */
+export async function requireCompetitionForPage(competitionId: number) {
+  const clan = await requireClan();
+  const comp = await competitionInClan(clan.id, competitionId);
+  if (!comp) notFound();
+  return comp;
 }

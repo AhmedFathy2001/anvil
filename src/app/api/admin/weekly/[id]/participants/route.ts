@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { competitionForRequest } from '@/lib/eventScope';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
@@ -36,17 +37,20 @@ export async function GET(
   //                 silently absorbs the second one at enroll time.
   // Guest inclusion is per-competition (weekly_competitions.include_guests), set when the comp was
   // created. Missing row → treat as included, matching the column default.
-  const compRow = await db.query.weeklyCompetitions.findFirst({
-    where: eq(weeklyCompetitions.id, compId),
-    columns: { includeGuests: true },
-  });
-  const trackGuests = compRow?.includeGuests !== 0;
-  const baseClause = and(isNull(clanRoster.leftAt), eq(clanRoster.status, 'active'));
+  const compRow = await competitionForRequest(request, compId);
+  if (!compRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const trackGuests = compRow.includeGuests !== 0;
+  const baseClause = and(
+    eq(clanRoster.clanId, compRow.clanId),
+    isNull(clanRoster.leftAt),
+    eq(clanRoster.status, 'active'),
+  );
   // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
   // "124 of 125" is usually one member sitting outside the enrollment filter.
   const fullRoster = await db
     .select({ rsn: clanRoster.rsn, kind: clanRoster.kind, status: clanRoster.status })
     .from(clanRoster)
+    // baseClause carries eq(clanRoster.clanId, compRow.clanId) — see above.
     .where(baseClause);
   const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.kind === 'member');
   const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
@@ -60,7 +64,7 @@ export async function GET(
   const inactive = await db
     .select({ rsn: clanRoster.rsn, status: clanRoster.status })
     .from(clanRoster)
-    .where(isNull(clanRoster.leftAt));
+    .where(and(eq(clanRoster.clanId, compRow.clanId), isNull(clanRoster.leftAt)));
   const inactiveExcluded = inactive
     .filter((m) => m.status !== 'active' && !enrolledNorm.has(normalizeRsn(m.rsn)))
     .map((m) => `${m.rsn} (${m.status})`);

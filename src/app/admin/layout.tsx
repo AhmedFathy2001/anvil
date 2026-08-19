@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanRoster, users } from '@/db/schema';
@@ -30,10 +31,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       })
     : null;
 
+  const clan = await requireClan();
   const provisionalCount = await db
     .select({ c: count() })
     .from(clanRoster)
-    .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .then((r) => r[0]?.c ?? 0);
 
   const isAdmin = session.role === 'admin';

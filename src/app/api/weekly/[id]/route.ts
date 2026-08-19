@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { competitionForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -11,7 +12,7 @@ export async function GET(
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const comp = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  const comp = await competitionForRequest(request, compId).then((c) => (c ? [c] : []));
   if (comp.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

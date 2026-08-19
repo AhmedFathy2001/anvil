@@ -146,6 +146,9 @@ export async function completeDiscordLogin(
     }
 
     if (fuzzyAliases.size > 0) {
+      // clan-scope: global -- an account belongs to a person, not to a clan, so claiming one by
+      // name match is a global question. Narrowing this to the clan whose site they happened to log
+      // in from would leave their own accounts unclaimed everywhere else.
       const unlinked = await db
         .select()
         .from(clanRoster)

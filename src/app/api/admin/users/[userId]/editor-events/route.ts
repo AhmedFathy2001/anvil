@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, users, clanAuditLog } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
@@ -12,7 +13,7 @@ import { assignedEventIdsForUser, setUserAssignedEvents } from '@/lib/eventEdito
 //   PUT { eventIds: number[] } → replace the user's board set
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
   const session = await verifyUser();
@@ -29,6 +30,9 @@ export async function GET(
   });
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const [assignedEventIds, allEvents] = await Promise.all([
     assignedEventIdsForUser(uId),
     db
@@ -41,6 +45,7 @@ export async function GET(
         createdAt: events.createdAt,
       })
       .from(events)
+      .where(eq(events.clanId, clan.id))
       .orderBy(desc(events.createdAt)),
   ]);
 

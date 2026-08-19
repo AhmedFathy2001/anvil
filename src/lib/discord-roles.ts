@@ -864,13 +864,27 @@ export async function syncRolesForClanMember(
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
     .innerJoin(users, eq(clanRoster.playerId, users.id))
-    .where(and(eq(users.discordId, discordUserId), isNull(clanRoster.leftAt)));
+    .where(
+      and(
+        eq(clanRoster.clanId, member.clanId),
+        eq(users.discordId, discordUserId),
+        isNull(clanRoster.leftAt),
+      ),
+    );
   ownedRows.push(...viaOauth);
 
   const viaLegacy = await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
-    .where(and(eq(clanRoster.discordId, discordUserId), isNull(clanRoster.leftAt)));
+    // This clan's seats: the roles being computed belong to one guild, and someone's rank in
+    // another clan says nothing about what they should hold in this one.
+    .where(
+      and(
+        eq(clanRoster.clanId, member.clanId),
+        eq(clanRoster.discordId, discordUserId),
+        isNull(clanRoster.leftAt),
+      ),
+    );
   ownedRows.push(...viaLegacy);
 
   // The current member always counts (already guarded against leftAt above).
@@ -934,7 +948,10 @@ export async function syncRolesForClanMember(
     const knownRanks = new Set<string>(RANK_PRECEDENCE);
     const currentRanks = await db
       .selectDistinct({ rank: clanRoster.rank })
-      .from(clanRoster);
+      .from(clanRoster)
+      // The rank names this clan actually uses. Pulling every clan's would invent roles to manage
+      // that nobody here holds.
+      .where(eq(clanRoster.clanId, member.clanId));
     for (const row of currentRanks) {
       const k = normalizeRankKey(row.rank);
       if (k) knownRanks.add(k);

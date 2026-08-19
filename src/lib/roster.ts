@@ -19,12 +19,14 @@ export type RosterSeat = typeof clanRoster.$inferSelect;
 
 /** The first roster seat matching `where`, or undefined. Add a clan filter unless you mean any clan. */
 export async function findRosterSeat(where: SQL | undefined): Promise<RosterSeat | undefined> {
+  // clan-scope: global -- the caller supplies the filter, including the clan when it means one.
   const [seat] = await db.select().from(clanRoster).where(where).limit(1);
   return seat;
 }
 
 /** Every roster seat matching `where`. Add a clan filter unless you mean any clan. */
 export async function findRosterSeats(where: SQL | undefined): Promise<RosterSeat[]> {
+  // clan-scope: global -- the caller supplies the filter, including the clan when it means one.
   return db.select().from(clanRoster).where(where);
 }
 

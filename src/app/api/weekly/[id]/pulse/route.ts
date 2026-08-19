@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { competitionForRequest } from '@/lib/eventScope';
 import { moments, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -20,15 +21,12 @@ export async function GET(
   }
 
   // Collapse concurrent viewers' polls of the same board to one DB computation per ~5s.
-  const token = await cachedPulseToken(`weekly:${compId}`, () => computeWeeklyToken(compId));
+  const token = await cachedPulseToken(`weekly:${compId}`, () => computeWeeklyToken(request, compId));
   return jsonWithEtag(request, { v: token });
 }
 
-async function computeWeeklyToken(compId: number): Promise<string> {
-  const comp = await db.query.weeklyCompetitions.findFirst({
-    where: eq(weeklyCompetitions.id, compId),
-    columns: { status: true, endDate: true },
-  });
+async function computeWeeklyToken(request: Request, compId: number): Promise<string> {
+  const comp = await competitionForRequest(request, compId);
   if (!comp) {
     return 'none';
   }

@@ -1,22 +1,26 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { requireClan } from '@/lib/clanContext';
+import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
 import { accounts, clanMemberships, clanRoster, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 
 // GET — list all clan members (active + departed) for the admin roster view.
-export async function GET() {
+export async function GET(request: Request) {
   const user = await verifyUser();
   if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const rows = await db
     .select()
     .from(clanRoster)
+    .where(eq(clanRoster.clanId, clan.id))
     .orderBy(desc(clanRoster.joinedAt));
 
   // Resolve linked-user ban state + authoritative Discord id (users.discordId beats the legacy
@@ -110,6 +114,9 @@ export async function POST(request: Request) {
     .set({ rank: body.rank ?? null, notes: body.notes ?? null })
     .where(eq(clanMemberships.id, seatId));
 
-  const [seat] = await db.select().from(clanRoster).where(eq(clanMemberships.id, seatId));
+  const [seat] = await db
+    .select()
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.id, seatId)));
   return NextResponse.json(seat);
 }

@@ -65,20 +65,20 @@ export default async function AdminDashboardPage() {
     feeEvents,
   ] = await Promise.all([
     listEventIndex(),
-    db.select().from(events).orderBy(desc(events.createdAt)),
+    db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
     db.select({ eventId: tiles.eventId, n: count() }).from(tiles).groupBy(tiles.eventId),
     db.select({ eventId: teams.eventId, n: count() }).from(teams).groupBy(teams.eventId),
     db
       .select({ c: count() })
       .from(clanRoster)
-      .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(clanRoster)
-      // Exclude guests (is_guest=1) so "Active members" matches the real in-game clan
-      // count — guests are plugin-pinged non-members. Unranked non-guests stay counted.
-      .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
+      // Guests are excluded so "Active members" matches the real in-game clan count — a guest is a
+      // plugin-pinged non-member. Unranked members stay counted.
+      .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
       .then((r) => r[0]?.c ?? 0),
     // NOT lastSeenInClan. That column is bumped for EVERY member on every roster sync, so it
     // measures "still in the clan", not "played" — it read 135 of 135 and 0 idle, every day.
@@ -89,6 +89,7 @@ export default async function AdminDashboardPage() {
       .from(clanRoster)
       .where(
         and(
+          eq(clanRoster.clanId, clan.id),
           isNull(clanRoster.leftAt),
           eq(clanRoster.kind, 'member'),
           sinceDay(clanRoster.liveStatsAt, now, 7),

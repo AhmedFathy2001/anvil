@@ -6,11 +6,19 @@
 import { cache } from 'react';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { WeeklyCounts } from '@/lib/weeklyStage';
 
-export const getWeeklyRow = cache(async (id: number) =>
-  db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, id) }),
+/**
+ * One competition, by id, within a clan.
+ *
+ * The clan is not optional and not defaulted: ids are global, so without it this returns whichever
+ * clan's competition happens to hold that number.
+ */
+export const getWeeklyRow = cache(async (clanId: number, id: number) =>
+  db.query.weeklyCompetitions.findFirst({
+    where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.id, id)),
+  }),
 );
 
 export interface WeeklyStanding {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -11,7 +12,7 @@ import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 // Trims tile rows to fields the plugin actually renders (label, position, type,
 // stat goals) so we don't ship admin-only metadata.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: rawId } = await params;
@@ -20,7 +21,9 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // Anonymous by design — which is exactly why the clan has to come from the host rather than from
+  // whoever is asking. Without it this previews any clan's board to anyone who guesses an id.
+  const event = await eventForRequest(request, id);
   if (!event) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
