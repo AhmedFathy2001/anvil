@@ -115,7 +115,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
@@ -126,6 +126,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     getActivityStandings(profile.rsn),
     getMemberProgress(profile.id),
     getMemberItems(profile.id, 'quest'),
+    getMemberItems(profile.id, 'ca'),
   ]);
   const upcoming = getUpcomingMilestones(profile);
 
@@ -243,10 +244,6 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
           a signed-out visitor — see the note above the query. */}
       {persona && <Persona persona={persona} currentMemberId={profile.id} />}
 
-      <div className="mb-6">
-        <AccountProgressCard summary={progress} quests={questItems} />
-      </div>
-
       <ProfileTabs
         profile={profile}
         series={series}
@@ -256,6 +253,9 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         upcoming={upcoming}
         activityStandings={activityStandings}
         collection={collection}
+        accountProgress={
+          <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
+        }
       />
     </main>
   );

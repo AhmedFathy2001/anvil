@@ -56,9 +56,13 @@ export default async function ProfilePage({
   // falling back to the first linked. A person with several accounts sees the one this profile is
   // really about rather than a merge of all of them, which would be true of nobody.
   const progressAccount = locker.accounts.find((a) => a.isPrimary) ?? locker.accounts[0] ?? null;
-  const [progress, questItems] = progressAccount
-    ? await Promise.all([getMemberProgress(progressAccount.id), getMemberItems(progressAccount.id, 'quest')])
-    : [null, null];
+  const [progress, questItems, caItems] = progressAccount
+    ? await Promise.all([
+        getMemberProgress(progressAccount.id),
+        getMemberItems(progressAccount.id, 'quest'),
+        getMemberItems(progressAccount.id, 'ca'),
+      ])
+    : [null, null, null];
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
   // they already own through another path so we never suggest an account that's on the list above.
@@ -173,6 +177,7 @@ export default async function ProfilePage({
             <AccountProgressCard
               summary={progress}
               quests={questItems}
+              combat={caItems}
               title={progressAccount ? `${progressAccount.rsn}'s progress` : 'Account progress'}
             />
           )}

@@ -3,6 +3,14 @@
 import { useMemo, useState } from 'react';
 import type { ProgressSummary } from '@/lib/memberProgress';
 import { filterItems, itemGroups, type ItemFilter, type ProgressItem } from '@/lib/memberProgressItems';
+import {
+  CA_TIERS,
+  combatTasks,
+  filterTasks,
+  taskMonsters,
+  taskPoints,
+  taskTypes,
+} from '@/lib/combatTasks';
 import { PANEL, RS_ORANGE, RS_STATE, RS_TEXT, TAB, TAB_ON, WELL } from '@/components/gameChrome';
 
 /**
@@ -181,24 +189,165 @@ function DiaryTab({ summary }: { summary: ProgressSummary }) {
   );
 }
 
-function CombatTab({ summary }: { summary: ProgressSummary }) {
-  const { caPoints, caTiers, caTier } = summary;
+/** One of the interface's dropdowns: a label above a select, in the game's chrome. */
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block mb-3">
+      <span className="block text-xs mb-1" style={{ color: RS_ORANGE }}>{label}:</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${WELL} w-full px-2 py-1 text-xs outline-none`}
+        style={{ color: RS_TEXT }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} style={{ backgroundColor: '#2b2620' }}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CombatTab({ summary, tasks }: { summary: ProgressSummary; tasks: ProgressItem[] | null }) {
+  const [search, setSearch] = useState('');
+  const [tier, setTier] = useState('all');
+  const [type, setType] = useState('all');
+  const [monster, setMonster] = useState('all');
+  const [completed, setCompleted] = useState<'all' | 'done' | 'todo'>('all');
+
+  const all = useMemo(() => combatTasks(tasks), [tasks]);
+  const monsters = useMemo(() => taskMonsters(all), [all]);
+  const types = useMemo(() => taskTypes(all), [all]);
+  const points = useMemo(() => taskPoints(all), [all]);
+  const shown = useMemo(
+    () => filterTasks(all, {
+      search,
+      tier: tier === 'all' ? null : tier,
+      type: type === 'all' ? null : type,
+      monster: monster === 'all' ? null : monster,
+      completed,
+    }),
+    [all, search, tier, type, monster, completed],
+  );
+
+  // Without a task list from the plugin we know the totals but not which tasks — so say that,
+  // rather than drawing six hundred rows as though every one of them were unfinished.
+  const known = tasks != null && tasks.length > 0;
+  const earned = known ? points.earned : summary.caPoints ?? 0;
+  const barPct = points.total > 0 ? Math.min(100, Math.round((earned / points.total) * 100)) : 0;
+
   return (
     <div>
-      <Heading>Combat Achievements: {(caPoints ?? 0).toLocaleString()} points</Heading>
-      <div className={`${WELL} py-1`}>
-        {caTiers.map((tier) => (
-          <div key={tier.name} className="flex items-center gap-2 px-2 py-[3px] text-[13px] hover:bg-black/20">
-            <span className="flex-1" style={{ color: RS_TEXT }}>{tier.name}</span>
-            <span style={{ color: tier.cleared ? RS_STATE[2] : RS_STATE[0] }}>
-              {tier.cleared ? 'Complete' : 'Incomplete'}
-            </span>
-          </div>
-        ))}
+      {/* The points bar the interface opens with. */}
+      <div className={`${WELL} relative h-6 mb-3 overflow-hidden`}>
+        <div
+          className="absolute inset-y-0 left-0 bg-[#1f7a1f]"
+          style={{ width: `${barPct}%` }}
+          aria-hidden
+        />
+        <p className="relative text-center text-xs leading-6 font-semibold" style={{ color: RS_TEXT }}>
+          Total Points: {earned.toLocaleString()}
+          {known && points.nextAt != null
+            ? ` — Next unlock in ${(points.nextAt - earned).toLocaleString()} points`
+            : ''}
+        </p>
       </div>
-      <p className="mt-2 text-[11px]" style={{ color: RS_TEXT }}>
-        Highest tier cleared: <span style={{ color: RS_ORANGE }}>{caTier}</span>
-      </p>
+
+      {!known ? (
+        <div className={`${WELL} p-4 text-center text-xs`} style={{ color: RS_TEXT }}>
+          <p className="mb-2">
+            Your plugin hasn&apos;t sent the task list yet, so this shows the totals only.
+          </p>
+          <p className="opacity-70">
+            {summary.caTier === '—' ? 'No tier cleared yet.' : `Highest tier cleared: ${summary.caTier}.`}
+          </p>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          {/* Filters column, as the game lays it out. */}
+          <div className={`${PANEL} p-2 w-40 shrink-0 hidden sm:block`}>
+            <p className="text-center text-xs font-bold mb-2" style={{ color: RS_ORANGE }}>Filters</p>
+            <FilterSelect
+              label="Tier"
+              value={tier}
+              onChange={setTier}
+              options={[{ value: 'all', label: 'All' }, ...CA_TIERS.map((t) => ({ value: t, label: t }))]}
+            />
+            <FilterSelect
+              label="Type"
+              value={type}
+              onChange={setType}
+              options={[{ value: 'all', label: 'All' }, ...types.map((t) => ({ value: t, label: t }))]}
+            />
+            <FilterSelect
+              label="Monster"
+              value={monster}
+              onChange={setMonster}
+              options={[{ value: 'all', label: 'All' }, ...monsters.map((m) => ({ value: m, label: m }))]}
+            />
+            <FilterSelect
+              label="Completed"
+              value={completed}
+              onChange={(v) => setCompleted(v as 'all' | 'done' | 'todo')}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'done', label: 'Completed' },
+                { value: 'todo', label: 'Not completed' },
+              ]}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tasks…"
+              aria-label="Search combat tasks"
+              className={`${WELL} w-full px-2 py-1 text-xs outline-none mb-2`}
+              style={{ color: RS_TEXT }}
+            />
+            <div className={`${WELL} max-h-96 overflow-y-auto`}>
+              {shown.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-center" style={{ color: RS_TEXT }}>Nothing matches that.</p>
+              ) : (
+                <ul>
+                  {shown.map((task) => (
+                    <li
+                      key={`${task.tier}-${task.name}`}
+                      title={task.description ?? undefined}
+                      className="px-2 py-1 odd:bg-black/10 hover:bg-black/20"
+                    >
+                      <p className="text-[13px] leading-tight" style={{ color: task.done ? RS_STATE[2] : '#8f8779' }}>
+                        {task.name}
+                      </p>
+                      <p className="text-[11px] leading-tight" style={{ color: RS_ORANGE, opacity: task.done ? 1 : 0.6 }}>
+                        {task.monster ? `Monster: ${task.monster}` : task.tier}
+                        <span className="opacity-70"> · {task.tier}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="mt-2 text-[11px]" style={{ color: RS_TEXT }}>
+              {shown.filter((t) => t.done).length} of {shown.length} shown complete
+              {shown.length !== all.length && ` · ${all.length} tasks in total`}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -207,13 +356,16 @@ export default function AccountProgressCard({
   summary,
   title = 'Account progress',
   quests = null,
+  combat = null,
 }: {
   summary: ProgressSummary;
   title?: string;
   quests?: { items: ProgressItem[]; done: number; total: number } | null;
+  /** Completed combat tasks as the plugin read them; the catalogue is joined on the site. */
+  combat?: { items: ProgressItem[] } | null;
 }) {
   const hasDiaries = summary.diariesKnowable > 0;
-  const hasCombat = summary.caPoints != null;
+  const hasCombat = summary.caPoints != null || (combat?.items?.length ?? 0) > 0;
   const tabs: { key: Tab; label: string }[] = [
     ...(quests ? [{ key: 'quests' as Tab, label: 'Quests' }] : []),
     ...(hasDiaries ? [{ key: 'diaries' as Tab, label: 'Diaries' }] : []),
@@ -221,7 +373,7 @@ export default function AccountProgressCard({
   ];
   const [tab, setTab] = useState<Tab>(tabs[0]?.key ?? 'quests');
 
-  if (summary.empty && !quests) return null;
+  if (summary.empty && !quests && !combat) return null;
   if (tabs.length === 0) return null;
   const active = tabs.some((t) => t.key === tab) ? tab : tabs[0].key;
 
@@ -247,7 +399,7 @@ export default function AccountProgressCard({
 
         {active === 'quests' && quests && <QuestTab quests={quests} questPoints={summary.questPoints} />}
         {active === 'diaries' && <DiaryTab summary={summary} />}
-        {active === 'combat' && <CombatTab summary={summary} />}
+        {active === 'combat' && <CombatTab summary={summary} tasks={combat?.items ?? null} />}
       </div>
     </section>
   );

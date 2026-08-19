@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { combatTaskVarps, completedTasksFromVarps, decodeCompletedTaskIds } from '../src/lib/combatTasks.ts';
 import {
   cleanItems,
   countDone,
@@ -80,4 +81,35 @@ test('isItemCategory: only the two we store', () => {
   assert.equal(isItemCategory('ca'), true);
   assert.equal(isItemCategory('diary'), false);
   assert.equal(isItemCategory(7), false);
+});
+
+test('combat tasks: the bits decode to task ids, in the published varp order', () => {
+  const varps = combatTaskVarps();
+  assert.ok(varps.length >= 20, 'the varp list should cover every task slot');
+
+  // Task 0 is bit 0 of the first varp; task 33 is bit 1 of the second.
+  const done = decodeCompletedTaskIds({ [String(varps[0])]: 0b101, [String(varps[1])]: 0b10 });
+  assert.deepEqual([...done].sort((a, b) => a - b), [0, 2, 33]);
+
+  // A varp we weren't told about can't shift the others along.
+  assert.equal(decodeCompletedTaskIds({ '999999': 0xff }).size, 0);
+  assert.equal(decodeCompletedTaskIds(null).size, 0);
+
+  // The top bit is a bit, not a sign: varps are signed 32-bit and bit 31 must still read as task 31.
+  assert.ok(decodeCompletedTaskIds({ [String(varps[0])]: -2147483648 }).has(31));
+});
+
+test('combat tasks: a decode that does not reconcile is thrown away, not stored', () => {
+  const varps = combatTaskVarps();
+  // Task 0 is "Noxious Foe", an Easy task worth 1 point.
+  const oneEasy = { [String(varps[0])]: 0b1 };
+  const accepted = completedTasksFromVarps(oneEasy, 1);
+  assert.equal(accepted?.length, 1);
+  assert.equal(accepted?.[0].state, 2);
+
+  // The same bits against a total that says otherwise: the layout moved, so we know nothing.
+  assert.equal(completedTasksFromVarps(oneEasy, 1472), null);
+  // No bits at all, or no total to check against, is also "we don't know" — never "none done".
+  assert.equal(completedTasksFromVarps({}, 100), null);
+  assert.equal(completedTasksFromVarps(oneEasy, 0), null);
 });

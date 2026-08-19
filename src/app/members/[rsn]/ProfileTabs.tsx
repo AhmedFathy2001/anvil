@@ -178,6 +178,7 @@ export default function ProfileTabs({
   upcoming,
   activityStandings,
   collection,
+  accountProgress,
 }: {
   profile: MemberProfile;
   series: DailyPoint[];
@@ -188,6 +189,8 @@ export default function ProfileTabs({
   activityStandings: Record<string, ActivityStanding>;
   /** The synced collection log + best times. Its own tab because it's a page's worth of grid. */
   collection: CollectionLogProps;
+  /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
+  accountProgress?: React.ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>('stats');
   const [bestFilter, setBestFilter] = useState('');
@@ -795,7 +798,14 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'collection' && <CollectionLog {...collection} />}
+      {tab === 'collection' && (
+        <div className="space-y-6">
+          {/* The log and the three progress interfaces are one question — "what has this account
+              actually done" — so they live on one tab rather than in a card floating above it. */}
+          {accountProgress}
+          <CollectionLog {...collection} />
+        </div>
+      )}
 
       {tab === 'records' && (
         <>

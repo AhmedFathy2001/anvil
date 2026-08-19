@@ -1,0 +1,28 @@
+{
+  "source": "Task completion is bit-packed across these player varps, in task-id order: task i sits in varps[i / 32] at bit i % 32. The list is observable in any client and is published in RuneProfile's public manifest (runeprofile.com/api/manifest), which is where these were read from; the ids are facts about the game, not anyone's code.",
+  "note": "Served to the plugin through /api/plugin/config so a game update that adds a varp is a data change here, not a plugin release. Every decode is checked against the game's own CA_POINTS total before it is stored.",
+  "bitsPerVarp": 32,
+  "varps": [
+    3116,
+    3117,
+    3118,
+    3119,
+    3120,
+    3121,
+    3122,
+    3123,
+    3124,
+    3125,
+    3126,
+    3127,
+    3128,
+    3387,
+    3718,
+    3773,
+    3774,
+    4204,
+    4496,
+    4721,
+    5673
+  ]
+}

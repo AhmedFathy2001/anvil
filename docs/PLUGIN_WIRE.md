@@ -252,7 +252,23 @@ not only the finished ones — "which of these haven't I done" is the question t
 answer, and a list of completions can't answer it. Names travel with the ids so the server needs no
 quest dataset of its own, and one released next month lists itself. The list is stored whole and
 only when it differs from what's held, so re-sending an unchanged list costs one comparison. The
-category `ca` is reserved for combat tasks, whose per-task state needs the game's struct walk.
+category `ca` is filled from the varps below rather than from a list the plugin builds.
+
+Combat tasks aren't sent as a list at all. The game bit-packs completion across a set of player
+varps — task `i` is bit `i % 32` of the `i / 32`-th varp — so `/api/plugin/config` carries `caVarps`
+(the ids, in bit order) and the plugin sends back what it read, alongside the game's own point
+total:
+
+```json
+{ "caVarps": { "3116": 4294967295, "3117": 131071 }, "caPoints": 1472 }
+```
+
+The plugin understands none of it. The server decodes those bits against the task catalogue it
+already ships and **discards the entire decode unless the points it implies equal `caPoints`
+exactly** — hundreds of tasks reconciling to one authoritative total is not something a shifted bit
+layout achieves by accident. A mismatch stores nothing, so an absent list always means "we don't
+know", never "none completed". A game update that adds a varp is then a data change on the server
+rather than a plugin release.
 
 Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
 varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
