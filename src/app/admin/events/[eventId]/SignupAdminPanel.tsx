@@ -117,7 +117,8 @@ export default function SignupAdminPanel({
   const [closingFees, setClosingFees] = useState(false);
   const [mountedAt] = useState(() => new Date().getTime());
   // How players get onto a team: drafted (default) or by asking for one when they sign up.
-  const [teamChoice, setTeamChoice] = useState(() => parseEventRules(event.rules).teamChoice);
+  const storedTeamChoice = parseEventRules(event.rules).teamChoice;
+  const [teamChoice, setTeamChoice] = useState(storedTeamChoice);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/events/${event.id}/signups`);
@@ -333,7 +334,10 @@ export default function SignupAdminPanel({
           signupDeadline: signupDeadline || null,
           paymentDeadline: paymentDeadline || null,
           captainSelectionDeadline: captainDeadline || null,
-          rules: { ...parseEventRules(event.rules), teamChoice },
+          // Only when it actually changed. The rules blob also carries the reveal policy and the
+          // scoring modifiers, which are edited on other tabs — sending it every time would let a
+          // sign-up save overwrite them with whatever this page happened to load.
+          ...(teamChoice !== storedTeamChoice ? { rules: { ...parseEventRules(event.rules), teamChoice } } : {}),
         }),
       });
       if (!res.ok) {
