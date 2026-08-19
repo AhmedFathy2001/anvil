@@ -67,17 +67,15 @@ export default async function TeamBoardPage({
 
   const { captainPassword: _, ...safeTeam } = team;
 
-  // Same gate as the event scoreboard: non-staff viewers don't see the team board
-  // until sign-ups have opened AND the host has revealed the tiles. Staff bypass for
-  // setup access.
-  const session = await verifyUser();
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  // Same gate as the event scoreboard, and with the same absence of a staff bypass: nobody sees a
+  // team board until sign-ups have opened AND the host has revealed the tiles. A host checking
+  // their own board uses the admin panel's team view.
   const window = signupWindowState({
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
   });
-  if (!isStaff && window.reason === 'not_open_yet') {
+  if (window.reason === 'not_open_yet') {
     return (
       <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
         <p className="text-lg font-semibold mb-1">This team board is hidden until sign-ups open</p>
@@ -87,7 +85,8 @@ export default async function TeamBoardPage({
       </div>
     );
   }
-  if (!isStaff && !event.tilesRevealed) {
+  // No staff exception (see the event page): this is the public board, so it shows the public view.
+  if (!event.tilesRevealed) {
     return (
       <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
         <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
@@ -98,7 +97,7 @@ export default async function TeamBoardPage({
 
   // Reveal-policy events (lib/eventRules): non-staff only receive the revealed subset —
   // hidden tile content must never reach the client.
-  const boardTiles = isStaff ? eventTiles : visibleTiles(parseEventRules(event.rules), eventTiles);
+  const boardTiles = visibleTiles(parseEventRules(event.rules), eventTiles);
 
   return (
     <TeamBoardClient
