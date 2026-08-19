@@ -116,7 +116,7 @@ test('the phrasings a clan actually reads', () => {
 
 const RATE = { denominator: 500, rolls: 1 };
 const member = (id: number, rsn: string, kills: number, obtained: number): LuckSource =>
-  ({ clanMemberId: id, rsn, kills, obtained });
+  ({ accountId: id, rsn, kills, obtained });
 
 test('buildLuckBoards: both tails from one pass, and owners can be dry', () => {
   const { dry, spooned } = buildLuckBoards([

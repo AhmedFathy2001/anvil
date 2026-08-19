@@ -133,7 +133,7 @@ export async function loadWeeklyCards(
     const [dailyRows, memberRows] = await Promise.all([
       db
         .select({
-          clanMemberId: memberDailyStats.clanMemberId,
+          clanMemberId: memberDailyStats.accountId,
           day: memberDailyStats.day,
           xpGained: memberDailyStats.xpGained,
           ehpMilliGained: memberDailyStats.ehpMilliGained,

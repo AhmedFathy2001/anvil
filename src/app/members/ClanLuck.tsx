@@ -96,7 +96,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
             <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
               {dry.map((e) => (
                 <Row
-                  key={`${e.clanMemberId}-${e.itemId}`}
+                  key={`${e.accountId}-${e.itemId}`}
                   rsn={e.rsn}
                   itemId={e.itemId}
                   itemName={e.itemName}
@@ -130,7 +130,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
             <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
               {spooned.map((e) => (
                 <Row
-                  key={`${e.clanMemberId}-${e.itemId}`}
+                  key={`${e.accountId}-${e.itemId}`}
                   rsn={e.rsn}
                   itemId={e.itemId}
                   itemName={e.itemName}

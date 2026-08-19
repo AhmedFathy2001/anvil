@@ -166,11 +166,11 @@ export async function GET() {
   );
   const snaps = await db
     .select({
-      clanMemberId: playerSnapshots.clanMemberId,
+      clanMemberId: playerSnapshots.accountId,
       overallXp: playerSnapshots.overallXp,
     })
     .from(playerSnapshots)
-    .where(inArray(playerSnapshots.clanMemberId, candidateMemberIds))
+    .where(inArray(playerSnapshots.accountId, candidateMemberIds))
     .orderBy(desc(playerSnapshots.capturedAt));
   const xpByMember = new Map<number, number>();
   for (const s of snaps) {

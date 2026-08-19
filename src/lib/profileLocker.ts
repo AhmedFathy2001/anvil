@@ -548,7 +548,7 @@ export async function buildLocker(
   const dailyRows = await db
     .select({ day: memberDailyStats.day, xpGained: memberDailyStats.xpGained })
     .from(memberDailyStats)
-    .where(and(inArray(memberDailyStats.clanMemberId, memberIds), gte(memberDailyStats.day, streakFrom)));
+    .where(and(inArray(memberDailyStats.accountId, memberIds), gte(memberDailyStats.day, streakFrom)));
   const activeWeeks = new Set(dailyRows.filter((r) => r.xpGained > 0).map((r) => weekKey(r.day)));
   let weekStreak = 0;
   // Start from last week when this week is still empty — a Monday morning shouldn't reset a streak

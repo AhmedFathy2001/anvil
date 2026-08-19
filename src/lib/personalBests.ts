@@ -72,11 +72,11 @@ export function normalizeBests(raw: IncomingBest[]): CleanBest[] {
  * scalars — a test that reimplemented this expression rather than calling it would keep passing
  * while the real path broke.
  */
-export async function savePersonalBests(clanMemberId: number, bests: CleanBest[], nowIso: string): Promise<number> {
+export async function savePersonalBests(accountId: number, bests: CleanBest[], nowIso: string): Promise<number> {
   if (bests.length === 0) return 0;
 
   const values = bests.map((b) => ({
-    clanMemberId,
+    accountId,
     activity: b.activity,
     teamSize: b.teamSize,
     centis: b.centis,
@@ -88,7 +88,7 @@ export async function savePersonalBests(clanMemberId: number, bests: CleanBest[]
     .insert(memberPersonalBests)
     .values(values)
     .onConflictDoUpdate({
-      target: [memberPersonalBests.clanMemberId, memberPersonalBests.activity, memberPersonalBests.teamSize],
+      target: [memberPersonalBests.accountId, memberPersonalBests.activity, memberPersonalBests.teamSize],
       set: {
         centis: sql`least(${memberPersonalBests.centis}, excluded.centis)`,
         // Only stamp the date when this push actually improved the record; otherwise a re-import

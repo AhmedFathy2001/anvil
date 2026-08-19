@@ -28,6 +28,10 @@
 // member's RuneLite client holds one of these; changing one means that person has to re-link by
 // hand, and it is the single most user-visible way to get this wrong. They are copied as-is and
 // checked afterwards.
+//
+// A token identifies a PERSON, not a person-on-a-site. Someone in two clans therefore arrives with
+// two, issued by two instances that each thought they owned the relationship; both are kept valid
+// against the one login they now share.
 
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -224,10 +228,12 @@ async function importUsers(client) {
         map.set(u.id, found[0].id);
         matched++;
 
-        // Their client holds THIS clan's token, and the login it is merging into already carries a
-        // different one. Only one can sit on the row, so the other is parked in plugin_links, which
-        // the resolvers also accept — otherwise this person's plugin quietly stops authenticating
-        // and nothing tells them why.
+        // One person, two credentials — because two separate instances each issued this person a
+        // token, back when a token belonged to a site. It belongs to the PERSON now, so the second
+        // one is not another site's token to preserve: it is another key to the same account, and
+        // it is kept working only so nobody's client stops authenticating at the cutover. Both
+        // resolve to this one person; the extras are meant to be retired once their client has been
+        // handed the canonical one.
         if (u.plugin_token && u.plugin_token !== found[0].plugin_token) {
           await client.query(
             `INSERT INTO plugin_links (user_id, token) VALUES ($1, $2)
@@ -265,7 +271,7 @@ async function importUsers(client) {
     note: [
       `${created} new`,
       `${matched} already known (same Discord account)`,
-      parkedTokens ? `${parkedTokens} plugin tokens kept alongside` : '',
+      parkedTokens ? `${parkedTokens} inherited tokens kept working (same person)` : '',
     ].filter(Boolean).join(', '),
   });
 }

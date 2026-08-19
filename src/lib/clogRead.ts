@@ -25,7 +25,7 @@ export function formatPersonalBest(centis: number): string {
 
 export async function getCollectionLog(clanMemberId: number, rsn: string): Promise<CollectionLogProps> {
   const [header, items, bests] = await Promise.all([
-    db.query.memberClog.findFirst({ where: eq(memberClog.clanMemberId, clanMemberId) }),
+    db.query.memberClog.findFirst({ where: eq(memberClog.accountId, clanMemberId) }),
     db
       .select({
         itemId: memberClogItems.itemId,
@@ -35,7 +35,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
         kcAtUnlock: memberClogItems.kcAtUnlock,
       })
       .from(memberClogItems)
-      .where(eq(memberClogItems.clanMemberId, clanMemberId)),
+      .where(eq(memberClogItems.accountId, clanMemberId)),
     db
       .select({
         activity: memberPersonalBests.activity,
@@ -46,7 +46,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
         updatedAt: memberPersonalBests.updatedAt,
       })
       .from(memberPersonalBests)
-      .where(eq(memberPersonalBests.clanMemberId, clanMemberId)),
+      .where(eq(memberPersonalBests.accountId, clanMemberId)),
   ]);
 
   const view = buildClogProfile({

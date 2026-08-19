@@ -197,12 +197,12 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     const snapRows = active.length
       ? await db
           .select({
-            clanMemberId: playerSnapshots.clanMemberId,
+            clanMemberId: playerSnapshots.accountId,
             payload: playerSnapshots.payload,
             capturedAt: playerSnapshots.capturedAt,
           })
           .from(playerSnapshots)
-          .where(inArray(playerSnapshots.clanMemberId, active.map((m) => m.id)))
+          .where(inArray(playerSnapshots.accountId, active.map((m) => m.id)))
           .orderBy(desc(playerSnapshots.capturedAt))
       : [];
     const latestByMember = new Map<number, string>();

@@ -144,19 +144,19 @@ export async function POST(request: Request) {
     const existing = await db
       .select({ itemId: memberClogItems.itemId, firstSeenAt: memberClogItems.firstSeenAt, kcAtUnlock: memberClogItems.kcAtUnlock })
       .from(memberClogItems)
-      .where(and(eq(memberClogItems.clanMemberId, member.clanMemberId), eq(memberClogItems.pageName, name)));
+      .where(and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.pageName, name)));
     const previous = new Map(existing.map((r) => [r.itemId, r]));
 
     await db
       .delete(memberClogItems)
-      .where(and(eq(memberClogItems.clanMemberId, member.clanMemberId), eq(memberClogItems.pageName, name)));
+      .where(and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.pageName, name)));
 
     if (rows.length > 0) {
       await db.insert(memberClogItems).values(
         rows.map((r) => {
           const before = previous.get(r.itemId);
           return {
-            clanMemberId: member.clanMemberId,
+            accountId: member.accountId,
             itemId: r.itemId,
             pageName: name,
             quantity: r.quantity,
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
         // different page — Jagex moved it, or two synced pages both list it — would otherwise fail
         // the whole statement and lose the page.
         .onConflictDoUpdate({
-          target: [memberClogItems.clanMemberId, memberClogItems.itemId],
+          target: [memberClogItems.accountId, memberClogItems.itemId],
           set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
         });
       itemsWritten += rows.length;
@@ -187,13 +187,13 @@ export async function POST(request: Request) {
     const counts = raw?.counts;
     await db
       .delete(memberClogKc)
-      .where(and(eq(memberClogKc.clanMemberId, member.clanMemberId), eq(memberClogKc.pageName, name)));
+      .where(and(eq(memberClogKc.accountId, member.accountId), eq(memberClogKc.pageName, name)));
     if (counts && typeof counts === 'object' && !Array.isArray(counts)) {
       const countRows = Object.entries(counts as Record<string, unknown>)
         .map(([label, value]) => ({ label: label.trim().slice(0, 80), count: int(value, MAX_COUNT) }))
         .filter((r): r is { label: string; count: number } => !!r.label && r.count != null)
         .slice(0, 12)
-        .map((r) => ({ clanMemberId: member.clanMemberId, pageName: name, label: r.label, count: r.count }));
+        .map((r) => ({ accountId: member.accountId, pageName: name, label: r.label, count: r.count }));
       if (countRows.length > 0) await db.insert(memberClogKc).values(countRows);
     }
 
@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       obtained: sql<number>`count(*)`,
     })
     .from(memberClogItems)
-    .where(eq(memberClogItems.clanMemberId, member.clanMemberId));
+    .where(eq(memberClogItems.accountId, member.accountId));
 
   // Pages we hold ITEMS for. A page where the player has nothing obtained leaves no rows, so this
   // alone would under-report progress for anyone opening pages they've never had a drop on.
@@ -221,7 +221,7 @@ export async function POST(request: Request) {
   // Taken as a floor of our own count and clamped to the catalogue so a bad client can't claim 900.
   const claimed = int(body?.syncedPages, index.size) ?? 0;
   const syncedPages = Math.min(index.size, Math.max(pagesWithItems, claimed));
-  const totalForSynced = await pagesTotalFor(member.clanMemberId, index);
+  const totalForSynced = await pagesTotalFor(member.accountId, index);
 
   const header = {
     pagesSynced: syncedPages,
@@ -234,8 +234,8 @@ export async function POST(request: Request) {
   };
   await db
     .insert(memberClog)
-    .values({ clanMemberId: member.clanMemberId, ...header })
-    .onConflictDoUpdate({ target: memberClog.clanMemberId, set: header });
+    .values({ accountId: member.accountId, ...header })
+    .onConflictDoUpdate({ target: memberClog.accountId, set: header });
 
   return NextResponse.json({ ok: true, pages: pagesWritten, items: itemsWritten, skipped: skippedPages, syncedPages });
 }
@@ -250,7 +250,9 @@ export async function POST(request: Request) {
  */
 async function ingestWholeLog(
   rawItems: IncomingItem[],
-  member: { clanMemberId: number },
+  // The collection log belongs to the ACCOUNT: it follows the player between clans rather than
+  // starting again on each roster they join.
+  member: { accountId: number },
   meta: { nowIso: string; pluginVersion: string | null; accountHash: string | null },
 ) {
   if (rawItems.length > MAX_ITEMS_PER_LOG) {
@@ -282,7 +284,7 @@ async function ingestWholeLog(
       kcAtUnlock: memberClogItems.kcAtUnlock,
     })
     .from(memberClogItems)
-    .where(eq(memberClogItems.clanMemberId, member.clanMemberId));
+    .where(eq(memberClogItems.accountId, member.accountId));
   const previous = new Map(existing.map((r) => [`${r.pageName} ${r.itemId}`, r]));
   // Whether we held ANY log before decides how a new row is dated: on a first-ever sync we can't
   // know when anything was obtained, so it stays NULL rather than dating years-old items to today.
@@ -291,7 +293,7 @@ async function ingestWholeLog(
   // Kill counts, for stamping an unlock we are watching land. Only read when this ISN'T a first
   // sync: on a first sync everything is new and none of it happened just now.
   const kills = hadLog
-    ? await bossKillsFor(member.clanMemberId).catch(() => ({}) as Record<string, number>)
+    ? await bossKillsFor(member.accountId).catch(() => ({}) as Record<string, number>)
     : ({} as Record<string, number>);
 
   const rows = [...pages.entries()].flatMap(([pageName, items]) =>
@@ -303,7 +305,7 @@ async function ingestWholeLog(
       // the fact, a pet spooned at 12 and one earned at 3,000 look identical.
       const stamped = !before && hadLog && bossKey ? (kills[bossKey] ?? null) : null;
       return {
-        clanMemberId: member.clanMemberId,
+        accountId: member.accountId,
         itemId: r.itemId,
         pageName,
         quantity: r.quantity,
@@ -335,7 +337,7 @@ async function ingestWholeLog(
       .delete(memberClogItems)
       .where(
         and(
-          eq(memberClogItems.clanMemberId, member.clanMemberId),
+          eq(memberClogItems.accountId, member.accountId),
           inArray(memberClogItems.itemId, gone.slice(i, i + INSERT_CHUNK)),
         ),
       );
@@ -348,7 +350,7 @@ async function ingestWholeLog(
       .insert(memberClogItems)
       .values(added.slice(i, i + INSERT_CHUNK))
       .onConflictDoUpdate({
-        target: [memberClogItems.clanMemberId, memberClogItems.itemId],
+        target: [memberClogItems.accountId, memberClogItems.itemId],
         set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
       });
   }
@@ -357,7 +359,7 @@ async function ingestWholeLog(
       .update(memberClogItems)
       .set({ pageName: row.pageName, quantity: row.quantity })
       .where(
-        and(eq(memberClogItems.clanMemberId, member.clanMemberId), eq(memberClogItems.itemId, row.itemId)),
+        and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.itemId, row.itemId)),
       );
   }
 
@@ -374,8 +376,8 @@ async function ingestWholeLog(
   };
   await db
     .insert(memberClog)
-    .values({ clanMemberId: member.clanMemberId, ...header })
-    .onConflictDoUpdate({ target: memberClog.clanMemberId, set: header });
+    .values({ accountId: member.accountId, ...header })
+    .onConflictDoUpdate({ target: memberClog.accountId, set: header });
 
   return NextResponse.json({
     ok: true,
@@ -392,12 +394,12 @@ async function ingestWholeLog(
   });
 }
 
-/** Slots that EXIST on the pages this member has synced — the denominator that isn't a lie. */
-async function pagesTotalFor(clanMemberId: number, index: Map<string, Set<number>>): Promise<number> {
+/** Slots that EXIST on the pages this account has synced — the denominator that isn't a lie. */
+async function pagesTotalFor(accountId: number, index: Map<string, Set<number>>): Promise<number> {
   const rows = await db
     .selectDistinct({ pageName: memberClogItems.pageName })
     .from(memberClogItems)
-    .where(eq(memberClogItems.clanMemberId, clanMemberId));
+    .where(eq(memberClogItems.accountId, accountId));
   let total = 0;
   for (const r of rows) total += index.get(r.pageName)?.size ?? 0;
   return total;
@@ -409,12 +411,12 @@ export async function GET(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const row = await db.query.memberClog.findFirst({
-    where: eq(memberClog.clanMemberId, member.clanMemberId),
+    where: eq(memberClog.accountId, member.accountId),
   });
   const pages = await db
     .selectDistinct({ pageName: memberClogItems.pageName })
     .from(memberClogItems)
-    .where(inArray(memberClogItems.clanMemberId, [member.clanMemberId]));
+    .where(inArray(memberClogItems.accountId, [member.clanMemberId]));
   return NextResponse.json({
     syncedPages: row?.pagesSynced ?? 0,
     totalPages: row?.pagesTotal ?? clogPageIndex().size,

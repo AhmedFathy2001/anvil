@@ -47,11 +47,11 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
   // single statement rather than a query per member.
   const latestDay = db
     .select({
-      clanMemberId: memberDailyStats.clanMemberId,
+      clanMemberId: memberDailyStats.accountId,
       day: sql<string>`MAX(${memberDailyStats.day})`.as('latest_day'),
     })
     .from(memberDailyStats)
-    .groupBy(memberDailyStats.clanMemberId)
+    .groupBy(memberDailyStats.accountId)
     .as('latest_day_per_member');
 
   const rows = await db
@@ -70,7 +70,7 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
     .leftJoin(latestDay, eq(latestDay.clanMemberId, clanRoster.id))
     .leftJoin(
       memberDailyStats,
-      and(eq(memberDailyStats.clanMemberId, clanRoster.id), eq(memberDailyStats.day, latestDay.day)),
+      and(eq(memberDailyStats.accountId, clanRoster.id), eq(memberDailyStats.day, latestDay.day)),
     )
     // Members who left the clan drop off the directory; the profile page still resolves by name so
     // old links and event recaps don't 404.
@@ -159,7 +159,7 @@ async function lastSnapshotFor(member: { id: number; statsLastSnapshot: string |
     }
   }
   const row = await db.query.playerSnapshots.findFirst({
-    where: eq(playerSnapshots.clanMemberId, member.id),
+    where: eq(playerSnapshots.accountId, member.id),
     orderBy: [desc(playerSnapshots.capturedAt)],
   });
   if (!row?.payload) return { snapshot: null, at: null };
@@ -286,7 +286,7 @@ export async function getDailySeries(clanMemberId: number, days = 90): Promise<D
   const rows = await db
     .select()
     .from(memberDailyStats)
-    .where(and(eq(memberDailyStats.clanMemberId, clanMemberId), gte(memberDailyStats.day, from)))
+    .where(and(eq(memberDailyStats.accountId, clanMemberId), gte(memberDailyStats.day, from)))
     .orderBy(memberDailyStats.day);
 
   // Densify: a day nobody played has no row, but it's a real zero, not a gap. Handing the sparse rows
@@ -322,7 +322,7 @@ export async function getMilestones(clanMemberId: number, limit = 50): Promise<M
   const rows = await db
     .select()
     .from(memberMilestones)
-    .where(eq(memberMilestones.clanMemberId, clanMemberId))
+    .where(eq(memberMilestones.accountId, clanMemberId))
     .orderBy(desc(memberMilestones.noticedAt))
     .limit(limit);
   return rows.map((r) => ({ kind: r.kind, metric: r.metric, threshold: r.threshold, noticedAt: r.noticedAt }));
@@ -523,14 +523,14 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
   const today = new Date().toISOString().slice(0, 10);
   const weekRows = await db
     .select({
-      clanMemberId: memberDailyStats.clanMemberId,
+      clanMemberId: memberDailyStats.accountId,
       hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
       // Today's slice of the same scan — one aggregate instead of a second round trip.
       todayHours: sql<number>`SUM(CASE WHEN ${memberDailyStats.day} = ${today} THEN ${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained} ELSE 0 END)`,
     })
     .from(memberDailyStats)
     .where(gte(memberDailyStats.day, since7))
-    .groupBy(memberDailyStats.clanMemberId);
+    .groupBy(memberDailyStats.accountId);
 
   const nameById = new Map(members.map((m) => [m.id, m.rsn]));
   // Eight, not five: three go on the podium and the rest are the chasing pack under it.
@@ -592,7 +592,7 @@ export async function getRosterMovement(members: MemberListRow[]): Promise<Recor
 
   const rows = await db
     .select({
-      clanMemberId: memberDailyStats.clanMemberId,
+      clanMemberId: memberDailyStats.accountId,
       day: memberDailyStats.day,
       gained: sql<number>`${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained}`,
     })

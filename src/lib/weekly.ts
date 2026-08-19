@@ -262,7 +262,7 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
  * out of the JSON payload for cheap ORDER BY and the rename detector's "latest XP" probe.
  */
 export async function writePlayerSnapshot(
-  clanMemberId: number,
+  accountId: number,
   weeklyCompetitionId: number,
   snapshot: HiscoresSnapshot,
 ): Promise<void> {
@@ -273,7 +273,7 @@ export async function writePlayerSnapshot(
     // Baseline: write once, never touch again (ON CONFLICT DO NOTHING freezes it).
     await db
       .insert(playerSnapshots)
-      .values({ clanMemberId, weeklyCompetitionId, kind: 'baseline', payload, overallXp })
+      .values({ accountId, weeklyCompetitionId, kind: 'baseline', payload, overallXp })
       .onConflictDoNothing();
 
     // Current: one row per (member, competition), overwritten each tick. The setWhere guard
@@ -281,14 +281,14 @@ export async function writePlayerSnapshot(
     // an idle player costs nothing.
     await db
       .insert(playerSnapshots)
-      .values({ clanMemberId, weeklyCompetitionId, kind: 'current', payload, overallXp })
+      .values({ accountId, weeklyCompetitionId, kind: 'current', payload, overallXp })
       .onConflictDoUpdate({
-        target: [playerSnapshots.clanMemberId, playerSnapshots.weeklyCompetitionId, playerSnapshots.kind],
+        target: [playerSnapshots.accountId, playerSnapshots.weeklyCompetitionId, playerSnapshots.kind],
         set: { payload, overallXp, capturedAt: sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')` },
         setWhere: ne(playerSnapshots.payload, payload),
       });
   } catch (err) {
-    log.warn('player-snapshots.write-fail', { clanMemberId, weeklyCompetitionId }, err);
+    log.warn('player-snapshots.write-fail', { accountId, weeklyCompetitionId }, err);
   }
 }
 

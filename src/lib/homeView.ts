@@ -147,7 +147,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const dailyRows = earliestDay
     ? await db
         .select({
-          clanMemberId: memberDailyStats.clanMemberId,
+          clanMemberId: memberDailyStats.accountId,
           day: memberDailyStats.day,
           xpGained: memberDailyStats.xpGained,
           ehpMilliGained: memberDailyStats.ehpMilliGained,
@@ -270,7 +270,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   // ---- Milestones ------------------------------------------------------------------------------
   const milestoneRows = await db
     .select({
-      clanMemberId: memberMilestones.clanMemberId,
+      clanMemberId: memberMilestones.accountId,
       kind: memberMilestones.kind,
       metric: memberMilestones.metric,
       threshold: memberMilestones.threshold,
@@ -308,7 +308,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
         ? await db
             .select({ day: memberDailyStats.day, xpGained: memberDailyStats.xpGained })
             .from(memberDailyStats)
-            .where(and(inArray(memberDailyStats.clanMemberId, [...myIds]), gte(memberDailyStats.day, weekStart)))
+            .where(and(inArray(memberDailyStats.accountId, [...myIds]), gte(memberDailyStats.day, weekStart)))
         : [];
       const liveComp = weeklies.find((w) => w.status === 'active');
       let weekly: HomeYou['weekly'] = null;

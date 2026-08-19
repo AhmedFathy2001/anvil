@@ -239,3 +239,52 @@ test('the post-login redirect can only name a real clan', async () => {
     );
   }
 });
+
+
+// ── One account, one history, however many clans it plays in ──────────────────────────────────
+// What Jagex tracks belongs to the account, so what we record about it does too. Keyed to the roster
+// SEAT — which is what these tables used before the conversion — a person in two clans would
+// accumulate two daily series, two sets of personal bests and two collection logs from the same
+// account, none of them agreeing.
+//
+// The unique index is the thing being pinned: it is the reason a second clan's sweep updates the
+// existing row rather than starting a rival one.
+test('a second clan does not start a second history for the same account', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+
+  const [person] = await db.insert(s.players).values({ displayName: 'Nomad' }).returning();
+  const [account] = await db
+    .insert(s.accounts)
+    .values({ playerId: person.id, rsn: 'Nomad', rsnNormalized: 'nomad' })
+    .returning();
+
+  const clans = await db.select().from(s.clans);
+  const [a, b] = clans;
+  assert.ok(a && b, 'two clans are already seeded above');
+
+  // The same account, seated on both rosters — which is the whole point of accounts being global.
+  await db.insert(s.clanMemberships).values([
+    { clanId: a.id, accountId: account.id, kind: 'member', source: 'roster' },
+    { clanId: b.id, accountId: account.id, kind: 'guest', source: 'application' },
+  ]);
+
+  // Two clans, two sweeps, one day.
+  await db.insert(s.memberDailyStats).values({ accountId: account.id, day: '2026-08-19', overallXp: 1000 });
+  await db
+    .insert(s.memberDailyStats)
+    .values({ accountId: account.id, day: '2026-08-19', overallXp: 1200 })
+    .onConflictDoUpdate({
+      target: [s.memberDailyStats.accountId, s.memberDailyStats.day],
+      set: { overallXp: 1200 },
+    });
+
+  const days = await db.select().from(s.memberDailyStats).where(eq(s.memberDailyStats.accountId, account.id));
+  assert.equal(days.length, 1, 'one row for the day, not one per clan that watched it');
+  assert.equal(days[0]!.overallXp, 1200, 'and it carries the later reading');
+
+  // Two seats, one account: the seats are what differ, and they are the only thing that should.
+  const seats = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.accountId, account.id));
+  assert.equal(seats.length, 2);
+  assert.equal(new Set(seats.map((x) => x.clanId)).size, 2);
+});

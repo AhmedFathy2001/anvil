@@ -773,6 +773,16 @@ export const users = pgTable('users', {
   // time using the user's clan_members + the current in-game RSN sent with each call.
   // Rotated by the user from /profile if leaked. Nullable for legacy users; lazily
   // generated the first time the user opens the plugin section.
+  // The plugin's credential, and it identifies a PERSON — not a person on a site.
+  //
+  // One token, every clan. The plugin sends it to whichever clan's host it is talking to, and the
+  // clan comes from that host; the token itself says only who is holding it. That is what lets one
+  // client follow someone into a second clan without re-linking, and what makes their history one
+  // history rather than one per site.
+  //
+  // Extra credentials for the same person live in `plugin_links` — device links, and the tokens
+  // inherited from separate instances at import. They resolve to the same person, and are meant to
+  // be retired once that person's client has been handed this one.
   pluginToken: text('plugin_token'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
@@ -1135,7 +1145,9 @@ export const pendingRenames = pgTable('pending_renames', {
 // Payload is JSON to avoid a 200-column table for ~150 members.
 export const playerSnapshots = pgTable('player_snapshots', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   // Competition this snapshot belongs to. Snapshots are scoped to a weekly competition so we
   // keep exactly two per (member, competition): a frozen 'baseline' at event start and a
   // 'current' overwritten every cron tick until the event ends. NULL only for legacy/orphan
@@ -1149,10 +1161,10 @@ export const playerSnapshots = pgTable('player_snapshots', {
   // Denormalized for cheap ORDER BY and the rename detector's "latest overall XP" probe.
   overallXp: integer('overall_xp'),
 }, (table) => [
-  index('player_snapshots_member_captured_idx').on(table.clanMemberId, table.capturedAt),
+  index('player_snapshots_member_captured_idx').on(table.accountId, table.capturedAt),
   // One baseline + one current per member per competition. NULLs count as distinct in a unique
   // index, so legacy/orphan rows (NULL competition) never collide here.
-  uniqueIndex('player_snapshots_member_comp_kind_idx').on(table.clanMemberId, table.weeklyCompetitionId, table.kind),
+  uniqueIndex('player_snapshots_account_comp_kind_idx').on(table.accountId, table.weeklyCompetitionId, table.kind),
 ]);
 
 // One materialized row per PERSON per finished event — the longitudinal evidence the player
@@ -1384,7 +1396,9 @@ export const surveyResponses = pgTable('survey_responses', {
  */
 export const memberDailyStats = pgTable('member_daily_stats', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   // UTC calendar day, 'YYYY-MM-DD'. UTC because every other date in the app is, and a clan spans zones.
   day: text('day').notNull(),
 
@@ -1403,7 +1417,7 @@ export const memberDailyStats = pgTable('member_daily_stats', {
   deltas: text('deltas'),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
-  uniqueIndex('member_daily_stats_member_day_idx').on(table.clanMemberId, table.day),
+  uniqueIndex('member_daily_stats_account_day_idx').on(table.accountId, table.day),
   index('member_daily_stats_day_idx').on(table.day),
 ]);
 
@@ -1418,7 +1432,9 @@ export const memberDailyStats = pgTable('member_daily_stats', {
  */
 export const memberMilestones = pgTable('member_milestones', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   // 'level' (99s) | 'xp' | 'kc' | 'ehb' | 'ehp' | 'total'
   kind: text('kind').notNull(),
   // The skill or boss key it applies to; null for account-wide ones (total level, EHP, EHB).
@@ -1427,8 +1443,8 @@ export const memberMilestones = pgTable('member_milestones', {
   threshold: integer('threshold').notNull(),
   noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
-  uniqueIndex('member_milestones_unique').on(table.clanMemberId, table.kind, table.metric, table.threshold),
-  index('member_milestones_member_idx').on(table.clanMemberId, table.noticedAt),
+  uniqueIndex('member_milestones_unique').on(table.accountId, table.kind, table.metric, table.threshold),
+  index('member_milestones_member_idx').on(table.accountId, table.noticedAt),
 ]);
 
 /**
@@ -1584,9 +1600,9 @@ export const teamStaff = pgTable('team_staff', {
 
 /** One row per member: how much of the log we have, and the identity to merge it by later. */
 export const memberClog = pgTable('member_clog', {
-  clanMemberId: integer('clan_member_id')
-    .primaryKey()
-    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
   /** Distinct pages we've ever received for this member, and the catalogue total at sync time. */
   pagesSynced: integer('pages_synced').notNull().default(0),
   pagesTotal: integer('pages_total').notNull().default(0),
@@ -1613,9 +1629,9 @@ export const memberClog = pgTable('member_clog', {
  */
 export const memberClogItems = pgTable('member_clog_items', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id')
-    .notNull()
-    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   itemId: integer('item_id').notNull(),
   pageName: text('page_name').notNull(),
   /** How many the log says they've had. At least 1 — a 0 would read as "not obtained". */
@@ -1632,9 +1648,9 @@ export const memberClogItems = pgTable('member_clog_items', {
    */
   kcAtUnlock: integer('kc_at_unlock'),
 }, (t) => [
-  uniqueIndex('member_clog_items_unique').on(t.clanMemberId, t.itemId),
+  uniqueIndex('member_clog_items_unique').on(t.accountId, t.itemId),
   index('member_clog_items_item_idx').on(t.itemId),
-  index('member_clog_items_page_idx').on(t.clanMemberId, t.pageName),
+  index('member_clog_items_page_idx').on(t.accountId, t.pageName),
 ]);
 
 /**
@@ -1645,14 +1661,14 @@ export const memberClogItems = pgTable('member_clog_items', {
  */
 export const memberClogKc = pgTable('member_clog_kc', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id')
-    .notNull()
-    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   pageName: text('page_name').notNull(),
   /** The label as the game prints it — pages count kills, chests, completions, laps. */
   label: text('label').notNull(),
   count: integer('count').notNull(),
-}, (t) => [uniqueIndex('member_clog_kc_unique').on(t.clanMemberId, t.pageName, t.label)]);
+}, (t) => [uniqueIndex('member_clog_kc_unique').on(t.accountId, t.pageName, t.label)]);
 
 /**
  * Best times, in CENTISECONDS. The game separates runs by hundredths, so seconds would tie times the
@@ -1673,23 +1689,23 @@ export const memberClogKc = pgTable('member_clog_kc', {
  */
 export const memberProgress = pgTable('member_progress', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id')
-    .notNull()
-    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   /** A key from PROGRESS_KEYS — 'questPoints', 'caPoints', 'caTier', 'diaryElite', … */
   key: text('key').notNull(),
   value: integer('value').notNull(),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
-  uniqueIndex('member_progress_member_key_unique').on(table.clanMemberId, table.key),
+  uniqueIndex('member_progress_account_key_unique').on(table.accountId, table.key),
   index('member_progress_key_idx').on(table.key),
 ]);
 
 export const memberPersonalBests = pgTable('member_personal_bests', {
   id: serial('id').primaryKey(),
-  clanMemberId: integer('clan_member_id')
-    .notNull()
-    .references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
+  // clans holds one account and two seats — keyed to the seat, they would accumulate two of these.
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   /** Lowercased activity name as the game's kill-count line names it. */
   activity: text('activity').notNull(),
   /**
@@ -1702,7 +1718,7 @@ export const memberPersonalBests = pgTable('member_personal_bests', {
   achievedAt: text('achieved_at'),
   updatedAt: text('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('member_pb_unique').on(t.clanMemberId, t.activity, t.teamSize),
+  uniqueIndex('member_pb_unique').on(t.accountId, t.activity, t.teamSize),
   index('member_pb_activity_idx').on(t.activity, t.centis),
 ]);
 

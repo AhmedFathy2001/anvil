@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   const existing = await db
     .select({ key: memberProgress.key, value: memberProgress.value })
     .from(memberProgress)
-    .where(and(eq(memberProgress.clanMemberId, member.clanMemberId), inArray(memberProgress.key, keys)));
+    .where(and(eq(memberProgress.accountId, member.accountId), inArray(memberProgress.key, keys)));
 
   const updates = progressUpdates(new Map(existing.map((r) => [r.key, r.value])), incoming);
   if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0 });
@@ -56,9 +56,9 @@ export async function POST(request: Request) {
   for (const [key, value] of updates) {
     await db
       .insert(memberProgress)
-      .values({ clanMemberId: member.clanMemberId, key, value, updatedAt: now })
+      .values({ accountId: member.accountId, key, value, updatedAt: now })
       .onConflictDoUpdate({
-        target: [memberProgress.clanMemberId, memberProgress.key],
+        target: [memberProgress.accountId, memberProgress.key],
         set: { value, updatedAt: now },
       });
   }

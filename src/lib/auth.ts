@@ -790,7 +790,7 @@ export async function claimAccountForUser(
 // isn't on this user's roster.
 export async function resolvePluginMember(
   request: Request
-): Promise<{ userId: number; clanMemberId: number; rsn: string } | null> {
+): Promise<{ userId: number; clanMemberId: number; accountId: number; rsn: string } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
 
@@ -837,6 +837,7 @@ export async function resolvePluginMember(
   const memberRows = await db
     .select({
       id: clanRoster.id,
+      accountId: clanRoster.accountId,
       rsn: clanRoster.rsn,
       rsnNormalized: clanRoster.rsnNormalized,
       previousRsns: clanRoster.previousRsns,
@@ -907,7 +908,14 @@ export async function resolvePluginMember(
   // verify it, enrolled anywhere or not. Best-effort: never blocks, no-ops once verified + anchored.
   await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
 
-  return { userId: user.id, clanMemberId: matchedMember.id, rsn: currentRsn.trim() };
+  // Both, deliberately: the SEAT is this clan's roster row, the ACCOUNT is what Jagex tracks and
+  // what every stat, best and collection-log row hangs off — one history per account, not per clan.
+  return {
+    userId: user.id,
+    clanMemberId: matchedMember.id,
+    accountId: matchedMember.accountId,
+    rsn: currentRsn.trim(),
+  };
 }
 
 // Plugin auth for event-scoped actions: resolve the active player row from the account token.

@@ -52,7 +52,12 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-/** A person with one account, seated on the test clan's roster. Returns the seat id. */
+/**
+ * A person with one account, seated on the test clan's roster.
+ *
+ * Returns the SEAT id, and `makeAccount` returns the account behind it — the two are different
+ * things now, and the history tables want the account.
+ */
 async function makeMember(rsn: string): Promise<number> {
   const [person] = await db.insert(s.players).values({ displayName: rsn }).returning();
   const [account] = await db
@@ -64,6 +69,13 @@ async function makeMember(rsn: string): Promise<number> {
     .values({ clanId, accountId: account!.id, kind: 'member', source: 'roster' })
     .returning({ id: s.clanMemberships.id });
   return seat!.id;
+}
+
+/** The account behind a fresh member — what personal bests, daily stats and the clog hang off. */
+async function makeAccount(rsn: string): Promise<number> {
+  const seatId = await makeMember(rsn);
+  const [seat] = await db.select().from(s.clanRoster).where(eq(s.clanRoster.id, seatId));
+  return seat!.accountId;
 }
 
 // ── Generated keys come back from the insert ──────────────────────────────────────────────────
@@ -98,7 +110,7 @@ test('onConflictDoNothing returns nothing when it did nothing', async () => {
 // becomes LEAST(). If the port got it wrong the endpoint would still 200 and simply record whichever
 // time arrived last, quietly overwriting real records with slower ones.
 test('a slower personal best never overwrites a faster one', async () => {
-  const memberId = await makeMember('PB Runner');
+  const memberId = await makeAccount('PB Runner');
   const best = (activity: string, centis: number) => [{ activity, teamSize: 0, centis }];
 
   await savePersonalBests(memberId, best('zulrah', 12_000), NOW);
@@ -108,14 +120,14 @@ test('a slower personal best never overwrites a faster one', async () => {
   const rows = await db
     .select()
     .from(s.memberPersonalBests)
-    .where(and(eq(s.memberPersonalBests.clanMemberId, memberId), eq(s.memberPersonalBests.activity, 'zulrah')));
+    .where(and(eq(s.memberPersonalBests.accountId, memberId), eq(s.memberPersonalBests.activity, 'zulrah')));
 
   assert.equal(rows.length, 1, 'the unique index must collapse these to one row');
   assert.equal(rows[0]!.centis, 9_500, 'the fastest time must survive regardless of push order');
 });
 
-test('personal bests are per (member, activity, team size)', async () => {
-  const memberId = await makeMember('PB Sizes');
+test('personal bests are per (account, activity, team size)', async () => {
+  const memberId = await makeAccount('PB Sizes');
   await savePersonalBests(
     memberId,
     [
@@ -129,7 +141,7 @@ test('personal bests are per (member, activity, team size)', async () => {
   const rows = await db
     .select()
     .from(s.memberPersonalBests)
-    .where(and(eq(s.memberPersonalBests.clanMemberId, memberId), eq(s.memberPersonalBests.activity, 'tob')));
+    .where(and(eq(s.memberPersonalBests.accountId, memberId), eq(s.memberPersonalBests.activity, 'tob')));
 
   assert.equal(rows.length, 3, 'team sizes are distinct records, not competing ones');
   assert.deepEqual(rows.map((r) => r.centis).sort((a, b) => a - b), [22_000, 25_000, 30_000]);

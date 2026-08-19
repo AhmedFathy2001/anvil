@@ -11,6 +11,6 @@ export async function getMemberProgress(clanMemberId: number): Promise<ProgressS
   const rows = await db
     .select({ key: memberProgress.key, value: memberProgress.value, updatedAt: memberProgress.updatedAt })
     .from(memberProgress)
-    .where(eq(memberProgress.clanMemberId, clanMemberId));
+    .where(eq(memberProgress.accountId, clanMemberId));
   return progressSummary(rows);
 }

@@ -103,7 +103,7 @@ export async function bossKillsFor(clanMemberId: number): Promise<Record<string,
   const snaps = await db
     .select({ payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
     .from(playerSnapshots)
-    .where(and(eq(playerSnapshots.clanMemberId, clanMemberId), eq(playerSnapshots.kind, 'current')));
+    .where(and(eq(playerSnapshots.accountId, clanMemberId), eq(playerSnapshots.kind, 'current')));
   const newest = snaps.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
   if (newest) {
     try {
@@ -140,9 +140,10 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
 
   // Everyone who has synced, and is still in the clan.
   const synced = await db
-    .select({ id: memberClog.clanMemberId, rsn: clanRoster.rsn, liveStats: clanRoster.liveStats })
+    .select({ id: memberClog.accountId, rsn: clanRoster.rsn, liveStats: clanRoster.liveStats })
     .from(memberClog)
-    .innerJoin(clanRoster, eq(memberClog.clanMemberId, clanRoster.id))
+    // Joined on the ACCOUNT, which is what the log belongs to — the seat is this clan's row about it.
+    .innerJoin(clanRoster, eq(memberClog.accountId, clanRoster.accountId))
     .where(isNull(clanRoster.leftAt));
   if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
 
@@ -153,12 +154,12 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
   // ~170k rows, and this needs a few hundred of them.
   const ownedRows = await db
     .select({
-      clanMemberId: memberClogItems.clanMemberId,
+      clanMemberId: memberClogItems.accountId,
       itemId: memberClogItems.itemId,
       quantity: memberClogItems.quantity,
     })
     .from(memberClogItems)
-    .where(and(inArray(memberClogItems.clanMemberId, memberIds), inArray(memberClogItems.itemId, itemIds)));
+    .where(and(inArray(memberClogItems.accountId, memberIds), inArray(memberClogItems.itemId, itemIds)));
 
   // How MANY, not whether: the count is the metric, and a missing row simply means none.
   const owned = new Map<string, number>();
@@ -170,9 +171,9 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
   for (const m of synced) kills.set(m.id, parsePluginStats(m.liveStats));
 
   const snapshots = await db
-    .select({ clanMemberId: playerSnapshots.clanMemberId, payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
+    .select({ clanMemberId: playerSnapshots.accountId, payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
     .from(playerSnapshots)
-    .where(and(inArray(playerSnapshots.clanMemberId, memberIds), eq(playerSnapshots.kind, 'current')));
+    .where(and(inArray(playerSnapshots.accountId, memberIds), eq(playerSnapshots.kind, 'current')));
   const newest = new Map<number, { payload: string; capturedAt: string }>();
   for (const s of snapshots) {
     const prev = newest.get(s.clanMemberId);
@@ -200,7 +201,7 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
     source: c.source,
     rate: c.rate,
     members: synced.map((m): LuckSource => ({
-      clanMemberId: m.id,
+      accountId: m.id,
       rsn: m.rsn,
       kills: kills.get(m.id)?.[c.bossKey] ?? 0,
       obtained: owned.get(`${m.id}:${c.itemId}`) ?? 0,

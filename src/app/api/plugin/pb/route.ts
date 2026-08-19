@@ -48,6 +48,6 @@ export async function GET(request: Request) {
       centis: memberPersonalBests.centis,
     })
     .from(memberPersonalBests)
-    .where(and(eq(memberPersonalBests.clanMemberId, member.clanMemberId)));
+    .where(and(eq(memberPersonalBests.accountId, member.accountId)));
   return NextResponse.json({ bests: rows });
 }

@@ -199,7 +199,7 @@ export async function buildCompetitionView(
     for (const [rsn, id] of memberIdByRsn) rsnByMemberId.set(id, rsn);
     const rows = await db
       .select({
-        clanMemberId: memberDailyStats.clanMemberId,
+        clanMemberId: memberDailyStats.accountId,
         day: memberDailyStats.day,
         xpGained: memberDailyStats.xpGained,
         ehpMilliGained: memberDailyStats.ehpMilliGained,
@@ -209,7 +209,7 @@ export async function buildCompetitionView(
       .from(memberDailyStats)
       .where(
         and(
-          inArray(memberDailyStats.clanMemberId, memberIds),
+          inArray(memberDailyStats.accountId, memberIds),
           gte(memberDailyStats.day, days[0]),
           lte(memberDailyStats.day, days[days.length - 1]),
         ),
@@ -396,7 +396,7 @@ async function loadMilestones(
 
   const rows = await db
     .select({
-      clanMemberId: memberMilestones.clanMemberId,
+      clanMemberId: memberMilestones.accountId,
       kind: memberMilestones.kind,
       metric: memberMilestones.metric,
       threshold: memberMilestones.threshold,
@@ -405,7 +405,7 @@ async function loadMilestones(
     .from(memberMilestones)
     .where(
       and(
-        inArray(memberMilestones.clanMemberId, memberIds),
+        inArray(memberMilestones.accountId, memberIds),
         gte(memberMilestones.noticedAt, competition.startDate),
         lte(memberMilestones.noticedAt, competition.endDate),
       ),

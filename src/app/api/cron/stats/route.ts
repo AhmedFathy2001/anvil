@@ -94,6 +94,8 @@ interface WeeklyTask {
 interface MemberWork {
   key: string;
   clanMemberId: number | null;
+  /** The ACCOUNT being fetched. History hangs off this; the seat is only where it is displayed. */
+  accountId: number | null;
   fetchRsn: string;
   liveMap: Record<string, number>;
   liveKeyTimes: Record<string, string>; // key -> last-rose ISO, for the stale-overlay prune
@@ -145,13 +147,14 @@ export async function GET(request: Request) {
     const bn = b ?? '';
     return a === '' ? a : bn === '' ? bn : a < bn ? a : bn;
   };
-  function ensureEntry(clanMemberId: number | null, provisionalRsn: string): MemberWork {
+  function ensureEntry(clanMemberId: number | null, provisionalRsn: string, accountId: number | null = null): MemberWork {
     const key = keyFor(clanMemberId, provisionalRsn);
     let entry = work.get(key);
     if (!entry) {
       entry = {
         key,
         clanMemberId,
+        accountId,
         fetchRsn: provisionalRsn,
         liveMap: {},
         liveKeyTimes: {},
@@ -166,6 +169,7 @@ export async function GET(request: Request) {
       work.set(key, entry);
     }
     if (clanMemberId != null) clanMemberIds.add(clanMemberId);
+    if (accountId != null && entry.accountId == null) entry.accountId = accountId;
     return entry;
   }
 
@@ -393,12 +397,15 @@ export async function GET(request: Request) {
               });
         if (writeActivities) entry.hasActivities = true;
 
-        if (changed) {
+        // No account means nothing to file this against: a fetch keyed by RSN alone, for someone
+        // who is on no roster. The scoring above still counted; only the history is skipped.
+        if (changed && entry.accountId != null) {
+          const accountId = entry.accountId;
           historyWrites++;
           try {
-            await recordDailyStats({ clanMemberId: entry.clanMemberId, snapshot, previous });
+            await recordDailyStats({ accountId, snapshot, previous });
             const found = detectMilestones(previous, snapshot, computeDeltas(previous, snapshot));
-            if (found.length > 0) milestonesRecorded += await recordMilestones(entry.clanMemberId, found);
+            if (found.length > 0) milestonesRecorded += await recordMilestones(accountId, found);
           } catch (e) {
             // History is a reporting nicety; a failure here must never cost the tick its scoring work.
             log.warn('stats-cron.history-failed', { clanMemberId: entry.clanMemberId, error: (e as Error).message });

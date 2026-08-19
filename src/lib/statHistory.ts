@@ -118,7 +118,8 @@ function parseStoredDeltas(raw: string | null | undefined): StatDeltas | null {
 }
 
 export interface DailyRollupInput {
-  clanMemberId: number;
+  /** The ACCOUNT this day belongs to. One series per account, not one per clan they play in. */
+  accountId: number;
   snapshot: HiscoresSnapshot;
   /** The previous snapshot, for the deltas. Null on a member's first-ever fetch (no gains recorded). */
   previous: HiscoresSnapshot | null;
@@ -167,7 +168,7 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
   const existing =
     hasDeltas || nothingMoved
       ? await db.query.memberDailyStats.findFirst({
-          where: and(eq(memberDailyStats.clanMemberId, input.clanMemberId), eq(memberDailyStats.day, day)),
+          where: and(eq(memberDailyStats.accountId, input.accountId), eq(memberDailyStats.day, day)),
           columns: { id: true, deltas: true },
         })
       : null;
@@ -189,7 +190,7 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
   await db
     .insert(memberDailyStats)
     .values({
-      clanMemberId: input.clanMemberId,
+      accountId: input.accountId,
       day,
       overallXp,
       ehpMilli,
@@ -201,7 +202,7 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
       updatedAt: now.toISOString(),
     })
     .onConflictDoUpdate({
-      target: [memberDailyStats.clanMemberId, memberDailyStats.day],
+      target: [memberDailyStats.accountId, memberDailyStats.day],
       set: {
         overallXp,
         ehpMilli,
@@ -281,10 +282,10 @@ export function detectMilestones(
 }
 
 /** Insert newly crossed milestones. The unique index makes a re-detection a no-op, not a duplicate. */
-export async function recordMilestones(clanMemberId: number, milestones: Milestone[]): Promise<number> {
+export async function recordMilestones(accountId: number, milestones: Milestone[]): Promise<number> {
   if (milestones.length === 0) return 0;
   const rows = milestones.map((m) => ({
-    clanMemberId,
+    accountId,
     kind: m.kind,
     metric: m.metric,
     threshold: m.threshold,

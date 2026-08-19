@@ -269,7 +269,8 @@ export interface DropRate {
 }
 
 export interface LuckSource {
-  clanMemberId: number;
+  /** The ACCOUNT the log belongs to — luck follows the player, not the roster they sit on. */
+  accountId: number;
   rsn: string;
   /** Absolute kill count for the page's source, from the hiscores. */
   kills: number;
@@ -282,7 +283,8 @@ export interface LuckSource {
 }
 
 export interface LuckEntry {
-  clanMemberId: number;
+  /** The ACCOUNT — a drop's luck belongs to the player, not to a roster they sit on. */
+  accountId: number;
   rsn: string;
   itemId: number;
   itemName: string;
@@ -317,7 +319,7 @@ export function buildLuckBoards(
       const assessment = assessLuck(chance, member.kills, member.obtained);
       if (!assessment.notable) continue;
       const entry: LuckEntry = {
-        clanMemberId: member.clanMemberId,
+        accountId: member.accountId,
         rsn: member.rsn,
         itemId: candidate.itemId,
         itemName: candidate.itemName,
