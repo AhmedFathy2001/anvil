@@ -224,6 +224,9 @@ export default async function MyTeamsHubPage() {
         proof,
       });
       if (!state.location || !state.keyword) continue;
+      // The ask lapses six hours after the start (lib/startProof): the game has force-logged
+      // everyone by then, so there is no stack left to prove anything about. Stop nagging.
+      if (!state.windowOpen) continue;
       startProofCards.push({
         key: `${r.eventId}-${r.playerId}`,
         eventId: r.eventId,

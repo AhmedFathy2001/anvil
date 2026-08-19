@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses, eventStartProofs } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +9,8 @@ import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { parsePlacementPrizes } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
+import StartProofCard from '@/components/StartProofCard';
+import { startProofState } from '@/lib/startProof';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
 import EventMoments from '@/components/events/EventMoments';
@@ -351,6 +353,44 @@ export default async function EventScoreboardPage({
     );
   }
 
+  // STARTING SHOT (lib/startProof): a player who owes one is playing without their credits counting
+  // for the next few hours, and until now the only place that said so was the My Teams hub — a page
+  // you have no reason to open when you came here to look at the board. The ask lapses six hours
+  // after the start, and `needsUpload` already carries that, so this goes quiet on its own.
+  const startProofCfg = parseEventRules(event.rules).startProof;
+  const myStartProofs: {
+    playerId: number;
+    rsn: string;
+    location: string;
+    spot: { x: number; y: number; radius: number } | null;
+    keyword: string;
+    maxSessionMinutes: number;
+    status: 'pending' | 'accepted' | 'rejected' | null;
+    reviewNote: string | null;
+  }[] = [];
+  if (startProofCfg && myPlayerIds.length > 0) {
+    const proofRows = await db
+      .select()
+      .from(eventStartProofs)
+      .where(and(eq(eventStartProofs.eventId, event.id), inArray(eventStartProofs.playerId, myPlayerIds)));
+    const proofByPlayer = new Map(proofRows.map((r) => [r.playerId, r]));
+    for (const playerId of myPlayerIds) {
+      const proof = proofByPlayer.get(playerId);
+      const state = startProofState({ cfg: startProofCfg, event, playerId, proof });
+      if (!state.needsUpload || !state.location || !state.keyword) continue;
+      myStartProofs.push({
+        playerId,
+        rsn: eventPlayers.find((p) => p.id === playerId)?.name ?? 'You',
+        location: state.location,
+        spot: state.spot,
+        keyword: state.keyword,
+        maxSessionMinutes: state.maxSessionMinutes,
+        status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
+        reviewNote: proof?.reviewNote ?? null,
+      });
+    }
+  }
+
   return (
     <>
       <EventHero
@@ -365,6 +405,34 @@ export default async function EventScoreboardPage({
         forceEndedAt={event.forceEndedAt}
         placementPrizes={placementPrizes}
       />
+      {myStartProofs.length > 0 && (
+        <section className="mb-6">
+          <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 mb-3">
+            <p className="font-semibold text-yellow-300">Your starting shot is still missing</p>
+            <p className="text-sm text-text-muted">
+              Until it&apos;s filed, drops you submit are held for review. It only takes a screenshot —
+              and the ask expires a few hours into the event, so it&apos;s now or not at all.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {myStartProofs.map((c) => (
+              <StartProofCard
+                key={c.playerId}
+                eventId={event.id}
+                eventName={event.name}
+                playerId={c.playerId}
+                rsn={c.rsn}
+                location={c.location}
+                spot={c.spot}
+                keyword={c.keyword}
+                maxSessionMinutes={c.maxSessionMinutes}
+                status={c.status}
+                reviewNote={c.reviewNote}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <SignupBanner
         eventId={event.id}
         loggedIn={!!session}

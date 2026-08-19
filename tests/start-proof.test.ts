@@ -27,6 +27,10 @@ import type { StartProofConfig, StartLocation } from '../src/lib/eventRules.ts';
 
 const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 };
 const DRAWN = '2026-08-16T18:00:00.000Z';
+// An hour into the event: inside the six-hour window where a starting shot is still asked for.
+const DURING = Date.parse('2026-08-16T19:00:00.000Z');
+// Seven hours in: the game has force-logged everyone by now, so there is no stack left to hide.
+const AFTER = Date.parse('2026-08-17T01:00:00.000Z');
 
 test('startKeyword: deterministic, and shaped WORD-WORD-NN', () => {
   const a = startKeyword(7, 42, DRAWN);
@@ -174,16 +178,27 @@ test('startProofGate: nothing to prove when it is not required or not drawn', ()
 
 test('startProofGate: a shot on file passes, even while it waits for review', () => {
   const drawn = { startProofLocation: 'Varrock fountain', startProofDrawnAt: DRAWN };
-  assert.equal(startProofGate(CFG, drawn, { status: 'pending' }), 'ok');
-  assert.equal(startProofGate(CFG, drawn, { status: 'accepted' }), 'ok');
+  assert.equal(startProofGate(CFG, drawn, { status: 'pending' }, DURING), 'ok');
+  assert.equal(startProofGate(CFG, drawn, { status: 'accepted' }, DURING), 'ok');
   // Rejected is the same as never having filed one — they were told to re-take it.
-  assert.equal(startProofGate(CFG, drawn, { status: 'rejected' }), 'flag');
+  assert.equal(startProofGate(CFG, drawn, { status: 'rejected' }, DURING), 'flag');
 });
 
 test('startProofGate: the host picks how hard the belt is', () => {
   const drawn = { startProofLocation: 'Varrock fountain', startProofDrawnAt: DRAWN };
-  assert.equal(startProofGate(CFG, drawn, null), 'flag');
-  assert.equal(startProofGate({ ...CFG, onMissing: 'reject' }, drawn, null), 'reject');
+  assert.equal(startProofGate(CFG, drawn, null, DURING), 'flag');
+  assert.equal(startProofGate({ ...CFG, onMissing: 'reject' }, drawn, null, DURING), 'reject');
+});
+
+test('startProofGate: the requirement lapses six hours after the start', () => {
+  const drawn = { startProofLocation: 'Varrock fountain', startProofDrawnAt: DRAWN };
+  // Right up to the boundary it still holds...
+  assert.equal(startProofGate(CFG, drawn, null, Date.parse('2026-08-16T23:59:59.000Z')), 'flag');
+  // ...and then stops, for the flag setting and the refuse setting alike. OSRS has force-logged
+  // everyone by now, so a missing shot no longer says anything about stacked content.
+  assert.equal(startProofGate(CFG, drawn, null, AFTER), 'ok');
+  assert.equal(startProofGate({ ...CFG, onMissing: 'reject' }, drawn, null, AFTER), 'ok');
+  assert.equal(startProofGate(CFG, drawn, { status: 'rejected' }, AFTER), 'ok');
 });
 
 test('autoAcceptDecision: only an authenticated plugin capture with a verified keyword', () => {
@@ -216,6 +231,8 @@ test('startProofState: nothing leaks before the draw', () => {
     spot: null,
     keyword: null,
     needsUpload: false,
+    windowOpen: false,
+    windowEndsAt: null,
     status: null,
     imageUrl: null,
     maxSessionMinutes: 0,
@@ -227,7 +244,7 @@ test('startProofState: after the draw, the player owes a shot until one is on fi
     id: 3, startProofLocation: 'Edgeville bank', startProofDrawnAt: DRAWN,
     startProofX: 3094, startProofY: 3491, startProofRadius: null,
   };
-  const owed = startProofState({ cfg: CFG, event, playerId: 9 });
+  const owed = startProofState({ cfg: CFG, event, playerId: 9, nowMs: DURING });
   assert.equal(owed.drawn, true);
   assert.equal(owed.location, 'Edgeville bank');
   assert.deepEqual(owed.spot, { x: 3094, y: 3491, radius: DEFAULT_START_RADIUS });
@@ -239,13 +256,31 @@ test('startProofState: after the draw, the player owes a shot until one is on fi
     event,
     playerId: 9,
     proof: { status: 'pending', imageUrl: 'https://media.example/shot.webp' },
+    nowMs: DURING,
   });
   assert.equal(filed.needsUpload, false);
   assert.equal(filed.status, 'pending');
   assert.equal(filed.imageUrl, 'https://media.example/shot.webp');
 
   // Rejected sends them back to the start of the queue.
-  assert.equal(startProofState({ cfg: CFG, event, playerId: 9, proof: { status: 'rejected' } }).needsUpload, true);
+  assert.equal(
+    startProofState({ cfg: CFG, event, playerId: 9, proof: { status: 'rejected' }, nowMs: DURING }).needsUpload,
+    true,
+  );
+});
+
+test('startProofState: nobody owes a shot once the window has shut', () => {
+  const event = {
+    id: 3, startProofLocation: 'Edgeville bank', startProofDrawnAt: DRAWN,
+    startProofX: 3094, startProofY: 3491, startProofRadius: null,
+  };
+  const late = startProofState({ cfg: CFG, event, playerId: 9, nowMs: AFTER });
+  // The card, the plugin banner and the chat nudge all read needsUpload, so they go quiet together.
+  assert.equal(late.needsUpload, false);
+  assert.equal(late.windowOpen, false);
+  assert.equal(late.windowEndsAt, '2026-08-17T00:00:00.000Z');
+  // The instructions stay on the view — an admin row still wants to say what was asked for.
+  assert.equal(late.location, 'Edgeville bank');
 });
 
 test('startProofState: an event without the rule asks for nothing', () => {
