@@ -40,8 +40,23 @@ interface Props {
 
 const STATE = {
   live: { label: 'Live', cls: 'bg-accent-green/20 text-accent-green-light' },
-  upcoming: { label: 'Soon', cls: 'bg-blue-500/15 text-blue-400' },
+  // Gold, not blue: on this palette blue reads quieter than the grey "Done" chip, so a board that
+  // hadn't started yet was the least eye-catching thing in a row of finished ones.
+  upcoming: { label: 'Soon', cls: 'bg-gold/20 text-gold' },
   past: { label: 'Done', cls: 'bg-card-border/70 text-text-muted' },
+} as const;
+
+/**
+ * The three states have to be tellable apart across a room, not by reading a chip.
+ *
+ * Everything used to share one border and one full-strength accent bar, so a bingo that starts next
+ * month sat in a row of finished ones looking exactly like them. Now: live is ringed green, a
+ * scheduled one is ringed gold, and a finished one recedes — it's a record, not an invitation.
+ */
+const FRAME = {
+  live: 'border-accent-green/45 hover:border-accent-green/70',
+  upcoming: 'border-gold/45 hover:border-gold/70',
+  past: 'border-card-border opacity-70 hover:opacity-100 hover:border-gold/45',
 } as const;
 
 export default function CompetitionCard({
@@ -67,11 +82,14 @@ export default function CompetitionCard({
     <Link
       href={href}
       style={{ ['--accent' as string]: meta.accent }}
-      className={`group relative block overflow-hidden rounded-xl border border-card-border bg-card-bg transition-colors hover:border-gold/45 hover:bg-card-bg-hover ${
-        state === 'past' ? 'opacity-90 hover:opacity-100' : ''
-      }`}
+      className={`group relative block overflow-hidden rounded-xl border bg-card-bg transition-all hover:bg-card-bg-hover ${FRAME[state]}`}
     >
-      <span aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[3px]"
+        // The kind's colour still names the format, but a finished board says it under its breath.
+        style={{ background: meta.accent, opacity: state === 'past' ? 0.45 : 1 }}
+      />
 
       <div className="p-4">
         <div className="flex items-start gap-3">
