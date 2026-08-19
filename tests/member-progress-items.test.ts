@@ -8,9 +8,11 @@ import assert from 'node:assert/strict';
 
 import {
   combatTaskVarps,
+  combatTasks,
   completedTasksFromVarps,
   decodeCombatTasks,
   decodeCompletedTaskIds,
+  filterTasks,
 } from '../src/lib/combatTasks.ts';
 import {
   cleanItems,
@@ -138,4 +140,14 @@ test('combat tasks: a task the catalogue is too old to know still lets the rest 
   const known = { [String(varps[0])]: 0b1 };
   assert.equal(decodeCombatTasks(known, 1).items?.length, 1);
   assert.equal(decodeCombatTasks(known, 2).items, null);
+});
+
+test('combat tasks: the monster filter narrows as you type, not only on an exact name', () => {
+  const all = combatTasks(null);
+  const partial = filterTasks(all, { monster: 'phosani' });
+  const exact = filterTasks(all, { monster: "Phosani's Nightmare" });
+  assert.ok(partial.length > 0, 'a half-typed monster still finds its tasks');
+  assert.equal(partial.length, exact.length);
+  // Case doesn't matter either — nobody types an apostrophe and a capital N.
+  assert.equal(filterTasks(all, { monster: 'PHOSANI' }).length, exact.length);
 });

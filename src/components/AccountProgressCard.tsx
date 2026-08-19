@@ -12,6 +12,7 @@ import {
   taskTypes,
 } from '@/lib/combatTasks';
 import { PANEL, RS_ORANGE, RS_STATE, RS_TEXT, TAB, TAB_ON, WELL } from '@/components/gameChrome';
+import Select from '@/components/Select';
 
 /**
  * Quests, diaries and combat achievements, drawn the way the game draws them.
@@ -189,7 +190,12 @@ function DiaryTab({ summary }: { summary: ProgressSummary }) {
   );
 }
 
-/** One of the interface's dropdowns: a label above a select, in the game's chrome. */
+/**
+ * One of the interface's dropdowns — the game's label above the site's own Select, which brings a
+ * search box of its own once a list gets long. That last part is why the monster picker is one of
+ * these too: in-game it's a dropdown of every monster there is, and scrolling past two hundred of
+ * them to reach Phosani's Nightmare is the single worst thing about the screen we're copying.
+ */
 function FilterSelect({
   label,
   value,
@@ -202,21 +208,10 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block mb-3">
+    <div className="mb-3">
       <span className="block text-xs mb-1" style={{ color: RS_ORANGE }}>{label}:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`${WELL} w-full px-2 py-1 text-xs outline-none`}
-        style={{ color: RS_TEXT }}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} style={{ backgroundColor: '#2b2620' }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select value={value} onChange={onChange} options={options} ariaLabel={label} />
+    </div>
   );
 }
 
@@ -226,6 +221,7 @@ function CombatTab({ summary, tasks }: { summary: ProgressSummary; tasks: Progre
   const [type, setType] = useState('all');
   const [monster, setMonster] = useState('all');
   const [completed, setCompleted] = useState<'all' | 'done' | 'todo'>('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const all = useMemo(() => combatTasks(tasks), [tasks]);
   const monsters = useMemo(() => taskMonsters(all), [all]);
@@ -323,21 +319,36 @@ function CombatTab({ summary, tasks }: { summary: ProgressSummary; tasks: Progre
                 <p className="px-2 py-3 text-xs text-center" style={{ color: RS_TEXT }}>Nothing matches that.</p>
               ) : (
                 <ul>
-                  {shown.map((task) => (
-                    <li
-                      key={`${task.tier}-${task.name}`}
-                      title={task.description ?? undefined}
-                      className="px-2 py-1 odd:bg-black/10 hover:bg-black/20"
-                    >
-                      <p className="text-[13px] leading-tight" style={{ color: task.done ? RS_STATE[2] : '#8f8779' }}>
-                        {task.name}
-                      </p>
-                      <p className="text-[11px] leading-tight" style={{ color: RS_ORANGE, opacity: task.done ? 1 : 0.6 }}>
-                        {task.monster ? `Monster: ${task.monster}` : task.tier}
-                        <span className="opacity-70"> · {task.tier}</span>
-                      </p>
-                    </li>
-                  ))}
+                  {shown.map((task) => {
+                    const key = `${task.tier}-${task.name}`;
+                    const open = expanded === key;
+                    return (
+                      <li key={key} className="odd:bg-black/10">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(open ? null : key)}
+                          aria-expanded={open}
+                          className="w-full text-left px-2 py-1 hover:bg-black/20"
+                        >
+                          <p className="text-[13px] leading-tight" style={{ color: task.done ? RS_STATE[2] : '#8f8779' }}>
+                            {task.name}
+                          </p>
+                          <p className="text-[11px] leading-tight" style={{ color: RS_ORANGE, opacity: task.done ? 1 : 0.6 }}>
+                            {task.monster ? `Monster: ${task.monster}` : task.tier}
+                            <span className="opacity-70"> · {task.tier}</span>
+                            {task.type && <span className="opacity-70"> · {task.type}</span>}
+                          </p>
+                        </button>
+                        {/* What the task actually asks for — the game shows it on hover, which is
+                            no use on a phone and no use at all if you want to read two of them. */}
+                        {open && (
+                          <p className="px-2 pb-2 text-[12px] leading-snug" style={{ color: RS_TEXT }}>
+                            {task.description ?? 'No description in the catalogue for this one.'}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
