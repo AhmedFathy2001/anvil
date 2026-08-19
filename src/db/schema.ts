@@ -1299,7 +1299,8 @@ export const tileLibrary = pgTable('tile_library', {
   index('tile_library_category_idx').on(table.category),
   // One row per seed entry — makes "import the starter tasks" idempotent and lets a later release
   // diff what's new without duplicating anything the clan already has.
-  uniqueIndex('tile_library_seed_key_idx').on(table.seedKey),
+  // Per CLAN: every clan seeds from the same file, so every clan has a row for the same seed key.
+  uniqueIndex('tile_library_clan_seed_key_idx').on(table.clanId, table.seedKey),
 ]);
 
 // User-submitted bug reports & feedback. Lives in EACH clan instance; the clan's admins triage it

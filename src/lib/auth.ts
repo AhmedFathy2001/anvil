@@ -290,6 +290,26 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 //
 // Only the per-user account token (`users.plugin_token`) is accepted — legacy
 // per-event `eventParticipants.player_token`s are no longer a plugin credential.
+/**
+ * The login a plugin token belongs to — whichever token it is.
+ *
+ * A person accumulates tokens: one per instance that ever issued them one, plus any device links.
+ * `users.pluginToken` holds the newest, and `plugin_links` holds the rest, so both are checked and
+ * an older one keeps working. This matters most right after a clan is imported, when somebody in
+ * two clans is one login holding two tokens and their client only knows the one it was given.
+ */
+async function userByPluginToken(token: string) {
+  const direct = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  if (direct) return direct;
+
+  const link = await db.query.pluginLinks.findFirst({
+    where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
+    columns: { userId: true },
+  });
+  if (!link) return undefined;
+  return db.query.users.findFirst({ where: eq(users.id, link.userId) });
+}
+
 export async function verifyPluginTokenUser(
   request: Request,
 ): Promise<{ userId: number } | null> {
@@ -297,7 +317,7 @@ export async function verifyPluginTokenUser(
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7).trim();
   if (!token) return null;
-  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  const user = await userByPluginToken(token);
   if (user) return { userId: user.id };
   return null;
 }
@@ -788,7 +808,7 @@ export async function resolvePluginMember(
   // a later in-game rename stays anchored to the same clan_member.
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
 
-  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  const user = await userByPluginToken(token);
   if (!user) return null;
 
   // Which clan is this plugin talking to? The token identifies the PERSON; the Host identifies the
@@ -956,7 +976,7 @@ export async function verifyAdminPluginToken(
   if (!token) return null;
 
   // Preferred: the per-user account token, authorized by the user's admin role.
-  const user = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  const user = await userByPluginToken(token);
   if (user) return user.role === 'admin' ? { userId: user.id } : null;
 
   // Legacy: dedicated admin link token. Temporary back-compat during the cutover.
