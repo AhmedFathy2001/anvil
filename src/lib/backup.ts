@@ -1,10 +1,15 @@
-// Off-box database backup — a gzipped, point-in-time-consistent dump of the clan's database uploaded
-// to a PRIVATE object-storage bucket, so a dead box, a corrupt volume, or a bad migration is
-// recoverable. Driven daily (staggered) by the control-plane cron dispatcher via /api/cron/backup.
+// Off-box database backup — a gzipped, point-in-time-consistent dump of the database uploaded to a
+// PRIVATE object-storage bucket, so a dead box, a corrupt volume, or a bad migration is recoverable.
+// Driven daily by cron via /api/cron/backup.
+//
+// ONE DUMP, EVERY CLAN. This used to be one database per clan, so a dump was a clan. It is now the
+// whole deployment in a single file, which is the thing to know before a restore: there is no
+// per-clan dump to reach for, and loading one of these replaces every clan at once. Recovering a
+// single clan means restoring into a scratch database and copying the rows out by clan_id.
 //
 // This is deliberately NOT part of lib/storage.ts (clan media): media lives in a *public* bucket, and
 // a full database dump must never be publicly reachable. Backups go to a dedicated private bucket
-// (S3_BACKUP_BUCKET) in the same account, keyed under the clan's slug prefix, pruned to the newest N.
+// (S3_BACKUP_BUCKET) in the same account, keyed under S3_KEY_PREFIX, pruned to the newest N.
 // If that bucket isn't configured the feature is simply off — we never fall back to the media bucket.
 //
 // Restore: pull the object (aws/rclone), `gunzip`, then `psql -d <target> -f anvil-<ts>.sql`. The
@@ -31,7 +36,7 @@ interface BackupConfig {
   client: AwsClient;
   endpoint: string; // no trailing slash
   bucket: string;
-  prefix: string; // per-clan namespace (slug), no leading/trailing slash
+  prefix: string; // deployment namespace, no leading/trailing slash — not a clan, see the header
 }
 
 function backupConfig(): BackupConfig | null {

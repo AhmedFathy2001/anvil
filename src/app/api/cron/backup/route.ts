@@ -2,13 +2,15 @@ import { NextResponse } from 'next/server';
 import { backupDatabase } from '@/lib/backup';
 import { timingSafeStrEqual } from '@/lib/auth';
 
-// Daily off-box database backup. The control-plane cron dispatcher hits this once a day per clan
-// (staggered across a low-traffic hour) with the clan's derived CRON_SECRET. It VACUUMs a consistent
-// dump of the database, gzips it, and uploads it to the private backup bucket, then prunes old
-// copies. A no-op (200) when S3_BACKUP_BUCKET isn't configured or the DB is remote — so the job is
-// safe to schedule everywhere and only does work where it's wired up.
+// Daily off-box database backup. Cron hits this once a day, in a low-traffic hour, with CRON_SECRET.
+// pg_dump takes a consistent snapshot of the database, gzips it, uploads it to the private backup
+// bucket, then prunes old copies. A no-op (200) when S3_BACKUP_BUCKET isn't configured — so the job
+// is safe to schedule everywhere and only does work where it's wired up.
+//
+// Once a day total, not once per clan: one database holds every clan now, so a per-clan schedule
+// would just dump the same bytes N times.
 
-export const maxDuration = 300; // VACUUM + gzip + upload of a full DB; generous headroom
+export const maxDuration = 300; // pg_dump + gzip + upload of a full DB; generous headroom
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   const result = await backupDatabase();
-  // A failed backup is an operational problem, not a client error — surface it as 500 so the
-  // dispatcher records the clan as not-ok and it's visible in the tick log.
+  // A failed backup is an operational problem, not a client error — surface it as 500 so the cron
+  // wrapper exits non-zero and it lands in cron's own mail/journal rather than passing silently.
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }

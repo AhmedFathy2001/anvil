@@ -34,6 +34,26 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
+# pg_dump, for the pre-migration snapshot and the daily backup. It was missing from this image:
+# the daily backup would have 500'd, and the snapshot warns and CONTINUES — meaning the migration
+# runs anyway, unsnapshotted. That only bites when a migration is actually pending, which is to say
+# on exactly the deploy where the rollback path matters.
+#
+# Version-matched on purpose: pg_dump refuses to dump from a server NEWER than itself, and bookworm
+# ships client 15 against our 18 server. So it comes from PGDG, pinned to the server's major.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client-18 \
+ && apt-get purge -y --auto-remove gnupg curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && pg_dump --version
+
 # Run as non-root; /data holds pre-migration pg_dump snapshots and must be writable by it.
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs \

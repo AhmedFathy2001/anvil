@@ -34,6 +34,15 @@ Verified on the preview with both clans loaded: a single `/api/cron/weekly` enro
 across the clans that needed it, and a single `/api/cron/stats` swept both. Neither took a clan
 argument, and neither needed one.
 
+## `backup` needs pg_dump in the image
+
+Both `/api/cron/backup` and the boot-time pre-migration snapshot shell out to `pg_dump`, and it was
+not in the runtime image — the backup 500s without it, and the snapshot warns and lets the migration
+proceed unsnapshotted. The Dockerfile now installs `postgresql-client-18` from PGDG; it has to stay
+pinned to the server's major, because pg_dump refuses to dump from a server newer than itself.
+
+If the Postgres major is ever bumped, bump that pin in the same change or the backups stop.
+
 ## Cutover
 
 The dispatcher and the shared cron must not both be live, or the sweep doubles.
