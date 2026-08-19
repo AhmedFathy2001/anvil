@@ -6,7 +6,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { combatTaskVarps, completedTasksFromVarps, decodeCompletedTaskIds } from '../src/lib/combatTasks.ts';
+import {
+  combatTaskVarps,
+  completedTasksFromVarps,
+  decodeCombatTasks,
+  decodeCompletedTaskIds,
+} from '../src/lib/combatTasks.ts';
 import {
   cleanItems,
   countDone,
@@ -112,4 +117,25 @@ test('combat tasks: a decode that does not reconcile is thrown away, not stored'
   // No bits at all, or no total to check against, is also "we don't know" — never "none done".
   assert.equal(completedTasksFromVarps({}, 100), null);
   assert.equal(completedTasksFromVarps(oneEasy, 0), null);
+});
+
+test('combat tasks: a task the catalogue is too old to know still lets the rest through', () => {
+  const varps = combatTaskVarps();
+  // Task 0 (Easy, 1 point) plus a bit far past anything the wiki has dumped yet.
+  const withUnknown = { [String(varps[0])]: 0b1, [String(varps[20])]: 1 << 31 };
+
+  // The unknown task is worth SOMETHING between 1 and 6, so a total inside that window reconciles.
+  const low = decodeCombatTasks(withUnknown, 1 + 1);
+  assert.equal(low.unknownTasks, 1);
+  assert.equal(low.items?.length, 1, 'the task we do know is still stored');
+  assert.equal(decodeCombatTasks(withUnknown, 1 + 6).items?.length, 1);
+
+  // Outside the window it's a misaligned layout again, and nothing is stored.
+  assert.equal(decodeCombatTasks(withUnknown, 1 + 7).items, null);
+  assert.equal(decodeCombatTasks(withUnknown, 1472).items, null);
+
+  // With nothing unknown the window is a single number — the original exact check, unchanged.
+  const known = { [String(varps[0])]: 0b1 };
+  assert.equal(decodeCombatTasks(known, 1).items?.length, 1);
+  assert.equal(decodeCombatTasks(known, 2).items, null);
 });

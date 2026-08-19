@@ -180,20 +180,63 @@ export function decodeCompletedTaskIds(varps: Record<string, number> | null | un
  * something a misaligned decode achieves by accident, so a mismatch means the bit layout moved and
  * we store nothing rather than marking tasks wrong. Null = "we don't know", never "none done".
  */
+export interface DecodeResult {
+  items: ProgressItem[] | null;
+  /** Points from tasks we hold in the catalogue. */
+  knownPoints: number;
+  /** Bits set for tasks the catalogue doesn't have yet — the wiki dump always lags the game. */
+  unknownTasks: number;
+  claimedPoints: number;
+}
+
+/**
+ * Turn decoded bits into the stored list — but only if they reconcile with the game's own total.
+ *
+ * Exactness would be the ideal check, and it IS the check whenever our catalogue is complete. But
+ * the catalogue is a wiki dump and the game ships new tasks between dumps, so a player who has done
+ * one of those carries points we cannot price — and demanding an exact match would then reject a
+ * perfectly good decode forever, which is precisely what happened the first time this ran.
+ *
+ * So: every bit we can't name is worth somewhere between 1 and 6 points, and the claimed total has
+ * to land inside that window. With nothing unknown the window collapses to a single number and the
+ * old guarantee is unchanged; with a handful unknown it stays far too narrow for a misaligned
+ * layout to slip through, because a shifted decode misses by hundreds.
+ */
+export function decodeCombatTasks(
+  varps: Record<string, number> | null | undefined,
+  caPoints: number | null | undefined,
+): DecodeResult {
+  const claimed = caPoints ?? 0;
+  const empty: DecodeResult = { items: null, knownPoints: 0, unknownTasks: 0, claimedPoints: claimed };
+  if (!varps || claimed <= 0) return empty;
+
+  const ids = decodeCompletedTaskIds(varps);
+  if (ids.size === 0) return empty;
+
+  const byId = new Map(RAW.map((t) => [t.id, t]));
+  let knownPoints = 0;
+  let unknownTasks = 0;
+  const items: ProgressItem[] = [];
+  for (const id of ids) {
+    const task = byId.get(id);
+    if (!task) {
+      unknownTasks += 1;
+      continue;
+    }
+    knownPoints += TIER_POINTS[task.tier] ?? 0;
+    items.push({ id: task.id, name: task.name, state: 2, group: task.monster ?? null });
+  }
+
+  const low = knownPoints + unknownTasks * 1;
+  const high = knownPoints + unknownTasks * 6;
+  const reconciles = claimed >= low && claimed <= high;
+  return { items: reconciles ? items : null, knownPoints, unknownTasks, claimedPoints: claimed };
+}
+
+/** The list alone, for callers that don't care why it's missing. */
 export function completedTasksFromVarps(
   varps: Record<string, number> | null | undefined,
   caPoints: number | null | undefined,
 ): ProgressItem[] | null {
-  if (!varps || !caPoints || caPoints <= 0) return null;
-  const ids = decodeCompletedTaskIds(varps);
-  if (ids.size === 0) return null;
-
-  let points = 0;
-  const items: ProgressItem[] = [];
-  for (const task of RAW) {
-    if (!ids.has(task.id)) continue;
-    points += TIER_POINTS[task.tier] ?? 0;
-    items.push({ id: task.id, name: task.name, state: 2, group: task.monster ?? null });
-  }
-  return points === caPoints ? items : null;
+  return decodeCombatTasks(varps, caPoints).items;
 }
