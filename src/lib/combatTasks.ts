@@ -93,7 +93,9 @@ export function filterTasks(tasks: CombatTask[], f: TaskFilters = {}): CombatTas
     .filter((t) => {
       if (f.tier && t.tier !== f.tier) return false;
       if (f.type && t.type !== f.type) return false;
-      if (f.monster && t.monster !== f.monster) return false;
+      // CONTAINS, not equals: the monster box is a typeahead, and half-typing "phosani" should
+      // narrow the list rather than empty it while you finish the word.
+      if (f.monster && !(t.monster ?? '').toLowerCase().includes(f.monster.toLowerCase())) return false;
       if (f.completed === 'done' && !t.done) return false;
       if (f.completed === 'todo' && t.done) return false;
       if (needle) {
