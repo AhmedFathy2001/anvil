@@ -32,10 +32,13 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {/* Stays on the apex: clicking a clan should not move you to another hostname before you
+            have decided you want that clan. /c/<slug> is the same browse, and links across once
+            you do. */}
         {clans.map((c) => (
-          <a
+          <Link
             key={c.slug}
-            href={`https://${c.host}`}
+            href={`/c/${c.slug}`}
             className="block border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
           >
             <h2 className="text-lg font-semibold text-foreground mb-1">{c.name}</h2>
@@ -48,7 +51,7 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
                 <span className="text-gold font-semibold">{c.events}</span> event{c.events === 1 ? '' : 's'}
               </span>
             </div>
-          </a>
+          </Link>
         ))}
       </div>
 
