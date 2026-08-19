@@ -1,11 +1,9 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { count, eq, isNull, and } from 'drizzle-orm';
-import { db } from '@/db';
-import { clans, clanRoster, events as eventsTable } from '@/db/schema';
-import { apexDomain, currentClan, isApexHost } from '@/lib/clanContext';
-import ApexDirectory, { type DirectoryClan } from '@/components/ApexDirectory';
+import { currentClan, isApexHost } from '@/lib/clanContext';
+import ApexDirectory from '@/components/ApexDirectory';
+import { directoryClans } from '@/lib/apexDirectory';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
@@ -30,29 +28,9 @@ export const dynamic = 'force-dynamic';
  * Counts are per clan, read the same way each clan's own pages read them.
  */
 async function ApexHome() {
-  // clan-scope: global -- the directory's whole job is to list every clan.
-  const rows = await db.select().from(clans).where(eq(clans.status, 'active')).orderBy(clans.name);
-
-  const listed: DirectoryClan[] = await Promise.all(
-    rows.map(async (c) => {
-      const [[members], [evts]] = await Promise.all([
-        db
-          .select({ n: count() })
-          .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, c.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'))),
-        db.select({ n: count() }).from(eventsTable).where(eq(eventsTable.clanId, c.id)),
-      ]);
-      return {
-        slug: c.slug,
-        name: c.name,
-        host: c.customDomain || `${c.slug}.${apexDomain()}`,
-        members: members?.n ?? 0,
-        events: evts?.n ?? 0,
-      };
-    }),
-  );
-
-  return <ApexDirectory clans={listed} />;
+  // One query, shared with /clans. Two copies of a counting query is how two pages start
+  // disagreeing about how many members a clan has.
+  return <ApexDirectory clans={await directoryClans()} />;
 }
 
 export default async function HomePage() {
