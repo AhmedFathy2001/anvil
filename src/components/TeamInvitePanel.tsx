@@ -130,7 +130,17 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
           <p className="text-sm text-text-muted mb-3">
             A link that puts whoever opens it straight onto this team — they still sign in and still
             need a verified RSN, but they skip the draft pool and the approval queue. Made for a
-            visiting clan fielding its own roster.
+            visiting clan fielding its own roster.{' '}
+            {/* The panel is the moment a host wonders how the rest of it fits together — the staff
+                seat, the captain switch, what the other clan actually sees. */}
+            <a
+              href="/guide/clan-vs-clan"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gold hover:text-gold-light whitespace-nowrap"
+            >
+              Hosting a visiting clan →
+            </a>
           </p>
         </>
       )}
