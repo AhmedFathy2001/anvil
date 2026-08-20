@@ -79,6 +79,8 @@ export interface EventContext {
   format: string;
   scoringMode: string;
   boardSize: number;
+  /** Raw rules JSON — needed for the shape badge, which names reveal modes. */
+  rules: string | null;
   startDate: string | null;
   endDate: string | null;
   /** Tiles hidden from members until an admin reveals them. */
@@ -127,6 +129,7 @@ export async function pickEvent(now: Date = new Date()): Promise<EventContext | 
     format: chosen.format,
     scoringMode: chosen.scoringMode,
     boardSize: chosen.boardSize,
+    rules: chosen.rules,
     startDate: chosen.startDate,
     endDate: chosen.endDate,
     tilesRevealed: chosen.tilesRevealed === 1,
@@ -151,6 +154,7 @@ export async function loadEvent(eventId: number, now: Date = new Date()): Promis
     format: row.format,
     scoringMode: row.scoringMode,
     boardSize: row.boardSize,
+    rules: row.rules,
     startDate: row.startDate,
     endDate: row.endDate,
     tilesRevealed: row.tilesRevealed === 1,
