@@ -653,6 +653,23 @@ export default function SignupAdminPanel({
           </div>
         </div>
 
+        {/* Where the sign-off rule lives. It's a clan-wide setting on another page entirely, so a
+            host working through fees here had no way to know it existed, let alone change it. */}
+        {!loading && signups.some((s) => s.fee) && (
+          <p className="text-xs text-text-muted mb-3">
+            {confirmationsRequired === 0
+              ? 'Marking a fee paid settles it outright — no second signature required.'
+              : `A paid fee settles after ${confirmationsRequired} confirmation${confirmationsRequired === 1 ? '' : 's'} from someone other than whoever collected it.`}{' '}
+            <a href="/admin/integrations?tab=fees" className="text-gold hover:underline underline-offset-2">
+              Change
+            </a>
+            {' · '}
+            <a href="/admin/fees" className="text-gold hover:underline underline-offset-2">
+              All boards with fees
+            </a>
+          </p>
+        )}
+
         {/* Filters */}
         {!loading && signups.length > 0 && (
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
