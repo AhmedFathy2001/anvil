@@ -47,6 +47,12 @@ export async function GET(
     .from(clanRoster)
     .where(
       and(
+        // Scoped to the EVENT'S clan. Unscoped, this offered — and the POST below accepted — a seat
+        // from another clan the same person happens to sit in, which would put a foreign seat into
+        // this event's sign-ups and onto its board. Entering another clan's event is a real thing,
+        // but it goes through admission and gets a seat HERE first; it is not done by naming a seat
+        // that belongs somewhere else.
+        eq(clanRoster.clanId, event.clanId),
         eq(clanRoster.playerId, session.playerId),
         isNull(clanRoster.leftAt),
       ),
@@ -212,7 +218,9 @@ export async function POST(
   }
 
   // Confirm every chosen account belongs to this user, is verified, and still in clan.
-  const myAccounts = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
+  const myAccounts = await findRosterSeats(
+    and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)),
+  );
   const accountById = new Map(myAccounts.map((a) => [a.id, a]));
   for (const cid of selectedIds) {
     const acc = accountById.get(cid);

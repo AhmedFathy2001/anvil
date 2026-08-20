@@ -295,6 +295,16 @@ export const events = pgTable('events', {
   // must be scoped by it.
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  // Who may SEE this event, and who may ENTER it. Two questions because they are two questions: a
+  // public board with approval entry is the ordinary cross-clan case — anyone can look, the host
+  // decides who plays.
+  //   clan    — this clan's, as every event was until now (default)
+  //   invited — only invited clans and people; the clan-versus-clan primitive
+  //   public  — anybody may look
+  visibility: text('visibility').notNull().default('clan'),
+  //   open     — sign up and you are in (default, and what every existing event does)
+  //   approval — the host says yes first
+  entry: text('entry').notNull().default('open'),
   boardSize: integer('board_size').notNull(),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   draftStatus: text('draft_status').default('none').notNull(),
@@ -1094,6 +1104,28 @@ export const clanJoinRequests = pgTable('clan_join_requests', {
     .on(table.clanId, table.accountId)
     .where(sql`status = 'pending'`),
   index('clan_join_requests_clan_status_idx').on(table.clanId, table.status),
+]);
+
+/**
+ * An invitation to an event.
+ *
+ * Addressable to a whole CLAN or one PERSON. The clan form is what makes clan-versus-clan work
+ * without listing forty names; the person form covers a ringer, a guest caller, a friend.
+ *
+ * Exactly one of the two is set, enforced by a check constraint — a row naming both would be
+ * ambiguous about what was invited, and a row naming neither invites nobody.
+ */
+export const eventInvites = pgTable('event_invites', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  playerId: integer('player_id').references(() => players.id, { onDelete: 'cascade' }),
+  invitedByUserId: integer('invited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  invitedAt: text('invited_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  note: text('note'),
+}, (table) => [
+  uniqueIndex('event_invites_clan_unique').on(table.eventId, table.clanId).where(sql`clan_id is not null`),
+  uniqueIndex('event_invites_player_unique').on(table.eventId, table.playerId).where(sql`player_id is not null`),
 ]);
 
 export const clanAuditLog = pgTable('clan_audit_log', {

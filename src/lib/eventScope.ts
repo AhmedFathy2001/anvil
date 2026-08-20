@@ -16,6 +16,8 @@ import { notFound } from 'next/navigation';
 import { db } from '@/db';
 import { events, weeklyCompetitions } from '@/db/schema';
 import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
+import { canSeeEvent } from '@/lib/eventAccess';
+import { verifyUser } from '@/lib/auth';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -47,6 +49,13 @@ export async function requireEventForPage(eventId: number): Promise<ScopedEvent>
   const clan = await requireClan();
   const event = await eventInClan(clan.id, eventId);
   if (!event) notFound();
+
+  // Belonging to this clan is necessary but no longer sufficient. An event can be the clan's alone,
+  // invite-only, or public, and the first two have to keep outsiders out — including outsiders who
+  // guessed the id, which is why this 404s rather than explaining itself.
+  const session = await verifyUser();
+  if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
+
   return event;
 }
 

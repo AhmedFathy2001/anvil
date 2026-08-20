@@ -134,6 +134,13 @@
       "when": 1787063045225,
       "tag": "0018_ingame_name_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787063046225,
+      "tag": "0019_event_visibility",
+      "breakpoints": true
     }
   ]
 }
