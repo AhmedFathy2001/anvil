@@ -1446,7 +1446,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         <div className="min-w-0">
 
         {selectedIds.size > 0 && (
-          <div className="sticky top-2 z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
+          <div className="sticky top-[4.5rem] z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
             <span className="text-sm font-semibold text-gold-light">
               {selectedIds.size} selected
             </span>
@@ -2057,6 +2057,15 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
+
+  // Scroll the form back to the top when a DIFFERENT tile is opened. The panel persists across
+  // selections (that's the point of the docked editor — picking another tile just moves the pane),
+  // and so did its scroll position: open a tile after scrolling down in the previous one and the
+  // form started halfway through the Tile Kind grid, looking cut off.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tile.id]);
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -2072,7 +2081,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         tabIndex={-1}
         className={
           docked
-            ? 'sticky top-4 max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
+            ? 'sticky top-[4.5rem] max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
             : 'relative w-full max-w-md h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
         }
       >
@@ -2094,7 +2103,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         </div>
 
         {/* Form */}
-        <div className="flex-1 min-h-0 p-5 overflow-y-auto">
+        <div ref={bodyRef} className="flex-1 min-h-0 p-5 overflow-y-auto">
           {lockHolder && (
             <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
               🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
