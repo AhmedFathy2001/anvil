@@ -22,6 +22,8 @@ const da: PartialGuideDict = {
     partialNotice:
       'Denne vejledning er kun delvist oversat til {language}. Det, der endnu ikke er oversat, vises på engelsk.',
     backToGuides: 'Alle vejledninger',
+    unreviewedNotice:
+      'Denne oversættelse til {language} er endnu ikke læst igennem af en, der har sproget som modersmål. Læser en sætning forkert, er [den engelske side]({englishHref}) originalen — og [at sige til](/feedback) er dét, der får den rettet.',
   },
 
   index: {
