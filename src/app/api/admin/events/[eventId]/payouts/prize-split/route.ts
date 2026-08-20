@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
-import { savePlacementPrizes } from '@/lib/payouts';
+import { savePlacementPrizes, savePlacementSplit } from '@/lib/payouts';
 
 // POST — save the prize-per-placement structure on the event WITHOUT generating payout rows. Lets an
 // admin advertise the reward per place ahead of time (shown on the event page); the rows are built
@@ -24,9 +24,31 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const body = (await request.json().catch(() => null)) as { placeAmounts?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    placeAmounts?: unknown;
+    placePercents?: unknown;
+  } | null;
+
+  // Shares of the pool. Stored as percentages and resolved live, so the advertised prize follows
+  // the pool as entries are approved instead of freezing at whatever it was worth today.
+  if (Array.isArray(body?.placePercents)) {
+    const pcts = body.placePercents.map((n) => Number(n) || 0);
+    const total = pcts.reduce((sum, n) => sum + n, 0);
+    if (total > 100.5) {
+      return NextResponse.json(
+        { error: `Those shares add up to ${Math.round(total)}% of the pool.` },
+        { status: 400 },
+      );
+    }
+    const saved = await savePlacementSplit(id, pcts);
+    return NextResponse.json({ placePercents: saved });
+  }
+
   if (!Array.isArray(body?.placeAmounts)) {
-    return NextResponse.json({ error: 'placeAmounts must be an array of gp amounts' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'placeAmounts (gp) or placePercents (share of pool) must be an array' },
+      { status: 400 },
+    );
   }
   const amounts = body.placeAmounts.map((n) => Math.max(0, Math.round(Number(n) || 0)));
 

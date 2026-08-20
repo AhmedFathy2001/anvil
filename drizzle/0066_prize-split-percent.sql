@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `placement_split_pct` text;

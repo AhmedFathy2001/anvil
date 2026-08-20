@@ -84,6 +84,11 @@ export const events = sqliteTable('events', {
   // per-player payout rows, shown on the public event page, and used as the reward per place when
   // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
   placementPrizes: text('placement_prizes'),
+  // The same structure as a SHARE of the pool: JSON array of percentages by place. When set it
+  // wins over the fixed amounts above, and every advertised prize is derived from the live pool —
+  // so a board whose pool grows with each approved entry advertises prizes that grow with it,
+  // instead of a number frozen at whatever the pool was the day the host typed it in.
+  placementSplitPct: text('placement_split_pct'),
   // Optional per-event game rules as JSON (see lib/eventRules.ts EventRules). Adds a third axis on
   // top of (format, scoringMode): HOW tiles become playable and how points are awarded —
   //   revealPolicy: 'all' (default; every tile visible once tilesRevealed flips) | 'scheduled'
