@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect } from 'react';
+import ClanLink from '@/components/ClanLink';
 
 export default function RootError({
   error,
@@ -32,12 +32,12 @@ export default function RootError({
           >
             Try again
           </button>
-          <Link
+          <ClanLink
             href="/"
             className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Home
-          </Link>
+          </ClanLink>
         </div>
       </div>
     </div>

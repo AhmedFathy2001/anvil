@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { createContext, useContext, type ComponentProps } from 'react';
 
 import { withClanPrefix } from '@/lib/clanScopedPaths';
@@ -46,4 +47,21 @@ export default function ClanLink({ href, ...rest }: ComponentProps<typeof Link>)
 export function useClanUrl(): (path: string) => string {
   const prefix = useClanPrefixValue();
   return (path: string) => withClanPrefix(prefix, path);
+}
+
+/**
+ * The current path with the clan prefix removed, for comparing against a plain route.
+ *
+ * Nav components store their targets as bare paths (`/admin/dashboard`) and highlight by comparing
+ * to the current one. Under a prefix that comparison never matches — the browser is at
+ * `/c/theafkspot/admin/dashboard` — so every item silently stops looking active. Not a crash, just a
+ * nav that quietly forgets where you are.
+ *
+ * Stripping is the right direction rather than prefixing the targets: `usePathname` reports the
+ * rewritten path during SSR and the real one on the client, and taking the prefix off whichever it
+ * gives lands on the same answer both times.
+ */
+export function useClanRelativePath(): string {
+  const pathname = usePathname() ?? '';
+  return pathname.replace(/^\/c\/[a-z0-9-]{2,32}(?=\/|$)/, '') || '/';
 }

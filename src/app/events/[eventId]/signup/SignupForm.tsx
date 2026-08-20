@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
 import type { SignupProfile, HoursRange } from '@/lib/signup';
 import { TIMEZONE_OPTIONS } from '@/lib/signup';
@@ -10,6 +9,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface FeeCollectorOption {
   id: number;
@@ -364,12 +364,12 @@ export default function SignupForm({
           You need a verified RuneScape account before you can sign up. Link and verify one
           on your profile, then come back here.
         </p>
-        <Link
+        <ClanLink
           href="/profile"
           className="inline-block text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
         >
           Go to Profile
-        </Link>
+        </ClanLink>
       </div>
     );
   }
@@ -722,12 +722,12 @@ export default function SignupForm({
             {withdrawing ? 'Withdrawing…' : 'Withdraw'}
           </button>
         )}
-        <Link
+        <ClanLink
           href={`/events/${eventId}`}
           className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2"
         >
           Back to event
-        </Link>
+        </ClanLink>
       </div>
     </form>
   );

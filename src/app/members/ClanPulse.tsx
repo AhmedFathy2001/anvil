@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { ActivityHeatmap } from '@/components/stats/Charts';
 import type { ClanAnalytics, MemberListRow, RosterEvent } from '@/lib/memberProfile';
+import ClanLink from '@/components/ClanLink';
 
 // The clan above the roster: what's happening THIS WEEK first, what it all adds up to second. All of
 // it comes off the same daily rows the profiles use — no extra queries per member, so this costs the
@@ -170,7 +170,7 @@ export default function ClanPulse({
                   const t = podium[i];
                   const first = i === 0;
                   return (
-                    <Link
+                    <ClanLink
                       key={t.rsn}
                       href={`/members/${encodeURIComponent(t.rsn)}`}
                       className="text-center group"
@@ -205,7 +205,7 @@ export default function ClanPulse({
                       >
                         {i === 0 ? '1st' : i === 1 ? '2nd' : '3rd'}
                       </span>
-                    </Link>
+                    </ClanLink>
                   );
                 })}
               </div>
@@ -213,7 +213,7 @@ export default function ClanPulse({
               {chasers.length > 0 && (
                 <div className="border-t border-card-border pt-3 space-y-1.5">
                   {chasers.map((t, i) => (
-                    <Link
+                    <ClanLink
                       key={t.rsn}
                       href={`/members/${encodeURIComponent(t.rsn)}`}
                       className="grid grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,6rem)_3.25rem] items-center gap-3 text-sm hover:text-gold"
@@ -230,7 +230,7 @@ export default function ClanPulse({
                         />
                       </span>
                       <span className="text-right tabular-nums text-text-muted">{t.hours.toFixed(1)}h</span>
-                    </Link>
+                    </ClanLink>
                   ))}
                 </div>
               )}
@@ -259,9 +259,9 @@ export default function ClanPulse({
                     <span className="float-right text-[11px] text-text-muted tabular-nums pl-2">
                       {relativeDay(e.at)}
                     </span>
-                    <Link href={`/members/${encodeURIComponent(e.rsn)}`} className="text-gold hover:underline">
+                    <ClanLink href={`/members/${encodeURIComponent(e.rsn)}`} className="text-gold hover:underline">
                       {e.rsn}
-                    </Link>{' '}
+                    </ClanLink>{' '}
                     <span className={copy.tone}>{copy.verb}</span>
                     {e.detail && <span className="text-text-muted"> · {e.detail}</span>}
                   </li>

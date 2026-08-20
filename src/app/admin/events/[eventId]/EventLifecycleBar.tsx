@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import type { LifecycleStep } from '@/lib/eventStage';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * The event's whole life in one strip: Built → Tiles → Drafted → Running → Results → Payouts.
@@ -32,7 +32,7 @@ export default function EventLifecycleBar({
                 : ''
           }`}
         >
-          <Link href={hrefFor[step.key] ?? '#'} className="block px-3 py-2.5 hover:bg-white/[0.03] transition-colors">
+          <ClanLink href={hrefFor[step.key] ?? '#'} className="block px-3 py-2.5 hover:bg-white/[0.03] transition-colors">
             <div
               className={`text-[10px] uppercase tracking-wider truncate ${
                 step.state === 'now'
@@ -56,7 +56,7 @@ export default function EventLifecycleBar({
             >
               {step.label}
             </div>
-          </Link>
+          </ClanLink>
           {step.state === 'now' && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-gold" />}
         </li>
       ))}

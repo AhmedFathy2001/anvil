@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { getOAuthMode } from '@/lib/discord-oauth';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import ClanLink from '@/components/ClanLink';
 
 export const metadata: Metadata = {
   title: 'RuneLite plugin setup — Anvil',
@@ -194,7 +194,7 @@ export default async function PluginGuidePage() {
             )}
 
             <p className="text-text-muted">
-              Log in with Discord and open <Link href="/profile" className="text-gold hover:text-gold-light">Profile</Link>, then
+              Log in with Discord and open <ClanLink href="/profile" className="text-gold hover:text-gold-light">Profile</ClanLink>, then
               scroll to the <span className="text-foreground font-medium">RuneLite plugin</span> card.
             </p>
 
@@ -659,9 +659,9 @@ export default async function PluginGuidePage() {
                   body: (
                     <>
                       The token is wrong or was rotated. Re-copy it from{' '}
-                      <Link href="/profile#plugin-token" className="text-gold hover:text-gold-light">
+                      <ClanLink href="/profile#plugin-token" className="text-gold hover:text-gold-light">
                         Profile → RuneLite plugin
-                      </Link>
+                      </ClanLink>
                       , or clear the field and sign in from the plugin again.
                     </>
                   ),

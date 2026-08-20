@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import TimeLeft from './TimeLeft';
 import type { LockerLiveEvent, LockerLiveWeekly, LockerSignup } from '@/lib/profileLocker';
+import ClanLink from '@/components/ClanLink';
 
 // What's running for this member right now: their board, their weekly placing, and anything still
 // open to join. Ordered by what they can act on — a sign-up that closes tomorrow matters more than
@@ -54,9 +54,9 @@ function Row({ children, href }: { children: React.ReactNode; href?: string }) {
   const className =
     'block border border-card-border rounded-lg bg-brown-dark/40 px-3.5 py-3 transition-colors';
   return href ? (
-    <Link href={href} className={`${className} hover:border-gold/40 hover:bg-card-bg-hover`}>
+    <ClanLink href={href} className={`${className} hover:border-gold/40 hover:bg-card-bg-hover`}>
       {children}
-    </Link>
+    </ClanLink>
   ) : (
     <div className={className}>{children}</div>
   );
@@ -70,16 +70,16 @@ function EventRow({ event }: { event: LockerLiveEvent }) {
         {event.team && (
           <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: event.team.color }} />
         )}
-        <Link href={`/events/${event.eventId}`} className="font-semibold hover:text-gold-light">
+        <ClanLink href={`/events/${event.eventId}`} className="font-semibold hover:text-gold-light">
           {event.name}
-        </Link>
+        </ClanLink>
         {event.team && (
-          <Link
+          <ClanLink
             href={`/events/${event.eventId}/teams/${event.team.id}`}
             className="text-sm text-text-muted hover:text-foreground"
           >
             · {event.team.name}
-          </Link>
+          </ClanLink>
         )}
         <span className="ml-auto flex items-center gap-2">
           {event.status === 'upcoming' ? (
@@ -96,12 +96,12 @@ function EventRow({ event }: { event: LockerLiveEvent }) {
             />
           )}
           {event.status === 'live' && event.playerToken && (
-            <Link
+            <ClanLink
               href={`/player/${event.playerToken}`}
               className="text-xs font-semibold px-2.5 py-1.5 border border-gold/30 text-gold hover:bg-gold/10 rounded-lg transition-colors"
             >
               Dashboard →
-            </Link>
+            </ClanLink>
           )}
         </span>
       </div>
@@ -194,9 +194,9 @@ function SignupRow({ signup }: { signup: LockerSignup }) {
     <Row>
       <div className="flex items-center gap-2.5 flex-wrap">
         <span className="w-2.5 h-2.5 rounded-sm bg-accent-green-light shrink-0" />
-        <Link href={`/events/${signup.eventId}`} className="font-semibold hover:text-gold-light">
+        <ClanLink href={`/events/${signup.eventId}`} className="font-semibold hover:text-gold-light">
           {signup.name}
-        </Link>
+        </ClanLink>
         <span className="text-sm text-text-muted">
           ·{' '}
           {joined
@@ -213,12 +213,12 @@ function SignupRow({ signup }: { signup: LockerSignup }) {
             className="font-mono text-xs text-text-muted border border-card-border rounded-full px-2.5 py-0.5"
           />
           {!joined && (
-            <Link
+            <ClanLink
               href={`/events/${signup.eventId}/signup`}
               className="text-xs font-semibold px-3 py-1.5 bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
             >
               Sign up
-            </Link>
+            </ClanLink>
           )}
         </span>
       </div>

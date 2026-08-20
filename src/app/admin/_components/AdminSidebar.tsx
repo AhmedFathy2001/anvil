@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 export interface SidebarItem {
   href: string;
@@ -47,6 +47,8 @@ function isInsideAnEvent(pathname: string): boolean {
 
 export default function AdminSidebar({ groups, user, scope = 'clan', header }: Props) {
   const pathname = usePathname();
+  // Clan-relative, so a bare item.href can be compared to where we actually are.
+  const here = useClanRelativePath();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (scope === 'clan' && isInsideAnEvent(pathname)) return null;
@@ -125,12 +127,14 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
                 </div>
                 <ul className="space-y-0.5">
                   {group.items.map((item) => {
+                    // Compared clan-RELATIVE: item.href is a bare path and the browser is at
+                    // /c/<slug>/… , so a direct comparison never matches and nothing looks active.
                     const active = item.matchPrefix
-                      ? pathname.startsWith(item.href)
-                      : pathname === item.href;
+                      ? here.startsWith(item.href)
+                      : here === item.href;
                     return (
                       <li key={item.href}>
-                        <Link
+                        <ClanLink
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
@@ -156,7 +160,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
                               {item.badge}
                             </span>
                           )}
-                        </Link>
+                        </ClanLink>
                       </li>
                     );
                   })}

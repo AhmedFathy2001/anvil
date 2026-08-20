@@ -1,11 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Link from 'next/link';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult, type SurveyAnswerMap, type SurveyRespondentView } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface TemplateMeta {
   id: string;
@@ -137,9 +137,9 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
         {ended
           ? 'The event has ended — approved participants can fill this out now.'
           : 'Build the survey now; approved participants will be able to fill it out once the event ends.'}{' '}
-        <Link href={`/events/${eventId}/survey`} className="text-gold hover:underline" target="_blank">
+        <ClanLink href={`/events/${eventId}/survey`} className="text-gold hover:underline" target="_blank">
           Preview the participant view ↗
-        </Link>
+        </ClanLink>
       </p>
 
       <div className="flex gap-1 mb-5 border-b border-card-border">

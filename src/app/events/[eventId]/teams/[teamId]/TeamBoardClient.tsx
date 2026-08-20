@@ -4,7 +4,6 @@ import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } fr
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
-import Link from 'next/link';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
@@ -15,6 +14,7 @@ import PlayerContributions from '@/components/PlayerContributions';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Props {
   event: Event;
@@ -175,9 +175,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
   return (
     <div>
-      <Link href={`/events/${event.id}`} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4">
+      <ClanLink href={`/events/${event.id}`} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4">
         &larr; Back to scoreboard
-      </Link>
+      </ClanLink>
 
       <div className="flex flex-wrap items-center gap-3 mb-1">
         <div

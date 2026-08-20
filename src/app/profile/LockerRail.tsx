@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import type { LockerBests, LockerTrophy } from '@/lib/profileLocker';
 import type { UpcomingMilestone } from '@/lib/memberProfile';
+import ClanLink from '@/components/ClanLink';
 
 // The right-hand rail: what you've won, what you've hit, what you're near. All derived — nothing
 // here is a new thing to track, and nothing here scores.
@@ -156,12 +156,12 @@ export function PublicProfile({ rsn }: { rsn: string }) {
         Skills, boss KC, milestones and every event you&rsquo;ve played — the version the rest of the clan
         sees.
       </p>
-      <Link
+      <ClanLink
         href={`/members/${encodeURIComponent(rsn)}`}
         className="inline-block text-sm font-semibold px-3.5 py-2 border border-card-border rounded-lg hover:border-gold/40 hover:bg-gold/5 transition-colors"
       >
         View as clan →
-      </Link>
+      </ClanLink>
     </Card>
   );
 }

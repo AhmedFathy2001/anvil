@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { RATING_MAX, type SurveyAnswerMap, type SurveyQuestionView } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Props {
   eventId: number;
@@ -58,7 +58,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
       <div className="max-w-xl mx-auto mt-6 border border-accent-green/30 bg-accent-green/5 rounded-xl p-8 text-center">
         <p className="text-lg font-semibold text-accent-green-light mb-1">Thanks for the feedback!</p>
         <p className="text-sm text-text-muted mb-4">Your response to {eventName} has been recorded.</p>
-        <Link href={`/events/${eventId}`} className="text-sm text-gold hover:underline">← Back to the event</Link>
+        <ClanLink href={`/events/${eventId}`} className="text-sm text-gold hover:underline">← Back to the event</ClanLink>
       </div>
     );
   }

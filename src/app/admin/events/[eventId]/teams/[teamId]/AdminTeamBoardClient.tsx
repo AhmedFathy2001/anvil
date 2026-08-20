@@ -3,7 +3,6 @@
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -11,6 +10,7 @@ import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Props {
   event: Event;
@@ -133,12 +133,12 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
 
   return (
     <div>
-      <Link
+      <ClanLink
         href={`/admin/events/${event.id}`}
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; Back to event
-      </Link>
+      </ClanLink>
       <div className="flex items-center gap-3 mb-1">
         <div className="w-5 h-5 rounded-full" style={{ backgroundColor: team.color }} />
         <h1 className="text-2xl sm:text-3xl font-bold">{team.name}</h1>

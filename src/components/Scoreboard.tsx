@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import type { TeamMvp } from '@/lib/memberBreakdown';
+import ClanLink from '@/components/ClanLink';
 
 interface Team {
   id: number;
@@ -42,7 +42,7 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
         const mvp = teamMvps?.[team.id] ?? null;
 
         return (
-          <Link
+          <ClanLink
             key={team.id}
             href={`/events/${eventId}/teams/${team.id}`}
             className="block border rounded-xl p-4 transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
@@ -105,7 +105,7 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
                 </span>
               </div>
             )}
-          </Link>
+          </ClanLink>
         );
       })}
       {teams.length === 0 && (

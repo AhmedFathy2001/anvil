@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { SetupStep } from '@/lib/setupStatus';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Props {
   steps: SetupStep[];
@@ -66,7 +66,7 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
       <ul className="space-y-1.5">
         {steps.map((step) => (
           <li key={step.key}>
-            <Link
+            <ClanLink
               href={step.href}
               className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-bg-hover transition-colors group"
             >
@@ -92,7 +92,7 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
               {!step.done && (
                 <span className="ml-auto text-text-muted text-sm group-hover:text-gold transition-colors">→</span>
               )}
-            </Link>
+            </ClanLink>
           </li>
         ))}
       </ul>

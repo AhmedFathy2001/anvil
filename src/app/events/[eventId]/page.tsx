@@ -4,7 +4,6 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, eventSignups, clanRoster, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
@@ -36,6 +35,7 @@ import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -400,20 +400,20 @@ export default async function EventScoreboardPage({
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {showRecapCta && (
-              <Link
+              <ClanLink
                 href={`/events/${id}/recap`}
                 className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
               >
                 🏆 See the recap →
-              </Link>
+              </ClanLink>
             )}
             {showSurveyCta && (
-              <Link
+              <ClanLink
                 href={`/events/${id}/survey`}
                 className="text-sm font-medium text-text-muted border border-card-border px-4 py-2 rounded-lg hover:text-gold hover:border-gold/30 transition-colors"
               >
                 Fill out the survey →
-              </Link>
+              </ClanLink>
             )}
           </div>
         </div>
@@ -539,12 +539,12 @@ function SignupBanner({
         <div className="text-sm text-text-muted">{body}</div>
       </div>
       {ctaLabel && (
-        <Link
+        <ClanLink
           href={ctaLabel}
           className="text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors shrink-0"
         >
           {ctaText}
-        </Link>
+        </ClanLink>
       )}
     </div>
   );

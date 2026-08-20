@@ -2,13 +2,13 @@ import { db } from '@/db';
 import { events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
 import { isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import StartProofCard from '@/components/StartProofCard';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -300,7 +300,7 @@ export default async function MyTeamsHubPage() {
             {activeSignups.map((s) => {
               const fee = s.feeStatus ? FEE_BADGE[s.feeStatus] : null;
               return (
-                <Link
+                <ClanLink
                   key={s.signupId}
                   href={`/events/${s.eventId}/signup`}
                   className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-card-bg-hover transition-colors"
@@ -313,7 +313,7 @@ export default async function MyTeamsHubPage() {
                     {fee && <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${fee.cls}`}>{fee.label}</span>}
                     <span className="text-text-muted text-xs">→</span>
                   </div>
-                </Link>
+                </ClanLink>
               );
             })}
           </div>
@@ -340,7 +340,7 @@ export default async function MyTeamsHubPage() {
 
 function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
   return (
-    <Link
+    <ClanLink
       href={`/team/${i.teamId}`}
       className={`block p-4 border rounded-xl transition-all ${
         past ? 'border-card-border/60 bg-card-bg/50 hover:border-gold/30' : 'border-card-border bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover'
@@ -368,6 +368,6 @@ function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
           </span>
         )}
       </div>
-    </Link>
+    </ClanLink>
   );
 }

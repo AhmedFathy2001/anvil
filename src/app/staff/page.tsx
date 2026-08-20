@@ -1,6 +1,6 @@
-import Link from 'next/link';
 
 import { platformTotals, multiClanPeople } from '@/lib/platformView';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,9 +81,9 @@ export default async function StaffOverview() {
           <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
             {multi.map((p) => (
               <li key={p.playerId} className="flex items-center justify-between px-4 py-2.5">
-                <Link href={`/staff/people?q=${encodeURIComponent(p.name ?? '')}`} className="hover:text-gold">
+                <ClanLink href={`/staff/people?q=${encodeURIComponent(p.name ?? '')}`} className="hover:text-gold">
                   {p.name ?? `Person #${p.playerId}`}
-                </Link>
+                </ClanLink>
                 <span className="text-sm text-gray-400">{p.clans} clans</span>
               </li>
             ))}

@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import type { ClanActivityAnalytics } from '@/lib/memberProfile';
+import ClanLink from '@/components/ClanLink';
 
 // The clan's clues, minigames and collection logs — the side of the hiscores that isn't XP or KC,
 // and the side people actually tease each other about. All of it comes off the compact activity map
@@ -94,7 +94,7 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
           <SectionHead title="Who holds what" aside="one per activity, held until someone takes it" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {titles.map((t) => (
-              <Link
+              <ClanLink
                 key={t.key}
                 href={`/members/${encodeURIComponent(t.rsn)}`}
                 className="border border-card-border rounded-xl bg-card-bg p-4 text-center hover:border-gold/50 transition-colors group"
@@ -115,7 +115,7 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
                 <span className="block text-sm truncate group-hover:text-gold transition-colors">{t.rsn}</span>
                 <span className="block text-[11px] text-text-muted mt-0.5 tabular-nums">{t.value}</span>
                 <span className="block text-[11px] text-text-muted/70">{t.blurb}</span>
-              </Link>
+              </ClanLink>
             ))}
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
                     style={{ maxHeight: board.rows.length > BOARD_ROWS ? BOARD_ROWS * 30 : undefined }}
                   >
                     {board.rows.map((row, i) => (
-                      <Link
+                      <ClanLink
                         key={row.rsn}
                         href={`/members/${encodeURIComponent(row.rsn)}`}
                         className="grid grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,6rem)_4.5rem] items-center gap-2 text-sm hover:text-gold"
@@ -217,7 +217,7 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
                             ? `#${(row.rank ?? 0).toLocaleString()}`
                             : row.score.toLocaleString()}
                         </span>
-                      </Link>
+                      </ClanLink>
                     ))}
                   </div>
 

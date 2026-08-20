@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { getTeamForPick } from '@/lib/draft';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './applicants/PlayerDrawer';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 // The captain's pick surface. Two polls with different costs: the draft state is cheap and drives
 // the clock, so it runs on a short interval; the pool carries ratings and answers (a profile sweep)
@@ -352,9 +352,9 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
                 {rest.length > 25 && (
                   <p className="text-xs text-text-muted pt-1">
                     +{rest.length - 25} more — use the{' '}
-                    <Link href={`/team/${teamId}/applicants`} className="text-gold hover:text-gold-light">
+                    <ClanLink href={`/team/${teamId}/applicants`} className="text-gold hover:text-gold-light">
                       war room
-                    </Link>{' '}
+                    </ClanLink>{' '}
                     to search and shortlist.
                   </p>
                 )}

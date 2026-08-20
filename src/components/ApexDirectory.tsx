@@ -1,5 +1,5 @@
-import Link from 'next/link';
 
+import ClanLink from '@/components/ClanLink';
 export interface DirectoryClan {
   slug: string;
   name: string;
@@ -36,7 +36,7 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
             have decided you want that clan. /c/<slug> is the same browse, and links across once
             you do. */}
         {clans.map((c) => (
-          <Link
+          <ClanLink
             key={c.slug}
             href={`/c/${c.slug}`}
             className="block border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
@@ -51,15 +51,15 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
                 <span className="text-gold font-semibold">{c.events}</span> event{c.events === 1 ? '' : 's'}
               </span>
             </div>
-          </Link>
+          </ClanLink>
         ))}
       </div>
 
       <p className="text-sm text-text-muted mt-10">
         Each clan runs at its own address, with its own roster, boards and settings.{' '}
-        <Link href="/guide" className="text-gold hover:text-gold-light">
+        <ClanLink href="/guide" className="text-gold hover:text-gold-light">
           What Anvil does
-        </Link>
+        </ClanLink>
       </p>
     </div>
   );

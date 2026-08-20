@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import ClanLink from '@/components/ClanLink';
 
 // The one job of a member's first visit: get the plugin talking to us.
 //
@@ -184,9 +184,9 @@ export default function ConnectCard({
         <Step n={3} done={connected} title="Log in to the game" last>
           Install <b className="text-foreground">Anvil</b> from the RuneLite plugin hub, paste the token, log
           in.{' '}
-          <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
+          <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             Setup guide with screenshots →
-          </Link>
+          </ClanLink>
           {!connected && (
             <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
               <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />

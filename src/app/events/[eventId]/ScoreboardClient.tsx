@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
@@ -23,6 +22,7 @@ import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Tile {
   id: number;
@@ -451,13 +451,13 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           the board-level controls. */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         {draftActive && (
-          <Link
+          <ClanLink
             href={`/events/${event.id}/draft`}
             className="inline-flex items-center gap-2 text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/25 px-3 py-1.5 rounded-lg hover:bg-accent-green/25 transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-accent-green-light animate-pulse" />
             Draft in Progress — Watch Live
-          </Link>
+          </ClanLink>
         )}
         <button
           onClick={() => setFullscreen(!fullscreen)}

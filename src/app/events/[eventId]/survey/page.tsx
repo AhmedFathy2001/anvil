@@ -3,11 +3,11 @@ import { requireEventForPage } from '@/lib/eventScope';
 import { events, eventSignups, surveyQuestions, surveyResponses } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded, toQuestionView, type SurveyAnswerMap } from '@/lib/survey';
 import SurveyResponseClient from './SurveyResponseClient';
 import { atLeast } from '@/lib/clanRoles';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +39,7 @@ export default async function EventSurveyPage({
 
   const header = (
     <div className="mb-6">
-      <Link href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</Link>
+      <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
       <h1 className="text-2xl font-bold text-gold mt-1">Event feedback</h1>
     </div>
   );
@@ -70,7 +70,7 @@ export default async function EventSurveyPage({
         <div>{header}
           <Notice title={ended ? 'Log in to share your feedback' : 'The survey isn’t open yet'}>
             {ended ? (
-              <><Link href="/login" className="text-gold hover:underline">Log in</Link> to fill out this survey.</>
+              <><ClanLink href="/login" className="text-gold hover:underline">Log in</ClanLink> to fill out this survey.</>
             ) : (
               'It opens once the event has ended. Check back then.'
             )}

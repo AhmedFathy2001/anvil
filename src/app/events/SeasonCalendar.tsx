@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hubKind } from '@/lib/hubKinds';
 import type { CalendarItem } from '@/lib/eventsCalendar';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * The season: boards and weeks on one axis.
@@ -174,7 +174,7 @@ export default function SeasonCalendar({
                     const meta = hubKind(item.kind);
                     const wide = (width / 100) * trackPx > 46;
                     return (
-                      <Link
+                      <ClanLink
                         key={item.key}
                         href={item.href}
                         onMouseEnter={(e) => setHover({ item, x: e.clientX, y: e.clientY })}
@@ -198,7 +198,7 @@ export default function SeasonCalendar({
                       >
                         <span aria-hidden className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: meta.accent }} />
                         {wide && <span className="truncate">{item.shortName}</span>}
-                      </Link>
+                      </ClanLink>
                     );
                   }),
                 )}

@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { formatCount, formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
 import type { LuckEntry } from '@/lib/clogProfile';
+import ClanLink from '@/components/ClanLink';
 
 // Who the game has been cruel to, and who it hasn't. Both boards read from synced collection logs
 // crossed with hiscores kill counts and the wiki's drop rates — so an entry is a claim we can show
@@ -39,9 +39,9 @@ function Row({
       <img src={itemIconUrl(itemId)} alt="" className="w-8 h-8 object-contain shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="text-sm truncate">
-          <Link href={`/members/${encodeURIComponent(rsn)}`} className="font-medium hover:text-gold transition-colors">
+          <ClanLink href={`/members/${encodeURIComponent(rsn)}`} className="font-medium hover:text-gold transition-colors">
             {rsn}
-          </Link>
+          </ClanLink>
           <span className="text-text-muted"> · {itemName}</span>
         </div>
         <div className="text-[11px] text-text-muted truncate">

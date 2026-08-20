@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Event {
   id: number;
@@ -79,12 +79,12 @@ export default function DraftSpectatorClient({ event }: Props) {
 
   return (
     <div>
-      <Link
+      <ClanLink
         href={`/events/${event.id}`}
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; Back to event
-      </Link>
+      </ClanLink>
 
       <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">{event.name}</h1>
       <p className="text-text-muted text-sm mb-6">Player Draft — Spectator View</p>

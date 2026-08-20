@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import type { MemberListRow, RosterMovement } from '@/lib/memberProfile';
+import ClanLink from '@/components/ClanLink';
 
 // Filtering happens in the browser, on a list the server already sent whole. A clan is hundreds of
 // rows, not thousands of pages — shipping the array once and filtering locally makes search instant
@@ -198,7 +198,7 @@ export default function MembersDirectory({
             {shown.map((m, i) => {
               const mv = movement[m.id];
               return (
-                <Link
+                <ClanLink
                   key={m.id}
                   href={`/members/${encodeURIComponent(m.rsn)}`}
                   className={`grid ${cols} gap-2 px-4 py-2.5 text-sm items-center hover:bg-brown-light transition-colors ${
@@ -244,7 +244,7 @@ export default function MembersDirectory({
                   <span className="hidden sm:block text-right tabular-nums text-text-muted">{formatHours(m.ehp)}</span>
                   <span className="hidden sm:block text-right tabular-nums text-text-muted">{formatHours(m.ehb)}</span>
                   <span className="text-right tabular-nums text-text-muted">{formatXp(m.overallXp)}</span>
-                </Link>
+                </ClanLink>
               );
             })}
           </div>

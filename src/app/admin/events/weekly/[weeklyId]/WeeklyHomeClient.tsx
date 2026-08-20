@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import type { EventStage } from '@/lib/eventStage';
 import type { WeeklyCounts } from '@/lib/weeklyStage';
 import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { STAGE_BLURB } from '@/lib/eventStage';
 import { weeklyGain, weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Comp {
   id: number;
@@ -129,12 +129,12 @@ export default function WeeklyHomeClient({
             Usually the hiscores flushing a pre-competition grind on logout. Fixing the baseline puts the gain back
             where it belongs.
           </p>
-          <Link
+          <ClanLink
             href={`${base}/baselines`}
             className="inline-block mt-3 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 transition-colors"
           >
             Fix baselines
-          </Link>
+          </ClanLink>
         </section>
       )}
 
@@ -217,18 +217,18 @@ export default function WeeklyHomeClient({
           >
             {refreshing ? 'Pulling hiscores…' : 'Refresh now'}
           </button>
-          <Link
+          <ClanLink
             href={`${base}/participants`}
             className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
           >
             Manage participants
-          </Link>
-          <Link
+          </ClanLink>
+          <ClanLink
             href={`/weekly/${comp.id}`}
             className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
           >
             Player view ↗
-          </Link>
+          </ClanLink>
           {message && <span className="text-xs text-text-muted">{message}</span>}
         </div>
         <p className="text-[11px] text-text-muted/70 mt-2">
@@ -265,12 +265,12 @@ function ReadyRow({
         <span className="block text-sm font-medium">{title}</span>
         <span className="block text-xs text-text-muted">{detail}</span>
       </span>
-      <Link
+      <ClanLink
         href={href}
         className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
       >
         {action}
-      </Link>
+      </ClanLink>
     </div>
   );
 }

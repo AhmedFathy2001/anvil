@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { Persona as PersonaData } from '@/lib/memberProfile';
+import ClanLink from '@/components/ClanLink';
 
 // One human, several accounts. Grouped strictly by linked Discord — see getPersona() for why we
 // never infer alts from anything softer.
@@ -68,7 +68,7 @@ export default function Persona({
           </div>
           <div className="space-y-1.5">
             {persona.accounts.map((a) => (
-              <Link
+              <ClanLink
                 key={a.id}
                 href={`/members/${encodeURIComponent(a.rsn)}`}
                 className={`grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem] gap-2 text-sm py-1 items-center hover:text-gold ${
@@ -87,7 +87,7 @@ export default function Persona({
                 <span className="text-right tabular-nums text-text-muted">
                   {a.overallXp ? fmtXp(a.overallXp) : '—'}
                 </span>
-              </Link>
+              </ClanLink>
             ))}
           </div>
           {others.length === 0 && (

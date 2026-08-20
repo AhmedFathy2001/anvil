@@ -1,10 +1,10 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { apexPerson } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,9 +44,9 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
       <ul className="mt-6 divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
         {person.characters.map((c) => (
           <li key={c.rsn} className="flex items-center justify-between gap-3 px-4 py-3">
-            <Link href={`/p/${encodeURIComponent(c.rsn)}`} className="hover:text-gold">
+            <ClanLink href={`/p/${encodeURIComponent(c.rsn)}`} className="hover:text-gold">
               {c.rsn}
-            </Link>
+            </ClanLink>
             <span className="shrink-0 text-sm text-gray-400">{c.clan ?? '—'}</span>
           </li>
         ))}

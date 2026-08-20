@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { HUB_KINDS, hubKind } from '@/lib/hubKinds';
 import type { HubItem } from '@/lib/eventsHub';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * Everything the clan has run, boards and weeks in one list.
@@ -169,7 +169,7 @@ export default function HubRecord({
 
       {showMoreHref && shown.length > 0 && (
         <div className="mt-4 text-center">
-          <Link
+          <ClanLink
             href={showMoreHref}
             scroll={false}
             className="inline-block rounded-lg border border-card-border px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
@@ -178,7 +178,7 @@ export default function HubRecord({
             <span className="ml-2 text-text-muted/70">
               {items.length} of {pastTotal} finished
             </span>
-          </Link>
+          </ClanLink>
         </div>
       )}
     </div>
@@ -212,7 +212,7 @@ function Row({
           {when}
         </td>
         <td className="border-t border-card-border/70 px-2.5 py-2">
-          <Link href={item.href} className="flex items-center gap-2.5 hover:text-gold">
+          <ClanLink href={item.href} className="flex items-center gap-2.5 hover:text-gold">
             <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent }} />
             <span className="min-w-0">
               <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em]" style={{ color: accent }}>
@@ -220,7 +220,7 @@ function Row({
               </span>
               <b className="block truncate font-bold">{item.name}</b>
             </span>
-          </Link>
+          </ClanLink>
         </td>
         <td className="whitespace-nowrap border-t border-card-border/70 px-2.5 py-2 text-right font-mono text-text-muted">
           {item.entrants || '—'}

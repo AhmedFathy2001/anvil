@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 interface Props {
   isAdmin: boolean;
@@ -12,7 +12,11 @@ interface Props {
 // Roster, Verifications, Staff, Audit log — into one surface. Staff is admin-only; the
 // rest follow the admin layout's existing admin/mod gate.
 export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
-  const pathname = usePathname();
+  // Clan-relative: these hrefs are bare paths, and the browser is at /c/<slug>/… ,
+
+  // so comparing against the raw pathname never matches and no tab looks active.
+
+  const pathname = useClanRelativePath();
 
   const tabs: { href: string; label: string; badge?: number; exact?: boolean; show: boolean }[] = [
     { href: '/admin/clan', label: 'Members', exact: true, show: true },
@@ -29,7 +33,7 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
         .map((tab) => {
           const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
           return (
-            <Link
+            <ClanLink
               key={tab.href}
               href={tab.href}
               className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
@@ -43,7 +47,7 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
                 </span>
               )}
               {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-gold rounded-full" />}
-            </Link>
+            </ClanLink>
           );
         })}
       </nav>

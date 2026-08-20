@@ -2,7 +2,6 @@
 
 import type { Event, Team, Tile, Player } from '@/lib/types';
 import type { StatTileStanding, TeamStanding } from '@/lib/statStandings';
-import Link from 'next/link';
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
@@ -11,6 +10,7 @@ import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown'
 import MemberBreakdown from '@/components/MemberBreakdown';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -204,12 +204,12 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
                     <div className="h-full rounded-full" style={{ width: `${t.pct}%`, backgroundColor: t.color }} />
                   </div>
                 </div>
-                <Link
+                <ClanLink
                   href={`/admin/events/${event.id}/teams/${t.teamId}`}
                   className="shrink-0 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
                 >
                   Manage board &rarr;
-                </Link>
+                </ClanLink>
               </div>
             ))}
           </div>

@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import type { LockerHistoryRow } from '@/lib/profileLocker';
+import ClanLink from '@/components/ClanLink';
 
 // Everything this person has actually competed in, newest first. Events and weeklies interleave on
 // purpose: a member's year is one run, not two lists.
@@ -25,18 +25,18 @@ export default function RunSoFar({
         <span className="w-1 h-5 bg-gold rounded-full" />
         <h2 className="text-lg font-semibold">Your run so far</h2>
         {focusRsn && (
-          <Link
+          <ClanLink
             href={`/members/${encodeURIComponent(focusRsn)}`}
             className="ml-auto text-xs text-text-muted hover:text-gold-light"
           >
             All {parts.join(' & ')} →
-          </Link>
+          </ClanLink>
         )}
       </div>
 
       <div className="grid">
         {rows.map((row) => (
-          <Link
+          <ClanLink
             key={row.key}
             href={row.href}
             className="flex items-baseline gap-3 py-2.5 px-0.5 border-b border-card-border/60 last:border-b-0 hover:bg-card-bg-hover/40 rounded transition-colors"
@@ -64,7 +64,7 @@ export default function RunSoFar({
                 ? new Date(row.endedOn).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' })
                 : ''}
             </span>
-          </Link>
+          </ClanLink>
         ))}
       </div>
     </section>

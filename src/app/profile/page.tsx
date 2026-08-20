@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
@@ -21,6 +20,7 @@ import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import SecurityDrawer from './SecurityDrawer';
 import { atLeast } from '@/lib/clanRoles';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -146,7 +146,7 @@ export default async function ProfilePage({
               </div>
               <div className="space-y-2.5">
                 {locker.captainSeats.map((s) => (
-                  <Link
+                  <ClanLink
                     key={s.teamId}
                     href={`/team/${s.teamId}`}
                     className={`flex items-center gap-2.5 flex-wrap border border-card-border rounded-lg bg-brown-dark/40 px-3.5 py-3 hover:border-gold/40 hover:bg-card-bg-hover transition-colors ${
@@ -160,7 +160,7 @@ export default async function ProfilePage({
                       {s.ended && ' · ended'}
                     </span>
                     <span className="ml-auto text-xs text-gold shrink-0">Open deck →</span>
-                  </Link>
+                  </ClanLink>
                 ))}
               </div>
             </section>
@@ -179,12 +179,12 @@ export default async function ProfilePage({
             <div className="flex items-center gap-2 mb-4">
               <span className="w-1 h-5 bg-gold rounded-full" />
               <h2 className="text-lg font-semibold">Your accounts</h2>
-              <Link
+              <ClanLink
                 href="#account-security"
                 className="text-xs font-semibold px-2.5 py-1 border border-card-border rounded-lg hover:border-gold/40 hover:text-gold-light transition-colors"
               >
                 + Add a character
-              </Link>
+              </ClanLink>
               <span className="ml-auto text-xs text-text-muted">
                 {locker.accounts.length === 0
                   ? 'none linked'

@@ -44,6 +44,11 @@ export default {
       bareLink:
         '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
         'component or clanHref()/clanHrefs() on the server. Without it this lands on the apex.',
+      rawLink:
+        'Import ClanLink from @/components/ClanLink instead of next/link. A plain Link cannot know ' +
+        'about the clan prefix, and its href is often a variable this rule cannot read — which is ' +
+        'how ten bare clan paths reached a rendered page while lint reported zero. ClanLink passes ' +
+        'platform paths through untouched, so it is correct everywhere Link was.',
       bareFetch:
         '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
         'component or clanHref()/clanHrefs() on the server. Without it the request reaches the ' +
@@ -67,6 +72,15 @@ export default {
     }
 
     return {
+      // next/link itself. The href-literal check below can only see paths written out in full; a
+      // component storing its targets as data and rendering <Link href={item.href}> slips past it
+      // entirely. One link component removes the possibility rather than trying to detect it.
+      "ImportDeclaration[source.value='next/link']"(node) {
+        if (context.filename?.endsWith('components/ClanLink.tsx')) return;
+        if (excused(node)) return;
+        context.report({ node, messageId: 'rawLink' });
+      },
+
       // href="/events/5" and href={"/events/5"}
       //
       // Only where the URL is USED to navigate: a DOM element, or next/link. A capitalised component

@@ -1,10 +1,10 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { apexCharacter } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +39,9 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
         {character.owner && (
           <>
             {' '}played by{' '}
-            <Link href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
+            <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
               {character.owner.displayName ?? 'someone on Anvil'}
-            </Link>
+            </ClanLink>
           </>
         )}
       </p>
@@ -51,9 +51,9 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           <span className="text-gray-400">Clan</span>
           <span>
             {character.clan ? (
-              <Link href={`/c/${character.clan.slug}`} className="text-gold hover:underline">
+              <ClanLink href={`/c/${character.clan.slug}`} className="text-gold hover:underline">
                 {character.clan.name}
-              </Link>
+              </ClanLink>
             ) : (
               <span className="text-gray-600">—</span>
             )}

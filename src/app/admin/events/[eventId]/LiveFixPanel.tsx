@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import type { BoardProblem } from '@/lib/boardMisconfig';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * Fixing a running board.
@@ -101,12 +101,12 @@ export default function LiveFixPanel({
                     {p.problem} — {p.fix}
                   </span>
                 </span>
-                <Link
+                <ClanLink
                   href={`${base}/tiles?tile=${p.tileId}`}
                   className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
                 >
                   Open tile
-                </Link>
+                </ClanLink>
               </div>
             ))}
           </div>
@@ -137,31 +137,31 @@ export default function LiveFixPanel({
         >
           {recomputing ? 'Healing…' : 'Heal the board'}
         </button>
-        <Link
+        <ClanLink
           href={`${base}/tiles`}
           className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
         >
           Edit tiles
-        </Link>
-        <Link
+        </ClanLink>
+        <ClanLink
           href={`${base}/settings`}
           className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
         >
           Rules &amp; reveal
-        </Link>
-        <Link
+        </ClanLink>
+        <ClanLink
           href={`${base}/teams`}
           className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
         >
           Subs &amp; rosters
-        </Link>
+        </ClanLink>
         {hasStatTiles && (
-          <Link
+          <ClanLink
             href={`${base}/stats`}
             className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
           >
             Fix baselines
-          </Link>
+          </ClanLink>
         )}
         {message && <span className="text-xs text-text-muted">{message}</span>}
       </div>

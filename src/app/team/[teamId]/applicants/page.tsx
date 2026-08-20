@@ -2,10 +2,10 @@ import { db } from '@/db';
 import { events, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import WarRoomClient from './WarRoomClient';
 import { clanHref } from '@/lib/clanPath';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,12 +37,12 @@ export default async function WarRoomPage({
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link
+      <ClanLink
         href={`/team/${tId}`}
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; Back to team
-      </Link>
+      </ClanLink>
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
         <h1 className="text-2xl font-bold text-gold">War room</h1>
         <span className="text-sm text-text-muted">

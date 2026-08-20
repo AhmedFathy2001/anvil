@@ -3,7 +3,6 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import MyTeamClient from './MyTeamClient';
@@ -17,6 +16,7 @@ import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,16 +60,16 @@ export default async function MyTeamPage({
     return (
       <div className={membership.isCaptain ? 'max-w-6xl mx-auto' : undefined}>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+          <ClanLink href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
             &larr; {backLabel}
-          </Link>
+          </ClanLink>
           {membership.isCaptain && (
-            <Link
+            <ClanLink
               href={`/team/${tId}/applicants`}
               className="text-sm text-gold hover:text-gold/80 transition-colors"
             >
               War room &rarr;
-            </Link>
+            </ClanLink>
           )}
         </div>
         {membership.isCaptain ? (
@@ -137,18 +137,18 @@ export default async function MyTeamPage({
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
+        <ClanLink href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; {backLabel}
-        </Link>
+        </ClanLink>
         {/* The war room has ONE way in. When the draft hasn't started the banner below says why to
             go there, so a second identical button above it was noise; once it has, this is it. */}
         {membership.isCaptain && !eventStarted && event.draftStatus !== 'none' && (
-          <Link
+          <ClanLink
             href={`/team/${tId}/applicants`}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
           >
             Open the war room &rarr;
-          </Link>
+          </ClanLink>
         )}
       </div>
       {membership.isCaptain && !eventStarted && event.draftStatus === 'none' && (
@@ -159,12 +159,12 @@ export default async function MyTeamPage({
               Scout the pool, read their sign-up answers, and put your picks in the order you want them.
             </p>
           </div>
-          <Link
+          <ClanLink
             href={`/team/${tId}/applicants`}
             className="shrink-0 text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
           >
             Open the war room &rarr;
-          </Link>
+          </ClanLink>
         </div>
       )}
       {membership.canManage && (

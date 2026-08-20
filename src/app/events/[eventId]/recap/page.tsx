@@ -3,7 +3,6 @@ import { requireEventForPage } from '@/lib/eventScope';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded } from '@/lib/survey';
 import { getEventRecap } from '@/lib/eventRecap';
@@ -12,6 +11,7 @@ import { summariseMoments } from '@/lib/momentsAnalytics';
 import RecapClient from './RecapClient';
 import MomentsSummaryPanel from './MomentsSummaryPanel';
 import { atLeast } from '@/lib/clanRoles';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +39,7 @@ export default async function EventRecapPage({
 
   const header = (
     <div className="mb-6">
-      <Link href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</Link>
+      <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
       <h1 className="text-2xl font-bold text-gold mt-1">Event recap</h1>
     </div>
   );

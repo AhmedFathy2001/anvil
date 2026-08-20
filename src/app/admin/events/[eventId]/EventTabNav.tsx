@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 interface Props {
   eventId: number;
@@ -25,7 +25,11 @@ const TABS = [
 ] as const;
 
 export default function EventTabNav({ eventId, tilesOnly = false, taskNounPlural = 'Tiles' }: Props) {
-  const pathname = usePathname();
+  // Clan-relative: these hrefs are bare paths, and the browser is at /c/<slug>/… ,
+
+  // so comparing against the raw pathname never matches and no tab looks active.
+
+  const pathname = useClanRelativePath();
   const base = `/admin/events/${eventId}`;
   const tabs = (tilesOnly ? TABS.filter((t) => t.slug === 'tiles') : TABS).map((t) =>
     t.slug === 'tiles' ? { ...t, label: taskNounPlural } : t,
@@ -42,7 +46,7 @@ export default function EventTabNav({ eventId, tilesOnly = false, taskNounPlural
           ? pathname.startsWith(href)
           : pathname === base;
         return (
-          <Link
+          <ClanLink
             key={tab.slug || 'overview'}
             href={href}
             className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
@@ -55,7 +59,7 @@ export default function EventTabNav({ eventId, tilesOnly = false, taskNounPlural
             {active && (
               <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-gold rounded-full" />
             )}
-          </Link>
+          </ClanLink>
         );
       })}
       </nav>

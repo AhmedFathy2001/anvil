@@ -3,7 +3,6 @@
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import TeamEditor from '@/components/TeamEditor';
 import DraftOrderSetup from '@/components/DraftOrderSetup';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
@@ -27,6 +26,7 @@ import { eventAxes } from '@/lib/eventAxes';
 import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface DraftState {
   status: string;
@@ -953,13 +953,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     >
                       Edit
                     </button>
-                    <Link
+                    <ClanLink
                       href={`/admin/events/${event.id}/teams/${team.id}`}
                       className="text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
                       title="See this team's progress and mark tiles done/undone, add or remove submissions"
                     >
                       Manage Board
-                    </Link>
+                    </ClanLink>
                     {!draftLocked && (
                       <button
                         onClick={() => deleteTeam(team.id)}
@@ -1570,20 +1570,20 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
-                        <Link
+                        <ClanLink
                           href={`/admin/events/${event.id}/teams/${team.id}`}
                           className="font-semibold text-sm truncate hover:text-gold transition-colors"
                           title="Open the team page — assign/change captain, view the team's board"
                         >
                           {team.name}
-                        </Link>
-                        <Link
+                        </ClanLink>
+                        <ClanLink
                           href={`/admin/events/${event.id}/teams/${team.id}`}
                           className="text-[10px] text-gold/90 hover:text-gold border border-gold/30 rounded px-1.5 py-0.5 shrink-0 transition-colors"
                           title="Assign or change this team's captain"
                         >
                           Captain / page
-                        </Link>
+                        </ClanLink>
                         <span className="text-xs text-text-muted ml-auto shrink-0">
                           {activeCount} player{activeCount !== 1 ? 's' : ''}
                           {subbedOutCount > 0 && <span className="text-amber-300/70"> · {subbedOutCount} subbed out</span>}

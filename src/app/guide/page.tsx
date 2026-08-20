@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import ClanLink from '@/components/ClanLink';
 
 export const metadata: Metadata = {
   title: 'Guides — Anvil',
@@ -38,7 +38,7 @@ export default function GuidesPage() {
 
       <div className="grid sm:grid-cols-2 gap-4">
         {GUIDES.map((g) => (
-          <Link
+          <ClanLink
             key={g.href}
             href={g.href}
             className="group border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
@@ -49,7 +49,7 @@ export default function GuidesPage() {
             </div>
             <p className="text-sm text-text-muted mb-3">{g.blurb}</p>
             <div className="text-xs text-text-muted">{g.minutes}</div>
-          </Link>
+          </ClanLink>
         ))}
       </div>
     </div>

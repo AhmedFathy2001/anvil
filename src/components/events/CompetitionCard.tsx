@@ -1,10 +1,10 @@
-import Link from 'next/link';
 import EventTimer from '@/components/EventTimer';
 import { hubKind } from '@/lib/hubKinds';
 import { weeklyValueText } from '@/lib/eventsHub';
 import type { HubKind } from '@/lib/eventsHub';
 import type { EventCard } from '@/lib/eventCards';
 import type { WeeklyCard } from '@/lib/weeklyCards';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * One competition, live or finished, board or week.
@@ -64,7 +64,7 @@ export default function CompetitionCard({
   const showTimer = !hideTimer && Boolean(startDate || endDate);
 
   return (
-    <Link
+    <ClanLink
       href={href}
       style={{ ['--accent' as string]: meta.accent }}
       className={`group relative block overflow-hidden rounded-xl border border-card-border bg-card-bg transition-colors hover:border-gold/45 hover:bg-card-bg-hover ${
@@ -161,7 +161,7 @@ export default function CompetitionCard({
         </div>
         )}
       </div>
-    </Link>
+    </ClanLink>
   );
 }
 

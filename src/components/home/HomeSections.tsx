@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
 import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * The home page, in the pieces it's made of.
@@ -148,12 +148,12 @@ export function YouStrip({
             <div className="text-xs text-text-muted">{prompt.sub}</div>
           </div>
         </div>
-        <Link
+        <ClanLink
           href={prompt.href}
           className="justify-self-start rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 sm:justify-self-end"
         >
           {prompt.cta}
-        </Link>
+        </ClanLink>
       </div>
     );
   }
@@ -227,12 +227,12 @@ export function YouStrip({
         )}
       </div>
 
-      <Link
+      <ClanLink
         href="/profile"
         className="justify-self-start whitespace-nowrap rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 lg:justify-self-end"
       >
         Your profile →
-      </Link>
+      </ClanLink>
       {discordInvite === null && null}
     </div>
   );
@@ -281,12 +281,12 @@ function CardShell({
         ? 'border-blue-400/25 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(74,163,212,0.12),transparent_62%)]'
         : 'border-card-border';
   return (
-    <Link
+    <ClanLink
       href={href}
       className={`block rounded-2xl border bg-card-bg p-5 transition-colors hover:border-gold/50 ${toneCls}`}
     >
       {children}
-    </Link>
+    </ClanLink>
   );
 }
 
@@ -624,9 +624,9 @@ function SectionHead({
       </h2>
       {note && <span className="text-xs text-text-muted">{note}</span>}
       {more && (
-        <Link href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold">
+        <ClanLink href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold">
           {more.label}
-        </Link>
+        </ClanLink>
       )}
     </div>
   );

@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { db } from '@/db';
 import { events, teamInvites, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -7,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken, invitePath } from '@/lib/teamInvites';
 import { clanHref } from '@/lib/clanPath';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,12 +50,12 @@ export default async function JoinPage({
         <div className="border border-dashed border-card-border rounded-xl p-10 text-center">
           <p className="text-lg font-semibold mb-2">This invite can&apos;t be used</p>
           <p className="text-sm text-text-muted mb-6">{verdict.message}</p>
-          <Link
+          <ClanLink
             href={event ? `/events/${event.id}` : '/events'}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
           >
             {event ? 'See the event' : 'See what’s running'}
-          </Link>
+          </ClanLink>
         </div>
       </div>
     );
