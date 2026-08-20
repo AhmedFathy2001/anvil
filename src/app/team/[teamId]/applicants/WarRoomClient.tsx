@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatHoursRange } from '@/lib/signup';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
+import { rosterShape } from '@/lib/rosterShape';
+import RosterShapePanel from '@/components/RosterShapePanel';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './PlayerDrawer';
 
 // The captain's scouting surface: the pool with everything known about it, and their own shortlist
@@ -164,6 +166,10 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
     }));
   }, [data]);
 
+  // The roster's own sign-up answers, folded into a shape. Recomputed from the payload, so it moves
+  // with every pick — which is the only version of this worth having during a live draft.
+  const shape = useMemo(() => rosterShape((data?.roster ?? []).map((p) => p.answers ?? {})), [data]);
+
   if (loading) return <div className="text-center py-12 text-text-muted">Loading the pool…</div>;
   if (error) {
     return (
@@ -190,6 +196,15 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
             Nobody in this pool has been rated yet — the tiers below are placeholders until the stats sweep
             has seen them at least once.
           </div>
+        )}
+
+        {shape.answered > 0 && (
+          <RosterShapePanel
+            shape={shape}
+            title="What you've drafted so far"
+            note="from their sign-up answers"
+            limit={6}
+          />
         )}
 
         <section className="border border-card-border rounded-xl bg-card-bg p-5">
