@@ -262,7 +262,7 @@ export async function POST(request: Request) {
   // capture from a live push would zero the session — the sweep sets the baseline from max(hiscores,
   // live)). currentValue climbs monotonically; a stale-baseline flush is spike-flagged here too.
   if (memberRow?.status === 'active') {
-    const activeComps = (await getActiveWeeklyMetrics()).filter((c) => updatedKeys.has(c.metric));
+    const activeComps = (await getActiveWeeklyMetrics(clan.id)).filter((c) => updatedKeys.has(c.metric));
     for (const comp of activeComps) {
       const participant = await db.query.weeklyParticipants.findFirst({
         where: and(

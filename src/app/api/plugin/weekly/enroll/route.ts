@@ -34,8 +34,14 @@ export async function POST(request: Request) {
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
   const rsnNormalized = normalizeRsn(rsn);
 
+  // THIS clan's active competition. The comment four lines up already said the host is the only
+  // thing naming the clan — but the query did not use it, so `findFirst` returned whichever active
+  // competition the planner reached first across the whole platform. The seat below is created in
+  // `clan.id` regardless, so a member of a clan with no weekly running was enrolled into a DIFFERENT
+  // clan's SOTW/BOTW, holding a participant row keyed to a seat that clan has never heard of. A
+  // cross-clan write, from an unauthenticated endpoint, on autopilot at every login.
   const active = await db.query.weeklyCompetitions.findFirst({
-    where: eq(weeklyCompetitions.status, 'active'),
+    where: and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active')),
   });
   if (!active) return NextResponse.json({ enrolled: false, reason: 'no-active-comp' });
 

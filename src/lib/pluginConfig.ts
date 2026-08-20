@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { clans, events, tiles, weeklyCompetitions } from '@/db/schema';
-import { count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
@@ -44,18 +44,39 @@ export interface PluginSchedule {
 
 const SCHEDULE_CAP = 10;
 
-// Active + upcoming bingo events and weekly competitions, sorted by start, capped so we
-// don't ship the whole archive. Mirrors the original /api/plugin/schedule behavior.
-export async function buildSchedule(): Promise<PluginSchedule> {
+/**
+ * Active + upcoming bingo events and weekly competitions for ONE clan, sorted by start, capped so
+ * we don't ship the whole archive.
+ *
+ * `clanId` is required, and that is the whole point. Until the multi-clan port this function ran on
+ * a deployment that WAS one clan, so `select().from(events)` meant "this clan's events" and read as
+ * correct. Afterwards the same line meant every clan on the platform, and since /api/plugin/schedule
+ * takes no token, one anonymous request to the apex listed everybody's events and weeklies — under a
+ * SCHEDULE_CAP of 10 that another clan's events could push you out of. The lint rule flagged it from
+ * the day it was written; it sat in the warning pile.
+ *
+ * `invited` events are excluded outright: those are addressed to specific people, and a schedule is
+ * an advertisement. `clan` events ARE listed, because naming the clan is what this endpoint has
+ * always treated as standing to ask, every event in the wild carries the default `clan`, and jars in
+ * the field cannot be updated — filtering them out would empty the panel on every installed plugin
+ * rather than close a hole. The authenticated caller in /api/plugin/config gets the same list; what
+ * a member sees beyond it comes from the event surfaces, which do consult lib/eventAccess.
+ */
+export async function buildSchedule(clanId: number): Promise<PluginSchedule> {
   const nowIso = new Date().toISOString();
 
   const [allEvents, allWeeklies] = await Promise.all([
-    db.select().from(events),
-    db.select().from(weeklyCompetitions),
+    db.select().from(events).where(eq(events.clanId, clanId)),
+    db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
   ]);
 
   const bingoCandidates = allEvents.filter(
-    (e) => e.startDate && e.endDate && e.endDate > nowIso && !e.forceEndedAt,
+    (e) =>
+      e.startDate &&
+      e.endDate &&
+      e.endDate > nowIso &&
+      !e.forceEndedAt &&
+      e.visibility !== 'invited',
   );
 
   // Tile counts per event in one query — avoids N+1 against the tiles table.
@@ -116,11 +137,16 @@ export interface ActiveWeekly {
   endDate: string;
 }
 
-// The single live weekly competition (status = 'active'), or null. Mirrors the original
-// /api/plugin/active-weekly behavior. Used by the plugin to decide auto-enroll on login.
-export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
+// The single live weekly competition in THIS clan (status = 'active'), or null. Mirrors the
+// original /api/plugin/active-weekly behavior.
+//
+// The clan filter matters more here than in the schedule, because this one is not just read: the
+// plugin uses it to decide auto-enroll on login. Unfiltered, `findFirst` returned whichever active
+// competition the planner happened to reach first ACROSS THE PLATFORM — so a member of a clan with
+// no weekly running would be handed another clan's, and pointed at enrolling in it.
+export async function getActiveWeekly(clanId: number): Promise<ActiveWeekly | null> {
   const active = await db.query.weeklyCompetitions.findFirst({
-    where: eq(weeklyCompetitions.status, 'active'),
+    where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
   if (!active) return null;
   return {
@@ -141,13 +167,19 @@ export interface ActiveWeeklyMetric {
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
 }
 
-// EVERY live weekly competition's tracked metric — a SOTW and a BOTW can run at once, so this returns
-// all `status='active'` comps (unlike getActiveWeekly's single). Used to (a) tell the plugin which
-// skill/boss to push live via trackedKcNames/trackedSkillNames, and (b) credit live weekly gains in
-// the plugin-stats ingest.
-export async function getActiveWeeklyMetrics(): Promise<ActiveWeeklyMetric[]> {
+// EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
+// so this returns all `status='active'` comps (unlike getActiveWeekly's single). Used to (a) tell
+// the plugin which skill/boss to push live via trackedKcNames/trackedSkillNames, and (b) credit live
+// weekly gains in the plugin-stats ingest.
+//
+// The ingest was never actually mis-crediting: it looks the participant up by
+// (competitionId, clanMemberId), and a seat in one clan is not enrolled in another's competition, so
+// a foreign comp fell out at that check. What the missing filter did do is tell every plugin to push
+// metrics for whatever every other clan was competing on — which is both a leak of what those clans
+// are running and a pile of work nobody asked for.
+export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeeklyMetric[]> {
   const rows = await db.query.weeklyCompetitions.findMany({
-    where: eq(weeklyCompetitions.status, 'active'),
+    where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
   return rows.map((c) => ({
     id: c.id,

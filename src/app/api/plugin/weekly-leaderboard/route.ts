@@ -1,26 +1,39 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
+import { resolveClanFromRequest } from '@/lib/clanContext';
 import { weeklyCompetitions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/constants';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
-// for the RuneLite plugin's Anvil tab. Unauthenticated — leaderboards are public. Read-only.
+// for the RuneLite plugin's Anvil tab. Unauthenticated — leaderboards are public within a clan.
 // Capped at the top 50 to keep the payload small; the plugin highlights the local player by RSN.
+//
+// "Public" meant something narrower when a deployment was one clan. Both lookups here are now
+// scoped to the clan the request names: `?id=` was a plain IDOR — any competition id on the
+// platform, returning every participant's RSN and gains to an anonymous caller — and the no-id form
+// picked whichever active competition came back first, so a clan between competitions showed a
+// stranger's standings in its own side panel.
 const MAX_ENTRIES = 50;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const idParam = searchParams.get('id');
 
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) return NextResponse.json({ competition: null, total: 0, entries: [] });
+
   const comp = idParam
     ? await db.query.weeklyCompetitions.findFirst({
-        where: eq(weeklyCompetitions.id, parseInt(idParam, 10)),
+        where: and(
+          eq(weeklyCompetitions.clanId, clan.id),
+          eq(weeklyCompetitions.id, parseInt(idParam, 10)),
+        ),
       })
     : await db.query.weeklyCompetitions.findFirst({
-        where: eq(weeklyCompetitions.status, 'active'),
+        where: and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active')),
       });
 
   if (!comp) {

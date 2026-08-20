@@ -190,8 +190,8 @@ async function activeEventForUnlinkedRsn(request: Request): Promise<string | nul
 // names, skill metrics are the lowercase skill name. Merged into trackedKcNames/trackedSkillNames so
 // the plugin pushes SOTW/BOTW live (debounced 15 s, same machinery as bingo tiles) even for a member
 // with no active bingo event.
-async function weeklyTrackedNames(): Promise<{ kc: string[]; skills: string[] }> {
-  const metrics = await getActiveWeeklyMetrics();
+async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skills: string[] }> {
+  const metrics = await getActiveWeeklyMetrics(clanId);
   return {
     kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => kcNamesForKey(m.metric)),
     skills: metrics.filter((m) => m.type === 'skill').map((m) => m.metric),
@@ -212,9 +212,9 @@ export async function GET(request: Request) {
       // panel shows the schedule even when the player isn't enrolled anywhere.
       const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, unlinkedActiveEvent, homeBoard] =
         await Promise.all([
-          buildSchedule(),
-          getActiveWeekly(),
-          weeklyTrackedNames(),
+          buildSchedule(clan.id),
+          getActiveWeekly(clan.id),
+          weeklyTrackedNames(clan.id),
           getNotificationWebhooks(clan.id),
           getFunDeathMessages(clan.id),
           getDeathTaunts(clan.id),
@@ -506,7 +506,7 @@ export async function GET(request: Request) {
 
   // Active weekly SOTW/BOTW metrics are pushed live too — merged in below so a member in a bingo AND a
   // weekly comp pushes both metrics through the same debounced path.
-  const weeklyNames = await weeklyTrackedNames();
+  const weeklyNames = await weeklyTrackedNames(clan.id);
 
   // In-game KC-line boss names for the event's boss-KC tiles (+ any active BOTW boss). The plugin
   // watches for "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
@@ -552,8 +552,8 @@ export async function GET(request: Request) {
   // webhooks and fun-death pool the plugin posts with directly.
   const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, tiers] =
     await Promise.all([
-      buildSchedule(),
-      getActiveWeekly(),
+      buildSchedule(clan.id),
+      getActiveWeekly(clan.id),
       getNotificationWebhooks(clan.id),
       getFunDeathMessages(clan.id),
       getDeathTaunts(clan.id),
