@@ -48,6 +48,12 @@ const EXPOSED_KEYS = [
   'discord_team_sync_enabled',
   'discord_bingo_role_id',
   'discord_captain_role_id',
+  // Clan house rules, laid out by the Discord bot on /bingo rules and linkable from the site.
+  // Prose, not configuration: the per-board mechanics (scoring, reveals, lockout, starting shot)
+  // are derived from the event itself and never typed here. `board_rules_url` points at the long
+  // version for a ruleset that outgrows a Discord embed.
+  'board_rules',
+  'board_rules_url',
   // Advisory flag set when the owner finishes (or dismisses) the first-run Setup wizard.
   // Gates the auto-open + dashboard checklist only; real step status is computed live in
   // lib/setupStatus.ts.

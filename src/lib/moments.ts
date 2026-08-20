@@ -51,6 +51,8 @@ export interface WeeklyScope {
 
 export interface EventScope {
   id: number;
+  /** The team this member plays for on that event, stamped onto every moment it scopes. */
+  teamId: number | null;
   /** Sources the board names — tile source/target NPCs and timed activities. */
   sources: string[];
   /** Item ids any tile tracks. A tracked item that credited nothing is still the story of the kill. */
@@ -63,6 +65,8 @@ export interface PlannedMoment {
   kind: MomentKind;
   weeklyCompetitionId: number | null;
   eventId: number | null;
+  /** Their side, when the moment belongs to a team event. Null for weekly/solo moments. */
+  teamId: number | null;
   itemId: number | null;
   itemName: string | null;
   quantity: number;
@@ -357,6 +361,7 @@ export function classifyObservation(
       kind,
       weeklyCompetitionId: weekly.id,
       eventId: null,
+      teamId: null,
       rarityDenominator: rate ? Math.round(rate) : null,
       dedupKey: `${obs.dedupKey}:w${weekly.id}`,
     });
@@ -370,6 +375,7 @@ export function classifyObservation(
         kind,
         weeklyCompetitionId: null,
         eventId: scopes.event.id,
+        teamId: scopes.event.teamId,
         rarityDenominator: rate ? Math.round(rate) : null,
         dedupKey: `${obs.dedupKey}:e${scopes.event.id}`,
       });

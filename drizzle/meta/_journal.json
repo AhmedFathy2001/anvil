@@ -470,6 +470,13 @@
       "when": 1787196625788,
       "tag": "0066_prize-split-percent",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "6",
+      "when": 1787236707873,
+      "tag": "0067_moment-team",
+      "breakpoints": true
     }
   ]
 }

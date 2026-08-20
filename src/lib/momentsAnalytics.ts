@@ -76,6 +76,33 @@ function ranked(map: Map<string, number>, limit: number): NamedCount[] {
     .slice(0, limit);
 }
 
+/** One side of a team event, summarised on its own. */
+export interface TeamMoments {
+  teamId: number;
+  summary: MomentsSummary;
+}
+
+/**
+ * Split a board's feed by the side each moment happened on, biggest feed first.
+ *
+ * The rows carry the team they were stamped with at ingest, so this is a grouping rather than a
+ * guess — which is the difference between "our side died more" and "the people currently on our
+ * side have died more, wherever they were at the time". Moments with no side (an event that never
+ * had teams) are left out: a comparison of one is not a comparison.
+ */
+export function momentsByTeam(rows: MomentRow[], limit = 8): TeamMoments[] {
+  const byTeam = new Map<number, MomentRow[]>();
+  for (const row of rows) {
+    if (row.teamId == null) continue;
+    const list = byTeam.get(row.teamId) ?? [];
+    list.push(row);
+    byTeam.set(row.teamId, list);
+  }
+  return [...byTeam.entries()]
+    .map(([teamId, list]) => ({ teamId, summary: summariseMoments(list, limit) }))
+    .sort((a, b) => b.summary.counts.total - a.summary.counts.total || a.teamId - b.teamId);
+}
+
 export function summariseMoments(rows: MomentRow[], limit = 8): MomentsSummary {
   const counts = { ...EMPTY_COUNTS };
   const byMember = new Map<string, MemberTally>();

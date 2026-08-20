@@ -57,7 +57,18 @@ function Standout({
   );
 }
 
-export default function MomentsSummaryPanel({ summary }: { summary: MomentsSummary }) {
+export default function MomentsSummaryPanel({
+  summary,
+  sides = [],
+}: {
+  summary: MomentsSummary;
+  /**
+   * The same feed split by the side it happened on. Empty on a board with no teams, and on one with
+   * a single team — a comparison of one is not a comparison. On a clan-v-clan it's the whole point:
+   * "who died more" is a question about SIDES, and the answer was only ever available per person.
+   */
+  sides?: { teamId: number; name: string; color: string; summary: MomentsSummary }[];
+}) {
   const { counts, deathBoard, killers, members, biggestHaul, rarestDrop, hardestTask } = summary;
   if (counts.total === 0) return null;
 
@@ -79,6 +90,39 @@ export default function MomentsSummaryPanel({ summary }: { summary: MomentsSumma
         <Tile emoji={kindEmoji('ca')} value={counts.ca.toLocaleString()} label="combat tasks" />
         <Tile emoji="💰" value={`${gp(summary.gpSeen)} gp`} label="value seen" />
       </div>
+
+      {sides.length > 1 && (
+        <div className="mb-4 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+          {sides.map((side) => (
+            <div
+              key={side.teamId}
+              className="rounded-xl border bg-card-bg p-3.5"
+              style={{ borderColor: `${side.color}55` }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span aria-hidden className="h-5 w-1 rounded-full" style={{ background: side.color }} />
+                <span className="font-semibold truncate" style={{ color: side.color }}>
+                  {side.name}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <SideStat value={side.summary.counts.death} label="deaths" />
+                <SideStat value={side.summary.counts.pet + side.summary.counts.unique} label="uniques" />
+                <SideStat value={side.summary.counts.ca} label="tasks" />
+              </div>
+              <div className="mt-2 text-center text-xs text-text-muted">
+                <span className="text-gold font-semibold">{gp(side.summary.gpSeen)} gp</span> seen
+                {side.summary.deathBoard[0] && (
+                  <>
+                    {' · '}
+                    most deaths: {side.summary.deathBoard[0].rsn} ({side.summary.deathBoard[0].deaths})
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(biggestHaul || rarestDrop || hardestTask) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
@@ -155,6 +199,16 @@ export default function MomentsSummaryPanel({ summary }: { summary: MomentsSumma
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** One number on a side's card — small, because three of them sit in a row on a phone. */
+function SideStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <div className="text-lg font-extrabold tabular-nums leading-tight">{value.toLocaleString()}</div>
+      <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
     </div>
   );
 }

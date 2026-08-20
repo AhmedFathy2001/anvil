@@ -1698,6 +1698,15 @@ export const moments = sqliteTable('moments', {
   kind: text('kind').notNull(),
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
+  /**
+   * Which side they were on WHEN IT HAPPENED, on a team event.
+   *
+   * Derivable from players(eventId, clanMemberId) — but only for where they are NOW, which is a
+   * different fact: subbing someone across teams mid-event would drag every death they'd already
+   * died over to their new side. On a clan-v-clan, "which side" is the entire question, so it's
+   * stamped at ingest instead of re-derived at read time. Null on a solo/weekly moment.
+   */
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   /** The item, when there is one. Deaths have none; a pet whose name we couldn't resolve has a name only. */
   itemId: integer('item_id'),
   itemName: text('item_name'),
