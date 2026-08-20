@@ -23,6 +23,7 @@
     "test:events": "node --experimental-strip-types --test tests/event-rules.test.ts tests/event-readiness.test.ts tests/event-axes.test.ts tests/tile-authoring.test.ts",
     "test:embeds": "node --experimental-strip-types --test tests/discord-embeds.test.ts",
     "test:discord": "DATABASE_URL=file:./.test-discord.db npx tsx --test tests/discord-interactions.test.ts",
+    "test:scoring": "npx tsx --test tests/board-scoring.test.ts",
     "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts",
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",

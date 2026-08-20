@@ -8,7 +8,8 @@ import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { isPointsMode } from '@/lib/utils';
+import { scoreTeam } from '@/lib/boardScoring';
 import Input from '@/components/Input';
 
 interface Props {
@@ -222,18 +223,17 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   const pointsMode = isPointsMode(event.scoringMode);
-  const weightById = useMemo(
-    () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
-    [tiles, event.scoringMode],
+  // Scored by lib/boardScoring, like every other surface — which also fixes two things this screen
+  // used to get wrong on its own: optional tiles counted toward the total, and a frozen
+  // awardedPoints (first-finish bonus / decay) was ignored in favour of the tile's live weight.
+  const score = useMemo(
+    () => scoreTeam({ scoringMode: event.scoringMode, tiles, completions, teamId: team.id }),
+    [event.scoringMode, tiles, completions, team.id],
   );
-  const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (weightById.get(c.tileId) || 0), 0)
-    : completions.length;
-  const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
-  const tilesLeft = total - completed;
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const completed = score.score;
+  const total = score.total;
+  const tilesLeft = Math.max(0, total - score.boardScore);
+  const percentage = score.pct;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);

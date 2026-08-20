@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
-import { parseEventRules, hasRevealPolicy, visibleTiles, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, isMissionTile, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
 import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 
@@ -488,6 +488,37 @@ export async function PUT(
     return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
   }
 
+  // CONVERTING an existing board tile into a mission.
+  //
+  // On a classic N×N grid this is refused outright. The grid renders tiles in sorted-position ARRAY
+  // order (components/BingoBoard) while the line maths reads ABSOLUTE row-major positions
+  // (lib/bingoLines: r * size + c) — the two agree only while positions run 0..N²-1 with no gaps.
+  // Pulling a tile out of the board (which is what the mission flag does, via boardTiles) leaves 24
+  // tiles in a 25-cell square however the positions are then juggled: either a hole, or every later
+  // tile shifted a cell while the line maths still points at the old geometry. Neither is a square
+  // board. Adding a mission is the supported move, and now works on a grid (see POST).
+  //
+  // Everywhere else — points lists, tile races, ladders — position is just order, so the tile moves
+  // to the end and nothing is disturbed.
+  if (mission === true && !isMissionTile(tile)) {
+    const isClassicGrid = (event?.format ?? 'bingo') === 'bingo' && (event?.scoringMode ?? 'tiles') === 'tiles';
+    if (isClassicGrid) {
+      return NextResponse.json(
+        {
+          error:
+            'A tile already on the grid cannot become a mission — it would leave a hole in the square. Add a mission instead; missions live outside the board.',
+        },
+        { status: 400 },
+      );
+    }
+    const [furthest] = await db
+      .select({ position: sql<number>`max(${tiles.position})` })
+      .from(tiles)
+      .where(eq(tiles.eventId, eId));
+    const maxPosition = furthest?.position ?? tile.position;
+    if (maxPosition > tile.position) updateSet.position = maxPosition + 1;
+  }
+
   const [updated] = await db
     .update(tiles)
     .set(updateSet)
@@ -535,8 +566,22 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
+  // Read the body up front: whether this is a MISSION changes which guards apply.
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed = await request.json();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
+  } catch {
+    /* empty body is fine — a blank tile with a placeholder label */
+  }
+  const asMission = body.mission === true;
+
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
-  if (isClassicGrid) {
+  // A classic grid is a fixed N×N board, so its board tiles can't be added one at a time. A MISSION
+  // isn't a board tile — it lives outside the grid, scores as a bonus and never enters the N×N (see
+  // lib/boardScoring) — so this is the one add a square board accepts. Without the exemption, the
+  // format missions were designed for is the only format that can't have them.
+  if (isClassicGrid && !asMission) {
     return NextResponse.json(
       { error: 'A classic bingo grid is a fixed N×N board — tiles cannot be added individually.' },
       { status: 400 },
@@ -552,17 +597,10 @@ export async function POST(
   }
   const nextPosition = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
 
-  let label = `Tile ${nextPosition + 1}`;
+  let label = asMission ? `Mission ${nextPosition + 1}` : `Tile ${nextPosition + 1}`;
   let duplicateOf: number | null = null;
-  try {
-    const body = await request.json();
-    if (body && typeof body.label === 'string' && body.label.trim()) {
-      label = body.label.trim().slice(0, 200);
-    }
-    if (body && Number.isInteger(body.duplicateOf)) duplicateOf = body.duplicateOf as number;
-  } catch {
-    /* empty body is fine — fall back to the placeholder label */
-  }
+  if (typeof body.label === 'string' && body.label.trim()) label = body.label.trim().slice(0, 200);
+  if (Number.isInteger(body.duplicateOf)) duplicateOf = body.duplicateOf as number;
 
   // Duplicating copies the whole row rather than a list of fields the client knows about. A tile has
   // ~30 configurable columns and gains more with every tile kind; enumerating them anywhere but here
@@ -592,12 +630,16 @@ export async function POST(
             updatedAt: _updatedAt,
             ...config
           } = source;
-          return { ...config, eventId: eId, position: nextPosition, label };
+          return { ...config, eventId: eId, position: nextPosition, label, mission: asMission ? 1 : config.mission };
         })()
-      : { eventId: eId, position: nextPosition, label };
+      : { eventId: eId, position: nextPosition, label, mission: asMission ? 1 : 0 };
     const [tile] = await tx.insert(tiles).values(values).returning();
-    // Keep boardSize == tile count so the display helpers (eventTileCount / eventShapeBadge) stay accurate.
-    await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
+    // Keep boardSize == BOARD tile count so the display helpers (eventTileCount / eventShapeBadge)
+    // stay accurate. A mission is not a board tile, so it must not grow the board — on a 5×5 that
+    // would turn the grid into a 26-tile board with a hole in it.
+    if (!asMission) {
+      await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
+    }
     return tile;
   });
 
