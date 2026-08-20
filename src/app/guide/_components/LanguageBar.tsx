@@ -60,12 +60,51 @@ export function PartialNotice({ locale, template }: { locale: GuideLocale; templ
   );
 }
 
-/** Everything a page needs to render the two bits above, resolved from a URL segment. */
-export function localeChrome(code: string, page: GuidePage, common: { language: string; partialNotice: string }) {
+/**
+ * Shown on a translation no speaker of the language has checked yet.
+ *
+ * Carries the English page's address, because the useful thing for a reader who hits a sentence
+ * that doesn't parse is the original — not an apology.
+ */
+export function UnreviewedNotice({
+  locale,
+  template,
+  englishHref,
+}: {
+  locale: GuideLocale;
+  template: string;
+  englishHref: string;
+}) {
+  return (
+    <div className="border border-card-border border-l-2 border-l-gold/50 rounded-r-lg bg-card-bg px-4 py-3 mb-10 text-sm text-text-muted">
+      {rt(template, { language: locale.label, englishHref })}
+    </div>
+  );
+}
+
+/** Everything a page needs to render the bits above, resolved from a URL segment. */
+export function localeChrome(
+  code: string,
+  page: GuidePage,
+  common: { language: string; partialNotice: string; unreviewedNotice: string },
+) {
   const locale = findLocale(code) ?? LOCALES[0];
+  const notices = [
+    locale.complete ? null : (
+      <PartialNotice key="partial" locale={locale} template={common.partialNotice} />
+    ),
+    locale.reviewed ? null : (
+      <UnreviewedNotice
+        key="unreviewed"
+        locale={locale}
+        template={common.unreviewedNotice}
+        englishHref={guideHref('en', page)}
+      />
+    ),
+  ].filter(Boolean);
   return {
     locale,
     languages: <LanguageBar current={locale.code} page={page} label={common.language} />,
-    notice: locale.complete ? null : <PartialNotice locale={locale} template={common.partialNotice} />,
+    notice: notices.length ? <>{notices}</> : null,
   };
 }

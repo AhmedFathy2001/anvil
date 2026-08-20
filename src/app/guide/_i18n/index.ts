@@ -20,6 +20,15 @@ export interface LocaleMeta {
   dir: 'ltr' | 'rtl';
   /** Whether the file covers every key. False renders a "falls back to English" note. */
   complete: boolean;
+  /**
+   * Whether a speaker of the language has actually read it.
+   *
+   * Separate from `complete` on purpose: a file can cover every key and still be a translation
+   * nobody fluent has checked. Shipping that is fine — a good-enough page in your own language
+   * beats a perfect one you can't read — but saying so is what makes it fine, and it's what turns
+   * a reader who spots a bad sentence into someone who reports it.
+   */
+  reviewed: boolean;
   load: () => Promise<{ default: PartialGuideDict }>;
 }
 
@@ -27,31 +36,36 @@ export interface LocaleMeta {
 export const DEFAULT_LOCALE = 'en';
 
 export const LOCALES: LocaleMeta[] = [
-  { code: 'en', label: 'English', english: 'English', dir: 'ltr', complete: true, load: async () => ({ default: en }) },
-  { code: 'da', label: 'Dansk', english: 'Danish', dir: 'ltr', complete: true, load: () => import('./da') },
+  { code: 'en', label: 'English', english: 'English', dir: 'ltr', complete: true, reviewed: true, load: async () => ({ default: en }) },
+  { code: 'da', label: 'Dansk', english: 'Danish', dir: 'ltr', complete: true, reviewed: false, load: () => import('./da') },
+  { code: 'ar', label: 'العربية', english: 'Arabic', dir: 'rtl', complete: true, reviewed: false, load: () => import('./ar') },
+  { code: 'sv', label: 'Svenska', english: 'Swedish', dir: 'ltr', complete: true, reviewed: false, load: () => import('./sv') },
+  { code: 'no', label: 'Norsk', english: 'Norwegian', dir: 'ltr', complete: true, reviewed: false, load: () => import('./no') },
+  { code: 'fi', label: 'Suomi', english: 'Finnish', dir: 'ltr', complete: true, reviewed: false, load: () => import('./fi') },
+  { code: 'de', label: 'Deutsch', english: 'German', dir: 'ltr', complete: true, reviewed: false, load: () => import('./de') },
+  { code: 'nl', label: 'Nederlands', english: 'Dutch', dir: 'ltr', complete: true, reviewed: false, load: () => import('./nl') },
+  { code: 'fr', label: 'Français', english: 'French', dir: 'ltr', complete: true, reviewed: false, load: () => import('./fr') },
+  { code: 'it', label: 'Italiano', english: 'Italian', dir: 'ltr', complete: true, reviewed: false, load: () => import('./it') },
+  { code: 'pl', label: 'Polski', english: 'Polish', dir: 'ltr', complete: true, reviewed: false, load: () => import('./pl') },
+  { code: 'es', label: 'Español', english: 'Spanish', dir: 'ltr', complete: true, reviewed: false, load: () => import('./es') },
+  { code: 'pt-br', label: 'Português (BR)', english: 'Brazilian Portuguese', dir: 'ltr', complete: true, reviewed: false, load: () => import('./pt-br') },
+  { code: 'zh-hans', label: '简体中文', english: 'Simplified Chinese', dir: 'ltr', complete: true, reviewed: false, load: () => import('./zh-hans') },
+  { code: 'ja', label: '日本語', english: 'Japanese', dir: 'ltr', complete: true, reviewed: false, load: () => import('./ja') },
+  { code: 'ko', label: '한국어', english: 'Korean', dir: 'ltr', complete: true, reviewed: false, load: () => import('./ko') },
 ];
 
 /**
  * Languages asked for but not yet written. Nothing reads this — it is the to-do list, kept beside
- * the registry so the next person can see the intended set instead of guessing at it.
+ * the registry so the next person can see the intended set instead of guessing at it. Empty right
+ * now: everything that had been asked for is in LOCALES above.
  *
  * To ship one: copy `_i18n/da.ts` to `_i18n/<code>.ts`, translate as much as you have time for
- * (anything you leave out falls back to English), and move its row up into LOCALES with
- * `complete: false` until every key is covered. No other file changes.
+ * (anything you leave out falls back to English), and add its row to LOCALES — `complete: false`
+ * until every key is covered, `reviewed: false` until somebody who speaks it has read it through.
+ * `npm run test:guides` prints the coverage and fails on a row that claims more than it has. No
+ * other file changes.
  */
-export const PLANNED_LOCALES: Omit<LocaleMeta, 'load' | 'complete'>[] = [
-  { code: 'sv', label: 'Svenska', english: 'Swedish', dir: 'ltr' },
-  { code: 'no', label: 'Norsk', english: 'Norwegian', dir: 'ltr' },
-  { code: 'fi', label: 'Suomi', english: 'Finnish', dir: 'ltr' },
-  { code: 'nl', label: 'Nederlands', english: 'Dutch', dir: 'ltr' },
-  { code: 'de', label: 'Deutsch', english: 'German', dir: 'ltr' },
-  { code: 'fr', label: 'Français', english: 'French', dir: 'ltr' },
-  { code: 'es', label: 'Español', english: 'Spanish', dir: 'ltr' },
-  { code: 'pt-br', label: 'Português (BR)', english: 'Brazilian Portuguese', dir: 'ltr' },
-  { code: 'pl', label: 'Polski', english: 'Polish', dir: 'ltr' },
-  { code: 'it', label: 'Italiano', english: 'Italian', dir: 'ltr' },
-  { code: 'ar', label: 'العربية', english: 'Arabic', dir: 'rtl' },
-];
+export const PLANNED_LOCALES: Omit<LocaleMeta, 'load' | 'complete' | 'reviewed'>[] = [];
 
 const BY_CODE = new Map(LOCALES.map((l) => [l.code, l]));
 

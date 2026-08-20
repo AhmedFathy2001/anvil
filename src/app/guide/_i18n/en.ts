@@ -19,6 +19,8 @@ export const en = {
     partialNotice:
       'This guide is only partly translated into {language}. Anything not yet translated is shown in English.',
     backToGuides: 'All guides',
+    unreviewedNotice:
+      'This {language} translation hasn’t been checked by a native speaker yet. If a sentence reads wrong, the [English page]({englishHref}) is the original — and [telling us](/feedback) is what gets it fixed.',
   },
 
   index: {
