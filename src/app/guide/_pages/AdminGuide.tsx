@@ -29,13 +29,18 @@ export default async function AdminGuide({ lang }: { lang: string }) {
     clanName,
     pluginGuide: guideHref(locale.code, 'plugin'),
     clanVsClanGuide: guideHref(locale.code, 'clan-vs-clan'),
+    boardGuide: guideHref(locale.code, 'board'),
+    captainGuide: guideHref(locale.code, 'captain'),
+    formatsGuide: guideHref(locale.code, 'formats'),
+    feesGuide: guideHref(locale.code, 'fees'),
+    moderatorGuide: guideHref(locale.code, 'moderator'),
   };
 
   // Format names come from the app, not the guide, so the picker and this table can't disagree.
   // The dictionary may override them: a Danish reader shouldn't hit an English table mid-page.
   const formatRows = EVENT_MODES.map((m) => {
     const override = a.board.formats[m.key as keyof typeof a.board.formats];
-    return { term: rt(override?.label || m.label), body: rt(override?.blurb || m.blurb) };
+    return { term: override?.label || m.label, body: rt(override?.blurb || m.blurb) };
   });
 
   const SECTIONS = [
@@ -68,6 +73,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
       <Section id="access" n={1} title={a.access.title} labels={t.common}>
         <p className="text-text-muted">{rt(a.access.intro, v)}</p>
         <Rows rows={rows(a.access.rows, v)} />
+        <p className="text-text-muted">{rt(a.access.seeAlso, v)}</p>
         <Note tag={a.access.ownerNote.tag}>
           <p>{rt(a.access.ownerNote.body, v)}</p>
         </Note>
@@ -108,6 +114,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
         <p className="text-text-muted">{rt(a.board.intro, v)}</p>
         <Rows rows={formatRows} />
         <p className="text-text-muted">{rt(a.board.outro, v)}</p>
+        <p className="text-text-muted">{rt(a.board.seeAlso, v)}</p>
         <Note tag={a.board.utcNote.tag}>
           <p>{rt(a.board.utcNote.body, v)}</p>
         </Note>
@@ -117,6 +124,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
       <Section id="tiles" n={6} title={a.tiles.title} labels={t.common}>
         {paragraphs(a.tiles.body, v)}
         <Rows rows={rows(a.tiles.rows, v)} />
+        <p className="text-text-muted">{rt(a.tiles.seeAlso, v)}</p>
       </Section>
 
       {/* ------------------------------------------------------------------ 7 */}
@@ -125,6 +133,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
         <Note tag={a.teams.lockNote.tag}>
           <p>{rt(a.teams.lockNote.body, v)}</p>
         </Note>
+        <p className="text-text-muted">{rt(a.teams.seeAlso, v)}</p>
         <p className="text-text-muted">{rt(a.teams.visitingClans, v)}</p>
       </Section>
 
