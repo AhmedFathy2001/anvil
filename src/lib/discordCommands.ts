@@ -89,10 +89,19 @@ function standingsBody(standings: TeamStanding[], cross: CrossClanContext, highl
   const lines = standings.slice(0, 15).map((s, i) => {
     const visiting = cross.visitingTeamIds.has(s.teamId) ? ' 🤝' : '';
     const mine = highlightTeamId === s.teamId ? ' ←' : '';
-    return `${placeMark(i)} **${clamp(s.name, 60)}**${visiting} — ${code(`${s.score} ${s.unit}`)} · ${s.pct}%${mine}`;
+    // The percentage is BOARD progress, so a team carrying mission bonus shows a score ahead of its
+    // percentage. Naming the bonus is what stops that reading as a bug.
+    const bonus = s.bonusScore > 0 ? ` ⚡+${s.bonusScore}` : '';
+    return `${placeMark(i)} **${clamp(s.name, 60)}**${visiting} — ${code(`${s.score} ${s.unit}`)}${bonus} · ${s.pct}%${mine}`;
   });
   if (standings.length > 15) lines.push(`-# +${standings.length - 15} more on the site`);
   return lines.join('\n');
+}
+
+/** The legend for the ⚡ marker, only when a mission has actually scored for someone. */
+function bonusNote(standings: TeamStanding[]): string | null {
+  if (!standings.some((s) => s.bonusScore > 0)) return null;
+  return '⚡ mission bonus — earned on top of the board total, so it counts toward the score but not the percentage.';
 }
 
 /** The legend for the 🤝 marker, only when something actually carries it. */
@@ -159,6 +168,8 @@ async function boardEmbed(clan: ClanContext, event: EventContext, cross: CrossCl
 
   if (!event.tilesRevealed) body.push('Tiles are still hidden — the board reveals when staff open it.');
   if (standings.length) body.push('', standingsBody(standings, cross));
+  const bonus = bonusNote(standings);
+  if (bonus) body.push('', `-# ${bonus}`);
   const note = crossClanNote(cross);
   if (note) body.push('', note);
   body.push('', contextLine(clan, event, cross));
@@ -189,6 +200,8 @@ async function leaderboardEmbed(
 ): Promise<DiscordEmbed> {
   const standings = await getTeamStandings(event.id, event.scoringMode);
   const body: string[] = [standingsBody(standings, cross, myTeamId)];
+  const bonus = bonusNote(standings);
+  if (bonus) body.push('', `-# ${bonus}`);
   const note = crossClanNote(cross);
   if (note) body.push('', note);
   body.push('', contextLine(clan, event, cross));
@@ -519,7 +532,12 @@ async function teamEmbed(
   const rank = standings.findIndex((s) => s.teamId === team.id) + 1;
 
   const body: string[] = [];
-  if (standing) body.push(`${placeMark(rank - 1)} of ${standings.length} — ${code(`${standing.score} ${standing.unit}`)} · ${standing.pct}% of the board.`);
+  if (standing) {
+    const bonus = standing.bonusScore > 0 ? ` (⚡+${standing.bonusScore} mission bonus)` : '';
+    body.push(
+      `${placeMark(rank - 1)} of ${standings.length} — ${code(`${standing.score} ${standing.unit}`)}${bonus} · ${standing.pct}% of the board.`,
+    );
+  }
   // Name visiting members individually here: on a team card the roster is short enough that "who is
   // actually from another clan" is the useful answer, where the leaderboard only has room for a mark.
   const visitors = roster.filter((r) => r.source === 'federation');

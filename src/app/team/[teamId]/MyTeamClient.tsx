@@ -10,7 +10,8 @@ import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { isPointsMode } from '@/lib/utils';
+import { scoreTeam } from '@/lib/boardScoring';
 import Input from '@/components/Input';
 import { computeMemberBreakdown, topMember, rollupByOwner } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
@@ -262,28 +263,15 @@ export default function MyTeamClient({
   }
 
   const pointsMode = isPointsMode(event.scoringMode);
-  // Optional tiles are bonus — excluded from the score and the total (matches the scoreboard).
-  const scoredTiles = useMemo(() => tiles.filter((t) => !t.optional), [tiles]);
-  const scoredTileIds = useMemo(() => new Set(scoredTiles.map((t) => t.id)), [scoredTiles]);
-  const weightById = useMemo(
-    () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
-    [tiles, event.scoringMode],
+  // One shared scorer (lib/boardScoring) across every surface, so My Team can't quietly disagree
+  // with the scoreboard about what this team has.
+  const score = useMemo(
+    () => scoreTeam({ scoringMode: event.scoringMode, tiles, completions, teamId: team.id }),
+    [event.scoringMode, tiles, completions, team.id],
   );
-  const completed = pointsMode
-    ? completions.reduce(
-        (sum, c) =>
-          sum +
-          (scoredTileIds.has(c.tileId)
-            // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live weight.
-            ? (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0)
-            : 0),
-        0,
-      )
-    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
-  const total = pointsMode
-    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : scoredTiles.length;
-  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const completed = score.score;
+  const total = score.total;
+  const percentage = score.pct;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
