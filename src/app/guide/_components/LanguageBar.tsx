@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LOCALES, findLocale, guideHref, type GuideLocale } from '../_i18n';
+import { LOCALES, findLocale, guideHref, type GuideLocale, type GuidePage } from '../_i18n';
 import { rt } from '../_i18n/rich';
 
 // The language row above every guide, and the note that admits when a translation is unfinished.
@@ -9,7 +9,7 @@ import { rt } from '../_i18n/rich';
 // the bare /guide/plugin path it has always had, because that one is already out there in Discord
 // messages and shouldn't start redirecting.
 
-export type GuidePage = '' | 'plugin' | 'admin' | 'clan-vs-clan';
+export type { GuidePage };
 
 export function LanguageBar({ current, page, label }: { current: string; page: GuidePage; label: string }) {
   return (
