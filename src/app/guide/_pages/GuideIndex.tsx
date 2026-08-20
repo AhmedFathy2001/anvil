@@ -16,6 +16,7 @@ export default async function GuideIndex({ lang }: { lang: string }) {
   const cards = [
     { page: 'plugin' as const, ...t.index.cards.plugin },
     { page: 'admin' as const, ...t.index.cards.admin },
+    { page: 'clan-vs-clan' as const, ...t.index.cards.clanVsClan },
   ];
 
   return (

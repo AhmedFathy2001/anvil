@@ -60,7 +60,7 @@ export function findLocale(code: string | undefined): LocaleMeta | undefined {
 }
 
 /** `/guide/plugin` for English, `/guide/da/plugin` for the rest — English keeps the shareable URL. */
-export function guideHref(locale: string, page: '' | 'plugin' | 'admin'): string {
+export function guideHref(locale: string, page: '' | 'plugin' | 'admin' | 'clan-vs-clan'): string {
   const base = locale === DEFAULT_LOCALE ? '/guide' : `/guide/${locale}`;
   return page ? `${base}/${page}` : base;
 }

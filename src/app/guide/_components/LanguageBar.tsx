@@ -9,7 +9,7 @@ import { rt } from '../_i18n/rich';
 // the bare /guide/plugin path it has always had, because that one is already out there in Discord
 // messages and shouldn't start redirecting.
 
-export type GuidePage = '' | 'plugin' | 'admin';
+export type GuidePage = '' | 'plugin' | 'admin' | 'clan-vs-clan';
 
 export function LanguageBar({ current, page, label }: { current: string; page: GuidePage; label: string }) {
   return (

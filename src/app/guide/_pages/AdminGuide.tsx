@@ -28,6 +28,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
   const v = {
     clanName,
     pluginGuide: guideHref(locale.code, 'plugin'),
+    clanVsClanGuide: guideHref(locale.code, 'clan-vs-clan'),
   };
 
   // Format names come from the app, not the guide, so the picker and this table can't disagree.
@@ -124,6 +125,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
         <Note tag={a.teams.lockNote.tag}>
           <p>{rt(a.teams.lockNote.body, v)}</p>
         </Note>
+        <p className="text-text-muted">{rt(a.teams.visitingClans, v)}</p>
       </Section>
 
       {/* ------------------------------------------------------------------ 8 */}

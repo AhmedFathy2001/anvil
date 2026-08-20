@@ -45,6 +45,13 @@ const da: PartialGuideDict = {
           'Discord, medlemsliste, brætter, felter, hold og draft, opstart — og hvad du gør, når eventet er slut.',
         minutes: 'en aften, én gang',
       },
+      clanVsClan: {
+        eyebrow: 'Til værter',
+        title: 'Vær vært for en gæsteklan',
+        blurb:
+          'Clan-mod-clan uden at samle et eneste RSN ind i hånden: ét invitationslink pr. hold, og en plads der lader deres egen moderator styre deres halvdel.',
+        minutes: '~5 min pr. hold',
+      },
     },
   },
 
@@ -567,6 +574,8 @@ const da: PartialGuideDict = {
         tag: 'Draften låser holdene',
         body: 'Så snart en draft er gået i gang, er både holdene og pickrækkefølgen låst. Tilføj det hold, du glemte, _inden_ du trykker start — ikke efter.',
       },
+      visitingClans:
+        'Spiller I mod en anden klan i stedet for at drafte jeres egne? En gæsteklan stiller sin egen trup gennem ét link, og deres moderator styrer den uden en adminkonto her — se [Vær vært for en gæsteklan]({clanVsClanGuide}).',
     },
 
     launch: {
@@ -631,6 +640,224 @@ const da: PartialGuideDict = {
     },
   },
 
+  clanVsClan: {
+    metaTitle: 'Vær vært for en gæsteklan — Anvil værtsguide',
+    metaDescription:
+      'Kør en clan-mod-clan på Anvil: giv hver gæsteklan et invitationslink, der sætter deres spillere på ét hold, og en plads så deres egen moderator styrer deres halvdel.',
+    eyebrow: 'Anvil · til værter',
+    title: 'Vær vært for en gæsteklan',
+    dek: 'Du er vært for brættet; de stiller truppen. Det er den vej, der sparer dig for at samle et dusin RSN’er ind i en DM — ét link pr. hold, og en plads der lader deres egen moderator styre deres halvdel af eventet.',
+    facts: [
+      { strong: '1 link', rest: 'pr. gæstehold' },
+      { strong: '0 adminpladser', rest: 'givet til udefrakommende' },
+      { strong: '~5 min', rest: 'pr. klan du inviterer' },
+    ],
+    footnote:
+      'Skærmbillederne er fra en rigtig opsætning på et testbræt — invitationstokens og Discord-navne er slørede. Et rigtigt link er værd at passe på: alle, der har det, kan tage en plads på det hold, så længe det er aktivt.',
+
+    shape: {
+      title: 'Det, du er ved at sætte op',
+      body: [
+        'En clan-mod-clan er et helt almindeligt event med én forskel: halvdelen af spillerne er ikke i din klan og bliver det aldrig. De kan ikke synkroniseres ind fra medlemslisten, du vil ikke forfremme dem, og du vil bestemt ikke tilmelde tyve af dem i hånden og derefter trække hver enkelt over på det rigtige hold.',
+        'To ting løser det, og de er uafhængige — brug den ene, eller begge.',
+      ],
+      rows: [
+        {
+          term: 'Et invitationslink',
+          body: 'en URL, du laver én gang til ét hold. Den, der åbner den, logger ind, udfylder den normale tilmeldingsformular og lander på det hold allerede godkendt — ingen draftpulje, ingen godkendelseskø.',
+        },
+        {
+          term: 'En plads i holdstaben',
+          body: 'en navngiven person, der kan styre _netop det ene hold_ — dets trup, dets indsendelser og beviser, dets gebyrer — uden en adminkonto her, og uden at tage kaptajnpladsen fra den, der faktisk spiller.',
+        },
+      ],
+      note: {
+        tag: 'Hvad et invitationslink ikke er',
+        body: 'Det er ikke et login og ikke en genvej uden om verificering. Den, der åbner det, logger stadig ind med Discord og skal stadig have et verificeret RSN, præcis som ved enhver anden tilmelding. Det eneste, linket afgør, er _hvilket hold_ tilmeldingen kommer på, og at den ikke skal godkendes af nogen.',
+      },
+    },
+
+    team: {
+      title: 'Lav holdet først',
+      body: [
+        'Åbn dit event og gå til fanen **Teams & Draft**. Opret ét hold pr. klan, du har inviteret, og opkald det efter dem — navnet er det, deres spillere ser i tilmeldingsformularen, så “Ironforge” slår “Hold 2”.',
+        'Du behøver _ikke_ køre en draft. Invitationslinks og en draft er alternativer: en draft fordeler en fælles tilmeldingspulje, et link sætter folk direkte på plads. Ved en ren clan-mod-clan opretter de fleste værter holdene, deler ét link ud til hver, og åbner aldrig draften.',
+        'Åbn så selve holdet — **Teams & Draft → holdet** — for det er der, begge de næste to trin foregår.',
+      ],
+      captainNote: {
+        tag: 'Kaptajnen først',
+        body: 'Udpeg gæsteklanens kaptajn, før du deler linket ud, så holdsiden har en ejer fra starten. At udpege en kaptajn sætter dem samtidig på holdet; advarer kortet om, at de ikke står på truppen, så tag imod den rettelse, det tilbyder.',
+      },
+    },
+
+    staff: {
+      title: 'Giv deres moderator en plads',
+      body: [
+        'Panelet **Team staff** på holdsiden er måden, gæsteklanens egen moderator kommer i gang på, uden at du giver dem noget som helst på din side. Tryk **Add someone**, søg dem frem, skriv en note som “Ironforges mod”, så den næste admin ved, hvorfor de er der, og tryk **Give a seat**.',
+      ],
+      figure: {
+        caption: 'Event → Teams & Draft → holdet → Team staff',
+        alt: 'Team staff-panelet med én tildelt plads og søgefeltet til at tilføje flere åbent',
+        legend: [
+          {
+            label: 'Add someone',
+            body: 'åbner søgningen. Kun folk, der har logget ind her med Discord mindst én gang, kan dukke op — se noten nedenfor.',
+          },
+          {
+            label: 'Noten',
+            body: 'fri tekst, 120 tegn. Skriv hvilken klan de kommer fra. Pladser bliver stående på listen efter eventet, og “hvem er det her?” er præcis det spørgsmål, du sidder med om tre måneder.',
+          },
+          {
+            label: 'Remove',
+            body: 'tager pladsen tilbage med det samme. Gør det, når eventet er slut — en plads er ikke tidsbegrænset af sig selv.',
+          },
+        ],
+      },
+      canDo: 'Hvad en plads kan, udelukkende på det hold:',
+      canDoList: [
+        'se og styre holdets trup',
+        'håndtere dets indsendelser og beviser',
+        'markere dets spilleres gebyrer som betalt',
+        'lave invitationslinks til det, hvis du slår det til (næste trin på nær ét)',
+      ],
+      cantDo: 'Hvad den aldrig kan:',
+      cantDoList: [
+        'røre noget som helst andet hold',
+        'redigere brættet eller dets felter',
+        'foretage draftvalg',
+        'skifte nogen ud, når eventet først er i gang',
+      ],
+      note: {
+        tag: 'De skal logge ind her først',
+        body: 'Søgningen viser kun konti med et forbundet Discord — en plads hænger på en person, der rent faktisk kan logge ind. Så send gæsteklanens moderator ind på siden, få dem til at trykke **Login** én gang, og giv _derefter_ pladsen. Dukker de ikke op i søgningen, er det login ikke sket endnu.',
+      },
+    },
+
+    link: {
+      title: 'Lav invitationslinket',
+      body: [
+        'Stadig på holdsiden: panelet **Invite links** laver linket. To felter afgør, hvad linket lover, og begge forstår `0` som “lov ikke noget”.',
+      ],
+      figure: {
+        caption: 'Event → Teams & Draft → holdet → Invite links',
+        alt: 'Invite links-panelet med felterne til pladser og udløb, knappen Make a link, og ét aktivt link på listen',
+        legend: [
+          {
+            label: 'Seats og Expires in hours',
+            body: 'hvor mange personer linket må sætte på plads (op til 100), og hvor længe det holder (op til 30 dage). Sæt pladserne til størrelsen på den trup, de har lovet dig, så lukker linket sig selv, når de alle er inde; sæt et udløb, når linket skal ud i en offentlig Discord. `0` i et af felterne betyder ingen grænse.',
+          },
+          {
+            label: 'Make a link',
+            body: 'laver det og kopierer det til din udklipsholder med det samme. Send det til dem, før du gør noget andet.',
+          },
+          {
+            label: 'Listen over aktive links',
+            body: 'alle links, holdet har ude, med hvor mange der er kommet ind, og hvor mange pladser der er tilbage. **Copy** henter det igen; **Turn off** dræber det for altid.',
+          },
+        ],
+      },
+      shape:
+        'Linket ser sådan ud: `{origin}/events/{eventId}/join/{token}` — én linje, sikker at indsætte i en Discord-besked.',
+      note: {
+        tag: 'Fornuftige standardvalg',
+        body: 'Til en clan-mod-clan, hvor du har aftalt truppen med én moderator, så lad begge felter stå på `0`, og lad dem styre det. Grib til pladser og udløb, når linket skal et sted hen, du ikke selv kontrollerer.',
+      },
+      revoke:
+        'At slukke et link virker med det samme og fjerner ikke nogen, der allerede er kommet ind — de er helt almindelige spillere på holdet nu. Vil du tage nogen af, gør du det fra holdets trup.',
+    },
+
+    captains: {
+      title: 'Lad dem lave deres egne links',
+      body: [
+        'Som udgangspunkt er det kun en vært, der kan lave links, og en kaptajn, der prøver, får det at vide. Den standard er rigtig til et almindeligt klanevent — en kaptajn, der deler pladser ud, ville fylde en trup, ingen har godkendt — og forkert til en clan-mod-clan, hvor gæsteklanen kender sin egen trup bedre end du gør.',
+        'Kontakten sidder på det samme **Invite links**-panel: **Let captains make their own links**. Den gælder _hvert hold i dette event_, ikke kun det, du står på — hvilket netop er, hvad du vil have, når begge sider er gæsteklaner.',
+        'Med den slået til kan holdets kaptajn og alle med en plads i holdstaben selv lave links fra **My Team → Invite links**. De får det samme panel som dig, minus kontakten.',
+      ],
+      figure: {
+        caption: 'My Team → holdet → Invite links',
+        alt: 'Invite links-fanen set fra kaptajnens side i holdcentret, med felterne til pladser og udløb og ét aktivt link',
+        legend: [
+          {
+            label: 'Samme panel, kaptajnens udgave',
+            body: 'lav, kopiér, sluk. Har værten ikke slået kontakten til, står der “Only a host can make links for this event”, og felterne er væk.',
+          },
+          {
+            label: 'Listen over aktive links',
+            body: 'en kaptajn, der ikke må lave links, kan stadig se dem, holdet har ude — så de kan bede dig om et til i stedet for at gå ud fra, at der ingen er.',
+          },
+        ],
+      },
+    },
+
+    player: {
+      title: 'Det, deres spillere ser',
+      intro:
+        'Værd at gå igennem én gang selv, før du deler linket ud, så du kan svare på spørgsmål om det.',
+      steps: [
+        'De åbner linket. Er de ikke logget ind, logger de ind med Discord først og kommer direkte tilbage — linket går ikke tabt undervejs.',
+        'De lander på den helt normale tilmeldingsformular med et banner, der siger **You’re joining {teamExample} by invite**. Samme spørgsmål, samme kontovælger, samme gebyr som alle andre.',
+        'Når de sender ind, er de på holdet og godkendt. Ingen handling fra værten, ingen draft.',
+      ],
+      figure: {
+        caption: 'Tilmeldingsformularen, åbnet gennem et invitationslink',
+        alt: 'Eventets tilmeldingsformular med et banner om, at spilleren er ved at komme på et navngivet hold via invitation',
+        legend: [
+          {
+            label: 'Invitationsbanneret',
+            body: 'nævner det hold, de er ved at komme på. Står der et forkert hold, har de det forkerte link — stop og tjek, inden de sender ind.',
+          },
+          {
+            label: 'Resten af formularen',
+            body: 'uændret. Et verificeret RSN er stadig påkrævet, tilmeldingsspørgsmålene bliver stadig stillet, og et tilmeldingsgebyr gælder stadig.',
+          },
+        ],
+      },
+      note: {
+        tag: 'Allerede tilmeldt?',
+        body: 'Har nogen meldt sig til på normal vis først og sidder i puljen, flytter linket dem over på holdet i stedet for at oprette en ekstra tilmelding. En, der allerede er godkendt på et andet hold, bliver ladt i fred — flyt dem fra truppen i stedet.',
+      },
+    },
+
+    dead: {
+      title: 'Når et link holder op med at virke',
+      intro:
+        'Et afvist link forklarer sig selv på siden i stedet for at give en 404, så den, der sidder med det, kan fortælle dig, hvilken af disse det er.',
+      rows: [
+        {
+          term: 'This invite has been turned off.',
+          body: 'Nogen har trykket **Turn off**. Lav et nyt — et gammelt link kommer aldrig tilbage.',
+        },
+        {
+          term: 'This invite has expired.',
+          body: 'Det ramte de timer, du satte. Lav et nyt, denne gang med `0` timer, hvis udløbet ikke gør nogen nytte.',
+        },
+        {
+          term: 'This invite is full.',
+          body: 'Alle pladser er taget. Du hæver det ved at lave et nyt link med flere pladser — antallet ligger fast, når først et link findes.',
+        },
+        {
+          term: 'Sign-ups for this event aren’t open.',
+          body: 'Den eneste, der kan løse sig selv. Tjek eventets tilmeldingsvindue: er det åbnet endnu, er fristen løbet ud, eller er eventet allerede gået i gang.',
+        },
+        {
+          term: 'That invite belongs to a different event.',
+          body: 'Et link fra et andet bræt er blevet indsat. Tjek at event-id’et i URL’en er det, du mente.',
+        },
+      ],
+      checklist: 'Gå denne liste igennem én gang pr. gæsteklan, inden eventet går i gang:',
+      checklistItems: [
+        'deres hold findes og er opkaldt efter dem',
+        'deres kaptajn er udpeget og sidder på holdet',
+        'deres moderator har logget ind her og har en plads i holdstaben',
+        'linket er lavet, kopieret og faktisk afleveret til et menneske',
+        'tilmeldingsvinduet er åbent, så længe de har brug for det',
+      ],
+      note: {
+        tag: 'Når det er slut',
+        body: 'Sluk linkene og fjern pladserne i holdstaben. Ingen af delene udløber af sig selv, og et aktivt link på et afsluttet event er bare en løs ende.',
+      },
+    },
+  },
 };
 
 export default da;

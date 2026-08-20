@@ -42,6 +42,13 @@ export const en = {
           'Discord, roster sync, boards, tiles, teams and the draft, launching, and what to do once the event ends.',
         minutes: 'an evening, once',
       },
+      clanVsClan: {
+        eyebrow: 'For hosts',
+        title: 'Hosting a visiting clan',
+        blurb:
+          'Clan-v-clan without collecting a single RSN by hand: one invite link per team, and a seat that lets their moderator run their own half.',
+        minutes: '~5 min per team',
+      },
     },
   },
 
@@ -542,6 +549,8 @@ export const en = {
         tag: 'The draft locks the roster',
         body: 'Once a draft starts, the set of teams and the pick order are frozen. Add the team you forgot _before_ you press start, not after.',
       },
+      visitingClans:
+        'Playing another clan rather than drafting your own? A visiting side fields its own roster through one link, and their moderator runs it without an admin account here — see [Hosting a visiting clan]({clanVsClanGuide}).',
     },
 
     launch: {
@@ -606,6 +615,222 @@ export const en = {
     },
   },
 
+  clanVsClan: {
+    metaTitle: 'Hosting a visiting clan — Anvil host guide',
+    metaDescription:
+      'Run a clan-v-clan on Anvil: give each visiting clan an invite link that seats their players on one team, and a staff seat so their own moderator runs their half.',
+    eyebrow: 'Anvil · for hosts',
+    title: 'Hosting a visiting clan',
+    dek: 'You host the board; they field the roster. This is the path that avoids collecting a dozen RSNs in a DM — one link per team, and a seat that lets their own moderator run their half of the event.',
+    facts: [
+      { strong: '1 link', rest: 'per visiting team' },
+      { strong: '0 admin seats', rest: 'handed to outsiders' },
+      { strong: '~5 min', rest: 'per clan you invite' },
+    ],
+    footnote:
+      'Screenshots are from a live setup on a test board — invite tokens and Discord names are blanked out. A real link is worth guarding: anyone holding it can take a seat on that team while it is live.',
+
+    shape: {
+      title: 'What you’re setting up',
+      body: [
+        'A clan-v-clan is an ordinary event with one difference: half the players aren’t in your clan and never will be. They can’t be roster-synced in, you don’t want to promote them, and you certainly don’t want to sign twenty of them up by hand and then drag each one onto the right team.',
+        'Two pieces solve that, and they’re independent — use either, or both.',
+      ],
+      rows: [
+        {
+          term: 'An invite link',
+          body: 'a URL you mint once for one team. Whoever opens it signs in, fills in the normal sign-up form, and lands on that team already approved — no draft pool, no approval queue.',
+        },
+        {
+          term: 'A team staff seat',
+          body: 'a named person who can run _that one team_ — its roster, its submissions and proof, its fees — without an admin account here, and without taking the captain’s seat off whoever is actually playing.',
+        },
+      ],
+      note: {
+        tag: 'What an invite is not',
+        body: 'It is not a login and not a shortcut past verification. Whoever opens it still signs in with Discord and still needs a verified RSN, exactly like any other sign-up. The only things the link decides are _which team_ the sign-up joins and that it needs nobody’s approval.',
+      },
+    },
+
+    team: {
+      title: 'Make the team first',
+      body: [
+        'Open your event and go to the **Teams & Draft** tab. Create one team per clan you’ve invited and name it after them — the name is what their players see on the sign-up form, so “Ironforge” beats “Team 2”.',
+        'You do _not_ need to run a draft. Invite links and a draft are alternatives: a draft distributes a shared sign-up pool, a link seats people directly. On a pure clan-v-clan most hosts create the teams, hand out one link each, and never open the draft at all.',
+        'Then open the team itself — **Teams & Draft → the team** — which is where both of the next two steps live.',
+      ],
+      captainNote: {
+        tag: 'Captain first',
+        body: 'Name the visiting side’s captain before you hand out the link, so the team page has an owner from the start. Naming a captain also seats them on the team; if the card warns you they aren’t on the roster, take the fix it offers.',
+      },
+    },
+
+    staff: {
+      title: 'Hand their moderator a seat',
+      body: [
+        'The **Team staff** panel on the team page is how the visiting clan’s own moderator gets to work without you granting them anything on your site. Press **Add someone**, search for them, add a note like “Ironforge’s mod” so the next admin knows why they’re there, and press **Give a seat**.',
+      ],
+      figure: {
+        caption: 'Event → Teams & Draft → the team → Team staff',
+        alt: 'The Team staff panel with one seat granted and the add-someone search open',
+        legend: [
+          {
+            label: 'Add someone',
+            body: 'opens the search. Only people who have signed in here with Discord at least once can appear — see the note below.',
+          },
+          {
+            label: 'The note',
+            body: 'free text, 120 characters. Write which clan they are from. Seats outlive the event in the list, and “who is this person” is the question you will have in three months.',
+          },
+          {
+            label: 'Remove',
+            body: 'takes the seat back immediately. Do this when the event ends — a seat is not automatically time-limited.',
+          },
+        ],
+      },
+      canDo: 'What a seat can do, on that team only:',
+      canDoList: [
+        'see and manage the team’s roster',
+        'handle its submissions and proof',
+        'mark its players’ fees paid',
+        'mint invite links for it, if you turn that on (next step but one)',
+      ],
+      cantDo: 'What it can never do:',
+      cantDoList: [
+        'touch any other team',
+        'edit the board or its tiles',
+        'make draft picks',
+        'sub anyone out once the event is live',
+      ],
+      note: {
+        tag: 'They must sign in here once first',
+        body: 'The search only lists accounts with a linked Discord — a seat is attached to a person who can actually log in. So send the visiting moderator to this site, have them press **Login** once, and _then_ grant the seat. If they don’t appear in the search, that login hasn’t happened yet.',
+      },
+    },
+
+    link: {
+      title: 'Mint the invite link',
+      body: [
+        'Still on the team page, the **Invite links** panel makes the link. Two fields decide what the link promises, and both take `0` to mean “don’t promise anything”.',
+      ],
+      figure: {
+        caption: 'Event → Teams & Draft → the team → Invite links',
+        alt: 'The Invite links panel with the seats and expiry fields, the Make a link button, and one live link listed',
+        legend: [
+          {
+            label: 'Seats and expiry',
+            body: 'how many people the link may seat (up to 100) and how long it stays good for (up to 30 days). Set the seats to the roster size they promised you and the link closes itself when they’re all in; set an expiry when the link is going into a public Discord. `0` in either field means no limit.',
+          },
+          {
+            label: 'Make a link',
+            body: 'mints it and copies it to your clipboard straight away. Paste it to them before you do anything else.',
+          },
+          {
+            label: 'The live list',
+            body: 'every link this team has out, with how many have joined and how many seats are left. **Copy** grabs it again; **Turn off** kills it for good.',
+          },
+        ],
+      },
+      shape: 'The link looks like `{origin}/events/{eventId}/join/{token}` — one line, safe to paste into a Discord message.',
+      note: {
+        tag: 'Sensible defaults',
+        body: 'For a clan-v-clan where you’ve agreed a roster with one moderator, leave both fields at `0` and let them run it. Reach for seats and expiry when the link is going somewhere you don’t control.',
+      },
+      revoke:
+        'Turning a link off is instant and does not remove anyone who already joined — they are ordinary players on that team now. To take someone off, use the team’s roster.',
+    },
+
+    captains: {
+      title: 'Let them mint their own links',
+      body: [
+        'By default only a host can make links, and a captain who tries is told so. That default is right for a normal clan event — a captain handing out seats would be filling a roster nobody approved — and wrong for a clan-v-clan, where the visiting side knows its own roster better than you do.',
+        'The switch is on the same **Invite links** panel: **Let captains make their own links**. It applies to _every team in this event_, not just the one you’re looking at, which is what you want when both sides are visiting clans.',
+        'With it on, the team’s captain and anyone holding a staff seat can mint links themselves from **My Team → Invite links**. They get the same panel you do, minus the switch.',
+      ],
+      figure: {
+        caption: 'My Team → the team → Invite links',
+        alt: 'The captain-side Invite links tab on the team hub, with the seats and expiry fields and one live link',
+        legend: [
+          {
+            label: 'Same panel, captain’s view',
+            body: 'mint, copy, turn off. If the host hasn’t turned the switch on, this reads “Only a host can make links for this event” and the fields are gone.',
+          },
+          {
+            label: 'The live list',
+            body: 'a captain who can’t mint still sees the links their team has out — so they can ask you for another instead of assuming none exist.',
+          },
+        ],
+      },
+    },
+
+    player: {
+      title: 'What their players see',
+      intro: 'Worth walking once yourself before you hand the link out, so you can answer questions about it.',
+      steps: [
+        'They open the link. If they’re not signed in, they sign in with Discord first and come straight back — the link isn’t lost on the way.',
+        'They land on the ordinary sign-up form, with a banner reading **You’re joining {teamExample} by invite**. Same questions, same account picker, same fee as anyone else.',
+        'On submit they are on that team, approved. No host action, no draft.',
+      ],
+      figure: {
+        caption: 'The sign-up form, opened through an invite link',
+        alt: 'The event sign-up form with a banner saying the player is joining a named team by invite',
+        legend: [
+          {
+            label: 'The invite banner',
+            body: 'names the team they are about to join. If it names the wrong team, they have the wrong link — stop and check before submitting.',
+          },
+          {
+            label: 'The rest of the form',
+            body: 'unchanged. A verified RSN is still required, sign-up questions are still asked, and a sign-up fee still applies.',
+          },
+        ],
+      },
+      note: {
+        tag: 'Already signed up?',
+        body: 'If someone signed up normally first and is sitting in the pool, opening the link moves them onto the team instead of creating a second entry. Someone already approved onto another team is left alone — move them from the roster instead.',
+      },
+    },
+
+    dead: {
+      title: 'When a link stops working',
+      intro:
+        'A refused link explains itself on the page rather than 404ing, so the person holding it can tell you which of these it is.',
+      rows: [
+        {
+          term: 'This invite has been turned off.',
+          body: 'Someone pressed **Turn off**. Mint a fresh one — an old link never comes back.',
+        },
+        {
+          term: 'This invite has expired.',
+          body: 'It hit the hours you set. Mint another, with `0` hours this time if the expiry isn’t earning its keep.',
+        },
+        {
+          term: 'This invite is full.',
+          body: 'Every seat is taken. Raise it by minting a new link with more seats — the seat count is fixed once a link exists.',
+        },
+        {
+          term: 'Sign-ups for this event aren’t open.',
+          body: 'The only one that can fix itself. Check the event’s sign-up window: opened yet, deadline passed, or the event already started.',
+        },
+        {
+          term: 'That invite belongs to a different event.',
+          body: 'A link from another board got pasted. Check the event id in the URL matches the one you meant.',
+        },
+      ],
+      checklist: 'Before the event, walk this list once per visiting clan:',
+      checklistItems: [
+        'their team exists and is named after them',
+        'their captain is named and seated',
+        'their moderator has signed in here and holds a staff seat',
+        'the link is minted, copied, and actually delivered to a human',
+        'the sign-up window is open for as long as they need it',
+      ],
+      note: {
+        tag: 'When it’s over',
+        body: 'Turn the links off and remove the staff seats. Neither expires on its own, and a live link on a finished event is just a loose end.',
+      },
+    },
+  },
 };
 
 export type GuideDict = typeof en;
