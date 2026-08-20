@@ -15,10 +15,20 @@
 //     Unrevealed boards are the one exception and stay hidden here too.
 
 import { db } from '@/db';
-import { events, players, teams, tiles, completions, clanMembers, settings } from '@/db/schema';
+import { events, players, teams, tiles, completions, clanMembers, settings, eventSignups } from '@/db/schema';
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
-import { parseEventRules, hasRevealPolicy, visibleTiles, boardTiles, missionTiles, type EventRules } from '@/lib/eventRules';
+import {
+  parseEventRules,
+  hasRevealPolicy,
+  visibleTiles,
+  boardTiles,
+  missionTiles,
+  nextRevealAt,
+  nextMissionAt,
+  type EventRules,
+} from '@/lib/eventRules';
+import { signupWindowState } from '@/lib/signup';
 import { computePrizePool, countApprovedSignups } from '@/lib/prizePool';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { eventShapeBadge } from '@/lib/utils';
@@ -43,7 +53,7 @@ import {
   type EventContext,
   type CrossClanContext,
 } from '@/lib/discordContext';
-import { COMMAND_NAME } from '@/lib/discordCommandDefs';
+import { COMMAND_DEFINITIONS, COMMAND_NAME } from '@/lib/discordCommandDefs';
 import {
   embedReply,
   textReply,
@@ -621,6 +631,183 @@ async function teamEmbed(
   };
 }
 
+// ── /bingo apply ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * How someone gets into the event, and where they already stand.
+ *
+ * "Can I still sign up?" has four different answers depending on the clock — not open yet, open,
+ * closed, event already started — and they're the four states lib/signup.signupWindowState already
+ * distinguishes. Reusing it means Discord and the web sign-up page can't disagree about whether the
+ * door is open, which they would within a week of me re-deriving it here.
+ */
+async function applyEmbed(
+  clan: ClanContext,
+  event: EventContext,
+  cross: CrossClanContext,
+  memberIds: number[],
+): Promise<DiscordEmbed> {
+  const row = await db.query.events.findFirst({ where: eq(events.id, event.id) });
+  const window = signupWindowState({
+    signupOpensAt: row?.signupOpensAt ?? null,
+    signupDeadline: row?.signupDeadline ?? null,
+    startDate: row?.startDate ?? null,
+  });
+
+  // Where THEY stand comes first: someone already approved doesn't need the sign-up pitch.
+  const mine = memberIds.length
+    ? await db
+        .select({ status: eventSignups.status })
+        .from(eventSignups)
+        .where(and(eq(eventSignups.eventId, event.id), inArray(eventSignups.clanMemberId, memberIds)))
+    : [];
+  const already = mine[0]?.status ?? null;
+  const onTeam = memberIds.length ? await myTeamId(event.id, memberIds) : null;
+
+  const body: string[] = [];
+  if (onTeam) {
+    body.push("**You're in** — already drafted onto a team. Nothing left to do but play.");
+  } else if (already === 'approved') {
+    body.push("**You're signed up and approved.** You'll be placed on a team before the event starts.");
+  } else if (already === 'pending') {
+    body.push('**Your sign-up is in** and waiting on staff to approve it. Nothing more to do.');
+  } else if (window.open) {
+    body.push('**Sign-ups are open.**');
+  } else {
+    body.push(
+      window.reason === 'not_open_yet'
+        ? "**Sign-ups haven't opened yet.**"
+        : window.reason === 'event_started'
+          ? '**The event has started**, so sign-ups are closed. Ask staff if there is still room.'
+          : '**Sign-ups are closed.**',
+    );
+  }
+
+  // Only pitch the door when it's actually open and they aren't already through it.
+  if (!already && !onTeam && window.open) {
+    const deadline = relativeTs(row?.signupDeadline ?? null);
+    if (deadline) body.push(`They close ${deadline}.`);
+    if (row?.signupFee) {
+      body.push(
+        `Entry is ${code(formatGp(row.signupFee))}${row.feeMode === 'per-account' ? ' per account' : ''} — staff will tell you where to send it.`,
+      );
+    }
+    if (clan.origin) body.push('', `**Sign up:** ${clan.origin}/events/${event.id}`);
+  } else if (!already && !onTeam && window.reason === 'not_open_yet') {
+    const opens = relativeTs(row?.signupOpensAt ?? null);
+    if (opens) body.push(`They open ${opens}.`);
+  }
+
+  // The roster gate is the thing that surprises people: signing up needs an account Anvil knows.
+  if (memberIds.length === 0) {
+    body.push(
+      '',
+      `-# Anvil doesn't know your account yet. Link your RSN first${clan.origin ? ` at ${clan.origin}/profile` : ' on your profile page'} — sign-ups attach to an account, not a Discord name.`,
+    );
+  }
+
+  body.push('', contextLine(clan, event, cross));
+
+  return {
+    title: clamp(`📝 ${event.name} — getting in`, LIMIT.title),
+    url: eventUrl(clan, event.id),
+    description: clamp(body.join('\n'), LIMIT.description),
+    color: onTeam || already === 'approved' ? EMBED_COLOR.green : window.open ? EMBED_COLOR.gold : EMBED_COLOR.blue,
+    author: authorOf(clan),
+  };
+}
+
+// ── /bingo next ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The next thing on the clock. On a drip-feed board that's the next draw; on a board with missions
+ * it may be the next mission; otherwise it's the start or the end. Everything here is a Discord
+ * relative timestamp, so it ticks by itself in whatever timezone the reader is in — the one thing a
+ * static "in about 3 hours" can never do.
+ */
+async function nextEmbed(clan: ClanContext, event: EventContext, cross: CrossClanContext): Promise<DiscordEmbed> {
+  const [row, allTiles] = await Promise.all([
+    db.query.events.findFirst({ where: eq(events.id, event.id) }),
+    db
+      .select({ id: tiles.id, mission: tiles.mission, revealAt: tiles.revealAt, revealedAt: tiles.revealedAt, closedAt: tiles.closedAt })
+      .from(tiles)
+      .where(eq(tiles.eventId, event.id)),
+  ]);
+  const rules = parseEventRules(row?.rules);
+
+  const upcoming: { what: string; at: string }[] = [];
+  if (event.phase === 'upcoming' && row?.startDate) upcoming.push({ what: '🚩 Event starts', at: row.startDate });
+  if (event.phase === 'running' && row?.endDate) upcoming.push({ what: '🏁 Event ends', at: row.endDate });
+
+  const reveal = nextRevealAt({ startDate: row?.startDate ?? null, rules: row?.rules }, rules, allTiles);
+  if (reveal) upcoming.push({ what: '🎲 Next tile drawn', at: reveal });
+
+  const mission = nextMissionAt({ startDate: row?.startDate ?? null }, rules, allTiles);
+  if (mission) upcoming.push({ what: '⚡ Next mission', at: mission });
+
+  if (row?.signupDeadline && event.phase === 'upcoming') {
+    upcoming.push({ what: '📝 Sign-ups close', at: row.signupDeadline });
+  }
+
+  const body: string[] = [];
+  if (upcoming.length === 0) {
+    body.push(
+      event.phase === 'ended'
+        ? 'Nothing left on the clock — this board has finished.'
+        : 'Nothing scheduled. Staff drop the next thing when they drop it.',
+    );
+  } else {
+    // Soonest first: "what's next" is a question about the top of this list.
+    body.push(
+      ...upcoming
+        .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+        .map((u) => `${u.what} — ${relativeTs(u.at)}`),
+    );
+  }
+
+  // A mission pool that still has entries is worth saying even when its timing is staff's call.
+  const hiddenMissions = missionTiles(allTiles).filter((t) => !t.revealedAt).length;
+  if (hiddenMissions > 0 && !mission) {
+    body.push('', `-# ${hiddenMissions} mission${hiddenMissions === 1 ? '' : 's'} still to come, announced when staff drop them.`);
+  }
+
+  body.push('', contextLine(clan, event, cross));
+
+  return {
+    title: clamp(`⏭️ ${event.name} — what's next`, LIMIT.title),
+    url: eventUrl(clan, event.id),
+    description: clamp(body.join('\n'), LIMIT.description),
+    color: EMBED_COLOR.blue,
+    author: authorOf(clan),
+  };
+}
+
+// ── /bingo help ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What the bot can answer. Built from SUBCOMMAND_NAMES and the registered descriptions rather than a
+ * hand-written list, so a command added to the tree can't be missing from its own help.
+ */
+function helpEmbed(clan: ClanContext, event: EventContext | null, cross: CrossClanContext): DiscordEmbed {
+  const subs = (COMMAND_DEFINITIONS.find((c) => c.name === COMMAND_NAME)?.options ?? []) as readonly {
+    name: string;
+    description: string;
+  }[];
+  const body = [
+    ...subs.map((o) => `${code(`/${COMMAND_NAME} ${o.name}`)} — ${o.description}`),
+    '',
+    '-# Answers are only visible to you. Add `share: true` to any of them to post one in the channel.',
+    '',
+    contextLine(clan, event, cross),
+  ];
+  return {
+    title: '🔨 What Anvil can tell you',
+    description: clamp(body.join('\n'), LIMIT.description),
+    color: EMBED_COLOR.gold,
+    author: authorOf(clan),
+  };
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────────────────────────────
 
 /** The team the invoker plays for on this event, if any — the default subject of `/bingo team`. */
@@ -664,6 +851,18 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<InteractionRe
   async leaderboard({ clan, event, cross, memberIds, ephemeral }) {
     const teamId = await myTeamId(event.id, memberIds);
     return embedReply([await leaderboardEmbed(clan, event, cross, teamId)], { ephemeral });
+  },
+
+  async apply({ clan, event, cross, memberIds, ephemeral }) {
+    return embedReply([await applyEmbed(clan, event, cross, memberIds)], { ephemeral });
+  },
+
+  async next({ clan, event, cross, ephemeral }) {
+    return embedReply([await nextEmbed(clan, event, cross)], { ephemeral });
+  },
+
+  async help({ clan, event, cross, ephemeral }) {
+    return embedReply([helpEmbed(clan, event, cross)], { ephemeral });
   },
 
   async me({ clan, event, cross, memberIds, who, ephemeral }) {
