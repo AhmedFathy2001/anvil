@@ -107,6 +107,23 @@ export async function middleware(request: NextRequest) {
       // clan, schedule, and verifications. Admin-only sections (events, players, staff,
       // integrations) redirect them home — unless they hold the authoring capability, which adds
       // the events list and Tiles tab on top.
+      // A BOARD treasurer (role 'treasurer' + scope 'assigned') is not clan staff: they run the
+      // money on the events they were granted and nothing else. Same shape as a board-scoped
+      // editor — the events list (filtered server-side to their boards) and, inside one, only the
+      // tabs where money lives.
+      if (role === 'treasurer' && data.treasurerScope === 'assigned') {
+        const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
+        if (!canEvents) {
+          return NextResponse.redirect(new URL('/admin/events', request.url));
+        }
+        const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
+        const tab = eventPage?.[2] ?? '';
+        if (eventPage && !tab.startsWith('/payouts') && !tab.startsWith('/signups')) {
+          return NextResponse.redirect(new URL(`/admin/events/${eventPage[1]}/payouts`, request.url));
+        }
+        return NextResponse.next();
+      }
+
       if (role === 'moderator' || role === 'treasurer') {
         const allowed = [
           '/admin/dashboard',

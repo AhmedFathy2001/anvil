@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { verifyFeeCollector } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import { del } from '@/lib/storage';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 
@@ -13,15 +13,15 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
-  const session = await verifyFeeCollector();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
   const id = parseInt(payoutId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
+  // Event-scoped: an admin, a clan treasurer, or this board's own treasurer.
+  const session = await verifyEventTreasurer(eId);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as { proofUrl?: string; notes?: string } | null;
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanAuditLog, clanMembers, events, eventSignups, players, signupFees, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
-import { generatePlayerToken, verifyAdminOrModerator, verifyUser } from '@/lib/auth';
+import { generatePlayerToken, verifyAdminOrModerator, verifyEventTreasurer, verifyUser } from '@/lib/auth';
 import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
 
@@ -10,15 +10,17 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  const session = await verifyAdminOrModerator();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+
+  // Clan staff, or this board's own treasurer — the fee rows they're here to work through hang off
+  // these sign-ups, so refusing the list would leave them a tab with nothing on it.
+  const session = (await verifyAdminOrModerator()) ?? (await verifyEventTreasurer(id));
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const rows = await db

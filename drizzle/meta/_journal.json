@@ -456,6 +456,13 @@
       "when": 1787180147219,
       "tag": "0064_signup-team-request",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "6",
+      "when": 1787184118100,
+      "tag": "0065_board-treasurers",
+      "breakpoints": true
     }
   ]
 }

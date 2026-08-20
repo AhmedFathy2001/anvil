@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import PayoutsClient from './PayoutsClient';
 
 export const dynamic = 'force-dynamic';
@@ -12,11 +12,12 @@ export default async function EventPayoutsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  const session = await verifyAdminOrModerator();
-  if (!session) redirect('/admin');
-
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+
+  // Per board, not per clan: this is the page a treasurer granted one event actually comes for.
+  const session = await verifyEventTreasurer(id);
+  if (!session) redirect('/admin');
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();

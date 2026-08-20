@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { put } from '@/lib/storage';
 import crypto from 'crypto';
-import { verifyFeeCollector } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 
 // Payout proofs are stored under `payouts/` so the unpay/delete actions can remove them individually.
 // Mirrors the fee-proof upload: admin-or-treasurer only, image validation, 10 MB cap.
@@ -18,8 +18,18 @@ const ALLOWED_TYPES = [
 const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
 const MAX_SIZE = 10 * 1024 * 1024;
 
-export async function POST(request: Request) {
-  if (!(await verifyFeeCollector())) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> },
+) {
+  // The route sits under an event but never read its id, because the old gate was clan-wide. A
+  // per-board treasurer can only upload proof for their own board, so now it does.
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  if (!Number.isFinite(eId)) {
+    return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  if (!(await verifyEventTreasurer(eId))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

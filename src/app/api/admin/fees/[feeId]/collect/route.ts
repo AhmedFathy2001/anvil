@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyFeeCollector } from '@/lib/auth';
-import { markFeeCollected } from '@/lib/feeConfirmations';
+import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
+import { eventIdForFee, markFeeCollected } from '@/lib/feeConfirmations';
 
 // A treasurer/admin claims they collected the fee in-game and uploads proof.
 //
@@ -16,15 +16,19 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ feeId: string }> },
 ) {
-  const session = await verifyFeeCollector();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { feeId } = await params;
   const id = parseInt(feeId, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid fee id' }, { status: 400 });
+  }
+
+  // A clan treasurer collects anywhere; a board treasurer only on the board they were granted, so
+  // the fee has to say which event it belongs to before we know whether they may touch it.
+  const eventId = await eventIdForFee(id);
+  const session =
+    (await verifyFeeCollector()) ?? (eventId != null ? await verifyEventTreasurer(eventId) : null);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as {

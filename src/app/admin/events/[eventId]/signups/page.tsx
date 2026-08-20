@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyAdminOrModerator, verifyEventTreasurer } from '@/lib/auth';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import SignupsClient from './SignupsClient';
 
@@ -13,11 +13,12 @@ export default async function EventSignupsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  const session = await verifyAdminOrModerator();
-  if (!session) redirect('/admin');
-
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+
+  // Clan staff, or whoever runs THIS board's money — the fees they were granted live on this tab.
+  const session = (await verifyAdminOrModerator()) ?? (await verifyEventTreasurer(id));
+  if (!session) redirect('/admin');
 
   const [event, confirmationsRequired] = await Promise.all([
     db.query.events.findFirst({ where: eq(events.id, id) }),
