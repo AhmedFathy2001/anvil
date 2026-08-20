@@ -1046,3 +1046,59 @@ export function syncRolesForClanMemberFireAndForget(memberId: number): void {
     log.warn('discord-roles.sync-throw', { memberId }, err);
   });
 }
+
+/**
+ * The Discord APPLICATION's Ed25519 verify key — what inbound interactions are signed with.
+ *
+ * Nobody should have to type this. It's on the application object, so the first time an interaction
+ * arrives we ask Discord for it with the bot token we already hold and cache it in settings. An env
+ * var still wins for a self-host that would rather pin it, and the cache is keyed on the app id so
+ * swapping to a different bot token re-fetches instead of verifying against the old app's key.
+ *
+ * Returns null when no bot token is configured (nothing can be verified, so the endpoint 401s).
+ */
+const APP_PUBLIC_KEY_SETTING = 'discord_app_public_key';
+
+export async function getAppPublicKey(): Promise<string | null> {
+  const fromEnv = process.env.DISCORD_PUBLIC_KEY?.trim();
+  if (fromEnv) return fromEnv;
+
+  const cached = (await readSetting(APP_PUBLIC_KEY_SETTING))?.trim();
+  if (cached) {
+    const [appId, key] = cached.split(':');
+    if (appId && key) {
+      const token = await resolveBotToken();
+      // Only reuse the cache while it belongs to the app the current token authenticates as.
+      if (token && appId === applicationIdFromToken(token.token)) return key;
+    }
+  }
+
+  const resolved = await resolveBotToken();
+  if (!resolved) return null;
+  const res = await discordRest(resolved.token, '/applications/@me');
+  if (!res.ok) return null;
+  const app = (await res.json().catch(() => null)) as { id?: string; verify_key?: string } | null;
+  if (!app?.verify_key || !app.id) return null;
+  await upsertAppPublicKey(`${app.id}:${app.verify_key}`);
+  return app.verify_key;
+}
+
+/** A bot token's first dot-segment is the base64url application id — no API call needed. */
+function applicationIdFromToken(token: string): string | null {
+  const head = token.split('.')[0];
+  if (!head) return null;
+  try {
+    return Buffer.from(head, 'base64url').toString('utf8') || null;
+  } catch {
+    return null;
+  }
+}
+
+async function upsertAppPublicKey(value: string): Promise<void> {
+  const existing = await db.query.settings.findFirst({ where: eq(settings.key, APP_PUBLIC_KEY_SETTING) });
+  if (existing) {
+    await db.update(settings).set({ value }).where(eq(settings.key, APP_PUBLIC_KEY_SETTING));
+  } else {
+    await db.insert(settings).values({ key: APP_PUBLIC_KEY_SETTING, value });
+  }
+}

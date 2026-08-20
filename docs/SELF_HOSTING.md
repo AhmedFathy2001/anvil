@@ -53,10 +53,14 @@ You do **not** need: a managed database, Vercel, Turso, a Redis, or a queue.
 ### Optional: the Discord bot (role + nickname sync, team channels, auto-webhooks)
 
 1. **Bot** tab → **Reset Token** → `DISCORD_BOT_TOKEN`.
-2. **OAuth2 → URL Generator**: scope `bot`, permissions **Manage Roles** (plus **Manage
-   Channels** for team channels, **Manage Nicknames** for RSN nickname sync, **Manage
-   Webhooks** if you want Anvil to create its own webhooks). Open the generated URL to
-   add the bot to your server.
+2. **OAuth2 → URL Generator**: scopes `bot` **and** `applications.commands`, permissions
+   **Manage Roles** (plus **Manage Channels** for team channels, **Manage Nicknames** for
+   RSN nickname sync, **Manage Webhooks** if you want Anvil to create its own webhooks).
+   Open the generated URL to add the bot to your server.
+   - `applications.commands` is what makes the `/bingo` slash commands appear. It's granted
+     separately from `bot`, so a bot invited without it works perfectly and shows no
+     commands at all. Re-opening the invite link and re-authorizing adds it — that doesn't
+     kick the bot or reset its permissions. See [DISCORD_COMMANDS.md](DISCORD_COMMANDS.md).
 3. In **Server Settings → Roles**, drag the bot's role **above** every role it manages
    (Discord hierarchy rule).
 4. Everything else is configured in-app at `/admin/integrations` and `/admin/clan` — no

@@ -315,6 +315,30 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             </FieldHeader>
             <BalanceRatesSetting />
           </Card>
+          <Card>
+            <FieldHeader title="House rules">
+              Your clan&apos;s own rules, in your words — what the Discord bot lays out on{' '}
+              <code className="text-gold">/bingo rules</code>. How each board scores (points, lockout, reveals,
+              starting shot) is read off the event itself and never typed here, so this is only the prose:
+              screenshots, plugin use, what counts as cheating.
+            </FieldHeader>
+            <PlainSetting
+              settingKey="board_rules"
+              label="House rules"
+              multiline
+              rows={12}
+              placeholder={'Keep a screenshot of every drop.\nRun the plugin if you can.\nDon\'t cheat — it\'s for fun.'}
+              helpText="Discord markdown works (**bold**, bullet lists). Long rulesets are trimmed to fit an embed, so put the essentials first and link the rest below."
+            />
+            <div className="border-t border-card-border pt-4 mt-4">
+              <PlainSetting
+                settingKey="board_rules_url"
+                label="Full rules link"
+                placeholder="https://…"
+                helpText="Where the complete ruleset lives. Shown under the house rules in Discord, and the fallback when they're too long to post in full."
+              />
+            </div>
+          </Card>
         </div>
       )}
 
