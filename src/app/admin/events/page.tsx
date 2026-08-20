@@ -22,11 +22,16 @@ export default async function AdminEventsPage() {
   // Board-scoped editors only ever see the events they're granted — and never the weekly
   // competitions surface (that stays a broader-staff tool). Everyone else sees everything.
   const isScopedEditor = session?.role === 'editor' && session.editorScope === 'assigned';
-  const assignedIds = isScopedEditor ? new Set(await assignedEventIdsForUser(session!.userId)) : null;
+  // A board treasurer is scoped the same way, by their treasurer grants rather than editor ones.
+  const isBoardTreasurer = session?.role === 'treasurer' && session.treasurerScope === 'assigned';
+  const scoped = isScopedEditor || isBoardTreasurer;
+  const assignedIds = scoped
+    ? new Set(await assignedEventIdsForUser(session!.userId, isScopedEditor ? 'editor' : 'treasurer'))
+    : null;
 
   const [allEventsRaw, allWeeklyRaw] = await Promise.all([
     db.select().from(events).orderBy(desc(events.createdAt)),
-    isScopedEditor
+    scoped
       ? Promise.resolve([])
       : db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate)),
   ]);

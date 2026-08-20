@@ -498,6 +498,11 @@ export const users = sqliteTable('users', {
   // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
   // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
   editorScope: text('editor_scope').notNull().default('all'),
+  // The same shape for MONEY. 'all' = a clan treasurer (every event's fees and payouts); 'assigned'
+  // = they only hold per-board treasurer grants, so they reach one board's Sign-ups and Payouts
+  // tabs and nothing else. Auto-provisioned by the first grant and reversed by the last revoke,
+  // exactly like editorScope. See lib/eventEditors.
+  treasurerScope: text('treasurer_scope').notNull().default('all'),
   // Tile authoring as a CAPABILITY rather than a role. `role` is the base tier (member <
   // moderator < treasurer < admin) and this rides on top of any of them, so "a moderator who
   // builds boards" or "a treasurer who does fees AND tiles" is one checkbox instead of a new role
@@ -550,19 +555,23 @@ export const users = sqliteTable('users', {
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
 ]);
 
-// Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though
-// they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
-// by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
-// the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
+// Board-scoped staff grants. A row means `userId` may do ONE job on `eventId` without holding the
+// clan-wide role for it — the per-board alternative to 'editor' (authoring) and 'treasurer' (money).
+// Enforced by verifyTileEditorForEvent / verifyEventTreasurer (auth.ts) and managed via
+// lib/eventEditors. Cascades away with either the event or the user. The table kept its original
+// name from when authoring was the only board-scoped job.
 export const eventEditors = sqliteTable('event_editors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 'editor' = author this board's tiles. 'treasurer' = collect its fees and run its payouts.
+  // One row per (event, user, role): the same person can hold both jobs on one board.
+  role: text('role').notNull().default('editor'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   // The admin who granted this (audit only; nullable for system/backfill rows).
   grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
-  uniqueIndex('event_editors_event_user_unique').on(table.eventId, table.userId),
+  uniqueIndex('event_editors_event_user_role_unique').on(table.eventId, table.userId, table.role),
   index('event_editors_user_idx').on(table.userId),
 ]);
 

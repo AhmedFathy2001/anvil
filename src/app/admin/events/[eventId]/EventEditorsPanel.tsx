@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 
-// Admin-only panel (Overview tab) for granting board-scoped tile editing on THIS event. Adding a
-// plain member auto-provisions the minimal login access they need to reach the Tiles tab; removing
-// their last grant reverses it. Backed by /api/events/[eventId]/editors.
+// Admin-only panel (Overview tab) for granting board-scoped jobs on THIS event: authoring its
+// tiles, or running its money (sign-up fees + payouts). Adding a plain member auto-provisions the
+// minimal login access they need to reach that one tab; removing their last grant reverses it.
+// Backed by /api/events/[eventId]/editors.
+
+type BoardRole = 'editor' | 'treasurer';
 
 interface EditorRow {
   userId: number;
+  /** Which job this grant is for. */
+  boardRole: BoardRole;
   displayName: string;
   discordUsername: string | null;
   role: string;
@@ -27,6 +32,11 @@ function editsAllBoards(role: string, editorScope: string): boolean {
   return role === 'admin' || (role === 'editor' && editorScope === 'all');
 }
 
+const JOB = {
+  editor: { label: 'Board editor', blurb: 'builds and edits this board\u2019s tiles' },
+  treasurer: { label: 'Board treasurer', blurb: 'collects this board\u2019s fees and runs its payouts' },
+} as const;
+
 export default function EventEditorsPanel({ eventId }: { eventId: number }) {
   const [editors, setEditors] = useState<EditorRow[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -34,6 +44,8 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  // Which job the next grant is for. Defaults to authoring, which is what this panel was.
+  const [job, setJob] = useState<BoardRole>('editor');
 
   const load = useCallback(async () => {
     try {
@@ -52,7 +64,12 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
     void load();
   }, [load]);
 
-  const grantedIds = useMemo(() => new Set(editors.map((e) => e.userId)), [editors]);
+  // Per JOB: someone who edits this board can still be given its money, so only the same job hides
+  // them from the picker.
+  const grantedIds = useMemo(
+    () => new Set(editors.filter((e) => e.boardRole === job).map((e) => e.userId)),
+    [editors, job],
+  );
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -72,30 +89,32 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
       const res = await fetch(`/api/events/${eventId}/editors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, role: job }),
       });
       if (res.ok) {
         setQuery('');
         await load();
       } else {
         const d = await res.json().catch(() => ({}));
-        setError(d.error || 'Could not add editor.');
+        setError(d.error || 'Could not add them.');
       }
     } finally {
       setBusyId(null);
     }
   }
 
-  async function remove(userId: number) {
+  async function remove(userId: number, role: BoardRole) {
     setBusyId(userId);
     setError('');
     try {
-      const res = await fetch(`/api/events/${eventId}/editors?userId=${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/events/${eventId}/editors?userId=${userId}&role=${role}`, {
+        method: 'DELETE',
+      });
       if (res.ok) {
         await load();
       } else {
         const d = await res.json().catch(() => ({}));
-        setError(d.error || 'Could not remove editor.');
+        setError(d.error || 'Could not remove them.');
       }
     } finally {
       setBusyId(null);
@@ -106,12 +125,13 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
     <div className="border border-card-border rounded-xl p-5 bg-card-bg">
       <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
         <span className="w-1 h-5 bg-gold rounded-full" />
-        Board editors
+        Board staff
       </h2>
       <p className="text-sm text-text-muted mb-4">
-        Let specific people build and edit <span className="text-foreground/80">only this board&apos;s</span> tiles,
-        without the all-events Editor role. Adding a regular member gives them just enough access to
-        reach this board&apos;s Tiles tab.
+        Hand one job on <span className="text-foreground/80">only this board</span> to someone who
+        shouldn&apos;t have it everywhere: authoring its tiles, or running its money. Adding a regular
+        member gives them just enough access to reach that one tab — useful when a visiting clan
+        brings its own treasurer for a clan-v-clan.
       </p>
 
       {loading ? (
@@ -121,18 +141,26 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
           {editors.length > 0 ? (
             <ul className="mb-4 divide-y divide-card-border/50">
               {editors.map((e) => (
-                <li key={e.userId} className="flex items-center gap-2 py-2">
+                <li key={`${e.userId}-${e.boardRole}`} className="flex items-center gap-2 py-2">
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-medium text-foreground truncate">{e.displayName}</span>
                     {e.discordUsername && (
                       <span className="text-xs text-text-muted ml-1.5 truncate">@{e.discordUsername}</span>
                     )}
                   </div>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light capitalize shrink-0">
-                    {editsAllBoards(e.role, e.editorScope) ? 'edits all boards' : 'board editor'}
+                  <span
+                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                      e.boardRole === 'treasurer'
+                        ? 'bg-gold/15 text-gold'
+                        : 'bg-accent-green/15 text-accent-green-light'
+                    }`}
+                  >
+                    {e.boardRole === 'editor' && editsAllBoards(e.role, e.editorScope)
+                      ? 'edits all boards'
+                      : JOB[e.boardRole].label.toLowerCase()}
                   </span>
                   <button
-                    onClick={() => remove(e.userId)}
+                    onClick={() => remove(e.userId, e.boardRole)}
                     disabled={busyId === e.userId}
                     className="text-xs font-medium px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
                   >
@@ -142,11 +170,27 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-text-muted mb-4">No board editors yet.</p>
+            <p className="text-sm text-text-muted mb-4">Nobody has a job on this board yet.</p>
           )}
 
+          <div className="mb-2 flex gap-1.5">
+            {(['editor', 'treasurer'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setJob(k)}
+                className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition-colors ${
+                  job === k
+                    ? 'bg-gold text-brown-dark border-gold'
+                    : 'border-card-border text-text-muted hover:text-foreground'
+                }`}
+              >
+                {JOB[k].label}
+              </button>
+            ))}
+          </div>
           <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
-            Add a board editor
+            Add someone who {JOB[job].blurb}
           </label>
           <Input
             type="text"
@@ -158,7 +202,9 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
           {matches.length > 0 && (
             <ul className="mt-2 border border-card-border rounded-lg overflow-hidden divide-y divide-card-border/50">
               {matches.map((c) => {
-                const redundant = editsAllBoards(c.role, c.editorScope);
+                // Only the authoring job can be redundant this way; a clan treasurer is a role, and
+                // granting one a board is harmless (and how you record who ran which event's money).
+                const redundant = job === 'editor' && editsAllBoards(c.role, c.editorScope);
                 return (
                   <li key={c.id} className="flex items-center gap-2 px-3 py-2 bg-brown-dark/30">
                     <div className="min-w-0 flex-1">

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyFeeCollector } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import { savePlacementPrizes } from '@/lib/payouts';
 
 // POST — save the prize-per-placement structure on the event WITHOUT generating payout rows. Lets an
@@ -12,13 +12,14 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  if (!(await verifyFeeCollector())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  // Event-scoped: an admin, a clan treasurer, or whoever holds THIS board's treasurer grant.
+  if (!(await verifyEventTreasurer(id))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });

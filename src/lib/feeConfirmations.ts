@@ -188,6 +188,22 @@ export async function autoConfirmEventFees(eventId: number): Promise<number> {
   return closed;
 }
 
+/**
+ * Which event a fee belongs to, for the gates that only get a fee id.
+ *
+ * The fee routes are keyed by fee, not by event, because collecting money was a clan-wide job. A
+ * per-board treasurer changes that: their reach is one event, so the route has to find out which.
+ */
+export async function eventIdForFee(feeId: number): Promise<number | null> {
+  const row = await db
+    .select({ eventId: eventSignups.eventId })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .where(eq(signupFees.id, feeId))
+    .limit(1);
+  return row[0]?.eventId ?? null;
+}
+
 /** What a close-out did, split by what each fee was before it — the honest report for the UI. */
 export interface FeeCloseOut {
   /** Money a mod had already taken; settled rather than written off. */
