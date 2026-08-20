@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
+import { isPlatformPath } from '@/lib/clanScopedPaths';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -84,8 +85,37 @@ export async function middleware(request: NextRequest) {
   const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
   if (clanPath) {
     const [, slug, rest] = clanPath;
+    const inner = rest && rest !== '/' ? rest : '/';
+
+    // A PLATFORM path underneath a clan prefix is not that clan's page. `/c/theafkspot/leaderboard`
+    // rendered the platform leaderboard perfectly happily, which is wrong twice over: every apex
+    // page gained a second address that would drift from the first, and — the real hazard — it
+    // arrived carrying `x-anvil-clan-slug` for a clan the page never asked about. That is the
+    // header-injection shape again, just spelled in the URL instead of a header: anyone could pick
+    // the clan a platform route sees by choosing which prefix to walk in through.
+    //
+    // Split the same way as the old hostnames below, and for the same reason: pages move to the one
+    // canonical address, /api keeps answering where it is asked. Redirecting an API call would
+    // rewrite a POST body's destination under clients that handle 308 badly, for no gain — nothing
+    // legitimate builds these, since every link and fetch goes through withClanPrefix, which does
+    // not prefix a platform path in the first place. Dropping the header is the part that matters.
+    if (isPlatformPath(inner)) {
+      const url = request.nextUrl.clone();
+      url.pathname = inner;
+      if (inner.startsWith('/api/')) {
+        return NextResponse.rewrite(url, { request: { headers: downstream } });
+      }
+      // A RELATIVE Location, resolved by the browser against the address it actually typed. An
+      // absolute one built from request.nextUrl would hand back the container's own `:3000` and
+      // `http`, exactly as the hostname redirect below warns.
+      return new NextResponse(null, {
+        status: 308,
+        headers: { location: `${inner}${request.nextUrl.search}` },
+      });
+    }
+
     const url = request.nextUrl.clone();
-    url.pathname = rest && rest !== '/' ? rest : '/';
+    url.pathname = inner;
     downstream.set('x-anvil-clan-slug', slug);
     // The prefix, so anything building a link back out can reproduce it without re-parsing.
     downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
@@ -114,7 +144,12 @@ export async function middleware(request: NextRequest) {
       // Built from the apex rather than cloned from the request: the incoming URL carries the
       // container's own port and http scheme (Caddy terminates TLS in front), and cloning hands
       // both straight back to the browser as `https://apex:3000/...`.
-      const to = new URL(`/c/${slug}${pathname === '/' ? '' : pathname}`, `https://${apex}`);
+      // A platform page asked for on a clan hostname belongs to the apex, not under that clan's
+      // prefix — sending it to /c/<slug>/leaderboard would only bounce off the guard above, so go
+      // straight there. Note this reads `pathname`, the ORIGINAL path: on this branch no prefix has
+      // been stripped, because there was never one to strip.
+      const dest = isPlatformPath(pathname) ? pathname : `/c/${slug}${pathname === '/' ? '' : pathname}`;
+      const to = new URL(dest, `https://${apex}`);
       to.search = request.nextUrl.search;
       return NextResponse.redirect(to, 301);
     }

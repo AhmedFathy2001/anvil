@@ -68,6 +68,24 @@ export const PLATFORM_ROOTS = [
 ] as const;
 
 /**
+ * Does this path belong to the PLATFORM — the apex, no clan involved?
+ *
+ * Asked separately from `isClanScopedPath` because the two are not opposites. A path can be neither:
+ * an unrecognised one is deliberately left alone rather than guessed at. Only a positive answer here
+ * means "a clan prefix is meaningless on this path", which is a strong enough claim to redirect on.
+ */
+export function isPlatformPath(path: string): boolean {
+  if (!path.startsWith('/')) return false;
+  for (const root of PLATFORM_ROOTS) {
+    // The namespaces are written with a trailing slash to read as namespaces; compare bare so that
+    // `/c` itself matches too, and so `/clans` is not swallowed by `/c`.
+    const bare = root.endsWith('/') ? root.slice(0, -1) : root;
+    if (path === bare || path.startsWith(`${bare}/`) || path.startsWith(`${bare}?`)) return true;
+  }
+  return false;
+}
+
+/**
  * Does this path belong to a clan, and therefore take the prefix?
  *
  * Platform roots are checked FIRST because several are prefixes of clan ones — `/api/profile` would
@@ -75,11 +93,7 @@ export const PLATFORM_ROOTS = [
  */
 export function isClanScopedPath(path: string): boolean {
   if (!path.startsWith('/')) return false;
-  for (const root of PLATFORM_ROOTS) {
-    if (path === root || path.startsWith(root.endsWith('/') ? root : `${root}/`) || path === root.replace(/\/$/, '')) {
-      return false;
-    }
-  }
+  if (isPlatformPath(path)) return false;
   for (const root of [...CLAN_SCOPED_API_ROOTS, ...CLAN_SCOPED_ROOTS]) {
     if (path === root || path.startsWith(`${root}/`) || path.startsWith(`${root}?`)) return true;
   }

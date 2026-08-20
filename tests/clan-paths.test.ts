@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isClanScopedPath, withClanPrefix } from '../src/lib/clanScopedPaths.ts';
+import { isClanScopedPath, isPlatformPath, withClanPrefix } from '../src/lib/clanScopedPaths.ts';
 
 const P = '/c/theafkspot';
 
@@ -106,6 +106,72 @@ test('middleware strips the clan headers before it trusts anything', () => {
 
   const set = src.indexOf("downstream.set('x-anvil-clan-slug'");
   assert.ok(set > del, 'the delete has to come first, or it undoes nothing');
+});
+
+// ── A platform path underneath a clan prefix ──────────────────────────────────────────────────
+//
+// Found on the preview, not here: /c/theafkspot/leaderboard rendered the platform leaderboard, 200.
+// Two things wrong with that. Every apex page gained a second address, which is the drift the
+// hostname redirect below already exists to prevent — and it arrived carrying x-anvil-clan-slug for
+// a clan the page never asked about, which is the header-injection shape spelled in the URL.
+
+test('platform and clan-scoped are not opposites — a path can be neither', () => {
+  // The distinction the redirect rests on. Only a path we can positively call the platform's is
+  // safe to redirect; an unrecognised one under a prefix is probably a clan page not yet listed,
+  // and bouncing it to the apex would 404 something that works.
+  assert.equal(isPlatformPath('/leaderboard'), true);
+  assert.equal(isClanScopedPath('/leaderboard'), false);
+
+  assert.equal(isPlatformPath('/events/5'), false);
+  assert.equal(isClanScopedPath('/events/5'), true);
+
+  assert.equal(isPlatformPath('/something-unlisted'), false, 'not claimed');
+  assert.equal(isClanScopedPath('/something-unlisted'), false, 'not claimed the other way either');
+});
+
+test('the clan home is not a platform path, so the prefix still means something', () => {
+  // /c/<slug> with nothing after it rewrites to '/', which must keep its clan. If '/' ever read as
+  // the platform's, every clan's front page would redirect to the apex.
+  assert.equal(isPlatformPath('/'), false);
+});
+
+test('a namespace matches bare as well as with its slash', () => {
+  // PLATFORM_ROOTS spells these '/c/', '/u/', '/p/' so they read as namespaces. Comparing on the
+  // written form alone would miss '/c' itself — and comparing on the trailing slash naively would
+  // swallow '/clans', which is a different root.
+  assert.equal(isPlatformPath('/c'), true);
+  assert.equal(isPlatformPath('/c/theafkspot'), true, 'a prefix inside a prefix is still ours');
+  assert.equal(isPlatformPath('/clans'), true, 'its own root, not a stray /c match');
+  assert.equal(isPlatformPath('/captain'), false, "a clan's, despite starting with /c");
+});
+
+test('middleware redirects a prefixed platform PAGE and only rewrites a prefixed platform API', () => {
+  // Same split as the hostname rule below, for the same reason: pages move to one canonical
+  // address; /api keeps answering where it was asked, because redirecting a POST rewrites where a
+  // body lands under clients that handle 308 badly. Both branches drop the clan header, which is
+  // the half that is a security property rather than a tidiness one.
+  const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
+
+  const guard = src.indexOf('isPlatformPath(inner)');
+  assert.ok(guard > 0, 'the guard must exist');
+
+  const set = src.indexOf("downstream.set('x-anvil-clan-slug'");
+  assert.ok(guard < set, 'and must come before the clan header is ever set');
+
+  const branch = src.slice(guard, set);
+  assert.match(branch, /status: 308/, 'pages redirect');
+  assert.match(branch, /startsWith\('\/api\//, 'API is the exception');
+});
+
+test('the redirect Location is relative, so it cannot leak the container port', () => {
+  // An absolute URL built from request.nextUrl hands back https://apex:3000 — Caddy terminates TLS
+  // in front, so the incoming URL carries the container's own scheme and port. The hostname
+  // redirect below dodges this by rebuilding from the apex; here the host is already right, so a
+  // relative Location is both simpler and strictly more correct.
+  const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
+  const guard = src.indexOf('isPlatformPath(inner)');
+  const branch = src.slice(guard, src.indexOf("downstream.set('x-anvil-clan-slug'"));
+  assert.match(branch, /location: `\$\{inner\}\$\{request\.nextUrl\.search\}`/);
 });
 
 test('middleware never hands the raw request headers downstream', () => {
