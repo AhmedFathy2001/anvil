@@ -45,6 +45,7 @@ export const CLAN_SCOPED_API_ROOTS = [
 /** Roots that are the platform's, and must never be prefixed. */
 export const PLATFORM_ROOTS = [
   '/clans',
+  '/leaderboard',
   '/c/',
   '/u/',
   '/p/',

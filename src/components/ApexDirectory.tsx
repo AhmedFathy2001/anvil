@@ -56,7 +56,11 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
       </div>
 
       <p className="text-sm text-text-muted mt-10">
-        Each clan runs at its own address, with its own roster, boards and settings.{' '}
+        Each clan keeps its own roster, boards and settings.{' '}
+        <ClanLink href="/leaderboard" className="text-gold hover:text-gold-light">
+          See how they compare
+        </ClanLink>
+        {' · '}
         <ClanLink href="/guide" className="text-gold hover:text-gold-light">
           What Anvil does
         </ClanLink>

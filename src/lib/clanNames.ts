@@ -22,6 +22,7 @@ export const RESERVED_SLUGS = new Set([
   // Added with the platform surfaces: a clan at staff.<apex> reading as the operator console is
   // exactly the confusion the apex-only rule exists to prevent.
   'staff', 'platform', 'clans', 'profile', 'events', 'members', 'guide', 'guides', 'pricing',
+  'leaderboard', 'leaderboards',
   'portal', 'legal', 'privacy', 'terms', 'refunds', 'preview',
 ]);
 

@@ -33,6 +33,7 @@
     "test:guests": "npx tsx --test tests/guest-admission.test.ts",
     "test:verification": "npx tsx --test tests/clan-verification.test.ts",
     "test:eventaccess": "npx tsx --test tests/event-access.test.ts",
+    "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",
     "test:accountvis": "npx tsx --test tests/account-visibility.test.ts",
     "test:clanpaths": "npx tsx --test tests/clan-paths.test.ts",
