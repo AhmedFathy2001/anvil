@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
+import { verificationOf } from '@/lib/clanVerification';
 import { getSetting, setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
@@ -70,7 +71,20 @@ export async function GET() {
   const map = await getSettingMap(clan.id, [...EXPOSED_KEYS]);
   const out: Record<string, string> = {};
   for (const key of EXPOSED_KEYS) out[key] = map.get(key) || '';
-  return NextResponse.json(out);
+
+  // Verification travels with the settings because that is where the in-game name is edited, and a
+  // clan that cannot sync its roster deserves to be told why on the page rather than by a 403 from
+  // the plugin. The name itself now comes from the clans row — the settings copy is a mirror.
+  const verification = await verificationOf(clan.id);
+  return NextResponse.json({
+    ...out,
+    clan_ingame_name: verification.inGameName ?? out.clan_ingame_name,
+    _verification: {
+      verified: verification.verified,
+      verifiedAt: verification.verifiedAt,
+      inGameName: verification.inGameName,
+    },
+  });
 }
 
 export async function PUT(request: Request) {

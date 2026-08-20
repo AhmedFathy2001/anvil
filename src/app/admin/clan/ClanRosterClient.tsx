@@ -332,6 +332,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [inGameClanName, setInGameClanName] = useState('');
   const [clanNameOriginal, setClanNameOriginal] = useState('');
   const [inGameNameOriginal, setInGameNameOriginal] = useState('');
+  // Whether anyone has proved this clan is the in-game clan it names. An unverified clan cannot sync
+  // its roster, and finding that out from a 403 in the plugin is a poor way to learn it.
+  const [verification, setVerification] = useState<
+    { verified: boolean; verifiedAt: string | null; inGameName: string | null } | null
+  >(null);
   const [clanNameSaving, setClanNameSaving] = useState(false);
   const [clanNameMessage, setClanNameMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -353,6 +358,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       setClanNameOriginal(s.clan_name || '');
       setInGameClanName(s.clan_ingame_name || '');
       setInGameNameOriginal(s.clan_ingame_name || '');
+      setVerification(s._verification ?? null);
     }
     setLoading(false);
   }
@@ -834,9 +840,23 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               placeholder="e.g. Golden Arrows CC"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
             />
+            {verification && (
+              <p className={`text-[11px] mt-1 ${verification.verified ? 'text-accent-green-light' : 'text-yellow-400'}`}>
+                {verification.verified ? (
+                  <>✓ Verified as &ldquo;{verification.inGameName}&rdquo; in game.</>
+                ) : (
+                  <>
+                    Not verified yet — this clan can&apos;t sync its roster. Open the clan tab in OSRS
+                    and press Sync from an account with an <strong>Owner</strong> or{' '}
+                    <strong>Deputy Owner</strong> rank; that proves the clan is yours and only has to
+                    happen once. If your clan renamed those ranks, get in touch and we&apos;ll verify
+                    it by hand.
+                  </>
+                )}
+              </p>
+            )}
             <p className="text-[11px] text-text-muted mt-1">
-              The plugin&apos;s roster-sync payload must match this exactly. Leave blank to accept a
-              sync from any clan.
+              The plugin&apos;s roster-sync payload must match this exactly.
             </p>
           </div>
         </div>
