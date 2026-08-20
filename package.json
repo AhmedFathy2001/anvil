@@ -58,7 +58,7 @@
     "test:awards": "node --experimental-strip-types --test tests/competition-awards.test.ts",
     "test:bossgen": "npx tsx --test tests/boss-tile-gen.test.ts",
     "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
-    "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts"
+    "test:history": "DATABASE_URL=postgres://unused@127.0.0.1:1/unused npx tsx --test tests/stat-history.test.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
