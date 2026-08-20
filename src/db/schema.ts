@@ -33,9 +33,21 @@ export const clans = pgTable('clans', {
   customDomain: text('custom_domain'),
   // Display name, shown on the site and in Discord posts. Need not match the in-game clan name.
   name: text('name').notNull(),
-  // The exact OSRS clan name. The plugin's roster sync refuses a payload reporting a different one;
-  // null accepts any clan (see getInGameClanName).
+  // The exact OSRS clan name — the only thing tying this site to a real clan in the game.
+  //
+  // THE one place it lives. It used to be here AND in a `clan_ingame_name` setting, with the
+  // roster-sync gate reading only the setting, so a clan created through the newer flow (which
+  // writes this column) had no gate at all and would accept any roster pushed at it.
   inGameName: text('in_game_name'),
+  // When somebody proved this clan is that clan, by pushing its roster from an account holding an
+  // owner-tier rank in it. NULL is the normal state for a new clan and is not a fault: an unverified
+  // clan runs boards, guests and events perfectly well. What it cannot do is sync a roster or enter
+  // a cross-clan leaderboard, because both are claims about a real clan that nobody has checked.
+  ingameNameVerifiedAt: text('ingame_name_verified_at'),
+  // The account that proved it, so a dispute has something to point at besides a timestamp.
+  ingameNameClaimedByAccountId: integer('ingame_name_claimed_by_account_id').references(() => accounts.id, {
+    onDelete: 'set null',
+  }),
   // active = serving. suspended = resolves but refuses writes (non-payment, abuse review).
   // archived = read-only history, kept so links and profiles don't rot.
   status: text('status').notNull().default('active'),
@@ -80,6 +92,12 @@ export const clans = pgTable('clans', {
   uniqueIndex('clans_slug_unique').on(table.slug),
   uniqueIndex('clans_custom_domain_unique').on(table.customDomain),
   index('clans_status_idx').on(table.status),
+  // One VERIFIED clan per in-game name, case-insensitively. First claim wins; a second is refused
+  // and sent to a human. Partial, so unverified clans may hold any placeholder — they have proved
+  // nothing, so they reserve nothing.
+  uniqueIndex('clans_verified_ingame_name_unique')
+    .on(sql`lower(${table.inGameName})`)
+    .where(sql`ingame_name_verified_at is not null`),
   // One subscription is one clan. Two clans claiming the same paid subscription is a billing bug
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),

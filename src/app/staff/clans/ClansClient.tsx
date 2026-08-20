@@ -47,6 +47,52 @@ export default function ClansClient({
   const [ownerFor, setOwnerFor] = useState<number | null>(null);
   const [candidates, setCandidates] = useState<{ userId: number; role: string; name: string | null }[]>([]);
 
+  // Verifying by hand: for a clan whose owner rank is renamed, whose owner has stopped playing, or
+  // a dispute somebody has to decide. The ordinary path is an owner-tier roster push.
+  async function verifyClan(clanId: number, current: string) {
+    const name = prompt('Exact in-game clan name to verify:', current);
+    if (name === null) return;
+    setBusy(clanId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/staff/clans/${clanId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inGameName: name }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function unverifyClan(clanId: number) {
+    const reason = prompt('Why is this badge being withdrawn? (recorded in the clan’s history)');
+    if (reason === null) return;
+    setBusy(clanId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/staff/clans/${clanId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verified: false, reason }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function openOwner(clanId: number) {
     setOwnerFor(clanId);
     setCandidates([]);
@@ -179,6 +225,26 @@ export default function ClansClient({
                     {c.name}
                   </a>
                   <div className="text-xs text-gray-500">{c.host}</div>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs">
+                    {c.verified ? (
+                      <span className="text-emerald-400" title={`Verified as "${c.inGameName}" in game`}>
+                        ✓ {c.inGameName}
+                      </span>
+                    ) : (
+                      <span className="text-amber-400/80" title="Nobody has proved this is a real clan — it cannot sync a roster">
+                        unverified{c.inGameName ? ` · claims "${c.inGameName}"` : ''}
+                      </span>
+                    )}
+                    {canWrite && (
+                      <button
+                        onClick={() => (c.verified ? unverifyClan(c.id) : verifyClan(c.id, c.inGameName ?? ''))}
+                        disabled={busy != null}
+                        className="text-gray-600 underline hover:text-gold"
+                      >
+                        {c.verified ? 'withdraw' : 'verify'}
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-gray-300">
                   {c.owner ? (

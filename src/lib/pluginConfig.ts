@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
-import { events, tiles, weeklyCompetitions } from '@/db/schema';
+import { clans, events, tiles, weeklyCompetitions } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
@@ -317,14 +317,20 @@ export async function getClanDisplayName(clanId: number, fallback = 'Anvil'): Pr
   return value || process.env.CLAN_NAME?.trim() || fallback;
 }
 
-// The exact in-game clan name the plugin's roster-sync payload must report. Null = unset, which
-// means "accept a roster sync from whatever clan the admin is in".
+// The exact in-game clan name the plugin's roster-sync payload must report.
 //
-// Deliberately does NOT fall back to clan_name: once the display name is free to drift from the
-// in-game one, silently gating on it would reject every sync after a rename. Existing installs are
-// backfilled from clan_name at boot (scripts/migrate.mjs) so their gate survives this split, and an
-// admin who clears the field is opting into "any clan" on purpose.
+// READS THE COLUMN, not the setting. It lived in both, and this read only the setting — so a clan
+// created through the newer flow, which writes clans.in_game_name, had no gate at all and would
+// accept any roster pushed at it. Migration 0018 folded the setting into the column and this
+// follows; the setting is still written by the admin UI and is now a mirror, not the source.
+//
+// Deliberately does NOT fall back to the display name: once the two are free to drift, gating on
+// the display name would reject every sync after a rename.
 export async function getInGameClanName(clanId: number): Promise<string | null> {
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { inGameName: true } });
+  if (row?.inGameName?.trim()) return row.inGameName.trim();
+  // The settings row remains readable for a clan whose column has not been filled — belt and
+  // braces while both exist.
   const value = await getSettingText(clanId, CLAN_INGAME_NAME_SETTING_KEY);
   return value || process.env.CLAN_INGAME_NAME?.trim() || null;
 }

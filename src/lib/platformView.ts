@@ -100,6 +100,9 @@ export interface ClanRow {
   plan: string;
   memberCap: number | null;
   createdAt: string;
+  /** The in-game clan name, and whether anybody has proved it. */
+  inGameName: string | null;
+  verified: boolean;
   members: number;
   guests: number;
   events: number;
@@ -124,6 +127,8 @@ export async function allClans(): Promise<ClanRow[]> {
       plan: clans.plan,
       memberCap: clans.memberCap,
       createdAt: clans.createdAt,
+      inGameName: clans.inGameName,
+      verifiedAt: clans.ingameNameVerifiedAt,
       // `clans.id` is written out rather than interpolated: drizzle renders an interpolated column
       // unqualified inside a raw fragment, and every one of these subqueries has an `id` of its own,
       // so it comes back as "column reference id is ambiguous" — at run time, from Postgres, since
@@ -155,6 +160,8 @@ export async function allClans(): Promise<ClanRow[]> {
     plan: r.plan,
     memberCap: r.memberCap,
     createdAt: r.createdAt,
+    inGameName: r.inGameName,
+    verified: r.verifiedAt != null,
     members: Number(r.members ?? 0),
     guests: Number(r.guests ?? 0),
     events: Number(r.events ?? 0),

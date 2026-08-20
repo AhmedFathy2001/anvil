@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { claimMemberSeat } from '@/lib/guestAdmission';
+import { claimFromRoster, verificationOf } from '@/lib/clanVerification';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
@@ -69,8 +70,62 @@ export async function POST(request: Request) {
   const members = Array.isArray(body.members) ? body.members : null;
   if (!members) return NextResponse.json({ error: 'members[] required' }, { status: 400 });
 
-  // Gate on the IN-GAME clan name (settings.clan_ingame_name), never the display name — those two
-  // are allowed to differ, and a site rename must not start rejecting the roster sync.
+  // ── Is this clan the clan it says it is? ───────────────────────────────────────────────────
+  //
+  // The roster payload is self-attesting: the plugin reads the member list out of the game, and the
+  // person pushing it is IN that list with their rank. So the server can ask a question only a real
+  // member passes — "are you in the roster you just sent, holding an owner-tier rank?" — using
+  // nothing the client did not already have.
+  //
+  // The pusher is identified by their TOKEN, which names a person, and matched against the roster by
+  // their accounts. The payload does not carry the local player's account hash today; when the
+  // plugin sends it, that becomes the stronger match.
+  const verification = await verificationOf(clan.id);
+
+  if (!verification.verified) {
+    const mine = await db
+      .select({ rsnNormalized: accounts.rsnNormalized, id: accounts.id })
+      .from(accounts)
+      .innerJoin(users, eq(users.playerId, accounts.playerId))
+      .where(eq(users.id, auth.userId));
+
+    const byRsn = new Map(members.map((m) => [normalizeRsn(m.rsn ?? ''), m.rank ?? null]));
+    const pusher = mine.find((a) => byRsn.has(a.rsnNormalized));
+
+    const claim = await claimFromRoster({
+      clanId: clan.id,
+      reportedClanName: clanName,
+      pusherRsnNormalized: pusher?.rsnNormalized ?? null,
+      pusherAccountId: pusher?.id ?? null,
+      roster: members.map((m) => ({ rsnNormalized: normalizeRsn(m.rsn ?? ''), rank: m.rank ?? null })),
+    });
+
+    if (claim.outcome !== 'verified' && claim.outcome !== 'already') {
+      // Refused rather than synced. An unverified clan can run boards, guests and events — what it
+      // cannot do is build a roster, because a roster IS the claim to be a real clan. Every refusal
+      // says what would fix it, since the person reading it is usually the one who can.
+      const detail =
+        claim.outcome === 'taken'
+          ? {
+              error: 'ingameNameTaken',
+              message: `"${clanName}" is already verified for another clan on Anvil. If that is wrong, contact support and we will sort it out.`,
+              byClanSlug: claim.byClanSlug,
+            }
+          : claim.outcome === 'not-owner'
+            ? {
+                error: 'notClanOwner',
+                message: `Your rank in ${clanName} is "${claim.rank ?? 'unknown'}". The first roster sync has to come from an owner or deputy owner — after that anyone with site admin can sync.`,
+              }
+            : {
+                error: 'notInRoster',
+                message: `You do not appear in the ${clanName} member list, so this clan cannot be verified from your account.`,
+              };
+      return NextResponse.json(detail, { status: 403 });
+    }
+  }
+
+  // Gate on the IN-GAME clan name, never the display name — those two are allowed to differ, and a
+  // site rename must not start rejecting the roster sync.
   const expectedClanName = await getInGameClanName(clan.id);
   if (expectedClanName && clanName.toLowerCase() !== expectedClanName.toLowerCase()) {
     return NextResponse.json(
