@@ -221,6 +221,7 @@ const event: EventContext = {
   format: 'bingo',
   scoringMode: 'points',
   boardSize: 5,
+  rules: null,
   startDate: null,
   endDate: null,
   tilesRevealed: true,

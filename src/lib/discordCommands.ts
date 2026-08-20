@@ -18,9 +18,10 @@ import { db } from '@/db';
 import { events, players, teams, tiles, completions, clanMembers, settings } from '@/db/schema';
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
-import { parseEventRules, hasRevealPolicy, visibleTiles, boardTiles, type EventRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, boardTiles, missionTiles, type EventRules } from '@/lib/eventRules';
 import { computePrizePool, countApprovedSignups } from '@/lib/prizePool';
 import { formatGp } from '@/lib/adminEventsFormat';
+import { eventShapeBadge } from '@/lib/utils';
 import {
   EMBED_COLOR,
   LIMIT,
@@ -113,15 +114,14 @@ function crossClanNote(cross: CrossClanContext): string | null {
   return `🤝 ${cross.visitingPlayers} player${cross.visitingPlayers === 1 ? '' : 's'} ${cross.visitingPlayers === 1 ? 'is' : 'are'} visiting from other clans.`;
 }
 
-/** The board's own shape, in words: "5×5 · points" / "Tile race · tiles". */
+/**
+ * The board's shape, in the same words the site and the admin list use: "5×5", "Leagues · 261",
+ * "Race · 40". Hand-rolling this said "261×261" for a Leagues board, because `boardSize` is a SIDE
+ * on a square grid and a tile COUNT everywhere else — the exact distinction eventShapeBadge exists
+ * to encode. Reuse it rather than re-derive it.
+ */
 function shapeLabel(event: EventContext): string {
-  const shape =
-    event.format === 'tilerace'
-      ? 'Tile race'
-      : event.format === 'ladder'
-        ? 'Ladder'
-        : `${event.boardSize}×${event.boardSize}`;
-  return `${shape} · ${event.scoringMode === 'points' ? 'points' : 'tiles'}`;
+  return eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules);
 }
 
 // ── /bingo board ────────────────────────────────────────────────────────────────────────────────
@@ -242,7 +242,13 @@ async function readHouseRules(): Promise<{ text: string | null; url: string | nu
 }
 
 /** Sentences describing how the board scores and opens. One bullet per rule that is actually on. */
-function mechanicsLines(event: EventContext, rules: EventRules, pool: number, fee: number | null): string[] {
+function mechanicsLines(
+  event: EventContext,
+  rules: EventRules,
+  pool: number,
+  fee: number | null,
+  missionCounts: { total: number; announced: number },
+): string[] {
   const out: string[] = [];
 
   out.push(
@@ -297,10 +303,17 @@ function mechanicsLines(event: EventContext, rules: EventRules, pool: number, fe
     );
   }
   if (rules.mission) {
-    out.push(
+    const when =
       rules.mission.announceMode === 'interval'
-        ? `• **Missions** — hidden bonus tiles drop every ${rules.mission.intervalMinutes} minutes mid-event. Watch the channel.`
-        : '• **Missions** — hidden bonus tiles are dropped mid-event by staff. Watch the channel.',
+        ? `every ${rules.mission.intervalMinutes} minutes`
+        : rules.mission.announceMode === 'scheduled'
+          ? 'on a schedule'
+          : 'when staff drop them';
+    out.push(`• **Missions** — extra objectives revealed mid-event, ${when}. Nobody sees one before it's announced.`);
+    // The scoring is the part that gets misread: a mission's points are ON TOP, so a team can end
+    // above 100% of the board, and the board total never moves when one is announced.
+    out.push(
+      `-# Mission points are a **bonus** — added to your score but never to the board total, so the board can't get longer mid-event. ${missionCounts.total > 0 ? `${missionCounts.announced} of ${missionCounts.total} announced so far.` : ''}`.trimEnd(),
     );
   }
 
@@ -329,10 +342,44 @@ function mechanicsLines(event: EventContext, rules: EventRules, pool: number, fe
   return out;
 }
 
+/**
+ * How credit actually reaches the board, told from what THIS board contains rather than in general.
+ *
+ * The question every event gets asked is some version of "I don't run the plugin — am I stuck?",
+ * and the honest answer depends on the tiles. Hiscores-backed tiles (boss KC, skilling) need no
+ * client at all, only a logout; everything else needs evidence, which the plugin files for you and
+ * which you can otherwise upload yourself. Saying that with the board's own numbers in it beats a
+ * paragraph of general advice.
+ */
+function trackingLines(clan: ClanContext, event: EventContext, boardTilesOnly: { trackedStat: string | null }[]): string[] {
+  if (boardTilesOnly.length === 0) return [];
+  const hiscores = boardTilesOnly.filter((t) => (t.trackedStat ?? '').trim().length > 0).length;
+  const proof = boardTilesOnly.length - hiscores;
+
+  const out: string[] = ['', '**Getting credit**'];
+  out.push('• **With the Anvil plugin** — it submits for you. Nothing to do but play.');
+  if (hiscores > 0) {
+    out.push(
+      `• **No plugin?** ${hiscores === boardTilesOnly.length ? 'Every tile here' : `${hiscores} of these tiles`} read from the **official hiscores**, so they need no client at all — but hiscores only save when you **log out**, and refresh on the hour. Play → log out → wait for the hour.`,
+    );
+  }
+  if (proof > 0) {
+    out.push(
+      `• **Drops, kills and timed tasks** need evidence — ${proof === boardTilesOnly.length ? 'every tile here' : `${proof} of these`}. The plugin files it automatically; without it, upload a screenshot yourself${clan.origin ? ` on **My Team** at ${clan.origin}/team` : ' on the My Team page'}.`,
+    );
+  }
+  out.push('-# Keep your own screenshot of anything big either way — it costs nothing and settles any dispute.');
+  return out;
+}
+
 async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossClanContext): Promise<DiscordEmbed[]> {
-  const [row, house] = await Promise.all([
+  const [row, house, allTiles] = await Promise.all([
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
     readHouseRules(),
+    db
+      .select({ id: tiles.id, mission: tiles.mission, revealedAt: tiles.revealedAt, trackedStat: tiles.trackedStat })
+      .from(tiles)
+      .where(eq(tiles.eventId, event.id)),
   ]);
   const rules = parseEventRules(row?.rules);
   const approved = await countApprovedSignups(event.id).catch(() => 0);
@@ -342,8 +389,16 @@ async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossC
     approvedCount: approved,
   });
 
+  const missionPool = missionTiles(allTiles);
+  const missionCounts = {
+    total: missionPool.length,
+    announced: missionPool.filter((t) => t.revealedAt).length,
+  };
+
   const body = [
-    ...mechanicsLines(event, rules, pool, row?.signupFee ?? null),
+    ...mechanicsLines(event, rules, pool, row?.signupFee ?? null, missionCounts),
+    // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
+    ...trackingLines(clan, event, boardTiles(allTiles)),
     '',
     contextLine(clan, event, cross),
   ];
