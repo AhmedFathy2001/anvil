@@ -16,6 +16,10 @@ interface Props {
   isStaff: boolean;
   discordInvite: string | null;
   user: NavUser | null;
+  /** The clan whose pages these are, or null on the apex. */
+  clan: { slug: string; name: string } | null;
+  /** The signed-in person's other clans, for the switcher. Excludes `clan`. */
+  otherClans: { slug: string; name: string }[];
 }
 
 const DiscordIcon = (
@@ -24,7 +28,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, user }: Props) {
+export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, user, clan, otherClans }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -33,16 +37,27 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
     setOpen(false);
   }, [pathname]);
 
-  const links = [
-    { href: '/', label: 'Home' },
-    // One entry for competitions. A Skill of the Week is an event, and having two links meant
-    // knowing which table the clan filed something under before you could find it.
-    { href: '/events', label: 'Events' },
-    { href: '/members', label: 'Members' },
-    ...(signedIn && myTeams > 0
-      ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
-      : []),
-  ];
+  // ONE NAV, TWO PLACES TO BE. Events and Members belong to a clan; on the apex there is no roster
+  // to list and no board to open, and offering them anyway meant a header whose links 404 — which is
+  // most of what made the platform feel like a directory bolted onto a clan site rather than one
+  // system. So the apex advertises what the apex has.
+  const links = clan
+    ? [
+        // The clan's own home, spelled out rather than '/'. A bare '/' is the APEX, so "Home" from
+        // inside a clan used to throw you out to the directory — you could not stay anywhere.
+        { href: `/c/${clan.slug}`, label: 'Home' },
+        // One entry for competitions. A Skill of the Week is an event, and having two links meant
+        // knowing which table the clan filed something under before you could find it.
+        { href: '/events', label: 'Events' },
+        { href: '/members', label: 'Members' },
+        ...(signedIn && myTeams > 0
+          ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
+          : []),
+      ]
+    : [
+        { href: '/clans', label: 'Clans' },
+        { href: '/leaderboard', label: 'Leaderboard' },
+      ];
 
   const avatar = user?.avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
@@ -57,6 +72,33 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
     <>
       {/* Desktop links */}
       <div className="hidden md:flex items-center gap-1">
+        {/* WHERE YOU ARE, AND WHAT ELSE IS YOURS.
+            Inside a clan the header said nothing about which clan, and offered no way back to the
+            platform — so every clan read as its own site that you had somehow ended up on. Naming
+            it, and listing the person's other clans beside it, is what makes them one place. Only
+            rendered for someone with more than one, since a switcher with one entry is furniture. */}
+        {clan && (
+          <div className="mr-1 flex items-center gap-1 pr-2 border-r border-card-border">
+            <ClanLink
+              href="/clans"
+              className="px-2 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+              title="All clans on Anvil"
+            >
+              ‹
+            </ClanLink>
+            <span className="px-1 text-sm font-medium text-foreground/90">{clan.name}</span>
+            {otherClans.map((o) => (
+              <ClanLink
+                key={o.slug}
+                href={`/c/${o.slug}`}
+                className="px-2 py-1.5 rounded-md text-xs text-text-muted hover:text-gold hover:bg-brown-light transition-all"
+                title={`Switch to ${o.name}`}
+              >
+                {o.name}
+              </ClanLink>
+            ))}
+          </div>
+        )}
         {links.map((l) => (
           <ClanLink
             key={l.href}

@@ -41,8 +41,10 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
             href={`/c/${c.slug}`}
             className="block border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
           >
-            <h2 className="text-lg font-semibold text-foreground mb-1">{c.name}</h2>
-            <p className="text-xs text-text-muted font-mono mb-4">{c.host}</p>
+            {/* The hostname used to sit here in monospace, which told the reader these were three
+                separate sites and that opening one meant leaving. They are one site; the address is
+                /c/<slug> and nobody needs to read it off a card. */}
+            <h2 className="text-lg font-semibold text-foreground mb-4">{c.name}</h2>
             <div className="flex gap-6 text-sm">
               <span className="text-text-muted">
                 <span className="text-gold font-semibold">{c.members}</span> member{c.members === 1 ? '' : 's'}
@@ -55,8 +57,13 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
         ))}
       </div>
 
+      {/* This line used to read "Each clan keeps its own roster, boards and settings" — true, and
+          exactly the wrong thing to lead with on the page whose job is to show they share a home.
+          What a visitor needs to know is that they can be in more than one, not that the walls are
+          solid. */}
       <p className="text-sm text-text-muted mt-10">
-        Each clan keeps its own roster, boards and settings.{' '}
+        You can be in more than one &mdash; your account, characters and history follow you between
+        them.{' '}
         <ClanLink href="/leaderboard" className="text-gold hover:text-gold-light">
           See how they compare
         </ClanLink>

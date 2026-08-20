@@ -11,6 +11,7 @@ import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
+import { clansOfPerson } from "@/lib/myClans";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -64,18 +65,43 @@ export default async function RootLayout({
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
   const discordInvite = clan ? await getDiscordInviteUrl(clan.id) : null;
 
+  // Awaited HERE rather than inline in the JSX below. `<ClanPrefixProvider prefix={await …}>` put a
+  // suspend point in the middle of the element tree, and the server then streamed the shell in a
+  // different shape than the client rebuilt it — the hydration diff showed <main> on the client
+  // where the server had already opened the page's own <div>. React responds to that by throwing the
+  // server HTML away and re-rendering the whole tree, which is why the FIRST click on any link did
+  // nothing: it landed on markup that was being replaced. Awaiting before the return keeps the tree
+  // synchronous once it starts.
+  const prefix = await clanPrefix();
+
+  // The person's clans, so the header can say where you are and offer the rest of what is yours.
+  // Only for someone signed in — a stranger has none, and asking costs two queries.
+  const myClans = session ? await clansOfPerson(session.playerId, session.userId) : [];
+  const otherClans = myClans
+    .filter((c) => c.slug !== clan?.slug)
+    .map((c) => ({ slug: c.slug, name: c.name }));
+
   return (
     <html lang="en">
       <body
+        // Extensions write attributes onto <body> before React hydrates — ColorZilla's
+        // `cz-shortcut-listen`, and password managers and grammar checkers do the same. React counts
+        // that as a mismatch, throws the server HTML away and regenerates the tree, and the first
+        // click on any link lands on markup being replaced and does nothing. Suppression is scoped
+        // to THIS element's attributes; children are still checked normally, so a real mismatch
+        // inside the page is not hidden by it.
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen flex-col`}
       >
         {/* The clan prefix, read from the header middleware set and handed to every ClanLink below.
             It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next
             routes it, so by render time the framework's path no longer has it. */}
-        <ClanPrefixProvider prefix={await clanPrefix()}>
+        <ClanPrefixProvider prefix={prefix}>
         <nav className="border-b-2 border-gold/20 bg-gradient-to-b from-card-bg to-background sticky top-0 z-50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between relative">
-            <ClanLink href="/" className="flex items-center gap-2 group">
+            {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
+                one control every site puts you "home" with the one that ejected you from the clan. */}
+            <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="flex items-center gap-2 group">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icon-48.png" alt="" width={24} height={24} className="rounded" />
               <span className="text-gold font-bold text-lg group-hover:text-gold-light transition-colors">
@@ -83,6 +109,8 @@ export default async function RootLayout({
               </span>
             </ClanLink>
             <SiteNav
+              clan={clan ? { slug: clan.slug, name: clan.name } : null}
+              otherClans={otherClans}
               signedIn={!!session}
               myTeams={myTeams}
               isStaff={isStaff}

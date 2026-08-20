@@ -1,4 +1,7 @@
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
+import { accounts } from '@/db/schema';
+import { clansOfPerson } from '@/lib/myClans';
+import PersonProfile from '@/components/PersonProfile';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanRoster, detectedAccounts, users } from '@/db/schema';
@@ -39,7 +42,11 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<{ welcome?: string }>;
 }) {
-  const clan = await requireClan();
+  // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
+  // surface the identity model insists follows you between clans answered 404 there, and a signed-in
+  // member clicking their own name in the header got a not-found page. Null is a legitimate answer
+  // here; it selects the person-level view below rather than failing.
+  const clan = await currentClan();
   const session = await verifyUser();
   if (!session) {
     redirect('/login?return=/profile');
@@ -48,6 +55,29 @@ export default async function ProfilePage({
   const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
   if (!user) {
     redirect('/login');
+  }
+
+  if (!clan) {
+    // The apex: you, across the platform. The locker below is assembled per clan — boards, teams,
+    // this week's progress — and none of that has a single answer when no clan is named. Rather than
+    // merge several clans into a picture true of nobody, show what IS true of the person and link
+    // into each clan for the rest.
+    const [myClans, characters] = await Promise.all([
+      clansOfPerson(session.playerId, session.userId),
+      session.playerId == null
+        ? Promise.resolve([])
+        : db
+            .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
+            .from(accounts)
+            .where(eq(accounts.playerId, session.playerId)),
+    ]);
+    return (
+      <PersonProfile
+        displayName={user.displayName}
+        clans={myClans}
+        characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
+      />
+    );
   }
 
   const welcome = (await searchParams).welcome === '1';
