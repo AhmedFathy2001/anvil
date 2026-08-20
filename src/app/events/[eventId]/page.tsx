@@ -7,7 +7,7 @@ import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
-import { parsePlacementPrizes } from '@/lib/payouts';
+import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import StartProofCard from '@/components/StartProofCard';
 import { startProofState } from '@/lib/startProof';
@@ -290,7 +290,9 @@ export default async function EventScoreboardPage({
   const pointsOnBoard = pointsMode
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;
-  const placementPrizes = parsePlacementPrizes(event.placementPrizes);
+  // Resolved against the LIVE pool, so a board whose prizes are set as shares advertises what each
+  // place is worth right now rather than what it was worth when the host typed it in.
+  const placementPrizes = placementAmounts(event, prizePool);
 
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
