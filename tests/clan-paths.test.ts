@@ -159,19 +159,27 @@ test('middleware redirects a prefixed platform PAGE and only rewrites a prefixed
   assert.ok(guard < set, 'and must come before the clan header is ever set');
 
   const branch = src.slice(guard, set);
-  assert.match(branch, /status: 308/, 'pages redirect');
+  assert.match(branch, /redirect\([^)]*, 308\)/, 'pages redirect, permanently');
   assert.match(branch, /startsWith\('\/api\//, 'API is the exception');
+  assert.match(branch, /NextResponse\.rewrite/, 'and is rewritten rather than bounced');
 });
 
-test('the redirect Location is relative, so it cannot leak the container port', () => {
-  // An absolute URL built from request.nextUrl hands back https://apex:3000 — Caddy terminates TLS
-  // in front, so the incoming URL carries the container's own scheme and port. The hostname
-  // redirect below dodges this by rebuilding from the apex; here the host is already right, so a
-  // relative Location is both simpler and strictly more correct.
+test('the redirect is built from the forwarded host, not the one the container sees', () => {
+  // Two constraints meeting. Next parses the Location itself and throws ERR_INVALID_URL on a
+  // relative one — the preview 500'd on every prefixed platform page until this was absolute. But
+  // absolute-from-request.nextUrl hands back http://…:3000, because Caddy terminates TLS in front
+  // and the URL reaching this process is the internal one. So: absolute, from the Host header.
   const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
   const guard = src.indexOf('isPlatformPath(inner)');
   const branch = src.slice(guard, src.indexOf("downstream.set('x-anvil-clan-slug'"));
-  assert.match(branch, /location: `\$\{inner\}\$\{request\.nextUrl\.search\}`/);
+
+  assert.match(branch, /x-forwarded-proto/, 'scheme from the proxy, not the socket');
+  assert.match(branch, /headers\.get\('host'\)/, 'host from the request, not nextUrl');
+  assert.doesNotMatch(
+    branch,
+    /new URL\([^)]*request\.nextUrl(?!\.search)/,
+    'never resolve the redirect against nextUrl — that is where the :3000 comes from',
+  );
 });
 
 test('middleware never hands the raw request headers downstream', () => {

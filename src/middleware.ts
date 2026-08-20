@@ -105,13 +105,17 @@ export async function middleware(request: NextRequest) {
       if (inner.startsWith('/api/')) {
         return NextResponse.rewrite(url, { request: { headers: downstream } });
       }
-      // A RELATIVE Location, resolved by the browser against the address it actually typed. An
-      // absolute one built from request.nextUrl would hand back the container's own `:3000` and
-      // `http`, exactly as the hostname redirect below warns.
-      return new NextResponse(null, {
-        status: 308,
-        headers: { location: `${inner}${request.nextUrl.search}` },
-      });
+      // Next parses this Location itself and throws ERR_INVALID_URL on a relative one, so it has to
+      // be absolute — but built from the FORWARDED host, never from request.nextUrl. Caddy
+      // terminates TLS in front, so the URL that reached this process says `http://…:3000`, and
+      // handing that back sends the browser somewhere that does not exist off this machine. The
+      // hostname redirect below dodges the same trap by rebuilding from the apex; here the host is
+      // already the right one, so echo it. The fallbacks are for `next dev`, where nothing is in
+      // front and the scheme really is http.
+      const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+      const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
+      const to = new URL(`${inner}${request.nextUrl.search}`, `${proto}://${forwardedHost}`);
+      return NextResponse.redirect(to, 308);
     }
 
     const url = request.nextUrl.clone();
