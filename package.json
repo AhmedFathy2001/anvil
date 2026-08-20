@@ -25,6 +25,7 @@
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
+    "test:guides": "node --experimental-strip-types --test tests/guide-i18n.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",
     "test:startproof": "npx tsx --test tests/start-proof.test.ts",
