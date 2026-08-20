@@ -44,6 +44,13 @@ export const clans = pgTable('clans', {
   plan: text('plan').notNull().default('free'),
   // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
   memberCap: integer('member_cap'),
+  // How this clan admits someone it does not already have.
+  //   approval — a request lands for staff to accept or reject; no seat until they do (default)
+  //   open     — anyone who turns up becomes a guest
+  //   closed   — no guests, no requests
+  // Default approval because membership is GRANTED, never assumed, and the paths that used to mint
+  // a guest seat did it silently — anyone who logged in once appeared on a roster nobody agreed to.
+  guestPolicy: text('guest_policy').notNull().default('approval'),
 
   // ── Billing ───────────────────────────────────────────────────────────────────────────────
   // These lived in the control plane's own database, which existed to know which CONTAINER belonged
@@ -254,6 +261,12 @@ export const clanMemberships = pgTable('clan_memberships', {
   pendingRole: text('pending_role'),
 }, (table) => [
   uniqueIndex('clan_memberships_clan_account_unique').on(table.clanId, table.accountId),
+  // One MEMBER seat per account, across every clan: OSRS lets an account be in exactly one clan, so
+  // the site should not be able to say otherwise. Guest seats stay unlimited — guesting is not
+  // membership. Partial on kind+left_at, so departures and guests do not collide.
+  uniqueIndex('clan_memberships_one_member_seat')
+    .on(table.accountId)
+    .where(sql`kind = 'member' and left_at is null`),
   index('clan_memberships_clan_kind_idx').on(table.clanId, table.kind),
   index('clan_memberships_account_idx').on(table.accountId),
 ]);
@@ -1027,6 +1040,42 @@ export const clanBans = pgTable('clan_bans', {
   // One live ban per person per clan. Partial, so a lifted ban does not block a later one.
   uniqueIndex('clan_bans_live_unique').on(table.clanId, table.playerId).where(sql`lifted_at is null`),
   index('clan_bans_clan_idx').on(table.clanId),
+]);
+
+/**
+ * Someone asking to guest in a clan.
+ *
+ * Four paths used to create a guest seat as a side effect — a plugin login, an account link, a
+ * verification check, a manual-review request — so turning up once put you on a roster nobody had
+ * agreed to. Membership is granted, never assumed, and that has to include the guest tier or the
+ * word means nothing.
+ *
+ * The request names an ACCOUNT, because a person applies with a character and which one matters: it
+ * is the name that will appear on the clan's roster. It also carries the PERSON, so a clan ban —
+ * which is per person — can refuse the request without the clan having to recognise the alt.
+ */
+export const clanJoinRequests = pgTable('clan_join_requests', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  playerId: integer('player_id').references(() => players.id, { onDelete: 'set null' }),
+  // pending | approved | rejected | withdrawn
+  status: text('status').notNull().default('pending'),
+  message: text('message'),
+  // 'web' | 'plugin' — worth keeping, because a request raised by logging in with the plugin means
+  // something different to one someone typed.
+  source: text('source').notNull().default('web'),
+  requestedAt: text('requested_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  decidedAt: text('decided_at'),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedNote: text('decided_note'),
+}, (table) => [
+  // One LIVE request per account per clan. Partial, so a rejected one does not block asking again —
+  // people fall out with clans and make up.
+  uniqueIndex('clan_join_requests_pending_unique')
+    .on(table.clanId, table.accountId)
+    .where(sql`status = 'pending'`),
+  index('clan_join_requests_clan_status_idx').on(table.clanId, table.status),
 ]);
 
 export const clanAuditLog = pgTable('clan_audit_log', {

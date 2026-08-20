@@ -215,7 +215,12 @@ test('membership kind carries the granted/guest distinction', async () => {
   assert.deepEqual(byKind, [
     'AhmedAlt:guest:admin', // added by hand on bravo — a guest, not a member
     'AhmedAlt:member:roster',
-    'AhmedMain:member:roster',
+    // AhmedMain was seeded as a MEMBER of both clans, which is the pre-exclusivity shape. 0017
+    // repairs that on the way past: an account is a member of one clan, the most recent claim wins,
+    // and the older seat becomes a guest rather than being removed. The fixture is left as it was
+    // precisely so the repair is exercised — this is the historical data the migration has to
+    // survive, and asserting the clean version instead would test nothing.
+    'AhmedMain:guest:roster',
     'AhmedMain:member:roster',
   ]);
 });

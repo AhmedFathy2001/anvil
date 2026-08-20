@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { admit } from '@/lib/guestAdmission';
 
 const MAX_NOTE_LEN = 500;
 
@@ -95,7 +96,23 @@ export async function POST(request: Request) {
       })
       .where(eq(accounts.id, account.id));
     // Asking for review proves nothing yet, and would not grant membership even once granted.
-    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
+    // the default policy this raises a request instead of seating them; the account is still linked
+    // to them either way, which is what they actually asked for.
+    const admission = await admit({ clanId: clan.id, accountId: account.id });
+    if (admission.outcome !== 'seated') {
+      return NextResponse.json(
+        {
+          error:
+            admission.outcome === 'refused'
+              ? 'This clan is not taking guests.'
+              : 'Sent to this clan’s staff — you’ll appear once they accept.',
+          admission: admission.outcome,
+        },
+        { status: admission.outcome === 'refused' ? 403 : 202 },
+      );
+    }
+    clanMemberId = admission.seatId;
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: nowIso, notes: note || null })

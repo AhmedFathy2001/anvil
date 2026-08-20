@@ -10,6 +10,7 @@ import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { atLeast } from '@/lib/clanRoles';
+import { admit } from '@/lib/guestAdmission';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -190,7 +191,23 @@ export async function POST(request: Request) {
       .where(eq(accounts.id, account.id));
     // Linking a plugin proves account ownership, not clan membership. Only the in-game roster sync
     // promotes a seat to 'member'.
-    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
+    // the default policy this raises a request instead of seating them; the account is still linked
+    // to them either way, which is what they actually asked for.
+    const admission = await admit({ clanId: clan.id, accountId: account.id });
+    if (admission.outcome !== 'seated') {
+      return NextResponse.json(
+        {
+          error:
+            admission.outcome === 'refused'
+              ? 'This clan is not taking guests.'
+              : 'Sent to this clan’s staff — you’ll appear once they accept.',
+          admission: admission.outcome,
+        },
+        { status: admission.outcome === 'refused' ? 403 : 202 },
+      );
+    }
+    clanMemberId = admission.seatId;
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: nowIso })

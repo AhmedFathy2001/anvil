@@ -7,6 +7,7 @@ import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { admit } from '@/lib/guestAdmission';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
 // live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route —
@@ -64,15 +65,29 @@ export async function POST(request: Request) {
   const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
 
   if (!existing) {
-    // A login ping says the account exists and is playing. It says nothing about membership, so the
-    // seat is a guest until the in-game roster sync or an admin says otherwise.
+    // A login ping says the account exists and is playing. It says NOTHING about membership — and it
+    // used to create a guest seat anyway, so anyone who logged in once appeared on a roster nobody
+    // had agreed to put them on. Unauthenticated, at that.
+    //
+    // Now it asks. Under the default policy that means a request for staff, and no seat.
     const account = await findOrCreateAccount({ rsn, rsnNormalized });
-    const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
-    await db
-      .update(clanMemberships)
-      .set({ lastSeenInClan: new Date().toISOString() })
-      .where(eq(clanMemberships.id, seatId));
-    return NextResponse.json({ knownMember: false, isGuest: true, ...(await activeNow(clan)) });
+    const result = await admit({ clanId: clan.id, accountId: account.id, source: 'plugin' });
+
+    if (result.outcome === 'seated') {
+      await db
+        .update(clanMemberships)
+        .set({ lastSeenInClan: new Date().toISOString() })
+        .where(eq(clanMemberships.id, result.seatId));
+    }
+
+    return NextResponse.json({
+      knownMember: false,
+      isGuest: result.outcome === 'seated',
+      // What actually happened, so the plugin can say "waiting for staff" rather than implying they
+      // are on the roster when they are not.
+      admission: result.outcome,
+      ...(await activeNow(clan)),
+    });
   }
 
   // A login ping is NOT roster evidence — never resurrect a departed row here.

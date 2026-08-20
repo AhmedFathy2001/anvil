@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { admit } from '@/lib/guestAdmission';
 
 // POST /api/auth/verify-stat-delta/check { attemptId }
 // Re-fetches Hiscores, compares against the stored baseline. On success, marks the
@@ -178,7 +179,23 @@ export async function POST(request: Request) {
       .where(eq(accounts.id, account.id));
     // Verification proves account ownership, not clan membership. Only the in-game roster sync
     // promotes a seat to 'member'.
-    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'application' });
+    // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
+    // the default policy this raises a request instead of seating them; the account is still linked
+    // to them either way, which is what they actually asked for.
+    const admission = await admit({ clanId: clan.id, accountId: account.id });
+    if (admission.outcome !== 'seated') {
+      return NextResponse.json(
+        {
+          error:
+            admission.outcome === 'refused'
+              ? 'This clan is not taking guests.'
+              : 'Sent to this clan’s staff — you’ll appear once they accept.',
+          admission: admission.outcome,
+        },
+        { status: admission.outcome === 'refused' ? 403 : 202 },
+      );
+    }
+    clanMemberId = admission.seatId;
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: nowIso })

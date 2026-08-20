@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
+import { claimMemberSeat } from '@/lib/guestAdmission';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { requireClanFromRequest } from '@/lib/clanContext';
@@ -96,6 +97,9 @@ export async function POST(request: Request) {
   type ToUpdate = {
     id: number;
     setRsn: string;
+    // Carried so the exclusivity rule can be applied before the update — the seat id alone does not
+    // say which ACCOUNT is being promoted, and that is what may be a member elsewhere.
+    accountId: number;
     setRsnNormalized: string;
     setRank: string | null;
     setAccountHash: string | null;
@@ -173,6 +177,7 @@ export async function POST(request: Request) {
 
     toUpdate.push({
       id: existing.id,
+      accountId: existing.accountId,
       setRsn: rsn,
       setRsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
       setRank: rank ?? existing.rank,
@@ -236,6 +241,13 @@ export async function POST(request: Request) {
         continue;
       }
 
+      // An account is a member of ONE clan. If this roster claims someone who is a member
+      // elsewhere, that seat demotes to guest — the in-game roster is the evidence, they cannot be
+      // in both, so the later sync is simply the more current truth. Without this the unique index
+      // rejects the sync outright and a clan finds its roster refusing to import a player who
+      // transferred in, which is the common case rather than an edge one.
+      await claimMemberSeat(clan.id, account.id);
+
       const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'member', source: 'roster' });
       await db
         .update(clanMemberships)
@@ -273,6 +285,13 @@ export async function POST(request: Request) {
       previousRsns: u.setPreviousRsns,
       accountHash: u.setAccountHash,
     });
+    // The other half of the exclusivity rule. This path promotes an EXISTING seat — usually a guest
+    // who has now joined in game — and the insert path above is not the only way to become a member.
+    // Missing it here would let the index reject the update instead.
+    if (u.setKind === 'member' && !u.setLeftAt) {
+      await claimMemberSeat(clan.id, u.accountId);
+    }
+
     await db
       .update(clanMemberships)
       .set({
