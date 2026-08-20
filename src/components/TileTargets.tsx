@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ItemRequirement } from '@/lib/types';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Structural tile shape — the board clients each carry their own narrowed Tile interface.
 export interface TileTargetsLike {
@@ -68,7 +69,7 @@ export default function TileTargets({ tile, hideItems }: Props) {
   useEffect(() => {
     if (!needsNames) return;
     let cancelled = false;
-    fetch(`/api/items/names?ids=${trackedIds.join(',')}`)
+    clanFetch(`/api/items/names?ids=${trackedIds.join(',')}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: { id: number; name: string }[]) => {
         if (!cancelled) setItemNames(rows.map((r) => r.name));

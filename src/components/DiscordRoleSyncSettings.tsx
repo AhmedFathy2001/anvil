@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -33,7 +34,7 @@ export default function DiscordRoleSyncSettings() {
     setSyncResult(null);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/discord/sync-roles', {
+      const res = await clanFetch('/api/admin/discord/sync-roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
@@ -75,7 +76,7 @@ export default function DiscordRoleSyncSettings() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

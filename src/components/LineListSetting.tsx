@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface LineListSettingProps {
   // settings key this textarea reads/writes (one entry per line)
@@ -44,7 +45,7 @@ export default function LineListSetting({
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingKey]: value }),

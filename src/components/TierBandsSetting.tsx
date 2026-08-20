@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Admin editor for the difficulty-tier bands (points → tier). Backed by /api/admin/tier-bands.
 // Rows are { label, min }; the key is derived server-side from the label. The lowest band must
@@ -30,7 +31,7 @@ export default function TierBandsSetting() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/tier-bands');
+        const res = await clanFetch('/api/admin/tier-bands');
         if (res.ok) {
           const data = await res.json();
           load(Array.isArray(data.bands) ? data.bands : []);
@@ -60,7 +61,7 @@ export default function TierBandsSetting() {
       .map((r) => ({ label: r.label.trim(), min: Number(r.min) }))
       .filter((b) => b.label && Number.isFinite(b.min));
     try {
-      const res = await fetch('/api/admin/tier-bands', {
+      const res = await clanFetch('/api/admin/tier-bands', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bands }),
@@ -83,7 +84,7 @@ export default function TierBandsSetting() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/tier-bands', { method: 'DELETE' });
+      const res = await clanFetch('/api/admin/tier-bands', { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         load(Array.isArray(data.bands) ? data.bands : []);

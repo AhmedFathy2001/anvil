@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { BalanceCheck } from '@/lib/boardBalance';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The effort side of the balance panel — fetched from the server (drop-rate dataset lives
 // there) and refreshed, debounced, whenever the tile set changes. Shows estimated hours as
@@ -66,7 +67,7 @@ export default function EffortTable({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function refetch() {
-    const res = await fetch(`/api/admin/events/${eventId}/balance`);
+    const res = await clanFetch(`/api/admin/events/${eventId}/balance`);
     if (!res.ok) {
       setLoading(false);
       return;

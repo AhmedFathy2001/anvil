@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
@@ -39,7 +40,7 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
         points: t.points,
         category: t.category ?? undefined,
       }));
-      const res = await fetch(`/api/events/${eventId}/tiles/import`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows, append: true }),

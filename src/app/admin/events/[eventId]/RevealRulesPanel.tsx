@@ -8,6 +8,7 @@ import { parseEventRules, nextRevealAt, type RevealPolicy, type RevealOrder } fr
 import { eventAxes, supportsRevealPolicy } from '@/lib/eventAxes';
 import { eventModeLabel } from '@/lib/utils';
 import type { Event, Tile } from '@/lib/types';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * How tiles OPEN on a reveal-policy event, editable after the event exists.
@@ -88,7 +89,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
     setOpening(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/tiles/bulk`, {
+      const res = await clanFetch(`/api/events/${event.id}/tiles/bulk`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileIds: picked.map((t) => t.id), set: { revealState: 'live' } }),
@@ -122,7 +123,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         // Spread the stored rules so the keys this panel doesn't own (mission announce config,

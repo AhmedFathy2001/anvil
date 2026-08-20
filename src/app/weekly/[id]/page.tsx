@@ -1,7 +1,6 @@
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
 import { requireClan } from '@/lib/clanContext';
@@ -12,6 +11,7 @@ import CompetitionHero from '@/components/weekly/CompetitionHero';
 import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
 import CompetitionAwards from '@/components/weekly/CompetitionAwards';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,9 +65,9 @@ export default async function WeeklyLeaderboardPage({
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
 
-      <Link href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
+      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
         ← All competitions
-      </Link>
+      </ClanLink>
 
       <CompetitionHero
         title={competition.title}

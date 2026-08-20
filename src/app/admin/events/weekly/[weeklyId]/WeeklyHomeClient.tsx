@@ -8,6 +8,7 @@ import type { WeeklyCounts } from '@/lib/weeklyStage';
 import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { STAGE_BLURB } from '@/lib/eventStage';
 import { weeklyGain, weeklyMetricLabel } from '@/lib/weeklyLabels';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Comp {
   id: number;
@@ -50,7 +51,7 @@ export default function WeeklyHomeClient({
     setRefreshing(true);
     setMessage('');
     try {
-      const res = await fetch(`/api/admin/weekly/${comp.id}/refresh`, {
+      const res = await clanFetch(`/api/admin/weekly/${comp.id}/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rebaseline }),

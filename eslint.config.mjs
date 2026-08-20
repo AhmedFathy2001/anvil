@@ -37,9 +37,9 @@ const eslintConfig = defineConfig([
       // the statement simply never runs, and one of the four we shipped failed silently inside a
       // try/catch. There are zero violations left, so it can be held at zero.
       "clan-scope/no-view-writes": "error",
-      // Warn while the codemod runs. Goes to error once the count is zero — a missed prefix on a
-      // fetch is silent (the route answers with no clan), which is exactly what a build gate is for.
-      "clan-scope/clan-prefix": "warn",
+      // At zero, so it holds there. A missed prefix on a fetch is silent — the route answers with
+      // no clan rather than failing — which is exactly what a build gate is for.
+      "clan-scope/clan-prefix": "error",
     },
   },
   {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Capture the current event (shape + tiles) as a reusable template that shows up in the
 // create gallery. Admin-only surface; the API re-checks the role.
@@ -21,7 +22,7 @@ export default function SaveAsPresetButton({
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/save-preset`, {
+      const res = await clanFetch(`/api/admin/events/${eventId}/save-preset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),

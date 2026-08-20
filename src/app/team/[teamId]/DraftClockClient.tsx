@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getTeamForPick } from '@/lib/draft';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './applicants/PlayerDrawer';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The captain's pick surface. Two polls with different costs: the draft state is cheap and drives
 // the clock, so it runs on a short interval; the pool carries ratings and answers (a profile sweep)
@@ -59,7 +60,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
 
   const fetchPool = useCallback(async () => {
     try {
-      const res = await fetch(`/api/team/${teamId}/pool`);
+      const res = await clanFetch(`/api/team/${teamId}/pool`);
       if (res.ok) setPool((await res.json()) as WarRoom);
     } catch {
       /* the clock keeps working without ratings */
@@ -68,7 +69,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
 
   const fetchDraft = useCallback(async () => {
     try {
-      const res = await fetch(`/api/events/${eventId}/draft`);
+      const res = await clanFetch(`/api/events/${eventId}/draft`);
       if (!res.ok) return;
       const data = (await res.json()) as DraftState;
       setDraft(data);
@@ -111,7 +112,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
           : prev,
       );
       try {
-        await fetch(`/api/team/${teamId}/pool`, {
+        await clanFetch(`/api/team/${teamId}/pool`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ personKeys, notes: notes ?? {} }),
@@ -153,7 +154,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
       setPicking(true);
       setError('');
       try {
-        const res = await fetch(`/api/events/${eventId}/draft/pick`, {
+        const res = await clanFetch(`/api/events/${eventId}/draft/pick`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId: person.leadPlayerId }),

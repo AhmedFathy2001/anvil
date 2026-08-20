@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 type Placement = 'one_team' | 'draft_pool' | 'individual';
 
@@ -33,7 +34,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
 
   const loadCounts = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/auto-enroll`);
+      const res = await clanFetch(`/api/admin/events/${eventId}/auto-enroll`);
       if (res.ok) setCounts(await res.json());
     } catch {
       /* leave counts null — the button still works */
@@ -52,7 +53,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
     setErr(null);
     setResult(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/auto-enroll`, {
+      const res = await clanFetch(`/api/admin/events/${eventId}/auto-enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ placement }),

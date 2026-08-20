@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import SignupsClient from './SignupsClient';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export default async function EventSignupsPage({
 }) {
   const clan = await requireClan();
   const session = await verifyAdminOrModerator();
-  if (!session) redirect('/admin');
+  if (!session) redirect(await clanHref('/admin'));
 
   const { eventId } = await params;
   const id = parseInt(eventId, 10);

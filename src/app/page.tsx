@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { currentClan, isApexHost } from '@/lib/clanContext';
@@ -9,6 +8,7 @@ import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { ClanWeek, EventGrid, Hero, LiveNow, WeeklyRail, YouStrip } from '@/components/home/HomeSections';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,8 +93,8 @@ function QuickLink({
       {body}
     </a>
   ) : (
-    <Link href={href} className={className}>
+    <ClanLink href={href} className={className}>
       {body}
-    </Link>
+    </ClanLink>
   );
 }

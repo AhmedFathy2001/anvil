@@ -1,5 +1,6 @@
 // Cached client loader for the guild's Discord roles (GET /api/admin/discord/roles), so several
 // RoleSelects on one page share a single request instead of each fetching. Mirrors settingsClient.
+import { clanFetch } from '@/lib/clanFetch';
 
 export interface GuildRole {
   id: string;
@@ -22,7 +23,7 @@ export async function loadGuildRoles(force = false): Promise<GuildRole[]> {
   }
   inflight = (async () => {
     try {
-      const res = await fetch('/api/admin/discord/roles');
+      const res = await clanFetch('/api/admin/discord/roles');
       const data = res.ok ? await res.json() : {};
       const roles: GuildRole[] = Array.isArray(data.roles)
         ? data.roles.filter((r: unknown): r is GuildRole => !!r && typeof (r as GuildRole).id === 'string')
@@ -51,7 +52,7 @@ export async function createGuildRole(
   name: string,
   opts: { color?: number; mentionable?: boolean } = {},
 ): Promise<GuildRole> {
-  const res = await fetch('/api/admin/discord/roles/create', {
+  const res = await clanFetch('/api/admin/discord/roles/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, color: opts.color, mentionable: opts.mentionable }),

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface ClogItem {
   id: number;
@@ -151,7 +152,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/admin/clog');
+        const res = await clanFetch('/api/admin/clog');
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok) {
@@ -177,7 +178,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
     setExcluded(new Set());
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/clog?activity=${encodeURIComponent(name)}`);
+      const res = await clanFetch(`/api/admin/clog?activity=${encodeURIComponent(name)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         onError(data.error || 'Could not load items for that page.');
@@ -302,7 +303,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                 items: kept.map((it) => ({ id: it.id, name: it.name, count: 1 })),
               },
             ];
-      const res = await fetch(`/api/events/${eventId}/tiles/import`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows, append: true }),

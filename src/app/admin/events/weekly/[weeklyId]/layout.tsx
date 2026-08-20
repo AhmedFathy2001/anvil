@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { notFound } from 'next/navigation';
 import EventLifecycleBar from '../../[eventId]/EventLifecycleBar';
@@ -7,6 +6,7 @@ import { weeklyLifecycleSteps, weeklyStage, WEEKLY_BADGE } from '@/lib/weeklySta
 import { weeklyRailGroups } from '@/lib/eventRail';
 import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,12 +53,12 @@ export default async function WeeklyLayout({
         header={{ title: comp.title, subtitle: `${WEEKLY_BADGE[comp.type] ?? 'Weekly'} · ${weeklyMetricLabel(comp.type, comp.metric)}` }}
       />
       <div className="flex-1 min-w-0">
-      <Link
+      <ClanLink
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; All events
-      </Link>
+      </ClanLink>
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold">{comp.title}</h1>

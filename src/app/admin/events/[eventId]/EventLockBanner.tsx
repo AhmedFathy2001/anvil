@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   eventId: number;
@@ -28,7 +29,7 @@ export default function EventLockBanner({ eventId, locked, canToggle }: Props) {
       return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/events/${eventId}`, {
+      const res = await clanFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: unlock ? 'unlock-editing' : 'lock-editing' }),

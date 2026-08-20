@@ -6,6 +6,7 @@ import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Event {
   id: number;
@@ -53,7 +54,7 @@ export default function DraftSpectatorClient({ event }: Props) {
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
 
   const fetchDraft = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/draft`);
+    const res = await clanFetch(`/api/events/${event.id}/draft`);
     if (res.ok) {
       const data = await res.json();
       setDraft(data);

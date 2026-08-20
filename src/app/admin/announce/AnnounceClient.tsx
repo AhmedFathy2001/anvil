@@ -1,9 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import Select, { type SelectOption } from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Channel {
   id: string;
@@ -39,7 +40,7 @@ export default function AnnounceClient() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/discord/broadcast');
+        const res = await clanFetch('/api/admin/discord/broadcast');
         if (res.ok) setTargets(await res.json());
       } finally {
         setLoading(false);
@@ -87,7 +88,7 @@ export default function AnnounceClient() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/discord/broadcast', {
+      const res = await clanFetch('/api/admin/discord/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,9 +128,9 @@ export default function AnnounceClient() {
           This tool posts as the bot, so it needs the bot connected — set a bot token and your server ID
           under Integrations → Discord bot.
         </p>
-        <Link href="/admin/integrations" className="text-sm text-gold hover:underline">
+        <ClanLink href="/admin/integrations" className="text-sm text-gold hover:underline">
           Go to Integrations →
-        </Link>
+        </ClanLink>
       </div>
     );
   }

@@ -16,6 +16,7 @@ import MvpHighlight from '@/components/MvpHighlight';
 import MemberBreakdown from '@/components/MemberBreakdown';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   event: Event;
@@ -84,7 +85,7 @@ export default function MyTeamClient({
     try {
       // Captains-only: refresh the whole team (the button is gated to captains).
       const body = { teamId: team.id };
-      const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
+      const res = await clanFetch(`/api/events/${event.id}/refresh-stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -102,12 +103,12 @@ export default function MyTeamClient({
   }
 
   const fetchSubmissions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
     if (res.ok) setSubmissions(await res.json());
   }, [event.id, team.id]);
 
   const fetchCompletions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/completions`);
+    const res = await clanFetch(`/api/events/${event.id}/completions`);
     if (res.ok) {
       const data = await res.json();
       setCompletions(data.filter((c: Completion) => c.teamId === team.id));
@@ -115,7 +116,7 @@ export default function MyTeamClient({
   }, [event.id, team.id]);
 
   const fetchGains = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
     if (res.ok) {
       const data = await res.json();
       const gainsMap: Record<number, PlayerGain[]> = {};
@@ -168,7 +169,7 @@ export default function MyTeamClient({
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) {
-    const res = await fetch(`/api/events/${event.id}/submissions`, {
+    const res = await clanFetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -182,7 +183,7 @@ export default function MyTeamClient({
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {
-    const res = await fetch(
+    const res = await clanFetch(
       `/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`,
       { method: 'DELETE' },
     );
@@ -193,7 +194,7 @@ export default function MyTeamClient({
   }
 
   async function handleToggle(tileId: number) {
-    const res = await fetch(`/api/events/${event.id}/completions`, {
+    const res = await clanFetch(`/api/events/${event.id}/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
@@ -207,7 +208,7 @@ export default function MyTeamClient({
     // Native pickers fire change continuously while dragging — debounce to one save.
     if (colorSaveTimer.current) clearTimeout(colorSaveTimer.current);
     colorSaveTimer.current = setTimeout(async () => {
-      const res = await fetch(`/api/events/${event.id}/teams`, {
+      const res = await clanFetch(`/api/events/${event.id}/teams`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId: team.id, color }),
@@ -226,7 +227,7 @@ export default function MyTeamClient({
     }
     setSavingName(true);
     setNameError(null);
-    const res = await fetch(`/api/events/${event.id}/teams`, {
+    const res = await clanFetch(`/api/events/${event.id}/teams`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, name: newName.trim(), color: newColor }),

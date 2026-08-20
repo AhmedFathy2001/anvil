@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
@@ -97,7 +98,7 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
     });
     setCreating(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles/import`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows, append: true }),

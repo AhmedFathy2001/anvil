@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import type { LockerAccount, LockerCareer, LockerConnection } from '@/lib/profileLocker';
+import ClanLink from '@/components/ClanLink';
 
 // The card at the top of the locker: who you are, which accounts are yours, and — once you've
 // played anything — the numbers that make the page feel earned. Before that the same slots render
@@ -141,22 +141,22 @@ export default function PlayerCard({
               {/* The chips are where a member looks for their characters, so it's where they look
                   to add one. It lands on the drawer, which is where the token and the by-name path
                   actually live. */}
-              <Link
+              <ClanLink
                 href="#account-security"
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-card-border px-3 py-1 text-sm text-text-muted hover:text-gold-light hover:border-gold/40 transition-colors"
               >
                 + Add a character
-              </Link>
+              </ClanLink>
             </div>
           </div>
 
           {isStaff && (
-            <Link
+            <ClanLink
               href="/admin/dashboard"
               className="text-sm px-3 py-1.5 border border-gold/40 text-gold rounded-lg hover:bg-gold/10 transition-colors shrink-0"
             >
               Admin →
-            </Link>
+            </ClanLink>
           )}
         </div>
 
@@ -217,12 +217,12 @@ export default function PlayerCard({
                 automatically.
               </span>
             )}
-            <Link
+            <ClanLink
               href="#account-security"
               className="ml-auto text-xs text-text-muted hover:text-foreground border border-card-border rounded-lg px-2 py-1 transition-colors"
             >
               {connection.connected ? 'Manage token' : 'Get your token'}
-            </Link>
+            </ClanLink>
           </div>
         )}
       </div>

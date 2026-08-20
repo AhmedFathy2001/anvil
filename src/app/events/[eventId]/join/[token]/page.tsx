@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken, invitePath } from '@/lib/teamInvites';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function JoinPage({
   if (!user) redirect(`/login?return=${encodeURIComponent(invitePath(id, token))}`);
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, invite.teamId) });
-  if (!team) redirect(`/events/${id}`);
+  if (!team) redirect(await clanHref(`/events/${id}`));
 
-  redirect(`/events/${id}/signup?invite=${token}`);
+  redirect(await clanHref(`/events/${id}/signup?invite=${token}`));
 }

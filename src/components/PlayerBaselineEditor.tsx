@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface StatData {
   stat: string;
@@ -37,7 +38,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/players/${playerId}/snapshot`);
+      const res = await clanFetch(`/api/events/${eventId}/players/${playerId}/snapshot`);
       if (res.ok) {
         const data = await res.json();
         setStats(data.stats || []);
@@ -51,7 +52,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   async function saveBaseline(stat: string, statType: string, baseline: number) {
     setSaving(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/players/${playerId}/snapshot`, {
+      const res = await clanFetch(`/api/events/${eventId}/players/${playerId}/snapshot`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stat, statType, baseline }),
@@ -70,7 +71,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
     if (!confirm(`Reset ${playerName}'s baseline to current stats? This will set their gains to 0.`)) return;
     setResetting(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/players/${playerId}/snapshot`, {
+      const res = await clanFetch(`/api/events/${eventId}/players/${playerId}/snapshot`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resetAll: true }),

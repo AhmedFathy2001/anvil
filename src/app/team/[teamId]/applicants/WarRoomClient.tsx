@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatHoursRange } from '@/lib/signup';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './PlayerDrawer';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The captain's scouting surface: the pool with everything known about it, and their own shortlist
 // over the top. Replaces a flat applicant list that had no ordering, no filtering, and nowhere to
@@ -40,7 +41,7 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${teamId}/pool`);
+      const res = await clanFetch(`/api/team/${teamId}/pool`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not load the pool');
       const room = body as WarRoom;
@@ -73,7 +74,7 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
       saveTimer.current = setTimeout(async () => {
         setSaving(true);
         try {
-          await fetch(`/api/team/${teamId}/pool`, {
+          await clanFetch(`/api/team/${teamId}/pool`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ personKeys: nextOrder, notes: nextNotes }),

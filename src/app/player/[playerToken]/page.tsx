@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { clanUrl } from '@/lib/clanFetch';
 
 export default function PlayerDirectLoginPage() {
   const params = useParams();
@@ -11,7 +12,7 @@ export default function PlayerDirectLoginPage() {
   useEffect(() => {
     const playerToken = params.playerToken as string;
     if (!playerToken) {
-      router.push('/player');
+      router.push(clanUrl('/player'));
       return;
     }
 
@@ -23,11 +24,11 @@ export default function PlayerDirectLoginPage() {
       });
 
       if (res.ok) {
-        router.push('/player/dashboard');
+        router.push(clanUrl('/player/dashboard'));
       } else {
         const data = await res.json();
         setError(data.error || 'Invalid token');
-        setTimeout(() => router.push('/player'), 2000);
+        setTimeout(() => router.push(clanUrl('/player')), 2000);
       }
     }
 

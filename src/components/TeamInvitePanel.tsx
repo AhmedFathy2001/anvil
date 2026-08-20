@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import NumberInput from '@/components/NumberInput';
 import { MAX_INVITE_HOURS, MAX_INVITE_USES } from '@/lib/teamInvites';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * The invite links for one team (lib/teamInvites).
@@ -42,7 +43,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/team/${teamId}/invites`);
+    const res = await clanFetch(`/api/team/${teamId}/invites`);
     if (!res.ok) return;
     const data = await res.json();
     setInvites(data.invites ?? []);
@@ -58,7 +59,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${teamId}/invites`, {
+      const res = await clanFetch(`/api/team/${teamId}/invites`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // 0 means "don't set one" in both fields — an unlimited link with no expiry is the useful
@@ -83,7 +84,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   async function revoke(token: string) {
     setBusy(true);
     try {
-      const res = await fetch(`/api/team/${teamId}/invites?token=${token}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/team/${teamId}/invites?token=${token}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) setInvites(data.invites ?? []);
     } finally {
@@ -106,7 +107,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
     if (!captainToggle) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/events/${captainToggle.eventId}`, {
+      const res = await clanFetch(`/api/events/${captainToggle.eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rules: { ...JSON.parse(captainToggle.rules || '{}'), captainInvites: next } }),

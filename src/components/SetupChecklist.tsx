@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { SetupStep } from '@/lib/setupStatus';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   steps: SetupStep[];
@@ -20,7 +21,7 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
   async function dismiss() {
     setDismissing(true);
     try {
-      await fetch('/api/admin/settings', {
+      await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ setup_completed: '1' }),

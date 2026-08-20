@@ -5,6 +5,7 @@ import type { Tile } from '@/lib/types';
 import type { EventRules } from '@/lib/eventRules';
 import { tileKindBadge } from '@/lib/tileKinds';
 import type { AuthoringModel } from '@/lib/tileAuthoring';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * The draw pool, in the order the engine will pull from it.
@@ -73,7 +74,7 @@ export default function RotationView({
     setBusyTileId(tile.id);
     setError('');
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileId: tile.id, revealState: next }),

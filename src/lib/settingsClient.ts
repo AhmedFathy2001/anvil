@@ -4,6 +4,7 @@
 // all-keys) settings payload on mount — so one page load fired ~10 duplicate requests. This
 // coalesces them: concurrent callers share a single in-flight request, and the result is cached
 // briefly so the whole page's mounts hit the network once. Any save invalidates the cache.
+import { clanFetch } from '@/lib/clanFetch';
 
 type Settings = Record<string, string>;
 
@@ -23,7 +24,7 @@ export async function loadSettings(force = false): Promise<Settings> {
   }
   inflight = (async () => {
     try {
-      const res = await fetch('/api/admin/settings');
+      const res = await clanFetch('/api/admin/settings');
       const data: Settings = res.ok ? await res.json() : {};
       cache = { data, at: Date.now() };
       return data;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 // What a player sees while the draft runs.
 //
@@ -39,7 +40,7 @@ export default function DraftWatchClient({
 
   const fetchDraft = useCallback(async () => {
     try {
-      const res = await fetch(`/api/events/${eventId}/draft`);
+      const res = await clanFetch(`/api/events/${eventId}/draft`);
       if (res.ok) setDraft((await res.json()) as DraftState);
     } catch {
       /* the next tick covers it */

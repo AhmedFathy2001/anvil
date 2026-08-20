@@ -13,7 +13,6 @@ import LibraryTileGenerator from './LibraryTileGenerator';
 import ScheduleView from './ScheduleView';
 import RotationView from './RotationView';
 import ActionMenu from '@/components/ActionMenu';
-import Link from 'next/link';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import Select from '@/components/Select';
@@ -33,6 +32,8 @@ import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/t
 import { findBoardProblems } from '@/lib/boardMisconfig';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -224,7 +225,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [tilesVersion, setTilesVersion] = useState(0);
   useEffect(() => setTilesVersion((v) => v + 1), [localTiles]);
   async function applySuggestedPoints(tileId: number, points: number): Promise<boolean> {
-    const res = await fetch(`/api/events/${event.id}/tiles`, {
+    const res = await clanFetch(`/api/events/${event.id}/tiles`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tileId, points }),
@@ -259,7 +260,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     };
     (async () => {
       const [tileRes, lockRes] = await Promise.all([
-        fetch(`/api/events/${event.id}/tiles/${editingTileId}`),
+        clanFetch(`/api/events/${event.id}/tiles/${editingTileId}`),
         fetch(lockUrl, { method: 'POST' }),
       ]);
       if (cancelled) return;
@@ -329,7 +330,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setBulkBusy(true);
     setBulkMsg('');
     try {
-      const res = await fetch(`/api/events/${event.id}/tiles/bulk`, {
+      const res = await clanFetch(`/api/events/${event.id}/tiles/bulk`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileIds: ids, set }),
@@ -390,7 +391,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setAdding(true);
     setImportMsg(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/tiles`, {
+      const res = await clanFetch(`/api/events/${event.id}/tiles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -422,7 +423,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     try {
       const created: Tile[] = [];
       for (const label of labels) {
-        const res = await fetch(`/api/events/${event.id}/tiles`, {
+        const res = await clanFetch(`/api/events/${event.id}/tiles`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(label ? { label } : {}),
@@ -454,7 +455,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setAdding(true);
     setImportMsg(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/tiles`, {
+      const res = await clanFetch(`/api/events/${event.id}/tiles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ duplicateOf: tileId }),
@@ -521,7 +522,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         return;
       }
     }
-    const res = await fetch(`/api/events/${event.id}/tiles/${tileId}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/events/${event.id}/tiles/${tileId}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setImportMsg({ type: 'error', text: data.error || 'Could not delete tile.' });
@@ -625,7 +626,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setReordering(true);
     setImportMsg(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/tiles/reorder`, {
+      const res = await clanFetch(`/api/events/${event.id}/tiles/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order: ids }),
@@ -726,7 +727,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (/\.xlsx$/i.test(file.name)) {
         const form = new FormData();
         form.append('file', file);
-        res = await fetch(`/api/events/${event.id}/tiles/import`, { method: 'POST', body: form });
+        res = await clanFetch(`/api/events/${event.id}/tiles/import`, { method: 'POST', body: form });
       } else {
         const text = await file.text();
         const parsed = parseTileCsv(text);
@@ -734,7 +735,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           setImportMsg({ type: 'error', text: parsed.error });
           return;
         }
-        res = await fetch(`/api/events/${event.id}/tiles/import`, {
+        res = await clanFetch(`/api/events/${event.id}/tiles/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rows: parsed.rows }),
@@ -767,7 +768,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // filters so freshly-added tiles aren't hidden. router.refresh() re-syncs the server component too.
   async function syncTilesFromServer() {
     try {
-      const refreshed = await fetch(`/api/events/${event.id}/tiles`);
+      const refreshed = await clanFetch(`/api/events/${event.id}/tiles`);
       if (refreshed.ok) {
         const fresh = (await refreshed.json()) as Tile[];
         setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
@@ -813,7 +814,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     if (!confirm(`Add ${usable.length} tile${usable.length === 1 ? '' : 's'} from this board to the task library?`)) return;
     setSavingToLibrary(true);
     try {
-      const res = await fetch('/api/admin/tile-library', {
+      const res = await clanFetch('/api/admin/tile-library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1681,7 +1682,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </p>
           <p>
             Everything above is also reachable from{' '}
-            <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">your task library</Link>.
+            <ClanLink href="/admin/tile-library" className="text-gold hover:text-gold-light">your task library</ClanLink>.
           </p>
         </div>
       </details>
@@ -1782,7 +1783,7 @@ function RevealAtEditor({
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileId: tile.id, revealState: next }),
@@ -1808,7 +1809,7 @@ function RevealAtEditor({
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileId: tile.id, revealAt }),

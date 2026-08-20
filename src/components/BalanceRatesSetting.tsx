@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Admin editor for the board-balance effort rates (backed by /api/admin/balance-rates).
 // Renders the MERGED view (curated defaults + this clan's overrides); saving diffs the
@@ -73,7 +74,7 @@ export default function BalanceRatesSetting() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch('/api/admin/balance-rates');
+      const res = await clanFetch('/api/admin/balance-rates');
       if (!res.ok) return;
       const data = await res.json();
       const d = data.defaults as Rates;
@@ -123,7 +124,7 @@ export default function BalanceRatesSetting() {
     for (const [k, v] of Object.entries(merged.activities)) {
       if (JSON.stringify(defaults.activities[k]) !== JSON.stringify(v)) overrides.activities[k] = v;
     }
-    const res = await fetch('/api/admin/balance-rates', {
+    const res = await clanFetch('/api/admin/balance-rates', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ overrides }),
@@ -137,7 +138,7 @@ export default function BalanceRatesSetting() {
 
   async function resetAll() {
     if (!confirm('Discard every override and restore the curated default rates?')) return;
-    const res = await fetch('/api/admin/balance-rates', { method: 'DELETE' });
+    const res = await clanFetch('/api/admin/balance-rates', { method: 'DELETE' });
     if (res.ok && defaults) {
       setMerged(JSON.parse(JSON.stringify(defaults)));
       setMsg({ ok: true, text: 'Restored the curated defaults.' });

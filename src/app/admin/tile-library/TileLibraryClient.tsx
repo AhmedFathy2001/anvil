@@ -9,6 +9,7 @@ import type { TileConfig } from '@/lib/types';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { libraryShape, type Finding } from '@/lib/libraryShape';
 import { blankTileConfig, payloadToCsvRow, toTileConfig } from './taskConfig';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 
 // The clan's task catalogue, as an editable list. Boards draw from this, so it's worth curating:
 // the tasks here decide what a generated board feels like.
@@ -86,7 +87,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/tile-library');
+      const res = await clanFetch('/api/admin/tile-library');
       if (!res.ok) throw new Error();
       const data = await res.json();
       setTasks(data.tasks ?? []);
@@ -148,7 +149,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch('/api/admin/tile-library', {
+      const res = await clanFetch('/api/admin/tile-library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -394,7 +395,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
             />
           </label>
           <a
-            href="/api/admin/tile-library/export"
+            href={clanUrl('/api/admin/tile-library/export')}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
             title="Download the whole library as a seed pack — share it with another site, or commit it as the default"
           >

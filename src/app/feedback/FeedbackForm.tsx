@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 export default function FeedbackForm() {
   const [kind, setKind] = useState<'bug' | 'feedback'>('bug');
@@ -18,7 +19,7 @@ export default function FeedbackForm() {
     }
     setBusy(true);
     setError('');
-    const res = await fetch('/api/feedback', {
+    const res = await clanFetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

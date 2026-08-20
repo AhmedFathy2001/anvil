@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import Select, { type SelectOption } from '@/components/Select';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface WebhookFieldProps {
   // Which settings key this field reads/writes. Defaults to the master announcements webhook.
@@ -92,7 +93,7 @@ export default function WebhookField({
     let cancelled = false;
     setCheckingPerm(true);
     setPermCheck(null);
-    fetch(`/api/admin/discord/webhooks?channelId=${encodeURIComponent(channelId)}`)
+    clanFetch(`/api/admin/discord/webhooks?channelId=${encodeURIComponent(channelId)}`)
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) setPermCheck({ ok: !!d.ok, reason: typeof d.reason === 'string' ? d.reason : undefined });
@@ -119,7 +120,7 @@ export default function WebhookField({
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingKey]: next.join(' ') }),
@@ -148,7 +149,7 @@ export default function WebhookField({
     setCreating(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/discord/webhooks', {
+      const res = await clanFetch('/api/admin/discord/webhooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channelId, settingKey, mode, name: nameInput.trim() || undefined }),
@@ -189,7 +190,7 @@ export default function WebhookField({
     setTestingUrl(u);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'test', webhook_url: u }),

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { RATING_MAX, type SurveyAnswerMap, type SurveyQuestionView } from '@/lib/survey';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   eventId: number;
@@ -36,7 +37,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/survey/respond`, {
+      const res = await clanFetch(`/api/events/${eventId}/survey/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers }),

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { eventPresets, events } from '@/db/schema';
@@ -8,6 +7,7 @@ import { BUILTIN_PRESETS, suggestEventName, type EventPreset } from '@/lib/event
 import { modeKeyFor } from '@/lib/eventModes';
 import { parseTileCsv } from '@/lib/csvTiles';
 import { getClanDisplayName } from '@/lib/pluginConfig';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,12 +45,12 @@ export default async function NewEventPage() {
 
   return (
     <div>
-      <Link
+      <ClanLink
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; All events
-      </Link>
+      </ClanLink>
 
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Create Event</h1>

@@ -26,6 +26,7 @@ import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
 import { eventAxes } from '@/lib/eventAxes';
 import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface DraftState {
   status: string;
@@ -246,7 +247,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }, [draft.status, goToStep]);
 
   const fetchDraft = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/draft`);
+    const res = await clanFetch(`/api/events/${event.id}/draft`);
     if (res.ok) setDraft(await res.json());
   }, [event.id]);
 
@@ -275,7 +276,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     setDeleting(teamId);
     try {
-      const res = await fetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Could not delete team');
@@ -293,7 +294,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     if (selectedClanMemberIds.length === 0) return;
     setAddingPlayer(true);
-    const res = await fetch(`/api/events/${event.id}/players`, {
+    const res = await clanFetch(`/api/events/${event.id}/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(selectedClanMemberIds.map((clanMemberId) => ({ clanMemberId }))),
@@ -340,7 +341,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     setAssigningPlayerId(playerId);
     try {
-      await fetch(`/api/events/${event.id}/players`, {
+      await clanFetch(`/api/events/${event.id}/players`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId, teamId }),
@@ -357,7 +358,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     setRemovingPlayerId(playerId);
     try {
-      await fetch(`/api/events/${event.id}/players`, {
+      await clanFetch(`/api/events/${event.id}/players`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId, teamId: null }),
@@ -375,7 +376,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (selectedClanMemberIds.length === 0) return;
     setAddingPlayer(true);
     try {
-      const res = await fetch(`/api/events/${event.id}/players?teamId=${teamId}`, {
+      const res = await clanFetch(`/api/events/${event.id}/players?teamId=${teamId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selectedClanMemberIds.map((clanMemberId) => ({ clanMemberId }))),
@@ -393,7 +394,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   async function deletePlayer(playerId: number) {
     if (mutationsBlocked()) return;
-    await fetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
+    await clanFetch(`/api/events/${event.id}/players?playerId=${playerId}`, { method: 'DELETE' });
     await fetchDraft();
     router.refresh();
   }
@@ -404,7 +405,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     setBusyPlayerId(playerId);
     try {
-      await fetch(`/api/events/${event.id}/players`, {
+      await clanFetch(`/api/events/${event.id}/players`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId, frozen }),
@@ -443,7 +444,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setSubChoiceId(null);
     setRemoveChoiceId(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/players/reset`, {
+      const res = await clanFetch(`/api/events/${event.id}/players/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId, remove, subOut, drop }),
@@ -464,7 +465,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   async function saveDraftOrder(order: number[]) {
     if (mutationsBlocked()) return;
     setSavingOrder(true);
-    await fetch(`/api/events/${event.id}/draft`, {
+    await clanFetch(`/api/events/${event.id}/draft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'set-order', teamOrder: order }),
@@ -477,7 +478,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   async function doDraftAction(action: string) {
     if (mutationsBlocked()) return;
     setDraftAction(action);
-    await fetch(`/api/events/${event.id}/draft`, {
+    await clanFetch(`/api/events/${event.id}/draft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
@@ -490,7 +491,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   async function adminPick(playerId: number) {
     if (mutationsBlocked()) return;
     setPicking(true);
-    await fetch(`/api/events/${event.id}/draft/pick`, {
+    await clanFetch(`/api/events/${event.id}/draft/pick`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId }),
@@ -507,7 +508,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (mutationsBlocked()) return;
     setResettingSnapshot(playerId);
     try {
-      await fetch(`/api/events/${event.id}/players/${playerId}/snapshot`, {
+      await clanFetch(`/api/events/${event.id}/players/${playerId}/snapshot`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resetAll: true }),
@@ -524,7 +525,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setResendingRoster(true);
     setRosterMessage(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/draft`, {
+      const res = await clanFetch(`/api/events/${event.id}/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'resend-roster' }),
@@ -553,7 +554,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setStartingBingo(true);
     setStartBingoError(null);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(force ? { action: 'start-now', force: true } : { action: 'start-now' }),
@@ -583,7 +584,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setUndoing(true);
     setLastUndone(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/draft`, {
+      const res = await clanFetch(`/api/events/${event.id}/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'undo-pick' }),
@@ -634,7 +635,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (next.maxAccounts !== undefined) body.maxAccountsPerPerson = next.maxAccounts;
     setSavingAccountCfg(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -655,7 +656,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     setPlacing(true);
     setPlaceNotice(null);
     try {
-      const res = await fetch(`/api/admin/events/${event.id}/place-pool`, {
+      const res = await clanFetch(`/api/admin/events/${event.id}/place-pool`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ placement: format }),

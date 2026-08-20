@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import RoleSelect from '@/components/RoleSelect';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface RoleSettingProps {
   settingKey: string;
@@ -35,7 +36,7 @@ export default function RoleSetting({ settingKey, label, helpText, noneLabel }: 
     setValue(next);
     setStatus('saving');
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingKey]: next }),

@@ -15,6 +15,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { isPointsMode } from '@/lib/utils';
 import type { LadderScope, LadderView } from '@/lib/ladderView';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * The ladder event page.
@@ -115,7 +116,7 @@ export default function LadderClient({
     if (!selectedTileId) return;
     let cancelled = false;
     const tileId = selectedTileId;
-    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}&limit=500`)
+    clanFetch(`/api/events/${event.id}/submissions?tileId=${tileId}&limit=500`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: FullSubmission[]) => {
         if (!cancelled) setTileProof({ tileId, rows: Array.isArray(rows) ? rows : [] });

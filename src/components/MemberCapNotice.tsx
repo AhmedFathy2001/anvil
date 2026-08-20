@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import type { CapStatus } from '@/lib/member-cap';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * Plan-limit banner for the clan's own admins.
@@ -51,12 +51,12 @@ export default function MemberCapNotice({ status }: { status: CapStatus }) {
             )}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Link
+            <ClanLink
               href="/admin/clan?tab=roster"
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-card-border hover:border-gold/40 transition-colors"
             >
               Review roster
-            </Link>
+            </ClanLink>
             {status.state !== 'approaching' && (
               <a
                 href="https://anvilosrs.com/#pricing"

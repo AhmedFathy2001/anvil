@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Staff-side player ratings for the draft surfaces (balance-engine plan). One fetch of
 // /api/admin/player-profiles per event, shared by everything on the Teams & Draft tab: the balance
@@ -72,7 +73,7 @@ export function usePlayerRatings({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/admin/player-profiles?eventId=${eventId}`);
+        const res = await clanFetch(`/api/admin/player-profiles?eventId=${eventId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setFetched(data.profiles as RatedProfile[]);

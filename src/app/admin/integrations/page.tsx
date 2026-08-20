@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import SettingsTabs from './SettingsTabs';
 import { listBotChannels } from '@/lib/discord-broadcast';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +16,9 @@ export default async function AdminIntegrationsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Advanced settings</h1>
         <p className="text-text-muted text-sm">
           Fine-tune every service Anvil talks to. New here? Try the{' '}
-          <Link href="/admin/setup" className="text-gold hover:underline">
+          <ClanLink href="/admin/setup" className="text-gold hover:underline">
             guided setup
-          </Link>{' '}
+          </ClanLink>{' '}
           instead — nothing here is required to start.
         </p>
       </header>

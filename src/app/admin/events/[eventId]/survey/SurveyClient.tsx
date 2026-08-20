@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult, type SurveyAnswerMap, type SurveyRespondentView } from '@/lib/survey';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface TemplateMeta {
   id: string;
@@ -92,7 +93,7 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
           required: q.required,
         })),
       };
-      const res = await fetch(`/api/events/${eventId}/survey/questions`, {
+      const res = await clanFetch(`/api/events/${eventId}/survey/questions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -112,7 +113,7 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
   async function loadTemplate(id: string) {
     setError(null);
     setNotice(null);
-    const res = await fetch(`/api/events/${eventId}/survey/template`, {
+    const res = await clanFetch(`/api/events/${eventId}/survey/template`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ templateId: id }),
@@ -271,7 +272,7 @@ function ResultsView({ eventId }: { eventId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/survey/results`);
+      const res = await clanFetch(`/api/events/${eventId}/survey/results`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not load results');

@@ -2,10 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import Link from 'next/link';
 import LocalTime from '@/components/LocalTime';
 import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 import { formatGp, formatWeeklyGain, SPARK_DAYS } from '@/lib/adminEventsFormat';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 import type {
   AttentionItem,
   PastEventResult,
@@ -77,7 +78,7 @@ export default function EventsClient({
     }
     setDeletingId(event.id);
     try {
-      const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/events/${event.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Could not delete event');
@@ -113,12 +114,12 @@ export default function EventsClient({
           </p>
         </div>
         {canManage && (
-          <Link
+          <ClanLink
             href="/admin/events/new"
             className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
           >
             + New event
-          </Link>
+          </ClanLink>
         )}
       </header>
 
@@ -185,9 +186,9 @@ export default function EventsClient({
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
             Nothing scheduled.{' '}
             {canManage && (
-              <Link href="/admin/events/new" className="text-gold hover:underline">
+              <ClanLink href="/admin/events/new" className="text-gold hover:underline">
                 Plan the next one →
-              </Link>
+              </ClanLink>
             )}
           </div>
         ) : (
@@ -284,9 +285,9 @@ function RunningEventHero({
           </span>
         </div>
 
-        <Link href={`/admin/events/${event.id}`} className="block group">
+        <ClanLink href={`/admin/events/${event.id}`} className="block group">
           <h3 className="text-xl font-bold group-hover:text-gold transition-colors">{event.name}</h3>
-        </Link>
+        </ClanLink>
 
         <div className="flex items-baseline gap-2 mt-3 mb-1.5">
           <span className="text-2xl font-bold tabular-nums">{elapsed.remainingLabel}</span>
@@ -339,32 +340,32 @@ function RunningEventHero({
         )}
 
         <div className="flex items-center gap-2 flex-wrap mt-4 pt-4 border-t border-card-border">
-          <Link
+          <ClanLink
             href={`/admin/events/${event.id}`}
             className="px-3 py-1.5 text-xs font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
           >
             Open board
-          </Link>
-          <Link
+          </ClanLink>
+          <ClanLink
             href={`/admin/events/${event.id}/stats`}
             className="px-3 py-1.5 text-xs font-medium rounded-lg border border-card-border hover:border-gold/50 transition-colors"
           >
             Stats
-          </Link>
+          </ClanLink>
           {canManage && (
-            <Link
+            <ClanLink
               href={`/admin/events/${event.id}/teams`}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-card-border hover:border-gold/50 transition-colors"
             >
               Rosters
-            </Link>
+            </ClanLink>
           )}
-          <Link
+          <ClanLink
             href={`/events/${event.id}`}
             className="px-3 py-1.5 text-xs font-medium rounded-lg text-text-muted hover:text-foreground transition-colors ml-auto"
           >
             Player view ↗
-          </Link>
+          </ClanLink>
         </div>
       </div>
 
@@ -432,9 +433,9 @@ function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
         <span>·</span>
         <span>{comp.participantCount} players</span>
       </div>
-      <Link href={`/admin/events/weekly/${comp.id}`} className="block group">
+      <ClanLink href={`/admin/events/weekly/${comp.id}`} className="block group">
         <h3 className="text-xl font-bold group-hover:text-purple-300 transition-colors">{comp.title}</h3>
-      </Link>
+      </ClanLink>
       <div className="flex items-baseline gap-2 mt-3 mb-1.5">
         <span className="text-2xl font-bold tabular-nums">{elapsed.remainingLabel}</span>
         <span className="text-xs text-text-muted">
@@ -445,18 +446,18 @@ function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
         <div className="h-full rounded-full bg-purple-400" style={{ width: `${elapsed.pct}%` }} />
       </div>
       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-card-border">
-        <Link
+        <ClanLink
           href={`/admin/events/weekly/${comp.id}`}
           className="px-3 py-1.5 text-xs font-semibold bg-purple-400/20 text-purple-200 hover:bg-purple-400/30 rounded-lg transition-colors"
         >
           Open competition
-        </Link>
-        <Link
+        </ClanLink>
+        <ClanLink
           href={`/weekly/${comp.id}`}
           className="px-3 py-1.5 text-xs font-medium rounded-lg text-text-muted hover:text-foreground transition-colors ml-auto"
         >
           Player view ↗
-        </Link>
+        </ClanLink>
       </div>
     </div>
   );
@@ -474,7 +475,7 @@ function AlsoRunningRow({
   endDate: string | null;
 }) {
   return (
-    <Link
+    <ClanLink
       href={href}
       className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-card-border bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover transition-colors"
     >
@@ -484,7 +485,7 @@ function AlsoRunningRow({
       {endDate && (
         <span className="text-xs text-text-muted ml-auto flex-shrink-0">{timeProgress(null, endDate).remainingLabel} left</span>
       )}
-    </Link>
+    </ClanLink>
   );
 }
 
@@ -553,13 +554,13 @@ function AttentionCard({ item }: { item: AttentionItem }) {
         : { ring: 'border-card-border hover:border-gold/40', chip: 'bg-gold/15 text-gold', icon: '·' };
 
   return (
-    <Link href={item.href} className={`flex gap-3 items-start p-3 rounded-xl border bg-card-bg transition-colors ${tone.ring}`}>
+    <ClanLink href={item.href} className={`flex gap-3 items-start p-3 rounded-xl border bg-card-bg transition-colors ${tone.ring}`}>
       <span className={`w-6 h-6 rounded-lg grid place-items-center text-xs flex-shrink-0 ${tone.chip}`}>{tone.icon}</span>
       <span className="min-w-0">
         <span className="block text-sm font-semibold truncate">{item.title}</span>
         <span className="block text-xs text-text-muted truncate">{item.detail}</span>
       </span>
-    </Link>
+    </ClanLink>
   );
 }
 
@@ -600,7 +601,7 @@ function SetupCard({
 
   return (
     <div className="group relative border border-card-border rounded-xl bg-card-bg hover:border-gold/40 transition-colors">
-      <Link href={canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`} className="block p-4">
+      <ClanLink href={canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`} className="block p-4">
         <div className="flex items-start justify-between gap-2 pr-7">
           <h3 className="font-semibold group-hover:text-gold transition-colors">{event.name}</h3>
           <span
@@ -644,15 +645,15 @@ function SetupCard({
         {progress && progress.blockers.length > 0 && (
           <p className="text-[11px] text-amber-300/90 mt-2 line-clamp-1">Can&apos;t start — {progress.blockers[0]}</p>
         )}
-      </Link>
+      </ClanLink>
 
       <div className="px-4 pb-4 -mt-1 flex gap-2">
-        <Link
+        <ClanLink
           href={`/admin/events/${event.id}/${(progress?.teamCount ?? 0) === 0 ? 'teams' : 'tiles'}`}
           className="px-2.5 py-1 text-xs font-medium rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
         >
           Continue setup →
-        </Link>
+        </ClanLink>
       </div>
 
       {canManage && (
@@ -667,7 +668,7 @@ function SetupCard({
 function WeeklyCard({ comp }: { comp: WeeklyRow }) {
   const badge = comp.type === 'boss' ? 'BOTW' : comp.type === 'efficiency' ? 'Efficiency' : 'SOTW';
   return (
-    <Link
+    <ClanLink
       href={`/admin/events/weekly/${comp.id}`}
       className="group relative block p-4 border border-card-border rounded-xl bg-card-bg hover:border-purple-400/40 hover:bg-card-bg-hover transition-colors"
     >
@@ -690,7 +691,7 @@ function WeeklyCard({ comp }: { comp: WeeklyRow }) {
       <p className="text-[10px] text-text-muted/70 mt-2">
         <LocalTime date={comp.startDate} format="date" /> — <LocalTime date={comp.endDate} format="date" />
       </p>
-    </Link>
+    </ClanLink>
   );
 }
 
@@ -801,9 +802,9 @@ function PastEventRow({
   return (
     <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
       <td className="px-4 py-2.5">
-        <Link href={href} className="font-medium hover:text-gold transition-colors">
+        <ClanLink href={href} className="font-medium hover:text-gold transition-colors">
           {event.name}
-        </Link>
+        </ClanLink>
         {event.forceEndedAt && <span className="ml-2 text-[10px] text-red-400">force-ended</span>}
       </td>
       <td className="px-3 py-2.5 hidden sm:table-cell">
@@ -848,12 +849,12 @@ function PastEventRow({
       <td className="px-3 py-2.5 text-right whitespace-nowrap">
         {canManage && (
           <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity inline-flex gap-1">
-            <Link
+            <ClanLink
               href={`/admin/events/${event.id}/payouts`}
               className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 transition-colors"
             >
               Payouts
-            </Link>
+            </ClanLink>
             <button
               type="button"
               onClick={onDelete}
@@ -881,9 +882,9 @@ function PastWeeklyRow({
   return (
     <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
       <td className="px-4 py-2.5">
-        <Link href={`/admin/events/weekly/${comp.id}`} className="font-medium hover:text-purple-300 transition-colors">
+        <ClanLink href={`/admin/events/weekly/${comp.id}`} className="font-medium hover:text-purple-300 transition-colors">
           {comp.title}
-        </Link>
+        </ClanLink>
       </td>
       <td className="px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-purple-400/10 text-purple-300/90 px-2 py-0.5 rounded-full">{badge}</span>
@@ -929,7 +930,7 @@ function BackfillFacts() {
     setBusy(true);
     setResult(null);
     try {
-      const res = await fetch('/api/admin/events/backfill-facts', { method: 'POST' });
+      const res = await clanFetch('/api/admin/events/backfill-facts', { method: 'POST' });
       const data = (await res.json()) as {
         written?: { name: string }[];
         skipped?: number;

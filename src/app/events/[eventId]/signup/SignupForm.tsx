@@ -9,6 +9,7 @@ import { TIMEZONE_OPTIONS } from '@/lib/signup';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface FeeCollectorOption {
   id: number;
@@ -321,7 +322,7 @@ export default function SignupForm({
         notes: notes.trim() || undefined,
       };
 
-      const res = await fetch(`/api/events/${eventId}/signup`, {
+      const res = await clanFetch(`/api/events/${eventId}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clanMemberIds: Array.from(selectedIds), profile, inviteToken: invite?.token }),
@@ -343,7 +344,7 @@ export default function SignupForm({
     if (!confirm('Withdraw your sign-up? You can re-sign up before the deadline.')) return;
     setWithdrawing(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/signup`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/events/${eventId}/signup`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to withdraw');
@@ -751,7 +752,7 @@ function PaymentReportSection({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/events/${eventId}/signup/report-payment`)
+    clanFetch(`/api/events/${eventId}/signup/report-payment`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -770,7 +771,7 @@ function PaymentReportSection({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/signup/report-payment`, {
+      const res = await clanFetch(`/api/events/${eventId}/signup/report-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ collectorUserId: nextId }),

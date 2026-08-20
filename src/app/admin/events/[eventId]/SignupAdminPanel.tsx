@@ -12,6 +12,7 @@ import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
 import { formatHoursRange } from '@/lib/signup';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -109,7 +110,7 @@ export default function SignupAdminPanel({
   const [feeFilter, setFeeFilter] = useState<string>('all');
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/admin/events/${event.id}/signups`);
+    const res = await clanFetch(`/api/admin/events/${event.id}/signups`);
     if (res.ok) {
       const data = await res.json();
       setSignups(data.signups ?? []);
@@ -136,7 +137,7 @@ export default function SignupAdminPanel({
     setActingId(sigId);
     setActionError(null);
     try {
-      const res = await fetch(`/api/admin/events/${event.id}/signups/${sigId}`, {
+      const res = await clanFetch(`/api/admin/events/${event.id}/signups/${sigId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -175,7 +176,7 @@ export default function SignupAdminPanel({
     setSettlingFees(true);
     setActionError(null);
     try {
-      const res = await fetch('/api/admin/fees/confirm-all', {
+      const res = await clanFetch('/api/admin/fees/confirm-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: event.id }),
@@ -211,7 +212,7 @@ export default function SignupAdminPanel({
     setPoolMessage(null);
     setActionError(null);
     try {
-      const res = await fetch(`/api/admin/events/${event.id}/signups/promote-pool`, {
+      const res = await clanFetch(`/api/admin/events/${event.id}/signups/promote-pool`, {
         method: 'POST',
       });
       if (!res.ok) {
@@ -271,7 +272,7 @@ export default function SignupAdminPanel({
       if (parsedAddedPrize !== null && (!Number.isFinite(parsedAddedPrize) || parsedAddedPrize < 0)) {
         throw new Error('Added prize pool must be a non-negative number, or blank.');
       }
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

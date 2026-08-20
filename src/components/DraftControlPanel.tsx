@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ControlTeam, DraftControl } from '@/lib/draftControl';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Staff steering for a draft that's already running.
 //
@@ -61,7 +62,7 @@ export default function DraftControlPanel({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/draft-control`);
+      const res = await clanFetch(`/api/admin/events/${eventId}/draft-control`);
       if (res.ok) setData((await res.json()) as DraftControl);
     } catch {
       /* the next tick covers it */
@@ -79,7 +80,7 @@ export default function DraftControlPanel({
       setBusy(key);
       setNote(null);
       try {
-        const res = await fetch(`/api/admin/events/${eventId}/draft-control`, {
+        const res = await clanFetch(`/api/admin/events/${eventId}/draft-control`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),

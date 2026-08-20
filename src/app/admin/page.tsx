@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
+import { clanHref } from '@/lib/clanPath';
 
-export default function AdminIndexPage() {
-  redirect('/admin/dashboard');
+export default async function AdminIndexPage() {
+  redirect(await clanHref('/admin/dashboard'));
 }

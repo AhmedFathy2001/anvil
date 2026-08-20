@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The manager's half of a team page: who's on it, what their proof looks like, whose fee is still
 // owed, and the links that put people on it. Shown to the captain and to anyone holding a staff seat
@@ -63,8 +64,8 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
     setLoading(true);
     try {
       const [rosterRes, feesRes] = await Promise.all([
-        fetch(`/api/team/${teamId}/roster`),
-        fetch(`/api/team/${teamId}/fees`),
+        clanFetch(`/api/team/${teamId}/roster`),
+        clanFetch(`/api/team/${teamId}/fees`),
       ]);
       if (rosterRes.ok) {
         const data = await rosterRes.json();
@@ -87,7 +88,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
     setBusy(playerId);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${teamId}/roster?playerId=${playerId}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/team/${teamId}/roster?playerId=${playerId}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Could not remove them');
@@ -103,7 +104,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
     setBusy(feeId);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${teamId}/fees`, {
+      const res = await clanFetch(`/api/team/${teamId}/fees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feeId }),

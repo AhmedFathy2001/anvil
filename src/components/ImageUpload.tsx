@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   onImageSelected: (url: string) => void;
@@ -35,7 +36,7 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
     formData.append('file', file);
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const res = await clanFetch('/api/upload', { method: 'POST', body: formData });
       if (res.ok) {
         const { url } = await res.json();
         setPreview(url);
@@ -65,7 +66,7 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const res = await clanFetch('/api/upload', { method: 'POST', body: formData });
         if (res.ok) {
           const { url } = await res.json();
           urls.push(url);

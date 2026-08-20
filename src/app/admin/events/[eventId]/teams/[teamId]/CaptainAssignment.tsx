@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { avatarUrl } from '@/lib/discord-oauth';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface UserRow {
   id: number;
@@ -28,7 +29,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/users')
+    clanFetch('/api/admin/users')
       .then((r) => (r.ok ? r.json() : { people: [] }))
       // The endpoint now returns { people, unlinked }; tolerate the old bare-array shape too.
       .then((data) => setUsers(Array.isArray(data) ? data : data.people ?? []))
@@ -53,7 +54,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId }: Prop
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/teams/${teamId}/captain`, {
+      const res = await clanFetch(`/api/admin/teams/${teamId}/captain`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),

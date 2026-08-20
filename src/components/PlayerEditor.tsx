@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   eventId: number;
@@ -42,7 +43,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/events/${eventId}/players/${player.id}/linked-accounts`);
+        const res = await clanFetch(`/api/events/${eventId}/players/${player.id}/linked-accounts`);
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) {
@@ -88,7 +89,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
     setError(null);
 
     try {
-      const res = await fetch(`/api/events/${eventId}/players`, {
+      const res = await clanFetch(`/api/events/${eventId}/players`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

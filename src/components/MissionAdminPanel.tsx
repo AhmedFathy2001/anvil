@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
 import { parseEventRules, isMissionTile, type MissionAnnounceMode } from '@/lib/eventRules';
 import type { Tile } from '@/lib/types';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * Mid-event mission control on the event Overview tab. Only renders when the board has mission tiles.
@@ -50,7 +51,7 @@ export default function MissionAdminPanel({
       const mission = enabled
         ? { announceMode: mode, order, intervalMinutes: Math.max(5, parseInt(intervalMinutes, 10) || 60) }
         : null;
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rules: { ...rules, mission } }),
@@ -71,7 +72,7 @@ export default function MissionAdminPanel({
     setAnnouncing(true);
     setMsg('');
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'announce-mission' }),

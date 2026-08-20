@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ClanMemberPicker, { type PickableMember } from './ClanMemberPicker';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 const PRESET_COLORS = [
   '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71',
@@ -52,7 +53,7 @@ export default function TeamEditor({ eventId, team, onClose, onSaved }: Props) {
     setSaving(true);
     try {
       const res = isEdit
-        ? await fetch(`/api/events/${eventId}/teams`, {
+        ? await clanFetch(`/api/events/${eventId}/teams`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -63,7 +64,7 @@ export default function TeamEditor({ eventId, team, onClose, onSaved }: Props) {
               ...(captainUserId != null ? { captainUserId } : {}),
             }),
           })
-        : await fetch(`/api/events/${eventId}/teams`, {
+        : await clanFetch(`/api/events/${eventId}/teams`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: name.trim(), color, captainUserId }),

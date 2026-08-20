@@ -14,6 +14,7 @@ import DateRangeField from '@/components/DateRangeField';
 import { formatLocalDateTime } from '@/lib/eventTime';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 
 interface EventFormProps {
   presets?: EventPreset[];
@@ -259,7 +260,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   async function deletePreset(preset: EventPreset) {
     if (preset.id == null) return;
     if (!confirm(`Delete the saved template "${preset.label}"? This can't be undone.`)) return;
-    await fetch(`/api/admin/event-presets/${preset.id}`, { method: 'DELETE' }).catch(() => {});
+    await clanFetch(`/api/admin/event-presets/${preset.id}`, { method: 'DELETE' }).catch(() => {});
     if (activePreset === preset.key) changeMode(mode);
     router.refresh();
   }
@@ -277,7 +278,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
       }
       setLoading(true);
       try {
-        const res = await fetch('/api/admin/weekly', {
+        const res = await clanFetch('/api/admin/weekly', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -295,7 +296,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           setLoading(false);
           return;
         }
-        router.push(`/admin/events/weekly/${data.id ?? data.competition?.id ?? ''}`);
+        router.push(clanUrl(`/admin/events/weekly/${data.id ?? data.competition?.id ?? ''}`));
         return;
       } catch {
         setError('Could not create the competition.');
@@ -318,7 +319,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/events', {
+      const res = await clanFetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -369,14 +370,14 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         ? drawn.map((t) => ({ ...t.config, label: t.label, points: t.points, category: t.category ?? undefined }))
         : presetCsv?.rows;
       if (richRows && richRows.length > 0) {
-        await fetch(`/api/events/${data.id}/tiles/import`, {
+        await clanFetch(`/api/events/${data.id}/tiles/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rows: richRows }),
         }).catch(() => {});
       }
 
-      router.push(`/admin/events/${data.id}`);
+      router.push(clanUrl(`/admin/events/${data.id}`));
       router.refresh();
     } catch {
       setError('Failed to create event');

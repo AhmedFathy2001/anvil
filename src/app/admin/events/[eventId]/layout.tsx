@@ -2,7 +2,6 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
 import { isEventEditor } from '@/lib/eventEditors';
@@ -17,6 +16,8 @@ import { eventRailGroups } from '@/lib/eventRail';
 import { authoringModel } from '@/lib/tileAuthoring';
 import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { atLeast } from '@/lib/clanRoles';
+import ClanLink from '@/components/ClanLink';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export default async function EventLayout({
   // back to their (already-filtered) events list — the coarse middleware gate lets any editor reach
   // the tiles route, so this server-side check is what actually enforces per-board scoping.
   if (session?.role === 'editor' && session.editorScope === 'assigned') {
-    if (!(await isEventEditor(session.userId, id))) redirect('/admin/events');
+    if (!(await isEventEditor(session.userId, id))) redirect(await clanHref('/admin/events'));
   }
 
   // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
@@ -88,12 +89,12 @@ export default async function EventLayout({
         header={{ title: event.name, subtitle: eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules) }}
       />
       <div className="flex-1 min-w-0">
-      <Link
+      <ClanLink
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; All events
-      </Link>
+      </ClanLink>
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
         <EventTitle eventId={id} initialName={event.name} canEdit={atLeast(session?.role, 'admin')} />

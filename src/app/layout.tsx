@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { currentClan } from '@/lib/clanContext';
+import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import { verifyUser } from "@/lib/auth";
 import { db } from "@/db";
 import { users as usersTable } from "@/db/schema";
@@ -13,6 +12,7 @@ import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import "./globals.css";
+import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,15 +69,19 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen flex-col`}
       >
+        {/* The clan prefix, read from the header middleware set and handed to every ClanLink below.
+            It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next
+            routes it, so by render time the framework's path no longer has it. */}
+        <ClanPrefixProvider prefix={await clanPrefix()}>
         <nav className="border-b-2 border-gold/20 bg-gradient-to-b from-card-bg to-background sticky top-0 z-50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between relative">
-            <Link href="/" className="flex items-center gap-2 group">
+            <ClanLink href="/" className="flex items-center gap-2 group">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icon-48.png" alt="" width={24} height={24} className="rounded" />
               <span className="text-gold font-bold text-lg group-hover:text-gold-light transition-colors">
                 Anvil
               </span>
-            </Link>
+            </ClanLink>
             <SiteNav
               signedIn={!!session}
               myTeams={myTeams}
@@ -121,16 +125,17 @@ export default async function RootLayout({
               <span title={`build ${GIT_SHA}`}>v{APP_VERSION}</span>
             </p>
             <div className="flex items-center gap-4">
-              <Link href="/guide" className="hover:text-foreground transition-colors">
+              <ClanLink href="/guide" className="hover:text-foreground transition-colors">
                 Guides
-              </Link>
-              <Link href="/feedback" className="hover:text-foreground transition-colors">
+              </ClanLink>
+              <ClanLink href="/feedback" className="hover:text-foreground transition-colors">
                 Feedback &amp; bug reports
-              </Link>
+              </ClanLink>
             </div>
           </div>
         </footer>
         <Analytics />
+        </ClanPrefixProvider>
       </body>
     </html>
   );

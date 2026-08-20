@@ -1,5 +1,6 @@
 import type { TileCsvRow } from '@/lib/csvTiles';
 import type { ItemRequirement, TileConfig } from '@/lib/types';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Bridging the two shapes a task lives in.
 //
@@ -69,7 +70,7 @@ export async function toTileConfig(
     }
     if (!it.name) continue;
     try {
-      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(it.name)}`);
+      const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(it.name)}`);
       const results: { id: number; name: string }[] = res.ok ? await res.json() : [];
       const hit =
         results.find((r) => r.name.toLowerCase() === it.name.toLowerCase()) ?? results[0] ?? null;

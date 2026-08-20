@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 const SETTING_KEY = 'show_kill_count';
 
@@ -32,7 +33,7 @@ export default function KillCountToggle() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [SETTING_KEY]: enabled ? '' : 'off' }),

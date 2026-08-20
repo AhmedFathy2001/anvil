@@ -16,6 +16,7 @@ import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ export default async function MyTeamPage({
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
-  if (!user) redirect('/login');
+  if (!user) redirect(await clanHref('/login'));
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
   if (!team) notFound();
@@ -48,7 +49,7 @@ export default async function MyTeamPage({
   // row. Staff are people the host gave this one team to — a visiting clan's moderator, typically —
   // so the gate can't be "captain or player" any more.
   const membership = await resolveTeamManagement(tId);
-  if (!membership) redirect('/team');
+  if (!membership) redirect(await clanHref('/team'));
 
   const { captainPassword: _p, ...safeTeam } = team;
   // Applicants/answers are a pre-draft concern — hide those captain links once the event is live.

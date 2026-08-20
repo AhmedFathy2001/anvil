@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { clanFetch } from '@/lib/clanFetch';
 
 export interface PendingMember {
   id: number;
@@ -27,7 +28,7 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
     setPendingId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/verifications/${id}`, {
+      const res = await clanFetch(`/api/admin/verifications/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, note }),

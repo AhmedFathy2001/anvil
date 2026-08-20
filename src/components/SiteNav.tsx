@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import ClanLink from '@/components/ClanLink';
 
 interface NavUser {
   displayName: string;
@@ -58,21 +58,21 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
       {/* Desktop links */}
       <div className="hidden md:flex items-center gap-1">
         {links.map((l) => (
-          <Link
+          <ClanLink
             key={l.href}
             href={l.href}
             className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
           >
             {l.label}
-          </Link>
+          </ClanLink>
         ))}
         {isStaff && (
-          <Link
+          <ClanLink
             href="/admin/dashboard"
             className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
           >
             Admin
-          </Link>
+          </ClanLink>
         )}
         {discordInvite && (
           <a
@@ -87,7 +87,7 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
         )}
         {signedIn && user ? (
           <div className="ml-2 flex items-center gap-2 pl-3 border-l border-card-border">
-            <Link
+            <ClanLink
               href="/profile"
               className="flex items-center gap-2 group px-2 py-1 rounded-md hover:bg-brown-light transition-all"
               title={user.displayName}
@@ -96,7 +96,7 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
               <span className="text-sm text-foreground/80 group-hover:text-foreground">
                 {user.displayName}
               </span>
-            </Link>
+            </ClanLink>
             <a
               href="/api/auth/logout?return=/"
               className="px-2 py-1 rounded-md text-xs text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
@@ -106,21 +106,21 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
             </a>
           </div>
         ) : (
-          <Link
+          <ClanLink
             href="/login"
             className="ml-2 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
           >
             Sign in
-          </Link>
+          </ClanLink>
         )}
       </div>
 
       {/* Mobile: avatar shortcut + hamburger */}
       <div className="flex md:hidden items-center gap-1">
         {signedIn && user && (
-          <Link href="/profile" className="p-1.5 rounded-md hover:bg-brown-light" title={user.displayName}>
+          <ClanLink href="/profile" className="p-1.5 rounded-md hover:bg-brown-light" title={user.displayName}>
             {avatar}
-          </Link>
+          </ClanLink>
         )}
         <button
           onClick={() => setOpen((v) => !v)}
@@ -145,23 +145,23 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
         <div className="md:hidden absolute top-full inset-x-0 border-b-2 border-gold/20 bg-card-bg shadow-xl">
           <div className="px-4 py-3 flex flex-col gap-1">
             {links.map((l) => (
-              <Link
+              <ClanLink
                 key={l.href}
                 href={l.href}
                 onClick={() => setOpen(false)}
                 className="px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
               >
                 {l.label}
-              </Link>
+              </ClanLink>
             ))}
             {isStaff && (
-              <Link
+              <ClanLink
                 href="/admin/dashboard"
                 onClick={() => setOpen(false)}
                 className="px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
               >
                 Admin
-              </Link>
+              </ClanLink>
             )}
             {discordInvite && (
               <a
@@ -177,14 +177,14 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
             <div className="border-t border-card-border mt-1 pt-2">
               {signedIn && user ? (
                 <div className="flex items-center justify-between gap-2">
-                  <Link
+                  <ClanLink
                     href="/profile"
                     onClick={() => setOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-brown-light transition-all min-w-0"
                   >
                     {avatar}
                     <span className="text-sm text-foreground/80 truncate">{user.displayName}</span>
-                  </Link>
+                  </ClanLink>
                   <a
                     href="/api/auth/logout?return=/"
                     className="px-3 py-2 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all shrink-0"
@@ -193,13 +193,13 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
                   </a>
                 </div>
               ) : (
-                <Link
+                <ClanLink
                   href="/login"
                   onClick={() => setOpen(false)}
                   className="block text-center px-3 py-2.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
                 >
                   Sign in
-                </Link>
+                </ClanLink>
               )}
             </div>
           </div>

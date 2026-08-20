@@ -8,6 +8,7 @@ import NumberInput from '@/components/NumberInput';
 import Checkbox from '@/components/Checkbox';
 import WorldMapPicker from '@/components/WorldMapPicker';
 import { DEFAULT_START_RADIUS } from '@/lib/startLocations';
+import { clanFetch } from '@/lib/clanFetch';
 import {
   parseEventRules,
   DEFAULT_START_PROOF,
@@ -90,7 +91,7 @@ export default function StartProofAdminPanel({
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/admin/events/${event.id}/start-proofs`);
+    const res = await clanFetch(`/api/admin/events/${event.id}/start-proofs`);
     if (res.ok) setData(await res.json());
   }, [event.id]);
 
@@ -111,7 +112,7 @@ export default function StartProofAdminPanel({
             maxSessionMinutes: maxSession,
           }
         : null;
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rules: { ...rules, startProof } }),
@@ -136,7 +137,7 @@ export default function StartProofAdminPanel({
   async function review(proofId: number, status: 'accepted' | 'rejected') {
     setBusyId(proofId);
     try {
-      await fetch(`/api/admin/events/${event.id}/start-proofs/${proofId}`, {
+      await clanFetch(`/api/admin/events/${event.id}/start-proofs/${proofId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -150,7 +151,7 @@ export default function StartProofAdminPanel({
   async function clear(proofId: number) {
     setBusyId(proofId);
     try {
-      await fetch(`/api/admin/events/${event.id}/start-proofs/${proofId}`, { method: 'DELETE' });
+      await clanFetch(`/api/admin/events/${event.id}/start-proofs/${proofId}`, { method: 'DELETE' });
       await load();
     } finally {
       setBusyId(null);
@@ -159,7 +160,7 @@ export default function StartProofAdminPanel({
 
   async function redraw() {
     setMsg('');
-    const res = await fetch(`/api/admin/events/${event.id}/start-proofs`, {
+    const res = await clanFetch(`/api/admin/events/${event.id}/start-proofs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'redraw' }),

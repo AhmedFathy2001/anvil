@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface ClanMember {
   id: number;
@@ -342,8 +343,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   async function fetchAll() {
     setLoading(true);
     const [mRes, sRes] = await Promise.all([
-      fetch('/api/admin/clan'),
-      fetch('/api/admin/settings'),
+      clanFetch('/api/admin/clan'),
+      clanFetch('/api/admin/settings'),
     ]);
     if (mRes.ok) setMembers(await mRes.json());
     if (sRes.ok) {
@@ -364,7 +365,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   async function saveClanName() {
     setClanNameSaving(true);
     setClanNameMessage(null);
-    const res = await fetch('/api/admin/settings', {
+    const res = await clanFetch('/api/admin/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clan_name: clanName, clan_ingame_name: inGameClanName }),
@@ -507,7 +508,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
     setBulkBusy(true);
     setBulkNotice(null);
-    const res = await fetch('/api/admin/clan/bulk', {
+    const res = await clanFetch('/api/admin/clan/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, action: bulkAction, role, reason }),
@@ -541,7 +542,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     e.preventDefault();
     setAddError('');
     setAdding(true);
-    const res = await fetch('/api/admin/clan', {
+    const res = await clanFetch('/api/admin/clan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -567,7 +568,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function togglePromote(member: ClanMember) {
-    const res = await fetch(`/api/admin/clan/${member.id}`, {
+    const res = await clanFetch(`/api/admin/clan/${member.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isGuest: !member.isGuest }),
@@ -576,7 +577,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function rejoinMember(member: ClanMember) {
-    const res = await fetch(`/api/admin/clan/${member.id}`, {
+    const res = await clanFetch(`/api/admin/clan/${member.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rejoin: true }),
@@ -587,7 +588,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   // Make this account the person's primary (main) — the default representative for per-person events
   // and the name their team takes. Demotes their other accounts server-side.
   async function setPrimary(member: ClanMember) {
-    const res = await fetch(`/api/admin/clan/${member.id}`, {
+    const res = await clanFetch(`/api/admin/clan/${member.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ setPrimary: true }),
@@ -597,7 +598,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
   async function removeMember(member: ClanMember) {
     if (!confirm(`Mark ${member.rsn} as left the clan?`)) return;
-    const res = await fetch(`/api/admin/clan/${member.id}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/admin/clan/${member.id}`, { method: 'DELETE' });
     if (res.ok) fetchAll();
   }
 
@@ -617,7 +618,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     } else if (!confirm(`Let ${member.rsn} rejoin this clan? They are not added back automatically.`)) {
       return;
     }
-    const res = await fetch(`/api/admin/users/${member.userId}/ban`, {
+    const res = await clanFetch(`/api/admin/users/${member.userId}/ban`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ banned: banning, reason }),
@@ -642,7 +643,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     }
     setRenameSaving(true);
     setRenameError('');
-    const res = await fetch(`/api/admin/clan/${renameTarget.id}/rename`, {
+    const res = await clanFetch(`/api/admin/clan/${renameTarget.id}/rename`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newRsn: trimmed }),
@@ -680,7 +681,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     if (!roleTarget) return;
     setRoleSaving(true);
     setRoleError('');
-    const res = await fetch(`/api/admin/clan/${roleTarget.id}/pending-role`, {
+    const res = await clanFetch(`/api/admin/clan/${roleTarget.id}/pending-role`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: roleValue === 'none' ? null : roleValue }),
@@ -776,12 +777,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link
+          <ClanLink
             href="/admin/dashboard"
             className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Back
-          </Link>
+          </ClanLink>
           <button
             onClick={() => setShowAdd(true)}
             className="px-4 py-1.5 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors"

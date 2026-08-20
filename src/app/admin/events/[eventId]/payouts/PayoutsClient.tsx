@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PayoutRowControls, { type PayoutRow } from '@/components/PayoutRowControls';
 import Select from '@/components/Select';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -97,7 +98,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/payouts`);
+      const res = await clanFetch(`/api/admin/events/${eventId}/payouts`);
       if (!res.ok) {
         setErr('Failed to load payouts.');
         return;
@@ -145,7 +146,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     setNotice(null);
     try {
       const amounts = placeAmounts.slice(0, paidPlaces).map(cleanNum);
-      const res = await fetch(`/api/admin/events/${eventId}/payouts/prize-split`, {
+      const res = await clanFetch(`/api/admin/events/${eventId}/payouts/prize-split`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ placeAmounts: amounts }),
@@ -168,7 +169,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     setNotice(null);
     try {
       const amounts = placeAmounts.slice(0, paidPlaces).map(cleanNum);
-      const res = await fetch(`/api/admin/events/${eventId}/payouts/generate`, {
+      const res = await clanFetch(`/api/admin/events/${eventId}/payouts/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paidPlaces, placeAmounts: amounts, includeSubbed }),
@@ -195,7 +196,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     setAdding(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/payouts`, {
+      const res = await clanFetch(`/api/admin/events/${eventId}/payouts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rsn, amount }),
@@ -218,7 +219,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     setErr(null);
     setNotice(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/payouts/announce`, { method: 'POST' });
+      const res = await clanFetch(`/api/admin/events/${eventId}/payouts/announce`, { method: 'POST' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         setErr(d.error || 'Announce failed.');
@@ -523,7 +524,7 @@ function AmountCell({
     if (!Number.isFinite(amount) || amount < 0) return;
     setSaving(true);
     try {
-      await fetch(`/api/admin/events/${eventId}/payouts/${payout.id}`, {
+      await clanFetch(`/api/admin/events/${eventId}/payouts/${payout.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),

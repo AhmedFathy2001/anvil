@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Role {
   id: string;
@@ -88,7 +89,7 @@ export default function DiscordAssignedRoles() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/discord/roles');
+        const res = await clanFetch('/api/admin/discord/roles');
         if (res.ok) {
           const data = await res.json();
           setRoles(data.roles ?? []);
@@ -115,7 +116,7 @@ export default function DiscordAssignedRoles() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/discord/roles', {
+      const res = await clanFetch('/api/admin/discord/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ defaultRoleIds: [...defaultIds], guestRoleIds: [...guestIds] }),

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { clanHref } from '@/lib/clanPath';
 
 /**
  * The weekly index is the Events hub now.
@@ -8,6 +9,6 @@ import { redirect } from 'next/navigation';
  * filters by kind, so this route keeps working for anything already linked in Discord and sends it
  * there. `/weekly/[id]` is untouched: a week still has its own page.
  */
-export default function WeeklyIndexPage() {
-  redirect('/events');
+export default async function WeeklyIndexPage() {
+  redirect(await clanHref('/events'));
 }

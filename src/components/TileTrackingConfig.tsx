@@ -16,6 +16,7 @@ import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
 import NumberInput from '@/components/NumberInput';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   /** Board editing: the tile row being edited. Omit when `onSave` takes over the write. */
@@ -667,7 +668,7 @@ export default function TileTrackingConfig({
     if (sourceNpcTimeout.current) clearTimeout(sourceNpcTimeout.current);
     sourceNpcTimeout.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/admin/npc-search?q=${encodeURIComponent(segment)}`);
+        const res = await clanFetch(`/api/admin/npc-search?q=${encodeURIComponent(segment)}`);
         if (res.ok) {
           const results = (await res.json()) as { name: string }[];
           setSourceNpcHits(results.map((r) => r.name).slice(0, 10));
@@ -743,7 +744,7 @@ export default function TileTrackingConfig({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/admin/ca-tasks');
+        const res = await clanFetch('/api/admin/ca-tasks');
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) setCaTasks(data.tasks ?? []);
@@ -770,7 +771,7 @@ export default function TileTrackingConfig({
     Promise.all(
       initial.trackedItemIds.map(async (id) => {
         try {
-          const res = await fetch(`/api/admin/items-search?q=${id}`);
+          const res = await clanFetch(`/api/admin/items-search?q=${id}`);
           if (res.ok) {
             const results = await res.json();
             const match = results.find((r: { id: number }) => r.id === id);
@@ -795,7 +796,7 @@ export default function TileTrackingConfig({
     setItemSearching(true);
     const filter = loot ? '&dropsOnly=1' : '';
     try {
-      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${filter}`);
+      const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${filter}`);
       if (res.ok) {
         const results = await res.json();
         const existingIds = new Set(trackedItems.map((i) => i.id));
@@ -834,7 +835,7 @@ export default function TileTrackingConfig({
     }
     setNpcSearching(true);
     try {
-      const res = await fetch(`/api/admin/npc-search?q=${encodeURIComponent(query)}`);
+      const res = await clanFetch(`/api/admin/npc-search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const results = (await res.json()) as { name: string }[];
         const existing = new Set(targetNpcNames.map((n) => n.toLowerCase()));
@@ -1271,7 +1272,7 @@ export default function TileTrackingConfig({
         return; // the finally below clears `saving`
       }
 
-      const res = await fetch(`/api/events/${eventId}/tiles`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

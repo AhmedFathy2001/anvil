@@ -5,6 +5,7 @@ import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import type { SignupProfile } from '@/lib/signup';
 import { formatHoursRange } from '@/lib/signup';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Applicant {
   id: number;
@@ -33,7 +34,7 @@ export default function ApplicantsClient({ teamId }: { teamId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/team/${teamId}/applicants`);
+      const res = await clanFetch(`/api/team/${teamId}/applicants`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to load applicants');

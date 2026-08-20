@@ -3,7 +3,6 @@
 import type { Event, Tile, Team, Completion, Submission } from '@/lib/types';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -17,6 +16,8 @@ import { STAGE_BLURB, type EventStage, type StageCounts } from '@/lib/eventStage
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 /** One superlative, flattened for display — see lib/eventRecap. */
 export interface RecapAwardSummary {
@@ -81,7 +82,7 @@ export default function OverviewClient({
   // All teams' submissions (full rows incl. proof images) for the click-through management modal.
   // Fetched directly — the event stream carries a lighter projection without imageUrl.
   const fetchSubmissions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/submissions`);
+    const res = await clanFetch(`/api/events/${event.id}/submissions`);
     if (res.ok) setSubmissions(await res.json());
   }, [event.id]);
   useEffect(() => {
@@ -137,7 +138,7 @@ export default function OverviewClient({
     : [];
 
   async function deleteSubmission(submissionId: number, reason: string) {
-    await fetch(
+    await clanFetch(
       `/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`,
       { method: 'DELETE' },
     );
@@ -337,7 +338,7 @@ function BuildHome({
     setStarting(true);
     setError('');
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start-now', ...(force ? { force: true } : {}) }),
@@ -453,12 +454,12 @@ function CheckRowView({ row }: { row: CheckRow }) {
         <span className="block text-sm font-medium">{row.title}</span>
         <span className={`block text-xs ${row.blocking ? 'text-amber-300/90' : 'text-text-muted'}`}>{row.detail}</span>
       </span>
-      <Link
+      <ClanLink
         href={row.href}
         className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
       >
         {row.action}
-      </Link>
+      </ClanLink>
     </div>
   );
 }
@@ -514,7 +515,7 @@ function RunHome({
     if (!confirm('Force-end this event? It ends immediately and notifies Discord.')) return;
     setEnding(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'force-end' }),
@@ -651,7 +652,7 @@ function WrapHome({
     if (!confirm('Resume this event? It goes back to running and members can submit again.')) return;
     setResuming(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'resume' }),
@@ -859,7 +860,7 @@ function NextStep({
   tone?: 'attn' | 'done';
 }) {
   return (
-    <Link
+    <ClanLink
       href={href}
       className={`block p-4 rounded-xl border transition-colors ${
         tone === 'attn'
@@ -871,18 +872,18 @@ function NextStep({
         {title}
       </div>
       <p className="text-xs text-text-muted mt-1">{detail}</p>
-    </Link>
+    </ClanLink>
   );
 }
 
 function QuietLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link
+    <ClanLink
       href={href}
       className="px-2.5 py-1 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
     >
       {children}
-    </Link>
+    </ClanLink>
   );
 }
 

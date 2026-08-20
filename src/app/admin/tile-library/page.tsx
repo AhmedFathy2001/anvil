@@ -4,6 +4,7 @@ import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { SEED_TASKS } from '@/lib/tileLibrary';
 import TileLibraryClient from './TileLibraryClient';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function TileLibraryPage() {
   const clan = await requireClan();
   const editor = await verifyTileEditorAnywhere();
-  if (!editor) redirect('/admin/dashboard');
+  if (!editor) redirect(await clanHref('/admin/dashboard'));
 
   const tierBands = await getTierBands(clan.id);
 

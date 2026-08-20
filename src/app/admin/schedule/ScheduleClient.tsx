@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 import {
   addDays,
   dayOf,
@@ -99,7 +100,7 @@ export default function ScheduleClient() {
   const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
-    fetch('/api/admin/schedule')
+    clanFetch('/api/admin/schedule')
       .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((data) => {
         setItems((data.items ?? []) as Item[]);
@@ -172,12 +173,12 @@ export default function ScheduleClient() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link
+          <ClanLink
             href="/admin/events/new"
             className="px-3 py-1.5 text-sm font-semibold bg-gold text-brown-dark rounded-lg hover:bg-gold-light transition-colors"
           >
             + Schedule event
-          </Link>
+          </ClanLink>
         </div>
       </div>
 
@@ -386,7 +387,7 @@ function CoverageRibbon({
                 ? `⚠ Nothing scheduled after ${shortDate(addDays(worst.start, -1))}`
                 : `⚠ ${worst.days} empty day${worst.days === 1 ? '' : 's'} · ${shortDate(worst.start)}–${shortDate(worst.end)}`}
             </span>
-            <Link
+            <ClanLink
               href={
                 unscheduled.length > 0
                   ? unscheduled[0].href
@@ -395,7 +396,7 @@ function CoverageRibbon({
               className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors whitespace-nowrap"
             >
               {unscheduled.length > 0 ? `Schedule ${unscheduled[0].title}` : 'Fill the gap'}
-            </Link>
+            </ClanLink>
           </>
         ) : (
           <span className="text-xs px-2 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/30">
@@ -482,13 +483,13 @@ function MonthGrid({
                       >
                         {day.getDate()}
                       </span>
-                      <Link
+                      <ClanLink
                         href={`/admin/events/new?start=${isoDay(day)}`}
                         aria-label={`Schedule something on ${shortDate(day)}`}
                         className="absolute top-1 right-1.5 w-[18px] h-[18px] rounded border border-card-border text-text-muted/70 text-[11px] leading-none grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-gold/40 hover:text-gold hover:bg-gold/10 transition-opacity"
                       >
                         +
-                      </Link>
+                      </ClanLink>
                     </div>
                   );
                 })}
@@ -509,7 +510,7 @@ function MonthGrid({
                     const cutLeft = p.start < weekStart;
                     const cutRight = p.end > weekEnd;
                     return (
-                      <Link
+                      <ClanLink
                         key={`${p.item.kind}-${p.item.id}`}
                         href={p.item.href}
                         title={`${p.item.title} · ${p.item.badge} · ${shortDate(p.start)} → ${shortDate(p.end)} · ${p.item.headline}`}
@@ -535,7 +536,7 @@ function MonthGrid({
                             {p.item.headline}
                           </span>
                         )}
-                      </Link>
+                      </ClanLink>
                     );
                   })}
                 {hiddenCount > 0 && (
@@ -610,7 +611,7 @@ function QuarterGrid({
             const width = ((daysBetween(p.start, p.end) + 1) / total) * 100;
             return (
               <div key={`${p.item.kind}-${p.item.id}`} className="grid grid-cols-[180px_1fr] gap-3 items-center">
-                <Link
+                <ClanLink
                   href={p.item.href}
                   className="text-[11px] text-text-muted hover:text-foreground truncate flex items-center gap-2"
                 >
@@ -621,9 +622,9 @@ function QuarterGrid({
                     aria-hidden
                   />
                   {p.item.title}
-                </Link>
+                </ClanLink>
                 <div className="relative h-6">
-                  <Link
+                  <ClanLink
                     href={p.item.href}
                     title={`${shortDate(p.start)} → ${shortDate(p.end)} · ${p.item.headline}`}
                     style={{ left: `${Math.max(0, left)}%`, width: `${Math.min(100 - left, width)}%` }}
@@ -634,7 +635,7 @@ function QuarterGrid({
                     <span className="truncate">
                       {p.item.headline} · {STATUS_LABEL[p.item.status]}
                     </span>
-                  </Link>
+                  </ClanLink>
                 </div>
               </div>
             );
@@ -682,17 +683,17 @@ function NextUp({
           {runningNow.length > 0
             ? `${runningNow.length} running now, nothing queued behind it.`
             : 'Nothing scheduled ahead.'}{' '}
-          <Link href="/admin/events/new" className="text-gold hover:underline">
+          <ClanLink href="/admin/events/new" className="text-gold hover:underline">
             Schedule one →
-          </Link>
+          </ClanLink>
         </div>
       ) : (
         <div className="border border-gold/30 rounded-xl bg-card-bg p-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0">
-              <Link href={item.href} className="font-semibold hover:text-gold transition-colors">
+              <ClanLink href={item.href} className="font-semibold hover:text-gold transition-colors">
                 {item.title}
-              </Link>
+              </ClanLink>
               <div className="text-xs text-text-muted mt-1">
                 {item.badge} · {item.headline} · starts {shortDate(dayOf(item.startDate))}
               </div>
@@ -729,12 +730,12 @@ function NextUp({
           )}
 
           {outstanding.length > 0 && (
-            <Link
+            <ClanLink
               href={item.href}
               className="inline-block mt-4 px-3 py-1.5 text-xs font-semibold bg-gold text-brown-dark rounded-lg hover:bg-gold-light transition-colors"
             >
               {outstanding.length} thing{outstanding.length === 1 ? '' : 's'} left → open it
-            </Link>
+            </ClanLink>
           )}
         </div>
       )}
@@ -773,14 +774,14 @@ function Unscheduled({
           {items.map((it) => (
             <li key={`${it.kind}-${it.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
-                <Link href={it.href} className="text-sm font-medium hover:text-gold transition-colors">
+                <ClanLink href={it.href} className="text-sm font-medium hover:text-gold transition-colors">
                   {it.title}
-                </Link>
+                </ClanLink>
                 <div className="text-[11px] text-text-muted mt-0.5">
                   {it.badge} · {it.headline}
                 </div>
               </div>
-              <Link
+              <ClanLink
                 href={
                   openGaps[0]
                     ? `${it.href}?start=${isoDay(openGaps[0].start)}&end=${isoDay(openGaps[0].end)}`
@@ -789,7 +790,7 @@ function Unscheduled({
                 className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors whitespace-nowrap"
               >
                 {openGaps[0] ? `Put it in the ${openGaps[0].days}-day gap` : 'Set dates'}
-              </Link>
+              </ClanLink>
             </li>
           ))}
         </ul>

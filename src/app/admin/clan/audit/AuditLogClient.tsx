@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface RenameSuggestion {
   leftMemberId: number;
@@ -97,7 +98,7 @@ export default function AuditLogClient({
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/admin/clan/suspected-renames')
+    clanFetch('/api/admin/clan/suspected-renames')
       .then((r) => (r.ok ? r.json() : { suggestions: [] }))
       .then((data: { suggestions: RenameSuggestion[] }) => {
         if (!cancelled) {
@@ -119,7 +120,7 @@ export default function AuditLogClient({
     setActingOn(s.joinedMemberId);
     setError(null);
     try {
-      const res = await fetch('/api/admin/clan/merge', {
+      const res = await clanFetch('/api/admin/clan/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,7 +157,7 @@ export default function AuditLogClient({
     setActingOn(s.joinedMemberId);
     setError(null);
     try {
-      const res = await fetch('/api/admin/clan/suspected-renames', {
+      const res = await clanFetch('/api/admin/clan/suspected-renames', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leftMemberId: s.leftMemberId, joinedMemberId: s.joinedMemberId }),
@@ -200,7 +201,7 @@ export default function AuditLogClient({
     setMerging(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/clan/merge', {
+      const res = await clanFetch('/api/admin/clan/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceId, targetId }),

@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import Textarea from '@/components/Textarea';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface FeeRow {
   fee: {
@@ -64,7 +65,7 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
     setLoading(true);
     const params = new URLSearchParams();
     if (filter !== 'all') params.set('status', filter);
-    const res = await fetch(`/api/admin/fees?${params.toString()}`);
+    const res = await clanFetch(`/api/admin/fees?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
       setRows(data.fees ?? []);
@@ -82,7 +83,7 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
     setActing(feeId);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/fees/${feeId}/${action}`, {
+      const res = await clanFetch(`/api/admin/fees/${feeId}/${action}`, {
         method: 'POST',
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
@@ -124,7 +125,7 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch('/api/admin/fees/confirm-all', { method: 'POST' });
+      const res = await clanFetch('/api/admin/fees/confirm-all', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to confirm');
       const parts: string[] = [];
@@ -164,12 +165,12 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
               {bulkBusy ? 'Confirming…' : `Confirm all (${confirmableByViewer})`}
             </button>
           )}
-          <Link
+          <ClanLink
             href="/admin/dashboard"
             className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Back
-          </Link>
+          </ClanLink>
         </div>
       </div>
 
@@ -285,7 +286,7 @@ function FeeCard({
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res = await fetch('/api/admin/fees/upload', { method: 'POST', body: fd });
+      const res = await clanFetch('/api/admin/fees/upload', { method: 'POST', body: fd });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Upload failed');
@@ -318,12 +319,12 @@ function FeeCard({
             )}
           </div>
           <div className="text-xs text-text-muted mt-1">
-            <Link
+            <ClanLink
               href={`/admin/events/${row.event.id}`}
               className="hover:text-gold underline decoration-gold/30 underline-offset-2"
             >
               {row.event.name}
-            </Link>
+            </ClanLink>
             {' · '}signed up {new Date(row.signup.signedUpAt).toLocaleDateString()}
           </div>
         </div>

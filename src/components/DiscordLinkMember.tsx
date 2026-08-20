@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Inline "link this clan member to a Discord user" control, shown next to a member the role sync
 // couldn't resolve. Search the guild by name, pick, and it binds + syncs that member.
@@ -15,7 +16,7 @@ export default function DiscordLinkMember({ memberId }: { memberId: number }) {
     if (!q.trim()) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/discord/guild-members?q=${encodeURIComponent(q.trim())}`);
+      const res = await clanFetch(`/api/admin/discord/guild-members?q=${encodeURIComponent(q.trim())}`);
       setResults(res.ok ? (await res.json()).members ?? [] : []);
     } finally {
       setBusy(false);
@@ -25,7 +26,7 @@ export default function DiscordLinkMember({ memberId }: { memberId: number }) {
   async function link(discordUserId: string) {
     setBusy(true);
     try {
-      const res = await fetch('/api/admin/discord/link-member', {
+      const res = await clanFetch('/api/admin/discord/link-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clanMemberId: memberId, discordUserId }),

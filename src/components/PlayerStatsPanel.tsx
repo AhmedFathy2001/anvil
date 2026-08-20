@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Skill {
   rank: number;
@@ -127,7 +128,7 @@ export default function PlayerStatsPanel({
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/hiscores/${encodeURIComponent(rsn)}`);
+        const res = await clanFetch(`/api/hiscores/${encodeURIComponent(rsn)}`);
         const data = await res.json();
         if (!res.ok) {
           setError(data.error || "Player not found on hiscores");

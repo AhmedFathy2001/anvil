@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import WarRoomClient from './WarRoomClient';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,12 @@ export default async function WarRoomPage({
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
-  if (!user) redirect('/login');
+  if (!user) redirect(await clanHref('/login'));
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
   if (!team) notFound();
   // Captain-only — players who aren't the captain bounce back to the team board.
-  if (team.captainUserId !== user.userId) redirect(`/team/${tId}`);
+  if (team.captainUserId !== user.userId) redirect(await clanHref(`/team/${tId}`));
 
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) notFound();

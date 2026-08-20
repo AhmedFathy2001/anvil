@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 export interface SignupFee {
   id: number;
@@ -93,7 +94,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         try {
           const fd = new FormData();
           fd.append('file', file);
-          const up = await fetch('/api/admin/fees/upload', { method: 'POST', body: fd });
+          const up = await clanFetch('/api/admin/fees/upload', { method: 'POST', body: fd });
           const upData = await up.json().catch(() => ({}));
           if (!up.ok) {
             setErr(upData.error || 'Upload failed.');

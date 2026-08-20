@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Persona from './Persona';
 import {
@@ -21,6 +20,7 @@ import { getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
+import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,9 +137,9 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <Link href="/members" className="text-sm text-text-muted hover:text-gold">
+      <ClanLink href="/members" className="text-sm text-text-muted hover:text-gold">
         ← All members
-      </Link>
+      </ClanLink>
 
       {/* Identity band: who they are, where they place, and how far from max — one object rather
           than a name followed by five identically-weighted stat cards. Combat sits on the shield

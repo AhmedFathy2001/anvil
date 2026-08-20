@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Input from '@/components/Input';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface PlainSettingProps {
   // Which settings key this field reads/writes (must be whitelisted in /api/admin/settings).
@@ -39,7 +40,7 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText 
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingKey]: value }),

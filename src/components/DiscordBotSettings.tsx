@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The bot-connection surface: which bot this instance uses (shared Anvil bot vs. your own), the
 // write-only BYO token override, and the Discord server (guild) ID. Backed by /api/admin/discord/bot
@@ -51,7 +52,7 @@ export default function DiscordBotSettings() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/discord/bot');
+        const res = await clanFetch('/api/admin/discord/bot');
         if (res.ok) {
           const next = (await res.json()) as BotStatus;
           setStatus(next);
@@ -71,7 +72,7 @@ export default function DiscordBotSettings() {
     try {
       const payload: Record<string, string> = { guildId: guildId.trim() };
       if (tokenInput.trim()) payload.botToken = tokenInput.trim();
-      const res = await fetch('/api/admin/discord/bot', {
+      const res = await clanFetch('/api/admin/discord/bot', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -96,7 +97,7 @@ export default function DiscordBotSettings() {
     setClearing(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/discord/bot', {
+      const res = await clanFetch('/api/admin/discord/bot', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ botToken: '' }),

@@ -68,8 +68,19 @@ export default {
 
     return {
       // href="/events/5" and href={"/events/5"}
+      //
+      // Only where the URL is USED to navigate: a DOM element, or next/link. A capitalised component
+      // taking an `href` prop is being handed data, and what it does with that data is its own
+      // business — if it navigates with a bare path, the violation shows up inside it, at the <a> or
+      // <Link> that actually does the navigating. Flagging both places would mean every wrapper
+      // component needed an escape comment saying "no really, the thing I forward to handles it".
+      //
+      // <ClanLink> is exempt by this rule too, which is the point of it existing.
       JSXAttribute(node) {
         if (!URL_PROPS.has(node.name?.name)) return;
+        const tag = node.parent?.name?.name;
+        const navigates = typeof tag === 'string' && (tag === tag.toLowerCase() || tag === 'Link');
+        if (!navigates) return;
         const v = node.value;
         if (v?.type === 'Literal') check(v, v.value, 'bareLink');
         else if (v?.type === 'JSXExpressionContainer' && v.expression?.type === 'Literal') {
@@ -86,6 +97,21 @@ export default {
         else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
           const head = arg.quasis[0].value.cooked ?? '';
           if (head.startsWith('/')) check(arg, head, 'bareFetch');
+        }
+      },
+
+      // redirect('/admin/dashboard') — a server component sending you somewhere.
+      //
+      // Same failure as a link, arrived at differently: without the prefix it lands on the apex,
+      // where the page it names does not exist. Common in guards, which makes it the path someone
+      // takes precisely when something has already gone wrong.
+      "CallExpression[callee.name='redirect']"(node) {
+        const arg = node.arguments?.[0];
+        if (!arg) return;
+        if (arg.type === 'Literal') check(arg, arg.value, 'bareLink');
+        else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
+          const head = arg.quasis[0].value.cooked ?? '';
+          if (head.startsWith('/')) check(arg, head, 'bareLink');
         }
       },
 

@@ -10,6 +10,7 @@ import EventEditorsPanel from '../EventEditorsPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 
 interface Props {
   event: Event;
@@ -63,7 +64,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   async function saveDates() {
     setSavingDates(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate: startDate || null, endDate: endDate || null }),
@@ -112,7 +113,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       setSavingType(true);
       setTypeError('');
       try {
-        const res = await fetch(`/api/events/${event.id}`, {
+        const res = await clanFetch(`/api/events/${event.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -146,7 +147,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
     setSavingType(true);
     setTypeError('');
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,7 +176,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   async function toggleReveal() {
     setSavingReveal(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tilesRevealed: !currentEvent.tilesRevealed }),
@@ -193,7 +194,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
     setRecomputing(true);
     setRecomputeMsg('');
     try {
-      const res = await fetch(`/api/events/${event.id}/recompute-completions`, { method: 'POST' });
+      const res = await clanFetch(`/api/events/${event.id}/recompute-completions`, { method: 'POST' });
       if (res.ok) {
         const { healed } = await res.json();
         setRecomputeMsg(healed > 0 ? `Healed ${healed} tile${healed === 1 ? '' : 's'}.` : 'All up to date.');
@@ -217,10 +218,10 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       return;
     setCloning(true);
     try {
-      const res = await fetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      const res = await clanFetch(`/api/events/${event.id}/clone`, { method: 'POST' });
       if (res.ok) {
         const { id } = await res.json();
-        router.push(`/admin/events/${id}`);
+        router.push(clanUrl(`/admin/events/${id}`));
       } else {
         alert('Could not clone this event.');
       }
@@ -238,9 +239,9 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/events/${event.id}`, { method: 'DELETE' });
       if (res.ok) {
-        router.push('/admin/events');
+        router.push(clanUrl('/admin/events'));
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Could not delete this event.');

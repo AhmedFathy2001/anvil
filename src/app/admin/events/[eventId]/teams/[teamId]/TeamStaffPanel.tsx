@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import type { TeamStaffRow } from '@/lib/teamStaff';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface UserRow {
   id: number;
@@ -32,7 +33,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/teams/${teamId}/staff`);
+      const res = await clanFetch(`/api/admin/teams/${teamId}/staff`);
       if (res.ok) setStaff((await res.json()).staff ?? []);
     } catch {
       /* the list stays as it was */
@@ -41,7 +42,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
 
   useEffect(() => {
     void load();
-    fetch('/api/admin/users')
+    clanFetch('/api/admin/users')
       .then((r) => (r.ok ? r.json() : { people: [] }))
       .then((data) => setUsers(Array.isArray(data) ? data : data.people ?? []))
       .catch(() => setUsers([]));
@@ -62,7 +63,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/teams/${teamId}/staff`, {
+      const res = await clanFetch(`/api/admin/teams/${teamId}/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, note: note.trim() || undefined }),
@@ -86,7 +87,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/teams/${teamId}/staff?userId=${userId}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/admin/teams/${teamId}/staff?userId=${userId}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Could not remove them');

@@ -6,6 +6,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { tileKindBadge } from '@/lib/tileKinds';
 import type { AuthoringModel } from '@/lib/tileAuthoring';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * The reveal plan, as a plan.
@@ -143,7 +144,7 @@ export default function ScheduleView({
     setError('');
     setNote('');
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles/schedule`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +172,7 @@ export default function ScheduleView({
     setError('');
     setNote('');
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles`, {
+      const res = await clanFetch(`/api/events/${eventId}/tiles`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tileId, revealAt }),

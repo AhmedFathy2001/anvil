@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Completion {
   id: number;
@@ -68,9 +69,9 @@ export function useEventStream(
   const fetchData = useCallback(async () => {
     try {
       const [completionsRes, submissionsRes, tilesRes] = await Promise.all([
-        fetch(`/api/events/${eventId}/completions`),
-        fetch(`/api/events/${eventId}/submissions`),
-        fetch(`/api/events/${eventId}/tiles`),
+        clanFetch(`/api/events/${eventId}/completions`),
+        clanFetch(`/api/events/${eventId}/submissions`),
+        clanFetch(`/api/events/${eventId}/tiles`),
       ]);
 
       if (completionsRes.ok && submissionsRes.ok && tilesRes.ok) {

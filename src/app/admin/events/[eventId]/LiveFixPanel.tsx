@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { BoardProblem } from '@/lib/boardMisconfig';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * Fixing a running board.
@@ -38,7 +39,7 @@ export default function LiveFixPanel({
     setRecomputing(true);
     setMessage('');
     try {
-      const res = await fetch(`/api/events/${eventId}/recompute-completions`, { method: 'POST' });
+      const res = await clanFetch(`/api/events/${eventId}/recompute-completions`, { method: 'POST' });
       if (res.ok) {
         const { healed } = await res.json();
         setMessage(

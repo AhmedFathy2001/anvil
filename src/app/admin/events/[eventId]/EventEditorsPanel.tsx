@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Admin-only panel (Overview tab) for granting board-scoped tile editing on THIS event. Adding a
 // plain member auto-provisions the minimal login access they need to reach the Tiles tab; removing
@@ -37,7 +38,7 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/events/${eventId}/editors`);
+      const res = await clanFetch(`/api/events/${eventId}/editors`);
       if (res.ok) {
         const d = await res.json();
         setEditors(d.editors ?? []);
@@ -69,7 +70,7 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
     setBusyId(userId);
     setError('');
     try {
-      const res = await fetch(`/api/events/${eventId}/editors`, {
+      const res = await clanFetch(`/api/events/${eventId}/editors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -90,7 +91,7 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
     setBusyId(userId);
     setError('');
     try {
-      const res = await fetch(`/api/events/${eventId}/editors?userId=${userId}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/events/${eventId}/editors?userId=${userId}`, { method: 'DELETE' });
       if (res.ok) {
         await load();
       } else {

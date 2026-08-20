@@ -22,6 +22,7 @@ import { deriveTileIcon } from '@/lib/tileIcons';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Tile {
   id: number;
@@ -153,7 +154,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     // The lens scopes the PROOF too: looking at Frost's board and opening a tile has to show
     // Frost's proof, not every team's. Without this the modal quietly contradicted the board.
     const teamParam = lensTeamId != null ? `&teamId=${lensTeamId}` : '';
-    fetch(`/api/events/${event.id}/submissions?tileId=${tileId}${teamParam}&limit=500`)
+    clanFetch(`/api/events/${event.id}/submissions?tileId=${tileId}${teamParam}&limit=500`)
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: FullSubmission[]) => {
         if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: Array.isArray(rows) ? rows : [] });
@@ -181,7 +182,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const router = useRouter();
 
   const refetchSubmissions = useCallback(() => {
-    fetch(`/api/events/${event.id}/submissions`)
+    clanFetch(`/api/events/${event.id}/submissions`)
       .then((r) => r.ok ? r.json() : [])
       .then(setSubmissions)
       .catch(() => {});
@@ -193,7 +194,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     // Fetch gains for all teams in parallel, aggregate by tile.
     Promise.all(
       teams.map(async (team) => {
-        const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+        const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
         if (!res.ok) return null;
         const data = await res.json();
         const tileGains: Record<number, number> = {};

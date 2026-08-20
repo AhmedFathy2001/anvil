@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Input from '@/components/Input';
 import WebhookField from '@/components/WebhookField';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Props {
   initial: {
@@ -65,7 +66,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(keys),
@@ -107,7 +108,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
   // isn't auto-bounced here again, then drops them on the dashboard.
   async function skipAll() {
     await saveKeys({ setup_completed: '1' });
-    router.push('/admin/dashboard');
+    router.push(clanUrl('/admin/dashboard'));
     router.refresh();
   }
 
@@ -141,13 +142,13 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
                 ? 'Your clan name and Discord details from sign-up are already filled in, so we skipped what’s done. '
                 : 'Steps you’ve already completed were skipped. '}
               Change any of it later in the{' '}
-              <Link href="/admin/clan" className="text-gold hover:underline">
+              <ClanLink href="/admin/clan" className="text-gold hover:underline">
                 Clan hub
-              </Link>{' '}
+              </ClanLink>{' '}
               or{' '}
-              <Link href="/admin/integrations" className="text-gold hover:underline">
+              <ClanLink href="/admin/integrations" className="text-gold hover:underline">
                 Advanced settings
-              </Link>
+              </ClanLink>
               .
             </p>
           </div>
@@ -241,24 +242,24 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
           <div className="text-center py-4">
             <p className="text-sm text-text-muted mb-6 leading-relaxed">
               You can fine-tune webhooks, roles, tiers and more anytime under{' '}
-              <Link href="/admin/integrations" className="text-gold hover:underline">
+              <ClanLink href="/admin/integrations" className="text-gold hover:underline">
                 Advanced settings
-              </Link>
+              </ClanLink>
               .
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
+              <ClanLink
                 href="/admin/events/new"
                 className="bg-gold hover:bg-gold-light text-brown-dark font-bold px-5 py-2.5 rounded-lg transition-colors"
               >
                 Create your first event →
-              </Link>
-              <Link
+              </ClanLink>
+              <ClanLink
                 href="/admin/dashboard"
                 className="px-5 py-2.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/50 transition-colors"
               >
                 Go to dashboard
-              </Link>
+              </ClanLink>
             </div>
           </div>
         )}

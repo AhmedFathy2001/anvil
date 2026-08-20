@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 export interface PayoutRow {
   id: number;
@@ -60,7 +61,7 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
         try {
           const fd = new FormData();
           fd.append('file', file);
-          const up = await fetch(`/api/admin/events/${eventId}/payouts/upload`, { method: 'POST', body: fd });
+          const up = await clanFetch(`/api/admin/events/${eventId}/payouts/upload`, { method: 'POST', body: fd });
           const upData = await up.json().catch(() => ({}));
           if (!up.ok) {
             setErr(upData.error || 'Upload failed.');

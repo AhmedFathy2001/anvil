@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import {
   SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES,
   EFFICIENCY_METRICS, EFFICIENCY_LABELS, EFFICIENCY_SCALE, formatEfficiencyHours,
@@ -9,6 +8,8 @@ import {
 import DateRangeField from '@/components/DateRangeField';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 interface Competition {
   id: number;
@@ -79,7 +80,7 @@ export default function WeeklyManagementClient() {
   const [editSaving, setEditSaving] = useState(false);
 
   async function fetchCompetitions() {
-    const res = await fetch('/api/admin/weekly');
+    const res = await clanFetch('/api/admin/weekly');
     if (res.ok) {
       setCompetitions(await res.json());
     }
@@ -95,7 +96,7 @@ export default function WeeklyManagementClient() {
     setCreateError('');
     setCreating(true);
 
-    const res = await fetch('/api/admin/weekly', {
+    const res = await clanFetch('/api/admin/weekly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, metric, title, startDate, endDate, includeGuests }),
@@ -132,7 +133,7 @@ export default function WeeklyManagementClient() {
   // Reload the expanded comp's participants WITHOUT the toggle semantics — refresh/add
   // handlers were collapsing the panel by calling loadParticipants on the open comp.
   async function refetchParticipants(compId: number) {
-    const res = await fetch(`/api/admin/weekly/${compId}/participants`);
+    const res = await clanFetch(`/api/admin/weekly/${compId}/participants`);
     if (res.ok) {
       const data = await res.json();
       // Older shape was a bare array; current shape carries enrollment diagnostics.
@@ -149,7 +150,7 @@ export default function WeeklyManagementClient() {
     setAddingRsns(true);
 
     const rsns = addRsns.split(/[,\n]/).map((r) => r.trim()).filter(Boolean);
-    const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
+    const res = await clanFetch(`/api/admin/weekly/${compId}/participants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rsns }),
@@ -169,7 +170,7 @@ export default function WeeklyManagementClient() {
     setRefreshing(compId);
     setRefreshResult(null);
 
-    const res = await fetch(`/api/admin/weekly/${compId}/refresh`, {
+    const res = await clanFetch(`/api/admin/weekly/${compId}/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rebaseline }),
@@ -196,7 +197,7 @@ export default function WeeklyManagementClient() {
 
   // Re-include (or drop again) a participant whose clan_member left the CC mid-comp.
   async function toggleKeep(compId: number, p: Participant) {
-    const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
+    const res = await clanFetch(`/api/admin/weekly/${compId}/participants`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ participantId: p.id, keepIfLeft: p.keepIfLeft !== 1 }),
@@ -212,7 +213,7 @@ export default function WeeklyManagementClient() {
     const baselineValue = compType === 'efficiency' ? Math.round(typed * EFFICIENCY_SCALE) : typed;
     setSavingFix(true);
 
-    const res = await fetch(`/api/admin/weekly/${compId}/participants`, {
+    const res = await clanFetch(`/api/admin/weekly/${compId}/participants`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ participantId: fixingId, baselineValue }),
@@ -229,7 +230,7 @@ export default function WeeklyManagementClient() {
   async function handleDelete(compId: number) {
     if (!confirm('Delete this competition? This cannot be undone.')) return;
 
-    const res = await fetch(`/api/admin/weekly/${compId}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/admin/weekly/${compId}`, { method: 'DELETE' });
     if (res.ok) {
       fetchCompetitions();
       if (expandedComp === compId) setExpandedComp(null);
@@ -252,7 +253,7 @@ export default function WeeklyManagementClient() {
     if (!editingComp) return;
     setEditSaving(true);
 
-    const res = await fetch(`/api/admin/weekly/${editingComp.id}`, {
+    const res = await clanFetch(`/api/admin/weekly/${editingComp.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -312,12 +313,12 @@ export default function WeeklyManagementClient() {
           <p className="text-text-muted text-sm mt-1">Skill of the Week / Boss of the Week</p>
         </div>
         <div className="flex gap-2">
-          <Link
+          <ClanLink
             href="/events"
             className="px-3 py-1.5 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Public View
-          </Link>
+          </ClanLink>
           <button
             onClick={() => setShowCreate(true)}
             className="px-4 py-1.5 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors"
@@ -559,13 +560,13 @@ export default function WeeklyManagementClient() {
                       >
                         Delete
                       </button>
-                      <Link
+                      <ClanLink
                         href={`/weekly/${comp.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors"
                       >
                         Leaderboard
-                      </Link>
+                      </ClanLink>
                       <span className="text-text-muted">{expandedComp === comp.id ? '▼' : '▶'}</span>
                     </div>
                   </div>

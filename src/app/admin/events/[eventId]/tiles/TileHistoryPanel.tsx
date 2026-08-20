@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface FieldChange {
   field: string;
@@ -116,7 +117,7 @@ export default function TileHistoryPanel({ eventId }: { eventId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/tiles/history`);
+      const res = await clanFetch(`/api/events/${eventId}/tiles/history`);
       if (!res.ok) throw new Error();
       setEntries(await res.json());
       setLoaded(true);

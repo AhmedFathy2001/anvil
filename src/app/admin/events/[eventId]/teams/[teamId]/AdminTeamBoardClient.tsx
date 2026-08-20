@@ -10,6 +10,7 @@ import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   event: Event;
@@ -33,14 +34,14 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
   const fetchSubmissions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
     if (res.ok) setSubmissions(await res.json());
   }, [event.id, team.id]);
 
   // Stat-tile (skill XP / boss KC) progress per tile → the modal's "Player Progress" panel. Mirrors
   // TeamBoardClient; without it the admin board's stat tiles read "No stat progress data available".
   const fetchGains = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
     if (!res.ok) return;
     const data = await res.json();
     const gainsMap: Record<number, PlayerGain[]> = {};
@@ -63,7 +64,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   }, [event.id, team.id, tiles, teamPlayers]);
 
   const fetchCompletions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/completions`);
+    const res = await clanFetch(`/api/events/${event.id}/completions`);
     if (res.ok) {
       const data = await res.json();
       setCompletions(data.filter((c: Completion) => c.teamId === team.id));
@@ -77,7 +78,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   }
 
   async function handleToggle(tileId: number) {
-    const res = await fetch(`/api/events/${event.id}/completions`, {
+    const res = await clanFetch(`/api/events/${event.id}/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
@@ -88,7 +89,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
-    const res = await fetch(`/api/events/${event.id}/submissions`, {
+    const res = await clanFetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -100,7 +101,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {
-    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
     if (res.ok) {
       await fetchSubmissions();
       await fetchCompletions();

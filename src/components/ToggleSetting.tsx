@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface ToggleSettingProps {
   settingKey: string;
@@ -43,7 +44,7 @@ export default function ToggleSetting({ settingKey, label, helpText, defaultOn =
     const previous = enabled;
     setEnabled(next); // optimistic — reverted below if the write fails
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [settingKey]: next ? 'true' : 'false' }),

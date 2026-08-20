@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
+import ClanLink from '@/components/ClanLink';
 
 // Next.js error.tsx must be a Client Component. Renders inside the admin
 // segment whenever a page throws. Logging is client-side only (server errors
@@ -35,12 +35,12 @@ export default function AdminError({
           >
             Try again
           </button>
-          <Link
+          <ClanLink
             href="/admin/dashboard"
             className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
           >
             Back to dashboard
-          </Link>
+          </ClanLink>
         </div>
       </div>
     </div>

@@ -6,20 +6,21 @@ import { verifyPlayer } from '@/lib/auth';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { getPlayerRecap } from '@/lib/eventRecap';
 import PlayerDashboardClient from './PlayerDashboardClient';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PlayerDashboardPage() {
   const playerSession = await verifyPlayer();
   if (!playerSession) {
-    redirect('/player');
+    redirect(await clanHref('/player'));
   }
 
   const player = await db.query.eventParticipants.findFirst({
     where: eq(eventParticipants.id, playerSession.playerId),
   });
   if (!player || !player.teamId) {
-    redirect('/player');
+    redirect(await clanHref('/player'));
   }
 
   const team = await db.query.teams.findFirst({

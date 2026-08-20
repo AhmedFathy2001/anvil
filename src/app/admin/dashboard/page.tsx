@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
@@ -14,6 +13,8 @@ import { listEventIndex, type EventIndexItem } from '@/lib/eventIndex';
 import { attentionQueue, openCount, type AttentionItem, type Severity } from '@/lib/adminAttention';
 import { addDays, dayOf, daysBetween, findGaps, packLanes } from '@/lib/scheduleLanes';
 import { dayKey, daysSince, parseStamp } from '@/lib/dbTime';
+import ClanLink from '@/components/ClanLink';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export default async function AdminDashboardPage() {
   // to the guided wizard once. It's always escapable, and skipping sets the advisory flag
   // so this never becomes a trap.
   const setup = await getSetupStatus(clan.id);
-  if (setup.isFresh) redirect('/admin/setup?welcome=1');
+  if (setup.isFresh) redirect(await clanHref('/admin/setup?welcome=1'));
   // Read-only: the grace clock is started by the roster sync, never by someone opening a page.
   const capStatus = await rosterCapStatus(clan.id);
 
@@ -315,9 +316,9 @@ export default async function AdminDashboardPage() {
               {openCount(queue) === 0 ? 'all clear' : `${openCount(queue)} open`}
             </span>
           </h2>
-          <Link href="/admin/events" className="text-xs text-gold hover:text-gold-light">
+          <ClanLink href="/admin/events" className="text-xs text-gold hover:text-gold-light">
             Manage events →
-          </Link>
+          </ClanLink>
         </div>
         <div className="space-y-2">
           {queue.map((item) => (
@@ -410,9 +411,9 @@ function NowBar({
             <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted/70">Running now</div>
             <div className="mt-2 text-sm text-text-muted">
               Nothing is live.{' '}
-              <Link href="/admin/schedule" className="text-gold hover:underline">
+              <ClanLink href="/admin/schedule" className="text-gold hover:underline">
                 Check the schedule →
-              </Link>
+              </ClanLink>
             </div>
           </>
         ) : (
@@ -429,9 +430,9 @@ function NowBar({
                   </span>
                   <span className="ml-auto text-[10px] text-text-muted">{remaining(end, now)}</span>
                 </div>
-                <Link href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+                <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
                   {it.title}
-                </Link>
+                </ClanLink>
                 <div className="text-xs text-text-muted mt-0.5">
                   {it.badge} · {it.headline}
                 </div>
@@ -455,9 +456,9 @@ function NowBar({
         </div>
         {nextUp ? (
           <>
-            <Link href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+            <ClanLink href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
               {nextUp.title}
-            </Link>
+            </ClanLink>
             <div className="text-xs text-text-muted mt-0.5">
               {nextUp.badge} · {nextUp.headline}
             </div>
@@ -469,9 +470,9 @@ function NowBar({
         ) : (
           <div className="mt-2 text-sm text-text-muted">
             Nothing queued.{' '}
-            <Link href="/admin/events/new" className="text-gold hover:underline">
+            <ClanLink href="/admin/events/new" className="text-gold hover:underline">
               Schedule one →
-            </Link>
+            </ClanLink>
           </div>
         )}
       </div>
@@ -521,7 +522,7 @@ function AttentionCard({ item }: { item: AttentionItem }) {
         <div className="text-sm font-semibold">{item.title}</div>
         <div className="text-xs text-text-muted mt-0.5">{item.detail}</div>
       </div>
-      <Link
+      <ClanLink
         href={item.href}
         className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
           item.severity === 'critical'
@@ -530,7 +531,7 @@ function AttentionCard({ item }: { item: AttentionItem }) {
         }`}
       >
         {item.action}
-      </Link>
+      </ClanLink>
     </div>
   );
 }
@@ -557,7 +558,7 @@ function PulseTile({
   href: string;
 }) {
   return (
-    <Link
+    <ClanLink
       href={href}
       className="block border border-card-border rounded-xl bg-card-bg p-4 hover:border-gold/40 transition-colors"
     >
@@ -584,7 +585,7 @@ function PulseTile({
         </div>
       )}
       <div className="text-[10px] text-text-muted/70 mt-2">{sub}</div>
-    </Link>
+    </ClanLink>
   );
 }
 
@@ -658,9 +659,9 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
           Runway
           <span className="text-xs text-text-muted font-normal">next {weeks} weeks</span>
         </h2>
-        <Link href="/admin/schedule" className="text-xs text-gold hover:text-gold-light">
+        <ClanLink href="/admin/schedule" className="text-xs text-gold hover:text-gold-light">
           Full schedule →
-        </Link>
+        </ClanLink>
       </div>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-4 overflow-hidden">
@@ -698,7 +699,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
             const left = pct(daysBetween(from, g.start));
             if (left > 96) return null;
             return (
-              <Link
+              <ClanLink
                 key={`gap-${i}`}
                 href="/admin/schedule"
                 title={
@@ -711,16 +712,16 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
               >
                 {/* An open-ended gap has no honest length — only a start. */}
                 {g.openEnded ? 'nothing scheduled beyond here' : `${g.days}d clear`}
-              </Link>
+              </ClanLink>
             );
           })}
 
           {inWindow.length === 0 ? (
             <p className="absolute inset-0 grid place-items-center text-sm text-text-muted">
               Nothing runs in the next {weeks} weeks.{' '}
-              <Link href="/admin/events/new" className="text-gold hover:underline ml-1">
+              <ClanLink href="/admin/events/new" className="text-gold hover:underline ml-1">
                 Schedule something →
-              </Link>
+              </ClanLink>
             </p>
           ) : (
             laid.map((l) => {
@@ -747,7 +748,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
               const inside = width / 100 >= LABEL_INSIDE_MIN;
               return (
                 <div key={`${l.item.kind}-${l.item.id}`}>
-                  <Link
+                  <ClanLink
                     href={l.item.href}
                     title={`${l.item.title} · ${l.item.headline}`}
                     style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * RUNWAY_ROW}px` }}
@@ -756,16 +757,16 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
                     }`}
                   >
                     {inside && <span className="truncate">{l.item.title}</span>}
-                  </Link>
+                  </ClanLink>
                   {/* A bar too narrow to hold its title gets it alongside, rather than as "Bo…". */}
                   {!inside && (
-                    <Link
+                    <ClanLink
                       href={l.item.href}
                       style={{ left: `calc(${left + width}% + 6px)`, top: `${l.lane * RUNWAY_ROW}px` }}
                       className="absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden"
                     >
                       <span className="truncate">{l.item.title}</span>
-                    </Link>
+                    </ClanLink>
                   )}
                 </div>
               );
@@ -845,9 +846,9 @@ function Activity({
           <span className="w-1 h-5 bg-gold rounded-full" />
           Activity
         </h2>
-        <Link href="/admin/clan/audit" className="text-xs text-gold hover:text-gold-light">
+        <ClanLink href="/admin/clan/audit" className="text-xs text-gold hover:text-gold-light">
           Full log →
-        </Link>
+        </ClanLink>
       </div>
 
       {rows.length === 0 ? (
@@ -973,7 +974,7 @@ function SnapshotRow({
   emphasize?: boolean;
 }) {
   return (
-    <Link
+    <ClanLink
       href={href}
       className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-card-bg-hover transition-colors"
     >
@@ -982,6 +983,6 @@ function SnapshotRow({
         <div className={`text-sm font-medium truncate ${emphasize ? 'text-yellow-400' : ''}`}>{value}</div>
       </div>
       <span className="text-text-muted text-xs">→</span>
-    </Link>
+    </ClanLink>
   );
 }

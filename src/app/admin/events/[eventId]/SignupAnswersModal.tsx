@@ -8,6 +8,7 @@ import ClanMemberPicker, { type PickableMember } from '@/components/ClanMemberPi
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Admin modal for writing sign-up answers on a member's behalf. Two modes:
 //   add  → pick a clan member (must have a linked Discord user — sign-ups hang off the
@@ -180,12 +181,12 @@ export default function SignupAnswersModal({
       };
 
       const res = isEdit
-        ? await fetch(`/api/admin/events/${eventId}/signups/${editTarget.id}`, {
+        ? await clanFetch(`/api/admin/events/${eventId}/signups/${editTarget.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'edit-answers', profile }),
           })
-        : await fetch(`/api/admin/events/${eventId}/signups`, {
+        : await clanFetch(`/api/admin/events/${eventId}/signups`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clanMemberId: memberId, profile }),

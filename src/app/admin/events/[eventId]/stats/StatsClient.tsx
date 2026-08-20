@@ -10,6 +10,7 @@ import { isPointsMode } from '@/lib/utils';
 import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown';
 import MemberBreakdown from '@/components/MemberBreakdown';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -108,7 +109,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
     setSnapshotting(true);
     setSnapshotResult(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/snapshot`, { method: 'POST' });
+      const res = await clanFetch(`/api/events/${event.id}/snapshot`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSnapshotResult(data);
@@ -130,7 +131,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
     setSnapshotResult(null);
     try {
       // Force-reset bypasses the cooldown server-side (it's a correction) but still restarts it.
-      const res = await fetch(`/api/events/${event.id}/snapshot?forceReset=true`, { method: 'POST' });
+      const res = await clanFetch(`/api/events/${event.id}/snapshot?forceReset=true`, { method: 'POST' });
       if (res.ok) {
         setSnapshotResult(await res.json());
         setCooldown(COOLDOWN_SECS);
@@ -144,7 +145,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
     // Reads cached gains (no hiscores pull) — not gated by the pull cooldown.
     setRefreshingStats(true);
     try {
-      const res = await fetch(`/api/events/${event.id}/gains`);
+      const res = await clanFetch(`/api/events/${event.id}/gains`);
       if (res.ok) setLastStatsRefresh(new Date());
     } finally {
       setRefreshingStats(false);

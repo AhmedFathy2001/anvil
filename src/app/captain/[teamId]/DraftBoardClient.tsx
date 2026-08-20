@@ -6,6 +6,7 @@ import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import type { SignupProfile } from '@/lib/signup';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Team {
   id: number;
@@ -58,7 +59,7 @@ export default function DraftBoardClient({ event, team }: Props) {
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
 
   const fetchDraft = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/draft`);
+    const res = await clanFetch(`/api/events/${event.id}/draft`);
     if (res.ok) {
       const data = await res.json();
       setDraft(data);
@@ -74,7 +75,7 @@ export default function DraftBoardClient({ event, team }: Props) {
   async function pickPlayer(playerId: number) {
     setPicking(true);
     setError('');
-    const res = await fetch(`/api/events/${event.id}/draft/pick`, {
+    const res = await clanFetch(`/api/events/${event.id}/draft/pick`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId }),

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Select from '@/components/Select';
 import LocalTime from '@/components/LocalTime';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Item {
   id: number;
@@ -41,7 +42,7 @@ export default function FeedbackAdminClient() {
   const [error, setError] = useState('');
 
   async function load() {
-    const res = await fetch('/api/admin/feedback');
+    const res = await clanFetch('/api/admin/feedback');
     if (res.ok) {
       const data = await res.json();
       setItems(data.items);
@@ -56,7 +57,7 @@ export default function FeedbackAdminClient() {
 
   async function patch(id: number, patch: { status?: string; adminNotes?: string }) {
     setItems((list) => list.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    await fetch(`/api/admin/feedback/${id}`, {
+    await clanFetch(`/api/admin/feedback/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -66,7 +67,7 @@ export default function FeedbackAdminClient() {
   async function elevate(id: number) {
     setBusyId(id);
     setError('');
-    const res = await fetch(`/api/admin/feedback/${id}/elevate`, { method: 'POST' });
+    const res = await clanFetch(`/api/admin/feedback/${id}/elevate`, { method: 'POST' });
     setBusyId(null);
     if (res.ok) load();
     else setError((await res.json().catch(() => ({}))).error || 'Could not elevate.');

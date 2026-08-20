@@ -13,6 +13,7 @@ import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export default async function TeamBoardPage({
   if (myMembership && (myMembership.isCaptain || myMembership.playerId != null)) {
     // Carry the origin so My Team's back link returns to the scoreboard (this route), not the My
     // Teams hub — reaching your own team here should feel like it did on the general board.
-    redirect(`/team/${tId}?from=scoreboard`);
+    redirect(await clanHref(`/team/${tId}?from=scoreboard`));
   }
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));

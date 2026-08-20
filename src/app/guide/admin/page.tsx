@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
-import Link from 'next/link';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { BotConsentDiagram, ProvisioningStatesDiagram, SetupStepsDiagram } from '../_components/Diagrams';
+import ClanLink from '@/components/ClanLink';
 
 export const metadata: Metadata = {
   title: 'Running your first event — Anvil admin guide',
@@ -56,9 +56,9 @@ export default async function AdminGuidePage() {
         <>
           This guide tracks the app as it ships today. If a screen here doesn&rsquo;t match what
           you&rsquo;re looking at, the app is right and the guide is stale —{' '}
-          <Link href="/feedback" className="text-gold hover:text-gold-light">
+          <ClanLink href="/feedback" className="text-gold hover:text-gold-light">
             tell us
-          </Link>{' '}
+          </ClanLink>{' '}
           and we&rsquo;ll fix it.
         </>
       }
@@ -167,9 +167,9 @@ export default async function AdminGuidePage() {
       <Section id="roster" n={4} title="Get your roster in">
         <p className="text-text-muted">
           Clan membership comes from one place: an in-game roster sync. Install the{' '}
-          <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
+          <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             Anvil RuneLite plugin
-          </Link>{' '}
+          </ClanLink>{' '}
           on an <em>admin&rsquo;s</em> account, open the in-game Collection Log&rsquo;s{' '}
           <span className="text-foreground font-medium">Bingo</span> tab, and press{' '}
           <span className="text-foreground font-medium">Sync clan roster</span>. That pushes your actual
@@ -352,9 +352,9 @@ export default async function AdminGuidePage() {
         />
         <p className="text-text-muted">
           Then point your members at the{' '}
-          <Link href="/guide/plugin" className="text-gold hover:text-gold-light">
+          <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             player setup guide
-          </Link>{' '}
+          </ClanLink>{' '}
           and start planning the next one.
         </p>
       </Section>

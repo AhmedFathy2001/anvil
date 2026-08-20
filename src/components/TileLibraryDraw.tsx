@@ -5,6 +5,7 @@ import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { clanFetch } from '@/lib/clanFetch';
 
 // "Draw 8 easy, 10 medium, 5 hard from the task library" — the board generator on the create form.
 //
@@ -42,7 +43,7 @@ export default function TileLibraryDraw({
 
   const loadMeta = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/tile-library');
+      const res = await clanFetch('/api/admin/tile-library');
       if (!res.ok) throw new Error();
       const data = await res.json();
       const tierCounts: Record<string, number> = data.tierCounts ?? {};
@@ -81,7 +82,7 @@ export default function TileLibraryDraw({
     setSeeding(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/tile-library', {
+      const res = await clanFetch('/api/admin/tile-library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'seed' }),
@@ -99,7 +100,7 @@ export default function TileLibraryDraw({
     setBusy(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/tile-library/draw', {
+      const res = await clanFetch('/api/admin/tile-library/draw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

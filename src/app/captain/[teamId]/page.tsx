@@ -6,6 +6,7 @@ import { verifyCaptain } from '@/lib/auth';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import CaptainBoardClient from './CaptainBoardClient';
 import DraftBoardClient from './DraftBoardClient';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export default async function CaptainBoardPage({
   // Verify this captain owns this team
   const captain = await verifyCaptain();
   if (!captain || captain.teamId !== tId) {
-    redirect('/captain');
+    redirect(await clanHref('/captain'));
   }
 
   const team = await db.query.teams.findFirst({

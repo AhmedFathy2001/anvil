@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import RoleSelect from '@/components/RoleSelect';
+import { clanFetch } from '@/lib/clanFetch';
 
 // No baked-in defaults — these are clan-specific Discord role IDs each instance enters once.
 const DEFAULT_BINGO_ROLE_ID = '';
@@ -51,7 +52,7 @@ export default function DiscordTeamChannelSettings() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

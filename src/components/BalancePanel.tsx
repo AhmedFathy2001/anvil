@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { PlayerRatings, RatedProfile } from '@/hooks/usePlayerRatings';
 import { ratingScore } from '@/components/PlayerRatingBadge';
+import { clanFetch } from '@/lib/clanFetch';
 
 // Draft-side balance advisory (balance-engine plan, Phase 4/5 UI). Renders on the Teams & Draft
 // tab for the classic draft format: projected team-strength bars, the pool grouped into S/A/B/C
@@ -90,7 +91,7 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
       } catch {
         parsed = {};
       }
-      const res = await fetch(`/api/events/${eventId}`, {
+      const res = await clanFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rules: { ...parsed, balanceMode: value } }),
@@ -112,7 +113,7 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
     setBusy('auto');
     setNote(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/auto-balance`, { method: 'POST' });
+      const res = await clanFetch(`/api/admin/events/${eventId}/auto-balance`, { method: 'POST' });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         setNote(data?.error ?? 'Auto-balance failed.');

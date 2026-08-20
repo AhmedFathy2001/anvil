@@ -14,6 +14,7 @@ import MvpHighlight from '@/components/MvpHighlight';
 import PlayerContributions from '@/components/PlayerContributions';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   event: Event;
@@ -39,12 +40,12 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
 
   const fetchSubmissions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
     if (res.ok) setSubmissions(await res.json());
   }, [event.id, team.id]);
 
   const fetchGains = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
     if (res.ok) {
       const data = await res.json();
       const gainsMap: Record<number, PlayerGain[]> = {};

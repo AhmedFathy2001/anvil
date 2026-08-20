@@ -10,6 +10,7 @@ import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 import { tileWeight, isPointsMode } from '@/lib/utils';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
   event: Event;
@@ -55,7 +56,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   async function refreshTeamStats() {
     setRefreshing(true);
     try {
-      const res = await fetch(`/api/events/${event.id}/refresh-stats`, {
+      const res = await clanFetch(`/api/events/${event.id}/refresh-stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId: team.id }),
@@ -73,7 +74,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   const fetchSubmissions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/submissions?teamId=${team.id}`);
     if (res.ok) {
       const data = await res.json();
       setSubmissions(data);
@@ -81,7 +82,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }, [event.id, team.id]);
 
   const fetchCompletions = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/completions`);
+    const res = await clanFetch(`/api/events/${event.id}/completions`);
     if (res.ok) {
       const data = await res.json();
       setCompletions(data.filter((c: Completion) => c.teamId === team.id));
@@ -89,7 +90,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }, [event.id, team.id]);
 
   const fetchGains = useCallback(async () => {
-    const res = await fetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
+    const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
     if (res.ok) {
       const data = await res.json();
       // Build gains map by tileId
@@ -151,7 +152,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) {
-    const res = await fetch(`/api/events/${event.id}/submissions`, {
+    const res = await clanFetch(`/api/events/${event.id}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -165,7 +166,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {
-    const res = await fetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, {
+    const res = await clanFetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, {
       method: 'DELETE',
     });
     if (res.ok) {
@@ -175,7 +176,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   async function handleToggle(tileId: number) {
-    const res = await fetch(`/api/events/${event.id}/completions`, {
+    const res = await clanFetch(`/api/events/${event.id}/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
@@ -191,7 +192,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       return;
     }
     setSavingName(true);
-    const res = await fetch(`/api/events/${event.id}/teams`, {
+    const res = await clanFetch(`/api/events/${event.id}/teams`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, name: newName.trim() }),

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
+import { clanFetch } from '@/lib/clanFetch';
 
 const SETTING_KEY = 'always_notify_items';
 
@@ -51,7 +52,7 @@ export default function AlwaysNotifyItems() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [SETTING_KEY]: value }),

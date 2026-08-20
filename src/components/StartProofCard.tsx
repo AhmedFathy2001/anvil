@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ImageUpload from '@/components/ImageUpload';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The member-facing half of the starting shot (lib/startProof): what to do, where to stand, the
 // keyword only this player gets, and the upload. Shown until the shot is accepted.
@@ -39,7 +40,7 @@ export default function StartProofCard(props: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${props.eventId}/start-proof`, {
+      const res = await clanFetch(`/api/events/${props.eventId}/start-proof`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: url, playerId: props.playerId }),

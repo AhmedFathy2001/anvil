@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 // The event name shown as the page header on every event tab. Admins can rename in place
 // (PATCH /api/events/[id] { name }); everyone else sees a plain heading. Non-admins never
@@ -56,7 +57,7 @@ export default function EventTitle({
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`/api/events/${eventId}`, {
+      const res = await clanFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),

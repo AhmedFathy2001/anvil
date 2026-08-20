@@ -6,6 +6,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
+import { clanFetch } from '@/lib/clanFetch';
 
 interface Character {
   id: number;
@@ -85,7 +86,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     setBoardsEvents([]);
     setBoardsSel(new Set());
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/editor-events`);
+      const res = await clanFetch(`/api/admin/users/${user.id}/editor-events`);
       if (res.ok) {
         const d = await res.json();
         setBoardsEvents(d.events ?? []);
@@ -115,7 +116,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     setBoardsSaving(true);
     setBoardsError('');
     try {
-      const res = await fetch(`/api/admin/users/${boardsUser.id}/editor-events`, {
+      const res = await clanFetch(`/api/admin/users/${boardsUser.id}/editor-events`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventIds: Array.from(boardsSel) }),
@@ -135,7 +136,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   }
 
   async function fetchUsers() {
-    const res = await fetch('/api/admin/users');
+    const res = await clanFetch('/api/admin/users');
     if (res.ok) {
       const data = await res.json();
       setUsers(data.people ?? []);
@@ -154,7 +155,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     } else if (!confirm(`Unban ${user.displayName}?`)) {
       return;
     }
-    const res = await fetch(`/api/admin/users/${user.id}/ban`, {
+    const res = await clanFetch(`/api/admin/users/${user.id}/ban`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ banned: banning, reason }),
@@ -168,7 +169,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     if (!rsn) return;
     setCharBusy(true);
     setCharError('');
-    const res = await fetch(`/api/admin/users/${user.id}/characters`, {
+    const res = await clanFetch(`/api/admin/users/${user.id}/characters`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rsn }),
@@ -185,7 +186,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
 
   async function removeCharacter(user: User, char: Character) {
     if (!confirm(`Remove ${char.rsn} from ${user.displayName}?`)) return;
-    const res = await fetch(`/api/admin/users/${user.id}/characters/${char.id}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/admin/users/${user.id}/characters/${char.id}`, { method: 'DELETE' });
     if (res.ok) fetchUsers();
     else alert((await res.json().catch(() => ({}))).error || 'Could not remove character');
   }
@@ -218,7 +219,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   async function changeRole(user: User, role: Role) {
     if (user.role === role) return;
     setSavingRoleId(user.id);
-    const res = await fetch(`/api/admin/users/${user.id}`, {
+    const res = await clanFetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role }),
@@ -236,7 +237,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   // without being promoted, and a member author without any moderator surfaces.
   async function toggleTiles(user: User, canEditTiles: boolean) {
     setSavingRoleId(user.id);
-    const res = await fetch(`/api/admin/users/${user.id}`, {
+    const res = await clanFetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ canEditTiles }),
@@ -257,7 +258,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     ) {
       return;
     }
-    const res = await fetch(`/api/admin/users/${user.id}/transfer-ownership`, { method: 'POST' });
+    const res = await clanFetch(`/api/admin/users/${user.id}/transfer-ownership`, { method: 'POST' });
     if (!res.ok) {
       const data = await res.json();
       alert(data.error || 'Failed to transfer ownership');
@@ -277,7 +278,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     if (!editingUser) return;
     setEditError('');
     setSaving(true);
-    const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+    const res = await clanFetch(`/api/admin/users/${editingUser.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ displayName: editDisplayName }),
@@ -295,7 +296,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
 
   async function handleDelete(user: User) {
     if (!confirm(`Delete "${user.displayName}"? This removes their site account.`)) return;
-    const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+    const res = await clanFetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
       alert(data.error || 'Failed to delete user');
