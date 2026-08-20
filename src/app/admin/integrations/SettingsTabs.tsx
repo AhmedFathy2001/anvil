@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
@@ -53,7 +54,14 @@ function FieldHeader({ title, children }: { title: string; children?: ReactNode 
 // tab state is interactive; `channels`/`botEnabled` are fetched server-side and passed to every
 // WebhookField (which is why this isn't just a server component).
 export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps) {
-  const [tab, setTab] = useState<TabId>('bot');
+  // ?tab=fees opens straight on that group. The fee settings are the ones people are sent here FOR
+  // (from the fees page, which is where the question "how many sign-offs?" actually comes up), and
+  // landing on the bot tab with no idea which of six groups holds it is how a setting stays unfound.
+  const params = useSearchParams();
+  const requested = params.get('tab');
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((t) => t.id === requested) ? (requested as TabId) : 'bot',
+  );
 
   return (
     <div>
