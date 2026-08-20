@@ -1372,7 +1372,12 @@ export default function TileTrackingConfig({
               disabled={locked}
               // Hover any kind (not just the selected one) to read what it does + how it's tracked.
               title={k.blurb}
-              className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
+              // Centred text on a floor height set to the TWO-line case. Three of these labels wrap
+              // ("Item set (X each)", "Agility laps & floors", "LMS placement"), and a grid row
+              // stretches to its tallest item — so with a one-line floor those rows came out 4px
+              // taller than the rest and the block read as ragged. Sizing every button for two lines
+              // is what makes the grid uniform.
+              className={`flex min-h-[2.75rem] items-center justify-center rounded border px-2 py-1.5 text-center text-xs leading-tight transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
                   : 'border-card-border text-text-muted hover:border-gold/50'
@@ -2882,11 +2887,11 @@ export default function TileTrackingConfig({
         <div className="px-3 pb-3 space-y-3">
 
       {/* Optional toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={() => setOptional(!optional)}
-          className={`relative w-10 h-5 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
+          className={`relative mt-px w-10 h-5 shrink-0 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
         >
           <span
             className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${optional ? 'translate-x-5' : ''}`}
@@ -2901,19 +2906,19 @@ export default function TileTrackingConfig({
       {(missionsAllowed || mission) && (
       <>
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={() => setMission(!mission)}
             aria-pressed={mission}
-            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
+            className={`relative mt-px w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mission ? 'translate-x-5' : ''}`} />
           </button>
           <span className="text-xs text-foreground font-medium">⚡ Mission (hidden until announced mid-event)</span>
         </div>
         {mission && (
-          <div className="space-y-3 pl-1">
+          <div className="space-y-3 border-l border-gold/25 pl-3 ml-[0.6rem]">
             <p className="text-[10px] text-text-muted leading-relaxed">
               This tile stays hidden until you announce it — manually, or on the cadence set in the event&apos;s
               Mission settings — then drops live with the scoring below.
