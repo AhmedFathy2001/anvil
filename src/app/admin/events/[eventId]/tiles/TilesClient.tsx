@@ -1431,11 +1431,15 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
 
         {/* Two real columns: the board on the left, its editor on the right. Not an overlay —
-            the thing you're editing stays visible, and picking another tile just moves the pane. */}
+            the thing you're editing stays visible, and picking another tile just moves the pane.
+            NO `items-start` here: it shrink-wraps the editor's column to the editor's own height,
+            which leaves its `sticky top-4` nothing to travel inside. On a 261-tile board that meant
+            scrolling down to a tile, clicking it, and then scrolling all the way back up to edit it.
+            Stretching the column (the grid default) is what lets the editor follow the list. */}
         <div
           className={
             editingTile && inspectorDocked
-              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5 xl:items-start'
+              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5'
               : ''
           }
         >
