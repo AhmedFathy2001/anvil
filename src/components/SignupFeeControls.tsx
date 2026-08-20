@@ -167,24 +167,45 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         )}
 
         {/* Confirm vote */}
-        {canConfirm && isPaid && !isClosed && (
-          collectedByViewer && needsSecondSignature ? (
-            <span className="text-xs text-text-muted px-2 py-1">You collected this — needs another admin</span>
-          ) : (
-            <button
-              onClick={() => act(`/api/admin/fees/${fee.id}/confirm`, 'confirm')}
-              disabled={busy !== null}
-              className="text-xs font-medium px-3 py-1 rounded border border-gold/40 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
-            >
-              {busy === 'confirm'
-                ? '…'
-                : confirmsLeft > 1
-                  ? `Confirm (${fee.confirmationsCount}/${confirmationsRequired})`
-                  : needsSecondSignature
-                    ? 'Confirm'
-                    : 'Settle'}
-            </button>
-          )
+        {canConfirm && isPaid && !isClosed && !(collectedByViewer && needsSecondSignature) && (
+          <button
+            onClick={() => act(`/api/admin/fees/${fee.id}/confirm`, 'confirm')}
+            disabled={busy !== null}
+            className="text-xs font-medium px-3 py-1 rounded border border-gold/40 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
+          >
+            {busy === 'confirm'
+              ? '…'
+              : confirmsLeft > 1
+                ? `Confirm (${fee.confirmationsCount}/${confirmationsRequired})`
+                : needsSecondSignature
+                  ? 'Confirm'
+                  : 'Settle'}
+          </button>
+        )}
+
+        {/* Settle anyway — the override for a signature that is never coming.
+            A one-admin clan collects its own fees, so the separation-of-duties rule leaves those
+            fees open forever with nothing but a sentence explaining why. This closes one outright,
+            and the audit line records that it was settled without a second signature. */}
+        {canConfirm && isPaid && !isClosed && needsSecondSignature && (collectedByViewer || confirmsLeft > 0) && (
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  collectedByViewer
+                    ? 'Settle this fee yourself? You collected it, so nobody else is signing it off.'
+                    : `Settle this fee now, without the remaining ${confirmsLeft} confirmation${confirmsLeft === 1 ? '' : 's'}?`,
+                )
+              ) {
+                act(`/api/admin/fees/${fee.id}/confirm`, 'force', { force: true });
+              }
+            }}
+            disabled={busy !== null}
+            title="Skip the confirmation rule for this one fee"
+            className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+          >
+            {busy === 'force' ? '…' : 'Settle anyway'}
+          </button>
         )}
 
         {/* Dispute */}
