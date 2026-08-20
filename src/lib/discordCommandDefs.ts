@@ -45,8 +45,26 @@ export const COMMAND_DEFINITIONS = [
         options: [SHARE_OPTION],
       },
       {
+        name: 'apply',
+        description: 'How to get in — sign-ups, the fee, and where you stand',
+        type: OPTION_TYPE.SUB_COMMAND,
+        options: [SHARE_OPTION],
+      },
+      {
+        name: 'next',
+        description: "What's coming — the next reveal, mission, or deadline",
+        type: OPTION_TYPE.SUB_COMMAND,
+        options: [SHARE_OPTION],
+      },
+      {
         name: 'me',
         description: 'Your team, your tiles, your standing',
+        type: OPTION_TYPE.SUB_COMMAND,
+        options: [SHARE_OPTION],
+      },
+      {
+        name: 'help',
+        description: 'What Anvil can tell you in here',
         type: OPTION_TYPE.SUB_COMMAND,
         options: [SHARE_OPTION],
       },
