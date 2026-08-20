@@ -1,11 +1,21 @@
 // Shared presentation pieces for the public /guide pages. Server components (no interactivity) so
-// the guides stay static-ish and cheap; every guide uses these so the two pages can't drift into
-// two different visual languages.
+// the guides stay static-ish and cheap; every guide uses these so the pages can't drift into
+// several different visual languages.
+//
+// These hold no copy of their own beyond what a caller passes in — the words live in _i18n, and the
+// few bits of chrome these render themselves ("Contents", "Step 3 · optional") arrive as the
+// `common` block of the active dictionary — passed explicitly, because RSC has no context and a
+// factory that closes over them trips react-hooks/static-components.
 
 export interface LegendItem {
   n: number;
   label: string;
   body: React.ReactNode;
+}
+
+export interface SectionLabels {
+  step: string;
+  optional: string;
 }
 
 /** A numbered step in a guide. The number is the reading order, not decoration. */
@@ -14,19 +24,21 @@ export function Section({
   n,
   title,
   optional,
+  labels,
   children,
 }: {
   id: string;
   n: number;
   title: string;
   optional?: boolean;
+  labels: SectionLabels;
   children: React.ReactNode;
 }) {
   return (
     <section id={id}>
       <div className="text-[11px] uppercase tracking-widest text-text-muted mb-2">
-        Step {n}
-        {optional && ' · optional'}
+        {labels.step} {n}
+        {optional && ` · ${labels.optional}`}
       </div>
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1 h-6 bg-gold rounded-full" />
@@ -146,7 +158,7 @@ export function Rows({ rows }: { rows: { term: React.ReactNode; body: React.Reac
   );
 }
 
-/** Sticky contents rail + the guide's masthead, shared so both guides frame identically. */
+/** Sticky contents rail + the guide's masthead, shared so every guide frames identically. */
 export function GuideShell({
   eyebrow,
   minutes,
@@ -156,6 +168,10 @@ export function GuideShell({
   sections,
   children,
   footnote,
+  locale,
+  labels,
+  languages,
+  notice,
 }: {
   eyebrow: string;
   /** Approximate reading time. Declared per page: these are JSX, so there's no body text to count
@@ -167,12 +183,27 @@ export function GuideShell({
   sections: { id: string; n: number; title: string }[];
   children: React.ReactNode;
   footnote?: React.ReactNode;
+  /** BCP-47 code and writing direction of the copy inside. Set on the article, not on <html>: a
+   *  nested route can't reach the document element, and a correct `lang` here is what a screen
+   *  reader and the browser's own text shaping actually read. */
+  locale?: { code: string; dir: 'ltr' | 'rtl' };
+  labels: { contents: string; minRead: string };
+  /** The same page in every other language. Rendered above the contents rail. */
+  languages?: React.ReactNode;
+  /** Shown before the body — used to admit that a translation is incomplete. */
+  notice?: React.ReactNode;
 }) {
   return (
-    <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-10">
+    <div
+      className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-10"
+      lang={locale?.code}
+      dir={locale?.dir}
+    >
       <aside className="hidden lg:block">
-        <nav className="sticky top-24 text-sm" aria-label="Contents">
-          <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">Contents</div>
+        <nav className="sticky top-24 text-sm" aria-label={labels.contents}>
+          <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
+            {labels.contents}
+          </div>
           <ol className="space-y-1">
             {sections.map((s) => (
               <li key={s.id}>
@@ -190,13 +221,16 @@ export function GuideShell({
       </aside>
 
       <article className="max-w-3xl">
+        {languages}
         <header className="mb-10">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
             <span className="text-[11px] uppercase tracking-widest text-gold">{eyebrow}</span>
             {minutes !== undefined && (
               <>
                 <span className="text-[11px] text-text-muted/50" aria-hidden>·</span>
-                <span className="text-[11px] uppercase tracking-widest text-text-muted">{minutes} min read</span>
+                <span className="text-[11px] uppercase tracking-widest text-text-muted">
+                  {labels.minRead.replace('{n}', String(minutes))}
+                </span>
               </>
             )}
           </div>
@@ -212,6 +246,8 @@ export function GuideShell({
             </div>
           )}
         </header>
+
+        {notice}
 
         <div className="space-y-14">{children}</div>
 
