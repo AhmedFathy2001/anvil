@@ -129,6 +129,18 @@ export default {
         }
       },
 
+      // window.location.href = '/api/…' — navigating by assignment, which downloads use because
+      // they want the browser to fetch the file rather than the app to route to it. Same failure as
+      // any other link, different shape, so the checks above never saw it.
+      "AssignmentExpression[left.property.name='href']"(node) {
+        const r = node.right;
+        if (r?.type === 'Literal') check(r, r.value, 'bareLink');
+        else if (r?.type === 'TemplateLiteral' && r.quasis.length > 0) {
+          const head = r.quasis[0].value.cooked ?? '';
+          if (head.startsWith('/')) check(r, head, 'bareLink');
+        }
+      },
+
       // router.push('/events/5')
       "CallExpression[callee.property.name=/^(push|replace)$/]"(node) {
         const arg = node.arguments?.[0];

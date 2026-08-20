@@ -32,7 +32,7 @@ import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/t
 import { findBoardProblems } from '@/lib/boardMisconfig';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
@@ -976,7 +976,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Download spreadsheet',
-                  onClick: () => { window.location.href = `/api/events/${event.id}/tiles/spreadsheet`; },
+                  onClick: () => { window.location.href = clanUrl(`/api/events/${event.id}/tiles/spreadsheet`); },
                   title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
                 },
                 { label: 'Template CSV', onClick: downloadTemplate },
@@ -988,7 +988,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Export as seed pack',
-                  onClick: () => { window.location.href = `/api/admin/tile-library/export?eventId=${event.id}`; },
+                  onClick: () => { window.location.href = clanUrl(`/api/admin/tile-library/export?eventId=${event.id}`); },
                 },
               ]}
             />
