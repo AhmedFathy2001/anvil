@@ -10,6 +10,7 @@ import {
   isSharedBotAvailable,
 } from '@/lib/discord-roles';
 import { botGuildStatus } from '@/lib/discord-permissions';
+import { syncClanCommandsInBackground } from '@/lib/discordCommandSync';
 
 // The bot connection surface. The bot TOKEN is a secret: it's stored in the settings table under
 // `discord_bot_token` when an admin brings their own, but is deliberately NOT in the settings API's
@@ -137,10 +138,21 @@ export async function PUT(request: Request) {
         );
       }
       await upsertSetting('discord_bot_token', trimmed);
+      // We've just proved this token drives a real application — the one moment where registering
+      // its slash commands is guaranteed to work. Left to a script, this is the step nobody knows
+      // about and the bot silently has no commands. Fire-and-forget: a Discord hiccup must not fail
+      // saving the token, and the boot reconcile re-runs it.
+      syncClanCommandsInBackground('bot-token-saved');
     } else {
       // Clear the BYO override → fall back to the env / shared bot.
       await upsertSetting('discord_bot_token', null);
     }
+  }
+
+  // A guild change moves which server the commands belong in (and clears the one they left), so it
+  // re-syncs too — on its own, not just when a token comes with it.
+  if (typeof guildId === 'string' && !botToken) {
+    syncClanCommandsInBackground('guild-changed');
   }
 
   return NextResponse.json(await buildStatus());

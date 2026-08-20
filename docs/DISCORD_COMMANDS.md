@@ -121,7 +121,24 @@ In the Discord developer portal, set **Interactions Endpoint URL** on the applic
 Discord validates the URL by sending a PING plus deliberately **invalid** signatures; it only
 accepts the URL if the bad ones get a 401. Both routes do exactly that.
 
-### 3. Register the commands
+### 3. Registration happens on its own
+
+Commands are registered per **application**, not per guild, and registration is a full-set PUT —
+whatever gets sent becomes exactly what exists. That makes it an idempotent reconcile rather than a
+setup step, so it runs automatically and heals itself:
+
+| Who | When | Scope |
+| --- | --- | --- |
+| Control plane (shared Anvil app) | every boot — `Anvil.Admin/src/instrumentation.ts` | **global**, so one write covers every managed clan including ones onboarding later |
+| A clan with its own bot | when its token is saved, and every boot — `lib/discordCommandSync.ts` | **guild** when a server is configured (instant), else global |
+
+A clan on the shared bot never registers anything itself: the control plane owns that application,
+and N containers re-registering it would be N redundant writes racing each other. `getBotTokenSource()`
+is what draws that line.
+
+Nothing to do when a clan signs up — global registration already covers them.
+
+**The manual escape hatch**, for testing or a one-off repair:
 
 ```bash
 npm run discord:commands                 # global — every server, up to ~1h to appear
@@ -129,8 +146,9 @@ npm run discord:commands -- --guild <id> # one server, instantly (use this while
 npm run discord:commands -- --clear      # remove them again
 ```
 
-Reads `DISCORD_BOT_TOKEN` (or `ANVIL_SHARED_BOT_TOKEN`). Registration is a PUT of the full set, so
-it's idempotent and a renamed command never lingers in members' autocomplete.
+Reads `DISCORD_BOT_TOKEN` (or `ANVIL_SHARED_BOT_TOKEN`). Run it locally, not on the box — the
+container image carries only `scripts/migrate.mjs` and no dev dependencies, and registration talks
+solely to Discord's API, so it needs nothing from the server but the token value.
 
 Global registration is cached by Discord for up to an hour. Use `--guild` while iterating; waiting
 an hour to see a typo is how an afternoon disappears.
@@ -157,11 +175,15 @@ links the long version and is the fallback when the ruleset outgrows a Discord e
 1. Add the subcommand to `COMMAND_DEFINITIONS` in `lib/discordCommandDefs.ts` (no DB imports — the
    registration script loads this module directly).
 2. Add a handler with the same name to `SUBCOMMANDS` in `lib/discordCommands.ts`.
-3. Re-run `npm run discord:commands`.
+3. Mirror it in `SHARED_COMMANDS` in `Anvil.Admin/src/lib/discordCommandSync.ts` — the control plane
+   registers the shared app and can't import across the repo boundary. The test below fails if you
+   forget.
+4. Deploy. The boot reconcile registers it; no script to remember.
 
 `tests/discord-interactions.test.ts` asserts those two lists are **equal**, not that one contains
 the other: a command that autocompletes and then fails in front of a member is worse than one that
 never existed. It also checks the names and descriptions against the constraints Discord enforces at
-registration, since a rejected PUT is a silent bot.
+registration (a rejected PUT is a silent bot), and — when Anvil.Admin is checked out alongside —
+that the control plane's mirrored copy hasn't drifted from this one.
 
 Run it with `npm run test:discord`.
