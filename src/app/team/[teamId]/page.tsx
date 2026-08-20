@@ -12,7 +12,9 @@ import DraftWatchClient from './DraftWatchClient';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
-import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
+import { loadPlayerOwners, attachOwners, loadEventProfiles } from '@/lib/draftProfiles';
+import { coverageGaps, rosterShape } from '@/lib/rosterShape';
+import RosterShapePanel from '@/components/RosterShapePanel';
 import type { Completion } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -134,6 +136,20 @@ export default async function MyTeamPage({
 
   const myPlayer = membership.playerId ? eventPlayers.find((p) => p.id === membership.playerId) : null;
 
+  // What this roster said about itself when it signed up. The answers were only ever readable one
+  // card at a time, so the group they add up to — where it's thin, when it plays — was invisible.
+  const teamMemberIds = new Set(
+    rawEventPlayers.filter((p) => p.teamId === tId && p.clanMemberId != null).map((p) => p.clanMemberId!),
+  );
+  const eventProfiles = teamMemberIds.size > 0 ? await loadEventProfiles(event.id) : new Map();
+  const shape = rosterShape([...teamMemberIds].map((id) => eventProfiles.get(id) ?? {}));
+  // Coverage GAPS name tiles the board asks for, so they only exist for someone allowed to see the
+  // board — otherwise "nobody runs Nex" is a sentence about a sealed board's contents.
+  const boardBossKeys = boardHidden
+    ? []
+    : eventTiles.flatMap((t) => (t.trackedStat ?? '').split(',').map((k) => k.trim()).filter(Boolean));
+  const gaps = coverageGaps(shape, boardBossKeys);
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -180,7 +196,12 @@ export default async function MyTeamPage({
                 </Link>
               </div>
             )}
-            {membership.canManage && (
+            {shape.answered > 0 && (
+        <div className="mb-6">
+          <RosterShapePanel shape={shape} gaps={gaps} title="Your roster, on paper" />
+        </div>
+      )}
+      {membership.canManage && (
               <div className="mb-6">
                 {/* Roster, requests, proof, fees and invite links in one shut card. */}
                 <TeamManageClient teamId={tId} />
