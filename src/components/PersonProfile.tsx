@@ -1,4 +1,5 @@
 import ClanLink from '@/components/ClanLink';
+import ShareToggle from '@/components/ShareToggle';
 import type { MyClan } from '@/lib/myClans';
 
 export interface PersonCharacter {
@@ -92,10 +93,11 @@ export default function PersonProfile({
                   {a.rsn}
                 </ClanLink>
                 {/* Sharing is per character, not per person, so "my main is public and my ironman is
-                    nobody's business" is a thing you can actually say. */}
-                <span className="ml-auto text-xs text-text-muted">
-                  {a.shared ? 'Shared' : 'Private'}
-                </span>
+                    nobody's business" is a thing you can actually say — and it is settable HERE,
+                    because it is the one thing a person says to clans they are not in. It used to be
+                    reachable only inside the clan locker, and the result was that nobody on the
+                    platform had ever set it: /u/, /p/ and the leaderboard's Players table were dark. */}
+                <ShareToggle accountId={a.id} shared={a.shared} rsn={a.rsn} />
               </li>
             ))}
           </ul>
