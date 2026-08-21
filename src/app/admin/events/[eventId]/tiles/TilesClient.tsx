@@ -45,6 +45,7 @@ function tileToTrackingInitial(tile: Tile) {
     trackedStat: tile.trackedStat ?? null,
     statType: tile.statType ?? null,
     statGoal: tile.statGoal ?? null,
+    statBasis: tile.statBasis ?? 'gain',
     trackingMode: tile.trackingMode || 'team',
     optional: !!tile.optional,
     autoTrackDisabled: !!tile.autoTrackDisabled,
@@ -618,6 +619,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       trackedStat: string | null;
       statType: string | null;
       statGoal: number | null;
+      statBasis?: string | null;
       trackingMode: string;
       optional?: boolean;
       trackedItemIds?: number[] | null;

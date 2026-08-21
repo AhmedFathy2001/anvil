@@ -54,6 +54,8 @@ export interface Tile extends TileRevealState {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  /** 'gain' (default) | 'milestone' — see db/schema tiles.statBasis. */
+  statBasis?: string | null;
   trackingMode?: string | null;
   optional?: number | null;
   // 1 = auto-crediting suppressed for this tile (stats cron / plugin-stats / submission
@@ -179,6 +181,8 @@ export interface TileConfig {
   trackedStat: string | null;
   statType: string | null;
   statGoal: number | null;
+  /** 'gain' (default) | 'milestone' — whether statGoal is an in-event gain or a lifetime threshold. */
+  statBasis?: string | null;
   trackingMode: string;
   optional: boolean;
   // Admin flag: when true, the site won't auto-credit this tile — it's completed manually.

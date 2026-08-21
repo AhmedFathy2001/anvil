@@ -36,6 +36,8 @@ interface Tile {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  /** 'milestone' = statGoal is a lifetime total crossed during the event, not an in-event gain. */
+  statBasis?: string | null;
   trackingMode?: string;
   optional?: number | null;
   points?: number | null;
@@ -201,9 +203,22 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         let totalGained = 0;
         for (const tile of statTiles) {
           let tileTotal = 0;
-          for (const player of data) {
-            const gained = player.gains?.[tile.trackedStat!] ?? 0;
-            tileTotal += gained;
+          if (tile.statBasis === 'milestone') {
+            // A milestone measures a LIFETIME total crossed during the event, per member — so the
+            // team's progress is its best ELIGIBLE member, not a sum. Someone who was already at or
+            // above the goal at the whistle contributes nothing: they can never complete this tile,
+            // and counting their lifetime would show a full bar that never credits.
+            for (const player of data) {
+              const base = player.baseline?.[tile.trackedStat!] ?? 0;
+              if (base >= (tile.statGoal ?? 0)) continue;
+              const lifetime = player.current?.[tile.trackedStat!] ?? 0;
+              if (lifetime > tileTotal) tileTotal = lifetime;
+            }
+          } else {
+            for (const player of data) {
+              const gained = player.gains?.[tile.trackedStat!] ?? 0;
+              tileTotal += gained;
+            }
           }
           tileGains[tile.id] = tileTotal;
           totalGained += tileTotal;

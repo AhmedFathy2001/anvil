@@ -1,0 +1,1 @@
+ALTER TABLE `tiles` ADD `stat_basis` text DEFAULT 'gain' NOT NULL;

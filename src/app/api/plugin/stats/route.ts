@@ -6,7 +6,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { statKeys } from '@/lib/tileKinds';
 import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
 import { isActivityKey } from '@/lib/hiscoresActivities';
-import { computeGainFromJson, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { computeGainFromJson, isIndividualMode, isMilestoneBasis, milestoneStateFromJson, buildContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
@@ -207,12 +207,31 @@ export async function POST(request: Request) {
           : null;
         if (gate && !gate.allowed) continue;
         const keys = statKeys(tile.trackedStat);
-        const individual = isIndividualMode(tile.trackingMode);
+        // A MILESTONE tile asks whether someone crossed a lifetime threshold during the event, and is
+        // always settled per member — a team's lifetime totals summed together are meaningless (see
+        // lib/statTracking.milestoneState). So it behaves like an individual tile here whatever the
+        // tracking mode says, and the finisher is whoever became eligible and reached it.
+        const milestone = isMilestoneBasis(tile.statBasis);
+        const msFor = (p: (typeof teamPlayers)[number]) =>
+          p.frozenAt
+            ? milestoneStateFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!, tile.statGoal!)
+            : milestoneStateFromJson(
+                p.statsSnapshot,
+                p.cachedStats,
+                (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {},
+                keys,
+                tile.statType!,
+                tile.statGoal!,
+              );
+
+        const individual = milestone || isIndividualMode(tile.trackingMode);
         // For an individual tile, the finisher is the player who reached the goal alone (attributed so the
         // activity feed can name them — a stat completion has no submission). Team tiles have no one player.
-        const individualFinisher = individual
-          ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
-          : undefined;
+        const individualFinisher = milestone
+          ? teamPlayers.find((p) => msFor(p).reached)
+          : individual
+            ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+            : undefined;
         const meets = individual
           ? individualFinisher != null
           : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
@@ -221,9 +240,11 @@ export async function POST(request: Request) {
         // Freeze the per-member split at completion: the lone finisher for individual tiles, or every
         // contributing team member's current gain for team tiles. Locks "who got what %" against the
         // stat continuing to climb after the tile is done.
-        const splitRows = individual
-          ? [{ playerId: individualFinisher!.id, gained: gainFor(individualFinisher!, keys, tile.statType!) }]
-          : teamPlayers.map((p) => ({ playerId: p.id, gained: gainFor(p, keys, tile.statType!) }));
+        const splitRows = milestone
+          ? [{ playerId: individualFinisher!.id, gained: msFor(individualFinisher!).lifetime }]
+          : individual
+            ? [{ playerId: individualFinisher!.id, gained: gainFor(individualFinisher!, keys, tile.statType!) }]
+            : teamPlayers.map((p) => ({ playerId: p.id, gained: gainFor(p, keys, tile.statType!) }));
 
         // Notify only on a genuine insert — the sweep + this push can both cross a threshold and
         // would otherwise double-ping Discord.

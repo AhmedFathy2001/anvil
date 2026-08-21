@@ -19,7 +19,7 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -482,10 +482,20 @@ export async function GET(request: Request) {
     for (const tile of ctx.statTiles) {
       const key = `${f.player.teamId}-${tile.id}`;
       if (ctx.completionSet.has(key)) continue;
-      const gained = computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
+      // MILESTONE tiles measure a lifetime total crossed during the event rather than an in-event
+      // gain, and are always evaluated PER MEMBER — summing lifetime totals across a team is
+      // meaningless (0 + 5 + 200 clears a goal of 1 for the wrong reason). See lib/statTracking.
+      const milestone = isMilestoneBasis(tile.statBasis);
+      const ms = milestone
+        ? milestoneState(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!, tile.statGoal!)
+        : null;
+      // What this member has to their name for the tile — their lifetime for a milestone, their
+      // in-event gain otherwise. Used for the frozen contribution split either way.
+      const gained = ms ? ms.lifetime : computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
+      const meetsGoal = ms ? ms.reached : gained >= tile.statGoal!;
 
-      if (isIndividualMode(tile.trackingMode)) {
-        if (gained >= tile.statGoal!) {
+      if (milestone || isIndividualMode(tile.trackingMode)) {
+        if (meetsGoal) {
           // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
           // the sweep; the gain keeps accruing and credits if/when the tile opens up.
           const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: f.player.teamId });
@@ -542,7 +552,8 @@ export async function GET(request: Request) {
   for (const ctx of ctxList) {
     if (ctx.hasStatTiles) {
       for (const tile of ctx.statTiles) {
-        if (isIndividualMode(tile.trackingMode)) continue;
+        // Milestones were already settled per member above; they never accumulate a team total.
+        if (isIndividualMode(tile.trackingMode) || isMilestoneBasis(tile.statBasis)) continue;
         const keys = statKeys(tile.trackedStat);
         // Seed benched players' frozen gains into this run's team sums (they aren't fetched, so phase 3
         // never counted them). Their locked contribution keeps counting toward the goal + the split.
