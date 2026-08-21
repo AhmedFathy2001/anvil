@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
@@ -28,8 +28,11 @@ const SECTIONS = [
 ];
 
 export default async function AdminGuidePage() {
-  const clan = await requireClan();
-  const clanName = await getClanDisplayName(clan.id, 'your clan');
+  // NOT requireClan() — see the sibling plugin guide. This one matters more, if anything: it is the
+  // guide for someone about to RUN a clan, and it 404'd for exactly the reader who does not have one
+  // yet. The clan only picks a name for the copy, and 'your clan' is already the right word without.
+  const clan = await currentClan();
+  const clanName = clan ? await getClanDisplayName(clan.id, 'your clan') : 'your clan';
   // Hosted instances went through the purchase → setup → build path, so only they get the paragraph
   // about it.
   const hosted = Boolean(process.env.CLAN_SLUG);

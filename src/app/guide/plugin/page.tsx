@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
 import { headers } from 'next/headers';
 import { getOAuthMode } from '@/lib/discord-oauth';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
@@ -50,10 +50,17 @@ const SECTIONS = [
 ];
 
 export default async function PluginGuidePage() {
-  const clan = await requireClan();
+  // NOT requireClan(). The guide index at /guide renders on the apex and links straight here, so
+  // demanding a clan made every guide it advertises a 404 for anyone reading from the platform —
+  // including the people most likely to be reading a setup guide, who have not joined a clan yet.
+  //
+  // Nothing here actually needs one. The clan is cosmetic instance-awareness, and the generic copy
+  // it falls back to was already written and simply unreachable: getClanDisplayName's own default is
+  // 'this clan', and siteOrigin() ends on 'https://your-clan.example.com'.
+  const clan = await currentClan();
   const origin = await siteOrigin();
-  const clanName = await getClanDisplayName(clan.id, 'this clan');
-  const discordInvite = await getDiscordInviteUrl(clan.id);
+  const clanName = clan ? await getClanDisplayName(clan.id, 'this clan') : 'your clan';
+  const discordInvite = clan ? await getDiscordInviteUrl(clan.id) : null;
 
   // Which login this instance uses decides one paragraph in step 2: a managed instance authenticates
   // Discord through the shared Anvil login (a visible hop to another domain, worth explaining before
