@@ -501,17 +501,34 @@ async function autoLinkOrSuggestOnPlay(
   nowIso: string,
 ): Promise<void> {
   try {
-    const byHash = accountHash
-      ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
+    // OWNERSHIP IS GLOBAL, THE SEAT IS NOT — two questions, and this asked one query for both.
+    //
+    // "Has anybody claimed this character?" is about the ACCOUNT, which is one row platform-wide.
+    // Asking a roster instead would miss an owner who plays for another clan, and the create branch
+    // below would then take their account.
+    const ownedAccount = accountHash
+      ? await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) })
       : null;
-    const byRsn =
-      (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
-    const existing = byHash ?? byRsn;
+    const ownedByRsn =
+      ownedAccount ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalizedRsn) }));
 
     // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
     // Claimed, not "has a person": every account has a person, so player_id says nothing about
     // whether anyone has claimed it, and testing it here stopped this path linking anything at all.
-    if (existing?.claimedAt != null) return;
+    if (ownedByRsn?.claimedAt != null) return;
+
+    // "Do they already have a seat HERE?" is about this clan, and only this clan. Unscoped, the
+    // branch below reached whatever seat it found: someone playing with their plugin pointed at clan
+    // A, who had a departed seat in clan B, had B's seat REVIVED (leftAt back to null), stamped as
+    // seen and written into B's audit log — while clan A, the one they were actually playing for,
+    // got no seat at all. The `clanId` parameter was passed in and then used by only one branch,
+    // which is the tell.
+    const byHash = accountHash
+      ? (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountHash, accountHash)))) ?? null
+      : null;
+    const byRsn =
+      (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalizedRsn)))) ?? null;
+    const existing = byHash ?? byRsn;
 
     // Minimal guard: ONLY a row carrying a pre-assigned role stays opt-in when matched by name alone,
     // so nobody can auto-grant themselves admin/mod by typing a member's public RSN. Every other
@@ -585,7 +602,11 @@ async function autoLinkOrSuggestOnPlay(
           provisional: 0,
           claimedAt: nowIso,
         })
-        .where(eq(accounts.id, account.id));
+        // UNCLAIMED, same as the sibling branch above, which had it and this one did not.
+        // findOrCreateAccount resolves by hash then by RSN and returns the GLOBAL row, so without
+        // this a claim landing between the check and here would be overwritten — and the check is
+        // the only thing standing between "no seat in this clan" and "take this account".
+        .where(and(eq(accounts.id, account.id), UNCLAIMED_ACCOUNT));
       // Guest: verification proves ownership of the account, not membership of the clan. Only the
       // in-game roster sync promotes a seat to 'member'.
       clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });

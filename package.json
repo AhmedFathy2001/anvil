@@ -64,7 +64,8 @@
     "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
     "test:history": "DATABASE_URL=postgres://unused@127.0.0.1:1/unused npx tsx --test tests/stat-history.test.ts",
     "test:pluginscope": "npx tsx --test tests/plugin-scope.test.ts",
-    "test:apexprivacy": "npx tsx --test tests/apex-privacy.test.ts"
+    "test:apexprivacy": "npx tsx --test tests/apex-privacy.test.ts",
+    "test:autolink": "npx tsx --test tests/plugin-autolink.test.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
