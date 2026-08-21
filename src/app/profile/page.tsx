@@ -1,5 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
-import { accounts } from '@/db/schema';
+import { accounts, players } from '@/db/schema';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
 import { redirect } from 'next/navigation';
@@ -62,7 +62,7 @@ export default async function ProfilePage({
     // this week's progress — and none of that has a single answer when no clan is named. Rather than
     // merge several clans into a picture true of nobody, show what IS true of the person and link
     // into each clan for the rest.
-    const [myClans, characters] = await Promise.all([
+    const [myClans, characters, person] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
@@ -70,12 +70,18 @@ export default async function ProfilePage({
             .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
             .from(accounts)
             .where(eq(accounts.playerId, session.playerId)),
+      session.playerId == null
+        ? Promise.resolve(null)
+        : db.query.players.findFirst({ where: eq(players.id, session.playerId) }),
     ]);
     return (
       <PersonProfile
+        // The Discord display name, and this is the one page it belongs on: /profile is private,
+        // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
         displayName={user.displayName}
         clans={myClans}
         characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
+        linked={person?.linkAccountsPublicly ?? false}
       />
     );
   }

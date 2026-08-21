@@ -158,7 +158,22 @@ export const clanStaff = pgTable('clan_staff', {
 export const players = pgTable('players', {
   id: serial('id').primaryKey(),
   // Best known name for the human: their Discord display name, else their main's RSN.
+  //
+  // INTERNAL ONLY. In practice this IS the Discord display name — every path that creates a person
+  // from a login seeds it from there (lib/roster, lib/discord-login), and on the real data it is
+  // identical to users.display_name for every row that has one. So it must never reach a public
+  // page: the apex identifies a person by their primary SHARED RSN, which is a name they chose to
+  // publish, not one Discord chose for them.
   displayName: text('display_name'),
+  /**
+   * May the apex show that these characters belong to one person?
+   *
+   * Separate from `accounts.shared`, and off by default, because they are different disclosures.
+   * Sharing a character publishes THAT character. Linking says two RSNs are the same human, which
+   * is the fact someone is most likely to want kept — a main and an ironman can each be public
+   * without their owner wanting them connected. Sharing two accounts used to imply this silently.
+   */
+  linkAccountsPublicly: boolean('link_accounts_publicly').notNull().default(false),
   // PLATFORM ban — barred everywhere. A clan barring someone is clan_bans, a different thing
   // entirely; a clan admin must be structurally unable to reach this.
   banned: boolean('banned').notNull().default(false),

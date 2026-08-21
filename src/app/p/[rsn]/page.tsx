@@ -36,11 +36,13 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
       <h1 className="text-3xl font-bold">{character.rsn}</h1>
       <p className="mt-1 text-sm text-gray-400">
         An OSRS account
+        {/* Only present when its owner turned linking on, and named by another RSN they shared —
+            never by anything from Discord. This line used to read "played by <Discord name>". */}
         {character.owner && (
           <>
-            {' '}played by{' '}
+            {' '}&middot; also plays{' '}
             <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
-              {character.owner.displayName ?? 'someone on Anvil'}
+              {character.owner.label}
             </ClanLink>
           </>
         )}

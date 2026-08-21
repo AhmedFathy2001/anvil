@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const person = await apexPerson(Number((await params).id));
-  return person ? { title: `${person.displayName ?? 'Player'} — Anvil` } : { title: 'Not found — Anvil' };
+  return person ? { title: `${person.label} — Anvil` } : { title: 'Not found — Anvil' };
 }
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +36,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-3xl font-bold">{person.displayName ?? `Player #${person.playerId}`}</h1>
+      {/* Their primary shared RSN. The Discord display name used to be the page's h1 and its title. */}
+      <h1 className="text-3xl font-bold">{person.label}</h1>
       <p className="mt-1 text-sm text-gray-400">
         {person.characters.length} shared {person.characters.length === 1 ? 'character' : 'characters'}
       </p>

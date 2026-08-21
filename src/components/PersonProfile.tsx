@@ -1,5 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import ShareToggle from '@/components/ShareToggle';
+import LinkAccountsToggle from '@/components/LinkAccountsToggle';
 import type { MyClan } from '@/lib/myClans';
 
 export interface PersonCharacter {
@@ -26,10 +27,12 @@ export default function PersonProfile({
   displayName,
   clans,
   characters,
+  linked,
 }: {
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
+  linked: boolean;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -102,6 +105,7 @@ export default function PersonProfile({
             ))}
           </ul>
         )}
+        <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
       </section>
     </div>
   );
