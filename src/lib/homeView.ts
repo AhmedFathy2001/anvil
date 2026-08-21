@@ -3,6 +3,7 @@ import {
   clanMembers,
   completions,
   events,
+  memberClogItems,
   memberDailyStats,
   memberMilestones,
   settings,
@@ -14,7 +15,11 @@ import {
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName } from '@/lib/pluginConfig';
-import { competitionIconUrl } from '@/lib/tileIcons';
+import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
+import { clogItemNames } from '@/lib/clogDataset';
+
+/** Rows the Milestones panel shows, and the per-source fetch cap feeding it. */
+const MILESTONE_LIMIT = 6;
 import { parseEventRules } from '@/lib/eventRules';
 import { eventAxes } from '@/lib/eventAxes';
 import { dailyTrust, dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
@@ -293,21 +298,73 @@ export async function buildHomeView(viewerMemberIds: number[] = [], now: Date = 
     .from(memberMilestones)
     .where(and(gte(memberMilestones.noticedAt, `${weekStart}T00:00:00.000Z`), lte(memberMilestones.noticedAt, nowIso)))
     .orderBy(desc(memberMilestones.noticedAt))
-    .limit(6);
-  const milestoneMemberIds = [...new Set(milestoneRows.map((m) => m.clanMemberId))];
-  const memberNames = milestoneMemberIds.length
+    .limit(MILESTONE_LIMIT);
+  // Collection-log unlocks belong in this feed as much as a 99 does — arguably more, since a drop is
+  // the thing people actually talk about. They live in their own table (member_clog_items) rather
+  // than member_milestones, which is why they were missing here: this panel only ever read one
+  // source.
+  //
+  // `firstSeenAt` is the natural filter and needs no rarity floor on top of it. It's set only when we
+  // WITNESSED the unlock; everything a member already owned at their first sync has it null, because
+  // the log doesn't record when they got it. So this is "what happened while we were watching", which
+  // is exactly what a week-in-review wants — and it's why a member's first sync doesn't dump their
+  // entire back catalogue into the clan feed.
+  const unlockRows = await db
+    .select({
+      clanMemberId: memberClogItems.clanMemberId,
+      itemId: memberClogItems.itemId,
+      pageName: memberClogItems.pageName,
+      kcAtUnlock: memberClogItems.kcAtUnlock,
+      firstSeenAt: memberClogItems.firstSeenAt,
+    })
+    .from(memberClogItems)
+    .where(
+      and(
+        isNotNull(memberClogItems.firstSeenAt),
+        gte(memberClogItems.firstSeenAt, `${weekStart}T00:00:00.000Z`),
+        lte(memberClogItems.firstSeenAt, nowIso),
+      ),
+    )
+    .orderBy(desc(memberClogItems.firstSeenAt))
+    .limit(MILESTONE_LIMIT);
+
+  const nameIds = [...new Set([...milestoneRows, ...unlockRows].map((m) => m.clanMemberId))];
+  const memberNames = nameIds.length
     ? await db
         .select({ id: clanMembers.id, rsn: clanMembers.rsn })
         .from(clanMembers)
-        .where(inArray(clanMembers.id, milestoneMemberIds))
+        .where(inArray(clanMembers.id, nameIds))
     : [];
   const nameById = new Map(memberNames.map((m) => [m.id, m.rsn]));
-  const milestones = milestoneRows.map((m) => ({
-    rsn: nameById.get(m.clanMemberId) ?? 'Someone',
-    text: milestoneSentence(m.kind, m.metric, m.threshold),
-    iconUrl: m.metric ? competitionIconUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
-    day: m.noticedAt.slice(0, 10),
-  }));
+  const itemNames = unlockRows.length ? clogItemNames() : new Map<number, string>();
+
+  const milestones = [
+    ...milestoneRows.map((m) => ({
+      rsn: nameById.get(m.clanMemberId) ?? 'Someone',
+      text: milestoneSentence(m.kind, m.metric, m.threshold),
+      iconUrl: m.metric ? competitionIconUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
+      at: m.noticedAt,
+      day: m.noticedAt.slice(0, 10),
+    })),
+    ...unlockRows.map((u) => ({
+      rsn: nameById.get(u.clanMemberId) ?? 'Someone',
+      // The KC is the whole story on a drop — "at 12 KC" is a spoon and "at 1,400" is a drought — so
+      // it rides along wherever the plugin caught it live.
+      // Name it from the shipped catalogue; fall back to the PAGE when that misses. A miss means the
+      // catalogue is older than the game — which is most likely for a brand-new raid unique, exactly
+      // the drop a clan most wants to see. "a Chambers of Xeric unlock" degrades honestly where a raw
+      // item id would be noise and hiding the row would lose the news.
+      text: `unlocked ${itemNames.get(u.itemId) ?? `a ${u.pageName} item`}${
+        u.kcAtUnlock != null ? ` at ${u.kcAtUnlock.toLocaleString()} KC` : ''
+      }`,
+      iconUrl: itemIconUrl(u.itemId),
+      at: u.firstSeenAt!,
+      day: u.firstSeenAt!.slice(0, 10),
+    })),
+  ]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, MILESTONE_LIMIT)
+    .map(({ rsn, text, iconUrl, day }) => ({ rsn, text, iconUrl, day }));
 
   // ---- You -------------------------------------------------------------------------------------
   let you: HomeYou | null = null;

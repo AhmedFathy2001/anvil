@@ -91,7 +91,10 @@ export function buildClogProfile(args: {
     .slice(0, args.recentLimit ?? 12)
     .map((i) => ({
       itemId: i.itemId,
-      name: names.get(i.itemId) ?? `Item ${i.itemId}`,
+      // Fall back to the PAGE, not a raw id. A miss here means the shipped catalogue is older than
+      // the game, which is most likely for a brand-new unique — the very unlock worth showing. "a
+      // Chambers of Xeric item" reads as something; "Item 28901" reads as a bug.
+      name: names.get(i.itemId) ?? `a ${i.pageName} item`,
       pageName: i.pageName,
       at: i.firstSeenAt,
       kcAtUnlock: i.kcAtUnlock,
