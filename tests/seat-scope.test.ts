@@ -14,6 +14,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { and, eq, isNull } from 'drizzle-orm';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -136,4 +138,54 @@ test('a departed seat is still THEIR seat — leftAt is the caller\'s filter, no
 
   const live = await findRosterSeats(and(await seatsOwnedBy(alpha, login), isNull(s.clanRoster.leftAt))!);
   assert.equal(live.length, 0, 'and the caller can exclude it');
+});
+
+// ── Admin character linking: ownership is global, the seat is not ─────────────────────────────
+//
+// POST /api/admin/users/[userId]/characters got both halves wrong in ways that cancelled out until
+// you looked. It found the seat by RSN across EVERY roster, then updated that membership — an admin
+// of clan A reviving a seat in clan B. And it guarded ownership by comparing `existing.playerId`
+// (a PERSON) to the `userId` off the URL (a LOGIN), which passes only because 59 of 60 users happen
+// to have a person of the same number.
+//
+// Fixing the scope alone would have been worse than leaving it: `accounts.rsn_normalized` is unique
+// platform-wide, so a clan-scoped lookup misses an owner who plays elsewhere, and the create branch
+// then overwrites their player_id — handing one person's account to another. The two questions have
+// different scopes and need different queries, which is the whole lesson.
+//
+// A source check because the route needs a session and a clan host to run, and the property is about
+// WHICH query answers WHICH question — not about a return value.
+
+test('the admin link route asks about ownership globally', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/app/api/admin/users/[userId]/characters/route.ts'),
+    'utf-8',
+  );
+  const start = src.indexOf('ownedAccount');
+  // From the call, not the import — 'findRosterSeat' appears at the top of the file too, and
+  // slicing to that gave an empty string that quietly passed nothing.
+  const guard = src.slice(start, src.indexOf('findRosterSeat(', start));
+  assert.match(guard, /from\(accounts\)|query\.accounts/, 'ownership is asked of accounts');
+  assert.doesNotMatch(guard, /clanRoster/, 'not of one clan’s roster');
+  assert.doesNotMatch(guard, /clanId/, 'and not narrowed to a clan');
+});
+
+test('and finds the seat only within this clan', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/app/api/admin/users/[userId]/characters/route.ts'),
+    'utf-8',
+  );
+  const call = src.slice(src.indexOf('findRosterSeat('), src.indexOf('let clanMemberId'));
+  assert.match(call, /clanRoster\.clanId,\s*clan\.id/, 'the seat lookup carries the clan');
+});
+
+test('and never compares a login id to a person id', () => {
+  // The comparison that worked by coincidence. Any `=== targetId` against a playerId is the bug
+  // returning; the person id is resolved once, up front, and that is what may be compared.
+  const src = readFileSync(
+    join(process.cwd(), 'src/app/api/admin/users/[userId]/characters/route.ts'),
+    'utf-8',
+  );
+  assert.doesNotMatch(src, /playerId\s*[!=]==\s*targetId/, 'playerId is a person, targetId is a login');
+  assert.match(src, /const targetPersonId = await personOfOrCreate\(targetId\)/);
 });
