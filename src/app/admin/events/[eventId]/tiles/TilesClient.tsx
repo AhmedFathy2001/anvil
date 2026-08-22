@@ -1,14 +1,17 @@
 'use client';
 
-import type { Event, Tile } from '@/lib/types';
+import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
 import SkillTileGenerator from './SkillTileGenerator';
+import BossTileGenerator from './BossTileGenerator';
 import LibraryTileGenerator from './LibraryTileGenerator';
+import ScheduleView from './ScheduleView';
+import RotationView from './RotationView';
 import ActionMenu from '@/components/ActionMenu';
 import Link from 'next/link';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
@@ -17,8 +20,17 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
-import { statLabel } from '@/lib/tileKinds';
+import { parseEventRules, hasRevealPolicy, boardTiles, missionTiles, parseTileMissionRules } from '@/lib/eventRules';
+import EventBoard from '@/components/EventBoard';
+import {
+  TILE_KIND_FILTERS,
+  tileConfigSummary,
+  tileKindBadge,
+  tileKindKey,
+  type TileKindKey,
+} from '@/lib/tileKinds';
+import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/tileAuthoring';
+import { findBoardProblems } from '@/lib/boardMisconfig';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 
@@ -33,13 +45,20 @@ function tileToTrackingInitial(tile: Tile) {
     trackedStat: tile.trackedStat ?? null,
     statType: tile.statType ?? null,
     statGoal: tile.statGoal ?? null,
+    statBasis: tile.statBasis ?? 'gain',
     trackingMode: tile.trackingMode || 'team',
     optional: !!tile.optional,
     autoTrackDisabled: !!tile.autoTrackDisabled,
     trackedItemIds: tile.trackedItemIds ? (JSON.parse(tile.trackedItemIds) as number[]) : null,
     itemRequirements: tile.itemRequirements
-      ? (JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[])
+      ? (JSON.parse(tile.itemRequirements) as ItemRequirement[])
       : null,
+    // Without this the set controls reloaded on 'any' and the next save silently flipped an
+    // "every set" collection back to any-one-set.
+    groupMode: tile.groupMode ?? null,
+    perKillCap: tile.perKillCap ?? null,
+    coopCredit: tile.coopCredit ?? null,
+    coopMinMembers: tile.coopMinMembers ?? null,
     points: tile.points ?? 1,
     category: tile.category ?? null,
     sourceNpcs: tile.sourceNpcs ? (JSON.parse(tile.sourceNpcs) as string[]) : null,
@@ -76,12 +95,32 @@ interface Props {
   tierBands?: TierBand[];
   /** Current user is an admin — gates the admin-only live-event tile override. */
   isAdmin?: boolean;
+  /** Event has real multi-person teams — false on an individual ladder (see the tiles page). */
+  teamPlay?: boolean;
+  /** Missions are enabled for this event and meaningful on this format (see the tiles page). */
+  missionsAllowed?: boolean;
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false }: Props) {
+/**
+ * True on screens wide enough to keep the tile list AND its editor on screen at once.
+ * SSR renders false, so the first paint is the phone layout and never a mismatched desktop one.
+ */
+function useHasRoomForInspector(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return wide;
+}
+
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself, so the header's Quick build shortcut can jump straight to it.
@@ -91,14 +130,54 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importing, setImporting] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   // Which generator dialog the Add tiles menu has open, if any.
-  const [generator, setGenerator] = useState<'clog' | 'skill' | 'library' | null>(null);
+  const [generator, setGenerator] = useState<'clog' | 'skill' | 'boss' | 'library' | null>(null);
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
+  // What authoring THIS board involves — which views it offers, what its entries are called, and
+  // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
+  // rather than re-deriving "is this a bingo?" from the columns.
+  const model = useMemo(() => authoringModel(event), [event]);
+  // views[0] is the format's home: a square and a track carry their meaning in their layout, so
+  // editing them as a vertical list hides the one thing that makes them what they are. A pool has
+  // no geometry to show, so it opens on the list.
+  const [viewMode, setViewMode] = useState<AuthoringView>(() => model.views[0]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
+
+  // Multi-select for bulk edits. Shift-click extends from the last tile you touched, so "these
+  // twenty are all worth 5" is one gesture rather than twenty drawers. Only the fields that are
+  // safe to change on a live board are offered (see the bulk route).
+  const inspectorDocked = useHasRoomForInspector();
+  // What can't credit as configured (lib/boardMisconfig) — the same check the live board's
+  // "fix something" panel runs, surfaced here while you're still authoring.
+  const problemTileIds = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of findBoardProblems(localTiles, { pointsMode: isPointsMode(event.scoringMode) })) {
+      if (p.severity === 'broken' && !map.has(p.tileId)) map.set(p.tileId, p.problem);
+    }
+    return map;
+  }, [localTiles, event.scoringMode]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [lastPickedId, setLastPickedId] = useState<number | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState('');
+
+  // ?tile=<id> opens straight into that tile's editor. It's how the live board's "fix something"
+  // panel hands you the misconfigured tile — landing on a 150-tile list and hunting for #48 is the
+  // difference between fixing it now and fixing it later.
+  const searchParams = useSearchParams();
+  const requestedTileId = searchParams.get('tile');
+  const openedFromUrl = useRef(false);
+  useEffect(() => {
+    if (openedFromUrl.current || !requestedTileId) return;
+    const id = parseInt(requestedTileId, 10);
+    if (!Number.isFinite(id)) return;
+    openedFromUrl.current = true;
+    setViewMode('cards');
+    setEditingTileId(id);
+  }, [requestedTileId]);
 
   const pointsMode = isPointsMode(event.scoringMode);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
@@ -127,11 +206,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     };
   }
 
-  // Patch a tile's reveal schedule into local state after a RevealAtEditor save (the server is
-  // the only writer of revealedAt/closedAt, so only revealAt moves here).
+  // Patch a tile's reveal schedule into local state after a RevealAtEditor save (this path writes
+  // the PLAN only — the engine still owns when it actually flips).
   function handleRevealAtSaved(tileId: number, revealAt: string | null) {
     setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, revealAt } : t)));
     setEditingFresh((prev) => (prev && prev.id === tileId ? { ...prev, revealAt } : prev));
+  }
+
+  // An admin forced this tile open (or hid it again) — the server returns the whole row, so take
+  // revealedAt/closedAt straight from it rather than guessing at the new state.
+  function handleRevealStateChanged(updated: Tile) {
+    const patch = { revealedAt: updated.revealedAt ?? null, closedAt: updated.closedAt ?? null };
+    setLocalTiles((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...patch } : t)));
+    setEditingFresh((prev) => (prev && prev.id === updated.id ? { ...prev, ...patch } : prev));
   }
 
   // Effort-model refetch trigger + the balance panel's one-click "apply suggested points".
@@ -200,10 +287,103 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }, [editingTileId, event.id]);
 
   // Only hand the editor the freshly-fetched row — the page-load list may be stale.
+  /**
+   * Click opens a tile; ctrl/cmd-click adds it to a selection; shift-click takes the run between
+   * the last one you touched and this one. Once anything is selected, a plain click keeps
+   * selecting — otherwise every attempt to add a fifth tile would slam the drawer open instead.
+   */
+  function pickTile(tileId: number, e: React.MouseEvent) {
+    const additive = e.metaKey || e.ctrlKey;
+    const ranged = e.shiftKey;
+
+    if (ranged && lastPickedId != null) {
+      const order = filteredTiles.map((t) => t.id);
+      const from = order.indexOf(lastPickedId);
+      const to = order.indexOf(tileId);
+      if (from !== -1 && to !== -1) {
+        const run = order.slice(Math.min(from, to), Math.max(from, to) + 1);
+        setSelectedIds((prev) => new Set([...prev, ...run]));
+        setLastPickedId(tileId);
+        return;
+      }
+    }
+
+    if (additive || selectedIds.size > 0) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(tileId)) next.delete(tileId);
+        else next.add(tileId);
+        return next;
+      });
+      setLastPickedId(tileId);
+      return;
+    }
+
+    setLastPickedId(tileId);
+    setEditingTileId(tileId);
+  }
+
+  /** Apply one field to every selected tile (points, category, optional, auto-credit, reveal). */
+  async function bulkSet(set: Record<string, unknown>, describe: string) {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setBulkMsg('');
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles/bulk`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileIds: ids, set }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBulkMsg(data.error || 'That did not save.');
+        return;
+      }
+      // revealState is a verb, not a column — the server turns it into revealedAt/closedAt, so the
+      // local patch has to as well or the cards keep showing the old state until a refresh lands.
+      const { revealState, ...columns } = set;
+      const stateColumns =
+        revealState === 'live'
+          ? { revealedAt: data.updatedAt as string, closedAt: null }
+          : revealState === 'hidden'
+            ? { revealedAt: null, closedAt: null }
+            : {};
+      setLocalTiles((prev) =>
+        prev.map((t) =>
+          selectedIds.has(t.id)
+            ? ({ ...t, ...columns, ...stateColumns, updatedAt: data.updatedAt } as Tile)
+            : t,
+        ),
+      );
+      setBulkMsg(`${describe} on ${data.updated} tile${data.updated === 1 ? '' : 's'}.`);
+      router.refresh();
+    } catch {
+      setBulkMsg('That did not save.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   const editingTile = editingTileId != null && editingFresh?.id === editingTileId ? editingFresh : null;
   const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
   // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
+  const boardShape = model.axes.shape;
+  // Which tiles members can't see yet, so the authoring board marks them the same way the public one
+  // does — a host editing an armed board should see what is and isn't out there.
+  const hiddenTileIds = useMemo(
+    () => (revealMode ? new Set(localTiles.filter((t) => !t.revealedAt).map((t) => t.id)) : null),
+    [revealMode, localTiles],
+  );
+  // The format's own unfinished business — distinct from lib/boardMisconfig, which asks whether a
+  // tile can credit at all. This asks whether the board will behave the way its format promises.
+  const formatJob = useMemo(() => unfinishedFormatJob(model, localTiles), [model, localTiles]);
+  const poolCounts = useMemo(() => ({
+    open: localTiles.filter((t) => t.revealedAt && !t.closedAt).length,
+    waiting: localTiles.filter((t) => !t.revealedAt).length,
+    closed: localTiles.filter((t) => t.closedAt).length,
+  }), [localTiles]);
   const dynamicBoard = isTileRaceFormat(event.format) || pointsMode;
   const canEditTileSet = dynamicBoard && !eventStarted;
 
@@ -227,6 +407,31 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       setKindFilter('all');
       setCategoryFilter('all');
       setTierFilter('all');
+      setEditingTileId(data.id);
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // Add a MISSION rather than a board tile. Same endpoint with `mission: true`, which server-side
+  // skips the "a classic grid is a fixed N×N board" guard (a mission is not a cell on the grid) and
+  // leaves boardSize alone, so a 5×5 stays a 5×5.
+  async function handleAddMission() {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mission: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not add mission.' });
+        return;
+      }
+      setLocalTiles((prev) => [...prev, data as Tile]);
       setEditingTileId(data.id);
       router.refresh();
     } finally {
@@ -261,6 +466,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         // Freshly added "Tile N" rows won't match an active search — clear it so they show up.
         setSearch('');
       }
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // Copy a configured tile, whole. Quick Build's actual rhythm is "set one up properly, then make
+  // four more like it" — without this that means re-picking the kind, the item, the source list and
+  // the points every time. The copy is made server-side from the stored row (see the tiles POST), so
+  // it can't quietly miss a field this component doesn't know about.
+  async function duplicateTile(tileId: number) {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/tiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duplicateOf: tileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not duplicate that tile.' });
+        return;
+      }
+      const created = data as Tile;
+      setLocalTiles((prev) => [...prev, created]);
+      // Land on the copy: the next thing anyone does is edit the one difference.
+      setEditingTileId(created.id);
+      setSearch('');
       router.refresh();
     } finally {
       setAdding(false);
@@ -342,15 +576,24 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // Tiers only matter on points boards (the tier band is derived from a tile's point value).
   const showTierFilter = pointsMode && tierBands.length > 0;
 
+  // The board and its missions are two different lists (lib/eventRules.boardTiles). A mission isn't
+  // a cell on the grid: it's announced mid-event, scores as a bonus outside the board total
+  // (lib/boardScoring) and can expire unclaimed. Leaving them in the main list made a mission "tile
+  // #259" — buried behind the filters, counted in "259 tiles", and authored by finding a checkbox
+  // under Advanced.
+  const boardOnly = useMemo(() => boardTiles(localTiles), [localTiles]);
+  const missionPool = useMemo(() => missionTiles(localTiles), [localTiles]);
+  const announcedMissions = useMemo(() => missionPool.filter((t) => t.revealedAt).length, [missionPool]);
+
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return localTiles.filter((t) => {
+    return boardOnly.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       return tileMatchesQuery(t, q);
     });
-  }, [localTiles, search, kindFilter, categoryFilter, tierFilter, tierBands]);
+  }, [boardOnly, search, kindFilter, categoryFilter, tierFilter, tierBands]);
 
   // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
   // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
@@ -358,8 +601,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const gridFiltering = search.trim().length > 0;
   const gridTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? localTiles.filter((t) => tileMatchesQuery(t, q)) : localTiles;
-  }, [localTiles, search]);
+    return q ? boardOnly.filter((t) => tileMatchesQuery(t, q)) : boardOnly;
+  }, [boardOnly, search]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -376,6 +619,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       trackedStat: string | null;
       statType: string | null;
       statGoal: number | null;
+      statBasis?: string | null;
       trackingMode: string;
       optional?: boolean;
       trackedItemIds?: number[] | null;
@@ -637,32 +881,112 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
+  // One editor, rendered in one of two places: a column beside the cards when there's room, a
+  // covering drawer everywhere else. Every view opens it — the grid, the track, the schedule and
+  // the rotation all pick tiles, and until now only Cards rendered anything when they did.
+  const renderInspector = (docked: boolean) => editingTile ? (
+    <TileConfigDrawer
+    docked={docked}
+    noun={model.Noun}
+    key={editingTile.id}
+    tile={editingTile}
+    eventId={event.id}
+    eventStarted={eventStarted}
+    isAdmin={isAdmin}
+    pointsMode={pointsMode}
+    tierBands={tierBands}
+    lockHolder={lockHolder}
+    categorySuggestions={categories}
+    teamPlay={teamPlay}
+    missionsAllowed={missionsAllowed}
+    canDelete={canEditTileSet}
+    revealEditor={
+      revealMode ? (
+        <RevealAtEditor
+          tile={editingTile}
+          eventId={event.id}
+          scheduled={scheduledMode}
+          isAdmin={isAdmin}
+          onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+          onStateChanged={handleRevealStateChanged}
+        />
+      ) : null
+    }
+    onClose={() => setEditingTileId(null)}
+    onDelete={() => handleDeleteTile(editingTile.id, true)}
+    onSaved={(updated) => {
+      handleTileConfigSaved(editingTile.id, updated);
+      setEditingTileId(null);
+    }}
+        />
+  ) : null;
+
   return (
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
     <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
-      {/* Adding tiles: the three ways in, plus the file round-trip and library round-trip tucked
-          into menus. This header had grown to eight competing buttons and two paragraphs of prose
-          before you could see a single tile — the generators are what people reach for, everything
-          else is occasional. */}
-      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Add tiles
-          </h2>
+      {/* Per-tile configuration */}
+      <div ref={boardRef}>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              {model.NounPlural}
+              <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
+            </h2>
+            {/* What this format wants from you, said once, at the top. */}
+            <p className="text-xs text-text-muted mt-1 max-w-2xl">{model.brief}</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('grid');
-                boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
-              title="Build the board here — a searchable tile list beside a live editor"
-            >
-              ⚡ Quick build
-            </button>
+            {!eventStarted && localTiles.length > 1 && (
+              <>
+                <button
+                  onClick={handleShuffle}
+                  disabled={reordering}
+                  title={model.ordering === 'draw-order' ? 'Randomize the order the pool is drawn in' : 'Randomize the board order'}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                >
+                  🎲 Shuffle
+                </button>
+                {pointsMode && (
+                  <button
+                    onClick={handleSortByDifficulty}
+                    disabled={reordering}
+                    title="Group tiles by difficulty tier — lowest point value first"
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                  >
+                    Sort by difficulty
+                  </button>
+                )}
+              </>
+            )}
+            {/* The views this board actually has, in the model's order — a Showdown gets Schedule,
+                a draw board gets Rotation, and neither shows up where it would mean nothing. */}
+            <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
+              {model.views.map((v) => {
+                const meta = VIEW_LABELS[v](boardShape);
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setViewMode(v)}
+                    title={meta.title}
+                    className={`text-xs px-3 py-1.5 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                  >
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+            {dynamicBoard && viewMode === 'cards' && (
+              <button
+                onClick={handleAddTile}
+                disabled={adding || eventStarted}
+                title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {adding ? 'Adding…' : `+ Add ${model.noun}`}
+              </button>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -673,11 +997,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             {/* Everything that isn't Quick build lives in one menu: generators first (what people
                 reach for), then the file and library round-trips. */}
             <ActionMenu
-              label="＋ Add tiles"
+              label={`＋ Add ${model.nounPlural}`}
               items={[
                 { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
                 { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
                 { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canEditTileSet },
+                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canEditTileSet },
                 {
                   label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
@@ -723,6 +1048,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               open={generator === 'skill'}
               onOpenChange={(v) => setGenerator(v ? 'skill' : null)}
             />
+            <BossTileGenerator
+              eventId={event.id}
+              canGrow={canEditTileSet}
+              pointsMode={pointsMode}
+              onCreated={handleSkillsCreated}
+              onError={(text) => setImportMsg({ type: 'error', text })}
+              hideTrigger
+              open={generator === 'boss'}
+              onOpenChange={(v) => setGenerator(v ? 'boss' : null)}
+            />
             <LibraryTileGenerator
               eventId={event.id}
               canGrow={canEditTileSet}
@@ -734,113 +1069,102 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
           </div>
         </div>
-        <p className="text-xs text-text-muted leading-relaxed">
-          <span className="text-gold">Quick build</span> is the fastest way in — the tile list beside
-          a live editor, with per-tile locks so a whole team can draft at once without overwriting
-          each other. Fill the board first by drawing from your{' '}
-          <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">task library</Link>{' '}
-          or generating from the collection log or skills.
-        </p>
-        <details className="mt-2 group">
-          <summary className="text-xs text-gold cursor-pointer hover:text-gold-light select-none">
-            How the spreadsheet round-trip works
-          </summary>
-          <div className="text-xs text-text-muted leading-relaxed mt-2 space-y-2">
-            <p>
-              Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
-              <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
-              {dynamicBoard && !eventStarted
-                ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
-                : ' Extra rows beyond the board size are ignored.'}
-              {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
-            </p>
-            <p>
-              <span className="text-gold">Download spreadsheet</span> gives an Excel file with the
-              current tiles, dropdowns, the full item list and instructions baked in — draft in Excel
-              or Google Sheets, then upload the same file (or a CSV of the <em>Tiles</em> tab) straight
-              back. The round trip is 1:1: re-uploading an unchanged sheet changes nothing.
-            </p>
-          </div>
-        </details>
+
         {importMsg && (
-          <p className={`text-sm mt-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
+          <p className={`text-sm mb-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
           </p>
         )}
-      </div>
 
-      {/* Live balance read — structural checks recompute client-side; the effort model
-          refetches (debounced) whenever the tile set changes */}
-      <BoardBalancePanel
-        eventId={event.id}
-        tiles={localTiles}
-        tilesVersion={tilesVersion}
-        pointsMode={pointsMode}
-        tierBands={tierBands}
-        onApplyPoints={applySuggestedPoints}
-      />
-
-      <TileHistoryPanel eventId={event.id} />
-
-      {/* Per-tile configuration */}
-      <div ref={boardRef}>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Tile Configuration
-            <span className="text-xs text-text-muted font-normal">({localTiles.length})</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {!eventStarted && localTiles.length > 1 && (
-              <>
-                <button
-                  onClick={handleShuffle}
-                  disabled={reordering}
-                  title="Randomize the board order"
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
-                >
-                  🎲 Shuffle
-                </button>
-                {pointsMode && (
-                  <button
-                    onClick={handleSortByDifficulty}
-                    disabled={reordering}
-                    title="Group tiles by difficulty tier — lowest point value first"
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
-                  >
-                    Sort by difficulty
-                  </button>
-                )}
-              </>
-            )}
-            <div className="flex items-center rounded-lg border border-card-border overflow-hidden">
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'cards' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                Cards
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`text-xs px-3 py-1.5 transition-colors ${viewMode === 'grid' ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                ⚡ Quick build
-              </button>
-            </div>
-            {dynamicBoard && viewMode === 'cards' && (
-              <button
-                onClick={handleAddTile}
-                disabled={adding || eventStarted}
-                title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {adding ? 'Adding…' : '+ Add tile'}
-              </button>
+        {revealMode && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-text-muted">Pool:</span>
+            <span className="rounded-full border border-accent-green/30 bg-accent-green/10 text-accent-green-light px-2.5 py-1">
+              {poolCounts.open} open
+            </span>
+            <span className="rounded-full border border-gold/30 bg-gold/10 text-gold px-2.5 py-1">
+              {poolCounts.waiting} waiting to be drawn
+            </span>
+            {poolCounts.closed > 0 && (
+              <span className="rounded-full border border-card-border text-text-muted px-2.5 py-1">
+                {poolCounts.closed} closed
+              </span>
             )}
           </div>
-        </div>
+        )}
 
-        {viewMode === 'grid' ? (
+        {/* The format's own unfinished business — an unscheduled Showdown tile is a tile that never
+            opens, which is invisible on a card list and fatal on the night. */}
+        {formatJob && viewMode !== formatJob.view && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-400/40 bg-amber-400/[0.08] px-3 py-2.5">
+            <span className="text-sm text-amber-100">{formatJob.message}</span>
+            <button
+              type="button"
+              onClick={() => setViewMode(formatJob.view)}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-400/50 text-amber-100 hover:bg-amber-400/15 transition-colors"
+            >
+              {VIEW_LABELS[formatJob.view](boardShape).label} →
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'schedule' ? (
+          <ScheduleView
+            eventId={event.id}
+            tiles={localTiles}
+            model={model}
+            eventStartDate={event.startDate}
+            editingTileId={editingTileId}
+            onPick={(id) => setEditingTileId(id)}
+            onRevealAtSaved={handleRevealAtSaved}
+            onScheduled={(schedule) => {
+              const byId = new Map(schedule.map((s) => [s.tileId, s.revealAt]));
+              setLocalTiles((prev) =>
+                prev.map((t) => (byId.has(t.id) ? { ...t, revealAt: byId.get(t.id)! } : t)),
+              );
+              router.refresh();
+            }}
+          />
+        ) : viewMode === 'rotation' ? (
+          <RotationView
+            eventId={event.id}
+            tiles={localTiles}
+            rules={eventRules}
+            model={model}
+            isAdmin={isAdmin}
+            eventStarted={eventStarted}
+            reordering={reordering}
+            editingTileId={editingTileId}
+            onPick={(id) => setEditingTileId(id)}
+            onReorder={(ids, describe) => {
+              setLocalTiles((prev) => {
+                const byId = new Map(prev.map((t) => [t.id, t]));
+                return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
+              });
+              void applyOrder(ids, describe);
+            }}
+            onRevealStateChanged={handleRevealStateChanged}
+          />
+        ) : viewMode === 'board' ? (
+          <div className="min-w-0">
+            <p className="text-xs text-text-muted mb-3">
+              {boardShape === 'grid'
+                ? `Click any square to configure that ${model.noun}. This is exactly the board members will see.`
+                : `Click any ${model.noun} to configure it. They are reached in this order — drag to change it from Cards.`}
+            </p>
+            <EventBoard
+              format={event.format}
+              tiles={localTiles}
+              boardSize={event.boardSize}
+              completions={[]}
+              teams={[]}
+              pointsMode={pointsMode}
+              onTileClick={(tileId) => setEditingTileId(tileId)}
+              showStatusFilter={false}
+              staffOnlyTileIds={hiddenTileIds}
+            />
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="flex flex-col lg:flex-row gap-4 items-start">
             {/* Left: tile list + bulk create */}
             <div className="w-full lg:w-72 shrink-0 flex flex-col border border-card-border rounded-xl bg-card-bg overflow-hidden">
@@ -863,7 +1187,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search tiles…"
+                      placeholder={`Search ${model.nounPlural}…`}
                       className="w-full pl-3 pr-8 py-1.5 text-sm"
                     />
                     {search && (
@@ -880,7 +1204,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               )}
               <ul className="overflow-y-auto max-h-[72vh]">
                 {gridTiles.map((t) => {
-                  const k = tileKind(t);
+                  const k = tileKindBadge(t);
                   const sel = editingTileId === t.id;
                   // Reordering a filtered list would move tiles by absolute slot while showing a
                   // non-contiguous subset — confusing. Disable drag while a search is active.
@@ -938,10 +1262,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   );
                 })}
                 {localTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
                 )}
                 {localTiles.length > 0 && gridTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No tiles match your search.</li>
+                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} match your search.</li>
                 )}
               </ul>
             </div>
@@ -956,12 +1280,22 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       {editingTile.label}
                     </h3>
                     {canEditTileSet && (
-                      <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete tile</button>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          onClick={() => duplicateTile(editingTile.id)}
+                          disabled={adding}
+                          title="Create a copy of this tile with the same configuration"
+                          className="text-xs text-text-muted hover:text-gold transition-colors disabled:opacity-50"
+                        >
+                          {adding ? 'Duplicating…' : 'Duplicate'}
+                        </button>
+                        <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete {model.noun}</button>
+                      </div>
                     )}
                   </div>
                   {lockHolder && (
                     <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
+                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this {model.noun} right now — if you both
                       save, the second save is rejected instead of overwriting.
                     </p>
                   )}
@@ -971,7 +1305,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       tile={editingTile}
                       eventId={event.id}
                       scheduled={scheduledMode}
+                      isAdmin={isAdmin}
                       onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
+                      onStateChanged={handleRevealStateChanged}
                     />
                   )}
                   <TileTrackingConfig
@@ -988,15 +1324,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     pointsMode={pointsMode}
                     tierBands={tierBands}
                     categorySuggestions={categories}
+                    teamPlay={teamPlay}
+                    missionsAllowed={missionsAllowed}
                   />
                 </div>
               ) : editingLoading ? (
                 <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Loading tile…
+                  Loading {model.noun}…
                 </div>
               ) : (
                 <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Select a tile on the left to edit it — full config with item &amp; NPC autocomplete.
+                  Select a {model.noun} on the left to edit it — full config with item &amp; NPC autocomplete.
                 </div>
               )}
             </div>
@@ -1004,141 +1342,322 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         ) : (
           <>
 
-        {/* Search + kind filter */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
-          <div className="relative flex-1">
+        {/* One filter bar: a search you can actually see, and the three narrowings behind it.
+            The kind filter used to be fourteen chips in a horizontal scroller beside a small box —
+            a wall to read every time you wanted to type a tile's name. */}
+        <div className="mb-3 space-y-2">
+          <div className="relative">
+            <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/70">⌕</span>
             <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tiles by label, category, stat, or #position…"
-              className="w-full pl-3 pr-8 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
+              placeholder={`Search ${model.nounPlural} — name, category, stat, or #position`}
+              className="w-full pl-9 pr-9 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold/50 focus:outline-none"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 grid place-items-center rounded text-text-muted hover:text-foreground"
               >
                 &times;
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            {KIND_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setKindFilter(f.key)}
-                className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  kindFilter === f.key
-                    ? 'bg-gold/20 border-gold text-gold'
-                    : 'border-card-border text-text-muted hover:border-gold/40'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Category + difficulty-tier filters */}
-        {(categories.length > 0 || showTierFilter) && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={kindFilter}
+              onChange={(v) => setKindFilter(v as KindFilter)}
+              options={TILE_KIND_FILTERS.map((f) => ({ value: f.key, label: f.key === 'all' ? 'All kinds' : f.label }))}
+              ariaLabel="Filter by tile kind"
+              className="w-40"
+            />
             {categories.length > 0 && (
               <Select
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 options={[{ value: 'all', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]}
                 ariaLabel="Filter by category"
-                className="shrink-0 sm:w-48"
+                className="w-44"
               />
             )}
             {showTierFilter && (
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-                <button
-                  onClick={() => setTierFilter('all')}
-                  className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                    tierFilter === 'all'
-                      ? 'bg-gold/20 border-gold text-gold'
-                      : 'border-card-border text-text-muted hover:border-gold/40'
-                  }`}
-                >
-                  All tiers
-                </button>
-                {tierBands.map((t, i) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTierFilter(t.key)}
-                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-                      tierFilter === t.key
-                        ? 'bg-gold/20 border-gold text-gold'
-                        : 'border-card-border text-text-muted hover:border-gold/40'
-                    }`}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: tierColor(i, tierBands.length) }}
-                      aria-hidden
-                    />
-                    {t.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1 flex-wrap">
+                {[{ key: 'all', label: 'All tiers' }, ...tierBands.map((t) => ({ key: t.key, label: t.label }))].map(
+                  (t, i) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTierFilter(t.key)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
+                        tierFilter === t.key
+                          ? 'bg-gold/20 border-gold text-gold'
+                          : 'border-card-border text-text-muted hover:border-gold/40'
+                      }`}
+                    >
+                      {t.key !== 'all' && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: tierColor(i - 1, tierBands.length) }}
+                          aria-hidden
+                        />
+                      )}
+                      {t.label}
+                    </button>
+                  ),
+                )}
               </div>
             )}
+
+            <span className="ml-auto text-xs text-text-muted whitespace-nowrap">
+              {filteredTiles.length === boardOnly.length
+                ? `${boardOnly.length} ${boardOnly.length === 1 ? model.noun : model.nounPlural}`
+                : `${filteredTiles.length} of ${boardOnly.length} match`}
+              {filteredTiles.length > visibleTiles.length && ` · showing ${visibleTiles.length}`}
+            </span>
+            {(search || kindFilter !== 'all' || categoryFilter !== 'all' || tierFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setKindFilter('all');
+                  setCategoryFilter('all');
+                  setTierFilter('all');
+                }}
+                className="text-xs px-2.5 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Two real columns: the board on the left, its editor on the right. Not an overlay —
+            the thing you're editing stays visible, and picking another tile just moves the pane.
+            NO `items-start` here: it shrink-wraps the editor's column to the editor's own height,
+            which leaves its `sticky top-4` nothing to travel inside. On a 261-tile board that meant
+            scrolling down to a tile, clicking it, and then scrolling all the way back up to edit it.
+            Stretching the column (the grid default) is what lets the editor follow the list. */}
+        <div
+          className={
+            editingTile && inspectorDocked
+              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5'
+              : ''
+          }
+        >
+        <div className="min-w-0">
+
+        {selectedIds.size > 0 && (
+          <div className="sticky top-[4.5rem] z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
+            <span className="text-sm font-semibold text-gold-light">
+              {selectedIds.size} selected
+            </span>
+            <span className="text-xs text-text-muted hidden sm:inline">shift-click for a run</span>
+
+            {pointsMode && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => {
+                  const raw = prompt(`Points for ${selectedIds.size} tiles?`);
+                  if (raw === null) return;
+                  const points = parseInt(raw, 10);
+                  if (!Number.isInteger(points) || points < 0) return;
+                  void bulkSet({ points }, `Set ${points} pt${points === 1 ? '' : 's'}`);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+              >
+                Set points
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => {
+                const category = prompt(`Category for ${selectedIds.size} tiles? (blank clears it)`);
+                if (category === null) return;
+                void bulkSet({ category: category.trim() || null }, category.trim() ? `Set “${category.trim()}”` : 'Cleared the category');
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Set category
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ optional: true }, 'Marked optional')}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Mark optional
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ optional: false }, 'Marked required')}
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Mark required
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => void bulkSet({ autoTrackDisabled: true }, 'Switched to complete-by-hand')}
+              title="Stop these tiles crediting themselves — a captain or admin completes them by hand. The escape hatch when tracking is unreliable mid-event."
+              className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+            >
+              Complete by hand
+            </button>
+
+            {/* Reveal is a bulk edit on any staggered board — the API has taken it since the bulk
+                route was written, and nothing had ever offered it. On a scheduled board the whole
+                selection shares one time ("this wave opens at 8"); the Schedule view is where a
+                spread-out run gets laid out. */}
+            {scheduledMode && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => {
+                  const raw = prompt(
+                    `Reveal all ${selectedIds.size} at the same moment. Date and time (YYYY-MM-DD HH:MM), or blank to clear:`,
+                  );
+                  if (raw === null) return;
+                  const trimmed = raw.trim();
+                  if (!trimmed) {
+                    void bulkSet({ revealAt: null }, 'Cleared the reveal time');
+                    return;
+                  }
+                  const when = new Date(trimmed.replace(' ', 'T'));
+                  if (Number.isNaN(when.getTime())) {
+                    setBulkMsg("That didn't read as a date — try 2026-08-16 20:00.");
+                    return;
+                  }
+                  void bulkSet({ revealAt: when.toISOString() }, `Set to open ${when.toLocaleString()}`);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg border border-blue-400/40 bg-blue-500/10 text-blue-200 hover:border-blue-300 transition-colors disabled:opacity-50"
+              >
+                Set reveal time
+              </button>
+            )}
+            {revealMode && isAdmin && (
+              <>
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => void bulkSet({ revealState: 'live' }, 'Opened to members')}
+                  title="Open all of these to members right now, ahead of the schedule or rotation"
+                  className="text-xs px-2.5 py-1 rounded-lg border border-accent-green/40 bg-accent-green/10 text-accent-green-light hover:border-accent-green transition-colors disabled:opacity-50"
+                >
+                  Open now
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => {
+                    if (!confirm(`Hide ${selectedIds.size} from members again? Progress stays, but they stop being playable.`)) return;
+                    void bulkSet({ revealState: 'hidden' }, 'Hidden again');
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+                >
+                  Hide again
+                </button>
+              </>
+            )}
+
+            <span className="flex-1" />
+            {bulkMsg && <span className="text-xs text-text-muted">{bulkMsg}</span>}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds(new Set());
+                setBulkMsg('');
+              }}
+              className="text-xs px-2.5 py-1 rounded-lg text-text-muted hover:text-foreground transition-colors"
+            >
+              Clear
+            </button>
           </div>
         )}
 
-        <p className="text-xs text-text-muted mb-3">
-          {filteredTiles.length === localTiles.length
-            ? `Showing all ${localTiles.length} tile${localTiles.length !== 1 ? 's' : ''}`
-            : `${filteredTiles.length} of ${localTiles.length} tiles match`}
-          {filteredTiles.length > visibleTiles.length && ` · displaying first ${visibleTiles.length}`}
-        </p>
-
         {filteredTiles.length === 0 ? (
           <div className="border border-card-border rounded-xl p-8 bg-card-bg text-center text-sm text-text-muted">
-            No tiles match your search.
+            No {model.nounPlural} match your search.
           </div>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <div
+          // Fewer, wider cards when the editor is open beside them — a tile clipped to "Til e…" is
+          // no use for finding the one you want.
+          className={`grid gap-2.5 ${
+            editingTile && inspectorDocked
+              ? 'grid-cols-1 sm:grid-cols-2'
+              : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+          }`}
+        >
           {visibleTiles.map((tile) => {
-            const k = tileKind(tile);
+            const k = tileKindBadge(tile);
             const isEditing = editingTileId === tile.id;
+            const isSelected = selectedIds.has(tile.id);
             return (
               <button
                 key={tile.id}
-                onClick={() => setEditingTileId(tile.id)}
-                className={`text-left border rounded-xl p-3 bg-card-bg hover:bg-card-bg-hover transition-colors flex flex-col gap-1.5 ${
-                  isEditing ? 'border-gold ring-1 ring-gold/40' : 'border-card-border hover:border-gold/40'
+                onClick={(e) => pickTile(tile.id, e)}
+                className={`group/tile relative text-left border rounded-xl bg-card-bg hover:bg-card-bg-hover transition-colors overflow-hidden ${
+                  isEditing
+                    ? 'border-gold ring-1 ring-gold/40'
+                    : isSelected
+                      ? 'border-gold/60 bg-gold/[0.07]'
+                      : 'border-card-border hover:border-gold/40'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono text-text-muted shrink-0">#{tile.position + 1}</span>
-                  <div className="flex items-center gap-1 flex-wrap justify-end">
-                    {pointsMode && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
-                        {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {tile.optional ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
-                        Optional
-                      </span>
-                    ) : null}
-                    {(() => {
-                      const rc = revealChip(tile);
-                      return rc ? (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rc.cls}`} title={rc.title}>
-                          {rc.label}
+                {/* A stripe down the side, so a half-built board reads without stopping to read:
+                    amber = can't credit as set up, violet = still hidden, grey = nothing special. */}
+                <span
+                  aria-hidden
+                  className={`absolute inset-y-0 left-0 w-1 ${
+                    problemTileIds.has(tile.id)
+                      ? 'bg-amber-400/80'
+                      : tile.revealedAt
+                        ? 'bg-accent-green/60'
+                        : revealMode
+                          ? 'bg-violet-400/60'
+                          : 'bg-transparent'
+                  }`}
+                />
+                <span className="block pl-4 pr-3 py-3 flex flex-col gap-1.5">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono shrink-0 flex items-center gap-1.5">
+                      {isSelected && <span className="text-gold" aria-hidden>✓</span>}
+                      <span className="text-text-muted">#{tile.position + 1}</span>
+                    </span>
+                    <span className="flex items-center gap-1 flex-wrap justify-end">
+                      {pointsMode && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-300">
+                          {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
                         </span>
-                      ) : null;
-                    })()}
-                    {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
-                    <span title={k.blurb} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>{tile.label}</span>
-                <span className="text-xs text-text-muted truncate">{tileMeta(tile)}</span>
+                      )}
+                      {tile.optional ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-500/20 text-yellow-400">
+                          Optional
+                        </span>
+                      ) : null}
+                      {(() => {
+                        const rc = revealChip(tile);
+                        return rc ? (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rc.cls}`} title={rc.title}>
+                            {rc.label}
+                          </span>
+                        ) : null;
+                      })()}
+                      {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact />}
+                      <span title={k.blurb} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${k.cls}`}>{k.label}</span>
+                    </span>
+                  </span>
+                  <span className="text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>
+                    {tile.label}
+                  </span>
+                  <span className={`text-xs truncate ${problemTileIds.has(tile.id) ? 'text-amber-300/90' : 'text-text-muted'}`}>
+                    {problemTileIds.get(tile.id) ?? tileConfigSummary(tile, model.noun)}
+                  </span>
+                </span>
               </button>
             );
           })}
@@ -1155,48 +1674,140 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             </button>
           </div>
         )}
+
+        {/* MISSIONS — their own lane, below the board and outside it. Deliberately not part of the
+            list above: a mission is announced mid-event, scores as a bonus on top of a board total
+            it never moves, and can expire unclaimed. It also ignores the board's filters, because
+            with four of them the filters are furniture. */}
+        {missionsAllowed && (
+          <div className="mt-6 pt-5 border-t border-card-border">
+            <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <span className="w-1 h-4 bg-purple-400 rounded-full" />
+                <span aria-hidden>⚡</span>
+                Missions
+              </h3>
+              <span className="text-xs text-text-muted">
+                {missionPool.length === 0
+                  ? 'hidden bonus objectives, dropped mid-event'
+                  : `${missionPool.length} · ${announcedMissions} announced`}
+              </span>
+              <button
+                onClick={handleAddMission}
+                disabled={adding || editLocked}
+                className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                + Add mission
+              </button>
+            </div>
+
+            {missionPool.length === 0 ? (
+              <p className="text-xs text-text-muted">
+                A mission stays hidden until you announce it, then scores as a bonus on top of the
+                board total — so adding one never changes what the board is out of.
+              </p>
+            ) : (
+              <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {missionPool.map((tile) => {
+                  const isEditing = editingTileId === tile.id;
+                  return (
+                    <button
+                      key={tile.id}
+                      onClick={() => setEditingTileId(isEditing ? null : tile.id)}
+                      className={`text-left rounded-xl border p-3 transition-colors ${
+                        isEditing
+                          ? 'border-purple-400/60 bg-purple-500/10'
+                          : 'border-card-border bg-card-bg hover:border-purple-400/40'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-200">
+                          {tile.revealedAt ? 'Announced' : 'Hidden'}
+                        </span>
+                        {tile.closedAt && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-white/10 text-text-muted">
+                            Closed
+                          </span>
+                        )}
+                        {pointsMode && tile.points != null && (
+                          <span className="ml-auto text-[10px] text-purple-200/80">+{tile.points} bonus</span>
+                        )}
+                      </span>
+                      <span className="block text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>
+                        {tile.label}
+                      </span>
+                      <span className="block text-xs text-text-muted truncate">
+                        {tileConfigSummary(tile, 'mission')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        </div>
+
+        {editingTile && inspectorDocked && (
+          <div className="hidden xl:block">{renderInspector(true)}</div>
+        )}
+        </div>
           </>
         )}
       </div>
 
-      {/* Configuration drawer — Cards view only. In Quick Build the editor is the right pane. */}
-      {viewMode === 'cards' && editingTile && (
-        <TileConfigDrawer
-          key={editingTile.id}
-          tile={editingTile}
-          eventId={event.id}
-          eventStarted={eventStarted}
-          isAdmin={isAdmin}
-          pointsMode={pointsMode}
-          tierBands={tierBands}
-          lockHolder={lockHolder}
-          categorySuggestions={categories}
-          canDelete={canEditTileSet}
-          revealEditor={
-            revealMode ? (
-              <RevealAtEditor
-                tile={editingTile}
-                eventId={event.id}
-                scheduled={scheduledMode}
-                onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
-              />
-            ) : null
-          }
-          onClose={() => setEditingTileId(null)}
-          onDelete={() => handleDeleteTile(editingTile.id, true)}
-          onSaved={(updated) => {
-            handleTileConfigSaved(editingTile.id, updated);
-            setEditingTileId(null);
-          }}
-        />
-      )}
+      {/* Reference material, under the board rather than stacked on top of it: you come to this
+          page to see tiles, not to read three panels first. */}
+      {/* Live balance read — structural checks recompute client-side; the effort model
+          refetches (debounced) whenever the tile set changes */}
+      <BoardBalancePanel
+        eventId={event.id}
+        tiles={localTiles}
+        tilesVersion={tilesVersion}
+        pointsMode={pointsMode}
+        tierBands={tierBands}
+        onApplyPoints={applySuggestedPoints}
+      />
+
+      <TileHistoryPanel eventId={event.id} />
+
+      <details className="border border-card-border rounded-xl bg-card-bg px-5 py-3 group">
+        <summary className="text-sm font-semibold cursor-pointer hover:text-gold select-none">
+          Spreadsheet round-trip
+          <span className="text-xs text-text-muted font-normal"> — draft the board in Excel or Sheets</span>
+        </summary>
+        <div className="text-xs text-text-muted leading-relaxed mt-3 space-y-2">
+          <p>
+            Rows map onto tiles by order (row 1 → tile #1). Columns:{' '}
+            <span className="text-gold">{TILE_CSV_COLUMNS.join(', ')}</span>.
+            {dynamicBoard && !eventStarted
+              ? ' Extra rows beyond the current tiles are added as new tiles (up to 1000).'
+              : ' Extra rows beyond the board size are ignored.'}
+            {eventStarted && ' Event has started — label, type and required amount are locked and will be skipped.'}
+          </p>
+          <p>
+            <span className="text-gold">Download spreadsheet</span> gives an Excel file with the current
+            tiles, dropdowns, the full item list and instructions baked in — draft it, then upload the same
+            file (or a CSV of the <em>Tiles</em> tab) straight back. The round trip is 1:1: re-uploading an
+            unchanged sheet changes nothing.
+          </p>
+          <p>
+            Everything above is also reachable from{' '}
+            <Link href="/admin/tile-library" className="text-gold hover:text-gold-light">your task library</Link>.
+          </p>
+        </div>
+      </details>
+
+      {/* The covering drawer: narrow screens (no room for two panes) and every view that isn't the
+          card list, which is the only one with a column to dock into. */}
+      {editingTile && (viewMode !== 'cards' ? viewMode !== 'grid' : !inspectorDocked) && renderInspector(false)}
 
       {/* Paste-labels bulk create (Quick Build) */}
       {pasteOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPasteOpen(false)}>
           <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-foreground">Paste labels</h3>
-            <p className="text-xs text-text-muted">One tile per line. Each becomes a new tile you can configure on the right.</p>
+            <p className="text-xs text-text-muted">One per line. Each becomes a new {model.noun} you can configure on the right.</p>
             <textarea
               autoFocus
               value={pasteText}
@@ -1220,142 +1831,23 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 // grid is paginated to keep the DOM light. Search/filter narrows before this cap applies.
 const PAGE_SIZE = 120;
 
-type TileKindKey = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
-type KindFilter = 'all' | TileKindKey;
-
-// Derive the single canonical "kind" from the stored columns (mirrors TileTrackingConfig).
-function tileKindKey(tile: Tile): TileKindKey {
-  if (tile.tileType === 'kill') return 'kill';
-  if (tile.tileType === 'pvp') return 'pvp';
-  if (tile.tileType === 'gain') return 'gain';
-  if (tile.tileType === 'timed') return 'timed';
-  if (tile.tileType === 'deathless') return 'deathless';
-  if (tile.tileType === 'lms') return 'lms';
-  if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
-  if (tile.tileType === 'diary') return 'diary';
-  if (tile.tileType === 'ca') return 'ca';
-  if (tile.tileType === 'drop') {
-    const isCollection = !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
-    return isCollection ? 'collection' : 'drop';
-  }
-  if (tile.statType === 'skill') return 'skill';
-  if (tile.statType === 'boss') return 'boss';
-  return 'standard';
-}
-
-// `blurb` is the hover explanation shown on each tile's kind badge — a one-liner on what the kind
-// tracks and how it credits. Mirrors the pickers' blurbs in TileTrackingConfig.
-const KIND_META: Record<TileKindKey, { label: string; cls: string; blurb: string }> = {
-  standard: { label: 'Standard', cls: 'bg-gold/15 text-gold', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
-  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
-  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
-  drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
-  collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
-  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of an NPC — even ones off the hiscores (chickens, cows). Plugin-detected.' },
-  pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
-  gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
-  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
-  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
-  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
-  value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
-  diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
-  ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
+// What each view is called on the tab strip. The board tab renames itself after the shape it's
+// showing, because "Board" is not what anyone calls a 5×5 square or a race track.
+const VIEW_LABELS: Record<AuthoringView, (shape: 'grid' | 'track' | 'list') => { label: string; title: string }> = {
+  board: (shape) =>
+    shape === 'grid'
+      ? { label: 'Grid', title: 'Edit tiles on the grid itself' }
+      : { label: 'Track', title: 'Edit tiles along the track, in running order' },
+  cards: () => ({ label: 'Cards', title: 'Every task as a card — search, filter and bulk edits' }),
+  schedule: () => ({ label: '🕑 Schedule', title: 'The reveal plan: when each one opens' }),
+  rotation: () => ({ label: '🎲 Rotation', title: 'The draw pool, in the order the engine pulls from it' }),
+  grid: () => ({ label: '⚡ Quick build', title: 'Spreadsheet-style bulk authoring' }),
 };
 
-const tileKind = (tile: Tile) => KIND_META[tileKindKey(tile)];
-
-const KIND_FILTERS: { key: KindFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'standard', label: 'Standard' },
-  { key: 'skill', label: 'Skill' },
-  { key: 'boss', label: 'Boss' },
-  { key: 'drop', label: 'Drop' },
-  { key: 'collection', label: 'Item set' },
-  { key: 'kill', label: 'Kill' },
-  { key: 'pvp', label: 'PvP' },
-  { key: 'gain', label: 'Gain' },
-  { key: 'timed', label: 'Timed' },
-  { key: 'deathless', label: 'Deathless' },
-  { key: 'lms', label: 'LMS' },
-  { key: 'value', label: 'Value' },
-  { key: 'diary', label: 'Diary' },
-  { key: 'ca', label: 'Combat task' },
-];
-
-/** One-line summary of a tile's current configuration, shown under the label on each card. */
-function tileMeta(tile: Tile): string {
-  switch (tileKindKey(tile)) {
-    case 'collection': {
-      let count = 0;
-      try {
-        count = (JSON.parse(tile.itemRequirements || '[]') as unknown[]).length;
-      } catch {
-        /* ignore */
-      }
-      return `Item set · ${count} item${count !== 1 ? 's' : ''}`;
-    }
-    case 'drop':
-      return tile.requiredAmount ? `Required: ${tile.requiredAmount}` : 'Item drop';
-    case 'skill':
-    case 'boss': {
-      const goal = tile.statGoal ? ` · goal ${tile.statGoal.toLocaleString()}` : '';
-      return `${statLabel(tile.trackedStat, tile.statType)}${goal} · ${tile.trackingMode}`;
-    }
-    case 'kill':
-      return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
-    case 'pvp': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const bounties = sels.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
-      const who = bounties.length > 0 ? bounties.join(', ') : 'rival team';
-      return `PvP kill · ${who}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'gain':
-      return tile.requiredAmount ? `Item gain · ${tile.requiredAmount}` : 'Item gain';
-    case 'deathless': {
-      const party = tile.timeThresholdSeconds ? ` · ${tile.timeThresholdSeconds}-man` : '';
-      return `Deathless · ${tile.timedActivity || 'raid'}${party}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'timed':
-      return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
-    case 'lms': {
-      const cap = tile.timeThresholdSeconds ?? 1;
-      const games = tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : '';
-      return cap <= 1 ? `LMS · win${games}` : `LMS · top ${cap}${games}`;
-    }
-    case 'value':
-      if (!tile.requiredAmount) return 'Loot value';
-      return tile.tileType === 'valuetotal'
-        ? `Loot value · ${tile.requiredAmount.toLocaleString()} gp total`
-        : `Loot value · ≥${tile.requiredAmount.toLocaleString()} gp haul`;
-    case 'diary': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
-      return `Diary · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    case 'ca': {
-      let sels: string[] = [];
-      try {
-        sels = JSON.parse(tile.targetNpcs || '[]') as string[];
-      } catch {
-        /* ignore */
-      }
-      const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
-      return `Combat task · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
-    }
-    default:
-      return 'Manual tile — no auto-tracking';
-  }
-}
+// The kind badge, its one-line config summary and the kind filter's options all live in
+// lib/tileKinds, next to the kind derivation they read — every authoring view needs the same
+// answers about the same tile, and a second copy here would be a second copy to drift.
+type KindFilter = 'all' | TileKindKey;
 
 // ISO → the local wall-clock string a <input type="datetime-local"> wants.
 function toLocalInputValue(iso: string | null | undefined): string {
@@ -1367,24 +1859,62 @@ function toLocalInputValue(iso: string | null | undefined): string {
 }
 
 /**
- * Reveal-policy status + (scheduled events) the per-tile reveal-time editor. The engine owns
- * revealedAt/closedAt — this only writes the PLAN (tiles.revealAt); the every-minute tick flips
- * the tile live once the time passes, so "Reveal now" is just "set the time to now".
+ * Per-tile reveal state on a reveal-policy board.
+ *
+ * Two different mechanisms, because the policies work differently:
+ *   • 'scheduled' — the host owns the PLAN (tiles.revealAt) and the engine flips the tile when its
+ *     time passes, so the datetime field is the primary control.
+ *   • interval / rotating / bounty — the ENGINE picks which tile is next, so there's no plan to
+ *     edit. Instead an admin can force this specific tile open now, or pull it back to hidden
+ *     (`revealState`, admin-only). Without these the only per-tile control on those boards was a
+ *     status line you couldn't act on.
  */
 function RevealAtEditor({
   tile,
   eventId,
   scheduled,
+  isAdmin = false,
   onSaved,
+  onStateChanged,
 }: {
   tile: Tile;
   eventId: number;
   scheduled: boolean;
+  isAdmin?: boolean;
   onSaved: (revealAt: string | null) => void;
+  /** Force-reveal / re-hide landed — carries the whole tile back so revealedAt/closedAt refresh. */
+  onStateChanged?: (tile: Tile) => void;
 }) {
   const [value, setValue] = useState(() => toLocalInputValue(tile.revealAt));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function setRevealState(next: 'live' | 'hidden') {
+    if (next === 'hidden' && !confirm('Hide this tile from members again? Any progress on it stays, but it stops being playable until it opens again.')) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/tiles`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tileId: tile.id, revealState: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ type: 'error', text: data.error || 'Could not change this tile’s reveal state.' });
+        return;
+      }
+      onStateChanged?.(data as Tile);
+      setMsg({
+        type: 'success',
+        text: next === 'live' ? 'Tile is open to members now.' : 'Tile is hidden again.',
+      });
+    } catch {
+      setMsg({ type: 'error', text: 'Could not change this tile’s reveal state.' });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save(revealAt: string | null) {
     setSaving(true);
@@ -1461,6 +1991,37 @@ function RevealAtEditor({
           </p>
         </>
       )}
+      {/* Manual override. On a scheduled board the datetime field above is the normal route, so this
+          only offers the reverse (pull a live tile back); on engine-drawn boards it's the only
+          per-tile control that exists. */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {!tile.revealedAt || tile.closedAt ? (
+            <button
+              onClick={() => setRevealState('live')}
+              disabled={saving}
+              title="Open this exact tile to members right now, ahead of the rotation"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Working…' : tile.closedAt ? 'Re-open now' : 'Open now'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setRevealState('hidden')}
+              disabled={saving}
+              title="Pull this tile back out of the board — the rotation can draw it again later"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Working…' : 'Hide again'}
+            </button>
+          )}
+          <span className="text-[11px] text-text-muted">
+            {scheduled
+              ? 'Overrides the scheduled time for this tile only.'
+              : 'The rotation normally picks tiles for you — this overrides it for this tile.'}
+          </span>
+        </div>
+      )}
       {msg && (
         <p className={`text-[11px] ${msg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>{msg.text}</p>
       )}
@@ -1470,6 +2031,8 @@ function RevealAtEditor({
 
 interface DrawerProps {
   tile: Tile;
+  /** Wide screens dock the editor beside the board instead of covering it. */
+  docked?: boolean;
   eventId: number;
   eventStarted: boolean;
   isAdmin?: boolean;
@@ -1482,35 +2045,52 @@ interface DrawerProps {
   lockHolder?: string | null;
   /** Categories used elsewhere on the board, for the category tag typeahead. */
   categorySuggestions?: string[];
+  /** Event has real multi-person teams — false on an individual ladder. */
+  teamPlay?: boolean;
+  /** Missions are enabled for this event and meaningful on this format. */
+  missionsAllowed?: boolean;
   /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
   revealEditor?: React.ReactNode;
+  /** What one entry on this board is called — a ladder's are tasks (lib/tileAuthoring). */
+  noun?: string;
 }
 
-function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, revealEditor }: DrawerProps) {
-  const ref = useModalA11y<HTMLDivElement>({ onClose });
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
+  // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
+  // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
+  const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
+
+  // Scroll the form back to the top when a DIFFERENT tile is opened. The panel persists across
+  // selections (that's the point of the docked editor — picking another tile just moves the pane),
+  // and so did its scroll position: open a tile after scrolling down in the previous one and the
+  // form started halfway through the Tile Kind grid, looking cut off.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tile.id]);
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+  // The editor itself. Docked it's an ordinary sticky column in the page; narrow, it's a modal
+  // drawer over a backdrop. Same panel either way — only the wrapper differs.
+  const panel = (
       <div
         ref={ref}
-        role="dialog"
-        aria-modal="true"
+        role={docked ? undefined : 'dialog'}
+        aria-modal={docked ? undefined : 'true'}
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative h-full w-full max-w-md bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide"
+        className={
+          docked
+            ? 'sticky top-[4.5rem] max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
+            : 'relative w-full max-w-md h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
+        }
       >
         {/* Header */}
         <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-text-muted">Tile #{tile.position + 1}</p>
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">{noun} #{tile.position + 1}</p>
             <h3 id={titleId} className="text-base font-bold text-foreground line-clamp-2 break-words">
               {tile.label}
             </h3>
@@ -1525,7 +2105,7 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
         </div>
 
         {/* Form */}
-        <div className="flex-1 min-h-0 p-5 overflow-y-auto">
+        <div ref={bodyRef} className="flex-1 min-h-0 p-5 overflow-y-auto">
           {lockHolder && (
             <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
               🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
@@ -1543,6 +2123,8 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
             pointsMode={pointsMode}
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}
+            teamPlay={teamPlay}
+            missionsAllowed={missionsAllowed}
           />
 
           {canDelete && onDelete && (
@@ -1580,6 +2162,20 @@ function TileConfigDrawer({ tile, eventId, eventStarted, isAdmin, pointsMode, ca
           )}
         </div>
       </div>
+  );
+
+  if (docked) return panel;
+
+  return (
+    // Above the site nav (z-50), not under it — the drawer's own header and close button live in
+    // that top strip, and a modal the page's chrome overlaps is a modal you can't close.
+    <div className="fixed inset-0 z-[60] flex justify-end">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-drawer-fade"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {panel}
     </div>
   );
 }

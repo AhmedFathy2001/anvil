@@ -37,6 +37,8 @@ interface Payload {
   announcedAt: string | null;
   allPaid: boolean;
   placementPrizes: number[];
+  /** Non-empty when this board's prizes are stored as SHARES of the pool. */
+  placementSplitPct: number[];
 }
 
 interface Props {
@@ -65,6 +67,10 @@ function splitPct(n: number): number[] {
 }
 
 const cleanNum = (s: string) => Number(String(s).replace(/[, ]/g, ''));
+/** The same suggestion, as the percentages themselves — what the share editor opens with. */
+function defaultPercents(paidPlaces: number): string[] {
+  return splitPct(paidPlaces).map(String);
+}
 function suggestAmounts(paidPlaces: number, basis: number): string[] {
   return splitPct(paidPlaces).map((pct) => String(Math.round((basis * pct) / 100)));
 }
@@ -79,6 +85,11 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const [paidPlaces, setPaidPlaces] = useState(3);
   const [poolBasis, setPoolBasis] = useState('');
   const [placeAmounts, setPlaceAmounts] = useState<string[]>([]);
+  // 'share' stores percentages and resolves them against the live pool on every read, so the prizes
+  // a board advertises grow as its entries are approved. 'fixed' is a flat gp number per place, for
+  // a host who promised an exact amount and doesn't want it moving.
+  const [mode, setMode] = useState<'share' | 'fixed'>('share');
+  const [placePercents, setPlacePercents] = useState<string[]>([]);
   const [includeSubbed, setIncludeSubbed] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [savingSplit, setSavingSplit] = useState(false);
@@ -108,15 +119,25 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       if (!seededRef.current) {
         seededRef.current = true;
         const maxPlaces = Math.max(1, payload.standings.length || 1);
-        if (payload.placementPrizes.length > 0) {
-          const places = Math.min(payload.placementPrizes.length, maxPlaces);
+        setPoolBasis(String(payload.pool.total));
+        if (payload.placementSplitPct.length > 0) {
+          // Already share-based: open in that mode with its own numbers.
+          const places = Math.min(payload.placementSplitPct.length, maxPlaces);
+          setMode('share');
           setPaidPlaces(places);
-          setPoolBasis(String(payload.pool.total));
+          setPlacePercents(payload.placementSplitPct.slice(0, places).map(String));
           setPlaceAmounts(payload.placementPrizes.slice(0, places).map(String));
+        } else if (payload.placementPrizes.length > 0) {
+          // Fixed gp already saved — leave it alone; switching mode is the host's call.
+          const places = Math.min(payload.placementPrizes.length, maxPlaces);
+          setMode('fixed');
+          setPaidPlaces(places);
+          setPlaceAmounts(payload.placementPrizes.slice(0, places).map(String));
+          setPlacePercents(defaultPercents(places));
         } else {
           const places = Math.min(3, maxPlaces);
           setPaidPlaces(places);
-          setPoolBasis(String(payload.pool.total));
+          setPlacePercents(defaultPercents(places));
           setPlaceAmounts(suggestAmounts(places, payload.pool.total));
         }
       }
@@ -135,6 +156,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   function changePaidPlaces(n: number) {
     setPaidPlaces(n);
     setPlaceAmounts(suggestAmounts(n, cleanNum(poolBasis)));
+    setPlacePercents(defaultPercents(n));
   }
 
   // Persist the prize-per-placement structure WITHOUT generating rows — advertises it on the event
@@ -145,10 +167,12 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
     setNotice(null);
     try {
       const amounts = placeAmounts.slice(0, paidPlaces).map(cleanNum);
+      const percents = placePercents.slice(0, paidPlaces).map(cleanNum);
       const res = await fetch(`/api/admin/events/${eventId}/payouts/prize-split`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placeAmounts: amounts }),
+        // Share mode stores percentages; the amounts are derived from the pool on every read.
+        body: JSON.stringify(mode === 'share' ? { placePercents: percents } : { placeAmounts: amounts }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -239,7 +263,15 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const totalPaid = payouts.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
   const paidCount = payouts.filter((p) => p.status === 'paid').length;
   const maxPlaces = Math.max(1, standings.length);
-  const rewardsTotal = placeAmounts.slice(0, paidPlaces).reduce((s, a) => s + cleanNum(a), 0);
+  // What the split currently pays out. In share mode that's the percentages resolved against the
+  // live pool — the same arithmetic the event page does, so the two never disagree.
+  const rewardsTotal =
+    mode === 'share'
+      ? placePercents
+          .slice(0, paidPlaces)
+          .reduce((sum, p) => sum + Math.round((pool.total * cleanNum(p)) / 100), 0)
+      : placeAmounts.slice(0, paidPlaces).reduce((sum, a) => sum + cleanNum(a), 0);
+  const sharesTotal = placePercents.slice(0, paidPlaces).reduce((sum, p) => sum + cleanNum(p), 0);
 
   return (
     <div className="space-y-6">
@@ -272,16 +304,49 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
 
         {canManage && (
           <div className="space-y-3">
+            {/* How the prizes are expressed. Shares are the default because a pool that grows with
+                every approved entry should carry prizes that grow with it — the fixed mode froze
+                them at whatever the pool was the day they were typed, and nothing ever told the
+                host it had gone stale. */}
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ['share', 'Share of the pool'],
+                  ['fixed', 'Fixed gp'],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setMode(k)}
+                  className={`text-xs font-semibold rounded-lg px-3 py-1.5 border transition-colors ${
+                    mode === k
+                      ? 'bg-gold text-brown-dark border-gold'
+                      : 'border-card-border text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="text-xs text-text-muted self-center ml-1">
+                {mode === 'share'
+                  ? 'Recalculates as entries are approved.'
+                  : 'Stays exactly as typed, whatever the pool does.'}
+              </span>
+            </div>
+
             <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs text-text-muted">
-                Prize pool basis (gp)
-                <input
-                  value={poolBasis}
-                  onChange={(e) => setPoolBasis(e.target.value)}
-                  inputMode="numeric"
-                  className="mt-1 block w-40 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-foreground"
-                />
-              </label>
+              {mode === 'fixed' && (
+                <label className="text-xs text-text-muted">
+                  Prize pool basis (gp)
+                  <input
+                    value={poolBasis}
+                    onChange={(e) => setPoolBasis(e.target.value)}
+                    inputMode="numeric"
+                    className="mt-1 block w-40 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-foreground"
+                  />
+                </label>
+              )}
               <div className="text-xs text-text-muted">
                 Paid places
                 <Select
@@ -297,28 +362,48 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => setPlaceAmounts(suggestAmounts(paidPlaces, cleanNum(poolBasis)))}
+                onClick={() =>
+                  mode === 'share'
+                    ? setPlacePercents(defaultPercents(paidPlaces))
+                    : setPlaceAmounts(suggestAmounts(paidPlaces, cleanNum(poolBasis)))
+                }
                 className="text-xs font-medium px-3 py-2 rounded-lg border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
               >
                 Reset to calc
               </button>
             </div>
 
-            {/* Editable reward per placement — prefilled from the calculation, override any of them. */}
+            {/* Editable reward per placement — prefilled from the calculation, override any of them.
+                In share mode the input is a percentage and the line under it says what that is
+                worth against today's pool, so the number stays legible as gp. */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {placeAmounts.slice(0, paidPlaces).map((amt, i) => (
+              {(mode === 'share' ? placePercents : placeAmounts).slice(0, paidPlaces).map((val, i) => (
                 <label key={i} className="text-xs text-text-muted">
                   <span className="flex items-center gap-1">
                     {medal(i + 1)} {ordinal(i + 1)} place
                   </span>
-                  <input
-                    value={amt}
-                    onChange={(e) =>
-                      setPlaceAmounts((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
-                    }
-                    inputMode="numeric"
-                    className="mt-1 block w-full bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right text-foreground"
-                  />
+                  <span className="relative mt-1 block">
+                    <input
+                      value={val}
+                      onChange={(e) =>
+                        mode === 'share'
+                          ? setPlacePercents((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
+                          : setPlaceAmounts((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
+                      }
+                      inputMode="numeric"
+                      className="block w-full bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right text-foreground"
+                    />
+                    {mode === 'share' && (
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                        %
+                      </span>
+                    )}
+                  </span>
+                  {mode === 'share' && (
+                    <span className="mt-0.5 block text-right text-[11px] text-gold">
+                      {Math.round((pool.total * cleanNum(val)) / 100).toLocaleString()} gp
+                    </span>
+                  )}
                 </label>
               ))}
             </div>
@@ -327,6 +412,12 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               <span className="text-text-muted">
                 Total rewards: <span className="text-gold font-semibold">{rewardsTotal.toLocaleString()} gp</span>
               </span>
+              {mode === 'share' && (
+                <span className={sharesTotal > 100 ? 'text-red-400' : 'text-text-muted'}>
+                  {sharesTotal}% of the pool
+                  {sharesTotal > 100 ? ' — more than there is' : sharesTotal < 100 ? ' (the rest stays with the clan)' : ''}
+                </span>
+              )}
               {rewardsTotal !== pool.total && (
                 <span className="text-text-muted">(pool is {pool.total.toLocaleString()} gp)</span>
               )}

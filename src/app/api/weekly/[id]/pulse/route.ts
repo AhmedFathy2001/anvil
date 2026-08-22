@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { moments, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { cachedPulseToken } from '@/lib/pulseCache';
@@ -44,11 +44,20 @@ async function computeWeeklyToken(compId: number): Promise<string> {
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, compId));
 
+  // Moments arrive between sweeps and are the one thing on this page that can change while every
+  // number on it stays still — a pet doesn't move anybody's XP. Counting them is an indexed lookup
+  // on the same competition, and without it a tab sitting open never learns one landed.
+  const [feed] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(moments)
+    .where(eq(moments.weeklyCompetitionId, compId));
+
   return [
     comp.status,
     comp.endDate ?? '',
     Number(agg?.count ?? 0),
     Number(agg?.cur ?? 0),
     Number(agg?.base ?? 0),
+    Number(feed?.count ?? 0),
   ].join('|');
 }

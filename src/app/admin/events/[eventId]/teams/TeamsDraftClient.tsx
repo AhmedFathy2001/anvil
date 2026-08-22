@@ -10,6 +10,7 @@ import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import BalancePanel from '@/components/BalancePanel';
+import DraftControlPanel from '@/components/DraftControlPanel';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import PlayerEditor from '@/components/PlayerEditor';
@@ -20,7 +21,9 @@ import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
 import PlayerRatingBadge from '@/components/PlayerRatingBadge';
 import { usePlayerRatings } from '@/hooks/usePlayerRatings';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { tileWeight, isPointsMode, eventNoun } from '@/lib/utils';
+import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { eventAxes } from '@/lib/eventAxes';
 import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 
@@ -55,6 +58,9 @@ type TeamFormat = 'draft' | 'individual' | 'one_team';
 
 export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, editLocked = false }: Props) {
   const router = useRouter();
+  // What this event actually IS — a ladder and a race aren't bingos, and the start copy says so.
+  const noun = eventNoun(event.format);
+  const revealPolicyMode = hasRevealPolicy(parseEventRules(event.rules));
   const [deleting, setDeleting] = useState<number | null>(null);
   const [selectedClanMemberIds, setSelectedClanMemberIds] = useState<number[]>([]);
   const [addingPlayer, setAddingPlayer] = useState(false);
@@ -107,7 +113,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
     // A ladder event is individual-primary by design — default a fresh one to one-team-each (the
     // admin can still switch to real teams). Other formats ask on the first screen.
-    if (event.format === 'ladder') return 'individual';
+    if (eventAxes(event).competitors === 'individuals') return 'individual';
     return null; // fresh event — ask
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
@@ -538,7 +544,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   async function startBingoNow(force = false) {
     if (mutationsBlocked()) return;
-    if (!force && !confirm('Start the bingo now? This reveals all tiles to members, marks the event live, and announces the start in Discord.')) return;
+    if (!force && !confirm(
+      `Start the ${noun} now? This marks the event live, announces the start in Discord, and ` +
+      (revealPolicyMode
+        ? 'arms the board — tiles then open on the rotation you configured.'
+        : 'reveals all tiles to members.'),
+    )) return;
     setStartingBingo(true);
     setStartBingoError(null);
     try {
@@ -559,7 +570,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           }
           setStartBingoError(data.error);
         } else {
-          setStartBingoError(data.error || 'Could not start the bingo.');
+          setStartBingoError(data.error || `Could not start the ${noun}.`);
         }
       }
     } finally {
@@ -792,6 +803,22 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       <>
       <div className="rounded-xl border border-card-border bg-card-bg p-4 !mt-0">
         <ol className="flex flex-wrap items-center gap-2">
+          {/* Back lives up here with the step pills. The bottom nav only appears when there's a
+              Continue to pair it with — on the last step it was a lone link a full page down. */}
+          {Math.max(0, stepForPhase.indexOf(activeStep)) > 0 && (
+            <li className="mr-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const i = Math.max(0, stepForPhase.indexOf(activeStep));
+                  goToStep(stepForPhase[i - 1]);
+                }}
+                className="px-2 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-foreground transition-colors"
+              >
+                ← Back
+              </button>
+            </li>
+          )}
           {phases.map((p, i) => {
             const selected = stepForPhase[i] === activeStep;
             return (
@@ -979,7 +1006,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       <div className={activeStep === 0 || format === null ? 'hidden' : ''}>
         {/* Profile-driven balance advisory + modes (classic draft format only): strength bars,
             tiered pool, the balanceMode selector and the admin auto-balance action. */}
-        {!nonDraft && (activeStep === 2 || activeStep === 3) && (
+        {/* Pre-draft only: once the draft is live, DraftControlPanel below carries the same numbers
+            (measured against the average rather than the leader) plus the levers. Two spreads on one
+            screen is two answers to one question. */}
+        {!nonDraft && (activeStep === 2 || activeStep === 3) && !isDraftInProgress && (
           <div className="mb-6">
             <BalancePanel
               eventId={event.id}
@@ -988,6 +1018,20 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               ratings={ratings}
               draftStatus={draft.status}
               editLocked={editLocked}
+              onChanged={() => {
+                fetchDraft();
+                router.refresh();
+              }}
+            />
+          </div>
+        )}
+        {/* Running-draft steering: live power, the swap the engine already knows about, the
+            per-captain filter, mid-draft moves and resume-from. Renders itself away unless the
+            draft is actually active or paused. */}
+        {!nonDraft && (activeStep === 2 || activeStep === 3) && isDraftInProgress && (
+          <div className="mb-6">
+            <DraftControlPanel
+              eventId={event.id}
               onChanged={() => {
                 fetchDraft();
                 router.refresh();
@@ -1379,10 +1423,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               </h2>
               <p className="text-sm text-text-muted mt-1">
                 {draft.status === 'completed'
-                  ? 'Rosters are set. Start the bingo, adjust rosters, or re-send the roster to Discord below.'
+                  ? `Rosters are set. Start the ${noun}, adjust rosters, or re-send the roster to Discord below.`
                   : draftTeams.length === 0
                     ? 'No teams yet — go back to Enroll & team up to add players and team them up.'
-                    : 'Start the bingo, adjust rosters, or send the roster to Discord below.'}
+                    : `Start the ${noun}, adjust rosters, or send the roster to Discord below.`}
               </p>
             </div>
             {bingoStartable && (
@@ -1392,15 +1436,19 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   Ready to go
                 </h3>
                 <p className="text-xs text-text-muted mb-3">
-                  The draft is done. Starting the bingo now reveals all tiles to members, marks the
-                  event live, and announces the start in Discord. The end date stays as configured.
+                  {nonDraft ? 'Everyone is on a team.' : 'The draft is done.'} Starting the {noun} now
+                  marks the event live, announces the start in Discord, and{' '}
+                  {revealPolicyMode
+                    ? 'arms the board — tiles then open on the rotation configured on the Overview tab.'
+                    : 'reveals all tiles to members.'}{' '}
+                  {event.endDate ? 'The end date stays as configured.' : 'There is no end date set, so it runs until you end it.'}
                 </p>
                 <button
                   onClick={() => startBingoNow()}
                   disabled={startingBingo}
                   className="text-sm font-bold bg-accent-green/20 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/30 transition-colors disabled:opacity-50"
                 >
-                  {startingBingo ? 'Starting...' : 'Start Bingo Now'}
+                  {startingBingo ? 'Starting...' : `Start ${noun === 'bingo' ? 'Bingo' : noun === 'race' ? 'Race' : 'Ladder'} Now`}
                 </button>
                 {startBingoError && <p className="text-red-400 text-xs mt-2">{startBingoError}</p>}
               </div>
@@ -1784,6 +1832,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           unified view has its own actions. Steps walk the current format's phase sequence. */}
       {format !== null && !draftDone && (() => {
         const phaseIdx = Math.max(0, stepForPhase.indexOf(activeStep));
+        // Nothing to continue to = nothing worth a footer. Back is in the header for that case.
+        if (phaseIdx >= phases.length - 1) return null;
         return (
       <div className="flex items-center justify-between border-t border-card-border pt-4 !mt-6">
         <button
@@ -1794,19 +1844,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         >
           ← Back
         </button>
-        {phaseIdx < phases.length - 1 && (
-          <div className="flex items-center gap-3">
-            {!stepDone && <span className="text-xs text-text-muted">{nextHint}</span>}
-            <button
-              type="button"
-              onClick={() => goToStep(stepForPhase[Math.min(phases.length - 1, phaseIdx + 1)])}
-              disabled={!stepDone}
-              className="text-sm font-semibold px-4 py-2 rounded-lg bg-gold hover:bg-gold-light text-brown-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Continue →
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {!stepDone && <span className="text-xs text-text-muted">{nextHint}</span>}
+          <button
+            type="button"
+            onClick={() => goToStep(stepForPhase[Math.min(phases.length - 1, phaseIdx + 1)])}
+            disabled={!stepDone}
+            className="text-sm font-semibold px-4 py-2 rounded-lg bg-gold hover:bg-gold-light text-brown-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Continue →
+          </button>
+        </div>
       </div>
         );
       })()}

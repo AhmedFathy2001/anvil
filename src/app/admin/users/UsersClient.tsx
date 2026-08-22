@@ -19,6 +19,7 @@ interface User {
   id: number;
   displayName: string;
   role: Role;
+  canEditTiles?: boolean;
   isOwner: boolean;
   banned: boolean;
   createdAt: string;
@@ -45,7 +46,6 @@ const ROLE_BADGE_CLS: Record<Role, string> = {
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'member', label: 'Member — no admin access' },
   { value: 'moderator', label: 'Moderator — clan + verifications' },
-  { value: 'editor', label: 'Editor — edit event tiles' },
   { value: 'treasurer', label: 'Treasurer — moderator + collect fees' },
   { value: 'admin', label: 'Admin — full access' },
 ];
@@ -226,6 +226,24 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       alert(data.error || 'Failed to update role');
+    }
+    await fetchUsers();
+    setSavingRoleId(null);
+  }
+
+  // Tile authoring rides on top of whatever role someone has, so it's a checkbox next to the role
+  // rather than an option inside it — that's what lets a moderator or treasurer build boards
+  // without being promoted, and a member author without any moderator surfaces.
+  async function toggleTiles(user: User, canEditTiles: boolean) {
+    setSavingRoleId(user.id);
+    const res = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canEditTiles }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Failed to update tile access');
     }
     await fetchUsers();
     setSavingRoleId(null);
@@ -414,7 +432,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         </span>
       </span>
     ) : (
-      <div className="max-w-[15rem]">
+      <div className="max-w-[15rem] space-y-1.5">
         <Select
           value={user.role}
           onChange={(v) => changeRole(user, v as Role)}
@@ -422,6 +440,18 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
           ariaLabel={`Role for ${user.displayName}`}
           options={ROLE_OPTIONS}
         />
+        {user.role !== 'admin' && (
+          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-text-muted">
+            <input
+              type="checkbox"
+              checked={user.canEditTiles === true}
+              disabled={savingRoleId === user.id}
+              onChange={(e) => toggleTiles(user, e.target.checked)}
+              className="h-3.5 w-3.5 accent-gold"
+            />
+            Can build bingo boards
+          </label>
+        )}
       </div>
     );
 

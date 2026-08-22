@@ -20,6 +20,8 @@ const MAX_PVP_KILLS = 100_000;
 // of continuous play, which no real event approaches.
 const MAX_HIT = 10_000;
 const MAX_MINUTES = 525_600;
+// There are ~640 combat tasks in the game, so anything near this is a client with a bug.
+const MAX_CA_TASKS = 2_000;
 
 // Coerce a pushed value into a clean non-negative integer within [0, max]; anything else → null (absent).
 function clampCounter(v: unknown, max: number): number | null {
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     pvpKills?: unknown;
     biggestHit?: unknown;
     minutesPlayed?: unknown;
+    caTasks?: unknown;
   };
   try {
     body = await request.json();
@@ -53,7 +56,10 @@ export async function POST(request: Request) {
   // unchanged and simply never win these two awards.
   const biggestHit = clampCounter(body?.biggestHit, MAX_HIT);
   const minutesPlayed = clampCounter(body?.minutesPlayed, MAX_MINUTES);
-  if (deaths == null && lootGp == null && pvpKills == null && biggestHit == null && minutesPlayed == null) {
+  // Combat tasks FIRST completed during the event. Same absent-means-leave-it contract as the two
+  // above, so a plugin that predates it simply never wins Task Master.
+  const caTasks = clampCounter(body?.caTasks, MAX_CA_TASKS);
+  if (deaths == null && lootGp == null && pvpKills == null && biggestHit == null && minutesPlayed == null && caTasks == null) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
@@ -70,6 +76,7 @@ export async function POST(request: Request) {
       pvpKills: players.pvpKills,
       biggestHit: players.biggestHit,
       minutesPlayed: players.minutesPlayed,
+      caTasks: players.caTasks,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
   const curPvp = active.pvpKills ?? 0;
   const curHit = active.biggestHit ?? 0;
   const curMinutes = active.minutesPlayed ?? 0;
+  const curCa = active.caTasks ?? 0;
   const newDeaths = deaths != null ? Math.max(curDeaths, deaths) : curDeaths;
   const newLoot = lootGp != null ? Math.max(curLoot, lootGp) : curLoot;
   const newPvp = pvpKills != null ? Math.max(curPvp, pvpKills) : curPvp;
@@ -96,13 +104,15 @@ export async function POST(request: Request) {
   // so a client that restarts mid-event and re-pushes can't walk either number backwards.
   const newHit = biggestHit != null ? Math.max(curHit, biggestHit) : curHit;
   const newMinutes = minutesPlayed != null ? Math.max(curMinutes, minutesPlayed) : curMinutes;
+  const newCa = caTasks != null ? Math.max(curCa, caTasks) : curCa;
 
   if (
     newDeaths !== curDeaths ||
     newLoot !== curLoot ||
     newPvp !== curPvp ||
     newHit !== curHit ||
-    newMinutes !== curMinutes
+    newMinutes !== curMinutes ||
+    newCa !== curCa
   ) {
     await db
       .update(players)
@@ -112,6 +122,7 @@ export async function POST(request: Request) {
         pvpKills: newPvp,
         biggestHit: newHit,
         minutesPlayed: newMinutes,
+        caTasks: newCa,
       })
       .where(eq(players.id, active.id));
     return NextResponse.json({ ok: true, updated: 1 });

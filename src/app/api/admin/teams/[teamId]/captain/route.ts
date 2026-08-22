@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 
 // PUT /api/admin/teams/[teamId]/captain { userId: number | null }
 // Admin (or moderator) assigns or clears the Discord-linked captain for a team.
@@ -46,10 +46,15 @@ export async function PUT(
 
   await db.update(teams).set({ captainUserId: newCaptainUserId }).where(eq(teams.id, id));
 
-  // Seat the newly-assigned captain on their own team (if they're an unassigned contestant).
-  if (newCaptainUserId != null && newCaptainUserId !== team.captainUserId) {
-    await placeCaptainOnTeam(team.eventId, id, newCaptainUserId);
+  // Seat the captain on their own team, and say so when that couldn't happen — see
+  // lib/teamCaptain#captainSeatNotice.
+  //
+  // Every save, not only a change of person: it's idempotent, and re-assigning the SAME captain is
+  // how the admin card repairs one who was named back when seating didn't happen (or failed).
+  let captainNotice: string | null = null;
+  if (newCaptainUserId != null) {
+    captainNotice = captainSeatNotice(await placeCaptainOnTeam(team.eventId, id, newCaptainUserId));
   }
 
-  return NextResponse.json({ success: true, teamId: id, captainUserId: newCaptainUserId });
+  return NextResponse.json({ success: true, teamId: id, captainUserId: newCaptainUserId, captainNotice });
 }

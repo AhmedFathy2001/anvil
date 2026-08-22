@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { events, tiles, teams, completions, eventSignups, clanMembers, players, submissions, surveyQuestions, surveyResponses, eventStartProofs } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -7,14 +7,31 @@ import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
-import { parsePlacementPrizes } from '@/lib/payouts';
+import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
-import { isPointsMode, isLadderFormat, eventShapeBadge } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
+import StartProofCard from '@/components/StartProofCard';
+import { startProofState } from '@/lib/startProof';
+import EventFirsts from '@/components/events/EventFirsts';
+import { loadEventFirsts } from '@/lib/eventFirsts';
+import EventMoments from '@/components/events/EventMoments';
+import { momentsForEvent } from '@/lib/momentsStore';
+import { isPointsMode, eventShapeBadge } from '@/lib/utils';
+import { eventAxes } from '@/lib/eventAxes';
+import {
+  parseEventRules,
+  hasRevealPolicy,
+  visibleTiles,
+  isTileRevealed,
+  nextRevealAt,
+  rotationExpiries,
+  boardTiles as scoredBoardTiles,
+} from '@/lib/eventRules';
+import { deriveTileIcon } from '@/lib/tileIcons';
+import { buildLadderView } from '@/lib/ladderView';
+import LadderClient from './LadderClient';
 import { getTierBands } from '@/lib/pluginConfig';
-import { computeEventMvp, computeMemberBreakdown, computeIndividualStandings, topMember, rollupByOwner, type StatGainMap, type TeamMvp, type IndividualStanding } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
-import { monthWindowUtc } from '@/lib/ladderStandings';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
@@ -126,32 +143,12 @@ export default async function EventScoreboardPage({
       ? null
       : mvpTodayRaw;
 
-  // Ladder events: the event-wide INDIVIDUAL leaderboard (the primary standings for this format).
-  // Reuses the exact MVP inputs — it's the full sorted list, of which the MVP is the head. Only
-  // computed for ladder events so other formats pay nothing. ladderHasTeams = real multi-person
-  // teams exist, so the render labels rows by team and also shows the team board.
-  let individualStandings: IndividualStanding[] = [];
-  let individualStandingsMonthly: IndividualStanding[] = [];
+  // Ladder events rank PEOPLE and usually never end, so they get their own surface (LadderClient)
+  // rather than the team scoreboard with the team parts switched off. Everything it renders —
+  // seasons, movement, streaks, the hall — is derived here from rows already loaded above.
+  const isLadder = eventAxes(event).competitors === 'individuals';
   let ladderHasTeams = false;
-  if (isLadderFormat(event.format)) {
-    const ladderInputs = {
-      scoringMode: event.scoringMode,
-      teams: eventTeams,
-      players: eventPlayers,
-      tiles: eventTiles,
-      submissions: eventSubmissions,
-      statGains,
-      ownerByPlayerId,
-      accountSlotMode,
-    };
-    individualStandings = computeIndividualStandings({ ...ladderInputs, completions: eventCompletions });
-    // The same board windowed to the current UTC month — ladder points are completion-gated, so
-    // filtering completions by completedAt gives an exact "this month" leaderboard beside the all-time.
-    const { start: monthStart, end: monthEnd } = monthWindowUtc();
-    individualStandingsMonthly = computeIndividualStandings({
-      ...ladderInputs,
-      completions: eventCompletions.filter((c) => c.completedAt >= monthStart && c.completedAt < monthEnd),
-    });
+  if (isLadder) {
     const playersPerTeam = new Map<number, number>();
     for (const p of eventPlayers) {
       if (p.teamId != null) playersPerTeam.set(p.teamId, (playersPerTeam.get(p.teamId) ?? 0) + 1);
@@ -187,6 +184,7 @@ export default async function EventScoreboardPage({
   let mySignup: { status: string } | null = null;
   let editOpen = false;
   let hasVerifiedAccount = false;
+  let myMemberIds: number[] = [];
   if (session) {
     const sig = await db.query.eventSignups.findFirst({
       where: and(eq(eventSignups.eventId, id), eq(eventSignups.userId, session.userId)),
@@ -204,33 +202,57 @@ export default async function EventScoreboardPage({
       }).open;
     }
 
-    const verifiedCount = await db
-      .select({ id: clanMembers.id })
-      .from(clanMembers)
-      .where(
-        and(
-          eq(clanMembers.userId, session.userId),
-          isNull(clanMembers.leftAt),
-        ),
-      )
-      .limit(1);
-    hasVerifiedAccount = verifiedCount.length > 0;
+    myMemberIds = (
+      await db
+        .select({ id: clanMembers.id })
+        .from(clanMembers)
+        .where(and(eq(clanMembers.userId, session.userId), isNull(clanMembers.leftAt)))
+    ).map((m) => m.id);
+    hasVerifiedAccount = myMemberIds.length > 0;
   }
+  // Which player rows in THIS event are the viewer's — the ladder's "you" strip needs it, and it's
+  // the same membership lookup the sign-up banner already did.
+  const myPlayerIds = myMemberIds.length
+    ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
+    : [];
 
-  // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
-  // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
-  // always see it so they can finish configuring tiles ahead of the public launch.
-  const isStaff = session?.role === 'admin' || session?.role === 'treasurer' || session?.role === 'moderator';
+  // Hide the board when either (a) sign-ups haven't opened yet, or (b) the host hasn't revealed the
+  // tiles.
+  //
+  // No staff exception. This is the PUBLIC page — the one the admin rail links to as "Player view" —
+  // and a host who can't see what a member sees can't tell whether the curtain is actually drawn.
+  // Staff who want the real board have the admin panel's Tiles tab and its team boards, where
+  // looking is a deliberate act.
   const tilesHidden = !event.tilesRevealed;
-  const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
+  const hideBoardFromPlayer = window.reason === 'not_open_yet' || tilesHidden;
 
   // Reveal-policy events (lib/eventRules): members only receive the revealed subset — hidden
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
   // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
   const rules = parseEventRules(event.rules);
-  const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
+  // The board's firsts — read in claim order, so they're a fact about the event rather than a
+  // recomputation of the standings.
+  const firsts = await loadEventFirsts(event.id);
+  // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
+  // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
+  const eventMoments = await momentsForEvent(event.id, 12);
+  const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
+  // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
+  // can't they see" overlay lives on the admin team boards, which is where a host checks that.
+  const staffOnlyTileIds: number[] = [];
   const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
+
+  // A SHOWDOWN advertises its schedule: every slot's time and value are public from the start, and
+  // only the content is hidden. Members can't be sent the hidden tiles themselves (that would leak
+  // exactly what the format is built to withhold), so they get placeholders carrying nothing but
+  // when it lands and what it's worth. Staff already receive the real tiles.
+  const hiddenSchedule =
+    rules.revealPolicy === 'scheduled'
+      ? eventTiles
+          .filter((t) => !isTileRevealed(rules, t))
+          .map((t) => ({ revealAt: t.revealAt, points: t.points }))
+      : [];
 
   // Post-event survey nudge — show an approved participant a CTA once the event has ended, if a survey
   // exists and they haven't responded yet. Cheap guarded queries (only when they're eligible).
@@ -262,11 +284,15 @@ export default async function EventScoreboardPage({
 
   // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
   const pointsMode = isPointsMode(event.scoringMode);
-  const requiredTiles = eventTiles.filter((t) => !t.optional);
+  // Missions are excluded: they're a bonus dropped mid-event from their own pool, so counting them
+  // here would move the advertised board total the moment one is announced (see lib/eventRules).
+  const requiredTiles = scoredBoardTiles(eventTiles).filter((t) => !t.optional);
   const pointsOnBoard = pointsMode
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;
-  const placementPrizes = parsePlacementPrizes(event.placementPrizes);
+  // Resolved against the LIVE pool, so a board whose prizes are set as shares advertises what each
+  // place is worth right now rather than what it was worth when the host typed it in.
+  const placementPrizes = placementAmounts(event, prizePool);
 
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
@@ -276,6 +302,95 @@ export default async function EventScoreboardPage({
   }
   if ((event.addedPrizePool ?? 0) > 0) {
     prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
+  }
+
+  // The ladder view model — seasons, movement, streaks, the hall, the feed — all derived from the
+  // rows above, so a ladder costs one extra pass over data the page already had in memory.
+  const ladderView =
+    isLadder && !hideBoardFromPlayer
+      ? buildLadderView({
+          event,
+          tiles: eventTiles,
+          teams: eventTeams,
+          players: eventPlayers,
+          completions: eventCompletions,
+          submissions: eventSubmissions,
+          statGains,
+          ownerByPlayerId,
+          myPlayerIds,
+        })
+      : null;
+
+  if (ladderView) {
+    // Members see only what's been revealed; staff see the whole pool so they can still configure it.
+    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isTileRevealed(rules, t));
+    const expiries = rotationExpiries(
+      rules,
+      ladderTiles.filter((t) => t.revealedAt && !t.closedAt),
+      upcomingRevealAt,
+    );
+    return (
+      <LadderClient
+        event={event}
+        tiles={ladderTiles
+          .map((t) => ({
+            id: t.id,
+            label: t.label,
+            points: t.points,
+            icon: deriveTileIcon(t),
+            revealedAt: t.revealedAt,
+            closedAt: t.closedAt,
+          }))}
+        view={ladderView}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+        hiddenTileCount={hiddenTileCount}
+        nextRevealAt={upcomingRevealAt}
+        prizePool={prizePool}
+        prizeBreakdown={prizeBreakdownParts.length ? prizeBreakdownParts.join('  +  ') : null}
+        placementPrizes={placementPrizes}
+        expiryByTile={Object.fromEntries(expiries)}
+        showTeam={ladderHasTeams}
+        poolSize={scoredBoardTiles(eventTiles).length}
+      />
+    );
+  }
+
+  // STARTING SHOT (lib/startProof): a player who owes one is playing without their credits counting
+  // for the next few hours, and until now the only place that said so was the My Teams hub — a page
+  // you have no reason to open when you came here to look at the board. The ask lapses six hours
+  // after the start, and `needsUpload` already carries that, so this goes quiet on its own.
+  const startProofCfg = parseEventRules(event.rules).startProof;
+  const myStartProofs: {
+    playerId: number;
+    rsn: string;
+    location: string;
+    spot: { x: number; y: number; radius: number } | null;
+    keyword: string;
+    maxSessionMinutes: number;
+    status: 'pending' | 'accepted' | 'rejected' | null;
+    reviewNote: string | null;
+  }[] = [];
+  if (startProofCfg && myPlayerIds.length > 0) {
+    const proofRows = await db
+      .select()
+      .from(eventStartProofs)
+      .where(and(eq(eventStartProofs.eventId, event.id), inArray(eventStartProofs.playerId, myPlayerIds)));
+    const proofByPlayer = new Map(proofRows.map((r) => [r.playerId, r]));
+    for (const playerId of myPlayerIds) {
+      const proof = proofByPlayer.get(playerId);
+      const state = startProofState({ cfg: startProofCfg, event, playerId, proof });
+      if (!state.needsUpload || !state.location || !state.keyword) continue;
+      myStartProofs.push({
+        playerId,
+        rsn: eventPlayers.find((p) => p.id === playerId)?.name ?? 'You',
+        location: state.location,
+        spot: state.spot,
+        keyword: state.keyword,
+        maxSessionMinutes: state.maxSessionMinutes,
+        status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
+        reviewNote: proof?.reviewNote ?? null,
+      });
+    }
   }
 
   return (
@@ -292,6 +407,34 @@ export default async function EventScoreboardPage({
         forceEndedAt={event.forceEndedAt}
         placementPrizes={placementPrizes}
       />
+      {myStartProofs.length > 0 && (
+        <section className="mb-6">
+          <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 mb-3">
+            <p className="font-semibold text-yellow-300">Your starting shot is still missing</p>
+            <p className="text-sm text-text-muted">
+              Until it&apos;s filed, drops you submit are held for review. It only takes a screenshot —
+              and the ask expires a few hours into the event, so it&apos;s now or not at all.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {myStartProofs.map((c) => (
+              <StartProofCard
+                key={c.playerId}
+                eventId={event.id}
+                eventName={event.name}
+                playerId={c.playerId}
+                rsn={c.rsn}
+                location={c.location}
+                spot={c.spot}
+                keyword={c.keyword}
+                maxSessionMinutes={c.maxSessionMinutes}
+                status={c.status}
+                reviewNote={c.reviewNote}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <SignupBanner
         eventId={event.id}
         loggedIn={!!session}
@@ -354,6 +497,11 @@ export default async function EventScoreboardPage({
           </div>
         )
       ) : (
+        <>
+        {/* Who got it moving, and who drew first blood. Above the board because they're the part
+            that stops being true the moment someone else claims one. */}
+        <EventFirsts firsts={firsts} />
+        <EventMoments moments={eventMoments} />
         <ScoreboardClient
           event={event}
           tiles={boardTiles}
@@ -365,10 +513,11 @@ export default async function EventScoreboardPage({
           teamMvps={teamMvps}
           hiddenTileCount={hiddenTileCount}
           nextRevealAt={upcomingRevealAt}
-          individualStandings={individualStandings}
-          individualStandingsMonthly={individualStandingsMonthly}
-          ladderHasTeams={ladderHasTeams}
+          staffOnlyTileIds={staffOnlyTileIds}
+          hiddenSchedule={hiddenSchedule}
+          boardPointsTotal={pointsOnBoard}
         />
+        </>
       )}
     </>
   );

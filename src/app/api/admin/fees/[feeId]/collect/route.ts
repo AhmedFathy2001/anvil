@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyFeeCollector } from '@/lib/auth';
-import { del } from '@/lib/storage';
+import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
+import { eventIdForFee, markFeeCollected } from '@/lib/feeConfirmations';
 
 // A treasurer/admin claims they collected the fee in-game and uploads proof.
 //
@@ -16,15 +16,19 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ feeId: string }> },
 ) {
-  const session = await verifyFeeCollector();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { feeId } = await params;
   const id = parseInt(feeId, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid fee id' }, { status: 400 });
+  }
+
+  // A clan treasurer collects anywhere; a board treasurer only on the board they were granted, so
+  // the fee has to say which event it belongs to before we know whether they may touch it.
+  const eventId = await eventIdForFee(id);
+  const session =
+    (await verifyFeeCollector()) ?? (eventId != null ? await verifyEventTreasurer(eventId) : null);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as {
@@ -46,34 +50,12 @@ export async function POST(
     );
   }
 
-  // If we're replacing an existing proof with a different one, clean up the previous blob
-  // first. Best-effort — a failed delete shouldn't block the collection from being recorded.
-  if (fee.proofBlobUrl && proofUrl && fee.proofBlobUrl !== proofUrl) {
-    del(fee.proofBlobUrl).catch(() => {});
-  }
+  // The dispute rule, the settle-on-collect rule and the audit line live in lib/feeConfirmations,
+  // shared with the team-staff route so the two can't drift apart.
+  const { fee: updated, settled } = await markFeeCollected(fee, session.userId, {
+    proofUrl,
+    notes: body?.notes ?? null,
+  });
 
-  // Status: dispute when player's reported collector disagrees; collected otherwise.
-  const playerReport = fee.reportedCollectorUserId;
-  const status =
-    playerReport !== null && playerReport !== session.userId ? 'disputed' : 'collected';
-
-  const now = new Date().toISOString();
-  const [updated] = await db
-    .update(signupFees)
-    .set({
-      collectedByUserId: session.userId,
-      collectedAt: now,
-      // Keep any existing proof when marking paid without a new upload.
-      proofBlobUrl: proofUrl ?? fee.proofBlobUrl,
-      status,
-      // Re-marking paid resets any confirmation tally — the fee changed hands again.
-      confirmations: null,
-      confirmedByUserId: null,
-      confirmedAt: null,
-      notes: body?.notes ?? fee.notes,
-    })
-    .where(eq(signupFees.id, id))
-    .returning();
-
-  return NextResponse.json({ fee: updated });
+  return NextResponse.json({ fee: updated, settled });
 }

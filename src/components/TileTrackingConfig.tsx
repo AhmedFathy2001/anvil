@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS } from "@/lib/constants";
+import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS, AGILITY_COURSES, SEPULCHRE_TARGETS, COUNTER_TARGETS, lapUnitNoun, canonicalAgilityCourse } from "@/lib/constants";
+import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
@@ -9,6 +10,8 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { collectionDisplayTotal } from '@/lib/collectionSets';
+import { ROLL_TABLES } from '@/lib/rollTables';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
@@ -35,12 +38,28 @@ interface Props {
   tierBands?: TierBand[];
   /** Categories already used elsewhere on this board, offered as typeahead in the tag input. */
   categorySuggestions?: string[];
+  /**
+   * Does this event actually have multi-person teams? False on an individual ladder / one-team-each
+   * board, where "Team Total vs Solo", shared-kill credit and minimum-teammate gates describe a
+   * thing that doesn't exist — every team is one player. Those controls are hidden rather than
+   * cleared, so a board that later gains real teams keeps whatever was configured.
+   */
+  teamPlay?: boolean;
+  /**
+   * Can a tile on THIS board be a mission?
+   *
+   * False on a ladder, where the whole board is already a rotating pool of announced objectives —
+   * flagging one of them "mission" would be a mission inside a mission. Also false until the host
+   * turns missions on for the event, so the flag isn't offered on boards that have no announce
+   * policy to drop it with.
+   */
+  missionsAllowed?: boolean;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -49,6 +68,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
   { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
+  { key: 'lap', label: 'Agility laps & floors', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
   { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
@@ -69,8 +89,39 @@ function parseGp(raw: string): number | null {
   return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
 }
 
+// Everything a lap tile can target: the agility courses, then the Hallowed Sepulchre. The
+// Sepulchre isn't a lap course — it announces floor completions in its own chat line — but it's
+// the same counting mechanism and the same tile kind, so it shares the picker. Prefixed rather
+// than optgrouped because Select renders a flat list.
+const LAP_TARGET_OPTIONS = [
+  ...AGILITY_COURSES.map((c) => ({ value: c.name, label: `${c.label} — lvl ${c.level}` })),
+  ...SEPULCHRE_TARGETS.map((t) => ({ value: t.name, label: `Sepulchre: ${t.label} — lvl ${t.level}` })),
+];
+
+function lapTargetLabel(name: string): string {
+  const course = AGILITY_COURSES.find((c) => c.name === name);
+  if (course) return course.label;
+  const sep = SEPULCHRE_TARGETS.find((t) => t.name === name);
+  return sep ? `Sepulchre: ${sep.label}` : name;
+}
+
 // Diary selectors are "<Area> <Tier>" strings with "Any" as a wildcard on either side.
 const DIARY_ANY = 'Any';
+
+// Everything a KC-style tile can track: the boss map plus the non-boss hiscores counters (clue
+// tiers, GOTR rifts, Bounty Hunter, LMS, Soul Wars, Colosseum glory, collection-log slots). One list
+// so the picker, the chips and the CSV importer can't drift apart on what's selectable.
+const TRACKABLE_KC_OPTIONS = [
+  ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
+  ...HISCORES_ACTIVITIES.map((a) => ({ value: a.key, label: a.label, keywords: a.aliases })),
+];
+
+const TRACKABLE_KC_LABELS = new Map(TRACKABLE_KC_OPTIONS.map((o) => [o.value, o.label]));
+
+/** Display label for a tracked key, falling back to the raw key so nothing renders blank. */
+function trackedKeyLabel(key: string): string {
+  return TRACKABLE_KC_LABELS.get(key) ?? key;
+}
 
 // Activity hints for timed tiles. The free-text field accepts any name the plugin can time —
 // anything that prints a "duration:" / "completion time:" / "Time:" / "Subdued in" chat line
@@ -227,11 +278,22 @@ const DEATHLESS_ACTIVITY_SUGGESTIONS = RAID_MODE_VARIANTS.flatMap((r) => [r.base
 // line is matched exactly there, so "both normal and CM" means adding both strings).
 const RAID_KC_NAMES = DEATHLESS_ACTIVITY_SUGGESTIONS;
 
+// COUNTER_TARGETS bucketed by their `group`, preserving the order they're declared in.
+const COUNTER_GROUPS: [string, typeof COUNTER_TARGETS][] = (() => {
+  const byGroup = new Map<string, typeof COUNTER_TARGETS>();
+  for (const t of COUNTER_TARGETS) {
+    if (!byGroup.has(t.group)) byGroup.set(t.group, []);
+    byGroup.get(t.group)!.push(t);
+  }
+  return [...byGroup.entries()];
+})();
+
 function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
   if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'lap') return 'lap';
   if (initial.tileType === 'pvp') return 'pvp';
   if (initial.tileType === 'gain') return 'gain';
   if (initial.tileType === 'timed') return 'timed';
@@ -301,6 +363,150 @@ function extractCountLikeNumbers(text: string): number[] {
   return out;
 }
 
+// Hover hint next to a flag's label. Native title tooltip (same pattern as PlayerRatingBadge) so it
+// works on every surface the tile editor is embedded in without a popover dependency.
+function FlagHint({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="ml-1 cursor-help text-gold/70 border border-gold/40 rounded-full px-[5px] text-[9px] leading-[14px] inline-block align-middle"
+    >
+      i
+    </span>
+  );
+}
+
+const PER_KILL_CAP_HELP =
+  'Caps how much ONE kill can credit this tile. A DT2 boss that drops a vestige and an ingot on the same kill rolled its unique table once, so with this on the tile counts 1, not 2. Off is the historical behaviour: every tracked item, and every item in a stack, counts.';
+const ROLL_TABLE_HELP =
+  "These bosses hand out their vestige on a fixed rotation — two other uniques, then the vestige. Filling the item list with a boss's whole unique table and counting once per kill makes the tile count ROLLS, so \u201cget 3 unique rolls from Vardorvis\u201d is a target a team can make progress on rather than a coin-flip on a vestige.";
+
+const COOP_CREDIT_HELP =
+  'What a kill several of your members were in is worth. Every client sees the kill, so by default a 2-man Yama gives the team 2 KC and a 20-man raid gives it 20 — for one kill. On, the site correlates the reports of that one kill and credits it ONCE. Members killing the same boss separately still count separately.';
+const COOP_MIN_HELP =
+  'Only count a kill when at least this many of YOUR team were in it — "complete 5 raids with 3+ teammates". Counted from the members who reported the kill plus any teammates their client could name, never from the raid party size: 20 people in a CoX party is not 20 teammates. Leave blank for no requirement.';
+
+const GROUP_MODE_ANY_HELP =
+  'Any one set — the sets are alternatives. Satisfying ONE of them (plus any always-required items) finishes the tile, and pieces from different sets never mix. "Collect any one Barrows set."';
+const GROUP_MODE_ALL_HELP =
+  'Every set — all of the sets must be satisfied. Combined with "needs 1" per set this is one item from each source: a unique from each DT2 boss, a pet from each GWD boss.';
+const GROUP_REQUIRE_HELP =
+  'How many DIFFERENT items from that set count as satisfying it. The default is all of them (a full set); 1 means any single item from it; 3 of 6 means "any three of these".';
+
+// Gain vs Milestone — what a stat tile's goal is measured against. Only the hiscores-backed kinds
+// (skill XP, boss KC and the non-boss counters that ride on the same snapshot) can offer this, since
+// a lifetime total is exactly what the hiscores hold.
+function StatBasisField({
+  value,
+  onChange,
+  unit,
+}: {
+  value: string;
+  onChange: (basis: string) => void;
+  /** The kind's countable noun — "XP", "kills". */
+  unit: string;
+}) {
+  const gainHelp = `Gained — ${unit} earned while the event runs. Everyone starts from zero at the whistle, whatever they had before.`;
+  const milestoneHelp = `Milestone — a LIFETIME total reached during the event. Someone who was already at or above the goal when it started can never complete this tile; a teammate who wasn't still can. This is how "get your first Quiver" is expressed.`;
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Goal counts
+        <FlagHint text={`${gainHelp} ${milestoneHelp}`} />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          title={gainHelp}
+          onClick={() => onChange('gain')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value !== 'milestone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Gained during the event
+        </button>
+        <button
+          type="button"
+          title={milestoneHelp}
+          onClick={() => onChange('milestone')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'milestone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          🏆 Lifetime milestone
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+        {value === 'milestone' ? (
+          <>
+            Completes when a member <strong className="text-foreground/80">crosses the goal during the event</strong> —
+            so a goal of 1 means their first ever. Anyone already at or above it is locked out of this tile, and
+            it&rsquo;s always settled per member (a team&rsquo;s lifetime totals don&rsquo;t add up to anything).
+          </>
+        ) : (
+          <>Counts {unit} earned while the event runs; whatever a member had beforehand doesn&rsquo;t count.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
+// Team Total vs Solo — one control, rendered by every kind that stores a tracking mode, so the
+// wording of what the flag DOES is written once. `unit` is the kind's countable noun ("kills",
+// "task completions") and `goal` names what a member has to reach on their own.
+function TrackingModeField({
+  value,
+  onChange,
+  unit,
+  goal,
+  teamPlay = true,
+}: {
+  value: string;
+  onChange: (mode: string) => void;
+  unit: string;
+  goal: string;
+  /** False on individual boards — whose progress counts isn't a question when a team is one person. */
+  teamPlay?: boolean;
+}) {
+  if (!teamPlay) return null;
+  const teamHelp = `Team Total — every member's ${unit} add up toward the ${goal}. Three members with 4, 3 and 3 finish a tile that needs 10.`;
+  const soloHelp = `Solo — one member has to reach the ${goal} on their own. Three members with 4, 3 and 3 are still at 4 of 10; each member's count is tracked separately and the first to get there completes the tile for the team.`;
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Tracking Mode
+        <FlagHint text={`Whose progress completes this tile. ${teamHelp} ${soloHelp}`} />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          title={teamHelp}
+          onClick={() => onChange('team')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'team' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Team Total
+        </button>
+        <button
+          type="button"
+          title={soloHelp}
+          onClick={() => onChange('individual')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'individual' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Solo (Any Member)
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-0.5">
+        Team Total sums every member&rsquo;s {unit}; Solo completes when any one member reaches the {goal} alone.
+      </p>
+    </div>
+  );
+}
+
 export default function TileTrackingConfig({
   tileId,
   eventId,
@@ -312,6 +518,8 @@ export default function TileTrackingConfig({
   pointsMode,
   tierBands,
   categorySuggestions,
+  teamPlay = true,
+  missionsAllowed = true,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -329,6 +537,9 @@ export default function TileTrackingConfig({
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
+  // Whether that goal is an in-event GAIN (every stat tile before milestones existed) or a LIFETIME
+  // threshold crossed during the event. See lib/statTracking.milestoneState.
+  const [statBasis, setStatBasis] = useState<string>(initial.statBasis === 'milestone' ? 'milestone' : 'gain');
   // "solo" was the old wire value for the "Solo (Any Member)" mode; the backend only ever honoured
   // "individual", so normalize on load (the 0027 data migration flips stored rows too).
   const [trackingMode, setTrackingMode] = useState<string>(
@@ -381,7 +592,12 @@ export default function TileTrackingConfig({
   // column carries diary and CA selectors when the tile is one of those kinds, so scope each
   // state to its own kind here.
   const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
-    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' ? [] : initial.targetNpcs || [],
+    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' || initial.tileType === 'lap'
+      ? [] : initial.targetNpcs || [],
+  );
+  // Agility courses — the same targetNpcs column again, holding verbatim lap-counter names.
+  const [lapCourses, setLapCourses] = useState<string[]>(
+    initial.tileType === 'lap' ? initial.targetNpcs || [] : [],
   );
   // Diary selectors — "<Area> <Tier>" strings, "Any" wildcard on either side.
   const [diarySelectors, setDiarySelectors] = useState<string[]>(
@@ -401,6 +617,8 @@ export default function TileTrackingConfig({
       ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
       : '',
   );
+  // The course currently highlighted in the lap picker's dropdown (Add commits it to lapCourses).
+  const [lapCoursePick, setLapCoursePick] = useState<string>(AGILITY_COURSES[0].name);
   const [diaryArea, setDiaryArea] = useState<string>(DIARY_ANY);
   const [diaryTier, setDiaryTier] = useState<string>('Elite');
   // CA selectors — exact task names ("Whack-a-Mole") or "Any <Tier>" wildcards.
@@ -457,6 +675,27 @@ export default function TileTrackingConfig({
   const [valueMode, setValueMode] = useState<'single' | 'total'>(
     initial.tileType === 'valuetotal' ? 'total' : 'single',
   );
+  // How this collection's sets combine, and how many items each set needs (keyed by the lowercased
+  // set name — the same key lib/collectionSets groups on). 'all' + require 1 is "one from each source".
+  const [groupMode, setGroupMode] = useState<'any' | 'all'>(initial.groupMode === 'all' ? 'all' : 'any');
+  // "Count once per kill": a kill credits the tile once however many tracked items it dropped. What
+  // turns an item tile into a ROLL tile — see the roll-table fill below.
+  const [oncePerKill, setOncePerKill] = useState<boolean>((initial.perKillCap ?? 0) === 1);
+  // Shared kills on a KILL tile: collapse a kill several members were in, and/or require a minimum
+  // number of them in it. Separate knobs — one is "how much is a shared kill worth", the other is
+  // "does it count at all" (see lib/coopRuns).
+  const [coopPerKill, setCoopPerKill] = useState<boolean>(initial.coopCredit === 'per-kill');
+  const [coopMinMembers, setCoopMinMembers] = useState<string>(
+    initial.coopMinMembers ? String(initial.coopMinMembers) : '',
+  );
+  const [groupRequires, setGroupRequires] = useState<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const r of initial.itemRequirements ?? []) {
+      const g = r.group?.trim().toLowerCase();
+      if (g && r.groupRequire != null && r.groupRequire >= 1) out[g] = Math.max(out[g] ?? 0, r.groupRequire);
+    }
+    return out;
+  });
   const [trackedItems, setTrackedItems] = useState<{ id: number; name: string; perItemAmount: number; group?: string }[]>(
     initial.itemRequirements?.length
       ? initial.itemRequirements.map((r) => ({ id: r.itemId, name: r.name, perItemAmount: r.requiredAmount, group: r.group ?? undefined }))
@@ -466,6 +705,11 @@ export default function TileTrackingConfig({
   const [itemResults, setItemResults] = useState<{ id: number; name: string }[]>([]);
   const [itemSearching, setItemSearching] = useState(false);
   const [showItemDropdown, setShowItemDropdown] = useState(false);
+  // Drop tiles search the loot-only slice of the item list by default — searching "sword" over
+  // every item in the game buries the ones anything actually drops. Off = the full catalogue,
+  // for the rare drop the wiki's tables don't cover.
+  const [dropsOnly, setDropsOnly] = useState(true);
+  const [filteredToNothing, setFilteredToNothing] = useState(false);
   const itemSearchRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -510,7 +754,41 @@ export default function TileTrackingConfig({
   const isStat = kind === 'skill' || kind === 'boss';
   const isDrop = kind === 'drop' || kind === 'collection';
   const isCollection = kind === 'collection';
+  // The tile's requirements in the shape lib/collectionSets reads, and the sets they form — so the
+  // editor's set controls and its auto-computed total use the same rule the board completes on.
+  const collectionRequirements = trackedItems.map((i) => {
+    const g = i.group?.trim() || null;
+    const key = g?.toLowerCase();
+    const require = key ? groupRequires[key] : undefined;
+    return {
+      itemId: i.id,
+      name: i.name,
+      requiredAmount: i.perItemAmount,
+      group: g,
+      groupRequire: g && require && require >= 1 ? require : null,
+    };
+  });
+  const collectionGroups = (() => {
+    const out: { key: string; name: string; size: number }[] = [];
+    const seen = new Map<string, number>();
+    for (const i of trackedItems) {
+      const g = i.group?.trim();
+      if (!g) continue;
+      const key = g.toLowerCase();
+      const at = seen.get(key);
+      if (at == null) {
+        seen.set(key, out.length);
+        out.push({ key, name: g, size: 1 });
+      } else {
+        out[at].size++;
+      }
+    }
+    return out;
+  })();
   const isKill = kind === 'kill';
+  const isLap = kind === 'lap';
+  // "lap" on a course, "floor"/"run" in the Sepulchre — drives every noun in this block.
+  const lapNoun = lapUnitNoun(lapCourses);
   const isPvp = kind === 'pvp';
   const isGain = kind === 'gain';
   const isTimed = kind === 'timed';
@@ -566,22 +844,31 @@ export default function TileTrackingConfig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const searchItems = useCallback(async (query: string) => {
+  // Only drop/collection tiles restrict the list to loot — a gain tile is about items you make
+  // or buy, so filtering those to drops would hide everything the tile is for. The caller can
+  // override the flag to re-run a search the instant the toggle flips, before state settles.
+  const searchItems = useCallback(async (query: string, loot = isDrop && dropsOnly) => {
     if (query.length < 2) {
       setItemResults([]);
+      setFilteredToNothing(false);
       return;
     }
     setItemSearching(true);
+    const filter = loot ? '&dropsOnly=1' : '';
     try {
-      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${filter}`);
       if (res.ok) {
         const results = await res.json();
         const existingIds = new Set(trackedItems.map((i) => i.id));
-        setItemResults(results.filter((r: { id: number }) => !existingIds.has(r.id)));
+        const fresh = results.filter((r: { id: number }) => !existingIds.has(r.id));
+        setItemResults(fresh);
+        // Nothing matched *while filtered* — say so, rather than leaving an empty dropdown that
+        // reads as "no such item".
+        setFilteredToNothing(loot && fresh.length === 0);
       }
     } catch { /* ignore */ }
     setItemSearching(false);
-  }, [trackedItems]);
+  }, [trackedItems, isDrop, dropsOnly]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -662,6 +949,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'drop' || next === 'collection') {
@@ -670,6 +958,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'kill') {
@@ -677,6 +966,18 @@ export default function TileTrackingConfig({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setLapCourses([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+    } else if (next === 'lap') {
+      // Keeps lapCourses + requiredAmount — the lap kind's whole config.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setTimedActivity("");
@@ -690,6 +991,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'gain') {
@@ -700,6 +1002,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'deathless') {
@@ -711,6 +1014,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
     } else if (next === 'diary') {
@@ -720,6 +1024,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'ca') {
@@ -730,6 +1035,7 @@ export default function TileTrackingConfig({
       setSourceNpcsText("");
       setTargetNpcNames([]);
       setDiarySelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     } else if (next === 'timed') {
@@ -741,6 +1047,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setLmsPlacementCap('1');
     } else if (next === 'lms') {
       setTrackedStat("");
@@ -750,6 +1057,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setValueGpText("");
@@ -761,6 +1069,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
       setLmsPlacementCap('1');
@@ -774,6 +1083,7 @@ export default function TileTrackingConfig({
       setTargetNpcNames([]);
       setDiarySelectors([]);
       setCaSelectors([]);
+      setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
     }
@@ -801,6 +1111,11 @@ export default function TileTrackingConfig({
       if (targetNpcNames.length === 0) return 'Add at least one NPC to count kills for.';
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    }
+    if (kind === 'lap') {
+      if (lapCourses.length === 0) return 'Add at least one agility course (or Sepulchre floor) to count.';
+      const amt = parseInt(requiredAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return `Set a required ${lapNoun} count of at least 1.`;
     }
     if (kind === 'pvp') {
       if (pvpTargetMode === 'rsn' && !pvpRsnsText.split(',').some((s) => s.trim())) {
@@ -882,14 +1197,22 @@ export default function TileTrackingConfig({
         mission,
         missionRules: buildMissionRules(),
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
+        statBasis: 'gain',
         trackingMode: 'team',
         requiredAmount: null,
         trackedItemIds: null,
         itemRequirements: null,
+        // Cleared by default so switching a collection to another kind doesn't leave a stale
+        // set mode behind; the collection branch sets it.
+        groupMode: null,
+        // Same: only drop-shaped tiles carry a per-kill cap, only kill tiles carry shared-kill rules.
+        perKillCap: null,
+        coopCredit: null,
+        coopMinMembers: null,
         sourceNpcs: null,
         targetNpcs: null,
         timedActivity: null,
@@ -903,20 +1226,42 @@ export default function TileTrackingConfig({
         payload.statType = kind; // 'skill' | 'boss'
         payload.trackedStat = trackedStat;
         payload.statGoal = parseInt(statGoal, 10);
-        payload.trackingMode = trackingMode;
+        payload.statBasis = statBasis;
+        // A milestone is settled per member — a team's lifetime totals summed together are
+        // meaningless — so persist the mode the server will actually use rather than leaving a
+        // 'team' behind that the editor no longer shows.
+        payload.trackingMode = statBasis === 'milestone' ? 'individual' : trackingMode;
       } else if (kind === 'collection') {
-        payload.itemRequirements = trackedItems.map((i) => ({
-          itemId: i.id,
-          name: i.name,
-          requiredAmount: i.perItemAmount,
-          group: i.group?.trim() || null,
-        }));
+        payload.perKillCap = oncePerKill ? 1 : null;
+        payload.itemRequirements = trackedItems.map((i) => {
+          const g = i.group?.trim() || null;
+          const key = g?.toLowerCase();
+          const require = key ? groupRequires[key] : undefined;
+          return {
+            itemId: i.id,
+            name: i.name,
+            requiredAmount: i.perItemAmount,
+            group: g,
+            // Written on every row of the set (the reader takes the strictest); null = the whole set.
+            groupRequire: g && require && require >= 1 ? require : null,
+          };
+        });
+        payload.groupMode = groupMode;
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+        payload.perKillCap = oncePerKill ? 1 : null;
       } else if (kind === 'kill') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = targetNpcNames;
+        payload.trackingMode = trackingMode;
+        payload.coopCredit = coopPerKill ? 'per-kill' : null;
+        payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
+      } else if (kind === 'lap') {
+        // Course names ride the targetNpcs column (the lap tileType reinterprets it), matched
+        // verbatim against the game's lap-counter line — so canonicalise anything hand-typed.
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+        payload.targetNpcs = lapCourses.map(canonicalAgilityCourse);
         payload.trackingMode = trackingMode;
       } else if (kind === 'pvp') {
         // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
@@ -1008,6 +1353,7 @@ export default function TileTrackingConfig({
           trackedStat: updated.trackedStat,
           statType: updated.statType,
           statGoal: updated.statGoal,
+          statBasis: updated.statBasis,
           trackingMode: updated.trackingMode,
           optional: !!updated.optional,
           autoTrackDisabled: !!updated.autoTrackDisabled,
@@ -1044,7 +1390,7 @@ export default function TileTrackingConfig({
     let target: number | null = null;
     if (kind === 'skill' || kind === 'boss') target = parseAmountToken(statGoal);
     else if (kind === 'value') target = parseAmountToken(valueGpText);
-    else if (['drop', 'kill', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
+    else if (['drop', 'kill', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
     if (target == null || target <= 0) return null;
     const labelNums = extractCountLikeNumbers(label);
     if (labelNums.length === 0) return null;
@@ -1073,8 +1419,8 @@ export default function TileTrackingConfig({
                 Unlock this tile’s label, kind and required amount to fix a misconfigured tile on the
                 running board. The change is recorded as a{' '}
                 <span className="font-semibold">live override</span> in the tile history. If you lower a
-                required amount, run <span className="font-semibold">Recompute Completions</span> on the
-                Overview tab afterwards to heal teams already at the new target.
+                required amount, press <span className="font-semibold">Heal the board</span> on the
+                event&rsquo;s home page afterwards — teams already at the new target complete retroactively.
               </span>
             </span>
           </label>
@@ -1093,7 +1439,12 @@ export default function TileTrackingConfig({
               disabled={locked}
               // Hover any kind (not just the selected one) to read what it does + how it's tracked.
               title={k.blurb}
-              className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
+              // Centred text on a floor height set to the TWO-line case. Three of these labels wrap
+              // ("Item set (X each)", "Agility laps & floors", "LMS placement"), and a grid row
+              // stretches to its tallest item — so with a one-line floor those rows came out 4px
+              // taller than the rest and the block read as ragged. Sizing every button for two lines
+              // is what makes the grid uniform.
+              className={`flex min-h-[2.75rem] items-center justify-center rounded border px-2 py-1.5 text-center text-xs leading-tight transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
                   : 'border-card-border text-text-muted hover:border-gold/50'
@@ -1228,12 +1579,12 @@ export default function TileTrackingConfig({
                       key={key}
                       className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-gold/15 border border-gold/30 text-gold"
                     >
-                      {BOSSES.find((b) => b.key === key)?.label ?? key}
+                      {trackedKeyLabel(key)}
                       <button
                         type="button"
                         onClick={() => setTrackedStat(statKeys(trackedStat).filter((k) => k !== key).join(','))}
                         className="text-red-400 hover:text-red-300 flex-shrink-0"
-                        aria-label={`Remove ${BOSSES.find((b) => b.key === key)?.label ?? key}`}
+                        aria-label={`Remove ${trackedKeyLabel(key)}`}
                       >
                         &times;
                       </button>
@@ -1248,13 +1599,14 @@ export default function TileTrackingConfig({
                   const keys = statKeys(trackedStat);
                   if (!keys.includes(key)) setTrackedStat([...keys, key].join(','));
                 }}
-                placeholder={statKeys(trackedStat).length > 0 ? 'Add another boss...' : 'Select a boss...'}
-                ariaLabel="Boss"
-                options={BOSSES.filter((b) => !statKeys(trackedStat).includes(b.key)).map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }))}
+                placeholder={statKeys(trackedStat).length > 0 ? 'Add another...' : 'Select a boss or activity...'}
+                ariaLabel="Boss or activity"
+                options={TRACKABLE_KC_OPTIONS.filter((o) => !statKeys(trackedStat).includes(o.value))}
               />
               <p className="text-[10px] text-text-muted mt-0.5">
                 Add more than one to combine modes — e.g. <span className="text-foreground/70">Chambers of Xeric</span> +{' '}
-                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal.
+                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal. Non-boss
+                hiscores counters (clues, Guardians of the Rift, Bounty Hunter…) work the same way.
               </p>
             </div>
           )}
@@ -1271,29 +1623,12 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-          </div>
+          <StatBasisField value={statBasis} onChange={setStatBasis} unit={kind === 'skill' ? 'XP' : 'kills'} />
+
+          {/* A milestone is per member by definition, so the Team/Solo question doesn't apply. */}
+          {statBasis !== 'milestone' && (
+            <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" teamPlay={teamPlay} />
+          )}
         </div>
       )}
 
@@ -1320,6 +1655,58 @@ export default function TileTrackingConfig({
             </div>
           )}
 
+          {isDrop && (
+            <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={oncePerKill}
+                  onChange={(e) => setOncePerKill(e.target.checked)}
+                  className="mt-0.5 accent-gold"
+                />
+                <span className="text-xs text-foreground/90">
+                  Count once per kill
+                  <FlagHint text={PER_KILL_CAP_HELP} />
+                  <span className="block text-[10px] text-text-muted mt-0.5">
+                    One kill credits this tile once, however many tracked items it dropped. Off = every
+                    drop counts, so a kill that hands you two tracked items counts twice.
+                  </span>
+                </span>
+              </label>
+
+              {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
+                  a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
+                  item list plus the cap above, so no new tile kind is needed.
+
+                  Collapsed: these are one-click presets for four specific bosses, and shown open on
+                  every drop tile they read as settings that belong to the tile you're editing. */}
+              <details className="group">
+                <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                  <span className="transition-transform group-open:rotate-90">▸</span>
+                  Fill from a boss&rsquo;s unique table (DT2 vestige rolls)
+                  <FlagHint text={ROLL_TABLE_HELP} />
+                </summary>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {ROLL_TABLES.map((t) => (
+                    <button
+                      key={t.boss}
+                      type="button"
+                      title={`Fill the tracked items with ${t.boss}'s unique table (${t.rollItems.length} items, ${t.vestigeName} among them) and count once per kill — one roll, one credit.`}
+                      onClick={() => {
+                        setTrackedItems(t.rollItems.map((i) => ({ ...i, perItemAmount: 1 })));
+                        setSourceNpcsText(t.boss);
+                        setOncePerKill(true);
+                      }}
+                      className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                    >
+                      {t.boss}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+
           {isCollection && trackedItems.length > 0 && (
             <div>
               <label className="block text-xs text-text-muted mb-1">
@@ -1327,15 +1714,14 @@ export default function TileTrackingConfig({
               </label>
               <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
                 {(() => {
-                  const groups = new Map<string, number>();
-                  let ungrouped = 0;
-                  for (const i of trackedItems) {
-                    const g = i.group?.trim().toLowerCase();
-                    if (g) groups.set(g, (groups.get(g) ?? 0) + i.perItemAmount);
-                    else ungrouped += i.perItemAmount;
-                  }
-                  if (groups.size === 0) return ungrouped;
-                  return `${ungrouped + Math.min(...groups.values())} (smallest set of ${groups.size})`;
+                  // Same arithmetic the server stores (lib/collectionSets): the shortest path to
+                  // completion under this tile's mode.
+                  const total = collectionDisplayTotal(collectionRequirements, groupMode);
+                  const setCount = new Set(
+                    trackedItems.map((i) => i.group?.trim().toLowerCase()).filter(Boolean),
+                  ).size;
+                  if (setCount === 0) return total;
+                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : `smallest of ${setCount} sets`})`;
                 })()}
               </div>
             </div>
@@ -1409,9 +1795,73 @@ export default function TileTrackingConfig({
                   Auto-set by name prefix
                 </button>
                 <span className="text-[10px] text-text-muted leading-tight">
-                  Sets make this an <span className="text-gold">any-one-set</span> tile: one complete set finishes it
-                  (no mixing). Blank = item always required.
+                  Items sharing a set form one group. Blank = item always required.
                 </span>
+              </div>
+            )}
+
+            {/* How the sets combine + how much of each is needed. Only shown once sets exist —
+                on a flat collection there is nothing to combine. */}
+            {isCollection && collectionGroups.length > 0 && (
+              <div className="mb-2 rounded-lg border border-card-border/60 p-2.5 space-y-2">
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Sets required
+                    <FlagHint text={`How this tile's ${collectionGroups.length} sets combine. ${GROUP_MODE_ANY_HELP} ${GROUP_MODE_ALL_HELP}`} />
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      title={GROUP_MODE_ANY_HELP}
+                      onClick={() => setGroupMode('any')}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        groupMode === 'any' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      Any one set
+                    </button>
+                    <button
+                      type="button"
+                      title={GROUP_MODE_ALL_HELP}
+                      onClick={() => setGroupMode('all')}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        groupMode === 'all' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      Every set
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-0.5">
+                    {groupMode === 'all'
+                      ? 'Every set must be satisfied — with "needs 1" below, that\u2019s one item from each source.'
+                      : 'Sets are alternatives: satisfying one finishes the tile, and pieces don\u2019t mix.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Items needed per set
+                    <FlagHint text={GROUP_REQUIRE_HELP} />
+                  </label>
+                  <div className="space-y-1">
+                    {collectionGroups.map((g) => (
+                      <div key={g.key} className="flex items-center gap-2 text-xs">
+                        <span className="flex-1 min-w-0 truncate text-foreground/80">{g.name}</span>
+                        <NumberInput
+                          value={groupRequires[g.key] ?? g.size}
+                          onChange={(val) =>
+                            setGroupRequires((prev) => ({ ...prev, [g.key]: Math.min(Math.max(1, val), g.size) }))
+                          }
+                          min={1}
+                          max={g.size}
+                          fallback={g.size}
+                          className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
+                          aria-label={`Items needed from the ${g.name} set`}
+                        />
+                        <span className="text-text-muted/60 w-14">of {g.size}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1450,6 +1900,41 @@ export default function TileTrackingConfig({
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <label className="flex items-center gap-1.5 cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={dropsOnly}
+                  onChange={(e) => {
+                    setDropsOnly(e.target.checked);
+                    if (itemSearch.trim().length >= 2) {
+                      setShowItemDropdown(true);
+                      searchItems(itemSearch, e.target.checked);
+                    }
+                  }}
+                  className="accent-gold"
+                />
+                <span className="text-[10px] text-text-muted">
+                  Drops only
+                  <FlagHint text="Search only items something in the game actually drops — monster drop tables, raid and clue chests, and collection log unlocks. Uncheck to search every item in the game, including shop stock and skilling resources." />
+                </span>
+              </label>
+              {dropsOnly && filteredToNothing && !itemSearching && (
+                <span className="text-[10px] text-text-muted/70">
+                  Nothing dropped matches —{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropsOnly(false);
+                      searchItems(itemSearch, false);
+                    }}
+                    className="text-gold hover:underline"
+                  >
+                    search all items
+                  </button>
+                </span>
               )}
             </div>
             {trackedItems.length === 0 && (
@@ -1606,6 +2091,11 @@ export default function TileTrackingConfig({
               running total onto a screenshot like kill tiles.
             </p>
           </div>
+
+          {/* Gain tiles have always SAVED a tracking mode; the control was just never rendered, so a
+              tile that inherited 'individual' (e.g. switched over from a Solo kill tile) got a mode the
+              admin couldn't see or change. It's shown here now that the mode is enforced. */}
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gathered items" goal="amount" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -1701,9 +2191,15 @@ export default function TileTrackingConfig({
             </p>
 
             {/* Raid quick-adds — completions credit off the game's kill-count line, which names the
-                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings. */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Raids</span>
+                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings.
+                Collapsed, because most kill tiles aren't raids and eight raid-mode chips under the
+                search box read as required setup rather than the shortcut they are. */}
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▸</span>
+                Add a raid (exact in-game mode names)
+              </summary>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {RAID_KC_NAMES.filter((n) => !targetNpcNames.some((t) => t.toLowerCase() === n.toLowerCase())).map((n) => (
                 <button
                   key={n}
@@ -1715,7 +2211,46 @@ export default function TileTrackingConfig({
                   + {n}
                 </button>
               ))}
-            </div>
+              </div>
+            </details>
+
+            {/* Counter quick-adds — activities that keep an in-game count but aren't on the
+                hiscores, so they can only be kill tiles. None of them appear in the monster search
+                above, which is the whole point: without these chips you'd have to already know the
+                exact string. Grouped, because "Herbiboar" and "Larran's big chest" are not the same
+                kind of thing and a flat row of 18 chips reads as noise. */}
+            <details className="group mt-1.5">
+              <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▸</span>
+                Add a counter (tracked in-game, not on the hiscores)
+              </summary>
+              <div className="mt-1.5 space-y-1.5">
+                {COUNTER_GROUPS.map(([group, entries]) => {
+                  const unused = entries.filter(
+                    (e) => !targetNpcNames.some((t) => t.toLowerCase() === e.name.toLowerCase()),
+                  );
+                  if (unused.length === 0) return null;
+                  return (
+                    <div key={group}>
+                      <p className="text-[9px] uppercase tracking-wider text-text-muted/70 mb-0.5">{group}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {unused.map((e) => (
+                          <button
+                            key={e.name}
+                            type="button"
+                            onClick={() => addNpc(e.name)}
+                            className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                            title={e.note}
+                          >
+                            + {e.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
           </div>
 
           <div>
@@ -1731,32 +2266,149 @@ export default function TileTrackingConfig({
             />
           </div>
 
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" teamPlay={teamPlay} />
+
+          {/* Shared kills. Tracking Mode answers WHOSE kills count; these answer what a kill several
+              members were in is worth, and whether it counts at all. Meaningless on an individual
+              board — there are no teammates to share a kill with. */}
+          {teamPlay && (
+          <details
+            open={coopPerKill || !!coopMinMembers}
+            className="group rounded-lg border border-card-border/60"
+          >
+            {/* Collapsed by default: the defaults are right for almost every kill tile, and shown
+                open they read as decisions the author has to make. Opens itself when either is
+                actually set, so a configured tile never hides its own rules. */}
+            <summary className="cursor-pointer select-none list-none px-2.5 py-2 flex items-center gap-1.5 text-[11px] text-text-muted hover:text-foreground">
+              <span className="transition-transform group-open:rotate-90">▸</span>
+              Shared kills
+              <span className="text-text-muted/70">
+                {coopPerKill || coopMinMembers
+                  ? '— customised'
+                  : '— every member in the kill credits it'}
+              </span>
+            </summary>
+            <div className="px-2.5 pb-2.5 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={coopPerKill}
+                onChange={(e) => setCoopPerKill(e.target.checked)}
+                className="mt-0.5 accent-gold"
+              />
+              <span className="text-xs text-foreground/90">
+                Count a shared kill once
+                <FlagHint text={COOP_CREDIT_HELP} />
+                <span className="block text-[10px] text-text-muted mt-0.5">
+                  Members who were in the same kill credit it once between them. Off = every member who
+                  was there credits it, so a 20-man raid counts 20.
+                </span>
+              </span>
+            </label>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Minimum teammates per kill
+                <FlagHint text={COOP_MIN_HELP} />
+              </label>
+              <Input
+                type="number"
+                value={coopMinMembers}
+                onChange={(e) => setCoopMinMembers(e.target.value)}
+                placeholder="any"
+                min="2"
+                max="50"
+                className="w-24 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Blank = a solo kill counts. Set 3 for &ldquo;only kills you did with 2+ teammates&rdquo;.
+              </p>
+            </div>
+            </div>
+          </details>
+          )}
+        </div>
+      )}
+
+      {/* ---- AGILITY LAP KIND ---- */}
+      {isLap && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
           <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
+            <label className="block text-xs text-text-muted mb-1">
+              Courses that count <span className="text-text-muted/60">(any listed one counts)</span>
+            </label>
+
+            {lapCourses.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {lapCourses.map((course) => (
+                  <span
+                    key={course}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
+                  >
+                    {lapTargetLabel(course)}
+                    <button
+                      type="button"
+                      onClick={() => setLapCourses((prev) => prev.filter((c) => c !== course))}
+                      className="text-red-400 hover:text-red-300 flex-shrink-0"
+                      aria-label={`Remove ${course}`}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="flex gap-2">
+              <Select
+                value={lapCoursePick}
+                onChange={setLapCoursePick}
+                ariaLabel="Agility course"
+                className="flex-1"
+                options={LAP_TARGET_OPTIONS}
+              />
               <button
                 type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
+                onClick={() =>
+                  setLapCourses((prev) => (prev.includes(lapCoursePick) ? prev : [...prev, lapCoursePick]))
+                }
+                className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded border border-gold/40 bg-gold/15 text-gold hover:bg-gold/25 transition-colors"
               >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
+                + Add
               </button>
             </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s kills; Solo completes when any one member reaches the count.
+            <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+              Counted live off the in-game counter (&ldquo;Your Ardougne Rooftop lap count is: 1,234&rdquo;), so only
+              laps run <span className="text-foreground/70">during the event, with the plugin open</span> count — laps
+              banked beforehand are worth nothing. Listing several courses lets a team pick whichever they can reach.
+              {' '}Brimhaven Agility Arena counts tickets rather than laps, so it isn&rsquo;t selectable.
             </p>
+            {lapNoun !== 'lap' && (
+              <p className="text-[10px] text-amber-300/80 mt-1 leading-relaxed">
+                The Sepulchre announces <span className="text-foreground/70">each floor</span> as it&rsquo;s cleared,
+                so a full 1&rarr;5 run ticks an &ldquo;Any floor&rdquo; tile five times — set the target accordingly
+                (20 floors &asymp; 4 full runs). Pick a numbered floor instead for &ldquo;clear floor 5 ten times&rdquo;,
+                or <span className="text-foreground/70">Grand Hallowed Coffin</span> to count only complete runs.
+                Listing &ldquo;Any floor&rdquo; alongside a numbered floor is safe: one clear still counts once.
+              </p>
+            )}
           </div>
+
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Required {lapNoun === 'lap' ? 'Laps' : lapNoun === 'floor' ? 'Floors' : 'Runs'}
+            </label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={locked}
+              placeholder="e.g. 100"
+              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit={`${lapNoun}s`} goal={`${lapNoun} count`} teamPlay={teamPlay} />
         </div>
       )}
 
@@ -1853,32 +2505,7 @@ export default function TileTrackingConfig({
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s PvP kills; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="PvP kills" goal="kill count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -1964,32 +2591,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -2115,32 +2717,7 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Tracking Mode</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrackingMode("team")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "team" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Team Total
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrackingMode("individual")}
-                className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                  trackingMode === "individual" ? "bg-gold/20 border-gold text-gold" : "border-card-border text-text-muted hover:border-gold/50"
-                }`}
-              >
-                Solo (Any Member)
-              </button>
-            </div>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Team Total sums every member&rsquo;s task completions; Solo completes when any one member reaches the count.
-            </p>
-          </div>
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="task completions" goal="count" teamPlay={teamPlay} />
         </div>
       )}
 
@@ -2368,12 +2945,25 @@ export default function TileTrackingConfig({
         </div>
       )}
 
+      {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
+          on every tile it triples the length of the form for no one's benefit. Opens by default when
+          any of it is actually in use, so an existing tile never hides its own configuration. */}
+      <details open={optional || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
+        <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
+          <span className="transition-transform group-open:rotate-90">▸</span>
+          Advanced
+          <span className="text-[10px] text-text-muted/70 font-normal">
+            optional tile · mission · manual completion
+          </span>
+        </summary>
+        <div className="px-3 pb-3 space-y-3">
+
       {/* Optional toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={() => setOptional(!optional)}
-          className={`relative w-10 h-5 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
+          className={`relative mt-px w-10 h-5 shrink-0 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
         >
           <span
             className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${optional ? 'translate-x-5' : ''}`}
@@ -2382,21 +2972,25 @@ export default function TileTrackingConfig({
         <span className="text-xs text-text-muted">Optional tile (doesn&apos;t count towards total)</span>
       </div>
 
-      {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ---- */}
+      {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ----
+           Hidden entirely where a mission is meaningless (a ladder) or not enabled for the event.
+           An already-flagged tile keeps its panel so its config is never silently stranded. */}
+      {(missionsAllowed || mission) && (
+      <>
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={() => setMission(!mission)}
             aria-pressed={mission}
-            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
+            className={`relative mt-px w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mission ? 'translate-x-5' : ''}`} />
           </button>
           <span className="text-xs text-foreground font-medium">⚡ Mission (hidden until announced mid-event)</span>
         </div>
         {mission && (
-          <div className="space-y-3 pl-1">
+          <div className="space-y-3 border-l border-gold/25 pl-3 ml-[0.6rem]">
             <p className="text-[10px] text-text-muted leading-relaxed">
               This tile stays hidden until you announce it — manually, or on the cadence set in the event&apos;s
               Mission settings — then drops live with the scoring below.
@@ -2410,7 +3004,9 @@ export default function TileTrackingConfig({
               >
                 <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${missionLockout ? 'translate-x-5' : ''}`} />
               </button>
-              <span className="text-xs text-text-muted">First team to clear locks it (others can&apos;t score it)</span>
+              <span className="text-xs text-text-muted">
+                First {teamPlay ? 'team' : 'player'} to clear locks it (others can&apos;t score it)
+              </span>
             </div>
             {!pointsMode && (
               <p className="text-[10px] text-amber-300/80">
@@ -2419,7 +3015,8 @@ export default function TileTrackingConfig({
             )}
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                First-clear bonus <span className="text-text-muted/60">(extra points for the first team)</span>
+                First-clear bonus{' '}
+                <span className="text-text-muted/60">(extra points for the first {teamPlay ? 'team' : 'player'})</span>
               </label>
               <Input
                 type="number"
@@ -2497,6 +3094,9 @@ export default function TileTrackingConfig({
         )}
       </div>
 
+      </>
+      )}
+
       {/* Auto-tracking kill-switch — only meaningful for kinds the site would otherwise
           auto-credit. 'standard' tiles are already manual, so hiding it there avoids noise. */}
       {kind !== 'standard' && (
@@ -2521,6 +3121,8 @@ export default function TileTrackingConfig({
           </p>
         </div>
       )}
+        </div>
+      </details>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 

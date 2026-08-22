@@ -65,3 +65,6 @@ assets/
 # Internal docs — kept locally, not shipped in the open-source repo
 docs/PLUGIN_SUBMISSION.md
 *.premigrate-*
+
+# Claude Code worktrees (local only)
+.claude/worktrees/

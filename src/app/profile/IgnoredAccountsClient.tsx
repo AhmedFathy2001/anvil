@@ -39,7 +39,7 @@ export default function IgnoredAccountsClient({ initial }: { initial: Ignored[] 
   if (accounts.length === 0) return null;
 
   return (
-    <details className="border border-card-border rounded-xl bg-card-bg mt-6 group">
+    <details className="border border-card-border rounded-xl bg-card-bg group">
       <summary className="cursor-pointer select-none list-none px-5 py-3 flex items-center gap-2 text-sm font-medium">
         <span className="transition-transform group-open:rotate-90 text-text-muted" aria-hidden>▸</span>
         <span className="w-1 h-4 bg-text-muted/40 rounded-full" />

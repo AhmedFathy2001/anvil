@@ -3,8 +3,10 @@ import { db } from '@/db';
 import { clanMembers, events, players, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { seatEventCaptains } from '@/lib/teamCaptain';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { parseEventRules } from '@/lib/eventRules';
+import { parseStamp } from '@/lib/dbTime';
 import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam } from '@/lib/draftBalance';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
@@ -81,7 +83,8 @@ export async function GET(
   const currentPickNumber = countPicksTaken(eventPlayers);
   const poolPlayers = eventPlayers.filter((p) => p.teamId === null);
 
-  const balanceMode = parseEventRules(event.rules).balanceMode;
+  const eventRules = parseEventRules(event.rules);
+  const balanceMode = eventRules.balanceMode;
   let currentTeamId: number | null = null;
   let round = 0;
   let pickInRound = 0;
@@ -102,8 +105,26 @@ export async function GET(
     pickInRound = getPickInRound(teamOrder.length, currentPickNumber);
   }
 
+  // The per-pick clock, if the host set one. Captains see the same deadline the host does — one
+  // only the host can see would be a trap. It runs from the previous pick, so the opening pick of a
+  // draft is untimed rather than counted from an invented start.
+  const lastPickAt = eventPlayers
+    .map((p) => p.pickedAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1) ?? null;
+  // parseStamp handles both stored formats — see lib/dbTime; Date.parse would read SQLite's
+  // zone-less stamp as local time and put the deadline hours away.
+  const lastPickMs = parseStamp(lastPickAt);
+  const pickDueAt =
+    eventRules.pickSeconds > 0 && lastPickMs != null && event.draftStatus === 'active'
+      ? new Date(lastPickMs + eventRules.pickSeconds * 1000).toISOString()
+      : null;
+
   return NextResponse.json({
     status: event.draftStatus,
+    pickSeconds: eventRules.pickSeconds,
+    pickDueAt,
     teamOrder,
     players: eventPlayers,
     teams: eventTeams,
@@ -201,6 +222,11 @@ export async function POST(
         ...cleaned,
         ...eventTeams.filter((t) => !placed.has(t.id)).map((t) => t.id),
       ];
+
+      // Last chance to take the captains out of the pool: seating them happens when they're named,
+      // but that can fail at the time (RSN not verified yet) and nothing retried it — so a captain
+      // could be sitting there for another team to draft. See lib/teamCaptain#seatEventCaptains.
+      await seatEventCaptains(id);
 
       const poolCount = await db
         .select()

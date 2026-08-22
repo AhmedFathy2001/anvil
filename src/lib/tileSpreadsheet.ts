@@ -16,6 +16,7 @@ import ExcelJS from 'exceljs';
 import type { Event, Tile } from '@/lib/types';
 import { TILE_CSV_COLUMNS, tileToCsvCells, parseTileGrid, type ParsedTileCsv } from '@/lib/csvTiles';
 import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 import type { MappingItem } from '@/lib/osrsItems';
 
 const GOLD = 'FFC9A24B';
@@ -59,7 +60,10 @@ export async function buildTileSpreadsheet(opts: {
   ];
   for (const k of SKILLS) keys.addRow([k, 'skill', SKILL_LABELS[k] ?? k]);
   for (const b of BOSSES) keys.addRow([b.key, 'boss', b.label]);
-  const keyCount = SKILLS.length + BOSSES.length;
+  // The non-boss hiscores counters are just as trackable and far less discoverable, so they're
+  // listed here rather than left for someone to guess.
+  for (const a of HISCORES_ACTIVITIES) keys.addRow([a.key, 'boss', a.label]);
+  const keyCount = SKILLS.length + BOSSES.length + HISCORES_ACTIVITIES.length;
   styleHeaderRow(keys.getRow(1));
   keys.views = [{ state: 'frozen', ySplit: 1 }];
   keys.autoFilter = 'A1:C1';
@@ -76,7 +80,7 @@ export async function buildTileSpreadsheet(opts: {
   for (const t of tiles) ws.addRow(tileToCsvCells(t));
 
   // Dropdowns on the fiddly columns. Column letters follow TILE_CSV_COLUMNS order:
-  //   C=type  F=optional  H=trackedStat  I=statType. exceljs sets validation per-cell, so we
+  //   C=type  F=optional  H=trackedStat  I=statType  P=groupMode  Q=perKillCap  R=coopCredit. exceljs sets validation
   //   pre-wire a generous row range; lenient (allowBlank, no hard error) so pasting still works.
   const listValidation = (formulae: string[]): ExcelJS.DataValidation => ({
     type: 'list',
@@ -86,13 +90,16 @@ export async function buildTileSpreadsheet(opts: {
   });
   const lastRow = VALIDATION_ROWS + 1;
   for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
+    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,lap,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
+    ws.getCell(`P${r}`).dataValidation = listValidation(['"any,all"']);
+    ws.getCell(`Q${r}`).dataValidation = listValidation(['"1"']);
+    ws.getCell(`R${r}`).dataValidation = listValidation(['"per-member,per-kill"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
   }
 
-  // -- Examples (one worked row per tile kind; copy A:N into the Tiles sheet) ----------------
+  // -- Examples (one worked row per tile kind; copy A:S into the Tiles sheet) ----------------
   const ex = wb.addWorksheet(SHEET_EXAMPLES);
   ex.columns = [...TILE_CSV_COLUMNS.map((c) => ({ header: c, width: c === 'items' ? 46 : 16 })), { header: 'What it does', width: 50 }];
   styleHeaderRow(ex.getRow(1));
@@ -111,8 +118,26 @@ export async function buildTileSpreadsheet(opts: {
     'Drop POOL: requiredAmount set → any listed item counts toward the total (here, any 3).');
   example({ label: 'Full Bandos set', type: 'drop', points: 25, category: 'GWD', items: 'Bandos chestplate:1; Bandos tassets:1; Bandos boots:1' },
     'COLLECTION: no requiredAmount → each item needs its own count; completes when all are met.');
+  example({ label: 'A unique from each DT2 boss', type: 'drop', points: 40, category: 'DT2', groupMode: 'all',
+      items: 'Eye of the duke:1@Duke/1; Magus vestige:1@Duke/1; Virtus mask:1@Leviathan/1; Venator vestige:1@Leviathan/1' },
+    'ONE FROM EACH SOURCE: @Set/1 = any 1 item from that set; groupMode=all = every set must be satisfied.');
+  example({ label: 'Any one Barrows set', type: 'drop', points: 20, category: 'Barrows',
+      items: "Dharok's helm:1@Dharok; Dharok's greataxe:1@Dharok; Guthan's helm:1@Guthan; Guthan's warspear:1@Guthan" },
+    'ANY ONE SET (default): @Set groups are alternatives — complete one in full; pieces never mix.');
+  example({ label: '3 unique rolls from Vardorvis', type: 'drop', points: 25, category: 'DT2', requiredAmount: 3, perKillCap: 1,
+      items: 'Virtus mask; Virtus robe top; Virtus robe bottom; Chromium ingot; Ultor vestige; Executioner\u2019s axe head' },
+    'ROLLS, not items: the boss\u2019s whole unique table + perKillCap=1, so one kill counts once however much it drops.');
+  example({ label: '5 CoX raids with 2+ teammates', type: 'kill', points: 30, category: 'Raids', requiredAmount: 5,
+      targetNpcs: 'Chambers of Xeric', coopCredit: 'per-kill', coopMinMembers: 3 },
+    'SHARED KILLS: per-kill counts one raid once however many members were in it; coopMinMembers=3 means it only counts with 3 of your team there.');
   example({ label: 'Kill 100 cows', type: 'kill', points: 3, category: 'Skilling', requiredAmount: 100, targetNpcs: 'Cow|Cow calf' },
     'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
+  example({ label: '100 Ardougne laps', type: 'lap', points: 12, category: 'Skilling', requiredAmount: 100,
+      targetNpcs: 'Ardougne Rooftop|Prifddinas Agility Course' },
+    'Agility laps: course name(s) EXACTLY as the in-game lap counter spells them; requiredAmount = laps. Only laps run during the event count.');
+  example({ label: 'Clear Sepulchre floor 5 ten times', type: 'lap', points: 30, category: 'Skilling', requiredAmount: 10,
+      targetNpcs: 'Hallowed Sepulchre Floor 5' },
+    'Sepulchre: same tile kind. "Hallowed Sepulchre" = any floor (a full 1-5 run ticks it 5x), "Floor N" = that floor, "Grand Hallowed Coffin" = complete runs.');
   example({ label: 'Sub-30 Inferno', type: 'timed', points: 50, category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: 1800 },
     'Timed clear: complete the activity under the cap (1800s = 30:00).');
   example({ label: 'Any Master combat task', type: 'ca', points: 20, category: 'PvM', requiredAmount: 1, targetNpcs: 'Any Master' },
@@ -158,16 +183,21 @@ export async function buildTileSpreadsheet(opts: {
     '  • Only the Tiles tab is imported — the other tabs (Examples, Item list, Stat keys) are helpers.',
     '',
     'COLUMNS',
-    '  • type — one of standard / drop / kill / timed / diary / ca (dropdown; advanced boards can also',
-    '    use lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
+    '  • type — one of standard / drop / kill / lap / timed / diary / ca (dropdown; advanced boards',
+    '    can also use lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
     '    leave type = standard and fill trackedStat + statType + statGoal instead.',
     '  • points — score weight (Leagues). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
     '  • optional — true/false; optional tiles don\'t count toward the total.',
-    '  • requiredAmount — drop tiles (items needed) OR kill tiles (kills needed). Leave blank otherwise.',
+    '  • requiredAmount — drop tiles (items needed), kill tiles (kills needed) OR lap tiles (laps',
+    '    needed). Leave blank otherwise.',
     '  • trackedStat — a skill or boss, by NAME or key (e.g. Mining, Zulrah). statType (skill/boss) is',
     '    auto-detected when left blank, so usually you only need trackedStat + statGoal.',
     '  • statGoal / requiredAmount — plain numbers, or shorthand like 10m, 1.5k, 2b.',
     '  • targetNpcs — kill tiles: NPC name(s), COMMA or pipe separated, e.g. Cow, Cow calf.',
+    '    lap tiles: agility course name(s) as the in-game lap counter spells them, e.g.',
+    '    Ardougne Rooftop | Gnome Stronghold Agility (near-misses are auto-corrected on import).',
+    '    Sepulchre tiles use the same column: Hallowed Sepulchre (any floor), Hallowed Sepulchre',
+    '    Floor 1..5, or Grand Hallowed Coffin (complete runs). One 1-to-5 run = five floors.',
     '    diary tiles: "<Area> <Tier>" selectors ("Any Elite"). ca tiles: Combat Achievement task',
     '    names or "Any <Tier>" wildcards, PIPE-separated ONLY (task names can contain commas).',
     '    pvp tiles: any (any player), team:other (any rival team member), or rsn:<name> bounty entries.',

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, tiles, weeklyCompetitions, settings } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
-import { FUN_DEATH_MESSAGES } from '@/lib/constants';
+import { BOSSES, COUNTER_TARGETS, FUN_DEATH_MESSAGES, weeklyMetricLabel } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
 
@@ -29,6 +29,8 @@ export interface ScheduleWeekly {
   title: string;
   type: string;
   metric: string;
+  /** The metric as a person writes it ("Phosani's Nightmare") — see weeklyMetricLabel. */
+  metricLabel: string;
   status: string;
   startDate: string;
   endDate: string;
@@ -85,6 +87,7 @@ export async function buildSchedule(): Promise<PluginSchedule> {
       title: w.title,
       type: w.type,
       metric: w.metric,
+      metricLabel: weeklyMetricLabel(w.type, w.metric),
       status: w.status,
       startDate: w.startDate,
       endDate: w.endDate,
@@ -107,6 +110,7 @@ export interface ActiveWeekly {
   title: string;
   type: string;
   metric: string;
+  metricLabel: string;
   startDate: string;
   endDate: string;
 }
@@ -123,6 +127,7 @@ export async function getActiveWeekly(): Promise<ActiveWeekly | null> {
     title: active.title,
     type: active.type,
     metric: active.metric,
+    metricLabel: weeklyMetricLabel(active.type, active.metric),
     startDate: active.startDate,
     endDate: active.endDate,
   };
@@ -158,6 +163,8 @@ export interface PluginWebhooks {
   combatAchievements: string | null;
   pvpKills: string | null;
   clips: string | null;
+  /** Seasonal (Leagues) worlds: every notification from one routes here instead of the above. */
+  leagues: string | null;
 }
 
 export const WEBHOOK_SETTING_KEYS = [
@@ -166,6 +173,7 @@ export const WEBHOOK_SETTING_KEYS = [
   'webhook_combat_achievements',
   'webhook_pvp_kills',
   'webhook_clips',
+  'webhook_leagues',
 ] as const;
 
 // Plugin-posted notification destinations, read from the settings key/value table.
@@ -181,6 +189,7 @@ export async function getNotificationWebhooks(): Promise<PluginWebhooks> {
     combatAchievements: map.get('webhook_combat_achievements') || null,
     pvpKills: map.get('webhook_pvp_kills') || null,
     clips: map.get('webhook_clips') || null,
+    leagues: map.get('webhook_leagues') || null,
   };
 }
 
@@ -395,7 +404,9 @@ export async function getExchangePolicy(): Promise<ExchangePolicy> {
 }
 
 // Whether this instance tells the broker "discord_id X is a member here" (decision 2). Default OFF
-// (self-host sovereignty); hosted instances are flipped on at provision. The outbound /assoc push
+// (self-host sovereignty); a clan we HOST is seeded 'on' at first boot instead — see
+// seedManagedDefaults() in scripts/migrate.mjs, which writes the row only when it's absent, so a
+// hosted clan that opts back out stays out. The outbound /assoc push
 // (federation.ts pushAssociation, fired from /exchange and /token) is gated on this flag.
 export async function getAssociationPush(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ASSOCIATION_PUSH_KEY) });
@@ -422,8 +433,10 @@ export async function getBrokerTrust(): Promise<BrokerTrust[]> {
   }
 }
 
-// Master site-relayed-federation switch (WIRE §10.1). Default OFF. When on, the plugin-facing
-// /api/plugin/federation/* endpoints relay to the broker + other clan sites server-to-server.
+// Master site-relayed-federation switch (WIRE §10.1). Default OFF for a self-host; a clan we HOST is
+// seeded 'on' at first boot (scripts/migrate.mjs seedManagedDefaults), because one connected network
+// is what the hosted product sells. When on, the plugin-facing /api/plugin/federation/* endpoints
+// relay to the broker + other clan sites server-to-server.
 export async function getFederationEnabled(): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_ENABLED_KEY) });
   return row?.value === 'on';
@@ -437,6 +450,23 @@ export async function getAcceptFederatedWrites(): Promise<boolean> {
   return v !== '' && v !== 'off';
 }
 
+// --- Public showcase listing ------------------------------------------------------------------
+// Opt-OUT flag for the "Clans on Anvil" page on the Anvil site (anvilosrs.com/clans): when on, the
+// unauthenticated GET /api/public/showcase serves this clan's name + a handful of aggregate counts
+// so the operator's page can show who actually runs Anvil. Never any member, RSN or Discord data —
+// see the route for the exact payload.
+//
+// Default ON (absent row ⇒ listed), because the page only ever reaches instances the operator hosts
+// or that already advertise themselves in the federation directory. Stored as the explicit strings
+// 'on'/'off': the settings PUT folds '' to NULL, which would read back as the default.
+export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
+
+export async function getPublicShowcase(): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, PUBLIC_SHOWCASE_KEY) });
+  const v = row?.value; // default (no row) = listed; explicit 'off' opts out
+  return v !== 'off';
+}
+
 // Resolve the broker base URL (server-side ONLY — never sent to the plugin; WIRE §10.1). A DB setting
 // override wins (self-hoster pointing elsewhere), else the FEDERATION_BROKER_URL env default (the
 // pinned Anvil broker). Trailing slashes trimmed. Null when neither is set (federation can't connect).
@@ -444,4 +474,44 @@ export async function getBrokerBaseUrl(): Promise<string | null> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_BROKER_URL_KEY) });
   const raw = (row?.value?.trim() || process.env.FEDERATION_BROKER_URL?.trim() || '').replace(/\/+$/, '');
   return raw || null;
+}
+
+/**
+ * Activity names to probe when importing a member's existing personal bests.
+ *
+ * RuneLite's chat-commands plugin stores each best under `personalbest.<rsprofile>.<activity>`, in
+ * the RS-profile config scope. A plugin can read that scope by key but cannot enumerate it — the
+ * only listing API reads the main profile — so the import has to know what to ask for. These are
+ * the names the game itself uses (lowercased), which is what chat-commands keys on.
+ *
+ * Raid and party activities also exist as "<name> N players" variants; the plugin appends those
+ * rather than us shipping every combination.
+ */
+export function personalBestActivities(): string[] {
+  const names = new Set<string>();
+  for (const boss of BOSSES) {
+    const label = boss.label.toLowerCase();
+    names.add(label);
+    // RuneLite files the PB under the name the game prints, which drops the article:
+    // "The Whisperer" on the hiscores is stored as "whisperer".
+    if (label.startsWith('the ')) names.add(label.slice(4));
+    for (const alias of boss.aliases ?? []) names.add(alias.toLowerCase());
+  }
+  // Awakened DT2 variants keep their own PB, but they aren't on the hiscores so BOSSES has no entry.
+  for (const target of COUNTER_TARGETS) {
+    if (target.name.toLowerCase().endsWith('(awakened)')) names.add(target.name.toLowerCase());
+  }
+  // Timed content that isn't a hiscores boss, so it has no BOSSES entry to come from.
+  for (const extra of [
+    'gauntlet', 'corrupted gauntlet', 'the gauntlet', 'the corrupted gauntlet',
+    'fight caves', 'inferno', 'fortis colosseum', 'colosseum',
+    'barbarian assault', 'fragment of seren', 'zalcano',
+    'agility pyramid', 'ape atoll agility', 'hallowed sepulchre',
+    'hallowed sepulchre floor 1', 'hallowed sepulchre floor 2', 'hallowed sepulchre floor 3',
+    'hallowed sepulchre floor 4', 'hallowed sepulchre floor 5',
+    'guardians of the rift', 'tempoross', 'wintertodt',
+  ]) {
+    names.add(extra);
+  }
+  return [...names].sort();
 }

@@ -1,11 +1,14 @@
 import { db } from '@/db';
-import { events, teams, players, clanMembers, eventSignups, signupFees } from '@/db/schema';
+import { events, teams, players, clanMembers, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
 import { isTileRaceFormat } from '@/lib/utils';
+import { parseEventRules } from '@/lib/eventRules';
+import { startProofState } from '@/lib/startProof';
+import StartProofCard from '@/components/StartProofCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +24,7 @@ interface Involvement {
   forceEndedAt: string | null;
   isCaptain: boolean;
   isPlayer: boolean;
+  isStaff: boolean;
 }
 
 const FEE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -29,6 +33,9 @@ const FEE_BADGE: Record<string, { label: string; cls: string }> = {
   collected: { label: 'Collected', cls: 'bg-blue-500/15 text-blue-400' },
   confirmed: { label: 'Paid', cls: 'bg-accent-green/15 text-accent-green-light' },
   disputed: { label: 'Disputed', cls: 'bg-red-500/15 text-red-400' },
+  // The board ended with this one never paid, and the host wrote it off. Says so plainly rather
+  // than leaving a "Fee due" nag on an event that's been over for months.
+  closed: { label: 'Closed', cls: 'bg-text-muted/15 text-text-muted' },
 };
 
 export default async function MyTeamsHubPage() {
@@ -42,20 +49,51 @@ export default async function MyTeamsHubPage() {
     .where(and(eq(clanMembers.userId, user.userId), isNull(clanMembers.leftAt)));
   const memberIds = myMembers.map((m) => m.id);
 
+  // Kept aside from the team-card fold: the starting-shot card needs the ENROLMENT (player row),
+  // not the team, and a captain who isn't playing owes nothing.
+  let myPlayerRows: {
+    playerId: number;
+    playerName: string;
+    rules: string | null;
+    startProofLocation: string | null;
+    startProofDrawnAt: string | null;
+    startProofX: number | null;
+    startProofY: number | null;
+    startProofRadius: number | null;
+    eventId: number;
+    eventName: string;
+    endDate: string | null;
+    forceEndedAt: string | null;
+  }[] = [];
+
   const involvements = new Map<number, Involvement>();
-  const add = (row: Omit<Involvement, 'isCaptain' | 'isPlayer'>, role: 'captain' | 'player') => {
+  const add = (row: Omit<Involvement, 'isCaptain' | 'isPlayer' | 'isStaff'>, role: 'captain' | 'player' | 'staff') => {
     const existing = involvements.get(row.teamId);
     if (existing) {
       if (role === 'captain') existing.isCaptain = true;
+      else if (role === 'staff') existing.isStaff = true;
       else existing.isPlayer = true;
     } else {
-      involvements.set(row.teamId, { ...row, isCaptain: role === 'captain', isPlayer: role === 'player' });
+      involvements.set(row.teamId, {
+        ...row,
+        isCaptain: role === 'captain',
+        isPlayer: role === 'player',
+        isStaff: role === 'staff',
+      });
     }
   };
 
   if (memberIds.length > 0) {
     const playerRows = await db
       .select({
+        playerId: players.id,
+        playerName: players.name,
+        rules: events.rules,
+        startProofLocation: events.startProofLocation,
+        startProofDrawnAt: events.startProofDrawnAt,
+        startProofX: events.startProofX,
+        startProofY: events.startProofY,
+        startProofRadius: events.startProofRadius,
         teamId: teams.id,
         teamName: teams.name,
         teamColor: teams.color,
@@ -71,6 +109,7 @@ export default async function MyTeamsHubPage() {
       .innerJoin(events, eq(players.eventId, events.id))
       .where(and(inArray(players.clanMemberId, memberIds), isNotNull(players.teamId)));
     for (const r of playerRows) add(r, 'player');
+    myPlayerRows = playerRows;
   }
 
   const captainRows = await db
@@ -89,6 +128,26 @@ export default async function MyTeamsHubPage() {
     .innerJoin(events, eq(teams.eventId, events.id))
     .where(eq(teams.captainUserId, user.userId));
   for (const r of captainRows) add(r, 'captain');
+
+  // Teams this user was given a staff seat on — typically a moderator from the other clan in a
+  // clan-v-clan, who neither captains nor plays but has to run their own half.
+  const staffRows = await db
+    .select({
+      teamId: teams.id,
+      teamName: teams.name,
+      teamColor: teams.color,
+      eventId: events.id,
+      eventName: events.name,
+      format: events.format,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
+    .from(teamStaff)
+    .innerJoin(teams, eq(teamStaff.teamId, teams.id))
+    .innerJoin(events, eq(teams.eventId, events.id))
+    .where(eq(teamStaff.userId, user.userId));
+  for (const r of staffRows) add(r, 'staff');
 
   const now = new Date().toISOString();
   const all = [...involvements.values()];
@@ -119,15 +178,106 @@ export default async function MyTeamsHubPage() {
   const activeSignups = signupRows.filter((s) => {
     if (s.forceEndedAt || (s.endDate && s.endDate < now)) return false;
     const started = s.startDate != null && s.startDate <= now;
-    const feeResolved = !s.feeStatus || s.feeStatus === 'collected' || s.feeStatus === 'confirmed';
+    const feeResolved =
+      !s.feeStatus || s.feeStatus === 'collected' || s.feeStatus === 'confirmed' || s.feeStatus === 'closed';
     if (started && s.status === 'approved' && feeResolved) return false;
     return true;
   });
+
+  // STARTING SHOT (lib/startProof) — the one thing on this page that's genuinely time-critical, so
+  // it sits above everything else. Only live enrolments on an event that has drawn, and only until
+  // the shot is accepted.
+  const liveEnrolments = myPlayerRows.filter(
+    (r) => !r.forceEndedAt && (!r.endDate || r.endDate >= now) && r.startProofDrawnAt,
+  );
+  const startProofCards: {
+    key: string;
+    eventId: number;
+    eventName: string;
+    playerId: number;
+    rsn: string;
+    location: string;
+    spot: { x: number; y: number; radius: number } | null;
+    maxSessionMinutes: number;
+    keyword: string;
+    status: 'pending' | 'rejected' | null;
+    reviewNote: string | null;
+  }[] = [];
+  if (liveEnrolments.length > 0) {
+    const proofRows = await db
+      .select()
+      .from(eventStartProofs)
+      .where(inArray(eventStartProofs.playerId, liveEnrolments.map((r) => r.playerId)));
+    const byPlayer = new Map(proofRows.map((p) => [p.playerId, p]));
+    for (const r of liveEnrolments) {
+      const cfg = parseEventRules(r.rules).startProof;
+      if (!cfg) continue;
+      const proof = byPlayer.get(r.playerId);
+      if (proof?.status === 'accepted') continue; // settled — nothing to nag about
+      const state = startProofState({
+        cfg,
+        event: {
+          id: r.eventId,
+          startProofLocation: r.startProofLocation,
+          startProofDrawnAt: r.startProofDrawnAt,
+          startProofX: r.startProofX,
+          startProofY: r.startProofY,
+          startProofRadius: r.startProofRadius,
+        },
+        playerId: r.playerId,
+        proof,
+      });
+      if (!state.location || !state.keyword) continue;
+      // The ask lapses six hours after the start (lib/startProof): the game has force-logged
+      // everyone by then, so there is no stack left to prove anything about. Stop nagging.
+      if (!state.windowOpen) continue;
+      startProofCards.push({
+        key: `${r.eventId}-${r.playerId}`,
+        eventId: r.eventId,
+        eventName: r.eventName,
+        playerId: r.playerId,
+        rsn: r.playerName,
+        location: state.location,
+        spot: state.spot,
+        maxSessionMinutes: state.maxSessionMinutes,
+        keyword: state.keyword,
+        status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
+        reviewNote: proof?.reviewNote ?? null,
+      });
+    }
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">My Teams</h1>
       <p className="text-text-muted text-sm mb-8">Your events, teams, sign-ups and fees in one place.</p>
+
+      {startProofCards.length > 0 && (
+        <section className="mb-10">
+          <h2 className="font-semibold flex items-center gap-2 mb-3">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            Before you play
+          </h2>
+          <div className="grid gap-3">
+            {startProofCards.map((c) => (
+              <StartProofCard
+                key={c.key}
+                eventId={c.eventId}
+                eventName={c.eventName}
+                playerId={c.playerId}
+                rsn={c.rsn}
+                location={c.location}
+                spot={c.spot}
+                maxSessionMinutes={c.maxSessionMinutes}
+                keyword={c.keyword}
+                status={c.status}
+                reviewNote={c.reviewNote}
+                pluginHint
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mb-10">
         <h2 className="font-semibold flex items-center gap-2 mb-3">
@@ -210,6 +360,9 @@ function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {i.isCaptain && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-green/15 text-accent-green-light">Captain</span>}
+          {i.isStaff && !i.isCaptain && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">Staff</span>
+          )}
           {i.isPlayer && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">Player</span>}
         </div>
       </div>

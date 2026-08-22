@@ -48,6 +48,31 @@ export const PLUGIN_CAPABILITIES = [
   'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
   'config-etag', // conditional GET on /api/plugin/config + /board
   'bingo-missions', // mid-event announced mission tiles on a normal bingo (lockout/bonus/decay/expiry)
+  // Live push for the hiscores counters that are neither a boss nor a skill. The wire accepts any
+  // key in HISCORES_ACTIVITIES; which of them a client can actually read is the plugin's business.
+  'activity-stats',
+  // Server-relayed OBS clips: POST /api/plugin/clip uploads the video and the server posts it to the
+  // clan's clips channel, so members don't each paste a webhook into their plugin config.
+  'clip-relay',
+  // Collection log, personal bests and (later) quests/diaries/CAs pushed from the plugin to a
+  // member's profile. Advertised only once the endpoints and tables exist, because the plugin gates
+  // ALL of its reading on this: an older site is never polled, and a newer plugin against it does
+  // no widget reads, queues nothing and sends nothing.
+  'profile-sync',
+  // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
+  // channel (falling back to the normal one), marking the embed as seasonal.
+  'leagues-channel',
+  // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
+  // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
+  'start-proof',
+  // Account progress: POST /api/plugin/progress stores quest points, combat-achievement points and
+  // tier, and diary counts per member (lib/memberProgress). Gated so a plugin doesn't push into a
+  // 404 on a site that predates the table.
+  'progress',
+  // Highlight feed: POST /api/plugin/moments takes pets/drops/deaths as the client saw them and the
+  // server decides which competition week or board they belong to (lib/moments). Gated because a
+  // plugin that pushed these at a site without the endpoint would just collect 404s.
+  'moments',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

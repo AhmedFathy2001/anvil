@@ -1,10 +1,12 @@
 import { db } from '@/db';
-import { clanMembers, eventSignups, events, signupFees } from '@/db/schema';
+import { clanMembers, eventSignups, events, players, signupFees, teamInvites, teams } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
+import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
 
@@ -12,10 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function EventSignupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ invite?: string }>;
 }) {
   const { eventId } = await params;
+  const { invite: inviteToken } = await searchParams;
   const id = parseInt(eventId, 10);
   if (!Number.isFinite(id)) notFound();
 
@@ -26,6 +31,23 @@ export default async function EventSignupPage({
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
+
+  // Arrived through a team's invite link (lib/teamInvites). The token is re-checked when the form
+  // posts — this only decides whether to SAY where they're heading, so a stale link can't promise
+  // a seat it no longer has.
+  let invite: { token: string; teamName: string } | null = null;
+  if (isWellFormedToken(inviteToken)) {
+    const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
+    const window = signupWindowState({
+      signupOpensAt: event.signupOpensAt,
+      signupDeadline: event.signupDeadline,
+      startDate: event.startDate,
+    });
+    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
+      const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
+      if (team) invite = { token: row.token, teamName: team.name };
+    }
+  }
 
   const myAccounts = await db
     .select({
@@ -116,6 +138,31 @@ export default async function EventSignupPage({
     approvedCount,
   });
 
+  const eventRules = parseEventRules(event.rules);
+  const choosableTeams = eventRules.teamChoice
+    ? await db
+        .select({ id: teams.id, name: teams.name, color: teams.color })
+        .from(teams)
+        .where(eq(teams.eventId, event.id))
+        .orderBy(teams.name)
+    : [];
+
+  // The team they're ALREADY on, when they come back to edit. `requestedTeamId` is the answer to
+  // "which team did you ask for", and approving the request clears nothing — but a player seated by
+  // an admin, an invite link or a draft never had a request to begin with, so the form opened with
+  // no team selected and refused to save until they picked one. Their actual roster spot is the
+  // better answer to "which team", so it wins.
+  const myAccountIds = myAccounts.map((a) => a.id);
+  let seatedTeamId: number | null = null;
+  if (eventRules.teamChoice && myAccountIds.length > 0) {
+    const seat = await db
+      .select({ teamId: players.teamId })
+      .from(players)
+      .where(and(eq(players.eventId, event.id), inArray(players.clanMemberId, myAccountIds)))
+      .limit(1);
+    seatedTeamId = seat[0]?.teamId ?? null;
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-2 mb-2">
@@ -137,6 +184,14 @@ export default async function EventSignupPage({
 
       <SignupForm
         eventId={event.id}
+        teamChoice={
+          // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
+          // they're joining, and approving the sign-up is what seats them. An invite link already
+          // decided the team, so it wins — there is nothing left to choose.
+          eventRules.teamChoice && !invite
+            ? { teams: choosableTeams, requestedTeamId: seatedTeamId ?? signup?.requestedTeamId ?? null }
+            : null
+        }
         event={{
           signupFee: event.signupFee,
           signupOpensAt: event.signupOpensAt,
@@ -161,6 +216,7 @@ export default async function EventSignupPage({
             : null
         }
         fee={fee ?? null}
+        invite={invite}
         prefillClanMemberId={prefillClanMemberId}
         prefillProfile={prefillProfile}
         windowOpen={window.open}

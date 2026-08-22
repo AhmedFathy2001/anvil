@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ItemRequirement } from '@/lib/types';
 import { parseJsonArray } from '@/lib/tileKinds';
+import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 
 // Structural tile shape — the board clients each carry their own narrowed Tile interface.
 export interface TileTargetsLike {
@@ -132,6 +133,20 @@ export default function TileTargets({ tile, hideItems }: Props) {
 
   if (kind === 'kill' && targetNpcs.length > 0) {
     rows.push(<Row key="npcs" label="Counts kills of"><NameChips names={targetNpcs} /></Row>);
+  }
+  if (kind === 'lap' && targetNpcs.length > 0) {
+    const noun = lapUnitNoun(targetNpcs);
+    rows.push(
+      <Row key="courses" label={noun === 'lap' ? 'Counts laps on' : `Counts ${noun}s`}>
+        <NameChips
+          names={targetNpcs.map(
+            (c) => AGILITY_COURSES.find((a) => a.name === c)?.label
+              ?? SEPULCHRE_TARGETS.find((t) => t.name === c)?.label
+              ?? c,
+          )}
+        />
+      </Row>,
+    );
   }
   if (kind === 'pvp' && targetNpcs.length > 0) {
     // Selectors: 'any' = any player, 'team:other' = any rival team member, 'rsn:<name>' = named bounty.

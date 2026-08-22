@@ -58,6 +58,17 @@ interface EventBoardProps {
   matchedTileIds?: Set<number> | null;
   /** Show the complete/incomplete/in-progress status filter (mirrors the plugin). Default on. */
   showStatusFilter?: boolean;
+  /**
+   * Tiles this viewer can see but members can't (staff looking at a reveal-policy board before its
+   * tiles open). Marked rather than hidden — staff still need to configure them, but the board
+   * should not read as "this is what everyone sees".
+   */
+  staffOnlyTileIds?: Set<number> | null;
+  /** Classic boards only: the line overlay for whichever team the viewer is looking at. */
+  linePositions?: Set<number> | null;
+  neededPositions?: Set<number> | null;
+  /** Difficulty bands, so a long points list can group under them. */
+  tierBands?: import('@/lib/tileFilter').TierBand[];
 }
 
 /**

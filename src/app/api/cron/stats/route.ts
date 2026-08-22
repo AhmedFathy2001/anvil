@@ -19,8 +19,9 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, buildContributionSnapshot } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
+import { readAllActivities } from '@/lib/hiscoresActivities';
 
 // A live-overlay entry not refreshed within this window is stale: OSRS force-logs-out at ~6h, so
 // hiscores must reflect real XP/KC by then. Anything the overlay still holds above hiscores past this
@@ -28,6 +29,7 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -106,6 +108,13 @@ interface MemberWork {
   bingo: BingoTask[];
   weekly: WeeklyTask[];
   staleKey: string; // oldest task timestamp — drives oldest-first ordering
+  // Adaptive polling state (lib/statHistory.ts). A member who keeps coming back unchanged is fetched
+  // less and less often, up to a two-hour floor; anything that proves they're playing resets it.
+  missStreak: number;
+  nextDueAt: string | null;
+  lastSnapshot: string | null;
+  /** Whether the member already has a derived activity blob — false means backfill it this tick. */
+  hasActivities: boolean;
 }
 
 // A bingo player fetched this tick, held for the single-threaded completion pass.
@@ -148,7 +157,20 @@ export async function GET(request: Request) {
     const key = keyFor(clanMemberId, provisionalRsn);
     let entry = work.get(key);
     if (!entry) {
-      entry = { key, clanMemberId, fetchRsn: provisionalRsn, liveMap: {}, liveKeyTimes: {}, bingo: [], weekly: [], staleKey: 'zzzz' };
+      entry = {
+        key,
+        clanMemberId,
+        fetchRsn: provisionalRsn,
+        liveMap: {},
+        liveKeyTimes: {},
+        bingo: [],
+        weekly: [],
+        staleKey: 'zzzz',
+        missStreak: 0,
+        nextDueAt: null,
+        lastSnapshot: null,
+        hasActivities: false,
+      };
       work.set(key, entry);
     }
     if (clanMemberId != null) clanMemberIds.add(clanMemberId);
@@ -244,7 +266,16 @@ export async function GET(request: Request) {
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
     const members = await db
-      .select({ id: clanMembers.id, rsn: clanMembers.rsn, liveStats: clanMembers.liveStats, liveStatKeyTimes: clanMembers.liveStatKeyTimes })
+      .select({
+        id: clanMembers.id,
+        rsn: clanMembers.rsn,
+        liveStats: clanMembers.liveStats,
+        liveStatKeyTimes: clanMembers.liveStatKeyTimes,
+        statsMissStreak: clanMembers.statsMissStreak,
+        statsNextDueAt: clanMembers.statsNextDueAt,
+        statsLastSnapshot: clanMembers.statsLastSnapshot,
+        statsActivities: clanMembers.statsActivities,
+      })
       .from(clanMembers)
       .where(inArray(clanMembers.id, Array.from(clanMemberIds)));
     const memberById = new Map(members.map((m) => [m.id, m]));
@@ -255,17 +286,40 @@ export async function GET(request: Request) {
         entry.fetchRsn = m.rsn;
         entry.liveMap = parsePluginStats(m.liveStats);
         entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
+        entry.missStreak = m.statsMissStreak ?? 0;
+        entry.nextDueAt = m.statsNextDueAt;
+        entry.lastSnapshot = m.statsLastSnapshot;
+        entry.hasActivities = m.statsActivities != null;
+        // A plugin push means they're logged in RIGHT NOW, which is the strongest "worth fetching"
+        // signal we get — it overrides any backoff the ladder had built up while they were away.
+        if (Object.keys(entry.liveMap).length > 0) entry.nextDueAt = null;
       }
     }
   }
 
   // ── Phase 2: fetch each member once, under a shared token bucket + wall-clock budget ────────────
-  const queue = Array.from(work.values()).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  // Only fetch members who could plausibly have changed. A member still missing a baseline is always
+  // due — their tile or comp row can't score without one — but an idle member who has come back
+  // unchanged several ticks running is deferred (lib/statHistory.ts). This is the difference between
+  // polling a 200-member clan ~19k times a day and ~4k, and it compounds with every clan on the box,
+  // since all of them share one IP as far as Jagex is concerned.
+  const nowDate = new Date();
+  const allWork = Array.from(work.values());
+  const queue = allWork
+    .filter((entry) => {
+      const needsBaseline =
+        entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
+      return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    })
+    .sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  const deferred = allWork.length - queue.length;
   const fetchedBingo: FetchedBingo[] = [];
   const unrankedMemberIds = new Set<number>();
   let membersFetched = 0;
   let weeklyUpdated = 0;
   let fetchErrors = 0;
+  let historyWrites = 0;
+  let milestonesRecorded = 0;
 
   let lastDispatch = 0;
   async function takeToken() {
@@ -314,6 +368,53 @@ export async function GET(request: Request) {
             .update(clanMembers)
             .set({ liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null })
             .where(eq(clanMembers.id, entry.clanMemberId));
+        }
+      }
+
+      // ── History + adaptive polling ────────────────────────────────────────────────────────────
+      // Everything below is derived from the snapshot we already have — no extra hiscores traffic.
+      if (entry.clanMemberId != null) {
+        let previous: HiscoresSnapshot | null = null;
+        if (entry.lastSnapshot) {
+          try {
+            previous = JSON.parse(entry.lastSnapshot) as HiscoresSnapshot;
+          } catch {
+            previous = null; // corrupt blob — treat as a first sighting rather than failing the tick
+          }
+        }
+        const overallXp = Math.max(0, snapshot.skills?.overall?.xp ?? 0);
+        const changed = previous === null || overallXp !== Math.max(0, previous.skills?.overall?.xp ?? 0);
+        const missStreak = changed ? 0 : entry.missStreak + 1;
+
+        // The compact activity map the member directory reads instead of parsing full snapshots.
+        // Written whenever the snapshot is, plus once for a member who predates the column — without
+        // that backfill an idle account would sit missing from the clan leaderboards until the day
+        // it happened to gain XP, which for some members is never.
+        const writeActivities = changed || !entry.hasActivities;
+
+        await db
+          .update(clanMembers)
+          .set({
+            statsOverallXp: overallXp,
+            statsMissStreak: missStreak,
+            statsNextDueAt: nextDueAt(missStreak, new Date()),
+            // Only rewrite the blob when it would differ — an idle member's row stays untouched.
+            ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
+            ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
+          })
+          .where(eq(clanMembers.id, entry.clanMemberId));
+        if (writeActivities) entry.hasActivities = true;
+
+        if (changed) {
+          historyWrites++;
+          try {
+            await recordDailyStats({ clanMemberId: entry.clanMemberId, snapshot, previous });
+            const found = detectMilestones(previous, snapshot, computeDeltas(previous, snapshot));
+            if (found.length > 0) milestonesRecorded += await recordMilestones(entry.clanMemberId, found);
+          } catch (e) {
+            // History is a reporting nicety; a failure here must never cost the tick its scoring work.
+            log.warn('stats-cron.history-failed', { clanMemberId: entry.clanMemberId, error: (e as Error).message });
+          }
         }
       }
 
@@ -381,10 +482,20 @@ export async function GET(request: Request) {
     for (const tile of ctx.statTiles) {
       const key = `${f.player.teamId}-${tile.id}`;
       if (ctx.completionSet.has(key)) continue;
-      const gained = computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
+      // MILESTONE tiles measure a lifetime total crossed during the event rather than an in-event
+      // gain, and are always evaluated PER MEMBER — summing lifetime totals across a team is
+      // meaningless (0 + 5 + 200 clears a goal of 1 for the wrong reason). See lib/statTracking.
+      const milestone = isMilestoneBasis(tile.statBasis);
+      const ms = milestone
+        ? milestoneState(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!, tile.statGoal!)
+        : null;
+      // What this member has to their name for the tile — their lifetime for a milestone, their
+      // in-event gain otherwise. Used for the frozen contribution split either way.
+      const gained = ms ? ms.lifetime : computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
+      const meetsGoal = ms ? ms.reached : gained >= tile.statGoal!;
 
-      if (isIndividualMode(tile.trackingMode)) {
-        if (gained >= tile.statGoal!) {
+      if (milestone || isIndividualMode(tile.trackingMode)) {
+        if (meetsGoal) {
           // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
           // the sweep; the gain keeps accruing and credits if/when the tile opens up.
           const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: f.player.teamId });
@@ -441,7 +552,8 @@ export async function GET(request: Request) {
   for (const ctx of ctxList) {
     if (ctx.hasStatTiles) {
       for (const tile of ctx.statTiles) {
-        if (isIndividualMode(tile.trackingMode)) continue;
+        // Milestones were already settled per member above; they never accumulate a team total.
+        if (isIndividualMode(tile.trackingMode) || isMilestoneBasis(tile.statBasis)) continue;
         const keys = statKeys(tile.trackedStat);
         // Seed benched players' frozen gains into this run's team sums (they aren't fetched, so phase 3
         // never counted them). Their locked contribution keeps counting toward the goal + the split.
@@ -526,7 +638,11 @@ export async function GET(request: Request) {
     activeEvents: activeEvents.length,
     activeComps: activeComps.length,
     membersQueued: queue.length,
+    // How many the backoff ladder held back this tick — the number to watch when tuning it.
+    membersDeferred: deferred,
     membersFetched,
+    historyWrites,
+    milestonesRecorded,
     skipped,
     snapshotted: results.reduce((s, r) => s + r.playersSnapshotted, 0),
     checked: results.reduce((s, r) => s + r.playersChecked, 0),

@@ -201,7 +201,18 @@ export async function completeDiscordLogin(
     return banned;
   }
 
-  const token = signUserToken(user.id, user.discordUsername || user.username || 'user', user.role, user.editorScope ?? 'all');
+  const token = signUserToken(
+    user.id,
+    user.discordUsername || user.username || 'user',
+    user.role,
+    user.editorScope ?? 'all',
+    // Admins author implicitly; everyone else needs the explicit capability. It rides in the token
+    // so edge middleware can route a moderator-who-builds-boards without a DB read.
+    user.role === 'admin' || user.canEditTiles === true,
+    // Same reason: middleware has to tell a clan treasurer from someone who only runs one board's
+    // money, and it can't ask the database.
+    user.treasurerScope ?? 'all',
+  );
 
   // First-ever login lands on the getting-started checklist unless a deep link was requested.
   const destination = isNewUser && returnTo === '/' ? '/profile?welcome=1' : returnTo;

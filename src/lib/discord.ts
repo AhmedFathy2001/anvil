@@ -3,7 +3,8 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
-import { formatEfficiencyHours } from '@/lib/constants';
+import { eventAxes, taskNoun } from '@/lib/eventAxes';
+import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
   EMBED_COLOR,
@@ -148,30 +149,36 @@ export async function forwardPluginNotification(
   payload: {
     content?: string;
     embed?: Record<string, unknown> | null;
-    image?: { bytes: ArrayBuffer; filename: string } | null;
+    /**
+     * File to upload alongside the post. Usually a screenshot the embed references via
+     * "attachment://<filename>"; clips ride the same path as a video Discord renders its own
+     * player for (an embed can host an image but not a video).
+     */
+    attachment?: { bytes: ArrayBuffer; filename: string } | null;
   },
 ): Promise<boolean> {
-  const { content, embed, image } = payload;
+  const { content, embed, attachment } = payload;
   const embeds = embed ? [embed as unknown as DiscordEmbed] : undefined;
   // content/embed are plugin-supplied and reach here from anyone holding a plugin token, so neutralize
   // mentions: these clan notifications never legitimately ping, and without this a tampered plugin
   // could blast @everyone/@here/role pings through the webhook.
   const allowed_mentions: DiscordWebhookPayload['allowed_mentions'] = { parse: [] };
 
-  if (!image) {
+  if (!attachment) {
     return sendToWebhook(webhookUrl, { content: content || undefined, embeds, allowed_mentions });
   }
 
-  // Multipart upload so the screenshot rides along; Discord renders it inline via the embed's
-  // attachment:// reference. sendToWebhook is JSON-only, so this path posts directly — which means
-  // it also has to stamp the brand footer itself (postWebhook does it for every other exit).
+  // Multipart upload so the file rides along; Discord renders an image inline via the embed's
+  // attachment:// reference, and gives a video its own player. sendToWebhook is JSON-only, so this
+  // path posts directly — which means it also has to stamp the brand footer itself (postWebhook
+  // does it for every other exit).
   try {
     const form = new FormData();
     form.append(
       'payload_json',
       JSON.stringify(stampEmbeds({ content: content || undefined, embeds, allowed_mentions })),
     );
-    form.append('files[0]', new Blob([image.bytes]), image.filename);
+    form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
     const response = await fetch(webhookUrl, { method: 'POST', body: form });
     if (!response.ok) {
       const text = await response.text().catch(() => '');
@@ -351,6 +358,7 @@ function submissionTitle(tileType: string | null | undefined, tileLabel: string,
     ? '✅ Tile complete'
     : tileType === 'timed' ? '⏱️ Timed clear'
     : tileType === 'kill' ? '⚔️ Kill'
+    : tileType === 'lap' ? '🏃 Laps'
     : tileType === 'pvp' ? '💀 PvP kill'
     : '🎯 Drop';
   return clamp(`${lead} — ${tileLabel}`, LIMIT.title);
@@ -381,6 +389,8 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push(statField('Clear time', formatClearTime(durationSeconds)));
   } else if (tileType === 'kill' || tileType === 'pvp') {
     fields.push(statField('Kills', requiredAmount ? `+${amount} · ${currentTotal}/${requiredAmount}` : `+${amount}`));
+  } else if (tileType === 'lap') {
+    fields.push(statField('Laps', requiredAmount ? `+${amount} · ${currentTotal}/${requiredAmount}` : `+${amount}`));
   } else if (requiredAmount) {
     fields.push(statField('Progress', `+${amount} · ${currentTotal}/${requiredAmount}`));
   }
@@ -444,7 +454,10 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     ? ` · ${currentTotal}/${requiredAmount}`
     : '';
   fields.push(
-    statField(tileType === 'kill' || tileType === 'pvp' ? 'Kills' : 'Progress', `+${pendingAmount}${progress}`),
+    statField(
+      tileType === 'kill' || tileType === 'pvp' ? 'Kills' : tileType === 'lap' ? 'Laps' : 'Progress',
+      `+${pendingAmount}${progress}`,
+    ),
   );
 
   if (note) {
@@ -576,7 +589,8 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
 
 interface TilesRevealedNotifyParams {
   eventName: string;
-  tiles: { label: string; points: number | null }[];
+  /** `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. */
+  tiles: { label: string; points: number | null; icon?: string | null }[];
   /** Show per-tile point values (points-scoring events only). */
   pointsMode: boolean;
   /** Hidden tiles left after this reveal — the "more to come" teaser. */
@@ -587,42 +601,72 @@ interface TilesRevealedNotifyParams {
   mission?: boolean;
   /** Links the author line + title to the board. */
   eventId?: number | null;
+  /** When the next batch is due, for a live countdown. Null on bounty (draws on a claim instead). */
+  nextRevealAt?: string | null;
 }
 
 // Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
 // next-tile, mission announces). One embed per batch, not per tile, so an interval batch of 5 is a
 // single post.
 export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
-  const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId } = params;
+  const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId, nextRevealAt } = params;
   if (tiles.length === 0) return false;
 
   const noun = mission ? 'mission' : 'tile';
-  const lines = tiles
-    .slice(0, 15)
-    .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
-  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
-  const remaining = mission
-    ? '' // missions drop from their own pool; a "still hidden" count would spoil the surprise
-    : hiddenRemaining > 0
-      ? `\n\n${hiddenRemaining} tile${hiddenRemaining === 1 ? '' : 's'} still hidden…`
-      : '';
+  const single = tiles.length === 1;
 
+  // A single reveal is the common case (batch size 1, bounty, most mission drops) and deserves to
+  // read as one thing rather than a bullet list of one: the tile's name IS the headline, its art is
+  // the thumbnail, and its value is a boxed field like every other number Anvil posts.
   const title = mission
-    ? tiles.length === 1
-      ? '⚡ New mission is live!'
+    ? single
+      ? `⚡ New mission: ${tiles[0].label}`
       : `⚡ ${tiles.length} new missions are live!`
     : bounty
-      ? '🎯 New bounty tile is up!'
-      : tiles.length === 1
-        ? '🔓 New tile revealed!'
+      ? `🎯 New bounty: ${tiles[0].label}`
+      : single
+        ? `🔓 Now open: ${tiles[0].label}`
         : `🔓 ${tiles.length} new ${noun}s revealed!`;
 
+  const lines = single
+    ? []
+    : tiles
+        .slice(0, 15)
+        .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+  if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
+
+  const description = single
+    ? bounty
+      ? 'First to finish it claims it — nobody else can score it.'
+      : mission
+        ? 'Live now. Go get it.'
+        : 'Live now — it counts from this moment.'
+    : clamp(lines.join('\n'), LIMIT.description);
+
+  const fields: DiscordEmbedField[] = [];
+  if (single && pointsMode && tiles[0].points != null) {
+    fields.push(statField('Worth', `${tiles[0].points} pts`));
+  }
+  // Missions drop from their own pool; a "still hidden" count would spoil the surprise.
+  if (!mission && hiddenRemaining > 0) {
+    fields.push(statField(`Still hidden`, `${hiddenRemaining} ${noun}${hiddenRemaining === 1 ? '' : 's'}`));
+  }
+  // A live countdown beats "more to come" — every client renders it ticking, in its own timezone.
+  if (nextRevealAt) {
+    fields.push(field('Next drop', discordTime(nextRevealAt, 'R')));
+  } else if (bounty) {
+    fields.push(field('Next drop', 'When this one is claimed'));
+  }
+
   const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
+  const icon = single ? tiles[0].icon : null;
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title,
-    description: clamp(`${lines.join('\n')}${remaining}`, LIMIT.description),
+    title: clamp(title, LIMIT.title),
+    description,
     color: EMBED_COLOR.gold,
+    ...(icon ? { thumbnail: { url: icon } } : {}),
+    ...(fields.length ? { fields } : {}),
     ...(boardUrl ? { url: boardUrl } : {}),
   };
 
@@ -803,22 +847,74 @@ interface EventStartNotifyParams {
   eventName: string;
   startDate: string;
   endDate?: string | null;
+  /** What this event IS — a ladder isn't played by teams, so it isn't wished luck as teams. */
+  format?: string | null;
+  /** Tiles/tasks on the board, and how many of them are open right now (reveal-policy boards). */
+  tileCount?: number | null;
+  openTileCount?: number | null;
+  /** Total points on the board, for a points-scored event. */
+  totalPoints?: number | null;
+  /** Starting shot required (lib/startProof): where everyone has to be for their proof screenshot. */
+  startProofLocation?: string | null;
+  /** Minutes the session may have been running when the shot is taken. 0/null = not asked for. */
+  startProofSessionMinutes?: number | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventId, eventName, startDate, endDate } = params;
+  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes } = params;
+  // Wording follows who is competing, not the format name — a board that ranks people can't be
+  // wished luck "to all teams", and its entries are tasks.
+  const axes = eventAxes({ format, scoringMode: 'points', endDate });
+  const ladder = axes.competitors === 'individuals';
+  const noun = taskNoun(axes);
 
   const fields: DiscordEmbedField[] = [field('Started', discordTime(startDate))];
 
   if (endDate) {
     // Exact end time + a live countdown that ticks down in everyone's client.
     fields.push(field('Ends', `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`));
+  } else {
+    // An open-ended run is a deliberate setup (a ladder that cycles monthly), so say so rather
+    // than leaving a conspicuous hole where the end date goes.
+    fields.push(field('Ends', 'No end date — runs until it\u2019s closed'));
+  }
+
+  // What's actually on the board. A start post that says only "it started" makes every event look
+  // identical; the size and shape of the board is the first thing anyone wants to know.
+  if (tileCount && tileCount > 0) {
+    const open = openTileCount != null && openTileCount < tileCount
+      ? `${openTileCount} of ${tileCount} open`
+      : `${tileCount} ${noun}${tileCount === 1 ? '' : 's'}`;
+    fields.push(statField('Board', open));
+  }
+  if (totalPoints && totalPoints > 0) {
+    fields.push(statField('Points up for grabs', totalPoints.toLocaleString()));
+  }
+
+  // Starting shot: the location is drawn at this exact moment, so this post is the first place
+  // anyone can learn it. Each player's keyword is personal and lives on the site, never here.
+  if (startProofLocation) {
+    // The relog isn't ceremony: hiscores only flush on logout, so a session that predates the start
+    // leaves everyone's baseline stale. Say WHY, or people will read it as busywork and skip it.
+    const relog = startProofSessionMinutes && startProofSessionMinutes > 0
+      ? `\n**Log out and back in first** (within ${startProofSessionMinutes} min of your shot) — that's what flushes your hiscores so your starting totals are right.`
+      : '';
+    fields.push(
+      field(
+        '📸 Starting shot required',
+        `Go to **${startProofLocation}** and take your shot before you play.${relog}\n` +
+          'Plugin users: press **Take starting shot** in the Anvil panel. ' +
+          'Everyone else: grab your keyword on the site and type it in-game.',
+      ),
+    );
   }
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title: '🚀 Event started',
-    description: `**${eventName}** has begun. Good luck to all teams!${boardLinkLine(eventId)}`,
+    title: ladder ? '🚀 Ladder is live' : '🚀 Event started',
+    description: ladder
+      ? `**${eventName}** is live. Climb the board — every task you finish is points on your name.${boardLinkLine(eventId)}`
+      : `**${eventName}** has begun. Good luck to all teams!${boardLinkLine(eventId)}`,
     color: EMBED_COLOR.green,
     fields,
     ...(eventLeaderboardUrl(eventId) ? { url: eventLeaderboardUrl(eventId)! } : {}),
@@ -937,10 +1033,8 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
 
-function weeklyKind(type: string): string {
-  if (type === 'efficiency') return 'Efficiency of the Week';
-  return type === 'skill' ? 'Skill of the Week' : 'Boss of the Week';
-}
+// One definition, shared with the home page (lib/constants.weeklyKindLabel).
+const weeklyKind = weeklyKindLabel;
 
 // The competition's own icon: the skill's wiki icon for a SOTW, the boss's signature drop for a
 // BOTW. Efficiency spans everything, so it gets none.

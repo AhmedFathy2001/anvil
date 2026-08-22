@@ -51,6 +51,62 @@ export interface KeyedGain {
   gained: number;
 }
 
+/** The six real clue tiers, easiest first. `all` is their sum, not a tier — never counted here. */
+const CLUE_TIERS = ['beginner', 'easy', 'medium', 'hard', 'elite', 'master'] as const;
+
+export interface ClueGain {
+  /** Caskets opened across every tier during the event. */
+  total: number;
+  /** The tier they opened most of, for the award's detail line. Null when nothing moved. */
+  topTier: string | null;
+  topTierGained: number;
+}
+
+/**
+ * Caskets opened between two hiscores snapshots, by tier.
+ *
+ * Summed from the SIX TIERS rather than read off `clues.all`, for two reasons: `all` is unranked
+ * (-1) for accounts with only a handful of clues, where the individual tiers still chart; and the
+ * per-tier split is what makes the award say "412 caskets · mostly hard" instead of a bare number.
+ *
+ * Same free-data trick as biggestGain: one hiscores read returns the whole account, so these
+ * counters are already sitting in the two snapshots the recap holds.
+ */
+export function clueGain(
+  baselineJson: string | null | undefined,
+  currentJson: string | null | undefined,
+): ClueGain | null {
+  if (!baselineJson || !currentJson) return null;
+  let baseline: Record<string, Record<string, { score?: number }>>;
+  let current: typeof baseline;
+  try {
+    baseline = JSON.parse(baselineJson);
+    current = JSON.parse(currentJson);
+  } catch {
+    return null;
+  }
+  const before = baseline?.clues ?? {};
+  const after = current?.clues ?? {};
+
+  let total = 0;
+  let topTier: string | null = null;
+  let topTierGained = 0;
+  for (const tier of CLUE_TIERS) {
+    // Hiscores reports -1 for unranked, so floor both sides: someone crossing onto the board gained
+    // what they now have, not that plus one.
+    const now = Math.max(0, Number(after?.[tier]?.score ?? 0));
+    const then = Math.max(0, Number(before?.[tier]?.score ?? 0));
+    const gained = now - then;
+    if (gained <= 0) continue;
+    total += gained;
+    if (gained > topTierGained) {
+      topTierGained = gained;
+      topTier = tier;
+    }
+  }
+  return total > 0 ? { total, topTier, topTierGained } : null;
+}
+
 /**
  * The single biggest per-key gain between two hiscores snapshots.
  *

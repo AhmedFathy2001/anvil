@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhookField from '@/components/WebhookField';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
+import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
@@ -15,6 +17,7 @@ import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
+import ToggleSetting from '@/components/ToggleSetting';
 import RoleSetting from '@/components/RoleSetting';
 import FederationSettings from '@/components/FederationSettings';
 
@@ -52,7 +55,14 @@ function FieldHeader({ title, children }: { title: string; children?: ReactNode 
 // tab state is interactive; `channels`/`botEnabled` are fetched server-side and passed to every
 // WebhookField (which is why this isn't just a server component).
 export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps) {
-  const [tab, setTab] = useState<TabId>('bot');
+  // ?tab=fees opens straight on that group. The fee settings are the ones people are sent here FOR
+  // (from the fees page, which is where the question "how many sign-offs?" actually comes up), and
+  // landing on the bot tab with no idea which of six groups holds it is how a setting stays unfound.
+  const params = useSearchParams();
+  const requested = params.get('tab');
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((t) => t.id === requested) ? (requested as TabId) : 'bot',
+  );
 
   return (
     <div>
@@ -95,6 +105,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               placeholder="https://discord.gg/your-invite"
               helpText="Shown as the Discord link in the top nav and on the home page. Hidden when blank."
             />
+          </div>
+          <div className="border-t border-card-border pt-5">
+            <DiscordLanguageSetting />
           </div>
         </Card>
       )}
@@ -182,6 +195,19 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               channels={channels}
               botEnabled={botEnabled}
             />
+            <WebhookField
+              settingKey="webhook_leagues"
+              label="Leagues channel"
+              helpText="While a member is on a seasonal (Leagues) world, ALL their notifications go here instead of the channels above — league drops and kill counts are meaningless next to main-game ones, and mixing them makes both channels unreadable. Leave blank to keep everything in the normal channels; seasonal posts are marked either way."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <PlainSetting
+              settingKey="leagues_icon_url"
+              label="Leagues icon (optional)"
+              placeholder="https://oldschool.runescape.wiki/images/..."
+              helpText="Thumbnail on seasonal posts. Left blank, Anvil looks up the current league's logo from the wiki once a day and falls back to the generic Leagues icon if it can't. Set this to pin a specific image."
+            />
           </Card>
         </div>
       )}
@@ -267,8 +293,15 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             settingKey="fee_confirmations_required"
             label="Confirmations required to settle a fee"
             placeholder="1"
-            helpText="How many different staff must confirm a paid fee before it's marked settled. 1 = a single admin confirm (default). Set 2+ to require multiple sign-offs. The collector can never confirm their own."
+            helpText="How many different staff must confirm a paid fee before it's marked settled. 1 = a single admin confirm (default); the collector can never confirm their own. Set 2+ to require several sign-offs. Set 0 if you are the only person handling money — marking a fee paid then settles it outright, with no second signature to wait for."
           />
+          <div className="border-t border-card-border pt-4 mt-4">
+            <ToggleSetting
+              settingKey="fee_autoconfirm_on_event_end"
+              label="Settle collected fees when an event ends"
+              helpText="When an event ends, mark its already-collected fees as settled without waiting for a second admin. Off by default: it skips the sign-off that stops one person both taking the money and marking it received. Fees nobody has collected are never touched — this only closes out ones a mod already said they had."
+            />
+          </div>
         </Card>
       )}
 
@@ -285,6 +318,30 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               Kill times, XP rates and skill floors behind the Tiles tab&apos;s effort model — tune them to your clan.
             </FieldHeader>
             <BalanceRatesSetting />
+          </Card>
+          <Card>
+            <FieldHeader title="House rules">
+              Your clan&apos;s own rules, in your words — what the Discord bot lays out on{' '}
+              <code className="text-gold">/bingo rules</code>. How each board scores (points, lockout, reveals,
+              starting shot) is read off the event itself and never typed here, so this is only the prose:
+              screenshots, plugin use, what counts as cheating.
+            </FieldHeader>
+            <PlainSetting
+              settingKey="board_rules"
+              label="House rules"
+              multiline
+              rows={12}
+              placeholder={'Keep a screenshot of every drop.\nRun the plugin if you can.\nDon\'t cheat — it\'s for fun.'}
+              helpText="Discord markdown works (**bold**, bullet lists). Long rulesets are trimmed to fit an embed, so put the essentials first and link the rest below."
+            />
+            <div className="border-t border-card-border pt-4 mt-4">
+              <PlainSetting
+                settingKey="board_rules_url"
+                label="Full rules link"
+                placeholder="https://…"
+                helpText="Where the complete ruleset lives. Shown under the house rules in Discord, and the fallback when they're too long to post in full."
+              />
+            </div>
           </Card>
         </div>
       )}

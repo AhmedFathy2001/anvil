@@ -5,7 +5,7 @@ import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getTeamForPick, countPicksTaken } from '@/lib/draft';
 import { parseEventRules } from '@/lib/eventRules';
-import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam, tierPickBlockReason, type DraftBalance } from '@/lib/draftBalance';
+import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam, spreadCapBlockReason, tierPickBlockReason, type DraftBalance } from '@/lib/draftBalance';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -79,9 +79,10 @@ export async function POST(
   // Balance modes (events.rules.balanceMode): 'dynamic-order' replaces fixed serpentine with
   // weakest-projected-team-picks-next; 'tiered-snake' keeps serpentine but polices S/A-tier
   // stacking below. Profile compute only runs when a mode needs it.
-  const balanceMode = parseEventRules(event.rules).balanceMode;
+  const eventRules = parseEventRules(event.rules);
+  const balanceMode = eventRules.balanceMode;
   let balance: DraftBalance | null = null;
-  if (balanceMode === 'dynamic-order' || balanceMode === 'tiered-snake') {
+  if (balanceMode === 'dynamic-order' || balanceMode === 'tiered-snake' || balanceMode === 'spread-cap') {
     try {
       balance = await buildDraftBalance(eId);
     } catch {
@@ -116,10 +117,52 @@ export async function POST(
     return NextResponse.json({ error: 'Player has already been picked' }, { status: 400 });
   }
 
+  // A captain is not draftable. Seating one on their own team normally takes them out of the pool
+  // the moment they're named, but that can fail quietly (no verified RSN yet, added to the event
+  // afterwards), and a captain sitting in the pool is a captain another team can draft — which
+  // ends with two captains on one team and one team with none.
+  if (player.clanMemberId != null) {
+    const owner = await db.query.clanMembers.findFirst({ where: eq(clanMembers.id, player.clanMemberId) });
+    if (owner?.userId != null) {
+      const captains = await db
+        .select({ id: teams.id, name: teams.name })
+        .from(teams)
+        .where(and(eq(teams.eventId, eId), eq(teams.captainUserId, owner.userId)));
+      const ownTeam = captains[0];
+      if (ownTeam) {
+        return NextResponse.json(
+          {
+            error:
+              ownTeam.id === expectedTeamId
+                ? `${player.name} captains this team — they're already yours, not a pick.`
+                : `${player.name} captains ${ownTeam.name} and can't be drafted.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+  }
+
   // Tiered-snake coverage: no second S while a team has none (same for A). Admins can override —
   // they can already pick out of turn; the constraint is for captains.
   if (!isAdmin && balanceMode === 'tiered-snake' && balance) {
     const reason = tierPickBlockReason(balance, playerId, expectedTeamId, teamOrder);
+    if (reason) {
+      return NextResponse.json({ error: reason }, { status: 400 });
+    }
+  }
+
+  // Spread cap: the pick may not put this team further than the configured pct above the average
+  // roster. Binds hardest on whoever is already ahead, and lifts itself rather than stalling a
+  // draft nobody can legally continue (see spreadCapBlockReason).
+  if (!isAdmin && balanceMode === 'spread-cap' && balance) {
+    const reason = spreadCapBlockReason(
+      balance,
+      playerId,
+      expectedTeamId,
+      teamOrder,
+      eventRules.balanceSpreadCapPct,
+    );
     if (reason) {
       return NextResponse.json({ error: reason }, { status: 400 });
     }

@@ -1,34 +1,27 @@
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
-import { SKILL_LABELS, BOSSES, EFFICIENCY_LABELS, formatEfficiencyHours } from '@/lib/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
+import { verifyUser } from '@/lib/auth';
+import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
+import { competitionIconUrl } from '@/lib/tileIcons';
+import CompetitionHero from '@/components/weekly/CompetitionHero';
+import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
+import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
+import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 
 export const dynamic = 'force-dynamic';
 
-function getMetricLabel(type: string, metric: string): string {
-  if (type === 'skill') return SKILL_LABELS[metric] || metric;
-  if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
-  const boss = BOSSES.find((b) => b.key === metric);
-  return boss?.label || metric;
-}
-
-function formatValue(value: number, type: string): string {
-  // Efficiency is stored in milli-hours (see EFFICIENCY_SCALE) — a week's gain is single digits,
-  // so it reads as hours to two decimals rather than as a five-digit integer.
-  if (type === 'efficiency') return formatEfficiencyHours(value);
-  if (type === 'skill') {
-    // Format XP nicely
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-    return value.toLocaleString();
-  }
-  return value.toLocaleString();
-}
-
+/**
+ * A competition week.
+ *
+ * This used to be a three-column table: rank, name, total. That's the one thing the Discord post
+ * already tells everyone, so there was no reason to open the page twice. The week's shape — who
+ * moved on which day, who is on a streak, whether the clan is beating its last run at this metric —
+ * comes from `member_daily_stats`, which the sweep already writes, so all of it is a read.
+ */
 export default async function WeeklyLeaderboardPage({
   params,
 }: {
@@ -37,107 +30,120 @@ export default async function WeeklyLeaderboardPage({
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const comp = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
-  if (comp.length === 0) {
-    notFound();
-  }
+  const [competition] = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
+  if (!competition) notFound();
 
-  const competition = comp[0];
-  // Drops members who left the CC (unless an admin kept them) so the board matches the plugin.
-  const participants = await getEffectiveParticipants(compId);
+  const session = await verifyUser();
+  const myMemberIds = await viewerMemberIds(session?.userId ?? null);
+  const view = await buildCompetitionView(competition, myMemberIds);
 
-  const leaderboard = computeLeaderboard(participants);
-
-  const gainLabel =
-    competition.type === 'skill' ? 'XP Gained' : competition.type === 'boss' ? 'KC Gained' : 'Hours Gained';
+  const leader = view.entries[0]?.gained > 0
+    ? {
+        rsn: view.entries[0].rsn,
+        gained: view.entries[0].gained,
+        margin: view.entries[0].gained - (view.entries[1]?.gained ?? 0),
+      }
+    : null;
+  // Everything day-shaped hangs off history the sweep writes. A competition from before that (or a
+  // guest-only board) still ranks fine — it just shows the board without the week around it. So does
+  // one whose history is too thin to be honest about: a partial account isn't a rough version of the
+  // week, it's a biased one, and drawing it puts the leader underneath people he's beating. One
+  // judgement gates every daily surface on the page, so they can't disagree about what's drawable.
+  const showDaily = view.trust === 'ok';
+  // An upcoming competition has standings-shaped rows full of zeroes. Narrating them as a race ("day
+  // 1 of 7", "you are winning this one", medals on 0 KC) reads as a broken page rather than a lobby.
+  const started = Date.parse(competition.startDate) <= Date.now();
 
   return (
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
-      <div className="mb-6">
-        <Link
-          href="/weekly"
-          className="text-sm text-text-muted hover:text-gold transition-colors mb-2 inline-block"
-        >
-          &larr; All Competitions
-        </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold">{competition.title}</h1>
-        <div className="flex items-center gap-3 mt-2">
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">
-            {competition.type === 'skill' ? 'Skill' : competition.type === 'boss' ? 'Boss' : 'Efficiency'}:{' '}
-            {getMetricLabel(competition.type, competition.metric)}
-          </span>
-          <span
-            className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-              competition.status === 'active'
-                ? 'bg-accent-green/15 text-accent-green-light'
-                : competition.status === 'upcoming'
-                  ? 'bg-blue-500/15 text-blue-400'
-                  : 'bg-text-muted/15 text-text-muted'
-            }`}
-          >
-            {competition.status.charAt(0).toUpperCase() + competition.status.slice(1)}
-          </span>
-          <span className="text-xs text-text-muted">
-            {new Date(competition.startDate).toLocaleDateString()} -{' '}
-            {new Date(competition.endDate).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
 
-      {leaderboard.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-card-border rounded-xl">
-          <p className="text-text-muted">No participants yet.</p>
-        </div>
-      ) : (
-        <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border text-left text-text-muted">
-                <th className="px-4 py-3 font-medium w-16">Rank</th>
-                <th className="px-4 py-3 font-medium">Player</th>
-                <th className="px-4 py-3 font-medium text-right">{gainLabel}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((entry, i) => {
-                const rank = i + 1;
-                const isTop3 = rank <= 3;
-                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+      <Link href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
+        ← All competitions
+      </Link>
 
-                return (
-                  <tr
-                    key={entry.rsn}
-                    className={`border-b border-card-border/50 transition-colors ${
-                      isTop3 ? 'bg-gold/5' : 'hover:bg-card-bg-hover'
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className={`font-medium ${isTop3 ? 'text-gold' : 'text-text-muted'}`}>
-                        {medal || `#${rank}`}
-                      </span>
-                    </td>
-                    <td className={`px-4 py-3 font-medium ${isTop3 ? 'text-gold' : ''}`}>
-                      {entry.rsn}
-                    </td>
-                    <td className={`px-4 py-3 text-right font-medium ${
-                      entry.gained > 0 ? 'text-accent-green-light' : 'text-text-muted'
-                    }`}>
-                      {entry.baselineValue !== null
-                        ? `+${formatValue(entry.gained, competition.type)}`
-                        : '-'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <CompetitionHero
+        title={competition.title}
+        type={view.type}
+        metricLabel={view.metricLabel}
+        unit={view.unit}
+        status={competition.status}
+        startDate={competition.startDate}
+        endDate={competition.endDate}
+        iconUrl={competitionIconUrl(competition.type, competition.metric)}
+        clanTotal={view.clanTotal}
+        todayTotal={showDaily ? view.todayTotal : null}
+        scoring={view.scoring}
+        entered={view.entries.length}
+        leader={leader}
+        projected={view.projected}
+        previous={view.previous}
+        elapsed={view.elapsed}
+        totalDays={view.days.length}
+      />
+
+      {view.me && (
+        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
       )}
 
-      <p className="text-xs text-text-muted mt-4 text-center">
-        {participants.length} participants &middot; Stats updated hourly
-      </p>
+      <Podium
+        entries={view.entries}
+        days={view.days}
+        elapsed={view.elapsed}
+        type={view.type}
+        unit={view.unit}
+        showShape={showDaily}
+      />
+
+      <CompetitionAwards awards={view.awards} />
+
+      <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="min-w-0">
+          {showDaily ? (
+            <>
+              <RaceChart
+                entries={view.entries}
+                days={view.days}
+                elapsed={view.elapsed}
+                type={view.type}
+                unit={view.unit}
+                trackableTotal={view.trackableTotal}
+                trackedTotal={view.trackedTotal}
+                guestGain={view.guestGain}
+              />
+              <DayStrip
+                days={view.days}
+                elapsed={view.elapsed}
+                totals={view.dailyTotals}
+                leaders={view.dailyLeaders}
+                entries={view.entries}
+                type={view.type}
+                unit={view.unit}
+              />
+              <TrainingHeatmap
+                entries={view.entries}
+                days={view.days}
+                elapsed={view.elapsed}
+                verb={view.verb}
+                type={view.type}
+              />
+            </>
+          ) : (
+            <DailyUnavailable trust={view.trust} coverage={view.coverage} started={started} />
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <Board
+            entries={view.entries}
+            elapsed={view.elapsed}
+            type={view.type}
+            unit={view.unit}
+            showDaily={showDaily}
+          />
+          <SidePanels milestones={view.milestones} highlights={view.highlights} />
+        </div>
+      </div>
     </div>
   );
 }

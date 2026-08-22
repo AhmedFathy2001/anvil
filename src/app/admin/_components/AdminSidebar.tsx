@@ -8,7 +8,12 @@ export interface SidebarItem {
   href: string;
   label: string;
   icon: string;
-  badge?: number;
+  /** A number badge (hidden at 0) or a short word — 'read-only', '0 of 8', 'unpaid'. */
+  badge?: number | string;
+  /** Amber badge: this one is waiting on someone. */
+  attn?: boolean;
+  /** Reachable, but not part of the job at hand — an event's Payouts before it has ended. */
+  quiet?: boolean;
   matchPrefix?: boolean; // highlight when pathname starts with href
 }
 
@@ -19,16 +24,32 @@ export interface SidebarGroup {
 
 interface Props {
   groups: SidebarGroup[];
-  user: {
+  user?: {
     displayName: string;
     role: string;
     avatarUrl: string | null;
   };
+  /**
+   * 'clan' is the shell's own nav. It hides itself inside a specific event, because that event's
+   * layout renders its own rail — and it MUST be decided here, in a client component, rather than
+   * in the shell layout: a parent layout doesn't re-render when you navigate between its children,
+   * so a server-side decision would keep showing the first event you opened.
+   */
+  scope?: 'clan' | 'event';
+  /** Event rails title themselves with the event rather than the signed-in user. */
+  header?: { title: string; subtitle: string };
 }
 
-export default function AdminSidebar({ groups, user }: Props) {
+/** /admin/events/12, /admin/events/weekly/3 — a specific event, which brings its own rail. */
+function isInsideAnEvent(pathname: string): boolean {
+  return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
+}
+
+export default function AdminSidebar({ groups, user, scope = 'clan', header }: Props) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  if (scope === 'clan' && isInsideAnEvent(pathname)) return null;
 
   return (
     <>
@@ -71,7 +92,15 @@ export default function AdminSidebar({ groups, user }: Props) {
             ← Close
           </button>
 
-          {/* User chip */}
+          {/* Who or what this rail is about */}
+          {header ? (
+            <div className="mb-4 p-3 rounded-xl border border-gold/25 bg-gold/[0.07]">
+              <div className="text-sm font-semibold truncate text-gold-light">{header.title}</div>
+              <div className="text-[10px] uppercase tracking-wide text-text-muted mt-0.5 truncate">
+                {header.subtitle}
+              </div>
+            </div>
+          ) : user ? (
           <div className="flex items-center gap-3 mb-4 p-3 rounded-xl border border-card-border bg-card-bg/60 lg:bg-card-bg">
             {user.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -86,6 +115,7 @@ export default function AdminSidebar({ groups, user }: Props) {
               <div className="text-[10px] uppercase tracking-wide text-text-muted">{user.role}</div>
             </div>
           </div>
+          ) : null}
 
           <nav className="space-y-5">
             {groups.map((group) => (
@@ -106,15 +136,23 @@ export default function AdminSidebar({ groups, user }: Props) {
                           className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                             active
                               ? 'bg-gold/15 text-gold border border-gold/30'
-                              : 'text-text-muted hover:text-foreground hover:bg-brown-light border border-transparent'
+                              : item.quiet
+                                ? 'text-text-muted/55 hover:text-foreground hover:bg-brown-light border border-transparent'
+                                : 'text-text-muted hover:text-foreground hover:bg-brown-light border border-transparent'
                           }`}
                         >
                           <span className="flex items-center gap-2 min-w-0">
                             <span className={active ? 'text-gold' : 'opacity-70'}>{item.icon}</span>
                             <span className="truncate">{item.label}</span>
                           </span>
-                          {item.badge != null && item.badge > 0 && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-yellow-500/20 text-yellow-400">
+                          {item.badge != null && item.badge !== 0 && item.badge !== '' && (
+                            <span
+                              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${
+                                item.attn
+                                  ? 'bg-yellow-500/20 text-yellow-400'
+                                  : 'bg-white/[0.06] text-text-muted'
+                              }`}
+                            >
                               {item.badge}
                             </span>
                           )}

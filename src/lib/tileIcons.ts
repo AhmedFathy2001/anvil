@@ -111,6 +111,41 @@ const firstItemId = (trackedItemIds?: string | null, itemRequirements?: string |
   return null;
 };
 
+// Icons for the non-boss hiscores counters. These have no collection-log activity to derive a
+// signature drop from, so each points at the item players associate with it — the clue caskets, an
+// abyssal pearl for GOTR, a BH emblem — keeping the board recognisable at a glance.
+const ACTIVITY_ITEM_IDS: Record<string, number> = {
+  riftsClosed: 26372,        // Abyssal pearls
+  soulWarsZeal: 25320,       // Spoils of war
+  colosseumGlory: 28947,     // Dizana's quiver
+  collectionsLogged: 22711,  // Collection log
+  cluesAll: 19835,           // Reward casket (master) — stands in for "clues" generally
+  cluesBeginner: 23245,
+  cluesEasy: 20546,
+  cluesMedium: 20545,
+  cluesHard: 20544,
+  cluesElite: 20543,
+  cluesMaster: 19835,
+  bhHunter: 12746,           // Bounty hunter emblem (tier 10)
+  bhRogue: 12746,
+  bhHunterLegacy: 12746,
+  bhRogueLegacy: 12746,
+};
+
+// LMS and PvP Arena are RANKS, not counters — the wiki skull reads better than a reward item.
+const ACTIVITY_ICON_URLS: Record<string, string> = {
+  lastManStanding: 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png',
+  pvpArena: 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png',
+};
+
+/** Display icon for a non-boss hiscores counter, or null when the key isn't one. */
+export function activityIconUrl(key: string | null | undefined): string | null {
+  if (!key) return null;
+  if (ACTIVITY_ICON_URLS[key]) return ACTIVITY_ICON_URLS[key];
+  const itemId = ACTIVITY_ITEM_IDS[key];
+  return itemId != null ? itemIconUrl(itemId) : null;
+}
+
 /** As {@link bossItemFor}, but from a hiscores boss KEY ("maggotKing") instead of a name. */
 export function bossItemForStatKey(key: string | null | undefined): number | null {
   if (!key) return null;
@@ -152,6 +187,9 @@ export function deriveTileIcon(tile: IconableTile): string | null {
       return item != null ? itemIconUrl(item) : null;
     } catch { return null; }
   }
+  // Agility laps: the skill icon. Course-specific art would need a per-course sprite table for a
+  // detail nobody reads off a 48px tile — the Agility icon already says exactly what the tile is.
+  if (type === 'lap') return skillIconUrl('agility');
   if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
   if (type === 'ca') return 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
@@ -162,9 +200,24 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   if (tile.trackedStat) {
     const firstKey = tile.trackedStat.split(',')[0].trim();
     if ((tile.statType ?? 'skill') === 'skill') return skillIconUrl(firstKey);
+    // Non-boss counters (clues, GOTR, BH…) have no clog activity to derive a drop from.
+    const activityIcon = activityIconUrl(firstKey);
+    if (activityIcon) return activityIcon;
     const label = BOSSES.find((b) => b.key === firstKey)?.label;
     const item = bossItemFor(label);
     return item != null ? itemIconUrl(item) : null;
   }
   return null;
+}
+
+/**
+ * The face of a weekly competition: the skill's wiki icon, the boss's signature drop, or the
+ * stats icon for an efficiency week. Same art the boards already use, so a competition and the
+ * tile that tracks it look like the same thing.
+ */
+export function competitionIconUrl(type: string, metric: string): string | null {
+  if (type === 'skill') return skillIconUrl(metric);
+  if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  const item = bossItemForStatKey(metric);
+  return item != null ? itemIconUrl(item) : null;
 }

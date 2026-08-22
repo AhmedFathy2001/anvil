@@ -52,20 +52,19 @@ export default async function NewEventPage() {
 
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">Create Event</h1>
+        {/* Both kinds of thing are made here — a board you author, and a whole-clan competition
+            that scores itself — so the blurb can't promise tiles and teams. The panel on the right
+            says what the CHOSEN one actually needs. */}
         <p className="text-text-muted text-sm">
-          Pick a template to get going fast, or tweak the details below. You&apos;ll land on the
-          event&apos;s tabs to configure tiles, teams, sign-ups and stats.
+          A board to author, or a whole-clan competition that scores itself. Pick one below — the
+          panel on the right says what it will need from you.
         </p>
       </header>
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 shadow-lg shadow-black/20 max-w-4xl">
+        {/* Weekly competitions are a format on this page now, so there's nothing to send people
+            elsewhere for. */}
         <EventForm presets={presets} suggestedName={suggestedName} />
-        <p className="text-xs text-text-muted/70 mt-4 pt-4 border-t border-card-border">
-          Looking to start a Skill/Boss of the Week instead?{' '}
-          <Link href="/admin/weekly" className="text-gold hover:underline">
-            Manage weekly competitions →
-          </Link>
-        </p>
       </div>
     </div>
   );

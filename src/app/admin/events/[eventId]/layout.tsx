@@ -1,15 +1,21 @@
 import { db } from '@/db';
-import { events, tiles, teams } from '@/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { events } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
-import { isEventEditor } from '@/lib/eventEditors';
+import { isEventEditor, isEventTreasurer } from '@/lib/eventEditors';
 import EventTabNav from './EventTabNav';
 import EventTitle from './EventTitle';
 import EventLockBanner from './EventLockBanner';
+import EventLifecycleBar from './EventLifecycleBar';
 import { isEventOver, eventEditLocked } from '@/lib/eventLock';
+import { lifecycleSteps, eventStage } from '@/lib/eventStage';
+import { getStageCounts } from '@/lib/eventStageCounts';
+import { eventRailGroups } from '@/lib/eventRail';
+import { authoringModel } from '@/lib/tileAuthoring';
+import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +40,19 @@ export default async function EventLayout({
   if (session?.role === 'editor' && session.editorScope === 'assigned') {
     if (!(await isEventEditor(session.userId, id))) redirect('/admin/events');
   }
+  // Same rule for a board treasurer: middleware only knows they're scoped, not to WHICH boards.
+  const isBoardTreasurer = session?.role === 'treasurer' && session.treasurerScope === 'assigned';
+  if (isBoardTreasurer) {
+    if (!(await isEventTreasurer(session!.userId, id))) redirect('/admin/events');
+  }
 
-  const [[tileCount], [teamCount]] = await Promise.all([
-    db.select({ c: count() }).from(tiles).where(eq(tiles.eventId, id)),
-    db.select({ c: count() }).from(teams).where(eq(teams.eventId, id)),
-  ]);
+  // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
+  const stageCounts = await getStageCounts(id);
+  // What this board calls its entries, so the lifecycle step and the tab agree with the page.
+  const { NounPlural, noun, nounPlural } = authoringModel(event);
+  const steps = lifecycleSteps({ ...event, taskNounPlural: NounPlural }, stageCounts);
+  const tileCount = { c: stageCounts.tileCount };
+  const teamCount = { c: stageCounts.teamCount };
 
   const now = new Date();
   const isForceEnded = !!event.forceEndedAt;
@@ -59,8 +73,26 @@ export default async function EventLayout({
           ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
           : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
+  // The rail lives HERE, not in the admin shell: this layout re-renders when the event id changes,
+  // a parent layout doesn't. Rendering it from the shell meant walking from one event to another
+  // left you looking at the first one's rail.
+  const rail = eventRailGroups({
+    eventId: id,
+    stage: eventStage(event),
+    counts: stageCounts,
+    tilesOnly: isEditor,
+    moneyOnly: isBoardTreasurer,
+    taskNounPlural: nounPlural,
+  });
+
   return (
-    <div>
+    <div className="lg:flex lg:gap-6">
+      <AdminSidebar
+        scope="event"
+        groups={rail}
+        header={{ title: event.name, subtitle: eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules) }}
+      />
+      <div className="flex-1 min-w-0">
       <Link
         href="/admin/events"
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
@@ -89,12 +121,28 @@ export default async function EventLayout({
             Points
           </span>
         )}
-        <span>{tileCount.c} tiles</span>
+        <span>{tileCount.c} {tileCount.c === 1 ? noun : nounPlural}</span>
         <span>·</span>
         <span>{teamCount.c} team{teamCount.c !== 1 ? 's' : ''}</span>
       </div>
 
-      <EventTabNav eventId={id} tilesOnly={isEditor} />
+      {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
+          answers the other question — where the event is in its life, and what moves it forward. */}
+      {!isEditor && !isBoardTreasurer && (
+        <EventLifecycleBar
+          steps={steps}
+          hrefFor={{
+            built: `/admin/events/${id}/settings`,
+            tiles: `/admin/events/${id}/tiles`,
+            teams: `/admin/events/${id}/teams`,
+            running: `/admin/events/${id}`,
+            results: `/admin/events/${id}/stats`,
+            payouts: `/admin/events/${id}/payouts`,
+          }}
+        />
+      )}
+      {isEditor && <EventTabNav eventId={id} tilesOnly taskNounPlural={NounPlural} />}
+      {isBoardTreasurer && <EventTabNav eventId={id} moneyOnly taskNounPlural={NounPlural} />}
 
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
           give admins the explicit unlock/re-lock control. */}
@@ -103,6 +151,7 @@ export default async function EventLayout({
       )}
 
       {children}
+      </div>
     </div>
   );
 }

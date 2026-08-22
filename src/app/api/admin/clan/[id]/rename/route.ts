@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanMembers, players, weeklyParticipants } from '@/db/schema';
 import { and, eq, ne } from 'drizzle-orm';
-import { normalizeRsn, verifyUser } from '@/lib/auth';
+import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
 // POST /api/admin/clan/[id]/rename — records an OSRS username change.
@@ -19,8 +19,12 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await verifyUser();
-  if (!user || user.role !== 'admin') {
+  // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
+  // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
+  // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
+  // admin-only. So a moderator can never promote themselves or anyone else.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

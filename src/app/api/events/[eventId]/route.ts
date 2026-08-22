@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { events, tiles, teams, completions, submissions } from '@/db/schema';
+import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
-import { getEventStartReadiness } from '@/lib/eventLifecycle';
+import { getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
@@ -231,25 +231,24 @@ export async function PATCH(
     if (event.forceEndedAt) {
       return NextResponse.json({ error: 'Event is force-ended. Resume it before starting.' }, { status: 400 });
     }
-    // An end date is required so the bingo has a defined finish (see the "Keep end date as-is"
-    // decision) — and it must still be in the future, or the event would start already-ended.
-    if (!event.endDate) {
-      return NextResponse.json({ error: 'Set an end date before starting the bingo.' }, { status: 400 });
-    }
-    if (event.endDate <= now) {
+    // A past end date is still a hard no — the event would start already over.
+    if (event.endDate && event.endDate <= now) {
       return NextResponse.json({ error: 'The end date has already passed. Update it before starting.' }, { status: 400 });
     }
 
-    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned.
-    // 409 + the blocker list so the UI can explain; `force: true` is the explicit admin override
-    // (the UI re-confirms before sending it).
+    // START SAFEGUARD (lib/eventReadiness): refuse to go live mid-draft / with no teams assigned,
+    // and warn about an open-ended run. 409 + the blocker list so the UI can explain; `force: true`
+    // is the explicit admin override (the UI re-confirms before sending it). A missing end date is
+    // deliberately in this soft lane rather than the hard 400 it used to be — a ladder that cycles
+    // monthly is meant to run until it's ended.
     if (body.force !== true) {
       const readiness = await getEventStartReadiness(event.id, event.draftStatus);
-      if (!readiness.ready) {
+      const blockers = [...readiness.blockers, ...(event.endDate ? [] : ['no-end-date' as const])];
+      if (blockers.length > 0) {
         return NextResponse.json(
           {
-            error: `The bingo isn't ready to start: ${describeStartBlockers(readiness.blockers)}.`,
-            blockers: readiness.blockers,
+            error: `Check this before starting: ${describeStartBlockers(blockers)}.`,
+            blockers,
           },
           { status: 409 },
         );
@@ -272,11 +271,17 @@ export async function PATCH(
       .returning();
 
     if (flipped.length > 0) {
+      // Starting shot (lib/startProof): draw the location now, before the announcement that carries it.
+      const startProof = await drawStartProof(updated).catch(() => null);
       notifyEventStart({
         eventId: updated.id,
         eventName: updated.name,
         startDate: updated.startDate!,
         endDate: updated.endDate,
+        format: updated.format,
+        startProofLocation: startProof?.location ?? null,
+        startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
+        ...(await eventBoardSummary(updated)),
       }).catch(() => {});
     }
 
@@ -573,6 +578,15 @@ export async function DELETE(
     for (let i = 0; i < urls.length; i += 100) {
       await del(urls.slice(i, i + 100)).catch(() => {});
     }
+  }
+
+  // Starting shots are stored the same way and cascade the same way — free their images too.
+  const startShots = await db
+    .select({ imageUrl: eventStartProofs.imageUrl })
+    .from(eventStartProofs)
+    .where(eq(eventStartProofs.eventId, id));
+  for (let i = 0; i < startShots.length; i += 100) {
+    await del(startShots.slice(i, i + 100).map((s) => s.imageUrl)).catch(() => {});
   }
 
   await db.delete(events).where(eq(events.id, id));

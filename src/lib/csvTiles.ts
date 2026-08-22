@@ -6,17 +6,24 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kill" | "lap" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
-//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lms tiles (qualifying games),
+//   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lap tiles (laps),
+//                       lms tiles (qualifying games),
 //                       value tiles (gp threshold one haul must meet; "valuetotal" sums hauls toward it)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
+//   statBasis           'gain' (default) | 'milestone' — a lifetime total reached during the event
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
+//                       lap tiles — agility course name(s) EXACTLY as the game's lap-counter line
+//                       spells them (see AGILITY_COURSES in lib/constants), pipe-separated
+//                       (e.g. "Ardougne Rooftop|Prifddinas Agility Course"); Hallowed Sepulchre
+//                       targets go here too — "Hallowed Sepulchre" (any floor), "Hallowed
+//                       Sepulchre Floor 1".."Floor 5", or "Grand Hallowed Coffin" (full runs);
 //                       diary tiles — "<Area> <Tier>" selectors, "Any" wildcards (e.g. "Any Elite|Wilderness Hard");
 //                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
 //                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks");
@@ -28,8 +35,18 @@
 //                       'scheduled' reveal policy; see lib/eventRules). ISO or any parseable
 //                       date-time, e.g. "2026-08-01 19:00" (stored as UTC ISO). Blank = the
 //                       tile stays hidden until a time is set. Ignored on classic events.
+//   coopCredit          kill tiles — "per-kill" counts a kill several members were in ONCE
+//                       (blank/"per-member" = every member who was there credits it, as before)
+//   coopMinMembers      kill tiles — only count a kill with at least this many of your team in it
+//                       (e.g. 3 for "raids done with 2+ teammates"); blank = no requirement
+//   perKillCap          drop tiles — most credits ONE kill can give (blank = uncapped). "1" counts
+//                       rolls rather than items: a kill dropping two tracked items credits once
+//   groupMode           collection tiles — how the @Set groups combine: blank/"any" (default) =
+//                       satisfy ONE set; "all" = satisfy EVERY set. "all" with "@Set/1" groups is
+//                       "one of many from each source" (a unique from each DT2 boss)
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
-//                       append "@Set" for any-one-set collections ("Dharok's helm:1@Dharok")
+//                       append "@Set" for set collections ("Dharok's helm:1@Dharok"), and
+//                       "@Set/N" when only N of that set are needed ("Eye of the duke:1@Duke/1")
 //                       (e.g. "Blood moon helm:1; Blue moon helm:1"). Count is optional (def 1).
 //                       Each entry can be a NAME (resolved to an item ID on import — covers
 //                       untradeables/pets too), a raw ID ("12651:1"), or "Name#id" to pin an
@@ -47,15 +64,21 @@ export const TILE_CSV_COLUMNS = [
   'trackedStat',
   'statType',
   'statGoal',
+  'statBasis',
   'targetNpcs',
   'timedActivity',
   'timeThresholdSeconds',
   'revealAt',
   'items',
+  'groupMode',
+  'perKillCap',
+  'coopCredit',
+  'coopMinMembers',
 ] as const;
 
 import type { Tile } from '@/lib/types';
-import { SKILLS, SKILL_LABELS, BOSSES } from '@/lib/constants';
+import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
+import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 
 export interface TileCsvItem {
   /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
@@ -63,8 +86,10 @@ export interface TileCsvItem {
   count: number;
   /** Explicit item id ("12651:1" or "Name#12651:1") — bypasses name resolution when set. */
   id?: number;
-  /** "Any full set" group ("Name:count@Set") — items sharing a set complete together. */
+  /** Set name ("Name:count@Set") — items sharing a set form one group. */
   group?: string;
+  /** How many of the set satisfy it ("@Set/2"); absent = all of them. */
+  groupRequire?: number;
 }
 
 export interface TileCsvRow {
@@ -78,12 +103,17 @@ export interface TileCsvRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  statBasis?: string | null;
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
   /** Scheduled reveal time (ISO UTC) for Showdown boards; null = stays hidden. */
   revealAt?: string | null;
   items?: TileCsvItem[] | null;
+  groupMode?: string | null;
+  perKillCap?: number | null;
+  coopCredit?: string | null;
+  coopMinMembers?: number | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -98,13 +128,26 @@ function parseItemsCell(v: string): TileCsvItem[] {
       // Split a trailing "@Set" off first ("Name:count@Set"), then ":count" (both optional).
       let entry = rawEntry;
       let group: string | undefined;
+      let groupRequire: number | undefined;
       const at = entry.lastIndexOf('@');
       if (at > 0) {
-        const g = entry.slice(at + 1).trim();
+        let g = entry.slice(at + 1).trim();
+        // "@Set/2" — the set needs any 2 of its items (omitted = all of them). Split before the
+        // length check so a long set name isn't measured with its count attached.
+        const slash = g.lastIndexOf('/');
+        if (slash > 0 && /^\d+$/.test(g.slice(slash + 1).trim())) {
+          const n = parseInt(g.slice(slash + 1).trim(), 10);
+          if (n >= 1) {
+            groupRequire = n;
+            g = g.slice(0, slash).trim();
+          }
+        }
         // Only treat it as a set name when it isn't part of the item name (no digits-only ids follow '@').
         if (g && g.length <= 30 && !g.includes(':')) {
           group = g;
           entry = entry.slice(0, at).trim();
+        } else {
+          groupRequire = undefined;
         }
       }
       let itemPart = entry;
@@ -120,14 +163,14 @@ function parseItemsCell(v: string): TileCsvItem[] {
       // "Name#id" — explicit id with a label.
       const hashed = itemPart.match(/^(.*)#(\d+)$/);
       if (hashed) {
-        return { name: hashed[1].trim(), count, id: parseInt(hashed[2], 10), group };
+        return { name: hashed[1].trim(), count, id: parseInt(hashed[2], 10), group, groupRequire };
       }
       // Bare numeric — a raw id, no label.
       if (/^\d+$/.test(itemPart)) {
-        return { name: '', count, id: parseInt(itemPart, 10), group };
+        return { name: '', count, id: parseInt(itemPart, 10), group, groupRequire };
       }
       // Plain name.
-      return itemPart ? { name: itemPart, count, group } : null;
+      return itemPart ? { name: itemPart, count, group, groupRequire } : null;
     })
     .filter((it): it is TileCsvItem => it != null && (it.name.length > 0 || it.id != null));
 }
@@ -242,6 +285,13 @@ function normalizeTrackedStat(raw: string): { key: string; type: 'skill' | 'boss
   for (const b of BOSSES) {
     if (b.key.toLowerCase() === s || b.label.toLowerCase() === s) return { key: b.key, type: 'boss' };
   }
+  // Non-boss hiscores counters (clue tiers, GOTR, Bounty Hunter, …) count as 'boss' type: they're
+  // score counters, read the same way, and share the tile's KC semantics. Aliases are accepted here
+  // because a spreadsheet row is hand-typed — "gotr" should work as well as "riftsClosed".
+  for (const a of HISCORES_ACTIVITIES) {
+    if (a.key.toLowerCase() === s || a.label.toLowerCase() === s) return { key: a.key, type: 'boss' };
+    if (a.aliases?.some((alias) => alias.toLowerCase() === s)) return { key: a.key, type: 'boss' };
+  }
   return null;
 }
 
@@ -279,11 +329,16 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     trackedStat: idx('trackedstat'),
     statType: idx('stattype'),
     statGoal: idx('statgoal'),
+    statBasis: idx('statbasis'),
     targetNpcs: idx('targetnpcs'),
     timedActivity: idx('timedactivity'),
     timeThresholdSeconds: idx('timethresholdseconds'),
     revealAt: idx('revealat'),
     items: idx('items'),
+    groupMode: idx('groupmode'),
+    perKillCap: idx('perkillcap'),
+    coopCredit: idx('coopcredit'),
+    coopMinMembers: idx('coopminmembers'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -314,11 +369,19 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       if (resolved && !row.statType) row.statType = resolved.type;
     }
     if (col.statGoal >= 0) row.statGoal = toNumberLoose(get(cells, col.statGoal));
+    // Anything but the explicit opt-in is a gain tile, so a stray value can't silently re-interpret
+    // a board's scoring on import.
+    if (col.statBasis >= 0) {
+      row.statBasis = get(cells, col.statBasis).trim().toLowerCase() === 'milestone' ? 'milestone' : 'gain';
+    }
     if (col.targetNpcs >= 0) {
       // Comma or pipe separated within the cell (comma works when the cell is quoted). CA rows
       // split on pipes ONLY — task names legitimately contain commas ("Nylocas, On the Rocks").
       const sep = row.tileType === 'ca' ? '|' : /[|,]/;
-      const names = get(cells, col.targetNpcs).split(sep).map((s) => s.trim()).filter(Boolean);
+      let names = get(cells, col.targetNpcs).split(sep).map((s) => s.trim()).filter(Boolean);
+      // Lap tiles match the game's counter name verbatim, so snap near-misses ("Ardougne Rooftop
+      // Course", "gnome stronghold") onto the real string rather than importing a dead tile.
+      if (row.tileType === 'lap') names = names.map(canonicalAgilityCourse);
       row.targetNpcs = names.length > 0 ? names : null;
     }
     if (col.timedActivity >= 0) row.timedActivity = get(cells, col.timedActivity).trim() || null;
@@ -327,6 +390,22 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     if (col.items >= 0) {
       const parsedItems = parseItemsCell(get(cells, col.items));
       row.items = parsedItems.length > 0 ? parsedItems : null;
+    }
+    if (col.groupMode >= 0) {
+      // Only 'all' means anything; everything else (including blank) is the default any-one-set.
+      row.groupMode = get(cells, col.groupMode).trim().toLowerCase() === 'all' ? 'all' : null;
+    }
+    if (col.perKillCap >= 0) {
+      const cap = toNumberLoose(get(cells, col.perKillCap));
+      row.perKillCap = cap != null && cap >= 1 ? cap : null;
+    }
+    if (col.coopCredit >= 0) {
+      // Only 'per-kill' means anything; blank/anything else is the historical per-member counting.
+      row.coopCredit = get(cells, col.coopCredit).trim().toLowerCase() === 'per-kill' ? 'per-kill' : null;
+    }
+    if (col.coopMinMembers >= 0) {
+      const min = toNumberLoose(get(cells, col.coopMinMembers));
+      row.coopMinMembers = min != null && min >= 2 ? min : null;
     }
     rows.push(row);
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
@@ -350,10 +429,10 @@ function jsonNamesToPipes(v: string | null | undefined): string {
 }
 
 /** Parse a tile's collection config, or null when it isn't a collection tile. */
-function parsedItemRequirements(t: Tile): { itemId: number; name: string; requiredAmount: number; group?: string | null }[] | null {
+function parsedItemRequirements(t: Tile): { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[] | null {
   if (!t.itemRequirements) return null;
   try {
-    const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[];
+    const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[];
     return Array.isArray(reqs) && reqs.length ? reqs : null;
   } catch {
     return null;
@@ -371,7 +450,9 @@ function tileItemsCell(t: Tile): string {
     return reqs
       .map((r) => {
         const labelled = r.name && !/^Item #\d+$/.test(r.name) ? `${r.name}#${r.itemId}` : `${r.itemId}`;
-        const set = r.group?.trim() ? `@${r.group.trim()}` : '';
+        const set = r.group?.trim()
+          ? `@${r.group.trim()}${r.groupRequire && r.groupRequire > 0 ? `/${r.groupRequire}` : ''}`
+          : '';
         return `${labelled}:${r.requiredAmount}${set}`;
       })
       .join('; ');
@@ -425,10 +506,17 @@ export function tileToCsvCells(t: Tile): string[] {
     t.trackedStat ?? '',
     t.statType ?? '',
     t.statGoal != null ? String(t.statGoal) : '',
+    // Only emitted when it's not the default, so an ordinary board's sheet is unchanged.
+    t.statBasis === 'milestone' ? 'milestone' : '',
     jsonNamesToPipes(t.targetNpcs),
     t.timedActivity ?? '',
     t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
     t.revealAt ?? '',
     tileItemsCell(t),
+    // Only emitted when it's not the default, so an ordinary collection's sheet stays as it was.
+    t.groupMode === 'all' ? 'all' : '',
+    t.perKillCap != null ? String(t.perKillCap) : '',
+    t.coopCredit === 'per-kill' ? 'per-kill' : '',
+    t.coopMinMembers != null ? String(t.coopMinMembers) : '',
   ];
 }

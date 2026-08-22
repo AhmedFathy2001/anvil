@@ -1,0 +1,59 @@
+{
+  "_comment": "Boss keys grouped the way a host thinks when building a board — 'give me all the slayer bosses' — because src/lib/constants.ts BOSSES has no such grouping and the hiscores don't either. Keys must exist in BOSSES; tests/boss-categories.test.ts fails the build if one drifts. A boss listed nowhere shows under 'Other' rather than being hidden, which is what keeps this file safe to leave incomplete: new bosses land there until someone puts them somewhere better. Order here is the order the filters appear in.",
+  "categories": [
+    {
+      "key": "slayer",
+      "label": "Slayer",
+      "blurb": "Locked behind a Slayer level.",
+      "bosses": ["abyssalSire", "alchemicalHydra", "cerberus", "grotesqueGuardians", "kraken", "thermonuclearSmokeDevil"]
+    },
+    {
+      "key": "gwd",
+      "label": "God Wars",
+      "blurb": "The four generals, and Nex.",
+      "bosses": ["commanderZilyana", "generalGraardor", "kreeArra", "krilTsutsaroth", "nex"]
+    },
+    {
+      "key": "wilderness",
+      "label": "Wilderness",
+      "blurb": "Killable while someone is trying to kill you.",
+      "bosses": ["artio", "callisto", "calvarion", "chaosElemental", "chaosFanatic", "crazyArchaeologist", "kingBlackDragon", "scorpia", "spindel", "venenatis", "vetion"]
+    },
+    {
+      "key": "raids",
+      "label": "Raids",
+      "blurb": "Team content, and their harder modes.",
+      "bosses": ["chambersOfXeric", "chambersOfXericChallengeMode", "theatreOfBlood", "theatreOfBloodHardMode", "tombsOfAmascut", "tombsOfAmascutExpertMode"]
+    },
+    {
+      "key": "dt2",
+      "label": "Desert Treasure II",
+      "blurb": "The four awakened-capable bosses.",
+      "bosses": ["dukeSucellus", "leviathan", "vardorvis", "whisperer"]
+    },
+    {
+      "key": "solo",
+      "label": "Solo challenges",
+      "blurb": "Waves and instanced runs — one player, one attempt.",
+      "bosses": ["corruptedGauntlet", "gauntlet", "solHeredit", "tzKalZuk", "tzTokJad"]
+    },
+    {
+      "key": "skilling",
+      "label": "Skilling bosses",
+      "blurb": "Fought with a skill rather than a weapon.",
+      "bosses": ["hespori", "tempoross", "wintertodt", "zalcano"]
+    },
+    {
+      "key": "classic",
+      "label": "Classic PvM",
+      "blurb": "The staples most accounts already have a route for.",
+      "bosses": ["barrows", "corporealBeast", "dagannothPrime", "dagannothRex", "dagannothSupreme", "kalphiteQueen", "nightmare", "phantomMuspah", "phosanisNightmare", "vorkath", "zulrah"]
+    },
+    {
+      "key": "beginner",
+      "label": "Quest & beginner",
+      "blurb": "Low-requirement bosses a fresh account can reach.",
+      "bosses": ["bryophyta", "derangedArchaeologist", "giantMole", "mimic", "obor", "sarachnis", "scurrius", "skotizo"]
+    }
+  ]
+}

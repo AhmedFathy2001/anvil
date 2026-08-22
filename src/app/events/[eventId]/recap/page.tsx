@@ -1,12 +1,15 @@
 import { db } from '@/db';
-import { events } from '@/db/schema';
+import { events, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded } from '@/lib/survey';
 import { getEventRecap } from '@/lib/eventRecap';
+import { allMomentsForEvent } from '@/lib/momentsStore';
+import { momentsByTeam, summariseMoments } from '@/lib/momentsAnalytics';
 import RecapClient from './RecapClient';
+import MomentsSummaryPanel from './MomentsSummaryPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,13 +53,35 @@ export default async function EventRecapPage({
     );
   }
 
-  const recap = await getEventRecap(id);
+  const [recap, feed] = await Promise.all([getEventRecap(id), allMomentsForEvent(id)]);
+  const summary = summariseMoments(feed);
+
+  // The same feed, split by the side each moment was stamped with. Named here (the analytics layer
+  // deals in ids) so a clan-v-clan recap can answer "which side" without a second query per team.
+  const eventTeams = await db
+    .select({ id: teams.id, name: teams.name, color: teams.color })
+    .from(teams)
+    .where(eq(teams.eventId, id));
+  const teamById = new Map(eventTeams.map((t) => [t.id, t]));
+  const sides = momentsByTeam(feed)
+    .map((s) => {
+      const team = teamById.get(s.teamId);
+      return team ? { teamId: s.teamId, name: team.name, color: team.color, summary: s.summary } : null;
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
   if (!recap || recap.awards.length === 0) {
+    // No superlatives doesn't mean nothing happened — a board can produce a feed full of deaths and
+    // drops without anyone qualifying for an award, and that's still the story of the week.
     return (
       <div>{header}
         <Notice title="No awards to hand out">
           {ended ? 'Nobody racked up any tracked activity this event.' : 'No tracked activity yet — awards fill in as players submit.'}
         </Notice>
+        {summary.counts.total > 0 && (
+          <div className="mt-8">
+            <MomentsSummaryPanel summary={summary} sides={sides} />
+          </div>
+        )}
       </div>
     );
   }
@@ -64,7 +89,11 @@ export default async function EventRecapPage({
   return (
     <div>
       {header}
-      <RecapClient recap={recap} preview={!ended} />
+      <RecapClient
+        recap={recap}
+        preview={!ended}
+        momentsPanel={<MomentsSummaryPanel summary={summary} sides={sides} />}
+      />
     </div>
   );
 }

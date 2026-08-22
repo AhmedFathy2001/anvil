@@ -18,21 +18,27 @@ interface TileCellProps {
   dimmed?: boolean;
   /** Item can't be plugin-drop-tracked (shop/gamble reward) — show a manual-submit marker. */
   manualOnly?: boolean;
+  /** Not revealed to members yet — only staff see it. Marked so a staff preview reads as a preview. */
+  staffOnly?: boolean;
   /**
    * Union / spectator view (no single team selected): instead of painting the tile as one team's
    * completion, keep it neutral and show a team-colour dot per completing team. Prevents the
    * "everyone's tiles look completed" read on the public board.
    */
   markersOnly?: boolean;
+  /** This tile sits on a line the viewed team has completed — outlined gold. */
+  inLine?: boolean;
+  /** The one tile that would finish a line for the viewed team — dashed, so it stands out to chase. */
+  needed?: boolean;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, markersOnly }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed }: TileCellProps) {
   const anyCompleted = completedBy.length > 0;
   // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
   const isCompleted = anyCompleted && !markersOnly;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
-  // Drop and kill tiles both show a count-based partial-progress indicator.
-  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'pvp';
+  // Drop, kill and lap tiles all show a count-based partial-progress indicator.
+  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'lap' || tileType === 'pvp';
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
@@ -51,6 +57,12 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         !interactive && onClick && 'cursor-pointer hover:border-gold/40 hover:scale-[1.02]',
         !interactive && !onClick && 'cursor-default',
         dimmed && 'opacity-30 grayscale',
+        // Staff-preview marking: a dashed gold edge says "members don't see this yet" without
+        // hiding it from the person who has to configure it.
+        staffOnly && 'opacity-70 border-dashed !border-gold/50',
+        // A completed line is the thing a classic board is played for — say so on the board itself.
+        inLine && 'ring-2 ring-inset ring-gold-light shadow-[0_0_14px_rgba(212,175,55,0.28)]',
+        needed && !isCompleted && 'border-dashed !border-gold-light',
       )}
       style={
         isCompleted

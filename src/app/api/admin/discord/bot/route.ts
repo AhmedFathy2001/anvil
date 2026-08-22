@@ -10,6 +10,7 @@ import {
   isSharedBotAvailable,
 } from '@/lib/discord-roles';
 import { botGuildStatus } from '@/lib/discord-permissions';
+import { syncClanCommandsInBackground } from '@/lib/discordCommandSync';
 
 // The bot connection surface. The bot TOKEN is a secret: it's stored in the settings table under
 // `discord_bot_token` when an admin brings their own, but is deliberately NOT in the settings API's
@@ -49,17 +50,27 @@ const INVITE_PERMISSIONS = '939641872';
 
 // Ready-made "add the bot to my server" link. guild_id pre-selects the configured server so the
 // admin can't add it to the wrong one; without a server ID yet, Discord asks them to pick.
+//
+// BOTH scopes are requested. `bot` is what lets it post and manage channels; `applications.commands`
+// is what makes its slash commands (/bingo …) appear in the server's command list. They're granted
+// independently, so a bot invited before commands existed is in the server, working, and shows no
+// commands at all — with nothing in the UI to explain why. Re-opening this link and re-authorizing
+// adds the missing scope; it doesn't kick the bot, reset its permissions, or disturb its channels.
 function buildInviteUrl(clientId: string, guildId: string): string {
   const params = new URLSearchParams({
     client_id: clientId,
-    scope: 'bot',
+    scope: 'bot applications.commands',
     permissions: INVITE_PERMISSIONS,
   });
   if (guildId) {
     params.set('guild_id', guildId);
     params.set('disable_guild_select', 'true');
   }
-  return `https://discord.com/oauth2/authorize?${params.toString()}`;
+  // URLSearchParams renders the space in `bot applications.commands` as `+`. Percent-encode it back:
+  // `%20` is what Discord's own generator emits, and it's the form the onboarding wizard's invite
+  // (Anvil.Admin lib/onboardOAuth) already settled on. Nothing else here can contain a literal `+`
+  // (an id, a permissions bitfield, a boolean), so the blanket replace is safe.
+  return `https://discord.com/oauth2/authorize?${params.toString().replace(/\+/g, '%20')}`;
 }
 
 // Assemble the status the UI renders — resolved token source + a live "connected as" check, never
@@ -127,10 +138,21 @@ export async function PUT(request: Request) {
         );
       }
       await upsertSetting('discord_bot_token', trimmed);
+      // We've just proved this token drives a real application — the one moment where registering
+      // its slash commands is guaranteed to work. Left to a script, this is the step nobody knows
+      // about and the bot silently has no commands. Fire-and-forget: a Discord hiccup must not fail
+      // saving the token, and the boot reconcile re-runs it.
+      syncClanCommandsInBackground('bot-token-saved');
     } else {
       // Clear the BYO override → fall back to the env / shared bot.
       await upsertSetting('discord_bot_token', null);
     }
+  }
+
+  // A guild change moves which server the commands belong in (and clears the one they left), so it
+  // re-syncs too — on its own, not just when a token comes with it.
+  if (typeof guildId === 'string' && !botToken) {
+    syncClanCommandsInBackground('guild-changed');
   }
 
   return NextResponse.json(await buildStatus());

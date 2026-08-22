@@ -141,6 +141,10 @@ interface BreakdownTile {
 interface BreakdownCompletion {
   teamId: number;
   tileId: number;
+  // The member the ENGINE credited: a stat tile finished by the hiscores sweep, or a solo count tile
+  // where one person reaching the count IS the completion. Its absence is not "nobody" — it's "no
+  // single obvious person", which is why the fallback below also accepts a one-member team.
+  creditPlayerId?: number | null;
   // Frozen per-member KC/XP split captured when a STAT tile completed. When present, it (not the live
   // `statGains`) is the source of each member's share of this tile — the whole point is that a finished
   // tile's attribution stops drifting as the underlying stat keeps climbing. NULL/absent for submission
@@ -206,6 +210,23 @@ export function computeMemberBreakdown(params: {
   for (const s of teamSubs) {
     record(s.creditPlayerId as number, s.tileId, Math.max(0, s.amount), 1, false);
   }
+
+  // Completions with no per-submission signal still belong to someone when the answer is
+  // unambiguous: the engine stamped `creditPlayerId` (a stat tile finished by the hiscores sweep, a
+  // solo count tile), or the team has exactly one member, so the person IS the team. Without this a
+  // ladder — where every "team" is one person — silently scored those tiles as nobody's, and the
+  // individual board didn't add up to what the board said the team had.
+  const soloPlayerId = teamPlayerIds.size === 1 ? [...teamPlayerIds][0] : null;
+  const creditByTile = new Map<number, number>();
+  for (const c of completions) {
+    if (c.teamId !== teamId) continue;
+    const pid = c.creditPlayerId ?? soloPlayerId;
+    if (pid == null || !teamPlayerIds.has(pid)) continue;
+    creditByTile.set(c.tileId, pid);
+    // Zero-weight: it must not affect a split that real submissions already decide, but the member
+    // needs an entry for the tile to count toward their task total and drill-down.
+    record(pid, c.tileId, 0, 0, false);
+  }
   // Completed stat tiles: use the split frozen at completion so each member's share can't drift as the
   // underlying KC/XP keeps climbing afterwards. Tracked here so the live pass below skips these tiles.
   const frozenStatTiles = new Set<number>();
@@ -258,7 +279,12 @@ export function computeMemberBreakdown(params: {
         contribs.push([pid, e.amount]);
       }
     }
-    if (total <= 0) continue; // completed but no per-member signal (e.g. no snapshot yet)
+    if (total <= 0) {
+      // No split to make — award the whole tile to whoever the completion credits (see above).
+      const pid = creditByTile.get(tileId);
+      if (pid != null) pointsByPlayer.set(pid, (pointsByPlayer.get(pid) ?? 0) + weight);
+      continue; // otherwise it's a genuine team effort with no per-member signal yet
+    }
     for (const [pid, amt] of contribs) {
       pointsByPlayer.set(pid, (pointsByPlayer.get(pid) ?? 0) + weight * (amt / total));
     }

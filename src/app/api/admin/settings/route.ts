@@ -26,6 +26,8 @@ const EXPOSED_KEYS = [
   'webhook_combat_achievements',
   'webhook_pvp_kills',
   'webhook_clips',
+  'webhook_leagues',
+  'leagues_icon_url',
   'always_notify_items',
   'show_kill_count',
   // Clan-wide floor (1-in-N) on rarity-triggered drop posts; members can be stricter, not looser.
@@ -40,18 +42,30 @@ const EXPOSED_KEYS = [
   'discord_guild_id',
   'discord_auto_match_rank_by_name',
   'discord_nickname_sync_enabled',
+  // Which language the Discord bot answers in. Blank = follow each member's own Discord locale,
+  // which is right for nearly everyone. Set it when the clan speaks a language Discord itself has
+  // no client locale for (Arabic), or when a mixed-locale server wants one voice.
+  'discord_language',
   'discord_nickname_overwrite',
   // Discord team channels (bot-driven, see lib/discord-teams.ts): per-team roles +
   // locked voice/text channels, plus the two shared role IDs every event reuses.
   'discord_team_sync_enabled',
   'discord_bingo_role_id',
   'discord_captain_role_id',
+  // Clan house rules, laid out by the Discord bot on /bingo rules and linkable from the site.
+  // Prose, not configuration: the per-board mechanics (scoring, reveals, lockout, starting shot)
+  // are derived from the event itself and never typed here. `board_rules_url` points at the long
+  // version for a ruleset that outgrows a Discord embed.
+  'board_rules',
+  'board_rules_url',
   // Advisory flag set when the owner finishes (or dismisses) the first-run Setup wizard.
   // Gates the auto-open + dashboard checklist only; real step status is computed live in
   // lib/setupStatus.ts.
   'setup_completed',
   // How many distinct staff confirmations a paid fee needs before it settles (default 1).
   'fee_confirmations_required',
+  // Opt-in: settle collected fees when an event ends (skips the second-admin sign-off).
+  'fee_autoconfirm_on_event_end',
   // Federation scalars (docs/FEDERATION.md). Enums/bool/JSON stored as text; read back via the
   // typed helpers in lib/pluginConfig.ts. The signing key, instance id and broker verification
   // token are deliberately NOT here — the signing private key must never be API-readable.
@@ -64,6 +78,9 @@ const EXPOSED_KEYS = [
   'federation_enabled', // 'on' | '' (off) — master switch
   'federation_accept_writes', // 'on' | 'off' — accept INBOUND cross-clan relayed credit writes (default on)
   'federation_broker_url', // optional override of the FEDERATION_BROKER_URL env default
+  // Whether GET /api/public/showcase serves this clan's name + aggregate counts to the operator's
+  // public "clans on Anvil" page. 'on' | 'off' — default on (see getPublicShowcase).
+  'public_showcase',
 ] as const;
 type ExposedKey = (typeof EXPOSED_KEYS)[number];
 

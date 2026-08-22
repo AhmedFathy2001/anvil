@@ -96,3 +96,18 @@ export function formatCountdown(ms: number): string {
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${secs}s`;
 }
+
+/**
+ * "Jan 5, 2026 · 14:30" — the one way this app writes a date and time to a person.
+ *
+ * The create form used to mix three: the picker's own format, `toLocaleString()` on the "Ends"
+ * line, and `toLocaleString()` again in the panel summary, so one window read as three windows.
+ */
+export function formatLocalDateTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const date = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

@@ -1,4 +1,5 @@
 import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { isActivityKey, readActivityScore } from '@/lib/hiscoresActivities';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The single definition of a hiscores-backed stat gain, shared by every consumer: the unified stat
@@ -73,6 +74,11 @@ export function snapshotValue(
     const xp = snap.skills?.[key]?.xp ?? 0;
     return xp < 0 ? 0 : xp;
   }
+  // Non-boss hiscores entries (GOTR rifts, clue tiers, Bounty Hunter, LMS, Soul Wars, clog slots)
+  // live outside the `bosses` map, each at its own path. Checked before the boss lookup because a
+  // miss there returns a silent 0 — which is how "close 100 rifts" would look like a tile that
+  // simply never progresses. Keys can't collide: activity keys are distinct from every boss key.
+  if (isActivityKey(key)) return readActivityScore(snap, key);
   const score = snap.bosses?.[key]?.score ?? 0;
   return score < 0 ? 0 : score;
 }
@@ -123,6 +129,72 @@ export function computeGain(
     gained += Math.max(0, cur - base);
   }
   return gained;
+}
+
+/**
+ * MILESTONE tiles — "get your first Quiver", "your first Inferno cape", "reach 500 Zulrah".
+ *
+ * A gain tile asks how far you moved during the event. A milestone tile asks whether you CROSSED a
+ * lifetime threshold while it was running, which is a different question and needs the baseline as a
+ * gate rather than a subtraction:
+ *
+ *     gain       complete when   current − baseline  >=  goal
+ *     milestone  complete when   baseline < goal  AND  current >= goal
+ *
+ * That gate is the whole feature. Without it, `TzKal-Zuk >= 1` completes instantly for anyone who
+ * ever finished the Inferno, which is the opposite of "first". With it, a member who already has the
+ * cape is permanently ineligible for that tile and a teammate who hasn't can still win it — so the
+ * tile means "someone here goes and does it", which is what a board is for.
+ *
+ * ALWAYS evaluate this per member. Summing lifetime totals across a team is meaningless: three
+ * members at 0, 5 and 200 Zuk KC sum to 205, clearing a goal of 1 the instant the event starts. The
+ * callers pass one member at a time and the tile editor hides the Team/Solo control to match.
+ *
+ * Composite keys sum on both sides, exactly as gains do — a CoX + CoX:CM tile counts a member's
+ * lifetime across both, and gates on their combined baseline.
+ */
+export interface MilestoneState {
+  /** Absolute lifetime total across the tile's keys — max(hiscores, live push), unranked floored to 0. */
+  lifetime: number;
+  /** False once the member was already at or above the goal when the event started. Never recovers. */
+  eligible: boolean;
+  /** Eligible AND now at or above the goal — the tile may credit. */
+  reached: boolean;
+}
+
+export function milestoneState(
+  baseline: HiscoresSnapshot | null | undefined,
+  current: HiscoresSnapshot | null | undefined,
+  liveMap: Record<string, number>,
+  keys: string[],
+  statType: string,
+  goal: number,
+): MilestoneState {
+  let lifetime = 0;
+  let baselineTotal = 0;
+  for (const key of keys) {
+    baselineTotal += snapshotValue(baseline, statType, key);
+    lifetime += effectiveValue(snapshotValue(current, statType, key), liveMap, key);
+  }
+  const eligible = baselineTotal < goal;
+  return { lifetime, eligible, reached: eligible && lifetime >= goal };
+}
+
+/** Milestone state from stored JSON blobs — the sibling of computeGainFromJson. */
+export function milestoneStateFromJson(
+  baselineJson: string | null | undefined,
+  currentJson: string | null | undefined,
+  liveMap: Record<string, number>,
+  keys: string[],
+  statType: string,
+  goal: number,
+): MilestoneState {
+  return milestoneState(parseSnapshot(baselineJson), parseSnapshot(currentJson), liveMap, keys, statType, goal);
+}
+
+/** True for a tile whose statGoal is a lifetime threshold rather than an in-event gain. */
+export function isMilestoneBasis(statBasis: string | null | undefined): boolean {
+  return statBasis === 'milestone';
 }
 
 /** Gain from stored JSON blobs — parse each once, then delegate to computeGain. */

@@ -1,4 +1,5 @@
 import { computePlayerProfiles, type PlayerProfile } from '@/lib/playerProfile';
+import { STRENGTH_EXPONENT, spreadCapVerdict } from '@/lib/draftMath';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Draft-side balance helpers (balance-engine plan, Part C). One profile engine underneath every
@@ -12,7 +13,7 @@ import { computePlayerProfiles, type PlayerProfile } from '@/lib/playerProfile';
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 export type Tier = 'S' | 'A' | 'B' | 'C';
-const SHARPEN = 1.5;
+const SHARPEN = STRENGTH_EXPONENT;
 /** Tiers whose stacking the tiered-snake mode polices. B/C picks stay pure captain agency. */
 const COVERAGE_TIERS: Tier[] = ['S', 'A'];
 
@@ -79,6 +80,59 @@ export function tierPickBlockReason(
   );
   if (!poolHasTier) return null;
   return `Tier-${tier} coverage: every team takes a tier-${tier} player before anyone takes another. Pick from a lower tier this turn.`;
+}
+
+/**
+ * Spread-cap eligibility: how far above the average roster a team may put itself with this pick.
+ *
+ * Stronger than tiered-snake, which only polices the top two tiers — this binds on every pick, and
+ * binds hardest on whoever is already ahead.
+ *
+ * Two cases, because a threshold alone degenerates:
+ *   - the team can stay under the cap → they may only take someone who keeps them there.
+ *   - the team is ALREADY over it → every pick breaches, so a pure threshold would stop applying
+ *     exactly when the lead is worst. Instead they may only take from the least-damaging options
+ *     left: "you're over, so pick from the bottom."
+ *
+ * Never stalls: the allowed set is non-empty in both cases, because the second case is defined by
+ * the minimum achievable rather than by a fixed number.
+ *
+ * There is deliberately NO "don't block the team that's behind on picks" rule. A snake draft keeps
+ * every team within one pick of each other, so such a rule fires for everyone at the start of each
+ * round and the cap becomes a no-op — which is exactly what it did when it was written that way.
+ */
+export function spreadCapBlockReason(
+  balance: DraftBalance,
+  playerId: number,
+  pickingTeamId: number,
+  teamIds: number[],
+  capPct: number,
+): string | null {
+  const person = balance.byPlayerId.get(playerId);
+  if (!person) return null;
+
+  const rosters = new Map<number, number[]>(teamIds.map((id) => [id, []]));
+  for (const p of balance.profiles) {
+    if (p.teamId != null && rosters.has(p.teamId)) rosters.get(p.teamId)!.push(p.rating);
+  }
+
+  const verdict = spreadCapVerdict({
+    rosters,
+    pickingTeamId,
+    candidateRating: person.rating,
+    poolRatings: balance.profiles
+      .filter((p) => p.teamId == null && p.playerIds.length > 0)
+      .map((p) => p.rating),
+    capPct,
+  });
+  if (verdict.allowed) return null;
+
+  // "per pick" is not padding: the panel's bars measure TOTAL roster strength, and these two
+  // numbers legitimately differ mid-round. Saying which one this is stops them reading as a
+  // contradiction on the same screen.
+  return verdict.kind === 'over-cap'
+    ? `Balance cap: taking them would put your team ${Math.round(verdict.devPct)}% above the average roster per pick, past the ${capPct}% cap. Pick someone lower-rated this turn.`
+    : `Balance cap: your team is already ${Math.round(verdict.devPct)}% above the average roster per pick, so you can only take from the lowest-rated players left.`;
 }
 
 /**

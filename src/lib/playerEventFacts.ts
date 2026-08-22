@@ -5,7 +5,8 @@ import { computeMemberBreakdown, type StatGainMap } from '@/lib/memberBreakdown'
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
-import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules } from '@/lib/eventRules';
+import { scoreTeams } from '@/lib/boardScoring';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // player_event_facts materializer — Phase 2 of the balance-engine plan. One row per PERSON per
@@ -160,20 +161,16 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
   // Team totals + ranks (the app's own scoring: frozen award else weight in points mode, count in
   // tiles mode) for the collapse context. Optional tiles never score, and reveal-policy events
   // only count tiles that actually went live — exact mirror of the lifecycle standings math.
-  const pointsMode = event.scoringMode === 'points';
   const rules = parseEventRules(event.rules);
-  const scoredTileIds = new Set(
-    visibleTiles(rules, eventTiles)
-      .filter((t) => !t.optional)
-      .map((t) => t.id),
+  const teamPointsMap = new Map<number, number>(
+    scoreTeams({
+      scoringMode: event.scoringMode,
+      rules,
+      tiles: eventTiles,
+      completions: eventCompletions,
+      teams: eventTeams,
+    }).map((s) => [s.teamId, s.score]),
   );
-  const tileById = new Map(eventTiles.map((t) => [t.id, t]));
-  const teamPointsMap = new Map<number, number>(eventTeams.map((t) => [t.id, 0]));
-  for (const c of eventCompletions) {
-    if (!scoredTileIds.has(c.tileId)) continue;
-    const pts = pointsMode ? (c.awardedPoints ?? tileById.get(c.tileId)?.points ?? 1) : 1;
-    teamPointsMap.set(c.teamId, (teamPointsMap.get(c.teamId) ?? 0) + pts);
-  }
   const rankedTeams = [...teamPointsMap.entries()].sort((a, b) => b[1] - a[1]);
   const teamRank = new Map(rankedTeams.map(([tid], i) => [tid, i + 1]));
   const topTeamPoints = rankedTeams[0]?.[1] ?? 0;

@@ -1,0 +1,3834 @@
+{
+  "source": "https://oldschool.runescape.wiki/w/Special:Bucket/infobox_monster",
+  "generatedAt": "2026-08-18",
+  "note": "Slayer task groups and their monsters. Names are in-game names (wiki disambiguation stripped), which is what a kill tile matches against. Rebuild with `npm run data:slayer`.",
+  "categoryCount": 121,
+  "monsterCount": 644,
+  "categories": [
+    {
+      "label": "Aberrant Spectres",
+      "monsters": [
+        {
+          "name": "Aberrant spectre",
+          "slayerLevel": 60,
+          "combatLevel": 96
+        },
+        {
+          "name": "Deviant spectre",
+          "slayerLevel": 60,
+          "combatLevel": 169
+        },
+        {
+          "name": "Abhorrent spectre",
+          "slayerLevel": 60,
+          "combatLevel": 253
+        },
+        {
+          "name": "Bloodthirsty spectre",
+          "slayerLevel": 60,
+          "combatLevel": 253
+        },
+        {
+          "name": "Bloodthirsty Repugnant spectre",
+          "slayerLevel": 60,
+          "combatLevel": 335
+        },
+        {
+          "name": "Repugnant spectre",
+          "slayerLevel": 60,
+          "combatLevel": 335
+        }
+      ]
+    },
+    {
+      "label": "Abyssal Demons",
+      "monsters": [
+        {
+          "name": "Abyssal demon",
+          "slayerLevel": 85,
+          "combatLevel": 124
+        },
+        {
+          "name": "Abyssal Sire",
+          "slayerLevel": 85,
+          "combatLevel": 350
+        },
+        {
+          "name": "Bloodthirsty abyssal demon",
+          "slayerLevel": 85,
+          "combatLevel": 513
+        },
+        {
+          "name": "Greater abyssal demon",
+          "slayerLevel": 85,
+          "combatLevel": 719
+        },
+        {
+          "name": "Reanimated abyssal",
+          "slayerLevel": 85,
+          "combatLevel": null
+        },
+        {
+          "name": "Respiratory system",
+          "slayerLevel": 85,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Ankou",
+      "monsters": [
+        {
+          "name": "Dark Ankou",
+          "slayerLevel": null,
+          "combatLevel": 95
+        },
+        {
+          "name": "Ankou",
+          "slayerLevel": null,
+          "combatLevel": 98
+        }
+      ]
+    },
+    {
+      "label": "Aquanite",
+      "monsters": [
+        {
+          "name": "Aquanite",
+          "slayerLevel": 78,
+          "combatLevel": 145
+        },
+        {
+          "name": "Elder aquanite",
+          "slayerLevel": 78,
+          "combatLevel": 305
+        }
+      ]
+    },
+    {
+      "label": "Araxytes",
+      "monsters": [
+        {
+          "name": "Acidic Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Mirrorback Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Ruptura Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 146
+        },
+        {
+          "name": "Dreadborn Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 281
+        },
+        {
+          "name": "Araxxor",
+          "slayerLevel": 92,
+          "combatLevel": 890
+        }
+      ]
+    },
+    {
+      "label": "Aviansie",
+      "monsters": [
+        {
+          "name": "Wingman Skree",
+          "slayerLevel": null,
+          "combatLevel": 143
+        },
+        {
+          "name": "Aviansie",
+          "slayerLevel": null,
+          "combatLevel": 148
+        },
+        {
+          "name": "Flockleader Geerin",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Flight Kilisa",
+          "slayerLevel": null,
+          "combatLevel": 159
+        },
+        {
+          "name": "Kree'arra",
+          "slayerLevel": null,
+          "combatLevel": 580
+        },
+        {
+          "name": "Reanimated aviansie",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Bandits",
+      "monsters": [
+        {
+          "name": "Guard Bandit",
+          "slayerLevel": null,
+          "combatLevel": 22
+        },
+        {
+          "name": "Black Heather",
+          "slayerLevel": null,
+          "combatLevel": 34
+        },
+        {
+          "name": "Donny the lad",
+          "slayerLevel": null,
+          "combatLevel": 34
+        },
+        {
+          "name": "Speedy Keith",
+          "slayerLevel": null,
+          "combatLevel": 34
+        },
+        {
+          "name": "Bandit",
+          "slayerLevel": null,
+          "combatLevel": 130
+        }
+      ]
+    },
+    {
+      "label": "Banshees",
+      "monsters": [
+        {
+          "name": "Banshee",
+          "slayerLevel": 15,
+          "combatLevel": 23
+        },
+        {
+          "name": "Bloodthirsty banshee",
+          "slayerLevel": 15,
+          "combatLevel": 70
+        },
+        {
+          "name": "Screaming banshee",
+          "slayerLevel": 15,
+          "combatLevel": 70
+        },
+        {
+          "name": "Twisted Banshee",
+          "slayerLevel": 15,
+          "combatLevel": 89
+        },
+        {
+          "name": "Bloodthirsty twisted banshee",
+          "slayerLevel": 15,
+          "combatLevel": 144
+        },
+        {
+          "name": "Screaming twisted banshee",
+          "slayerLevel": 15,
+          "combatLevel": 144
+        }
+      ]
+    },
+    {
+      "label": "Basilisks",
+      "monsters": [
+        {
+          "name": "Basilisk Youngling",
+          "slayerLevel": 40,
+          "combatLevel": 57
+        },
+        {
+          "name": "Basilisk",
+          "slayerLevel": 40,
+          "combatLevel": 61
+        },
+        {
+          "name": "Monstrous basilisk",
+          "slayerLevel": 40,
+          "combatLevel": 135
+        },
+        {
+          "name": "Monstrous Basilisk",
+          "slayerLevel": 40,
+          "combatLevel": 135
+        },
+        {
+          "name": "Bloodthirsty basilisk",
+          "slayerLevel": 40,
+          "combatLevel": 202
+        },
+        {
+          "name": "Basilisk Knight",
+          "slayerLevel": 60,
+          "combatLevel": 204
+        },
+        {
+          "name": "Typhor",
+          "slayerLevel": 40,
+          "combatLevel": 218
+        },
+        {
+          "name": "Basilisk Sentinel",
+          "slayerLevel": 60,
+          "combatLevel": 358
+        },
+        {
+          "name": "The Jormungand",
+          "slayerLevel": 40,
+          "combatLevel": 363
+        },
+        {
+          "name": "Bloodthirsty Basilisk Sentinel",
+          "slayerLevel": 60,
+          "combatLevel": 537
+        }
+      ]
+    },
+    {
+      "label": "Bats",
+      "monsters": [
+        {
+          "name": "Bat",
+          "slayerLevel": null,
+          "combatLevel": 6
+        },
+        {
+          "name": "Giant bat",
+          "slayerLevel": null,
+          "combatLevel": 27
+        },
+        {
+          "name": "Albino bat",
+          "slayerLevel": null,
+          "combatLevel": 52
+        },
+        {
+          "name": "Death wing",
+          "slayerLevel": null,
+          "combatLevel": 83
+        }
+      ]
+    },
+    {
+      "label": "Bears",
+      "monsters": [
+        {
+          "name": "Bear Cub",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Black bear",
+          "slayerLevel": null,
+          "combatLevel": 19
+        },
+        {
+          "name": "Grizzly bear cub",
+          "slayerLevel": null,
+          "combatLevel": 36
+        },
+        {
+          "name": "Grizzly bear",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Artio",
+          "slayerLevel": null,
+          "combatLevel": 320
+        },
+        {
+          "name": "Callisto",
+          "slayerLevel": null,
+          "combatLevel": 470
+        },
+        {
+          "name": "Reanimated bear",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Birds",
+      "monsters": [
+        {
+          "name": "Chicken",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Duck",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Duckling",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Undead chicken",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Entrana firebird",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Penguin",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Rooster",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Seagull",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Chompy bird",
+          "slayerLevel": null,
+          "combatLevel": 6
+        },
+        {
+          "name": "Bird",
+          "slayerLevel": null,
+          "combatLevel": 11
+        },
+        {
+          "name": "Large chicken",
+          "slayerLevel": null,
+          "combatLevel": 16
+        },
+        {
+          "name": "Terrorbird",
+          "slayerLevel": null,
+          "combatLevel": 28
+        },
+        {
+          "name": "Vulture",
+          "slayerLevel": null,
+          "combatLevel": 31
+        },
+        {
+          "name": "Oomlie bird",
+          "slayerLevel": null,
+          "combatLevel": 46
+        },
+        {
+          "name": "Mounted terrorbird gnome",
+          "slayerLevel": null,
+          "combatLevel": 49
+        },
+        {
+          "name": "Baby Roc",
+          "slayerLevel": null,
+          "combatLevel": 75
+        },
+        {
+          "name": "Giant Roc",
+          "slayerLevel": null,
+          "combatLevel": 257
+        },
+        {
+          "name": "Evil Chicken",
+          "slayerLevel": null,
+          "combatLevel": 286
+        }
+      ]
+    },
+    {
+      "label": "Black Demons",
+      "monsters": [
+        {
+          "name": "Kolodion",
+          "slayerLevel": null,
+          "combatLevel": 112
+        },
+        {
+          "name": "Balfrug Kreeyath",
+          "slayerLevel": null,
+          "combatLevel": 151
+        },
+        {
+          "name": "Demon of Balance",
+          "slayerLevel": null,
+          "combatLevel": 202
+        },
+        {
+          "name": "Demon of Darkness",
+          "slayerLevel": null,
+          "combatLevel": 202
+        },
+        {
+          "name": "Demon of Light",
+          "slayerLevel": null,
+          "combatLevel": 202
+        },
+        {
+          "name": "Demonic gorilla",
+          "slayerLevel": null,
+          "combatLevel": 275
+        },
+        {
+          "name": "Black demon",
+          "slayerLevel": null,
+          "combatLevel": 292
+        },
+        {
+          "name": "Skotizo",
+          "slayerLevel": null,
+          "combatLevel": 321
+        },
+        {
+          "name": "Porazdir",
+          "slayerLevel": null,
+          "combatLevel": 655
+        }
+      ]
+    },
+    {
+      "label": "Black Dragons",
+      "monsters": [
+        {
+          "name": "Baby black dragon",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Black dragon",
+          "slayerLevel": null,
+          "combatLevel": 247
+        },
+        {
+          "name": "Brutal black dragon",
+          "slayerLevel": 77,
+          "combatLevel": 318
+        },
+        {
+          "name": "King Black Dragon",
+          "slayerLevel": null,
+          "combatLevel": 414
+        }
+      ]
+    },
+    {
+      "label": "Black Knights",
+      "monsters": [
+        {
+          "name": "Black Knight",
+          "slayerLevel": null,
+          "combatLevel": 33
+        }
+      ]
+    },
+    {
+      "label": "Bloodveld",
+      "monsters": [
+        {
+          "name": "Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 81
+        },
+        {
+          "name": "Mutated Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 123
+        },
+        {
+          "name": "Insatiable Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 202
+        },
+        {
+          "name": "Insatiable mutated Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 278
+        },
+        {
+          "name": "Bloodthirsty Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 303
+        },
+        {
+          "name": "Bloodthirsty mutated Bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": 417
+        },
+        {
+          "name": "Reanimated bloodveld",
+          "slayerLevel": 50,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Blue Dragons",
+      "monsters": [
+        {
+          "name": "Baby blue dragon",
+          "slayerLevel": null,
+          "combatLevel": 48
+        },
+        {
+          "name": "Blue dragon",
+          "slayerLevel": null,
+          "combatLevel": 111
+        },
+        {
+          "name": "Brutal blue dragon",
+          "slayerLevel": null,
+          "combatLevel": 271
+        },
+        {
+          "name": "Vorkath",
+          "slayerLevel": null,
+          "combatLevel": 732
+        }
+      ]
+    },
+    {
+      "label": "Bosses",
+      "monsters": [
+        {
+          "name": "Ahrim the Blighted",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Karil the Tainted",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Guthan the Infested",
+          "slayerLevel": null,
+          "combatLevel": 115
+        },
+        {
+          "name": "Torag the Corrupted",
+          "slayerLevel": null,
+          "combatLevel": 115
+        },
+        {
+          "name": "Verac the Defiled",
+          "slayerLevel": null,
+          "combatLevel": 115
+        },
+        {
+          "name": "Chaos Fanatic",
+          "slayerLevel": null,
+          "combatLevel": 202
+        },
+        {
+          "name": "Crazy archaeologist",
+          "slayerLevel": null,
+          "combatLevel": 204
+        },
+        {
+          "name": "Scorpia",
+          "slayerLevel": null,
+          "combatLevel": 225
+        },
+        {
+          "name": "Dawn",
+          "slayerLevel": 75,
+          "combatLevel": 228
+        },
+        {
+          "name": "Giant Mole",
+          "slayerLevel": null,
+          "combatLevel": 230
+        },
+        {
+          "name": "Shellbane gryphon",
+          "slayerLevel": 51,
+          "combatLevel": 235
+        },
+        {
+          "name": "Definitely Not Dusk",
+          "slayerLevel": null,
+          "combatLevel": 248
+        },
+        {
+          "name": "Calvar'ion",
+          "slayerLevel": null,
+          "combatLevel": 264
+        },
+        {
+          "name": "Deranged archaeologist",
+          "slayerLevel": null,
+          "combatLevel": 276
+        },
+        {
+          "name": "Kraken",
+          "slayerLevel": 87,
+          "combatLevel": 291
+        },
+        {
+          "name": "Spindel",
+          "slayerLevel": null,
+          "combatLevel": 302
+        },
+        {
+          "name": "Chaos Elemental",
+          "slayerLevel": null,
+          "combatLevel": 305
+        },
+        {
+          "name": "Sarachnis",
+          "slayerLevel": null,
+          "combatLevel": 318
+        },
+        {
+          "name": "Artio",
+          "slayerLevel": null,
+          "combatLevel": 320
+        },
+        {
+          "name": "Abyssal Sire",
+          "slayerLevel": 85,
+          "combatLevel": 350
+        },
+        {
+          "name": "King Black Dragon",
+          "slayerLevel": null,
+          "combatLevel": 414
+        },
+        {
+          "name": "Alchemical Hydra",
+          "slayerLevel": 95,
+          "combatLevel": 426
+        },
+        {
+          "name": "Vet'ion",
+          "slayerLevel": null,
+          "combatLevel": 454
+        },
+        {
+          "name": "Venenatis",
+          "slayerLevel": null,
+          "combatLevel": 464
+        },
+        {
+          "name": "Callisto",
+          "slayerLevel": null,
+          "combatLevel": 470
+        },
+        {
+          "name": "Kree'arra",
+          "slayerLevel": null,
+          "combatLevel": 580
+        },
+        {
+          "name": "Commander Zilyana",
+          "slayerLevel": null,
+          "combatLevel": 596
+        },
+        {
+          "name": "Thermonuclear smoke devil",
+          "slayerLevel": 93,
+          "combatLevel": 602
+        },
+        {
+          "name": "General Graardor",
+          "slayerLevel": null,
+          "combatLevel": 624
+        },
+        {
+          "name": "K'ril Tsutsaroth",
+          "slayerLevel": null,
+          "combatLevel": 650
+        },
+        {
+          "name": "Dusk",
+          "slayerLevel": 75,
+          "combatLevel": 656
+        },
+        {
+          "name": "Dharok the Wretched",
+          "slayerLevel": null,
+          "combatLevel": 666
+        },
+        {
+          "name": "Zulrah",
+          "slayerLevel": null,
+          "combatLevel": 725
+        },
+        {
+          "name": "Cerberus",
+          "slayerLevel": 91,
+          "combatLevel": 726
+        },
+        {
+          "name": "Vorkath",
+          "slayerLevel": null,
+          "combatLevel": 732
+        },
+        {
+          "name": "Maggot King",
+          "slayerLevel": null,
+          "combatLevel": 741
+        },
+        {
+          "name": "Phantom Muspah",
+          "slayerLevel": null,
+          "combatLevel": 741
+        },
+        {
+          "name": "Kalphite Queen",
+          "slayerLevel": null,
+          "combatLevel": 748
+        },
+        {
+          "name": "Araxxor",
+          "slayerLevel": 92,
+          "combatLevel": 890
+        },
+        {
+          "name": "Doom of Mokhaiotl",
+          "slayerLevel": null,
+          "combatLevel": 908
+        },
+        {
+          "name": "Dagannoth Supreme",
+          "slayerLevel": null,
+          "combatLevel": 936
+        },
+        {
+          "name": "Dagannoth Prime",
+          "slayerLevel": null,
+          "combatLevel": 947
+        },
+        {
+          "name": "Duke Sucellus",
+          "slayerLevel": null,
+          "combatLevel": 1099
+        },
+        {
+          "name": "Dagannoth Rex",
+          "slayerLevel": null,
+          "combatLevel": 1104
+        },
+        {
+          "name": "Vardorvis",
+          "slayerLevel": null,
+          "combatLevel": 1136
+        },
+        {
+          "name": "The Whisperer",
+          "slayerLevel": null,
+          "combatLevel": 1146
+        },
+        {
+          "name": "The Leviathan",
+          "slayerLevel": null,
+          "combatLevel": 1157
+        },
+        {
+          "name": "Respiratory system",
+          "slayerLevel": 85,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Brine Rats",
+      "monsters": [
+        {
+          "name": "Brine rat",
+          "slayerLevel": 47,
+          "combatLevel": 70
+        }
+      ]
+    },
+    {
+      "label": "Catablepon",
+      "monsters": [
+        {
+          "name": "Catablepon",
+          "slayerLevel": null,
+          "combatLevel": 68
+        }
+      ]
+    },
+    {
+      "label": "Cave Bugs",
+      "monsters": [
+        {
+          "name": "Cave bug",
+          "slayerLevel": 7,
+          "combatLevel": 96
+        }
+      ]
+    },
+    {
+      "label": "Cave Crawlers",
+      "monsters": [
+        {
+          "name": "Cave crawler",
+          "slayerLevel": 10,
+          "combatLevel": 23
+        },
+        {
+          "name": "Bloodthirsty Crawler",
+          "slayerLevel": 10,
+          "combatLevel": 68
+        },
+        {
+          "name": "Chasm Crawler",
+          "slayerLevel": 10,
+          "combatLevel": 68
+        }
+      ]
+    },
+    {
+      "label": "Cave Horrors",
+      "monsters": [
+        {
+          "name": "Cave horror",
+          "slayerLevel": 58,
+          "combatLevel": 80
+        },
+        {
+          "name": "Bloodthirsty abomination",
+          "slayerLevel": 58,
+          "combatLevel": 206
+        },
+        {
+          "name": "Cave abomination",
+          "slayerLevel": 58,
+          "combatLevel": 206
+        }
+      ]
+    },
+    {
+      "label": "Cave Kraken",
+      "monsters": [
+        {
+          "name": "Cave kraken",
+          "slayerLevel": 87,
+          "combatLevel": 127
+        },
+        {
+          "name": "Kraken",
+          "slayerLevel": 87,
+          "combatLevel": 291
+        }
+      ]
+    },
+    {
+      "label": "Cave Slimes",
+      "monsters": [
+        {
+          "name": "Cave slime",
+          "slayerLevel": 17,
+          "combatLevel": 23
+        }
+      ]
+    },
+    {
+      "label": "Chaos Druids",
+      "monsters": [
+        {
+          "name": "Chaos druid",
+          "slayerLevel": null,
+          "combatLevel": 13
+        },
+        {
+          "name": "Chaos druid warrior",
+          "slayerLevel": null,
+          "combatLevel": 37
+        },
+        {
+          "name": "Salarin the twisted",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Elder Chaos druid",
+          "slayerLevel": null,
+          "combatLevel": 129
+        },
+        {
+          "name": "Reanimated chaos druid",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Cockatrice",
+      "monsters": [
+        {
+          "name": "Cockatrice",
+          "slayerLevel": 25,
+          "combatLevel": 37
+        },
+        {
+          "name": "Moonlight Cockatrice",
+          "slayerLevel": 25,
+          "combatLevel": 49
+        },
+        {
+          "name": "Cockathrice",
+          "slayerLevel": 25,
+          "combatLevel": 89
+        },
+        {
+          "name": "Bloodthirsty Cockathrice",
+          "slayerLevel": 25,
+          "combatLevel": 133
+        }
+      ]
+    },
+    {
+      "label": "Cows",
+      "monsters": [
+        {
+          "name": "Cow",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Cow calf",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Undead cow",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Buffalo",
+          "slayerLevel": null,
+          "combatLevel": 9
+        },
+        {
+          "name": "Brutus",
+          "slayerLevel": null,
+          "combatLevel": 30
+        }
+      ]
+    },
+    {
+      "label": "Crabs",
+      "monsters": [
+        {
+          "name": "Rock Crab",
+          "slayerLevel": null,
+          "combatLevel": 13
+        },
+        {
+          "name": "Frost Crab",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Sand Crab",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Crab",
+          "slayerLevel": null,
+          "combatLevel": 23
+        },
+        {
+          "name": "Ammonite Crab",
+          "slayerLevel": null,
+          "combatLevel": 25
+        },
+        {
+          "name": "Swamp Crab",
+          "slayerLevel": null,
+          "combatLevel": 55
+        },
+        {
+          "name": "King Sand Crab",
+          "slayerLevel": null,
+          "combatLevel": 107
+        },
+        {
+          "name": "Giant Rock Crab",
+          "slayerLevel": null,
+          "combatLevel": 137
+        }
+      ]
+    },
+    {
+      "label": "Crawling Hands",
+      "monsters": [
+        {
+          "name": "Crawling Hand",
+          "slayerLevel": 5,
+          "combatLevel": 12
+        },
+        {
+          "name": "Bloodthirsty hand",
+          "slayerLevel": 5,
+          "combatLevel": 45
+        },
+        {
+          "name": "Crushing hand",
+          "slayerLevel": 5,
+          "combatLevel": 45
+        }
+      ]
+    },
+    {
+      "label": "Crocodiles",
+      "monsters": [
+        {
+          "name": "Crocodile",
+          "slayerLevel": null,
+          "combatLevel": 63
+        }
+      ]
+    },
+    {
+      "label": "Custodian Stalker",
+      "monsters": [
+        {
+          "name": "Juvenile custodian stalker",
+          "slayerLevel": 54,
+          "combatLevel": 93
+        },
+        {
+          "name": "Strange creature",
+          "slayerLevel": 54,
+          "combatLevel": 93
+        },
+        {
+          "name": "Mature custodian stalker",
+          "slayerLevel": 67,
+          "combatLevel": 117
+        },
+        {
+          "name": "Elder custodian stalker",
+          "slayerLevel": 76,
+          "combatLevel": 142
+        },
+        {
+          "name": "Ancient Custodian",
+          "slayerLevel": 76,
+          "combatLevel": 239
+        }
+      ]
+    },
+    {
+      "label": "Dagannoth",
+      "monsters": [
+        {
+          "name": "Dagannoth spawn",
+          "slayerLevel": null,
+          "combatLevel": 42
+        },
+        {
+          "name": "Dagannoth fledgeling",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Dagannoth",
+          "slayerLevel": null,
+          "combatLevel": 92
+        },
+        {
+          "name": "Blue dagannoth",
+          "slayerLevel": null,
+          "combatLevel": 100
+        },
+        {
+          "name": "Dagannoth mother",
+          "slayerLevel": null,
+          "combatLevel": 201
+        },
+        {
+          "name": "Dagannoth Supreme",
+          "slayerLevel": null,
+          "combatLevel": 936
+        },
+        {
+          "name": "Dagannoth Prime",
+          "slayerLevel": null,
+          "combatLevel": 947
+        },
+        {
+          "name": "Dagannoth Rex",
+          "slayerLevel": null,
+          "combatLevel": 1104
+        },
+        {
+          "name": "Reanimated dagannoth",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Dark Beasts",
+      "monsters": [
+        {
+          "name": "Dark beast",
+          "slayerLevel": 90,
+          "combatLevel": 182
+        },
+        {
+          "name": "Night beast",
+          "slayerLevel": 90,
+          "combatLevel": 457
+        },
+        {
+          "name": "Bloodthirsty Night beast",
+          "slayerLevel": 90,
+          "combatLevel": 561
+        }
+      ]
+    },
+    {
+      "label": "Dark Warriors",
+      "monsters": [
+        {
+          "name": "Dark warrior",
+          "slayerLevel": null,
+          "combatLevel": 145
+        }
+      ]
+    },
+    {
+      "label": "Dogs",
+      "monsters": [
+        {
+          "name": "Jackal",
+          "slayerLevel": null,
+          "combatLevel": 21
+        },
+        {
+          "name": "Temple Guardian",
+          "slayerLevel": null,
+          "combatLevel": 30
+        },
+        {
+          "name": "Guard dog",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Shadow Hound",
+          "slayerLevel": null,
+          "combatLevel": 63
+        },
+        {
+          "name": "Wild dog",
+          "slayerLevel": null,
+          "combatLevel": 63
+        },
+        {
+          "name": "Reanimated dog",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Drakes",
+      "monsters": [
+        {
+          "name": "Drake",
+          "slayerLevel": 84,
+          "combatLevel": 192
+        },
+        {
+          "name": "Guardian Drake",
+          "slayerLevel": 84,
+          "combatLevel": 376
+        },
+        {
+          "name": "Bloodthirsty Drake",
+          "slayerLevel": 84,
+          "combatLevel": 576
+        }
+      ]
+    },
+    {
+      "label": "Dust Devils",
+      "monsters": [
+        {
+          "name": "Dust devil",
+          "slayerLevel": 65,
+          "combatLevel": 110
+        },
+        {
+          "name": "Choke devil",
+          "slayerLevel": 65,
+          "combatLevel": 264
+        },
+        {
+          "name": "Bloodthirsty choke devil",
+          "slayerLevel": 65,
+          "combatLevel": 396
+        }
+      ]
+    },
+    {
+      "label": "Dwarves",
+      "monsters": [
+        {
+          "name": "Guard",
+          "slayerLevel": null,
+          "combatLevel": 10
+        },
+        {
+          "name": "Dwarf",
+          "slayerLevel": null,
+          "combatLevel": 20
+        },
+        {
+          "name": "Black Guard",
+          "slayerLevel": null,
+          "combatLevel": 48
+        },
+        {
+          "name": "Chaos dwarf",
+          "slayerLevel": null,
+          "combatLevel": 48
+        },
+        {
+          "name": "Dwarf gang member",
+          "slayerLevel": null,
+          "combatLevel": 49
+        },
+        {
+          "name": "Black Guard Berserker",
+          "slayerLevel": null,
+          "combatLevel": 66
+        }
+      ]
+    },
+    {
+      "label": "Earth Warriors",
+      "monsters": [
+        {
+          "name": "Earth warrior",
+          "slayerLevel": null,
+          "combatLevel": 51
+        }
+      ]
+    },
+    {
+      "label": "Elves",
+      "monsters": [
+        {
+          "name": "Elf Archer",
+          "slayerLevel": null,
+          "combatLevel": 90
+        },
+        {
+          "name": "Iorwerth Archer",
+          "slayerLevel": null,
+          "combatLevel": 90
+        },
+        {
+          "name": "Elf Warrior",
+          "slayerLevel": null,
+          "combatLevel": 108
+        },
+        {
+          "name": "Guard",
+          "slayerLevel": null,
+          "combatLevel": 108
+        },
+        {
+          "name": "Iorwerth Warrior",
+          "slayerLevel": null,
+          "combatLevel": 108
+        },
+        {
+          "name": "Mourner",
+          "slayerLevel": null,
+          "combatLevel": 108
+        },
+        {
+          "name": "Reanimated elf",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Ents",
+      "monsters": [
+        {
+          "name": "Ent",
+          "slayerLevel": null,
+          "combatLevel": 101
+        }
+      ]
+    },
+    {
+      "label": "Fever Spiders",
+      "monsters": [
+        {
+          "name": "Fever spider",
+          "slayerLevel": 42,
+          "combatLevel": 49
+        }
+      ]
+    },
+    {
+      "label": "Fire Giants",
+      "monsters": [
+        {
+          "name": "Fire giant",
+          "slayerLevel": null,
+          "combatLevel": 109
+        },
+        {
+          "name": "Branda the Fire Queen",
+          "slayerLevel": null,
+          "combatLevel": 350
+        }
+      ]
+    },
+    {
+      "label": "Flesh Crawlers",
+      "monsters": [
+        {
+          "name": "Flesh Crawler",
+          "slayerLevel": null,
+          "combatLevel": 41
+        }
+      ]
+    },
+    {
+      "label": "Fossil Island Wyverns",
+      "monsters": [
+        {
+          "name": "Spitting Wyvern",
+          "slayerLevel": 66,
+          "combatLevel": 139
+        },
+        {
+          "name": "Taloned Wyvern",
+          "slayerLevel": 66,
+          "combatLevel": 147
+        },
+        {
+          "name": "Long-tailed Wyvern",
+          "slayerLevel": 66,
+          "combatLevel": 152
+        },
+        {
+          "name": "Ancient Wyvern",
+          "slayerLevel": 82,
+          "combatLevel": 210
+        }
+      ]
+    },
+    {
+      "label": "Frost Dragons",
+      "monsters": [
+        {
+          "name": "Frost dragon",
+          "slayerLevel": null,
+          "combatLevel": 202
+        }
+      ]
+    },
+    {
+      "label": "Gargoyles",
+      "monsters": [
+        {
+          "name": "Gargoyle",
+          "slayerLevel": 75,
+          "combatLevel": 111
+        },
+        {
+          "name": "Dawn",
+          "slayerLevel": 75,
+          "combatLevel": 228
+        },
+        {
+          "name": "Definitely Not Dusk",
+          "slayerLevel": null,
+          "combatLevel": 248
+        },
+        {
+          "name": "Bloodthirsty gargoyle",
+          "slayerLevel": 75,
+          "combatLevel": 349
+        },
+        {
+          "name": "Marble gargoyle",
+          "slayerLevel": 75,
+          "combatLevel": 349
+        },
+        {
+          "name": "Dusk",
+          "slayerLevel": 75,
+          "combatLevel": 656
+        }
+      ]
+    },
+    {
+      "label": "Ghosts",
+      "monsters": [
+        {
+          "name": "Revenant imp",
+          "slayerLevel": null,
+          "combatLevel": 7
+        },
+        {
+          "name": "Revenant goblin",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Forgotten Soul",
+          "slayerLevel": null,
+          "combatLevel": 20
+        },
+        {
+          "name": "Haze",
+          "slayerLevel": null,
+          "combatLevel": 29
+        },
+        {
+          "name": "Revenant pyrefiend",
+          "slayerLevel": null,
+          "combatLevel": 52
+        },
+        {
+          "name": "Tortured soul",
+          "slayerLevel": null,
+          "combatLevel": 59
+        },
+        {
+          "name": "Revenant hobgoblin",
+          "slayerLevel": null,
+          "combatLevel": 60
+        },
+        {
+          "name": "Ghost",
+          "slayerLevel": 1,
+          "combatLevel": 77
+        },
+        {
+          "name": "Revenant cyclops",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Death wing",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Revenant hellhound",
+          "slayerLevel": null,
+          "combatLevel": 90
+        },
+        {
+          "name": "Nazastarool",
+          "slayerLevel": null,
+          "combatLevel": 93
+        },
+        {
+          "name": "Treus Dayth",
+          "slayerLevel": null,
+          "combatLevel": 95
+        },
+        {
+          "name": "Revenant demon",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Tree spirit",
+          "slayerLevel": null,
+          "combatLevel": 101
+        },
+        {
+          "name": "Revenant ork",
+          "slayerLevel": null,
+          "combatLevel": 105
+        },
+        {
+          "name": "Revenant dark beast",
+          "slayerLevel": null,
+          "combatLevel": 120
+        },
+        {
+          "name": "Revenant knight",
+          "slayerLevel": null,
+          "combatLevel": 126
+        },
+        {
+          "name": "Revenant dragon",
+          "slayerLevel": null,
+          "combatLevel": 135
+        },
+        {
+          "name": "Revenant maledictus",
+          "slayerLevel": null,
+          "combatLevel": 397
+        }
+      ]
+    },
+    {
+      "label": "Ghouls",
+      "monsters": [
+        {
+          "name": "Ghoul",
+          "slayerLevel": null,
+          "combatLevel": 42
+        }
+      ]
+    },
+    {
+      "label": "Goblins",
+      "monsters": [
+        {
+          "name": "Wormbrain",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Cave goblin",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Cave goblin miner",
+          "slayerLevel": null,
+          "combatLevel": 11
+        },
+        {
+          "name": "Goblin",
+          "slayerLevel": 1,
+          "combatLevel": 25
+        },
+        {
+          "name": "Cave goblin guard",
+          "slayerLevel": null,
+          "combatLevel": 26
+        },
+        {
+          "name": "Guard",
+          "slayerLevel": null,
+          "combatLevel": 26
+        },
+        {
+          "name": "Skoblin",
+          "slayerLevel": null,
+          "combatLevel": 29
+        },
+        {
+          "name": "Snothead",
+          "slayerLevel": null,
+          "combatLevel": 32
+        },
+        {
+          "name": "Goblin guard",
+          "slayerLevel": null,
+          "combatLevel": 42
+        },
+        {
+          "name": "Snailfeet",
+          "slayerLevel": null,
+          "combatLevel": 56
+        },
+        {
+          "name": "Mosschin",
+          "slayerLevel": null,
+          "combatLevel": 88
+        },
+        {
+          "name": "Redeyes",
+          "slayerLevel": null,
+          "combatLevel": 121
+        },
+        {
+          "name": "Sergeant Strongstack",
+          "slayerLevel": null,
+          "combatLevel": 141
+        },
+        {
+          "name": "Sergeant Grimspike",
+          "slayerLevel": null,
+          "combatLevel": 142
+        },
+        {
+          "name": "Sergeant Steelwill",
+          "slayerLevel": null,
+          "combatLevel": 142
+        },
+        {
+          "name": "Strongbones",
+          "slayerLevel": null,
+          "combatLevel": 184
+        },
+        {
+          "name": "Giant goblin",
+          "slayerLevel": null,
+          "combatLevel": 1022
+        },
+        {
+          "name": "Reanimated goblin",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Greater Demons",
+      "monsters": [
+        {
+          "name": "Greater demon",
+          "slayerLevel": null,
+          "combatLevel": 113
+        },
+        {
+          "name": "Tstanon Karlak",
+          "slayerLevel": null,
+          "combatLevel": 145
+        },
+        {
+          "name": "Judge of Yama",
+          "slayerLevel": null,
+          "combatLevel": 168
+        },
+        {
+          "name": "Skotizo",
+          "slayerLevel": null,
+          "combatLevel": 321
+        },
+        {
+          "name": "Tormented Demon",
+          "slayerLevel": null,
+          "combatLevel": 450
+        },
+        {
+          "name": "K'ril Tsutsaroth",
+          "slayerLevel": null,
+          "combatLevel": 650
+        }
+      ]
+    },
+    {
+      "label": "Green Dragons",
+      "monsters": [
+        {
+          "name": "Green dragon",
+          "slayerLevel": null,
+          "combatLevel": 88
+        },
+        {
+          "name": "Elvarg",
+          "slayerLevel": null,
+          "combatLevel": 214
+        }
+      ]
+    },
+    {
+      "label": "Gryphons",
+      "monsters": [
+        {
+          "name": "Gryphon",
+          "slayerLevel": 51,
+          "combatLevel": 95
+        },
+        {
+          "name": "Dire gryphon",
+          "slayerLevel": 51,
+          "combatLevel": 209
+        },
+        {
+          "name": "Shellbane gryphon",
+          "slayerLevel": 51,
+          "combatLevel": 235
+        }
+      ]
+    },
+    {
+      "label": "Harpie Bug Swarms",
+      "monsters": [
+        {
+          "name": "Harpie Bug Swarm",
+          "slayerLevel": 33,
+          "combatLevel": 46
+        }
+      ]
+    },
+    {
+      "label": "Hellhounds",
+      "monsters": [
+        {
+          "name": "Hellhound",
+          "slayerLevel": null,
+          "combatLevel": 136
+        },
+        {
+          "name": "Bouncer",
+          "slayerLevel": null,
+          "combatLevel": 137
+        },
+        {
+          "name": "Skeleton Hellhound",
+          "slayerLevel": null,
+          "combatLevel": 194
+        },
+        {
+          "name": "Greater Skeleton Hellhound",
+          "slayerLevel": null,
+          "combatLevel": 231
+        },
+        {
+          "name": "Cerberus",
+          "slayerLevel": 91,
+          "combatLevel": 726
+        },
+        {
+          "name": "Reanimated hellhound",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Hill Giants",
+      "monsters": [
+        {
+          "name": "Hill Giant",
+          "slayerLevel": null,
+          "combatLevel": 28
+        },
+        {
+          "name": "Cyclops",
+          "slayerLevel": null,
+          "combatLevel": 106
+        },
+        {
+          "name": "Obor",
+          "slayerLevel": null,
+          "combatLevel": 106
+        },
+        {
+          "name": "Reanimated giant",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Hobgoblins",
+      "monsters": [
+        {
+          "name": "Hobgoblin",
+          "slayerLevel": null,
+          "combatLevel": 47
+        }
+      ]
+    },
+    {
+      "label": "Hydras",
+      "monsters": [
+        {
+          "name": "Hydra",
+          "slayerLevel": 95,
+          "combatLevel": 194
+        },
+        {
+          "name": "Colossal Hydra",
+          "slayerLevel": 95,
+          "combatLevel": 309
+        },
+        {
+          "name": "Alchemical Hydra",
+          "slayerLevel": 95,
+          "combatLevel": 426
+        },
+        {
+          "name": "Bloodthirsty Hydra",
+          "slayerLevel": 95,
+          "combatLevel": 501
+        }
+      ]
+    },
+    {
+      "label": "Ice Giants",
+      "monsters": [
+        {
+          "name": "Ice giant",
+          "slayerLevel": null,
+          "combatLevel": 67
+        },
+        {
+          "name": "Eldric the Ice King",
+          "slayerLevel": null,
+          "combatLevel": 350
+        }
+      ]
+    },
+    {
+      "label": "Ice Warriors",
+      "monsters": [
+        {
+          "name": "Icelord",
+          "slayerLevel": null,
+          "combatLevel": 51
+        },
+        {
+          "name": "Ice warrior",
+          "slayerLevel": null,
+          "combatLevel": 57
+        },
+        {
+          "name": "Kamil",
+          "slayerLevel": null,
+          "combatLevel": 273
+        }
+      ]
+    },
+    {
+      "label": "Icefiends",
+      "monsters": [
+        {
+          "name": "Icefiend",
+          "slayerLevel": null,
+          "combatLevel": 18
+        }
+      ]
+    },
+    {
+      "label": "Infernal Mages",
+      "monsters": [
+        {
+          "name": "Infernal Mage",
+          "slayerLevel": 45,
+          "combatLevel": 66
+        },
+        {
+          "name": "Bloodthirsty Mage",
+          "slayerLevel": 45,
+          "combatLevel": 162
+        },
+        {
+          "name": "Malevolent Mage",
+          "slayerLevel": 45,
+          "combatLevel": 162
+        }
+      ]
+    },
+    {
+      "label": "Jellies",
+      "monsters": [
+        {
+          "name": "Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 78
+        },
+        {
+          "name": "Chilled jelly",
+          "slayerLevel": 52,
+          "combatLevel": 112
+        },
+        {
+          "name": "Warped Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 112
+        },
+        {
+          "name": "Vitreous Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 206
+        },
+        {
+          "name": "Vitreous Chilled Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 241
+        },
+        {
+          "name": "Vitreous Warped Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 241
+        },
+        {
+          "name": "Bloodthirsty Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 309
+        },
+        {
+          "name": "Bloodthirsty Warped Jelly",
+          "slayerLevel": 52,
+          "combatLevel": 361
+        }
+      ]
+    },
+    {
+      "label": "Jungle Horrors",
+      "monsters": [
+        {
+          "name": "Jungle horror",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Reanimated horror",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Kalphite",
+      "monsters": [
+        {
+          "name": "Kalphite Worker",
+          "slayerLevel": null,
+          "combatLevel": 28
+        },
+        {
+          "name": "Kalphite Soldier",
+          "slayerLevel": null,
+          "combatLevel": 85
+        },
+        {
+          "name": "Kalphite Guardian",
+          "slayerLevel": null,
+          "combatLevel": 141
+        },
+        {
+          "name": "Kalphite Queen",
+          "slayerLevel": null,
+          "combatLevel": 748
+        },
+        {
+          "name": "Reanimated kalphite",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Killerwatts",
+      "monsters": [
+        {
+          "name": "Killerwatt",
+          "slayerLevel": 37,
+          "combatLevel": 55
+        }
+      ]
+    },
+    {
+      "label": "Kurask",
+      "monsters": [
+        {
+          "name": "Kurask",
+          "slayerLevel": 70,
+          "combatLevel": 106
+        },
+        {
+          "name": "Bloodthirsty kurask",
+          "slayerLevel": 70,
+          "combatLevel": 295
+        },
+        {
+          "name": "King kurask",
+          "slayerLevel": 70,
+          "combatLevel": 295
+        }
+      ]
+    },
+    {
+      "label": "Lava Dragons",
+      "monsters": [
+        {
+          "name": "Lava dragon",
+          "slayerLevel": null,
+          "combatLevel": 252
+        }
+      ]
+    },
+    {
+      "label": "Lesser Demons",
+      "monsters": [
+        {
+          "name": "Lesser demon",
+          "slayerLevel": null,
+          "combatLevel": 94
+        },
+        {
+          "name": "Zakl'n Gritch",
+          "slayerLevel": null,
+          "combatLevel": 142
+        },
+        {
+          "name": "Reanimated demon",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Lesser Nagua",
+      "monsters": [
+        {
+          "name": "Sulphur Nagua",
+          "slayerLevel": 48,
+          "combatLevel": 98
+        },
+        {
+          "name": "Frost Nagua",
+          "slayerLevel": 48,
+          "combatLevel": 104
+        },
+        {
+          "name": "Earthen Nagua",
+          "slayerLevel": 48,
+          "combatLevel": 128
+        },
+        {
+          "name": "Amoxliatl",
+          "slayerLevel": 48,
+          "combatLevel": 328
+        }
+      ]
+    },
+    {
+      "label": "Lizard",
+      "monsters": [
+        {
+          "name": "Grimy Lizard",
+          "slayerLevel": 44,
+          "combatLevel": 50
+        }
+      ]
+    },
+    {
+      "label": "Lizardmen",
+      "monsters": [
+        {
+          "name": "Lizardman",
+          "slayerLevel": null,
+          "combatLevel": 62
+        },
+        {
+          "name": "Lizardman brute",
+          "slayerLevel": null,
+          "combatLevel": 75
+        },
+        {
+          "name": "Lizardman shaman",
+          "slayerLevel": null,
+          "combatLevel": 150
+        },
+        {
+          "name": "Corrupt Lizardman",
+          "slayerLevel": null,
+          "combatLevel": 152
+        }
+      ]
+    },
+    {
+      "label": "Lizards",
+      "monsters": [
+        {
+          "name": "Small Lizard",
+          "slayerLevel": 22,
+          "combatLevel": 12
+        },
+        {
+          "name": "Desert Lizard",
+          "slayerLevel": 22,
+          "combatLevel": 24
+        },
+        {
+          "name": "Lizard",
+          "slayerLevel": 22,
+          "combatLevel": 42
+        },
+        {
+          "name": "Sulphur Lizard",
+          "slayerLevel": 44,
+          "combatLevel": 757
+        }
+      ]
+    },
+    {
+      "label": "Magic Axes",
+      "monsters": [
+        {
+          "name": "Magic axe",
+          "slayerLevel": null,
+          "combatLevel": 42
+        }
+      ]
+    },
+    {
+      "label": "Mammoths",
+      "monsters": [
+        {
+          "name": "Mammoth",
+          "slayerLevel": null,
+          "combatLevel": 80
+        }
+      ]
+    },
+    {
+      "label": "Metal Dragons",
+      "monsters": [
+        {
+          "name": "Bronze dragon",
+          "slayerLevel": null,
+          "combatLevel": 143
+        },
+        {
+          "name": "Iron dragon",
+          "slayerLevel": null,
+          "combatLevel": 215
+        },
+        {
+          "name": "Steel dragon",
+          "slayerLevel": null,
+          "combatLevel": 274
+        },
+        {
+          "name": "Mithril dragon",
+          "slayerLevel": null,
+          "combatLevel": 304
+        },
+        {
+          "name": "Adamant dragon",
+          "slayerLevel": null,
+          "combatLevel": 338
+        },
+        {
+          "name": "Rune dragon",
+          "slayerLevel": null,
+          "combatLevel": 380
+        }
+      ]
+    },
+    {
+      "label": "Minotaurs",
+      "monsters": [
+        {
+          "name": "Minotaur",
+          "slayerLevel": null,
+          "combatLevel": 27
+        },
+        {
+          "name": "Reanimated minotaur",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Mogres",
+      "monsters": [
+        {
+          "name": "Mogre",
+          "slayerLevel": 32,
+          "combatLevel": 60
+        }
+      ]
+    },
+    {
+      "label": "Molanisks",
+      "monsters": [
+        {
+          "name": "Molanisk",
+          "slayerLevel": 39,
+          "combatLevel": 51
+        }
+      ]
+    },
+    {
+      "label": "Monkeys",
+      "monsters": [
+        {
+          "name": "Monkey",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Monkey Archer",
+          "slayerLevel": null,
+          "combatLevel": 86
+        },
+        {
+          "name": "Monkey Zombie",
+          "slayerLevel": null,
+          "combatLevel": 129
+        },
+        {
+          "name": "Maniacal Monkey Archer",
+          "slayerLevel": null,
+          "combatLevel": 132
+        },
+        {
+          "name": "Maniacal monkey",
+          "slayerLevel": null,
+          "combatLevel": 140
+        },
+        {
+          "name": "Tortured gorilla",
+          "slayerLevel": null,
+          "combatLevel": 142
+        },
+        {
+          "name": "Duke",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Oipuis",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Ouhai",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Uodai",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Uyoro",
+          "slayerLevel": null,
+          "combatLevel": 149
+        },
+        {
+          "name": "Monkey Guard",
+          "slayerLevel": null,
+          "combatLevel": 167
+        },
+        {
+          "name": "Demonic gorilla",
+          "slayerLevel": null,
+          "combatLevel": 275
+        },
+        {
+          "name": "Reanimated monkey",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Moss Giants",
+      "monsters": [
+        {
+          "name": "Moss giant",
+          "slayerLevel": null,
+          "combatLevel": 48
+        },
+        {
+          "name": "Moss Giant",
+          "slayerLevel": null,
+          "combatLevel": 84
+        },
+        {
+          "name": "Bryophyta",
+          "slayerLevel": null,
+          "combatLevel": 128
+        }
+      ]
+    },
+    {
+      "label": "Mutated Zygomites",
+      "monsters": [
+        {
+          "name": "Zygomite",
+          "slayerLevel": 57,
+          "combatLevel": 86
+        },
+        {
+          "name": "Ancient Zygomite",
+          "slayerLevel": 57,
+          "combatLevel": 109
+        }
+      ]
+    },
+    {
+      "label": "Nechryael",
+      "monsters": [
+        {
+          "name": "Nechryael",
+          "slayerLevel": 80,
+          "combatLevel": 115
+        },
+        {
+          "name": "Greater Nechryael",
+          "slayerLevel": 80,
+          "combatLevel": 200
+        },
+        {
+          "name": "Nechryarch",
+          "slayerLevel": 80,
+          "combatLevel": 300
+        },
+        {
+          "name": "Bloodthirsty Nechryarch",
+          "slayerLevel": 80,
+          "combatLevel": 450
+        }
+      ]
+    },
+    {
+      "label": "No",
+      "monsters": [
+        {
+          "name": "Kolodion",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "None",
+      "monsters": [
+        {
+          "name": "Mourner",
+          "slayerLevel": null,
+          "combatLevel": 11
+        },
+        {
+          "name": "Lesser demon",
+          "slayerLevel": null,
+          "combatLevel": 39
+        }
+      ]
+    },
+    {
+      "label": "Ogres",
+      "monsters": [
+        {
+          "name": "Skogre",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Zogre",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Mogre",
+          "slayerLevel": 32,
+          "combatLevel": 60
+        },
+        {
+          "name": "Ogre",
+          "slayerLevel": null,
+          "combatLevel": 63
+        },
+        {
+          "name": "Gorad",
+          "slayerLevel": null,
+          "combatLevel": 68
+        },
+        {
+          "name": "Ogre chieftain",
+          "slayerLevel": null,
+          "combatLevel": 81
+        },
+        {
+          "name": "Ogress Shaman",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Ogress Warrior",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "City guard",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Enclave guard",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Reanimated ogre",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Otherworldly Beings",
+      "monsters": [
+        {
+          "name": "Otherworldly being",
+          "slayerLevel": null,
+          "combatLevel": 64
+        }
+      ]
+    },
+    {
+      "label": "Pirates",
+      "monsters": [
+        {
+          "name": "Zombie pirate",
+          "slayerLevel": null,
+          "combatLevel": 34
+        },
+        {
+          "name": "Pirate",
+          "slayerLevel": null,
+          "combatLevel": 57
+        }
+      ]
+    },
+    {
+      "label": "Pyrefiends",
+      "monsters": [
+        {
+          "name": "Pyrefiend",
+          "slayerLevel": 30,
+          "combatLevel": 48
+        },
+        {
+          "name": "Pyrelord",
+          "slayerLevel": 30,
+          "combatLevel": 60
+        },
+        {
+          "name": "Flaming pyrelord",
+          "slayerLevel": 30,
+          "combatLevel": 97
+        },
+        {
+          "name": "Infernal pyrelord",
+          "slayerLevel": 30,
+          "combatLevel": 134
+        },
+        {
+          "name": "Bloodthirsty pyrelord",
+          "slayerLevel": 30,
+          "combatLevel": 145
+        },
+        {
+          "name": "Bloodthirsty Infernal pyrelord",
+          "slayerLevel": 30,
+          "combatLevel": 201
+        }
+      ]
+    },
+    {
+      "label": "Rats",
+      "monsters": [
+        {
+          "name": "Rat",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Zombie rat",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Blessed giant rat",
+          "slayerLevel": null,
+          "combatLevel": 9
+        },
+        {
+          "name": "Dungeon rat",
+          "slayerLevel": null,
+          "combatLevel": 12
+        },
+        {
+          "name": "Crypt rat",
+          "slayerLevel": null,
+          "combatLevel": 43
+        },
+        {
+          "name": "Giant rat",
+          "slayerLevel": null,
+          "combatLevel": 46
+        },
+        {
+          "name": "Brine rat",
+          "slayerLevel": 47,
+          "combatLevel": 70
+        },
+        {
+          "name": "Giant crypt rat",
+          "slayerLevel": null,
+          "combatLevel": 76
+        },
+        {
+          "name": "Scurrius",
+          "slayerLevel": null,
+          "combatLevel": 250
+        }
+      ]
+    },
+    {
+      "label": "Red Dragons",
+      "monsters": [
+        {
+          "name": "Baby red dragon",
+          "slayerLevel": null,
+          "combatLevel": 48
+        },
+        {
+          "name": "Red dragon",
+          "slayerLevel": null,
+          "combatLevel": 152
+        },
+        {
+          "name": "Brutal red dragon",
+          "slayerLevel": null,
+          "combatLevel": 289
+        }
+      ]
+    },
+    {
+      "label": "Revenants",
+      "monsters": [
+        {
+          "name": "Revenant imp",
+          "slayerLevel": null,
+          "combatLevel": 7
+        },
+        {
+          "name": "Revenant goblin",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Revenant pyrefiend",
+          "slayerLevel": null,
+          "combatLevel": 52
+        },
+        {
+          "name": "Revenant hobgoblin",
+          "slayerLevel": null,
+          "combatLevel": 60
+        },
+        {
+          "name": "Revenant cyclops",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Revenant hellhound",
+          "slayerLevel": null,
+          "combatLevel": 90
+        },
+        {
+          "name": "Revenant demon",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Revenant ork",
+          "slayerLevel": null,
+          "combatLevel": 105
+        },
+        {
+          "name": "Revenant dark beast",
+          "slayerLevel": null,
+          "combatLevel": 120
+        },
+        {
+          "name": "Revenant knight",
+          "slayerLevel": null,
+          "combatLevel": 126
+        },
+        {
+          "name": "Revenant dragon",
+          "slayerLevel": null,
+          "combatLevel": 135
+        },
+        {
+          "name": "Revenant maledictus",
+          "slayerLevel": null,
+          "combatLevel": 397
+        }
+      ]
+    },
+    {
+      "label": "Rockslugs",
+      "monsters": [
+        {
+          "name": "Rockslug",
+          "slayerLevel": 20,
+          "combatLevel": 29
+        },
+        {
+          "name": "Bloodthirst rockslug",
+          "slayerLevel": 20,
+          "combatLevel": 86
+        },
+        {
+          "name": "Giant rockslug",
+          "slayerLevel": 20,
+          "combatLevel": 86
+        }
+      ]
+    },
+    {
+      "label": "Rogues",
+      "monsters": [
+        {
+          "name": "Rogue",
+          "slayerLevel": null,
+          "combatLevel": 135
+        }
+      ]
+    },
+    {
+      "label": "Scabarites",
+      "monsters": [
+        {
+          "name": "Small scarab",
+          "slayerLevel": null,
+          "combatLevel": 41
+        },
+        {
+          "name": "Scarabs",
+          "slayerLevel": null,
+          "combatLevel": 92
+        },
+        {
+          "name": "Scarab Swarm",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Locust rider",
+          "slayerLevel": null,
+          "combatLevel": 106
+        },
+        {
+          "name": "Scarab Mage",
+          "slayerLevel": null,
+          "combatLevel": 119
+        },
+        {
+          "name": "Giant Scarab",
+          "slayerLevel": null,
+          "combatLevel": 316
+        }
+      ]
+    },
+    {
+      "label": "Scorpions",
+      "monsters": [
+        {
+          "name": "Grave scorpion",
+          "slayerLevel": null,
+          "combatLevel": 12
+        },
+        {
+          "name": "Scorpia's offspring",
+          "slayerLevel": null,
+          "combatLevel": 15
+        },
+        {
+          "name": "Poison Scorpion",
+          "slayerLevel": null,
+          "combatLevel": 20
+        },
+        {
+          "name": "Pit Scorpion",
+          "slayerLevel": null,
+          "combatLevel": 28
+        },
+        {
+          "name": "King Scorpion",
+          "slayerLevel": null,
+          "combatLevel": 32
+        },
+        {
+          "name": "Giant lobster",
+          "slayerLevel": null,
+          "combatLevel": 45
+        },
+        {
+          "name": "Scorpia's guardian",
+          "slayerLevel": null,
+          "combatLevel": 47
+        },
+        {
+          "name": "Scorpion",
+          "slayerLevel": null,
+          "combatLevel": 59
+        },
+        {
+          "name": "Lobstrosity",
+          "slayerLevel": null,
+          "combatLevel": 68
+        },
+        {
+          "name": "Scorpia",
+          "slayerLevel": null,
+          "combatLevel": 225
+        },
+        {
+          "name": "Reanimated scorpion",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Sea Snakes",
+      "monsters": [
+        {
+          "name": "Sea Snake Hatchling",
+          "slayerLevel": 40,
+          "combatLevel": 62
+        },
+        {
+          "name": "Sea Snake Young",
+          "slayerLevel": 40,
+          "combatLevel": 90
+        }
+      ]
+    },
+    {
+      "label": "Shades",
+      "monsters": [
+        {
+          "name": "Loar Shade",
+          "slayerLevel": null,
+          "combatLevel": 40
+        },
+        {
+          "name": "Phrin Shade",
+          "slayerLevel": null,
+          "combatLevel": 60
+        },
+        {
+          "name": "Riyl Shade",
+          "slayerLevel": null,
+          "combatLevel": 80
+        },
+        {
+          "name": "Riyl shadow",
+          "slayerLevel": null,
+          "combatLevel": 80
+        },
+        {
+          "name": "Asyn Shade",
+          "slayerLevel": null,
+          "combatLevel": 100
+        },
+        {
+          "name": "Asyn shadow",
+          "slayerLevel": null,
+          "combatLevel": 110
+        },
+        {
+          "name": "Fiyr Shade",
+          "slayerLevel": null,
+          "combatLevel": 120
+        },
+        {
+          "name": "Urium Shade",
+          "slayerLevel": null,
+          "combatLevel": 140
+        },
+        {
+          "name": "Shade",
+          "slayerLevel": null,
+          "combatLevel": 159
+        }
+      ]
+    },
+    {
+      "label": "Shadow Warriors",
+      "monsters": [
+        {
+          "name": "Shadow warrior",
+          "slayerLevel": null,
+          "combatLevel": 48
+        }
+      ]
+    },
+    {
+      "label": "Skeletal Wyverns",
+      "monsters": [
+        {
+          "name": "Skeletal Wyvern",
+          "slayerLevel": 72,
+          "combatLevel": 140
+        }
+      ]
+    },
+    {
+      "label": "Skeletons",
+      "monsters": [
+        {
+          "name": "Skoblin",
+          "slayerLevel": null,
+          "combatLevel": 29
+        },
+        {
+          "name": "Snothead",
+          "slayerLevel": null,
+          "combatLevel": 32
+        },
+        {
+          "name": "Skeletal miner",
+          "slayerLevel": null,
+          "combatLevel": 42
+        },
+        {
+          "name": "Skogre",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Snailfeet",
+          "slayerLevel": null,
+          "combatLevel": 56
+        },
+        {
+          "name": "Skeleton fremennik",
+          "slayerLevel": null,
+          "combatLevel": 60
+        },
+        {
+          "name": "Nazastarool",
+          "slayerLevel": null,
+          "combatLevel": 68
+        },
+        {
+          "name": "Undead one",
+          "slayerLevel": null,
+          "combatLevel": 68
+        },
+        {
+          "name": "Skeleton Mage",
+          "slayerLevel": null,
+          "combatLevel": 83
+        },
+        {
+          "name": "Mosschin",
+          "slayerLevel": null,
+          "combatLevel": 88
+        },
+        {
+          "name": "Giant skeleton",
+          "slayerLevel": null,
+          "combatLevel": 100
+        },
+        {
+          "name": "Ulfric",
+          "slayerLevel": null,
+          "combatLevel": 100
+        },
+        {
+          "name": "Redeyes",
+          "slayerLevel": null,
+          "combatLevel": 121
+        },
+        {
+          "name": "Skeleton heavy",
+          "slayerLevel": null,
+          "combatLevel": 130
+        },
+        {
+          "name": "Skeleton thug",
+          "slayerLevel": null,
+          "combatLevel": 130
+        },
+        {
+          "name": "Skeleton brute",
+          "slayerLevel": null,
+          "combatLevel": 132
+        },
+        {
+          "name": "Skeleton warlord",
+          "slayerLevel": null,
+          "combatLevel": 132
+        },
+        {
+          "name": "Skeleton",
+          "slayerLevel": null,
+          "combatLevel": 142
+        },
+        {
+          "name": "Skeleton hero",
+          "slayerLevel": null,
+          "combatLevel": 146
+        },
+        {
+          "name": "Strongbones",
+          "slayerLevel": null,
+          "combatLevel": 184
+        },
+        {
+          "name": "Skeleton Hellhound",
+          "slayerLevel": null,
+          "combatLevel": 194
+        },
+        {
+          "name": "Greater Skeleton Hellhound",
+          "slayerLevel": null,
+          "combatLevel": 231
+        },
+        {
+          "name": "Calvar'ion",
+          "slayerLevel": null,
+          "combatLevel": 264
+        },
+        {
+          "name": "Vet'ion",
+          "slayerLevel": null,
+          "combatLevel": 454
+        },
+        {
+          "name": "Skeletal Mystic",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Smoke Devils",
+      "monsters": [
+        {
+          "name": "Smoke devil",
+          "slayerLevel": 93,
+          "combatLevel": 160
+        },
+        {
+          "name": "Nuclear smoke devil",
+          "slayerLevel": 93,
+          "combatLevel": 280
+        },
+        {
+          "name": "Bloodthirsty smoke devil",
+          "slayerLevel": 93,
+          "combatLevel": 420
+        },
+        {
+          "name": "Thermonuclear smoke devil",
+          "slayerLevel": 93,
+          "combatLevel": 602
+        }
+      ]
+    },
+    {
+      "label": "Sourhogs",
+      "monsters": [
+        {
+          "name": "Sourhog",
+          "slayerLevel": 1,
+          "combatLevel": 37
+        }
+      ]
+    },
+    {
+      "label": "Spiders",
+      "monsters": [
+        {
+          "name": "Deadly red spider",
+          "slayerLevel": null,
+          "combatLevel": 34
+        },
+        {
+          "name": "Spider",
+          "slayerLevel": null,
+          "combatLevel": 35
+        },
+        {
+          "name": "Blessed spider",
+          "slayerLevel": null,
+          "combatLevel": 39
+        },
+        {
+          "name": "Jungle spider",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Giant spider",
+          "slayerLevel": null,
+          "combatLevel": 50
+        },
+        {
+          "name": "Shadow spider",
+          "slayerLevel": null,
+          "combatLevel": 52
+        },
+        {
+          "name": "Crypt spider",
+          "slayerLevel": null,
+          "combatLevel": 56
+        },
+        {
+          "name": "Ice spider",
+          "slayerLevel": null,
+          "combatLevel": 61
+        },
+        {
+          "name": "Poison spider",
+          "slayerLevel": null,
+          "combatLevel": 64
+        },
+        {
+          "name": "Temple Spider",
+          "slayerLevel": null,
+          "combatLevel": 75
+        },
+        {
+          "name": "Giant crypt spider",
+          "slayerLevel": null,
+          "combatLevel": 79
+        },
+        {
+          "name": "Spawn of Sarachnis",
+          "slayerLevel": null,
+          "combatLevel": 107
+        },
+        {
+          "name": "Acidic Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Mirrorback Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Ruptura Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 114
+        },
+        {
+          "name": "Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 146
+        },
+        {
+          "name": "Dreadborn Araxyte",
+          "slayerLevel": 92,
+          "combatLevel": 281
+        },
+        {
+          "name": "Spindel",
+          "slayerLevel": null,
+          "combatLevel": 302
+        },
+        {
+          "name": "Sarachnis",
+          "slayerLevel": null,
+          "combatLevel": 318
+        },
+        {
+          "name": "Venenatis",
+          "slayerLevel": null,
+          "combatLevel": 464
+        },
+        {
+          "name": "Araxxor",
+          "slayerLevel": 92,
+          "combatLevel": 890
+        }
+      ]
+    },
+    {
+      "label": "Spiritual Creatures",
+      "monsters": [
+        {
+          "name": "Spiritual ranger",
+          "slayerLevel": 63,
+          "combatLevel": 158
+        },
+        {
+          "name": "Spiritual warrior",
+          "slayerLevel": 68,
+          "combatLevel": 158
+        },
+        {
+          "name": "Spiritual mage",
+          "slayerLevel": 83,
+          "combatLevel": 182
+        }
+      ]
+    },
+    {
+      "label": "Suqahs",
+      "monsters": [
+        {
+          "name": "Suqah",
+          "slayerLevel": null,
+          "combatLevel": 111
+        }
+      ]
+    },
+    {
+      "label": "Terror Dogs",
+      "monsters": [
+        {
+          "name": "Terror dog",
+          "slayerLevel": 40,
+          "combatLevel": 110
+        }
+      ]
+    },
+    {
+      "label": "Trolls",
+      "monsters": [
+        {
+          "name": "Drink troll",
+          "slayerLevel": null,
+          "combatLevel": 14
+        },
+        {
+          "name": "Thrower Troll",
+          "slayerLevel": null,
+          "combatLevel": 67
+        },
+        {
+          "name": "Thrower troll",
+          "slayerLevel": null,
+          "combatLevel": 68
+        },
+        {
+          "name": "Berry",
+          "slayerLevel": null,
+          "combatLevel": 71
+        },
+        {
+          "name": "Mountain troll",
+          "slayerLevel": null,
+          "combatLevel": 71
+        },
+        {
+          "name": "Troll spectator",
+          "slayerLevel": null,
+          "combatLevel": 71
+        },
+        {
+          "name": "Twig",
+          "slayerLevel": null,
+          "combatLevel": 71
+        },
+        {
+          "name": "Frenzied ice troll runt",
+          "slayerLevel": null,
+          "combatLevel": 74
+        },
+        {
+          "name": "Ice troll runt",
+          "slayerLevel": null,
+          "combatLevel": 74
+        },
+        {
+          "name": "Frenzied ice troll female",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Frenzied ice troll male",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Ice troll female",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Ice troll male",
+          "slayerLevel": null,
+          "combatLevel": 82
+        },
+        {
+          "name": "Kraka",
+          "slayerLevel": null,
+          "combatLevel": 91
+        },
+        {
+          "name": "Pee Hat",
+          "slayerLevel": null,
+          "combatLevel": 91
+        },
+        {
+          "name": "Chuck up",
+          "slayerLevel": null,
+          "combatLevel": 98
+        },
+        {
+          "name": "Ice troll grunt",
+          "slayerLevel": null,
+          "combatLevel": 100
+        },
+        {
+          "name": "Frenzied ice troll grunt",
+          "slayerLevel": null,
+          "combatLevel": 102
+        },
+        {
+          "name": "Stick",
+          "slayerLevel": null,
+          "combatLevel": 104
+        },
+        {
+          "name": "Rock",
+          "slayerLevel": null,
+          "combatLevel": 111
+        },
+        {
+          "name": "Troll general",
+          "slayerLevel": null,
+          "combatLevel": 113
+        },
+        {
+          "name": "Ice troll",
+          "slayerLevel": null,
+          "combatLevel": 124
+        },
+        {
+          "name": "Daddy's special water",
+          "slayerLevel": null,
+          "combatLevel": 125
+        },
+        {
+          "name": "The rocks",
+          "slayerLevel": null,
+          "combatLevel": 154
+        },
+        {
+          "name": "River troll",
+          "slayerLevel": null,
+          "combatLevel": 159
+        },
+        {
+          "name": "Dad",
+          "slayerLevel": null,
+          "combatLevel": 201
+        },
+        {
+          "name": "Arrg",
+          "slayerLevel": null,
+          "combatLevel": 210
+        },
+        {
+          "name": "Ice Troll King",
+          "slayerLevel": null,
+          "combatLevel": 213
+        },
+        {
+          "name": "Dinky the drink troll",
+          "slayerLevel": null,
+          "combatLevel": null
+        },
+        {
+          "name": "Reanimated troll",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Turoth",
+      "monsters": [
+        {
+          "name": "Turoth",
+          "slayerLevel": 55,
+          "combatLevel": 89
+        },
+        {
+          "name": "Spiked Turoth",
+          "slayerLevel": 55,
+          "combatLevel": 244
+        },
+        {
+          "name": "Bloodthirsty Turoth",
+          "slayerLevel": 55,
+          "combatLevel": 366
+        }
+      ]
+    },
+    {
+      "label": "TzHaar",
+      "monsters": [
+        {
+          "name": "Tz-Kih",
+          "slayerLevel": null,
+          "combatLevel": 22
+        },
+        {
+          "name": "Jal-Nib",
+          "slayerLevel": null,
+          "combatLevel": 32
+        },
+        {
+          "name": "Tz-Kek",
+          "slayerLevel": null,
+          "combatLevel": 45
+        },
+        {
+          "name": "Jal-AkRek-Ket",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Jal-AkRek-Mej",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Jal-AkRek-Xil",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "TzHaar-Hur",
+          "slayerLevel": null,
+          "combatLevel": 74
+        },
+        {
+          "name": "Jal-MejRah",
+          "slayerLevel": null,
+          "combatLevel": 85
+        },
+        {
+          "name": "Tok-Xil",
+          "slayerLevel": null,
+          "combatLevel": 90
+        },
+        {
+          "name": "TzHaar-Mej",
+          "slayerLevel": null,
+          "combatLevel": 103
+        },
+        {
+          "name": "TzHaar-Xil",
+          "slayerLevel": null,
+          "combatLevel": 133
+        },
+        {
+          "name": "Yt-HurKot",
+          "slayerLevel": null,
+          "combatLevel": 141
+        },
+        {
+          "name": "Jal-Ak",
+          "slayerLevel": null,
+          "combatLevel": 165
+        },
+        {
+          "name": "Yt-MejKot",
+          "slayerLevel": null,
+          "combatLevel": 180
+        },
+        {
+          "name": "TzTok-Jad-Rek",
+          "slayerLevel": null,
+          "combatLevel": 186
+        },
+        {
+          "name": "TzHaar-Ket",
+          "slayerLevel": null,
+          "combatLevel": 221
+        },
+        {
+          "name": "Jal-ImKot",
+          "slayerLevel": null,
+          "combatLevel": 240
+        },
+        {
+          "name": "Jal-MejJak",
+          "slayerLevel": null,
+          "combatLevel": 250
+        },
+        {
+          "name": "Ket-Zek",
+          "slayerLevel": null,
+          "combatLevel": 360
+        },
+        {
+          "name": "Jal-Xil",
+          "slayerLevel": null,
+          "combatLevel": 370
+        },
+        {
+          "name": "Jal-Zek",
+          "slayerLevel": null,
+          "combatLevel": 490
+        },
+        {
+          "name": "JalTok-Jad",
+          "slayerLevel": null,
+          "combatLevel": 900
+        },
+        {
+          "name": "TzKal-Zuk",
+          "slayerLevel": null,
+          "combatLevel": 1400
+        },
+        {
+          "name": "TzTok-Jad",
+          "slayerLevel": null,
+          "combatLevel": 1758
+        },
+        {
+          "name": "Reanimated TzHaar",
+          "slayerLevel": null,
+          "combatLevel": null
+        }
+      ]
+    },
+    {
+      "label": "Vampyres",
+      "monsters": [
+        {
+          "name": "Vampyre Juvenile",
+          "slayerLevel": null,
+          "combatLevel": 45
+        },
+        {
+          "name": "Vampyre Juvinate",
+          "slayerLevel": null,
+          "combatLevel": 119
+        },
+        {
+          "name": "Vyrewatch",
+          "slayerLevel": null,
+          "combatLevel": 125
+        },
+        {
+          "name": "Feral Vampyre",
+          "slayerLevel": null,
+          "combatLevel": 130
+        },
+        {
+          "name": "Kroy",
+          "slayerLevel": null,
+          "combatLevel": 133
+        },
+        {
+          "name": "Vyrewatch Sentinel",
+          "slayerLevel": 38,
+          "combatLevel": 151
+        },
+        {
+          "name": "Count Draynor",
+          "slayerLevel": null,
+          "combatLevel": 177
+        },
+        {
+          "name": "Damien Leucurte",
+          "slayerLevel": null,
+          "combatLevel": 204
+        },
+        {
+          "name": "Dessous",
+          "slayerLevel": null,
+          "combatLevel": 217
+        },
+        {
+          "name": "Ranis Drakan",
+          "slayerLevel": null,
+          "combatLevel": 233
+        },
+        {
+          "name": "Blood-starved venator",
+          "slayerLevel": 74,
+          "combatLevel": 246
+        },
+        {
+          "name": "Venator",
+          "slayerLevel": 74,
+          "combatLevel": 246
+        }
+      ]
+    },
+    {
+      "label": "Vampyres'\"`UNIQ--ref-00000095-QINU`\"'",
+      "monsters": [
+        {
+          "name": "Vanstrom Klause",
+          "slayerLevel": null,
+          "combatLevel": 459
+        }
+      ]
+    },
+    {
+      "label": "Venators",
+      "monsters": [
+        {
+          "name": "Venator",
+          "slayerLevel": 74,
+          "combatLevel": 246
+        }
+      ]
+    },
+    {
+      "label": "Wall Beasts",
+      "monsters": [
+        {
+          "name": "Wall beast",
+          "slayerLevel": 35,
+          "combatLevel": 49
+        }
+      ]
+    },
+    {
+      "label": "Warped Creatures",
+      "monsters": [
+        {
+          "name": "Warped Tortoise",
+          "slayerLevel": 56,
+          "combatLevel": 121
+        },
+        {
+          "name": "Warped Terrorbird",
+          "slayerLevel": 56,
+          "combatLevel": 138
+        },
+        {
+          "name": "Mutated Terrorbird",
+          "slayerLevel": 56,
+          "combatLevel": 178
+        },
+        {
+          "name": "Mutated Tortoise",
+          "slayerLevel": 56,
+          "combatLevel": 247
+        }
+      ]
+    },
+    {
+      "label": "Waterfiends",
+      "monsters": [
+        {
+          "name": "Waterfiend",
+          "slayerLevel": null,
+          "combatLevel": 115
+        }
+      ]
+    },
+    {
+      "label": "Werewolves",
+      "monsters": [
+        {
+          "name": "Werewolf",
+          "slayerLevel": null,
+          "combatLevel": 93
+        }
+      ]
+    },
+    {
+      "label": "Wolves",
+      "monsters": [
+        {
+          "name": "Desert Wolf",
+          "slayerLevel": null,
+          "combatLevel": 27
+        },
+        {
+          "name": "White wolf",
+          "slayerLevel": null,
+          "combatLevel": 38
+        },
+        {
+          "name": "Jungle Wolf",
+          "slayerLevel": null,
+          "combatLevel": 64
+        },
+        {
+          "name": "Wolf",
+          "slayerLevel": null,
+          "combatLevel": 64
+        },
+        {
+          "name": "Big Wolf",
+          "slayerLevel": null,
+          "combatLevel": 73
+        },
+        {
+          "name": "Dire Wolf",
+          "slayerLevel": null,
+          "combatLevel": 88
+        },
+        {
+          "name": "Dire Wolf Alpha",
+          "slayerLevel": null,
+          "combatLevel": 113
+        },
+        {
+          "name": "Ice wolf",
+          "slayerLevel": null,
+          "combatLevel": 132
+        }
+      ]
+    },
+    {
+      "label": "Wyrms",
+      "monsters": [
+        {
+          "name": "Wyrmling",
+          "slayerLevel": 62,
+          "combatLevel": 55
+        },
+        {
+          "name": "Wyrm",
+          "slayerLevel": 62,
+          "combatLevel": 97
+        },
+        {
+          "name": "Lava Strykewyrm",
+          "slayerLevel": 62,
+          "combatLevel": 116
+        },
+        {
+          "name": "Magma strykewyrm",
+          "slayerLevel": 62,
+          "combatLevel": 249
+        },
+        {
+          "name": "Shadow Wyrm",
+          "slayerLevel": 62,
+          "combatLevel": 259
+        },
+        {
+          "name": "Bloodthirsty Shadow Wyrm",
+          "slayerLevel": 62,
+          "combatLevel": 400
+        }
+      ]
+    },
+    {
+      "label": "Zombies",
+      "monsters": [
+        {
+          "name": "Undead chicken",
+          "slayerLevel": null,
+          "combatLevel": 1
+        },
+        {
+          "name": "Undead cow",
+          "slayerLevel": null,
+          "combatLevel": 2
+        },
+        {
+          "name": "Zombie rat",
+          "slayerLevel": null,
+          "combatLevel": 3
+        },
+        {
+          "name": "Summoned Zombie",
+          "slayerLevel": null,
+          "combatLevel": 13
+        },
+        {
+          "name": "Skogre",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Zogre",
+          "slayerLevel": null,
+          "combatLevel": 44
+        },
+        {
+          "name": "Zombie swab",
+          "slayerLevel": null,
+          "combatLevel": 55
+        },
+        {
+          "name": "Sorebones",
+          "slayerLevel": null,
+          "combatLevel": 57
+        },
+        {
+          "name": "Zombie pirate",
+          "slayerLevel": null,
+          "combatLevel": 57
+        },
+        {
+          "name": "Undead Lumberjack",
+          "slayerLevel": null,
+          "combatLevel": 70
+        },
+        {
+          "name": "Undead one",
+          "slayerLevel": null,
+          "combatLevel": 73
+        },
+        {
+          "name": "Nazastarool",
+          "slayerLevel": null,
+          "combatLevel": 91
+        },
+        {
+          "name": "A corpse",
+          "slayerLevel": null,
+          "combatLevel": 103
+        },
+        {
+          "name": "Armoured zombie",
+          "slayerLevel": null,
+          "combatLevel": 105
+        },
+        {
+          "name": "Undead Druid",
+          "slayerLevel": null,
+          "combatLevel": 105
+        },
+        {
+          "name": "Slash Bash",
+          "slayerLevel": null,
+          "combatLevel": 111
+        },
+        {
+          "name": "Monkey Zombie",
+          "slayerLevel": null,
+          "combatLevel": 129
+        },
+        {
+          "name": "Zombie",
+          "slayerLevel": null,
+          "combatLevel": 159
+        },
+        {
+          "name": "Vorkath",
+          "slayerLevel": null,
+          "combatLevel": 732
+        }
+      ]
+    }
+  ]
+}

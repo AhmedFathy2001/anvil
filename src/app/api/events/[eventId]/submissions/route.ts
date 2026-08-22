@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { submissions, tiles, teams, players, events, users } from '@/db/schema';
+import { submissions, tiles, teams, players, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
-import { syncDropTileCompletion } from '@/lib/submissions';
+import { resolveTeamManagement } from '@/lib/teamStaff';
+import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
+import { countProgress, memberProgress } from '@/lib/countProgress';
+import { parseCoopCredit } from '@/lib/coopRuns';
+import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { isDraftInProgress } from '@/lib/eventReadiness';
 import { assertEventEditable } from '@/lib/eventLock';
+import { parseEventRules } from '@/lib/eventRules';
+import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
 
 export async function GET(
   request: Request,
@@ -72,7 +78,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
@@ -148,8 +154,8 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, PvP, gain, timed, deathless, diary, CA, LMS, or value tiles' }, { status: 400 });
+  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
   if (tile.tileType !== 'value' && tile.tileType !== 'valuetotal' && submitAmount > 10000) {
@@ -161,7 +167,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
+  const isPluginKillPing = !!pluginAuth && (tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;
@@ -179,6 +185,25 @@ export async function POST(
     imageUrlValue = imageUrl.trim();
   } else if (!isPluginKillPing) {
     return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
+  }
+
+  // Shared-kill fingerprint: what the client could see of its company at kill time (lib/coopRuns
+  // correlates reports of the SAME kill from it). Plugin-only — a web submitter has nothing to
+  // report — and clamped hard because it's client-supplied.
+  let coopGroupJson: string | null = null;
+  let coopPartySizeValue: number | null = null;
+  if (pluginAuth) {
+    if (Array.isArray(coopGroup)) {
+      const names = coopGroup
+        .filter((n: unknown): n is string => typeof n === 'string')
+        .map((n) => n.trim().toLowerCase().replace(/\s+/g, ' '))
+        .filter((n) => n.length > 0 && n.length <= 12)
+        .slice(0, 50);
+      if (names.length > 0) coopGroupJson = JSON.stringify([...new Set(names)]);
+    }
+    if (Number.isInteger(coopPartySize) && coopPartySize > 1 && coopPartySize <= 100) {
+      coopPartySizeValue = coopPartySize;
+    }
   }
 
   // Timed tiles carry a completion duration instead of a count. Validate it up front so the
@@ -200,6 +225,69 @@ export async function POST(
   });
   if (!team) {
     return NextResponse.json({ error: 'Team not found in this event' }, { status: 404 });
+  }
+
+  // Determine uploader playerId. Resolved BEFORE the over-submission guards below because a Solo
+  // ("any one member") tile measures the SUBMITTER's own count, not the team's — so the guards need
+  // to know who this submission will be credited to.
+  let uploaderId: number | null = null;
+  if (player) {
+    uploaderId = player.playerId;
+  } else if (pluginAuth) {
+    uploaderId = pluginAuth.playerId;
+  } else if (membership) {
+    // Discord web session — attribute to the user's own player row on this team
+    // (a captain-only with no player row stays unattributed, like the captain path).
+    uploaderId = membership.playerId;
+  } else if (captain) {
+    // Captain submitting - they are the uploader
+    // Find captain's player record if they have one
+    const captainPlayer = await db.query.players.findFirst({
+      where: and(eq(players.teamId, captain.teamId), eq(players.eventId, eId)),
+    });
+    uploaderId = captainPlayer?.id || null;
+  }
+
+  // Validate creditPlayerId if provided - must be on the same team
+  const resolvedCreditPlayerId: number | null = creditPlayerId || null;
+  if (resolvedCreditPlayerId) {
+    const creditPlayer = await db.query.players.findFirst({
+      where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
+    });
+    if (!creditPlayer) {
+      return NextResponse.json({ error: 'Credit player must be on the same team' }, { status: 400 });
+    }
+  }
+  // Who this submission counts FOR (lib/countProgress owns the same rule server-side).
+  const submitterCreditId = resolvedCreditPlayerId ?? uploaderId;
+
+  // STARTING SHOT belt (lib/startProof). On an event that requires one, a credit from a player who
+  // never filed a shot is either flagged for review or refused outright, per the host's setting.
+  //
+  // Only drop/kill/timed-shaped credits pass through here — stat and KC tiles are swept by the
+  // stats engine against a baseline taken at start, so pre-stacking is already neutralised for
+  // them and there is nothing for this gate to add.
+  let flaggedReason: string | null = null;
+  if (!isAdmin) {
+    const startProofCfg = parseEventRules(event.rules).startProof;
+    if (startProofCfg && event.startProofDrawnAt) {
+      const proof = submitterCreditId
+        ? await db.query.eventStartProofs.findFirst({
+            where: and(eq(eventStartProofs.eventId, eId), eq(eventStartProofs.playerId, submitterCreditId)),
+          })
+        : null;
+      const gate = startProofGate(startProofCfg, event, proof);
+      if (gate === 'reject') {
+        return NextResponse.json(
+          {
+            error: 'Upload your starting shot first — open the Anvil site (My Team) and follow the starting-shot card.',
+            code: START_PROOF_REQUIRED_CODE,
+          },
+          { status: 409 },
+        );
+      }
+      if (gate === 'flag') flaggedReason = NO_START_PROOF_FLAG;
+    }
   }
 
   // Per-item tracking validation
@@ -250,50 +338,41 @@ export async function POST(
       return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
     }
   } else if (tile.requiredAmount) {
-    // Simple mode: existing behavior
-    const currentSubmissions = await db
-      .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
+    // Count tiles. Team Total caps against the team's summed progress; Solo caps against the
+    // SUBMITTER's own — otherwise the first member to reach the count would lock everyone else out
+    // of a tile that each of them is supposed to be racing independently.
+    const tileSubs = await db
+      .select({
+        playerId: submissions.playerId,
+        creditPlayerId: submissions.creditPlayerId,
+        amount: submissions.amount,
+      })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-    const currentTotal = Number(currentSubmissions[0]?.total ?? 0);
+    const soloTile = isIndividualMode(tile.trackingMode);
+    const coopTile = parseCoopCredit(tile.coopCredit) === 'per-kill' || (tile.coopMinMembers ?? 0) > 0;
+    const currentTotal = coopTile
+      // Shared-kill tiles count RUNS, not submissions: a teammate reporting the same kill adds
+      // nothing to the total, so guarding on the raw sum would refuse the report that proves it
+      // was shared. Guard on the credited figure (lib/coopRuns) and let the run absorb it.
+      ? (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current
+      : soloTile
+        ? memberProgress(tileSubs, submitterCreditId)
+        : countProgress(tileSubs, tile.trackingMode).current;
     const submitAmount = amount || 1;
 
     if (currentTotal >= tile.requiredAmount) {
-      return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
+      return NextResponse.json(
+        { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
+        { status: 400 },
+      );
     }
-    if (currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
+    // The remainder cap doesn't apply to a shared-kill tile: a second teammate reporting the same
+    // kill doesn't overshoot anything (their report merges into the run), and refusing it would
+    // throw away the very evidence that the kill was shared.
+    if (!coopTile && currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
       const remaining = tile.requiredAmount - currentTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more (tile needs ${tile.requiredAmount}, has ${currentTotal})` }, { status: 400 });
-    }
-  }
-
-  // Determine uploader playerId
-  let uploaderId: number | null = null;
-  if (player) {
-    uploaderId = player.playerId;
-  } else if (pluginAuth) {
-    uploaderId = pluginAuth.playerId;
-  } else if (membership) {
-    // Discord web session — attribute to the user's own player row on this team
-    // (a captain-only with no player row stays unattributed, like the captain path).
-    uploaderId = membership.playerId;
-  } else if (captain) {
-    // Captain submitting - they are the uploader
-    // Find captain's player record if they have one
-    const captainPlayer = await db.query.players.findFirst({
-      where: and(eq(players.teamId, captain.teamId), eq(players.eventId, eId)),
-    });
-    uploaderId = captainPlayer?.id || null;
-  }
-
-  // Validate creditPlayerId if provided - must be on the same team
-  const resolvedCreditPlayerId: number | null = creditPlayerId || null;
-  if (resolvedCreditPlayerId) {
-    const creditPlayer = await db.query.players.findFirst({
-      where: and(eq(players.id, resolvedCreditPlayerId), eq(players.teamId, teamId)),
-    });
-    if (!creditPlayer) {
-      return NextResponse.json({ error: 'Credit player must be on the same team' }, { status: 400 });
     }
   }
 
@@ -309,15 +388,15 @@ export async function POST(
       note: note || null,
       itemId: itemId || null,
       durationSeconds: durationSecondsValue,
+      coopGroup: coopGroupJson,
+      coopPartySize: coopPartySizeValue,
+      flaggedReason,
     })
     .returning();
 
-  // Get current total submissions for progress
-  const totalResult = await db
-    .select({ total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
-    .from(submissions)
-    .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
-  const currentTotal = totalResult[0]?.total ?? 0;
+  // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
+  // finisher's own count rather than a team sum that isn't what completes the tile.
+  const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current;
 
   // Get credit player name if provided
   let creditPlayerName: string | null = null;
@@ -412,8 +491,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
   }
 
-  const membership =
-    !isAdmin && !captain && !player ? await resolveTeamMembership(eId, submission.teamId) : null;
+  // Team staff hold the same moderation powers as the captain on their own team (lib/teamStaff),
+  // which is how a visiting clan's moderator can pull a bad submission from their own side. The
+  // resolver keys on the team alone, so re-check the team is in THIS event — the submission id came
+  // from the caller.
+  const resolved =
+    !isAdmin && !captain && !player ? await resolveTeamManagement(submission.teamId) : null;
+  const membership = resolved && resolved.eventId === eId ? resolved : null;
   if (!isAdmin && !captain && !player && !membership) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -467,9 +551,12 @@ export async function DELETE(
       deletedByRole = 'player';
     }
     if (membership) {
-      if (membership.isCaptain) {
-        deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
-        deletedByRole = 'captain';
+      if (membership.canManage) {
+        // Say which it was: "Emberfall Staff" removing a drop reads differently from the captain
+        // doing it, and the team channel should be able to tell.
+        const seat = membership.isCaptain ? 'Captain' : 'Staff';
+        deletedByName = team?.name ? `${team.name} ${seat}` : seat;
+        deletedByRole = membership.isCaptain ? 'captain' : 'team staff';
       } else if (membership.playerId) {
         const playerRecord = await db.query.players.findFirst({ where: eq(players.id, membership.playerId) });
         deletedByName = playerRecord?.name || 'Player';
@@ -481,7 +568,7 @@ export async function DELETE(
   // Auth checks: admin can delete any, captain their team, player their own.
   // Captaincy and player-ownership come from either the legacy cookies or the web session.
   if (!isAdmin) {
-    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.isCaptain ?? false);
+    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.canManage ?? false);
     if (captainOfTeam) {
       // Allowed — captain can delete any of their team's submissions.
     } else {

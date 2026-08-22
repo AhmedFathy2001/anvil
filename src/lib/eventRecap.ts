@@ -7,7 +7,9 @@ import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { isPointsMode } from '@/lib/utils';
-import { biggestGain, isEarlyHour, isNightHour, localHour } from '@/lib/recapDerive';
+import { biggestGain, clueGain, isEarlyHour, isNightHour, localHour } from '@/lib/recapDerive';
+import { statKeys } from '@/lib/tileKinds';
+import { activityFor } from '@/lib/hiscoresActivities';
 import { BOSSES } from '@/lib/constants';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -89,6 +91,8 @@ interface PersonStat {
   biggestHit: number;
   /** Minutes actually logged in during the event (plugin-pushed) — the denominator for rates. */
   minutesPlayed: number;
+  /** Combat tasks first completed during the event (plugin-pushed). */
+  caTasks: number;
   /** Tiles finished where this person was the ONLY contributor. */
   soloFinishes: number;
   /** Running sum of this person's share (0..1) of each tile they contributed to, and the count. */
@@ -101,6 +105,10 @@ interface PersonStat {
   /** Biggest single-boss KC grind this event, from the hiscores snapshots we already store. */
   topBossKc: number;
   topBossName: string | null;
+  /** Caskets opened during the event, diffed out of the same snapshots (clue boards only). */
+  cluesOpened: number;
+  /** The tier they opened most of — the detail line under the Clue Hunter award. */
+  topClueTier: string | null;
   /** Same, for a single skill's XP. */
   topSkillXp: number;
   topSkillName: string | null;
@@ -131,6 +139,7 @@ function emptyStat(personKey: string): PersonStat {
     lootGpTotal: 0,
     biggestHit: 0,
     minutesPlayed: 0,
+    caTasks: 0,
     soloFinishes: 0,
     shareSum: 0,
     shareCount: 0,
@@ -139,6 +148,8 @@ function emptyStat(personKey: string): PersonStat {
     timedActions: 0,
     topBossKc: 0,
     topBossName: null,
+    cluesOpened: 0,
+    topClueTier: null,
     topSkillXp: 0,
     topSkillName: null,
   };
@@ -195,6 +206,15 @@ async function computeRecap(eventId: number): Promise<{
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
     db.select().from(players).where(eq(players.eventId, eventId)),
   ]);
+
+  // Does this board ask about clues at all? A "most caskets" award on a board with no clue tile is
+  // a fact about who happened to be doing clues that fortnight, not about the event — so the award
+  // only exists when at least one tile tracks a clue counter. Composite trackedStats ("cluesHard,
+  // cluesElite") count, and so does any future clue-group key, since the test is the activity's
+  // GROUP rather than a hardcoded list.
+  const clueBoard = eventTiles.some((t) =>
+    statKeys(t.trackedStat).some((key) => activityFor(key)?.group === 'clues'),
+  );
 
   const tileIds = eventTiles.map((t) => t.id);
   const tileById = new Map(eventTiles.map((t) => [t.id, t]));
@@ -268,6 +288,8 @@ async function computeRecap(eventId: number): Promise<{
       // duration, so it sums (two accounts can't be played at once in any meaningful sense).
       s.biggestHit = Math.max(s.biggestHit, p.biggestHit ?? 0);
       s.minutesPlayed += p.minutesPlayed ?? 0;
+      // Tasks are per-account achievements, so a two-account person really did clear both sets.
+      s.caTasks += p.caTasks ?? 0;
 
       // Biggest single-boss and single-skill grind, diffed out of the hiscores snapshots already on
       // the row. Covers EVERY boss and skill, not just the ones a tile tracks — so the person who
@@ -282,6 +304,16 @@ async function computeRecap(eventId: number): Promise<{
       if (skill && skill.gained > s.topSkillXp) {
         s.topSkillXp = skill.gained;
         s.topSkillName = skill.name;
+      }
+      // Caskets are a tally, so alts SUM (unlike the single-boss record above): a person who
+      // ran clues on two accounts opened both piles. Only read at all on a board that asked
+      // for clues — see clueBoard below.
+      if (clueBoard) {
+        const clues = clueGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats);
+        if (clues) {
+          s.cluesOpened += clues.total;
+          if (!s.topClueTier || clues.topTierGained > 0) s.topClueTier = clues.topTier;
+        }
       }
     }
     if (!s.name) {
@@ -301,7 +333,7 @@ async function computeRecap(eventId: number): Promise<{
   // Busy Bee / the personal card, an auto-ping type counts once per DISTINCT tile the person fed;
   // discrete turn-ins (drops, timed clears, diaries, CAs, value hauls) stay one each. The
   // event-wide totals.submissions stays the raw row count on purpose (fun activity number).
-  const AUTO_PING_TYPES = new Set(['kill', 'pvp', 'gain', 'deathless', 'lms']);
+  const AUTO_PING_TYPES = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms']);
   const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {
@@ -524,6 +556,22 @@ async function computeRecap(eventId: number): Promise<{
       s.kcGained > 0 ? toEntry(s, s.kcGained, `${s.kcGained.toLocaleString()} KC`) : null,
     ),
   );
+  // Clue boards only (see clueBoard): the contenders all carry 0 otherwise, so the award would be
+  // omitted anyway — the flag is what stops us diffing snapshots for it in the first place.
+  if (clueBoard) {
+    pushAward(
+      award('clue-hunter', '🗺️', 'Clue Hunter', 'Most caskets opened', (s) =>
+        s.cluesOpened > 0
+          ? toEntry(
+              s,
+              s.cluesOpened,
+              `${s.cluesOpened.toLocaleString()} ${s.cluesOpened === 1 ? 'casket' : 'caskets'}`,
+              s.topClueTier ? `mostly ${s.topClueTier}` : undefined,
+            )
+          : null,
+      ),
+    );
+  }
   pushAward(
     // Two sources for the same fact: pvp-tile submissions and the plugin's event-wide defeat
     // counter. Take the max, never the sum — on a board WITH pvp tiles both see the same kills.
@@ -563,6 +611,13 @@ async function computeRecap(eventId: number): Promise<{
     ),
   );
 
+  pushAward(
+    award('task-master', '⚔️', 'Task Master', 'Most combat tasks completed', (s) =>
+      s.caTasks > 0
+        ? toEntry(s, s.caTasks, `${s.caTasks.toLocaleString()} ${s.caTasks === 1 ? 'task' : 'tasks'}`)
+        : null,
+    ),
+  );
   pushAward(
     award('heavy-hitter', '🔨', 'Heavy Hitter', 'Hardest single hit landed', (s) =>
       s.biggestHit > 0 ? toEntry(s, s.biggestHit, `${s.biggestHit.toLocaleString()} damage`) : null,
@@ -694,12 +749,15 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
     if (s.bestHaul > 0) stats.push({ key: 'haul', label: 'Biggest drop', value: `${s.bestHaul.toLocaleString()} gp` });
     if (s.xpGained > 0) stats.push({ key: 'xp', label: 'XP gained', value: s.xpGained.toLocaleString() });
     if (s.kcGained > 0) stats.push({ key: 'kc', label: 'Boss KC gained', value: s.kcGained.toLocaleString() });
+    // Non-zero only on a clue board — the diff isn't read otherwise.
+    if (s.cluesOpened > 0) stats.push({ key: 'clues', label: 'Caskets opened', value: s.cluesOpened.toLocaleString() });
     const pks = Math.max(s.pvpKills, s.pvpKillCounter);
     if (pks > 0) stats.push({ key: 'pvp', label: 'PvP kills', value: pks.toLocaleString() });
     if (s.lootGpTotal > 0) stats.push({ key: 'loot', label: 'Loot value', value: `${s.lootGpTotal.toLocaleString()} gp` });
     if (s.deaths > 0) stats.push({ key: 'deaths', label: 'Deaths', value: s.deaths.toLocaleString() });
     if (s.biggestHit > 0) stats.push({ key: 'hit', label: 'Biggest hit', value: s.biggestHit.toLocaleString() });
     if (s.minutesPlayed > 0) stats.push({ key: 'played', label: 'Time played', value: formatPlaytime(s.minutesPlayed) });
+    if (s.caTasks > 0) stats.push({ key: 'ca', label: 'Combat tasks', value: s.caTasks.toLocaleString() });
     if (s.topBossKc > 0) {
       stats.push({
         key: 'top-boss',

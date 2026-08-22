@@ -1,18 +1,21 @@
 import { db } from '@/db';
 import { events, teams, tiles, completions, players } from '@/db/schema';
-import { eq, and, inArray, isNotNull, count } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
+import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
 import { computeStartReadiness, type StartReadiness } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
-import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
+import { scoreTeams } from '@/lib/boardScoring';
+import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
-const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'loot-goblin', 'pker', 'untouchable'];
+const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'clue-hunter', 'loot-goblin', 'pker', 'untouchable'];
 const RECAP_HIGHLIGHT_COUNT = 5;
 
 // While an event's scheduled start is HELD (start time reached but the event isn't startable —
@@ -23,8 +26,84 @@ const RECAP_HIGHLIGHT_COUNT = 5;
 // blockers clear, the event starts within one tick.
 const START_HOLD_MS = 2 * 60 * 1000;
 
+/**
+ * STARTING SHOT draw (lib/startProof). Picks the location everyone must be standing at and stamps
+ * the moment — which is also the salt every per-player keyword is derived from, so until this row
+ * is written there is no keyword in existence for anyone to stage a screenshot against.
+ *
+ * Guarded by `start_proof_drawn_at IS NULL` in the WHERE, so both start doors (the lifecycle cron
+ * and the admin's start-now) can call it unconditionally and only the first one draws. Returns the
+ * drawn values either way — a caller that lost the race still gets what to announce. Null when the
+ * event doesn't require a starting shot.
+ */
+export async function drawStartProof(
+  event: { id: number; rules: string | null },
+): Promise<{ location: string; drawnAt: string; maxSessionMinutes: number } | null> {
+  const rules = parseEventRules(event.rules);
+  if (!rules.startProof) return null;
+
+  // Coordinates are copied onto the event, not looked up from the pool later: editing the pool
+  // mid-event must never move a spot people have already been sent to.
+  const spot = drawStartLocation(rules.startProof.locations);
+  const drawn = await db
+    .update(events)
+    .set({
+      startProofLocation: spot.label,
+      startProofX: spot.x,
+      startProofY: spot.y,
+      startProofRadius: spot.radius,
+      startProofDrawnAt: new Date().toISOString(),
+    })
+    .where(and(eq(events.id, event.id), isNull(events.startProofDrawnAt)))
+    .returning({ location: events.startProofLocation, drawnAt: events.startProofDrawnAt });
+
+  if (drawn.length > 0) {
+    log.info('event-lifecycle.start-proof-drawn', { eventId: event.id, location: drawn[0].location });
+    return {
+      location: drawn[0].location!,
+      drawnAt: drawn[0].drawnAt!,
+      maxSessionMinutes: rules.startProof.maxSessionMinutes,
+    };
+  }
+
+  // Already drawn (a retried start, or the other door won) — read back what's on file.
+  const existing = await db
+    .select({ location: events.startProofLocation, drawnAt: events.startProofDrawnAt })
+    .from(events)
+    .where(eq(events.id, event.id));
+  const row = existing[0];
+  return row?.location && row.drawnAt
+    ? { location: row.location, drawnAt: row.drawnAt, maxSessionMinutes: rules.startProof.maxSessionMinutes }
+    : null;
+}
+
 // Fetch the start-readiness counts for one event and classify them (lib/eventReadiness). Shared by
 // the lifecycle cron, the admin start-now action, and the admin Overview banner.
+/**
+ * Board shape for the start announcement: how many tiles exist, how many are OPEN at that moment
+ * (a reveal-policy board starts with most of them hidden), and the points on offer. Shared by both
+ * start doors — the scheduled cron start and the admin's start-now — so they post the same thing.
+ */
+export async function eventBoardSummary(event: {
+  id: number;
+  scoringMode: string | null;
+  rules: string | null;
+}): Promise<{ tileCount: number; openTileCount: number; totalPoints: number }> {
+  const rules = parseEventRules(event.rules);
+  const eventTiles = await db
+    .select({ points: tiles.points, optional: tiles.optional, revealedAt: tiles.revealedAt, revealAt: tiles.revealAt, closedAt: tiles.closedAt, mission: tiles.mission })
+    .from(tiles)
+    .where(eq(tiles.eventId, event.id));
+  const scored = eventTiles.filter((t) => !t.optional);
+  return {
+    tileCount: scored.length,
+    openTileCount: scored.filter((t) => isTileRevealed(rules, t)).length,
+    totalPoints: event.scoringMode === 'points'
+      ? scored.reduce((sum, t) => sum + (t.points ?? 0), 0)
+      : 0,
+  };
+}
+
 export async function getEventStartReadiness(eventId: number, draftStatus: string): Promise<StartReadiness> {
   const [[teamCount], [assignedCount], [totalCount]] = await Promise.all([
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
@@ -106,11 +185,17 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       .returning({ id: events.id });
     if (flipped.length > 0) {
       log.info('event-lifecycle.start', { eventId: event.id });
+      // Draw BEFORE announcing so the embed can carry the location players have to be at.
+      const startProof = await drawStartProof(event).catch(() => null);
       await notifyEventStart({
         eventId: event.id,
         eventName: event.name,
         startDate: event.startDate,
         endDate: event.endDate,
+        format: event.format,
+        startProofLocation: startProof?.location ?? null,
+        startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
+        ...(await eventBoardSummary(event)),
       });
     }
   }
@@ -137,20 +222,19 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // bonus / decay) score their frozen awardedPoints; reveal-policy events count only
       // tiles that actually went live in the total (never-revealed tiles were never in play).
       const rules = parseEventRules(event.rules);
-      const pointsMode = event.scoringMode === 'points';
-      const scoredTiles = visibleTiles(rules, eventTiles).filter((t) => !t.optional);
-      const weightById = new Map(scoredTiles.map((t) => [t.id, pointsMode ? (t.points ?? 0) : 1]));
-      const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
-
-      const standings = eventTeams.map((team) => {
-        const teamScore = eventCompletions
-          .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce(
-            (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
-            0,
-          );
-        return { teamName: team.name, tilesCompleted: teamScore };
+      const scored = scoreTeams({
+        scoringMode: event.scoringMode,
+        rules,
+        tiles: eventTiles,
+        completions: eventCompletions,
+        teams: eventTeams,
       });
+      const totalScore = scored[0]?.total ?? 0;
+      const standings = scored.map((s) => ({
+        teamName: eventTeams.find((t) => t.id === s.teamId)?.name ?? '',
+        // The final post ranks on everything earned, mission bonus included.
+        tilesCompleted: s.score,
+      }));
 
       // Fun superlatives for the end post (MVP, biggest drop, most kills, …). Best-effort — a recap
       // hiccup must never block the actual "event ended" announcement.
@@ -173,10 +257,25 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         eventId: event.id,
         eventName: event.name,
         standings,
-        totalTiles: pointsMode ? totalScore : scoredTiles.length,
-        unit: pointsMode ? 'pts' : 'tiles',
+        // In classic mode a tile weighs 1, so the scored total IS the tile count — one number
+        // covers both modes, and `unit` says which it is.
+        totalTiles: totalScore,
+        unit: scored[0]?.unit ?? (event.scoringMode === 'points' ? 'pts' : 'tiles'),
         superlatives,
       });
+
+      // Close out fees the treasurer already collected, when the clan opted into that. Off by
+      // default — it skips the second-pair-of-eyes confirmation, which is a real trade-off — and it
+      // only ever touches fees a mod already marked collected, never unpaid ones. Best-effort: a
+      // fee hiccup must not block the end announcement or the payouts below.
+      try {
+        if (await shouldAutoConfirmOnEventEnd()) {
+          const closed = await autoConfirmEventFees(event.id);
+          if (closed > 0) log.info('event-lifecycle.fees-auto-confirmed', { eventId: event.id, closed });
+        }
+      } catch (err) {
+        log.warn('event-lifecycle.fee-autoconfirm-failed', { eventId: event.id, err: String(err) });
+      }
 
       // Auto-build the payout rows from the configured prize-per-placement structure and final
       // standings. No-op when no structure is set or payouts already exist. Non-critical.

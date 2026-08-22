@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
-import { getItemMapping } from '@/lib/osrsItems';
+import { getItemMapping, isDroppableItem } from '@/lib/osrsItems';
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure drop/collection tiles too, not just admins.
@@ -11,6 +11,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q')?.toLowerCase().trim();
+  // Drop tiles can only be about items something actually drops, so the picker asks for the
+  // loot-only list; other callers (gain tiles, name lookups) want the full item catalogue.
+  const dropsOnly = searchParams.get('dropsOnly') === '1';
 
   if (!query || query.length < 2) {
     return NextResponse.json([]);
@@ -20,7 +23,9 @@ export async function GET(request: Request) {
     const items = await getItemMapping();
 
     // A purely numeric query is an item-ID lookup — lets admins add untradeables (pets) by id,
-    // and resolves names for pre-existing tracked IDs the name-search can't find.
+    // and resolves names for pre-existing tracked IDs the name-search can't find. Never filtered:
+    // typing an exact id is a deliberate act, and it's how a tile's existing items get their names
+    // back — including ones the drop dataset doesn't know about.
     if (/^\d+$/.test(query)) {
       const id = parseInt(query, 10);
       const exact = items.find((item) => item.id === id);
@@ -28,7 +33,9 @@ export async function GET(request: Request) {
     }
 
     // Prefix matches first (more relevant), then any substring match; cap at 20.
-    const matches = items.filter((item) => item.name.toLowerCase().includes(query));
+    const matches = items.filter(
+      (item) => item.name.toLowerCase().includes(query) && (!dropsOnly || isDroppableItem(item)),
+    );
     matches.sort((a, b) => {
       const ap = a.name.toLowerCase().startsWith(query) ? 0 : 1;
       const bp = b.name.toLowerCase().startsWith(query) ? 0 : 1;

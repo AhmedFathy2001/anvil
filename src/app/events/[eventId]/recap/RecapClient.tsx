@@ -134,7 +134,16 @@ function TotalPill({ value, label }: { value: string; label: string }) {
   );
 }
 
-export default function RecapClient({ recap, preview }: { recap: EventRecap; preview: boolean }) {
+export default function RecapClient({
+  recap,
+  preview,
+  momentsPanel,
+}: {
+  recap: EventRecap;
+  preview: boolean;
+  /** The counted feed (lib/momentsAnalytics), rendered on the server — null when nothing happened. */
+  momentsPanel?: React.ReactNode;
+}) {
   const t = recap.totals;
   return (
     <div className="space-y-6">
@@ -164,6 +173,8 @@ export default function RecapClient({ recap, preview }: { recap: EventRecap; pre
           ))}
         </div>
       </div>
+
+      {momentsPanel}
     </div>
   );
 }

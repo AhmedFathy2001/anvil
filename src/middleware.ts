@@ -78,14 +78,52 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
       }
 
-      // Must be admin/treasurer/moderator/editor. Members get sent home.
-      if (role !== 'admin' && role !== 'treasurer' && role !== 'moderator' && role !== 'editor') {
+      // Tile authoring is a CAPABILITY, not a role (users.can_edit_tiles) — so a moderator or
+      // treasurer can build boards without being promoted, and a member can be given authoring
+      // without any moderator surfaces. Sessions minted before the column existed don't carry the
+      // claim; those users fall back to their role's own rules until their next login.
+      const canEditTiles = data.canEditTiles === true;
+
+      // Must be admin/treasurer/moderator/editor, OR a member holding the authoring capability.
+      // Everyone else goes home.
+      if (
+        role !== 'admin' &&
+        role !== 'treasurer' &&
+        role !== 'moderator' &&
+        role !== 'editor' &&
+        !canEditTiles
+      ) {
         return NextResponse.redirect(new URL('/', request.url));
       }
 
+      // The authoring surfaces, for anyone who can author regardless of role: the board's Tiles tab
+      // and the shared task library. `/admin/events/new` stays out — creating an event is
+      // administration, not authoring.
+      const authoringPath =
+        pathname.startsWith('/admin/tile-library') ||
+        (pathname.startsWith('/admin/events') && pathname !== '/admin/events/new');
+
       // Moderators (and treasurers, which extend moderator) can access dashboard, weekly,
       // clan, schedule, and verifications. Admin-only sections (events, players, staff,
-      // integrations) redirect them home.
+      // integrations) redirect them home — unless they hold the authoring capability, which adds
+      // the events list and Tiles tab on top.
+      // A BOARD treasurer (role 'treasurer' + scope 'assigned') is not clan staff: they run the
+      // money on the events they were granted and nothing else. Same shape as a board-scoped
+      // editor — the events list (filtered server-side to their boards) and, inside one, only the
+      // tabs where money lives.
+      if (role === 'treasurer' && data.treasurerScope === 'assigned') {
+        const canEvents = pathname.startsWith('/admin/events') && pathname !== '/admin/events/new';
+        if (!canEvents) {
+          return NextResponse.redirect(new URL('/admin/events', request.url));
+        }
+        const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
+        const tab = eventPage?.[2] ?? '';
+        if (eventPage && !tab.startsWith('/payouts') && !tab.startsWith('/signups')) {
+          return NextResponse.redirect(new URL(`/admin/events/${eventPage[1]}/payouts`, request.url));
+        }
+        return NextResponse.next();
+      }
+
       if (role === 'moderator' || role === 'treasurer') {
         const allowed = [
           '/admin/dashboard',
@@ -96,8 +134,29 @@ export async function middleware(request: NextRequest) {
           '/admin/fees',
           '/admin/feedback',
         ];
-        if (!allowed.some((p) => pathname.startsWith(p))) {
+        const permitted = allowed.some((p) => pathname.startsWith(p)) || (canEditTiles && authoringPath);
+        if (!permitted) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+        }
+        // Inside an event they may author, but not run it: everything except the Tiles tab
+        // bounces there, exactly like a board-scoped editor.
+        if (canEditTiles) {
+          const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
+          if (eventPage && eventPage[2] !== '/tiles' && !(eventPage[2] ?? '').startsWith('/tiles/')) {
+            return NextResponse.redirect(new URL(`/admin/events/${eventPage[1]}/tiles`, request.url));
+          }
+        }
+      }
+
+      // A plain member who was granted authoring: the authoring surfaces and nothing else. Same
+      // shape as a board-scoped editor, which is what this replaces.
+      if (role === 'member' && canEditTiles) {
+        if (!authoringPath) {
+          return NextResponse.redirect(new URL('/admin/events', request.url));
+        }
+        const eventPage = pathname.match(/^\/admin\/events\/(\d+)(\/.*)?$/);
+        if (eventPage && eventPage[2] !== '/tiles' && !(eventPage[2] ?? '').startsWith('/tiles/')) {
+          return NextResponse.redirect(new URL(`/admin/events/${eventPage[1]}/tiles`, request.url));
         }
       }
 

@@ -8,6 +8,10 @@ interface Props {
   // Bingo editors author tiles only — they see just the Tiles tab (the other surfaces are
   // admin-only and their write APIs reject editors anyway).
   tilesOnly?: boolean;
+  /** A board treasurer sees the two money tabs — sign-up fees and payouts. */
+  moneyOnly?: boolean;
+  /** What this board calls its entries (lib/tileAuthoring) — a ladder's are Tasks, not Tiles. */
+  taskNounPlural?: string;
 }
 
 // Independent sub-route tabs for an event. Each tab is its own route with its own
@@ -22,10 +26,17 @@ const TABS = [
   { slug: 'survey', label: 'Survey' },
 ] as const;
 
-export default function EventTabNav({ eventId, tilesOnly = false }: Props) {
+export default function EventTabNav({ eventId, tilesOnly = false, moneyOnly = false, taskNounPlural = 'Tiles' }: Props) {
   const pathname = usePathname();
   const base = `/admin/events/${eventId}`;
-  const tabs = tilesOnly ? TABS.filter((t) => t.slug === 'tiles') : TABS;
+  const visible = tilesOnly
+    ? TABS.filter((t) => t.slug === 'tiles')
+    : moneyOnly
+      ? TABS.filter((t) => t.slug === 'signups' || t.slug === 'payouts')
+      : TABS;
+  const tabs = visible.map((t) =>
+    t.slug === 'tiles' ? { ...t, label: taskNounPlural } : t,
+  );
 
   return (
     <div className="relative -mx-1 mb-8">

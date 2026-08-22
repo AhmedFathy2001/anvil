@@ -1,6 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
+import type { ReactNode } from 'react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
@@ -9,7 +10,8 @@ import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { ErrorBanner } from '@/components/BoardSkeleton';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { isPointsMode } from '@/lib/utils';
+import { scoreTeam } from '@/lib/boardScoring';
 import Input from '@/components/Input';
 import { computeMemberBreakdown, topMember, rollupByOwner } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
@@ -29,6 +31,18 @@ interface Props {
   myPlayerId: number | null;
   myPlayerName: string | null;
   tierBands?: TierBand[];
+  /**
+   * The host hasn't unveiled the board yet. The team hub is a PLAYER surface — a captain is a
+   * player with extra buttons, not staff — so the tiles never even reach this component; this only
+   * says why the board is missing.
+   */
+  boardHidden?: boolean;
+  /**
+   * The manager's blocks (war-room banner, the manage card) — rendered here rather than above the
+   * page so the team leads with what it IS. A captain arriving at their own team page was reading
+   * two control panels before they got to the team's name.
+   */
+  tools?: ReactNode;
 }
 
 export default function MyTeamClient({
@@ -41,6 +55,8 @@ export default function MyTeamClient({
   myPlayerId,
   myPlayerName,
   tierBands = DEFAULT_TIER_BANDS,
+  boardHidden = false,
+  tools = null,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -247,28 +263,15 @@ export default function MyTeamClient({
   }
 
   const pointsMode = isPointsMode(event.scoringMode);
-  // Optional tiles are bonus — excluded from the score and the total (matches the scoreboard).
-  const scoredTiles = useMemo(() => tiles.filter((t) => !t.optional), [tiles]);
-  const scoredTileIds = useMemo(() => new Set(scoredTiles.map((t) => t.id)), [scoredTiles]);
-  const weightById = useMemo(
-    () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
-    [tiles, event.scoringMode],
+  // One shared scorer (lib/boardScoring) across every surface, so My Team can't quietly disagree
+  // with the scoreboard about what this team has.
+  const score = useMemo(
+    () => scoreTeam({ scoringMode: event.scoringMode, tiles, completions, teamId: team.id }),
+    [event.scoringMode, tiles, completions, team.id],
   );
-  const completed = pointsMode
-    ? completions.reduce(
-        (sum, c) =>
-          sum +
-          (scoredTileIds.has(c.tileId)
-            // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live weight.
-            ? (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0)
-            : 0),
-        0,
-      )
-    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
-  const total = pointsMode
-    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : scoredTiles.length;
-  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const completed = score.score;
+  const total = score.total;
+  const percentage = score.pct;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -409,27 +412,48 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {isCaptain && ' · Click tiles to toggle or submit'}
+        {isCaptain && !boardHidden && ' · Click tiles to toggle or submit'}
       </p>
 
       {eventCountdown && (
-        <div className="mb-4 p-3 border border-gold/30 rounded-lg bg-gold/10 text-center">
-          <p className="text-xs text-text-muted mb-1">Event starts in</p>
-          <p className="text-lg font-bold text-gold">{eventCountdown}</p>
-          {event.startDate && <p className="text-xs text-text-muted mt-1"><LocalTime date={event.startDate} /></p>}
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gradient-to-b from-gold/15 to-transparent p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-text-muted">Event starts in</p>
+            <p className="text-2xl font-extrabold text-gold tabular-nums leading-tight">{eventCountdown}</p>
+            {event.startDate && (
+              <p className="text-xs text-text-muted"><LocalTime date={event.startDate} /></p>
+            )}
+          </div>
+          <div className="text-right">
+            {/* With the board hidden the tiles never reached this component, so "on the board" would
+                read 0 — which is a wrong number, not a missing one. Say the roster instead. */}
+            <p className="text-xs uppercase tracking-wide text-text-muted">
+              {boardHidden ? 'On the team' : 'On the board'}
+            </p>
+            <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: team.color }}>
+              {boardHidden
+                ? players.filter((p) => p.teamId === team.id).length
+                : `${total.toLocaleString()} ${pointsMode ? 'pts' : 'tiles'}`}
+            </p>
+            <p className="text-xs text-text-muted">
+              {boardHidden ? 'board revealed by the host' : `${players.filter((p) => p.teamId === team.id).length} on the team`}
+            </p>
+          </div>
         </div>
       )}
 
+      {tools}
+
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
-      {isCaptain && (
+      {isCaptain && eventStarted && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
-            disabled={refreshing || !!countdown || !eventStarted}
+            disabled={refreshing || !!countdown}
             className="px-3 py-1.5 text-xs font-medium rounded bg-blue-500/20 border border-blue-500 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
           >
-            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : !eventStarted ? 'Awaiting Event Start' : 'Refresh Team Stats'}
+            {refreshing ? 'Refreshing...' : countdown ? `Wait ${countdown}` : 'Refresh Team Stats'}
           </button>
           {lastFetch && <span className="text-xs text-text-muted">Last updated: <LocalTime date={lastFetch} /></span>}
         </div>
@@ -453,7 +477,9 @@ export default function MyTeamClient({
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
         {/* Summary column */}
         <div className="space-y-5 lg:sticky lg:top-20">
-          {/* Progress */}
+          {/* Progress — nothing to show while the board is hidden: total is 0 because the tiles
+              never arrived, so the bar would read "0/0 · 0%" and mean nothing. */}
+          {!boardHidden && (
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-text-muted">{completed}/{total} {pointsMode ? 'pts' : 'completed'}</span>
@@ -463,9 +489,11 @@ export default function MyTeamClient({
               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, background: `linear-gradient(90deg, ${team.color}cc, ${team.color})` }} />
             </div>
           </div>
+          )}
 
-          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed */}
-          {teamPlayers.length > 0 && (
+          {/* Member breakdown — collapsible: points (points mode) / tasks each member contributed.
+              Hidden with the board: with no tiles every row is a zero. */}
+          {!boardHidden && teamPlayers.length > 0 && (
             <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
               <button
                 type="button"
@@ -524,6 +552,28 @@ export default function MyTeamClient({
             screens and stacks beneath it on narrower ones, so it never pushes the board down. */}
         <div className={`min-w-0${selectedMember ? ' grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''}`}>
           <div className="min-w-0">
+            {boardHidden ? (
+              <div className="border border-dashed border-card-border rounded-xl p-8 sm:p-10 text-center">
+                <p className="text-lg font-semibold mb-1">The board is sealed</p>
+                <p className="text-sm text-text-muted max-w-md mx-auto">
+                  The host unveils the tiles before the event starts — nobody has seen them yet, so
+                  there is nothing to plan around and nothing to miss.
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+                  <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">
+                    <span className="font-semibold" style={{ color: team.color }}>{teamPlayers.length}</span>
+                    <span className="text-text-muted"> on your roster</span>
+                  </span>
+                  {eventCountdown && (
+                    <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">
+                      <span className="font-semibold text-gold">{eventCountdown}</span>
+                      <span className="text-text-muted"> until it starts</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -539,6 +589,8 @@ export default function MyTeamClient({
               pointsMode={pointsMode}
               matchedTileIds={matchedTileIds}
             />
+              </>
+            )}
           </div>
           {selectedMember && (
             <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">

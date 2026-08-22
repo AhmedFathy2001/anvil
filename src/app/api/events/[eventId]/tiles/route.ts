@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
-import { parseEventRules, hasRevealPolicy, visibleTiles, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, isMissionTile, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
+import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 
 export async function GET(
   _request: Request,
@@ -53,7 +54,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -122,12 +123,42 @@ export async function PUT(
   if (itemRequirements !== undefined && itemRequirements !== null) {
     if (!Array.isArray(itemRequirements) ||
         !itemRequirements.every((r: unknown) => {
-          const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown };
+          const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown; groupRequire?: unknown };
           const groupOk = req.group == null || (typeof req.group === 'string' && req.group.length <= 30);
+          // How many of the set count as satisfying it — only meaningful ON a set. Clamping to the
+          // group's size happens at read time (lib/collectionSets), so a later edit that shrinks a
+          // group can't strand a tile; this only rejects nonsense.
+          const requireOk = req.groupRequire == null ||
+            (Number.isInteger(req.groupRequire) && (req.groupRequire as number) >= 1 && (req.groupRequire as number) <= 100);
           return req && Number.isInteger(req.itemId) && (req.itemId as number) > 0 &&
-                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk;
+                 Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk && requireOk;
         })) {
-      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, and an optional set name (≤30 chars)' }, { status: 400 });
+      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, an optional set name (≤30 chars), and an optional groupRequire of 1-100' }, { status: 400 });
+    }
+  }
+
+  // How a collection's sets combine — 'any' (satisfy one) or 'all' (satisfy each). Null clears it
+  // back to the default rather than storing a value.
+  if (groupMode !== undefined && groupMode !== null && groupMode !== 'any' && groupMode !== 'all') {
+    return NextResponse.json({ error: "groupMode must be 'any' or 'all'" }, { status: 400 });
+  }
+
+  // Most credits one kill can give this tile. Small ceiling: this exists to count rolls (1) or the
+  // odd "a double still counts as two, but no more" case, not to express a requirement.
+  // Shared-kill settings. 'per-kill' collapses a kill several members were in; coopMinMembers gates
+  // it on how many of the team were there.
+  if (coopCredit !== undefined && coopCredit !== null && coopCredit !== 'per-member' && coopCredit !== 'per-kill') {
+    return NextResponse.json({ error: "coopCredit must be 'per-member' or 'per-kill'" }, { status: 400 });
+  }
+  if (coopMinMembers !== undefined && coopMinMembers !== null) {
+    if (!Number.isInteger(coopMinMembers) || coopMinMembers < 2 || coopMinMembers > 50) {
+      return NextResponse.json({ error: 'coopMinMembers must be an integer between 2 and 50 (or null for no requirement)' }, { status: 400 });
+    }
+  }
+
+  if (perKillCap !== undefined && perKillCap !== null) {
+    if (!Number.isInteger(perKillCap) || perKillCap < 1 || perKillCap > 10) {
+      return NextResponse.json({ error: 'perKillCap must be an integer between 1 and 10 (or null for uncapped)' }, { status: 400 });
     }
   }
 
@@ -210,6 +241,34 @@ export async function PUT(
     }
   }
 
+  // revealState: the host's manual override of what the engine decided — force a hidden tile OPEN
+  // now, or pull an open one back to hidden. Every non-'scheduled' policy (interval, rotating,
+  // bounty) picks its own tiles, which left hosts with no way to open a specific one; on those
+  // boards this is the only per-tile reveal control there is. Admin-only: it changes what members
+  // can score right now, which is a game decision rather than tile authoring.
+  //   'live'   → revealedAt = now, closedAt cleared (a re-opened bounty/expired task is playable).
+  //   'hidden' → revealedAt + closedAt cleared, so the engine may draw it again later.
+  // Interval/rotating draws are computed from a cumulative target, so a manual reveal is absorbed
+  // by the next draw rather than putting the board permanently ahead.
+  if (revealState !== undefined) {
+    if (revealState !== 'live' && revealState !== 'hidden') {
+      return NextResponse.json({ error: "revealState must be 'live' or 'hidden'" }, { status: 400 });
+    }
+    if (editor.role !== 'admin') {
+      return NextResponse.json({ error: 'Revealing or hiding a tile is admin-only.' }, { status: 403 });
+    }
+    const [updated] = await db
+      .update(tiles)
+      .set(
+        revealState === 'live'
+          ? { revealedAt: new Date().toISOString(), closedAt: null, updatedAt: new Date().toISOString() }
+          : { revealedAt: null, closedAt: null, updatedAt: new Date().toISOString() },
+      )
+      .where(and(eq(tiles.id, tileId), eq(tiles.eventId, eId)))
+      .returning();
+    return NextResponse.json(updated);
+  }
+
   // revealAt: planned reveal time for a 'scheduled' reveal-policy event (lib/eventRules). Always
   // editable — including mid-event, so a host can re-time an upcoming reveal — but it can't hide a
   // tile the engine already flipped live (revealedAt is engine-owned and never written here).
@@ -251,6 +310,10 @@ export async function PUT(
     trackedStat: trackedStat !== undefined ? (trackedStat || null) : tile.trackedStat,
     statType: statType !== undefined ? (statType || null) : tile.statType,
     statGoal: statGoal !== undefined ? (statGoal || null) : tile.statGoal,
+    // Whether statGoal is an in-event gain or a lifetime threshold. Anything but the explicit
+    // opt-in falls back to 'gain', so a malformed value can never silently re-interpret a live
+    // tile's scoring.
+    statBasis: statBasis !== undefined ? (statBasis === 'milestone' ? 'milestone' : 'gain') : tile.statBasis,
     trackingMode: trackingMode !== undefined ? trackingMode : tile.trackingMode,
     // optional is always editable
     optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,
@@ -291,25 +354,33 @@ export async function PUT(
   // itemRequirements is always editable — when set, auto-compute trackedItemIds and requiredAmount.
   // When cleared (null or []), also clear trackedItemIds so the plugin doesn't try to track this
   // tile per-item, and submission validation doesn't demand itemId for a tile with no requirements.
+  if (groupMode !== undefined) {
+    // Only ever meaningful with sets; stored as null for the default so a plain collection carries
+    // no mode at all.
+    updateSet.groupMode = groupMode === 'all' ? 'all' : null;
+  }
+
+  if (perKillCap !== undefined) {
+    updateSet.perKillCap = perKillCap ?? null;
+  }
+
+  if (coopCredit !== undefined) {
+    updateSet.coopCredit = coopCredit === 'per-kill' ? 'per-kill' : null;
+  }
+  if (coopMinMembers !== undefined) {
+    updateSet.coopMinMembers = coopMinMembers ?? null;
+  }
+
   if (itemRequirements !== undefined) {
     if (itemRequirements && Array.isArray(itemRequirements) && itemRequirements.length > 0) {
       updateSet.itemRequirements = JSON.stringify(itemRequirements);
       updateSet.trackedItemIds = JSON.stringify(itemRequirements.map((r: { itemId: number }) => r.itemId));
-      // Display total: classic collections need every item, so the sum. "Any full set"
-      // collections need the ungrouped items plus ONE set — use the smallest set so the
-      // X/Y progress reflects the shortest path to completion.
-      updateSet.requiredAmount = (() => {
-        const reqs = itemRequirements as { requiredAmount: number; group?: string | null }[];
-        const groupSums = new Map<string, number>();
-        let ungroupedSum = 0;
-        for (const r of reqs) {
-          const g = r.group?.trim().toLowerCase();
-          if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
-          else ungroupedSum += r.requiredAmount;
-        }
-        if (groupSums.size === 0) return ungroupedSum;
-        return ungroupedSum + Math.min(...groupSums.values());
-      })();
+      // Display total: the shortest path to completion under this tile's group mode
+      // (lib/collectionSets owns that arithmetic).
+      updateSet.requiredAmount = collectionDisplayTotal(
+        itemRequirements as CollectionRequirement[],
+        groupMode !== undefined ? groupMode : tile.groupMode,
+      );
     } else {
       // Cleared. Wipe derived trackedItemIds unless the admin explicitly set a non-empty
       // trackedItemIds in the same request (simple-mode drop tile).
@@ -352,6 +423,10 @@ export async function PUT(
   const hasTimedFields = merged.timeThresholdSeconds != null || !!merged.timedActivity;
   const isDrop = merged.tileType === 'drop';
   const isKill = merged.tileType === 'kill';
+  // Agility-lap tiles reuse targetNpcs as the course list (verbatim lap-counter names from
+  // AGILITY_COURSES) and requiredAmount as laps needed — the plugin counts them off the same
+  // "Your <course> lap count is: N" line that drives boss KC.
+  const isLap = merged.tileType === 'lap';
   // PvP-kill tiles reuse targetNpcs as the selector list ('team:other' = any rival team
   // member, 'rsn:<name>' = named bounty) and requiredAmount as kills needed.
   const isPvp = merged.tileType === 'pvp';
@@ -380,9 +455,9 @@ export async function PUT(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
-      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
+      { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
@@ -399,8 +474,8 @@ export async function PUT(
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill && !isDiary && !isCa && !isPvp) {
-    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or diary/CA/PvP tiles, their selectors).' }, { status: 400 });
+  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp) {
+    return NextResponse.json({ error: 'Only kill tiles can target NPCs (or lap/diary/CA/PvP tiles, their selectors).' }, { status: 400 });
   }
   // Min-loot floor is a PvP-only knob — reject it on any other kind so switching kind can't leave a
   // stray value behind (the editor clears it on kind change, but the API is the real guard).
@@ -413,8 +488,39 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return NextResponse.json({ error: 'Only drop, kill, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  }
+
+  // CONVERTING an existing board tile into a mission.
+  //
+  // On a classic N×N grid this is refused outright. The grid renders tiles in sorted-position ARRAY
+  // order (components/BingoBoard) while the line maths reads ABSOLUTE row-major positions
+  // (lib/bingoLines: r * size + c) — the two agree only while positions run 0..N²-1 with no gaps.
+  // Pulling a tile out of the board (which is what the mission flag does, via boardTiles) leaves 24
+  // tiles in a 25-cell square however the positions are then juggled: either a hole, or every later
+  // tile shifted a cell while the line maths still points at the old geometry. Neither is a square
+  // board. Adding a mission is the supported move, and now works on a grid (see POST).
+  //
+  // Everywhere else — points lists, tile races, ladders — position is just order, so the tile moves
+  // to the end and nothing is disturbed.
+  if (mission === true && !isMissionTile(tile)) {
+    const isClassicGrid = (event?.format ?? 'bingo') === 'bingo' && (event?.scoringMode ?? 'tiles') === 'tiles';
+    if (isClassicGrid) {
+      return NextResponse.json(
+        {
+          error:
+            'A tile already on the grid cannot become a mission — it would leave a hole in the square. Add a mission instead; missions live outside the board.',
+        },
+        { status: 400 },
+      );
+    }
+    const [furthest] = await db
+      .select({ position: sql<number>`max(${tiles.position})` })
+      .from(tiles)
+      .where(eq(tiles.eventId, eId));
+    const maxPosition = furthest?.position ?? tile.position;
+    if (maxPosition > tile.position) updateSet.position = maxPosition + 1;
   }
 
   const [updated] = await db
@@ -464,8 +570,22 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
+  // Read the body up front: whether this is a MISSION changes which guards apply.
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed = await request.json();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
+  } catch {
+    /* empty body is fine — a blank tile with a placeholder label */
+  }
+  const asMission = body.mission === true;
+
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
-  if (isClassicGrid) {
+  // A classic grid is a fixed N×N board, so its board tiles can't be added one at a time. A MISSION
+  // isn't a board tile — it lives outside the grid, scores as a bonus and never enters the N×N (see
+  // lib/boardScoring) — so this is the one add a square board accepts. Without the exemption, the
+  // format missions were designed for is the only format that can't have them.
+  if (isClassicGrid && !asMission) {
     return NextResponse.json(
       { error: 'A classic bingo grid is a fixed N×N board — tiles cannot be added individually.' },
       { status: 400 },
@@ -481,26 +601,55 @@ export async function POST(
   }
   const nextPosition = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
 
-  let label = `Tile ${nextPosition + 1}`;
-  try {
-    const body = await request.json();
-    if (body && typeof body.label === 'string' && body.label.trim()) {
-      label = body.label.trim().slice(0, 200);
+  let label = asMission ? `Mission ${nextPosition + 1}` : `Tile ${nextPosition + 1}`;
+  let duplicateOf: number | null = null;
+  if (typeof body.label === 'string' && body.label.trim()) label = body.label.trim().slice(0, 200);
+  if (Number.isInteger(body.duplicateOf)) duplicateOf = body.duplicateOf as number;
+
+  // Duplicating copies the whole row rather than a list of fields the client knows about. A tile has
+  // ~30 configurable columns and gains more with every tile kind; enumerating them anywhere but here
+  // guarantees that the next one silently fails to copy.
+  let source: typeof tiles.$inferSelect | null = null;
+  if (duplicateOf !== null) {
+    source = (await db.query.tiles.findFirst({ where: eq(tiles.id, duplicateOf) })) ?? null;
+    // Scoped to this event: a tile id from another board is not this editor's to read.
+    if (!source || source.eventId !== eId) {
+      return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
     }
-  } catch {
-    /* empty body is fine — fall back to the placeholder label */
+    label = `${source.label} (copy)`.slice(0, 200);
   }
 
   const created = await db.transaction(async (tx) => {
-    const [tile] = await tx.insert(tiles).values({ eventId: eId, position: nextPosition, label }).returning();
-    // Keep boardSize == tile count so the display helpers (eventTileCount / eventShapeBadge) stay accurate.
-    await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
+    const values = source
+      ? (() => {
+          // Everything except identity, board placement and per-tile progress state: a copy starts
+          // unrevealed and uncompleted, wherever the original had got to.
+          const {
+            id: _id,
+            eventId: _eventId,
+            position: _position,
+            label: _label,
+            revealedAt: _revealedAt,
+            closedAt: _closedAt,
+            updatedAt: _updatedAt,
+            ...config
+          } = source;
+          return { ...config, eventId: eId, position: nextPosition, label, mission: asMission ? 1 : config.mission };
+        })()
+      : { eventId: eId, position: nextPosition, label, mission: asMission ? 1 : 0 };
+    const [tile] = await tx.insert(tiles).values(values).returning();
+    // Keep boardSize == BOARD tile count so the display helpers (eventTileCount / eventShapeBadge)
+    // stay accurate. A mission is not a board tile, so it must not grow the board — on a 5×5 that
+    // would turn the grid into a 26-tile board with a hole in it.
+    if (!asMission) {
+      await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eId));
+    }
     return tile;
   });
 
   logTileAudit({
     eventId: eId,
-    action: 'created',
+    action: source ? 'duplicated' : 'created',
     tileId: created.id,
     tileLabel: created.label,
     newValue: snapshotTile(created),

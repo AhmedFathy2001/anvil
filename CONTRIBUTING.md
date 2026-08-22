@@ -13,25 +13,28 @@ bug fixes, features, docs, and plugin improvements.
 
 ## Project layout
 
-This repo contains two separate projects:
-
-- The **web app** (Next.js 16 / React 19 / Drizzle ORM on libSQL) at the root.
-- The **RuneLite plugin** (Java / Gradle) under `plugin/`, which is tracked in
-  its own git repository. See [`plugin/README.md`](plugin/README.md).
+This repo is the **web app** (Next.js 16 / React 19 / Drizzle ORM on SQLite via
+libSQL). The **RuneLite plugin** (Java / Gradle) lives in its own repository —
+[anvil-plugin](https://github.com/AhmedFathy2001/anvil-plugin) — and is not part of
+this tree; changes that span both need a PR in each.
 
 See the [README](README.md) for the full repository map and stack details.
 
 ## Local development
 
-1. **Prerequisites:** Node 20+, npm, and a libSQL database (a free
-   [Turso](https://turso.tech) database, or a local SQLite file).
+1. **Prerequisites:** Node 22 (what CI and the Docker image use) and npm. No database
+   server needed — the default is a local SQLite file.
 2. **Install:** `npm install`
 3. **Configure:** copy `.env.example` to `.env.local` and fill in the values.
-   Every variable is documented in that file. For local dev you mainly need the
-   `TURSO_*` database vars; session secrets fall back to dev placeholders.
+   Every variable is documented in that file. For local dev you mainly need
+   `DATABASE_URL` (defaults to `file:./local.db`) and, if you're touching login, the
+   Discord OAuth vars; session secrets fall back to dev placeholders.
 4. **Migrate:** `npm run db:migrate` applies the committed migrations to your
    database (works against an empty DB — this is the same path the app runs on boot).
 5. **Run:** `npm run dev` — the app serves on http://localhost:3000.
+
+Test suites run on `node:test`: `npm run test:events`, `test:embeds`,
+`test:federation`, `test:recap`.
 
 A full self-hosting / deployment guide lives in
 [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md).
@@ -65,7 +68,7 @@ Rules, non-negotiable:
 - **One change, one migration, one commit.** Don't batch unrelated schema edits, and
   don't hand-rename generated files (the `drizzle/meta/_journal.json` tag must match).
 - **Verify before you push the PR:** run `npm run db:migrate` against a *fresh empty*
-  DB (e.g. `TURSO_DATABASE_URL=file:/tmp/fresh.db npm run db:migrate`) and confirm it
+  DB (e.g. `DATABASE_URL=file:/tmp/fresh.db npm run db:migrate`) and confirm it
   reports `up to date`. Then run `npm run db:generate` again — it must print
   *"No schema changes"*, proving `schema.ts` and the migration chain are in sync.
 - For `ALTER TABLE ... ADD ... NOT NULL` on existing tables, the generated migration
@@ -124,3 +127,9 @@ promote, deploy notifications) lives in the control plane, not this repo.
 Open a GitHub issue with clear reproduction steps (for bugs) or a description of
 the use case (for features). For plugin issues, mention your RuneLite version and
 which clan instance / Site URL you're pointing at.
+
+## Getting help
+
+Faster than an issue when you're stuck mid-setup, or unsure whether something is a
+bug at all: **[the Anvil Discord](https://discord.gg/p9NkrTQmxN)**. Self-hosters, managed clans and
+plugin users all land in the same place.

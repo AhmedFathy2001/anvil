@@ -130,6 +130,10 @@ const BOT_PERMISSIONS = [
   'Manage Roles — keep clan roles in step',
   'Manage Nicknames — set nicknames to RSNs',
   'View Channels & Send Messages',
+  // Granted as a SCOPE rather than a permission, so Discord lists it separately on the real screen —
+  // but it's one more line to tick past, which is all this sketch is teaching. Without it the bot
+  // works perfectly and its slash commands simply never appear, with nothing explaining why.
+  'Create commands — the /bingo slash commands',
 ];
 
 /**

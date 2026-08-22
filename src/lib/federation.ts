@@ -24,6 +24,7 @@ import {
 } from '@/lib/pluginConfig';
 import { brokerRegister } from '@/lib/federationRelay';
 import { federationFetch } from '@/lib/federationSecurity';
+import { configuredOrigin } from '@/lib/request-origin';
 import { log } from '@/lib/logger';
 
 // --- Settings keys (kept out of the public /api/admin/settings whitelist; the signing key in
@@ -185,11 +186,11 @@ export async function ensureBrokerTrusted(brokerBaseUrl: string): Promise<void> 
 export async function ensureRegisteredWithBroker(
   baseUrl: string,
   participation: 'on' | 'off' = 'on',
-): Promise<void> {
+): Promise<boolean> {
   const brokerBaseUrl = await getBrokerBaseUrl();
   if (!brokerBaseUrl) {
     log.warn('federation.register.no-broker-url', {});
-    return;
+    return false;
   }
   // Opting OUT must not (re-)trust the broker as an assertion issuer — only the join path does that.
   if (participation === 'on') {
@@ -209,9 +210,61 @@ export async function ensureRegisteredWithBroker(
       await setSetting(FEDERATION_VERIFICATION_TOKEN_KEY, res.verificationToken);
     }
     log.info('federation.register.ok', { instanceId, tier, participation, state: res?.state ?? null });
+    return true;
   } catch (err) {
     log.warn('federation.register.fail', { instanceId, tier, participation }, err);
+    return false;
   }
+}
+
+// Last successful broker registration (ISO). Bookkeeping for the reconcile below — deliberately not
+// in the settings API whitelist; it's state, not a knob.
+export const FEDERATION_REGISTERED_AT_KEY = 'federation_registered_at';
+
+// How often a healthy, already-registered instance re-asserts itself to the broker. The broker's
+// directory row is the thing being kept warm (name changes, base URL, participation), so daily is
+// plenty — every cron tick would be a self-inflicted DDoS at fleet scale.
+const REGISTER_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Make "federation is on" true in fact, not just in the settings table.
+ *
+ * Registration used to happen ONLY when an admin saved the Federation tab — which is fine when a
+ * human flips the switch, and useless when the switch arrives pre-flipped: hosted clans are seeded
+ * federation-on at provision (scripts/migrate.mjs), so nobody ever saves that form, and without this
+ * they'd sit "connected" with an empty trust list, invisible to every other clan.
+ *
+ * Cheap and idempotent by design — the common case is two settings reads and an early return:
+ *   • federation off            → nothing (a clan that opted out is never dragged back in)
+ *   • trusted + registered <24h → nothing
+ *   • otherwise                 → one broker /register, stamped only if it actually succeeded, so a
+ *                                 broker outage retries next tick instead of going quiet for a day.
+ */
+export async function reconcileBrokerRegistration(
+  baseUrl?: string,
+): Promise<'off' | 'fresh' | 'no-origin' | 'registered' | 'failed'> {
+  if (!(await getFederationEnabled())) return 'off';
+
+  const origin = baseUrl ?? configuredOrigin();
+  if (!origin) {
+    log.warn('federation.reconcile.no-origin', {});
+    return 'no-origin';
+  }
+
+  const [trust, stamp] = await Promise.all([
+    getBrokerTrust(),
+    db.query.settings.findFirst({ where: eq(settings.key, FEDERATION_REGISTERED_AT_KEY) }),
+  ]);
+  const last = Date.parse(stamp?.value ?? '');
+  const stale = !Number.isFinite(last) || Date.now() - last > REGISTER_REFRESH_MS;
+  // An empty trust list means the join never completed — retry every tick until it does.
+  if (trust.length > 0 && !stale) return 'fresh';
+
+  const ok = await ensureRegisteredWithBroker(origin);
+  if (!ok) return 'failed';
+  await setSetting(FEDERATION_REGISTERED_AT_KEY, new Date().toISOString());
+  log.info('federation.reconcile.registered', { origin });
+  return 'registered';
 }
 
 // --- Federation token primitives (WIRE §4). ---

@@ -54,6 +54,8 @@ export interface Tile extends TileRevealState {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  /** 'gain' (default) | 'milestone' — see db/schema tiles.statBasis. */
+  statBasis?: string | null;
   trackingMode?: string | null;
   optional?: number | null;
   // 1 = auto-crediting suppressed for this tile (stats cron / plugin-stats / submission
@@ -61,6 +63,14 @@ export interface Tile extends TileRevealState {
   autoTrackDisabled?: number | null;
   trackedItemIds?: string | null;
   itemRequirements?: string | null;
+  /** Collection tiles: 'any' (default/null) | 'all' — how the item groups combine. See collectionSets. */
+  groupMode?: string | null;
+  /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
+  perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */
+  coopCredit?: string | null;
+  /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
+  coopMinMembers?: number | null;
   points?: number | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
@@ -142,16 +152,21 @@ export interface Submission {
   creditPlayerName?: string | null;
   itemId?: number | null;
   durationSeconds?: number | null; // timed-tile clear time in seconds
+  /** Why this credit wants a human look — currently only 'no_start_proof' (lib/startProof). */
+  flaggedReason?: string | null;
 }
 
 export interface ItemRequirement {
   itemId: number;
   name: string;
   requiredAmount: number;
-  /** Set name for "any full set" collections — requirements sharing a group form a set that
-   *  is OR-ed against the other sets (one complete set finishes the tile; no mixing).
-   *  Absent/null = a classic always-required collection item. */
+  /** Set name — requirements sharing a group form one set. How the sets COMBINE is the tile's
+   *  `groupMode` (lib/collectionSets): 'any' (default) OR-s them (satisfy one set), 'all' AND-s
+   *  them (satisfy every set). Absent/null = a classic always-required collection item. */
   group?: string | null;
+  /** How many DISTINCT items in this set satisfy it. Absent/null = all of them (a full set);
+   *  1 is "any one from this source", which is what makes "one from each boss" expressible. */
+  groupRequire?: number | null;
 }
 
 export interface ItemRequirementProgress extends ItemRequirement {
@@ -166,12 +181,22 @@ export interface TileConfig {
   trackedStat: string | null;
   statType: string | null;
   statGoal: number | null;
+  /** 'gain' (default) | 'milestone' — whether statGoal is an in-event gain or a lifetime threshold. */
+  statBasis?: string | null;
   trackingMode: string;
   optional: boolean;
   // Admin flag: when true, the site won't auto-credit this tile — it's completed manually.
   autoTrackDisabled: boolean;
   trackedItemIds: number[] | null;
   itemRequirements: ItemRequirement[] | null;
+  /** Collection tiles: 'any' (default) | 'all' — how the item sets combine (lib/collectionSets). */
+  groupMode?: string | null;
+  /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
+  perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */
+  coopCredit?: string | null;
+  /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
+  coopMinMembers?: number | null;
   points: number;
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.

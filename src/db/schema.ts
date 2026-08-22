@@ -84,6 +84,11 @@ export const events = sqliteTable('events', {
   // per-player payout rows, shown on the public event page, and used as the reward per place when
   // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
   placementPrizes: text('placement_prizes'),
+  // The same structure as a SHARE of the pool: JSON array of percentages by place. When set it
+  // wins over the fixed amounts above, and every advertised prize is derived from the live pool —
+  // so a board whose pool grows with each approved entry advertises prizes that grow with it,
+  // instead of a number frozen at whatever the pool was the day the host typed it in.
+  placementSplitPct: text('placement_split_pct'),
   // Optional per-event game rules as JSON (see lib/eventRules.ts EventRules). Adds a third axis on
   // top of (format, scoringMode): HOW tiles become playable and how points are awarded —
   //   revealPolicy: 'all' (default; every tile visible once tilesRevealed flips) | 'scheduled'
@@ -97,6 +102,19 @@ export const events = sqliteTable('events', {
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
   // again. NULL = locked once finished (the default for every event).
   editUnlockedAt: text('edit_unlocked_at'),
+  // STARTING SHOT (lib/startProof) — drawn exactly once, inside the start transaction, when
+  // `rules.startProof` is set. `startProofLocation` is where everyone must be standing for their
+  // proof screenshot; `startProofDrawnAt` is both the "the draw has happened" latch and the salt
+  // every per-player keyword is HMAC'd over — so no keyword exists, for anyone, until start.
+  // NULL/NULL on every event that doesn't require a starting shot.
+  startProofLocation: text('start_proof_location'),
+  startProofDrawnAt: text('start_proof_drawn_at'),
+  // The drawn spot as game coordinates, frozen at the draw so a later edit to the location pool
+  // can't move the goalposts under shots already filed. NULL when the drawn entry was label-only
+  // (a place nobody pinned on the map) — then position simply isn't checked.
+  startProofX: integer('start_proof_x'),
+  startProofY: integer('start_proof_y'),
+  startProofRadius: integer('start_proof_radius'),
 });
 
 export const tiles = sqliteTable('tiles', {
@@ -111,6 +129,22 @@ export const tiles = sqliteTable('tiles', {
   trackedStat: text('tracked_stat'),
   statType: text('stat_type'),
   statGoal: integer('stat_goal'),
+  // What `statGoal` is measured against.
+  //   'gain'      (default) — progress made DURING the event: current − baseline. Every stat tile
+  //               worked this way before milestones existed, so the default keeps them identical.
+  //   'milestone' — a LIFETIME total reached during the event: complete when the member's baseline
+  //               was below the goal AND their absolute total is now at or above it. That gate is
+  //               what makes "get your first Quiver" expressible — a member who already had one has
+  //               baseline >= goal and can never complete it, while a teammate who hasn't still can.
+  //               Always evaluated PER MEMBER whatever `trackingMode` says: summing lifetime totals
+  //               across a team is meaningless (0 + 5 + 200 clears a goal of 1 for the wrong
+  //               reason). See lib/statTracking.milestoneState.
+  statBasis: text('stat_basis').default('gain').notNull(),
+  // 'team' (default) = every member's progress sums toward the goal; 'individual' ('solo' is the
+  // legacy spelling of the same thing) = ONE member has to reach it alone. Honoured for hiscores
+  // stat tiles (lib/statTracking) and for submission-backed count tiles (lib/countProgress), which
+  // then measure the best single member rather than the team sum. Only the kinds whose editor shows
+  // the Team/Solo control ever store anything but 'team'.
   trackingMode: text('tracking_mode').default('team').notNull(),
   optional: integer('optional').default(0),
   // Admin kill-switch for a single tile's automatic crediting. When set (1), the site stops
@@ -121,7 +155,31 @@ export const tiles = sqliteTable('tiles', {
   // hiscores polling still happen (evidence keeps flowing); only the auto-credit is suppressed.
   autoTrackDisabled: integer('auto_track_disabled').default(0).notNull(),
   trackedItemIds: text('tracked_item_ids'), // JSON array of OSRS item IDs for RuneLite plugin, e.g. '[13576]'
-  itemRequirements: text('item_requirements'), // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}]
+  // JSON array of per-item requirements, e.g. [{"itemId":25859,"name":"Enhanced weapon seed","requiredAmount":1}].
+  // A row may carry `group` (set name) and `groupRequire` (how many distinct items in that set count
+  // as satisfying it; absent = all of them) — see lib/collectionSets for what the two mean together.
+  itemRequirements: text('item_requirements'),
+  // How a collection tile's groups combine (lib/collectionSets). NULL/'any' = the OR-ed reading every
+  // pre-existing collection has: satisfy ONE set. 'all' = AND-ed, every set must be satisfied — which
+  // with groupRequire=1 per set is "one of many from EACH source" (a unique from each DT2 boss).
+  groupMode: text('group_mode'),
+  // DROP tiles: the most this tile can be credited from a SINGLE kill, however many tracked items
+  // that kill dropped or how big the stack was. NULL = uncapped (every drop counts, the historical
+  // behaviour). 1 is "one credit per kill" — what makes a tile count ROLLS of a unique table rather
+  // than items, since a kill that hands you a vestige and an ingot rolled once as far as the board is
+  // concerned. Enforced by the plugin, which is the only thing that can see a kill boundary; manual
+  // and admin submissions are unaffected.
+  perKillCap: integer('per_kill_cap'),
+  // KILL tiles: how much a kill several members were in is worth to the team. NULL/'per-member' =
+  // every member who reported it credits (the historical behaviour — a 2-man Yama gives 2 KC, a
+  // 20-man raid gives 20). 'per-kill' collapses the reports of ONE kill into one credit; the site
+  // correlates them (lib/coopRuns) rather than trusting any single client to stay quiet.
+  coopCredit: text('coop_credit'),
+  // KILL tiles: the kill only counts when at least this many of the team were in it — "complete N
+  // raids with 3+ teammates". NULL/0 = no requirement. Counted from members who reported the kill
+  // plus roster members they NAMED, never from the raid party size (20 in a CoX party is not 20
+  // teammates), so the gate errs toward not crediting.
+  coopMinMembers: integer('coop_min_members'),
   // JSON array of accepted loot sources for this tile. NULL = accept any source
   // (back-compat). Possible values: "npc" (mob kills), "event" (raid/barrows/wt
   // chests, clue caskets, implings — generic LootReceived), "pvp" (PK loot piles
@@ -221,7 +279,7 @@ export const tileAuditLog = sqliteTable('tile_audit_log', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id'), // no FK — history outlives the tile it describes
   tileLabel: text('tile_label'), // label snapshot at the time of the change
-  // What happened: 'created' | 'updated' | 'deleted' | 'imported' | 'reordered'.
+  // What happened: 'created' | 'updated' | 'deleted' | 'duplicated' | 'imported' | 'reordered'.
   action: text('action').notNull(),
   // For 'updated': JSON array of { field, label, from, to } for each changed column.
   changedFields: text('changed_fields'),
@@ -264,10 +322,11 @@ export const completions = sqliteTable('completions', {
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
   completedAt: text('completed_at').default(sql`(datetime('now'))`).notNull(),
-  // The player who finished it, for stat tiles (boss KC / skilling) that complete via the hiscores
-  // sweep or a live push and so have NO submission to attribute. NULL for team-total tiles, admin
-  // manual completions, and submission-backed tiles (the activity feed attributes those from the
-  // latest submission instead). Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
+  // The player who finished it: a stat tile (boss KC / skilling) that completed via the hiscores
+  // sweep or a live push and so has NO submission to attribute, or a Solo count tile, where one
+  // member reaching the count alone IS the completion (lib/countProgress). NULL for team-total
+  // tiles and admin manual completions — the activity feed attributes those from the latest
+  // submission instead. Lets the feed read "Kayle completed 500 Zulrah KC", not "Team …".
   creditPlayerId: integer('credit_player_id').references(() => players.id, { onDelete: 'set null' }),
   // Frozen per-member KC/XP split, captured at the instant a STAT tile completes. JSON:
   // {"goal":500,"total":512,"split":[{"playerId":12,"gained":300},{"playerId":34,"gained":212}]}.
@@ -336,6 +395,10 @@ export const players = sqliteTable('players', {
   // their awards are omitted from the recap.
   biggestHit: integer('biggest_hit').default(0),
   minutesPlayed: integer('minutes_played').default(0),
+  // Same contract again: combat tasks genuinely completed during the event ("Task Master"). Only
+  // first completions count — the plugin gates on the CA points varbit actually rising, so the
+  // in-game "Repeat completion" setting can't inflate it.
+  caTasks: integer('ca_tasks').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   index('players_event_id_idx').on(table.eventId),
@@ -357,6 +420,13 @@ export const submissions = sqliteTable('submissions', {
   // (and baked onto the screenshot) by the plugin. NULL for drop/kill submissions. The
   // tile completes when any submission's durationSeconds ≤ tile.timeThresholdSeconds.
   durationSeconds: integer('duration_seconds'),
+  // What the submitting client could see of its company at kill time, for shared-kill correlation
+  // (lib/coopRuns). `coopGroup` is a JSON array of lowercased roster RSNs it saw — reliable for a
+  // single-arena boss, empty inside raids where the party splits across rooms; `coopPartySize` is
+  // the instance/raid party headcount, which is reliable exactly where the names aren't. Both NULL
+  // on manual/web submissions and on anything an older plugin sent.
+  coopGroup: text('coop_group'),
+  coopPartySize: integer('coop_party_size'),
   // FEDERATION_SECURITY.md §3 — the instanceId of the REMOTE home that relayed this credit in via
   // POST /api/federation/v1/events. NULL for every native (non-federated) submission. Its presence
   // makes a relayed write auditable + reversible by this clan (the receiver never trusts the relay
@@ -369,6 +439,11 @@ export const submissions = sqliteTable('submissions', {
   // bounded credit proceeds off the token + content. NULL for native submissions and the origin's own
   // (managed-media) proof, which continues to use `imageUrl`.
   federatedProofUrl: text('federated_proof_url'),
+  // Why this credit wants a human look. Currently only 'no_start_proof' (lib/startProof): the event
+  // requires a starting shot and this player hadn't uploaded one when the credit landed. The
+  // submission still counts — flagging is deliberately softer than refusing, since the drop really
+  // happened and refusing would lose it. NULL on everything unremarkable.
+  flaggedReason: text('flagged_reason'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
@@ -439,6 +514,20 @@ export const users = sqliteTable('users', {
   // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
   // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
   editorScope: text('editor_scope').notNull().default('all'),
+  // The same shape for MONEY. 'all' = a clan treasurer (every event's fees and payouts); 'assigned'
+  // = they only hold per-board treasurer grants, so they reach one board's Sign-ups and Payouts
+  // tabs and nothing else. Auto-provisioned by the first grant and reversed by the last revoke,
+  // exactly like editorScope. See lib/eventEditors.
+  treasurerScope: text('treasurer_scope').notNull().default('all'),
+  // Tile authoring as a CAPABILITY rather than a role. `role` is the base tier (member <
+  // moderator < treasurer < admin) and this rides on top of any of them, so "a moderator who
+  // builds boards" or "a treasurer who does fees AND tiles" is one checkbox instead of a new role
+  // per combination. Admins always have it implicitly; per-board `event_editors` grants are the
+  // narrower version for someone who should only touch one event.
+  //
+  // The legacy `editor` role predates this and meant "member with global authoring" — migration
+  // 0048 converts those rows, and nothing new should ever write role='editor'.
+  canEditTiles: integer('can_edit_tiles', { mode: 'boolean' }).notNull().default(false),
   // The clan owner — the person who provisioned this instance. Exactly one user has this set.
   // Owner == admin for every permission gate (their role stays 'admin'); the flag only adds
   // *protections*: the owner cannot be demoted or deleted by anyone, and only the owner can
@@ -482,19 +571,23 @@ export const users = sqliteTable('users', {
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
 ]);
 
-// Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though
-// they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
-// by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
-// the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
+// Board-scoped staff grants. A row means `userId` may do ONE job on `eventId` without holding the
+// clan-wide role for it — the per-board alternative to 'editor' (authoring) and 'treasurer' (money).
+// Enforced by verifyTileEditorForEvent / verifyEventTreasurer (auth.ts) and managed via
+// lib/eventEditors. Cascades away with either the event or the user. The table kept its original
+// name from when authoring was the only board-scoped job.
 export const eventEditors = sqliteTable('event_editors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 'editor' = author this board's tiles. 'treasurer' = collect its fees and run its payouts.
+  // One row per (event, user, role): the same person can hold both jobs on one board.
+  role: text('role').notNull().default('editor'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
   // The admin who granted this (audit only; nullable for system/backfill rows).
   grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
-  uniqueIndex('event_editors_event_user_unique').on(table.eventId, table.userId),
+  uniqueIndex('event_editors_event_user_role_unique').on(table.eventId, table.userId, table.role),
   index('event_editors_user_idx').on(table.userId),
 ]);
 
@@ -603,6 +696,31 @@ export const clanMembers = sqliteTable('clan_members', {
   // (its stat rose within the window) instead of every tile they've ever progressed — liveStatsAt alone
   // is per-member, so one fishing push otherwise lit them up on every tile. Pruned to the recent window.
   liveStatKeyTimes: text('live_stat_key_times'),
+
+  // ── Adaptive hiscores polling ──────────────────────────────────────────────────────────────────
+  // The sweep used to poll every participating member every tick, whether or not they had played —
+  // a 200-member clan spending 19k requests a day to learn that 160 people were offline. These three
+  // let it poll on evidence instead: after a fetch that changed nothing, the member's next fetch is
+  // pushed further out; any change (or any plugin push, which means they're online right now) snaps
+  // them back to hot. See nextDueAfterMiss() in the stats cron for the ladder.
+  //
+  // This matters more per clan we host than per member: every clan container polls Jagex from the
+  // same box IP, so the per-clan rate limit composes into a per-box one.
+  statsOverallXp: integer('stats_overall_xp'),      // last observed total XP — the change detector
+  statsMissStreak: integer('stats_miss_streak').notNull().default(0),
+  statsNextDueAt: text('stats_next_due_at'),        // null = due now
+  // The member's last seen full snapshot, so the daily rollup can say WHICH metrics moved rather than
+  // just how much total XP did. One row per member, overwritten — bounded, unlike a per-day archive —
+  // and only rewritten on a tick where something actually changed.
+  statsLastSnapshot: text('stats_last_snapshot'),
+  // The hiscores entries that aren't skills or bosses — clue tiers, minigames, collection-log slots —
+  // pulled out of the same snapshot as a compact `{"cluesElite":{"score":47,"rank":88123}}` map.
+  //
+  // Derived, so it holds nothing statsLastSnapshot doesn't. It exists because the member directory
+  // is deliberately snapshot-parse-free: clan-wide activity leaderboards over full snapshots would
+  // mean reading and parsing megabytes per page load on a 400-member roster, where this is a few
+  // hundred bytes each. Written on the same ticks as the snapshot, from data already in hand.
+  statsActivities: text('stats_activities')
 }, (table) => [
   uniqueIndex('clan_members_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('clan_members_account_hash_unique').on(table.accountHash),
@@ -719,6 +837,10 @@ export const eventSignups = sqliteTable('event_signups', {
   // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
   // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
   excludeFromPrizePool: integer('exclude_from_prize_pool', { mode: 'boolean' }).notNull().default(false),
+  // Which team they asked to join, on an event where the host runs teams by application rather than
+  // by draft (rules.teamChoice). It is a REQUEST: approving the sign-up is what puts them on the
+  // team. Null on a normal drafted event, and on a sign-up with no preference.
+  requestedTeamId: integer('requested_team_id').references(() => teams.id, { onDelete: 'set null' }),
   signedUpAt: text('signed_up_at').default(sql`(datetime('now'))`).notNull(),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
 }, (table) => [
@@ -1195,3 +1317,445 @@ export const federationDeviceSessions = sqliteTable('federation_device_sessions'
   brokerToken: text('broker_token'),
   createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
 });
+
+/**
+ * One compact row per member per day they actually played — the history behind gains-over-time,
+ * best-ever records and dated milestones.
+ *
+ * Deliberately NOT a snapshot archive. Keeping the full skills+bosses payload daily is what grew the
+ * old player_snapshots table to 1.2 GB; this stores the totals plus a delta of only what moved, so a
+ * day of Zulrah is `{"bosses":{"zulrah":140}}` rather than 3 KB of unchanged numbers. A day nobody
+ * played writes nothing at all, and the whole thing costs a clan single-digit MB a year.
+ *
+ * Written by the stats sweep from the snapshot it already holds — no extra hiscores traffic — and
+ * because that read merges the plugin's live overlay, a member running the plugin lands accurate
+ * same-session numbers here without any additional push.
+ *
+ * Records (best day / week / month) are NOT stored: they're a query over these rows, which is at most
+ * 365 tiny rows per member. Nothing to maintain incrementally, nothing to drift.
+ */
+export const memberDailyStats = sqliteTable('member_daily_stats', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // UTC calendar day, 'YYYY-MM-DD'. UTC because every other date in the app is, and a clan spans zones.
+  day: text('day').notNull(),
+
+  // Totals as at the last sweep of that day — the absolute line on a chart.
+  overallXp: integer('overall_xp').notNull(),
+  ehpMilli: integer('ehp_milli').notNull().default(0),
+  ehbMilli: integer('ehb_milli').notNull().default(0),
+
+  // What they gained during the day. Stored rather than derived from consecutive rows, because
+  // inactive days have no row at all — so "yesterday's row" isn't reliably yesterday.
+  xpGained: integer('xp_gained').notNull().default(0),
+  ehpMilliGained: integer('ehp_milli_gained').notNull().default(0),
+  ehbMilliGained: integer('ehb_milli_gained').notNull().default(0),
+
+  // JSON `{ skills: { slayer: 412000 }, bosses: { zulrah: 140 } }` — ONLY metrics that moved.
+  deltas: text('deltas'),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_daily_stats_member_day_idx').on(table.clanMemberId, table.day),
+  index('member_daily_stats_day_idx').on(table.day),
+]);
+
+/**
+ * Dated achievements — a 99, an XP threshold, a boss KC threshold — written the first time we see one
+ * crossed. An event log, not a projection: rows are only ever inserted, and only when something
+ * actually happened, so the write cost is nil on an ordinary tick.
+ *
+ * The date is when WE noticed, which for a member on the plugin is minutes and for everyone else is
+ * within their polling interval. Recorded as `noticedAt` rather than pretending to be the moment it
+ * happened in game.
+ */
+export const memberMilestones = sqliteTable('member_milestones', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  // 'level' (99s) | 'xp' | 'kc' | 'ehb' | 'ehp' | 'total'
+  kind: text('kind').notNull(),
+  // The skill or boss key it applies to; null for account-wide ones (total level, EHP, EHB).
+  metric: text('metric'),
+  // The threshold crossed: 99, 50_000_000, 1000 kills…
+  threshold: integer('threshold').notNull(),
+  noticedAt: text('noticed_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_milestones_unique').on(table.clanMemberId, table.kind, table.metric, table.threshold),
+  index('member_milestones_member_idx').on(table.clanMemberId, table.noticedAt),
+]);
+
+/**
+ * A captain's private draft shortlist: who they mean to take, in what order, with their own notes.
+ *
+ * Private by construction — every read is filtered to the calling captain's own userId, and nothing
+ * on any public or admin surface joins it. It exists because a draft is fast and a captain's plan
+ * currently lives in a Discord DM or a notepad: by the time they're on the clock, the list they made
+ * while scouting is somewhere else. Rows survive the draft (they're a record of intent, and cost
+ * nothing) and are keyed on the person, not the account, so an alt row never splits a plan.
+ */
+export const draftShortlists = sqliteTable('draft_shortlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The captain. Not the team: a captain who changes teams keeps their own list, and a team with a
+  // new captain doesn't inherit the old one's opinions.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // lib/playerProfile's personKey — one entry per PERSON, so a two-account player is one line.
+  personKey: text('person_key').notNull(),
+  // Rank in the list, 0-based and dense after every write. Ties never matter: the client sends the
+  // whole order, so there's no drift to reconcile.
+  position: integer('position').notNull(),
+  // The captain's own note on this person, e.g. "take before pick 22, wants raids".
+  note: text('note'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('draft_shortlists_unique').on(table.eventId, table.userId, table.personKey),
+  index('draft_shortlists_owner_idx').on(table.eventId, table.userId, table.position),
+]);
+
+// STARTING SHOT proofs — one row per enrolled player per event (lib/startProof). The image is the
+// same managed-media upload every other proof uses (/api/upload → WebP), so a full roster costs
+// about as much storage as a handful of drop screenshots.
+export const eventStartProofs = sqliteTable('event_start_proofs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The ENROLMENT, not the person: a two-account player owes a shot per account they entered, which
+  // is the point — the gate is per credit, and credits are per player row.
+  playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  // Denormalised so the admin panel groups by team without a join through players.
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  // The account the shot was taken on, as the client saw it. Audit only — the gate keys on playerId.
+  rsn: text('rsn'),
+  imageUrl: text('image_url').notNull(),
+  // 'plugin' = captured by the RuneLite button (authenticated, banner baked in), 'web' = uploaded on
+  // the site by hand (desktop or mobile).
+  source: text('source').notNull(),
+  // What the client says was on screen, and whether the server recomputed it to a match. A plugin
+  // capture with keywordOk can be auto-accepted; a hand-typed web one never is (see autoAcceptDecision).
+  keyword: text('keyword'),
+  keywordOk: integer('keyword_ok', { mode: 'boolean' }).notNull().default(false),
+  // Client-claimed capture time (the plugin's own UTC stamp). Advisory; createdAt is ours.
+  capturedAt: text('captured_at'),
+  // Where the account stood when the frame was grabbed, as the plugin read it, and how far that is
+  // from the drawn spot. NULL on a web upload (a phone can't report a coordinate) and on a
+  // label-only draw. `positionOk` is the verdict at file time: 0/1, or NULL for "couldn't tell".
+  x: integer('x'),
+  y: integer('y'),
+  distance: integer('distance'),
+  positionOk: integer('position_ok', { mode: 'boolean' }),
+  // When this game session began, per the client, and how old it therefore was at capture. The
+  // point is the LOGOUT before it: hiscores only flush then, so a fresh session means the event's
+  // start baseline is honest. NULL when the client didn't report (web upload, older plugin).
+  loginAt: text('login_at'),
+  sessionMinutes: integer('session_minutes'),
+  sessionOk: integer('session_ok', { mode: 'boolean' }),
+  // pending = on file, awaiting a look; accepted = counted; rejected = player must re-take.
+  status: text('status').notNull().default('pending'),
+  reviewNote: text('review_note'),
+  reviewedBy: integer('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: text('reviewed_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('event_start_proof_player_unique').on(table.eventId, table.playerId),
+  index('event_start_proof_event_status_idx').on(table.eventId, table.status),
+]);
+
+/**
+ * A link that puts whoever opens it straight onto one team (lib/teamInvites).
+ *
+ * Clan-v-clan is the case this exists for: the visiting side fields its own roster, and collecting
+ * a dozen RSNs by hand — then dragging each onto the right team — is work the other clan's own
+ * moderator could do in a minute. The link decides ONE thing: which team the resulting sign-up
+ * belongs to, and that it needs no approval. It is not a login and not a way around verification —
+ * whoever opens it still signs in with Discord and still needs a verified RSN on the roster.
+ *
+ * Deleted with its team or event; `revokedAt` is the host turning one off without deleting the
+ * history of who came through it.
+ */
+export const teamInvites = sqliteTable('team_invites', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  /** 16 chars of an unambiguous alphabet — see TOKEN_ALPHABET in lib/teamInvites. */
+  token: text('token').notNull(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  /** Denormalised from the team so a link can be refused for the wrong event without a join. */
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  /** How many people may come through it. NULL = no limit. */
+  maxUses: integer('max_uses'),
+  uses: integer('uses').default(0).notNull(),
+  expiresAt: text('expires_at'),
+  revokedAt: text('revoked_at'),
+  /** Who minted it — an admin, or a captain when the event lets them. */
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('team_invite_token_unique').on(table.token),
+  index('team_invite_team_idx').on(table.teamId),
+]);
+
+/**
+ * Extra people who can run one team, alongside its captain.
+ *
+ * `teams.captainUserId` is a single column, so a clan-v-clan event where the visiting side's
+ * moderator needs to police their own roster had exactly one seat to give — and giving it to them
+ * cost the playing captain theirs. Staff are that second seat, and the fifth.
+ *
+ * Scoped to ONE team on purpose: a staff row grants nothing anywhere else, which is what makes it
+ * safe to hand to someone from another clan. What it grants is deliberately short of admin — see
+ * lib/teamStaff for the list, and note that subbing a player out mid-event stays with the host.
+ */
+export const teamStaff = sqliteTable('team_staff', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The admin who handed it over — audit only, and nullable so a deleted account doesn't take the
+  // grant with it.
+  grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // Free-text for the host: "Ironforge's mod", "runs their side of the 25v25".
+  note: text('note'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('team_staff_team_user_unique').on(table.teamId, table.userId),
+  index('team_staff_user_idx').on(table.userId),
+]);
+
+
+// ── Profile sync (collection log, personal bests, quests / diaries / combat achievements) ────────
+//
+// Everything below is a PLAYER fact, not a clan one: a collection log belongs to a person, and the
+// only reason these rows hang off clan_members is that today a clan is a database. They're shaped so
+// that stays true if it ever isn't — narrow integer rows keyed by id, no catalogue text, and a
+// stable account identity on the header so one player's log across several clans can be merged by
+// something better than their name.
+//
+// The catalogue itself (which items are on which page, and how pages group into tabs) ships in the
+// repo as src/data/clog.json — 125 pages, 1,712 items. Writing it into every clan's database would
+// be a megabyte of duplicated reference data that goes stale on the next game update.
+//
+// Fed by the plugin: the game only hands the client a collection-log page once it has DRAWN it, so
+// this fills in as members open their log rather than arriving whole. `pagesSynced` on the header is
+// what lets the UI say "68 of 125" instead of pretending a partial log is a complete one.
+
+/** One row per member: how much of the log we have, and the identity to merge it by later. */
+export const memberClog = sqliteTable('member_clog', {
+  clanMemberId: integer('clan_member_id')
+    .primaryKey()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Distinct pages we've ever received for this member, and the catalogue total at sync time. */
+  pagesSynced: integer('pages_synced').notNull().default(0),
+  pagesTotal: integer('pages_total').notNull().default(0),
+  /** Slots filled / slots that exist, summed across synced pages only. */
+  obtained: integer('obtained').notNull().default(0),
+  total: integer('total').notNull().default(0),
+  /**
+   * The account hash the plugin authenticated with, denormalized on purpose: it's the key a future
+   * identity merge would dedupe on, and it must survive a rename that changes the RSN.
+   */
+  accountHash: text('account_hash'),
+  syncedAt: text('synced_at').notNull(),
+  /** Plugin build that last wrote here — the first question when a page reads wrong. */
+  pluginVersion: text('plugin_version'),
+}, (t) => [index('member_clog_synced_idx').on(t.syncedAt)]);
+
+/**
+ * One row per obtained item. ONLY obtained items are stored — the missing half is derivable from the
+ * shipped catalogue, and storing it would triple the table to record absence.
+ *
+ * `pageName` is the log's own entry name ("Chambers of Xeric: Challenge Mode"), which is the join key
+ * into clog.json. Kept as text rather than an id because the catalogue is a file, not a table: an id
+ * would have to be minted and kept stable across dataset rebuilds, and the name already is.
+ */
+export const memberClogItems = sqliteTable('member_clog_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  itemId: integer('item_id').notNull(),
+  pageName: text('page_name').notNull(),
+  /** How many the log says they've had. At least 1 — a 0 would read as "not obtained". */
+  quantity: integer('quantity').notNull().default(1),
+  /**
+   * When WE first saw it, not when they got it — the log doesn't record that. Null for everything
+   * present at the first sync, which is exactly the set whose real date is unknowable.
+   */
+  firstSeenAt: text('first_seen_at'),
+  /**
+   * Killcount at the moment the unlock fired, when the plugin caught it live. This is what makes a
+   * spoon measurable ("Magic fang at 12 KC"); null for anything that arrived as part of a bulk sync,
+   * because the log doesn't say which kill produced it.
+   */
+  kcAtUnlock: integer('kc_at_unlock'),
+}, (t) => [
+  uniqueIndex('member_clog_items_unique').on(t.clanMemberId, t.itemId),
+  index('member_clog_items_item_idx').on(t.itemId),
+  index('member_clog_items_page_idx').on(t.clanMemberId, t.pageName),
+]);
+
+/**
+ * The counter lines a log page prints under its title ("Abyssal Sire kills: 1,204").
+ *
+ * Exact, and it covers content the hiscores never lists. Display and luck maths only — crediting a
+ * kill tile from this would double-count against the chat line that already credits it.
+ */
+export const memberClogKc = sqliteTable('member_clog_kc', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  pageName: text('page_name').notNull(),
+  /** The label as the game prints it — pages count kills, chests, completions, laps. */
+  label: text('label').notNull(),
+  count: integer('count').notNull(),
+}, (t) => [uniqueIndex('member_clog_kc_unique').on(t.clanMemberId, t.pageName, t.label)]);
+
+/**
+ * Best times, in CENTISECONDS. The game separates runs by hundredths, so seconds would tie times the
+ * game itself doesn't.
+ *
+ * `teamSize` is part of the key because a solo Chambers PB and a five-man one are different records;
+ * null means the activity doesn't have team sizes (or the client didn't say).
+ */
+/**
+ * Account progress the hiscores don't publish: quest points, combat-achievement points and tier,
+ * diaries per tier. See lib/memberProgress for the key registry.
+ *
+ * One row per (member, key) rather than a wide row per member. A login pushes only the keys that
+ * actually moved — usually none — so an idle clan writes nothing, and a key added later is a
+ * registry entry instead of a migration. Values only ever rise; the ingest max-merges, which makes
+ * a re-push idempotent and stops a client that read a varbit before the game populated it from
+ * erasing somebody's account.
+ */
+/**
+ * The item-by-item half of a member's progress: which quests, and later which combat tasks — the
+ * list a player browses, as opposed to the counters in `member_progress`.
+ *
+ * One row per (member, category) holding a JSON payload, rather than a row per item: a quest list is
+ * ~200 entries that change a handful of times a year, so a row each would be 40,000 rows for a
+ * mid-sized clan to say what one 10 kB document says. The payload carries the NAMES as the client
+ * knows them, so a quest released next month lists itself without waiting on a dataset here.
+ */
+export const memberProgressItems = sqliteTable('member_progress_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** 'quest' today; 'ca' when the combat-task walk is confirmed against a live client. */
+  category: text('category').notNull(),
+  /** JSON — see lib/memberProgressItems for the shape and how it's validated. */
+  payload: text('payload').notNull(),
+  /** Denormalised so a list doesn't have to be parsed to be counted. */
+  doneCount: integer('done_count').default(0).notNull(),
+  totalCount: integer('total_count').default(0).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_items_unique').on(table.clanMemberId, table.category),
+]);
+
+export const memberProgress = sqliteTable('member_progress', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** A key from PROGRESS_KEYS — 'questPoints', 'caPoints', 'caTier', 'diaryElite', … */
+  key: text('key').notNull(),
+  value: integer('value').notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_member_key_unique').on(table.clanMemberId, table.key),
+  index('member_progress_key_idx').on(table.key),
+]);
+
+export const memberPersonalBests = sqliteTable('member_personal_bests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id')
+    .notNull()
+    .references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Lowercased activity name as the game's kill-count line names it. */
+  activity: text('activity').notNull(),
+  /**
+   * 0 means "this activity has no team sizes", NOT null. SQLite counts NULLs as distinct in a
+   * unique index, so a nullable column here would let one member accumulate a new row per push for
+   * every activity that doesn't report a size — which is nearly all of them.
+   */
+  teamSize: integer('team_size').notNull().default(0),
+  centis: integer('centis').notNull(),
+  achievedAt: text('achieved_at'),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  uniqueIndex('member_pb_unique').on(t.clanMemberId, t.activity, t.teamSize),
+  index('member_pb_activity_idx').on(t.activity, t.centis),
+]);
+
+/**
+ * Something that happened worth telling the clan about — a pet, a unique off the boss everyone is
+ * racing, a death to that same boss — filed against whatever was running at the time.
+ *
+ * WHY A TABLE AND NOT A DISCORD POST. All of this already flies past in a webhook and is gone. The
+ * week it belongs to is exactly the context that makes it a story ("Rift guardian, during Runecrafting
+ * week, at 41k XP in"), and that context only exists here.
+ *
+ * NEVER SCORES ANYTHING. Every row is client-reported: the plugin says it saw a drop, and no
+ * hiscores read can confirm that. Standings stay on the sweep's numbers; this is the colour around
+ * them. Read `lib/moments.ts` before wiring one of these into anything that awards a point.
+ *
+ * Both scopes are nullable and BOTH may be set: a pet during a Runecrafting SOTW that is also
+ * mid-bingo belongs to both, and forcing a choice would lose one of them. A row with neither is
+ * never written — nothing was running, so nobody is looking.
+ */
+export const moments = sqliteTable('moments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMembers.id, { onDelete: 'cascade' }),
+  /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
+  rsn: text('rsn').notNull(),
+  /** 'pet' | 'unique' | 'death' | 'loot' | 'ca' — see MomentKind in lib/moments.ts. */
+  kind: text('kind').notNull(),
+  weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
+  /**
+   * Which side they were on WHEN IT HAPPENED, on a team event.
+   *
+   * Derivable from players(eventId, clanMemberId) — but only for where they are NOW, which is a
+   * different fact: subbing someone across teams mid-event would drag every death they'd already
+   * died over to their new side. On a clan-v-clan, "which side" is the entire question, so it's
+   * stamped at ingest instead of re-derived at read time. Null on a solo/weekly moment.
+   */
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  /** The item, when there is one. Deaths have none; a pet whose name we couldn't resolve has a name only. */
+  itemId: integer('item_id'),
+  itemName: text('item_name'),
+  quantity: integer('quantity').notNull().default(1),
+  /** GE value of the item (or the whole haul, for a 'loot' moment), as the client priced it. */
+  valueGp: integer('value_gp'),
+  /** What it came from / what killed them — an NPC, a chest, an activity. Null when unknown. */
+  source: text('source'),
+  /** 'npc' | 'event' | 'pvp' | 'pickpocket' | 'skill' — the plugin's own loot-source taxonomy. */
+  sourceKind: text('source_kind'),
+  /** Killcount at the moment, when the client knew it. What makes a spoon measurable. */
+  kc: integer('kc'),
+  /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
+  rarityDenominator: integer('rarity_denominator'),
+  /**
+   * COMBAT TASKS only: which tier it was. Read from our own CA dataset by task name (the client's
+   * tier is a fallback for a task added to the game since it was built), and stored rather than
+   * re-derived so an old line still reads right after the dataset moves on. NULL on every other kind.
+   */
+  tier: text('tier'),
+  /** When it happened in game (client clock, clamped server-side) vs when we stored it. */
+  occurredAt: text('occurred_at').notNull(),
+  noticedAt: text('noticed_at').default(sql`(datetime('now'))`).notNull(),
+  /**
+   * The client's own idempotency key for this moment. A pet fires three chat lines and a kill fires
+   * two loot events, so the same thing arrives more than once by design — and a retry after a
+   * timeout arrives again on purpose. Unique per member, so all of them collapse to one row.
+   */
+  dedupKey: text('dedup_key').notNull(),
+}, (t) => [
+  uniqueIndex('moments_member_dedup_idx').on(t.clanMemberId, t.dedupKey),
+  index('moments_weekly_idx').on(t.weeklyCompetitionId, t.occurredAt),
+  index('moments_event_idx').on(t.eventId, t.occurredAt),
+  index('moments_member_idx').on(t.clanMemberId, t.occurredAt),
+]);
+
+export type MemberClog = typeof memberClog.$inferSelect;
+export type MemberClogItem = typeof memberClogItems.$inferSelect;
+export type MemberClogKc = typeof memberClogKc.$inferSelect;
+export type MemberPersonalBest = typeof memberPersonalBests.$inferSelect;
+export type Moment = typeof moments.$inferSelect;

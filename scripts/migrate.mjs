@@ -179,6 +179,43 @@ async function seedSettingsFromEnv() {
   }
 }
 
+/**
+ * Managed-hosting defaults. A clan we host is part of the Anvil network by default — federation on,
+ * discoverable in the directory, and listed on the public "clans on Anvil" page — because that is
+ * what the hosted product is: one network, one plugin listing every clan a member plays in. A
+ * self-hoster (no provisioner env) gets none of this and keeps the sovereign-by-default posture.
+ *
+ * INSERT-ONLY-IF-ABSENT, deliberately stricter than seedSettingsFromEnv's "missing or empty" rule:
+ * these are toggles whose OFF state is the empty string / 'off'. Treating empty as unset would
+ * silently re-enable federation for a clan that turned it off, on every single container recreate.
+ * A row existing at all — whatever its value — means the clan has an opinion, so we leave it alone.
+ *
+ * Seeding federation_enabled here only records the intent; the broker registration that makes it
+ * real (and fills brokerTrust) is done by the reconcile in lib/federation.ts, which the cron kicks.
+ */
+async function seedManagedDefaults() {
+  // The provisioner is the only thing that sets these; their presence IS "this clan is hosted".
+  const managed = process.env.CLAN_SLUG?.trim() && process.env.FEDERATION_ASSOC_SECRET?.trim();
+  if (!managed) return;
+
+  const defaults = [
+    ['federation_enabled', 'on'],       // join the network
+    ['federation_association_push', 'on'], // "make this clan easy to find" — auto-listed in members' plugins
+    ['public_showcase', 'on'],          // listed on anvilosrs.com/clans (opt-out in Advanced settings)
+  ];
+  for (const [key, value] of defaults) {
+    try {
+      const existing = await client.execute({ sql: 'SELECT 1 FROM settings WHERE key = ?', args: [key] });
+      if (existing.rows.length > 0) continue;
+      await client.execute({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', args: [key, value] });
+      console.log(`[migrate] seeded settings.${key}=${value} (managed clan default)`);
+    } catch (e) {
+      // Convenience, not correctness — never block boot on it.
+      console.warn(`[migrate] WARNING: seeding settings.${key} failed (continuing): ${e?.message || e}`);
+    }
+  }
+}
+
 // One-time backfill for the clan_name split (display name vs in-game clan name). Before the split
 // a single `clan_name` did both jobs, including gating the plugin's roster sync. Copy it into the
 // new `clan_ingame_name` key so an existing clan's sync gate keeps matching after the upgrade.
@@ -212,6 +249,7 @@ try {
   await migrate(db, { migrationsFolder: './drizzle' });
   await reconcileBaselineDrift();
   await seedSettingsFromEnv();
+  await seedManagedDefaults();
   await backfillInGameClanName();
   console.log('[migrate] up to date');
   process.exit(0);

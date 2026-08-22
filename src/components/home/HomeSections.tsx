@@ -1,0 +1,718 @@
+import Link from 'next/link';
+import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
+import { hubKind } from '@/lib/hubKinds';
+import { totalDays } from '@/lib/competitionInsights';
+import type { HubKind } from '@/lib/eventsHub';
+import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
+
+/**
+ * The home page, in the pieces it's made of.
+ *
+ * Server components throughout — nothing here needs state, and the one thing that would (a live
+ * countdown) already exists as EventTimer. What each piece is FOR:
+ *
+ *   hero      — the clan, in numbers, including how much it did this week
+ *   you       — where the viewer stands in everything running at once
+ *   live      — the two things worth opening today, or (when nothing is) what's next and what ended
+ *   what's on — one card per competition you can still enter (live first, then scheduled)
+ *   finished  — every recent result as a LINE, not a card: a finished competition is a name, a
+ *               winner and a date, and eight of them shouldn't outweigh the one you can enter
+ *   clan week — the sweep's own daily rollup, so the page says what the clan actually did
+ */
+
+const short = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(Math.round(n));
+
+const weekday = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
+
+/** The UTC day key `i` days into a competition — the sparkline's bars are aligned to its day range. */
+const dayAt = (startIso: string, i: number) =>
+  new Date(Date.parse(startIso) + i * 86_400_000).toISOString().slice(0, 10);
+
+const dateShort = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** Home draws the same card as the hub, so it speaks the hub's vocabulary of kinds. */
+const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
+
+function unitFor(w: HomeWeekly): string {
+  return w.type === 'skill' ? 'XP' : w.type === 'boss' ? 'KC' : 'h';
+}
+
+function weeklyValue(w: HomeWeekly, value: number): string {
+  if (w.type === 'efficiency') return `${(value / 1000).toFixed(1)}h`;
+  return `${short(value)} ${unitFor(w)}`;
+}
+
+/* ---------------------------------------------------------------- hero ---- */
+
+export function Hero({ view }: { view: HomeView }) {
+  const { clanWeek, live } = view;
+  const stats = [
+    { k: 'Members', v: view.memberCount.toLocaleString(), sub: 'in the clan right now' },
+    {
+      k: 'Live events',
+      v: String(view.liveEventCount),
+      sub: view.liveEventCount > 0 ? 'running now' : 'nothing running',
+      cls: view.liveEventCount > 0 ? 'text-gold-light' : '',
+    },
+    {
+      k: 'This week',
+      v: live.weekly ? live.weekly.metricLabel : 'Between weeks',
+      sub: live.weekly ? `${live.weekly.entrants} scoring` : live.next ? `next one starts ${dateShort(live.next.startDate)}` : 'nothing scheduled',
+      small: true,
+    },
+    {
+      k: 'Clan XP this week',
+      v: short(clanWeek.total),
+      sub: clanWeek.deltaPct === null ? 'first tracked week' : `${clanWeek.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(clanWeek.deltaPct)}% on last week`,
+      cls: 'text-accent-green-light',
+      rule: true,
+    },
+    { k: 'Competitions run', v: String(view.competitionsRun), sub: 'every one of them below' },
+  ];
+
+  return (
+    <section className="relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg p-7 sm:p-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_10%_0%,rgba(212,175,55,0.17),transparent_60%),radial-gradient(90%_90%_at_90%_110%,rgba(45,133,68,0.14),transparent_66%)]" />
+      <div className="relative">
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold/70">OSRS clan events</span>
+        <h1 className="mt-2 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-4xl font-black leading-none tracking-tight text-transparent sm:text-6xl">
+          {view.clanName}
+        </h1>
+        <p className="mt-3 max-w-[54ch] text-sm text-text-muted">
+          Bingos, the ladder, Skill and Boss of the Week — and every result the clan has ever put up.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-x-7 gap-y-5">
+          {stats.map((s) => (
+            <div key={s.k} className={s.rule ? 'border-l border-card-border pl-7' : ''}>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{s.k}</div>
+              <div className={`mt-1.5 font-mono font-bold leading-none tabular-nums ${s.small ? 'text-lg' : 'text-3xl'} ${s.cls ?? ''}`}>
+                {s.v}
+              </div>
+              <div className="mt-1.5 text-[11.5px] text-text-muted">{s.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------- you ---- */
+
+export function YouStrip({ you, discordInvite }: { you: HomeYou | null; discordInvite: string | null }) {
+  if (!you) {
+    return (
+      <div className="mb-7 grid grid-cols-1 items-center gap-4 rounded-xl border border-gold/25 bg-gradient-to-r from-gold/10 to-card-bg p-3.5 sm:grid-cols-[1fr_auto]">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-card-border bg-brown-dark/60 text-base">👤</span>
+          <div>
+            <div className="font-bold">Sign in to see your week</div>
+            <div className="text-xs text-text-muted">Your rank in everything running, and your own gains</div>
+          </div>
+        </div>
+        <Link
+          href="/login"
+          className="justify-self-start rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 sm:justify-self-end"
+        >
+          Sign in with Discord
+        </Link>
+      </div>
+    );
+  }
+
+  const pills = [
+    you.weekly && {
+      key: 'weekly',
+      icon: you.weekly.iconUrl,
+      emoji: null,
+      label: you.weekly.label,
+      value: `#${you.weekly.rank}`,
+      sub: `of ${you.weekly.total}`,
+    },
+    you.ladder && {
+      key: 'ladder',
+      icon: null,
+      emoji: '🪜',
+      label: 'Ladder',
+      value: `#${you.ladder.rank}`,
+      sub: `of ${you.ladder.total}`,
+    },
+    you.xpThisWeek > 0 && {
+      key: 'xp',
+      icon: null,
+      emoji: '📈',
+      label: 'Your XP',
+      value: short(you.xpThisWeek),
+      sub: 'this week',
+    },
+    you.milestones > 0 && {
+      key: 'ms',
+      icon: null,
+      emoji: '🏅',
+      label: 'Milestones',
+      value: String(you.milestones),
+      sub: 'this week',
+    },
+  ].filter(Boolean) as { key: string; icon: string | null; emoji: string | null; label: string; value: string; sub: string }[];
+
+  return (
+    <div className="mb-7 grid grid-cols-1 items-center gap-4 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg to-card-bg p-3.5 lg:grid-cols-[auto_1fr_auto]">
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-lg border border-card-border bg-brown-dark/60 text-base">🔥</span>
+        <div className="min-w-0">
+          <div className="truncate font-bold">{you.rsn}</div>
+          <div className="text-xs text-text-muted">
+            {you.activeDays > 0 ? `${you.activeDays} of ${you.daysElapsed} days active this week` : 'nothing tracked this week yet'}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {pills.length === 0 ? (
+          <span className="text-xs text-text-muted">Nothing scored yet — get on a board and this fills in.</span>
+        ) : (
+          pills.map((p) => (
+            <span
+              key={p.key}
+              className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark/50 px-3 py-1.5 text-xs text-text-muted"
+            >
+              {p.icon ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.icon} alt="" className="h-4 w-4 object-contain" />
+              ) : (
+                <span aria-hidden>{p.emoji}</span>
+              )}
+              {p.label} <b className="font-mono font-bold text-foreground">{p.value}</b>
+              <span className="text-text-muted/70">{p.sub}</span>
+            </span>
+          ))
+        )}
+      </div>
+
+      <Link
+        href="/profile"
+        className="justify-self-start whitespace-nowrap rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 lg:justify-self-end"
+      >
+        Your profile →
+      </Link>
+      {discordInvite === null && null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ live now ---- */
+
+export function LiveNow({ view }: { view: HomeView }) {
+  const { weekly, event, next, justFinished } = view.live;
+  const anythingLive = !!weekly || !!event;
+
+  return (
+    <>
+      <SectionHead
+        title={anythingLive ? 'Happening now' : 'Nothing live right now'}
+        note={anythingLive ? 'the things worth opening today' : 'what is next, and what just finished'}
+      />
+      <div className="mb-9 grid gap-3.5 lg:grid-cols-2">
+        {weekly && <WeeklyLiveCard w={weekly} />}
+        {event && <EventLiveCard e={event} />}
+        {!anythingLive && next && <NextUpCard w={next} members={view.memberCount} />}
+        {!anythingLive && justFinished && <JustFinishedCard w={justFinished} />}
+        {!anythingLive && !next && !justFinished && (
+          <div className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted lg:col-span-2">
+            No events or competitions yet — an admin can start one from the Admin tab.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function CardShell({
+  href,
+  tone,
+  children,
+}: {
+  href: string;
+  tone: 'gold' | 'blue' | 'quiet';
+  children: React.ReactNode;
+}) {
+  const toneCls =
+    tone === 'gold'
+      ? 'border-gold/30 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(212,175,55,0.12),transparent_62%)]'
+      : tone === 'blue'
+        ? 'border-blue-400/25 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(74,163,212,0.12),transparent_62%)]'
+        : 'border-card-border';
+  return (
+    <Link
+      href={href}
+      className={`block rounded-2xl border bg-card-bg p-5 transition-colors hover:border-gold/50 ${toneCls}`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
+  const max = Math.max(...w.days, 1);
+  return (
+    <CardShell href={`/weekly/${w.id}`} tone="blue">
+      <div className="flex items-start gap-3.5">
+        {w.iconUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={w.iconUrl} alt="" className="h-10 w-10 shrink-0 object-contain" />
+        )}
+        <div className="min-w-0">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent-green-light">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />
+            Live
+          </span>
+          <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
+          <p className="mt-0.5 text-[12.5px] text-text-muted">
+            {w.entrants} scoring · ends {dateShort(w.endDate)}
+          </p>
+        </div>
+      </div>
+
+      {w.top && (
+        <div className="mt-4 flex items-center gap-2.5 text-sm">
+          <span aria-hidden>🥇</span>
+          <span className="truncate font-semibold text-gold-light">
+            {w.top.rsn}
+            {w.top.tied && <span className="ml-1 font-normal text-text-muted">(tied)</span>}
+          </span>
+          <span className="ml-auto font-mono font-bold text-accent-green-light">{weeklyValue(w, w.top.value)}</span>
+        </div>
+      )}
+
+      {/* Day one has no shape to draw: one bar is its own maximum, so it renders full height and
+          full width — a chart insisting the clan is at 100% of something on the first morning. Say
+          which day it is instead, and let the chart start when there are two days to compare. */}
+      {w.days.length === 1 ? (
+        <p className="mt-4 text-[11.5px] text-text-muted">
+          Day 1 of {totalDays(w.startDate, w.endDate)} —{' '}
+          <b className="font-semibold text-foreground">{weeklyValue(w, w.days[0])}</b> so far. The day-by-day
+          shape starts tomorrow.
+        </p>
+      ) : w.days.length > 1 ? (
+        <>
+          <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+            the whole clan, day by day
+          </p>
+          <div className="mt-1.5 flex h-9 items-end gap-1">
+            {Array.from({ length: Math.max(w.days.length, totalDays(w.startDate, w.endDate)) }, (_, i) => {
+              const d = w.days[i];
+              return (
+                <i
+                  key={i}
+                  title={`${weekday(dayAt(w.startDate, i))} · ${d == null ? 'not yet' : d > 0 ? `${short(d)} ${unitFor(w)}` : 'nothing'}`}
+                  className={`block flex-1 rounded-sm ${d != null && d === max ? 'bg-gold-light' : d ? 'bg-blue-400/50' : 'bg-card-border'}`}
+                  style={{ height: `${d ? Math.max(2, (d / max) * 36) : 2}px` }}
+                />
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+    </CardShell>
+  );
+}
+
+function EventLiveCard({ e }: { e: HomeEvent }) {
+  return (
+    <CardShell href={`/events/${e.id}`} tone="gold">
+      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent-green-light">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />
+        Live
+      </span>
+      <h3 className="mt-1.5 truncate text-xl font-extrabold">{e.name}</h3>
+      <p className="mt-0.5 text-[12.5px] text-text-muted">
+        {e.shape}
+        {e.chips.length > 0 && <> · {e.chips.join(' · ')}</>}
+      </p>
+
+      {e.top && (
+        <>
+          <div className="mt-4 flex items-center gap-2.5 text-sm">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: e.top.color }} />
+            <span className="truncate">
+              leading <b className="font-bold">{e.top.name}</b>
+            </span>
+            <span className="ml-auto shrink-0 font-mono font-bold" style={{ color: e.top.color }}>
+              {e.top.score.toLocaleString()}
+              <span className="font-normal text-text-muted">
+                /{e.top.total.toLocaleString()} {e.top.unit}
+              </span>
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brown-dark">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct(e.top.score, e.top.total)}%`, backgroundColor: e.top.color }}
+            />
+          </div>
+        </>
+      )}
+      <p className="mt-3 text-[11.5px] text-text-muted">{e.foot}</p>
+    </CardShell>
+  );
+}
+
+function NextUpCard({ w, members }: { w: HomeWeekly; members: number }) {
+  return (
+    <CardShell href={`/weekly/${w.id}`} tone="blue">
+      <div className="flex items-start gap-3.5">
+        {w.iconUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={w.iconUrl} alt="" className="h-10 w-10 shrink-0 object-contain" />
+        )}
+        <div className="min-w-0">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+            Next up
+          </span>
+          <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
+          <p className="mt-0.5 text-[12.5px] text-text-muted">starts {dateShort(w.startDate)}</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="mb-1.5 flex justify-between text-[11.5px] text-text-muted">
+          <span>Enrolled</span>
+          <span>
+            <b className="font-semibold text-foreground">{w.entrants}</b> of {members}
+          </span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-brown-dark">
+          <div className="h-full rounded-full bg-blue-400" style={{ width: `${pct(w.entrants, members)}%` }} />
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+function JustFinishedCard({ w }: { w: HomeWeekly }) {
+  return (
+    <CardShell href={`/weekly/${w.id}`} tone="quiet">
+      <div className="flex items-start gap-3.5">
+        {w.iconUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={w.iconUrl} alt="" className="h-10 w-10 shrink-0 object-contain opacity-80" />
+        )}
+        <div className="min-w-0">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">Just finished</span>
+          <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
+          <p className="mt-0.5 text-[12.5px] text-text-muted">
+            {dateShort(w.startDate)} – {dateShort(w.endDate)} · {w.entrants} scored
+          </p>
+        </div>
+      </div>
+      {w.top && (
+        <div className="mt-4 flex items-center gap-2.5 text-sm">
+          <span aria-hidden>🥇</span>
+          <span className="truncate font-semibold text-gold-light">
+            {w.top.rsn}
+            {w.top.tied && <span className="ml-1 font-normal text-text-muted">(tied)</span>}
+          </span>
+          <span className="ml-auto font-mono font-bold text-accent-green-light">{weeklyValue(w, w.top.value)}</span>
+        </div>
+      )}
+    </CardShell>
+  );
+}
+
+/* ----------------------------------------------------- what's on / done ---- */
+
+/**
+ * Everything the clan has run, in two registers.
+ *
+ * It used to be two sections of identical cards — eight weeklies and three events, nearly all of
+ * them finished — so the page's whole middle was a wall of grey "Done" tiles and the one board
+ * starting next month was buried in it. A finished competition is a RESULT: a name, a winner and a
+ * date. It doesn't need a card, and eight of them shouldn't outweigh the thing you can still enter.
+ *
+ * So: anything live or scheduled keeps a full card, and everything finished collapses into one
+ * dense list underneath — the same information in a fifth of the height, and read at a glance.
+ */
+export function Competitions({ view }: { view: HomeView }) {
+  // Whatever "Happening now" is already showing full-size, so the page doesn't print the live BOTW
+  // twice in a row — which it did, and which was half of why the middle read as a wall.
+  const featured = new Set<string>();
+  const anythingLive = !!view.live.weekly || !!view.live.event;
+  if (view.live.weekly) featured.add(`w${view.live.weekly.id}`);
+  if (view.live.event) featured.add(`e${view.live.event.id}`);
+  if (!anythingLive) {
+    // With nothing live it falls back to next-up and just-finished cards — same rule applies.
+    if (view.live.next) featured.add(`w${view.live.next.id}`);
+    if (view.live.justFinished) featured.add(`w${view.live.justFinished.id}`);
+  }
+
+  const liveWeeklies = view.weeklies.filter((w) => w.status !== 'completed' && !featured.has(`w${w.id}`));
+  const liveEvents = view.events.filter((e) => e.status !== 'past' && !featured.has(`e${e.id}`));
+
+  // Cards, live before scheduled, so the row reads in the order things happen.
+  const cards: { key: string; state: 'live' | 'upcoming'; node: React.ReactNode }[] = [
+    ...liveEvents.map((e) => ({
+      key: `e${e.id}`,
+      state: (e.status === 'live' ? 'live' : 'upcoming') as 'live' | 'upcoming',
+      node: <EventCompetitionCard key={`e${e.id}`} e={e} />,
+    })),
+    ...liveWeeklies.map((w) => ({
+      key: `w${w.id}`,
+      state: (w.status === 'active' ? 'live' : 'upcoming') as 'live' | 'upcoming',
+      node: <WeeklyCompetitionCard key={`w${w.id}`} w={w} />,
+    })),
+  ].sort((a, b) => (a.state === b.state ? 0 : a.state === 'live' ? -1 : 1));
+
+  const finished: FinishedRow[] = [
+    ...view.weeklies
+      .filter((w) => w.status === 'completed')
+      .map((w) => ({
+        key: `w${w.id}`,
+        href: `/weekly/${w.id}`,
+        kind: WEEK_KIND[w.type] ?? 'sotw',
+        name: w.title,
+        sub: `${w.metricLabel} · ${w.entrants} entered`,
+        winner: w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null,
+        endedAt: w.endDate,
+      })),
+    ...view.events
+      .filter((e) => e.status === 'past')
+      .map((e) => ({
+        key: `e${e.id}`,
+        href: `/events/${e.id}`,
+        kind: e.mode,
+        name: e.name,
+        sub: e.shape,
+        winner: e.top ? { name: e.top.name, text: `${e.top.score.toLocaleString()} ${e.top.unit}` } : null,
+        endedAt: e.endDate,
+      })),
+  ]
+    .filter((r) => !featured.has(r.key))
+    .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
+    .slice(0, FINISHED_ROWS);
+
+  if (cards.length === 0 && finished.length === 0) return null;
+
+  return (
+    <>
+      {cards.length > 0 && (
+        <>
+          <SectionHead
+            title="On now and coming up"
+            note="everything you can still enter"
+            more={{ href: '/events', label: 'All competitions →' }}
+          />
+          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
+            {cards.map((c) => c.node)}
+          </div>
+        </>
+      )}
+
+      {finished.length > 0 && (
+        <>
+          <SectionHead
+            title="Recently finished"
+            note="who won, and when"
+            more={cards.length > 0 ? undefined : { href: '/events', label: 'All competitions →' }}
+          />
+          <div className="mb-9 overflow-hidden rounded-xl border border-card-border bg-card-bg">
+            {finished.map((r) => (
+              <FinishedLine key={r.key} row={r} />
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** How many results the list carries before "All competitions" takes over. */
+const FINISHED_ROWS = 8;
+
+interface FinishedRow {
+  key: string;
+  href: string;
+  kind: HubKind;
+  name: string;
+  sub: string;
+  winner: { name: string; text: string } | null;
+  endedAt: string | null;
+}
+
+/** One finished competition, as a line: what it was, who won it, when it ended. */
+function FinishedLine({ row }: { row: FinishedRow }) {
+  const meta = hubKind(row.kind);
+  return (
+    <Link
+      href={row.href}
+      className="flex items-center gap-3 border-t border-card-border px-3.5 py-2.5 transition-colors first:border-t-0 hover:bg-card-bg-hover"
+    >
+      <span aria-hidden className="h-7 w-1 shrink-0 rounded-full" style={{ background: meta.accent }} />
+      <span aria-hidden className="hidden text-base sm:block">{meta.emoji}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold">{row.name}</span>
+        <span className="block truncate text-[11px] text-text-muted">{row.sub}</span>
+      </span>
+      {row.winner && (
+        <span className="hidden min-w-0 text-right sm:block">
+          <span className="block truncate text-[13px] font-medium">{row.winner.name}</span>
+          <span className="block truncate text-[11px] text-text-muted">{row.winner.text}</span>
+        </span>
+      )}
+      <span className="w-14 shrink-0 text-right font-mono text-[11px] text-text-muted">
+        {row.endedAt ? dateShort(row.endedAt) : ''}
+      </span>
+    </Link>
+  );
+}
+
+function WeeklyCompetitionCard({ w }: { w: HomeWeekly }) {
+  const kind = WEEK_KIND[w.type] ?? 'sotw';
+  return (
+    <CompetitionCard
+      kind={kind}
+      href={`/weekly/${w.id}`}
+      name={w.title}
+      shape={`${w.metricLabel} · ${unitFor(w)}`}
+      state={w.status === 'active' ? 'live' : 'upcoming'}
+      startDate={w.startDate}
+      endDate={w.endDate}
+      entrants={`${w.entrants} entered`}
+      top={w.top ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
+      glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(kind).accent} />}
+      iconUrl={w.iconUrl}
+    />
+  );
+}
+
+function EventCompetitionCard({ e }: { e: HomeEvent }) {
+  return (
+    <CompetitionCard
+      kind={e.mode}
+      href={`/events/${e.id}`}
+      name={e.name}
+      shape={e.shape}
+      state={e.status}
+      startDate={e.startDate}
+      endDate={e.endDate}
+      entrants={e.chips[0] ?? 'no teams yet'}
+      top={
+        e.top
+          ? {
+              name: e.top.name,
+              text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
+              color: e.top.color,
+              pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
+            }
+          : null
+      }
+      chips={e.chips.slice(1)}
+      glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
+    />
+  );
+}
+
+/* ----------------------------------------------------------- clan week ---- */
+
+export function ClanWeek({ view }: { view: HomeView }) {
+  const { clanWeek, milestones } = view;
+  if (clanWeek.total === 0 && milestones.length === 0) return null;
+  const max = Math.max(...clanWeek.days.map((d) => d.xp), 1);
+  const bestIdx = clanWeek.days.findIndex((d) => d.xp === max);
+
+  return (
+    <>
+      <SectionHead title="This week in the clan" note="every gain the sweep recorded, rolled up" />
+      <div className="grid gap-3.5 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-2xl border border-card-border bg-card-bg p-5">
+          <h3 className="text-sm font-bold">Clan XP, day by day</h3>
+          <p className="mt-0.5 text-[11.5px] text-text-muted">
+            {short(clanWeek.total)} XP across {view.memberCount} members
+            {clanWeek.total > 0 && (
+              <>
+                {' '}· biggest day was <b className="font-semibold text-foreground">{weekday(clanWeek.days[bestIdx].day)}</b>
+              </>
+            )}
+          </p>
+          <div className="mt-4 grid h-32 grid-cols-7 gap-2">
+            {clanWeek.days.map((d, i) => (
+              <div key={d.day} className="grid grid-rows-[auto_minmax(0,1fr)_auto] gap-1.5">
+                <span className={`text-center font-mono text-[11px] font-bold ${d.xp === 0 ? 'text-text-muted' : ''}`}>
+                  {d.xp === 0 ? '—' : short(d.xp)}
+                </span>
+                <span className="flex items-end">
+                  <i
+                    className={`block w-full rounded-t-md ${
+                      i === clanWeek.days.length - 1
+                        ? 'bg-gradient-to-b from-gold-light to-gold-dark/30'
+                        : 'bg-gradient-to-b from-accent-green/75 to-accent-green/25'
+                    }`}
+                    style={{ height: `${d.xp === 0 ? 2 : Math.max(2, (d.xp / max) * 100)}%`, opacity: d.xp === 0 ? 0.25 : 1 }}
+                  />
+                </span>
+                <span className="text-center text-[10px] text-text-muted">{weekday(d.day)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card-bg p-5">
+          <h3 className="text-sm font-bold">Milestones</h3>
+          <p className="mt-0.5 text-[11.5px] text-text-muted">levels, thresholds and drops from this week</p>
+          <div className="mt-2.5">
+            {milestones.length === 0 ? (
+              <p className="py-4 text-center text-xs text-text-muted">Nothing crossed or dropped yet this week.</p>
+            ) : (
+              milestones.map((m, i) => (
+                <div key={i} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
+                  {m.iconUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.iconUrl} alt="" className="h-[18px] w-[18px] shrink-0 object-contain" />
+                  ) : (
+                    <span aria-hidden>🏅</span>
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-text-muted">
+                    <b className="font-semibold text-foreground">{m.rsn}</b> {m.text}
+                  </span>
+                  <span className="shrink-0 font-mono text-[11px] text-text-muted">{weekday(m.day)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* --------------------------------------------------------------- bits ----- */
+
+function SectionHead({
+  title,
+  note,
+  more,
+}: {
+  title: string;
+  note?: string;
+  more?: { href: string; label: string };
+}) {
+  return (
+    <div className="mb-3.5 flex flex-wrap items-center gap-3">
+      <h2 className="flex items-center gap-2 text-[17px] font-extrabold">
+        <span className="h-5 w-1 rounded-full bg-gold" />
+        {title}
+      </h2>
+      {note && <span className="text-xs text-text-muted">{note}</span>}
+      {more && (
+        <Link href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold">
+          {more.label}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+const pct = (score: number, total: number) => (total > 0 ? Math.min(100, Math.round((score / total) * 100)) : 0);

@@ -7,6 +7,7 @@ import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 import { assertEventEditable } from '@/lib/eventLock';
+import { collectionDisplayTotal } from '@/lib/collectionSets';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -24,7 +25,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 //
 // JSON body: { rows: Array<{
 //   label?, description?, tileType?, requiredAmount?, points?, category?,
-//   optional?, trackedStat?, statType?, statGoal?,
+//   optional?, trackedStat?, statType?, statGoal?, statBasis?,
 //   targetNpcs?, timedActivity?, timeThresholdSeconds?, items?
 // }> }
 // or multipart/form-data with `file` = the downloaded .xlsx workbook (only its Tiles
@@ -41,12 +42,20 @@ interface ImportRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  statBasis?: string | null;
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
   /** Scheduled reveal time (ISO UTC) for Showdown boards — always applied, like the PUT route. */
   revealAt?: string | null;
-  items?: { name?: string; count: number; id?: number; group?: string | null }[] | null;
+  items?: { name?: string; count: number; id?: number; group?: string | null; groupRequire?: number | null }[] | null;
+  /** Collection tiles: 'any' (default) | 'all' — how the @Set groups combine. See lib/collectionSets. */
+  groupMode?: string | null;
+  /** Drop tiles: most credits one kill can give (1 = count rolls, not items). */
+  perKillCap?: number | null;
+  /** Kill tiles: 'per-kill' collapses a kill several members were in; min gates on how many. */
+  coopCredit?: string | null;
+  coopMinMembers?: number | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -55,14 +64,18 @@ interface DerivedItemFields {
   tileType: 'drop';
   requiredAmount: number;
   trackedItemIds: number[] | null;
-  itemRequirements: { itemId: number; name: string; requiredAmount: number }[] | null;
+  itemRequirements:
+    | { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
+    | null;
+  /** 'all' when the row's sets are AND-ed; null for the default any-one-set reading. */
+  groupMode?: string | null;
 }
 
 const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -128,7 +141,7 @@ function validateRowFields(i: number, row: ImportRow): string | null {
     Array.isArray(row.items) &&
     row.items.some((it) => it != null && typeof it.group === 'string' && it.group.trim() !== '')
   ) {
-    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for an "any one full set" collection, or remove the @Set groups for a pool.`;
+    return `Row ${i + 1}: items use @Set groups but a requiredAmount is also set — a requiredAmount makes it a simple drop pool and drops the sets. Remove the requiredAmount for a set collection, or remove the @Set groups for a pool.`;
   }
   if (
     row.points !== undefined && row.points !== null &&
@@ -173,34 +186,33 @@ function deriveItemFields(
   const reqs = row.items.map((it) => {
     const requiredAmount = Math.max(1, Math.floor(it.count) || 1);
     const group = it.group?.trim() ? it.group.trim().slice(0, 30) : null;
+    // "@Set/2" — how many of that set count as satisfying it. Only meaningful on a grouped item.
+    const groupRequire = group && it.groupRequire != null && it.groupRequire >= 1
+      ? Math.floor(it.groupRequire)
+      : null;
     if (it.id != null) {
       const label = it.name && it.name.trim() ? it.name.trim() : byId.get(it.id)?.name ?? `Item #${it.id}`;
-      return { itemId: it.id, name: label, requiredAmount, group };
+      return { itemId: it.id, name: label, requiredAmount, group, groupRequire };
     }
     const hit = byName.get((it.name ?? '').trim().toLowerCase())!;
-    return { itemId: hit.id, name: hit.name, requiredAmount, group };
+    return { itemId: hit.id, name: hit.name, requiredAmount, group, groupRequire };
   });
   const simpleAmount =
     row.requiredAmount != null && Number.isInteger(row.requiredAmount) && row.requiredAmount >= 1
       ? row.requiredAmount
       : null;
   if (simpleAmount != null) {
-    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null };
+    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null, groupMode: null };
   }
-  // Collections: classic all-of totals sum every item; "any full set" groups (via @Set)
-  // count the ungrouped items plus the smallest set — the shortest path to completion.
-  const groupSums = new Map<string, number>();
-  let ungroupedSum = 0;
-  for (const r of reqs) {
-    const g = r.group?.toLowerCase();
-    if (g) groupSums.set(g, (groupSums.get(g) ?? 0) + r.requiredAmount);
-    else ungroupedSum += r.requiredAmount;
-  }
+  // Collections: the display total is the shortest path to completion under the row's group mode
+  // (lib/collectionSets) — every ungrouped item, plus one set's cheapest items ('any') or every
+  // set's ('all').
   return {
     tileType: 'drop',
-    requiredAmount: groupSums.size === 0 ? ungroupedSum : ungroupedSum + Math.min(...groupSums.values()),
+    requiredAmount: collectionDisplayTotal(reqs, row.groupMode),
     trackedItemIds: null,
     itemRequirements: reqs,
+    groupMode: row.groupMode === 'all' ? 'all' : null,
   };
 }
 
@@ -238,6 +250,8 @@ function validateRowKind(
     : parseLen(base.trackedItemIds) > 0 || parseLen(base.itemRequirements) > 0;
   const isDrop = effTileType === 'drop';
   const isKill = effTileType === 'kill';
+  // Lap tiles carry agility course names in the targetNpcs column (canonicalised on parse).
+  const isLap = effTileType === 'lap';
   // PvP tiles carry 'team:other' / 'rsn:<name>' selectors in the targetNpcs column.
   const isPvp = effTileType === 'pvp';
   const isTimed = effTileType === 'timed';
@@ -254,8 +268,8 @@ function validateRowKind(
   const isGain = effTileType === 'gain';
   const isDeathless = effTileType === 'deathless';
 
-  if (hasStat && (isDrop || isKill || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
-    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+    return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
@@ -263,8 +277,8 @@ function validateRowKind(
   if (dropItemFields && !isDrop && !isGain) {
     return `Row ${i + 1}: only drop or gain tiles can carry items.`;
   }
-  if (effTargetNpcsLen > 0 && !isKill && !isDiary && !isCa && !isPvp) {
-    return `Row ${i + 1}: only kill tiles can target NPCs (or diary/CA/PvP tiles, their selectors).`;
+  if (effTargetNpcsLen > 0 && !isKill && !isLap && !isDiary && !isCa && !isPvp) {
+    return `Row ${i + 1}: only kill tiles can target NPCs (or lap/diary/CA/PvP tiles, their selectors).`;
   }
   if (effActivity && !isTimed && !isDeathless) {
     return `Row ${i + 1}: only timed or deathless tiles can carry an activity.`;
@@ -272,8 +286,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return `Row ${i + 1}: only drop, kill, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
+    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
   }
   return null;
 }
@@ -291,10 +305,25 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   if (row.trackedStat !== undefined) s.trackedStat = row.trackedStat || null;
   if (row.statType !== undefined) s.statType = row.statType || null;
   if (row.statGoal !== undefined) s.statGoal = row.statGoal ?? null;
+  // Anything but the explicit opt-in is a gain tile — a stray value must never silently re-interpret
+  // a board's scoring on import. A milestone tile is also settled per member by definition, so it
+  // carries the tracking mode the server will actually use rather than a 'team' that never applies.
+  if (row.statBasis !== undefined) {
+    const milestone = row.statBasis === 'milestone';
+    s.statBasis = milestone ? 'milestone' : 'gain';
+    if (milestone) s.trackingMode = 'individual';
+  }
   if (row.targetNpcs !== undefined) {
     s.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
       ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))
       : null;
+  }
+  if (row.perKillCap !== undefined) {
+    s.perKillCap = row.perKillCap != null && row.perKillCap >= 1 ? Math.min(10, Math.floor(row.perKillCap)) : null;
+  }
+  if (row.coopCredit !== undefined) s.coopCredit = row.coopCredit === 'per-kill' ? 'per-kill' : null;
+  if (row.coopMinMembers !== undefined) {
+    s.coopMinMembers = row.coopMinMembers != null && row.coopMinMembers >= 2 ? Math.min(50, Math.floor(row.coopMinMembers)) : null;
   }
   if (row.timedActivity !== undefined) s.timedActivity = row.timedActivity ? String(row.timedActivity).slice(0, 60) : null;
   if (row.timeThresholdSeconds !== undefined) s.timeThresholdSeconds = row.timeThresholdSeconds ?? null;
@@ -324,6 +353,9 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
         s.requiredAmount = derived.requiredAmount;
         s.trackedItemIds = derived.trackedItemIds ? JSON.stringify(derived.trackedItemIds) : null;
         s.itemRequirements = derived.itemRequirements ? JSON.stringify(derived.itemRequirements) : null;
+        // Null unless the row asked for AND-ed sets, so re-importing a sheet without the column
+        // returns a tile to the default reading instead of silently keeping an old 'all'.
+        s.groupMode = derived.groupMode ?? null;
       }
     }
   }

@@ -141,6 +141,79 @@ export function playerEventEmbed(opts: {
   return embed;
 }
 
+/**
+ * A saved OBS clip, posted to the clan's clips channel.
+ *
+ * The plugin used to post these itself as bare text — "<rsn> saved a clip 🎬" — which told nobody
+ * what they were about to watch. `moment` is the plugin's own summary of what happened inside the
+ * clip's capture window (the drop, kill, completion or death it caught); when it has nothing to
+ * report the embed falls back to naming the event, which still beats the bare line.
+ *
+ * The video rides in the same multipart body as an ordinary attachment. Discord renders a player
+ * for it under the embed — an embed cannot host a video the way it hosts an image — so the embed
+ * carries the words and the attachment carries the picture.
+ */
+export function clipEmbed(opts: {
+  rsn: string | null;
+  /** What the clip caught, in the plugin's words. Null when it saw nothing notable. */
+  moment?: string | null;
+  /** Event this was clipped during, for context when the moment is thin. */
+  eventName?: string | null;
+  /** Seconds of footage, from the capture buffer length. */
+  seconds?: number | null;
+  /**
+   * Where the clipper stands on the board right now — the one thing the SERVER knows and the
+   * plugin doesn't. A clip is a brag, and "#1 this month · 116 pts" is the part of the brag the
+   * footage can't show.
+   */
+  standing?: { rank: number; points: number; monthly: boolean } | null;
+  /** Board link, so the title goes somewhere. */
+  boardUrl?: string | null;
+}): DiscordEmbed {
+  const { rsn, moment, eventName, seconds, standing, boardUrl } = opts;
+  // The moment arrives newest-first, one per line. Its FIRST line is the headline — that's what the
+  // clip is of — so it becomes the title, where a generic "Clip saved" used to sit telling nobody
+  // anything. Remaining lines stay as the description: context for what else the window caught.
+  const lines = (moment ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const [headline, ...rest] = lines;
+
+  const embed: DiscordEmbed = {
+    title: clamp(headline ?? '🎬 Clip saved', LIMIT.title),
+    color: EMBED_COLOR.violet,
+  };
+  if (rsn) embed.author = { name: clamp(rsn, LIMIT.author) };
+  if (boardUrl) embed.url = boardUrl;
+
+  // Context line: the event and the footage length, italicised and folded into the description
+  // rather than each taking a field. Both are secondary to what happened — and length especially,
+  // since Discord's own player already shows it under the embed. A whole field row for "30s" was
+  // the single emptiest thing in the post.
+  const body: string[] = [...rest];
+  // Nothing notable happened: name the event in a sentence instead of leaving a bare title — and
+  // then keep it OUT of the context line below, so it isn't said twice.
+  const noMoment = !headline;
+  if (noMoment && eventName) body.push(`Clipped during ${clamp(eventName.trim(), 200)}.`);
+  const context = [
+    noMoment ? null : eventName?.trim(),
+    // Their standing goes in the subtext beside the event, not a field: it's context for the brag,
+    // not a statistic anyone reads on its own.
+    standing && standing.rank > 0
+      ? `#${standing.rank}${standing.monthly ? ' this month' : ''} · ${standing.points.toLocaleString()} pts`
+      : null,
+    seconds && seconds > 0 ? `${seconds}s` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  if (context) body.push(`-# ${context}`); // Discord subtext — smaller and muted
+
+  const description = body.join('\n').trim();
+  if (description) embed.description = clamp(description, LIMIT.description);
+  return embed;
+}
+
 /** stampBrand across a payload's `embeds` array, leaving a payload with no embeds untouched. */
 export function stampEmbeds<T extends { embeds?: unknown }>(payload: T): T {
   if (!Array.isArray(payload.embeds) || payload.embeds.length === 0) return payload;

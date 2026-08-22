@@ -17,6 +17,7 @@ import {
   isTileOpen,
   nextRevealAt,
   completionAward,
+  rotationExpiries,
 } from '../src/lib/eventRules.ts';
 
 test('parseEventRules: null/malformed/garbage → defaults', () => {
@@ -150,4 +151,144 @@ test('completionAward: null without modifiers or outside points mode; bonus + li
     50,
     'decay floors, never passes below floorPct',
   );
+});
+
+test('rotationExpiries: the oldest open task rotates out first, one draw apart', () => {
+  const rules = parseEventRules(
+    JSON.stringify({ revealPolicy: 'rotating', revealIntervalMinutes: 60, revealBatchSize: 1, revealWindowSize: 3 }),
+  );
+  const open = [
+    { id: 3, revealedAt: '2026-08-14T10:00:00.000Z' },
+    { id: 1, revealedAt: '2026-08-14T08:00:00.000Z' },
+    { id: 2, revealedAt: '2026-08-14T09:00:00.000Z' },
+  ];
+  const exp = rotationExpiries(rules, open, '2026-08-14T11:00:00.000Z');
+  assert.equal(exp.get(1), '2026-08-14T11:00:00.000Z'); // oldest goes at the next draw
+  assert.equal(exp.get(2), '2026-08-14T12:00:00.000Z');
+  assert.equal(exp.get(3), '2026-08-14T13:00:00.000Z');
+});
+
+test('rotationExpiries: a batch of two retires two at a time, and other policies never expire', () => {
+  const batched = parseEventRules(
+    JSON.stringify({ revealPolicy: 'rotating', revealIntervalMinutes: 30, revealBatchSize: 2 }),
+  );
+  const open = [
+    { id: 1, revealedAt: '2026-08-14T08:00:00.000Z' },
+    { id: 2, revealedAt: '2026-08-14T08:30:00.000Z' },
+    { id: 3, revealedAt: '2026-08-14T09:00:00.000Z' },
+  ];
+  const exp = rotationExpiries(batched, open, '2026-08-14T09:30:00.000Z');
+  assert.equal(exp.get(1), exp.get(2)); // same draw
+  assert.equal(exp.get(3), '2026-08-14T10:00:00.000Z');
+
+  const interval = parseEventRules(JSON.stringify({ revealPolicy: 'interval' }));
+  assert.equal(rotationExpiries(interval, open, '2026-08-14T09:30:00.000Z').size, 0);
+  assert.equal(rotationExpiries(batched, open, null).size, 0);
+});
+
+test('parseEventRules: startProof is off by default and tolerant when present', () => {
+  assert.equal(parseEventRules(JSON.stringify({ revealPolicy: 'all' })).startProof, null);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: null })).startProof, null);
+  // "Just turn it on" — an empty object still gets the safe defaults.
+  assert.deepEqual(parseEventRules(JSON.stringify({ startProof: {} })).startProof, {
+    onMissing: 'flag',
+    autoAcceptPlugin: true,
+    locations: [],
+    // A policy stored before the session window existed must not grow the demand on read.
+    maxSessionMinutes: 0,
+  });
+  // Garbage inside falls back rather than throwing.
+  assert.deepEqual(
+    parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope', maxSessionMinutes: 'soon' } }))
+      .startProof,
+    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 },
+  );
+  assert.equal(
+    parseEventRules(JSON.stringify({ startProof: { autoAcceptPlugin: false } })).startProof?.autoAcceptPlugin,
+    false,
+  );
+});
+
+test('parseEventRules: startProof locations are trimmed, de-duped and capped', () => {
+  const rules = parseEventRules(
+    JSON.stringify({
+      startProof: { locations: ['  Varrock fountain  ', 'varrock FOUNTAIN', '', 42, 'Edgeville bank'] },
+    }),
+  );
+  // A bare string is still a legal entry — that's every pool stored before the map picker existed.
+  assert.deepEqual(rules.startProof?.locations, [
+    { label: 'Varrock fountain', x: null, y: null, radius: null },
+    { label: 'Edgeville bank', x: null, y: null, radius: null },
+  ]);
+
+  const many = parseEventRules(
+    JSON.stringify({ startProof: { locations: Array.from({ length: 60 }, (_, i) => `Spot ${i}`) } }),
+  );
+  assert.equal(many.startProof?.locations.length, 40);
+});
+
+test('parseEventRules: pinned locations keep their coordinates, junk pins drop to label-only', () => {
+  const rules = parseEventRules(
+    JSON.stringify({
+      startProof: {
+        locations: [
+          { label: 'Edgeville bank', x: 3094, y: 3491, radius: 30 },
+          // Half a pin is no pin — a spot can't be checked on one axis.
+          { label: 'Half pinned', x: 3094 },
+          // Off the map: dropped rather than drawn as a spot nobody can stand on.
+          { label: 'Out of the world', x: 99999, y: 3491 },
+          { label: 'Radius clamped', x: 3200, y: 3200, radius: 9000 },
+        ],
+      },
+    }),
+  );
+  assert.deepEqual(rules.startProof?.locations, [
+    { label: 'Edgeville bank', x: 3094, y: 3491, radius: 30 },
+    { label: 'Half pinned', x: null, y: null, radius: null },
+    { label: 'Out of the world', x: null, y: null, radius: null },
+    { label: 'Radius clamped', x: 3200, y: 3200, radius: 200 },
+  ]);
+});
+
+test('parseEventRules: the session window is minutes, 0 = off', () => {
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 15 } })).startProof?.maxSessionMinutes, 15);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 0 } })).startProof?.maxSessionMinutes, 0);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: 9999 } })).startProof?.maxSessionMinutes, 720);
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { maxSessionMinutes: -5 } })).startProof?.maxSessionMinutes, 0);
+});
+
+test('validateEventRules: startProof shape is enforced and round-trips', () => {
+  assert.deepEqual(validateEventRules({ startProof: 'yes' }), {
+    error: 'rules.startProof must be an object or null',
+  });
+  assert.deepEqual(validateEventRules({ startProof: { onMissing: 'ignore' } }), {
+    error: "rules.startProof.onMissing must be 'flag' or 'reject'",
+  });
+  assert.deepEqual(validateEventRules({ startProof: { locations: 'Varrock' } }), {
+    error: 'rules.startProof.locations must be an array of places',
+  });
+  // A fat-fingered pin is refused loudly rather than silently parsed away.
+  assert.ok('error' in validateEventRules({ startProof: { locations: [{ label: 'Nowhere', x: 12, y: 3491 }] } }));
+  assert.deepEqual(validateEventRules({ startProof: { maxSessionMinutes: 1000 } }), {
+    error: 'rules.startProof.maxSessionMinutes must be an integer between 0 (off) and 720',
+  });
+
+  // Requiring a starting shot is on its own enough to stop being a "default" (NULL) rules column.
+  const stored = validateEventRules({ startProof: { onMissing: 'reject' } });
+  assert.ok('rules' in stored && stored.rules !== null);
+  assert.equal(parseEventRules((stored as { rules: string }).rules).startProof?.onMissing, 'reject');
+});
+
+test('parseEventRules: captain invites are off unless the event says otherwise', () => {
+  assert.equal(parseEventRules(null).captainInvites, false);
+  assert.equal(parseEventRules(JSON.stringify({})).captainInvites, false);
+  assert.equal(parseEventRules(JSON.stringify({ captainInvites: true })).captainInvites, true);
+  // Only a real boolean turns it on — a truthy string is a malformed rule, not consent.
+  assert.equal(parseEventRules(JSON.stringify({ captainInvites: 'yes' })).captainInvites, false);
+  assert.deepEqual(validateEventRules({ captainInvites: 'yes' }), {
+    error: 'rules.captainInvites must be a boolean',
+  });
+  // Turning it on is enough to stop the rules column being NULL.
+  const stored = validateEventRules({ captainInvites: true });
+  assert.ok('rules' in stored && stored.rules !== null);
 });
