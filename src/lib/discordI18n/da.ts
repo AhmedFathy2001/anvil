@@ -196,6 +196,33 @@ const da: PartialDiscordDict = {
     optionTeamName: 'Holdnavn (lad stå tomt for dit eget hold)',
   },
 
+  rolePanel: {
+    modalTitle:
+      'Lige én ting mere',
+    modalLabel:
+      'Dit RuneScape-navn',
+    modalPlaceholder:
+      'Præcis som det står i spillet',
+    granted:
+      '✅ Du er sat op som **{label}**.',
+    optionGone:
+      'Den knap er forældet — bed staff om at slå panelet op igen.',
+    grantFailed:
+      '⚠️ Dine roller blev ikke sat. Anvils botrolle skal ligge **over** de roller, den uddeler — bed en admin tjekke.',
+    rsnSaved:
+      '📋 Gemte **{rsn}** som dit RuneScape-navn.',
+    rsnSavedRenamed:
+      '📋 Gemte **{rsn}** som dit RuneScape-navn og satte dit kaldenavn til det samme.',
+    rsnPending:
+      '-# En moderator skal stadig bekræfte, at kontoen er din, før den tæller til events.',
+    rsnInvalid:
+      'Det ligner ikke et RuneScape-navn — 1 til 12 tegn, præcis som i spillet.',
+    rsnTaken:
+      '**{rsn}** er allerede knyttet til en anden. Er det forkert, så bed en moderator om at rydde op.',
+    failed:
+      'Anvil kunne ikke gøre det færdigt. En admin kan tjekke sidens logs.',
+  },
+
   errors: {
     dm: 'Kør den i din klans Discord-server — en brætkommando skal vide, hvilken klan der spørger.',
     wrongGuild:

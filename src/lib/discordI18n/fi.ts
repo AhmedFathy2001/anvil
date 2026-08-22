@@ -196,6 +196,33 @@ const fi: PartialDiscordDict = {
     optionTeamName: 'Joukkueen nimi (jätä tyhjäksi omalle joukkueellesi)',
   },
 
+  rolePanel: {
+    modalTitle:
+      'Vielä yksi asia',
+    modalLabel:
+      'RuneScape-nimesi',
+    modalPlaceholder:
+      'Täsmälleen kuten pelissä',
+    granted:
+      '✅ Sinut on merkitty rooliin **{label}**.',
+    optionGone:
+      'Tuo painike on vanhentunut — pyydä staffia julkaisemaan paneeli uudelleen.',
+    grantFailed:
+      '⚠️ Roolisi eivät menneet läpi. Anvilin bottiroolin täytyy olla jakamiensa roolien **yläpuolella** — pyydä adminia tarkistamaan.',
+    rsnSaved:
+      '📋 Tallensin **{rsn}** RuneScape-nimeksesi.',
+    rsnSavedRenamed:
+      '📋 Tallensin **{rsn}** RuneScape-nimeksesi ja asetin kutsumanimesi samaksi.',
+    rsnPending:
+      '-# Moderaattorin täytyy vielä vahvistaa, että tili on sinun, ennen kuin se kelpaa tapahtumiin.',
+    rsnInvalid:
+      'Tuo ei näytä RuneScape-nimeltä — 1–12 merkkiä, täsmälleen kuten pelissä.',
+    rsnTaken:
+      '**{rsn}** on jo liitetty toiseen käyttäjään. Jos se on väärin, pyydä moderaattoria selvittämään.',
+    failed:
+      'Anvil ei saanut sitä valmiiksi. Admin voi tarkistaa sivuston lokit.',
+  },
+
   errors: {
     dm: 'Aja tämä klaanisi Discord-palvelimella — taulukomennon täytyy tietää, mikä klaani kysyy.',
     wrongGuild:

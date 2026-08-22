@@ -38,13 +38,15 @@ export const CALLBACK_TYPE = {
   CHANNEL_MESSAGE: 4,
   /** "Anvil is thinking…" — buys 15 minutes to PATCH the real answer in. */
   DEFERRED_CHANNEL_MESSAGE: 5,
+  /** Opens a form. The ONLY response that may follow a button when you need input first. */
+  MODAL: 9,
 } as const;
 
 /** Message flags. EPHEMERAL = only the person who ran the command sees it. */
 export const MESSAGE_FLAGS = { EPHEMERAL: 1 << 6 } as const;
 
 /** Component types (docs: Message Components). A button must sit inside an action row. */
-export const COMPONENT_TYPE = { ACTION_ROW: 1, BUTTON: 2 } as const;
+export const COMPONENT_TYPE = { ACTION_ROW: 1, BUTTON: 2, TEXT_INPUT: 4 } as const;
 
 /** Button styles. SECONDARY is the grey one — a share button shouldn't shout. */
 export const BUTTON_STYLE = { PRIMARY: 1, SECONDARY: 2 } as const;
@@ -97,9 +99,11 @@ export interface Interaction {
     id: string;
     name?: string;
     options?: InteractionOption[];
-    /** Present on MESSAGE_COMPONENT: the id we put on the button when we sent it. */
+    /** Present on MESSAGE_COMPONENT and MODAL_SUBMIT: the id we set when we sent it. */
     custom_id?: string;
     component_type?: number;
+    /** Present on MODAL_SUBMIT: action rows carrying the values the member typed. */
+    components?: unknown[];
   };
 }
 
@@ -220,7 +224,11 @@ export interface InteractionResponse {
     content?: string;
     embeds?: unknown[];
     flags?: number;
-    components?: ActionRow[];
+    /** Message components (an action row of buttons), or a modal's input rows. */
+    components?: unknown[];
+    /** MODAL only: the id echoed back on submit, and the form's heading. */
+    custom_id?: string;
+    title?: string;
   };
 }
 

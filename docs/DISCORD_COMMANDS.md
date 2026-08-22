@@ -37,6 +37,60 @@ later shows the standings as they are *now*, which is what a channel reading it 
 
 ---
 
+## The role panel (and why there's no join handler)
+
+**Anvil never sees someone join.** `GUILD_MEMBER_ADD` is a gateway event — Discord only emits it
+down a persistent WebSocket, and there is no webhook equivalent. Anvil holds no gateway connection,
+so joins are invisible to it. That's a consequence of the HTTP-interactions design above, not a
+missing permission or scope.
+
+What *is* an interaction is a **button**. So onboarding is a panel, not a greeting:
+
+```
+new member joins
+   ↓
+Discord's own Welcome Screen  →  #roles
+   ↓
+Anvil's pinned panel: [ Member ] [ Clan friend ] [ Anvil user ]
+   ↓
+click → roles granted
+       (an option may also open a modal asking for their RSN)
+```
+
+Configured at **Integrations → Discord bot → Role panel**: a channel, a heading, your own message,
+and up to five buttons (Discord's limit for one action row). Each button carries any number of
+roles and optionally asks for a RuneScape name. Save and Publish are separate — saving mid-edit
+must not push a half-written panel into a channel people are reading, and re-publishing edits the
+same message rather than littering the channel with copies.
+
+Because it's built from interactions it works on **every** hosting shape, including managed clans on
+the shared bot, whose buttons route through the control plane exactly like slash commands.
+
+### What the RSN option actually does
+
+It records the name, sets the member's Discord nickname to match, and files the claim in the
+moderator verification queue. It does **not** verify anything:
+
+- The claim is `provisional`, method `manual` — the same row the website's "manual review" form
+  creates. Both call `lib/rsnClaim`, so the ownership rules can't drift between the two doors.
+- The account stays a **guest** until an in-game roster sync says otherwise. Typing a name into a
+  Discord form is not evidence of clan membership and never becomes it.
+- An RSN already owned by someone else is refused outright rather than reassigned.
+
+Nickname changes need *Manage Nicknames*, and Discord refuses to rename anyone whose highest role
+outranks the bot's — including the server owner. That failure is expected and non-fatal: the roles
+still land, and the reply says only what actually happened.
+
+### If you want a real greeting on join
+
+You need a gateway connection and the **SERVER MEMBERS** privileged intent. For a clan with its own
+bot that could live in the site container — `src/instrumentation.ts` already runs once per process
+and the site is a long-lived Node process. For a clan on the **shared** bot it cannot: one
+application gets one gateway identity and that belongs to the control plane. Until then, Discord's
+native Welcome Screen pointing at the panel does the job without any of it.
+
+---
+
 ## Two of every command
 
 Discord stores **guild** commands and **global** commands separately, and serves both. An

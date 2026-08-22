@@ -184,6 +184,33 @@ const zhHans: PartialDiscordDict = {
     optionTeamName: '队名（留空则查看你自己的队伍）',
   },
 
+  rolePanel: {
+    modalTitle:
+      '还差一步',
+    modalLabel:
+      '你的 RuneScape 名字',
+    modalPlaceholder:
+      '与游戏内完全一致',
+    granted:
+      '✅ 已把你设置为 **{label}**。',
+    optionGone:
+      '这个按钮已经过期了 —— 请管理组重新发布面板。',
+    grantFailed:
+      '⚠️ 身份组没有生效。Anvil 机器人的身份组必须排在它所发放的身份组**之上** —— 请管理员检查。',
+    rsnSaved:
+      '📋 已保存 **{rsn}** 为你的 RuneScape 名字。',
+    rsnSavedRenamed:
+      '📋 已保存 **{rsn}** 为你的 RuneScape 名字，并把你的昵称改成一致。',
+    rsnPending:
+      '-# 还需要管理员确认这个账号确实是你的，之后才会计入活动。',
+    rsnInvalid:
+      '这看起来不像 RuneScape 名字 —— 1 到 12 个字符，与游戏内完全一致。',
+    rsnTaken:
+      '**{rsn}** 已经绑定给别人了。如果这不对，请找管理员处理。',
+    failed:
+      'Anvil 没能完成这一步。管理员可以查看站点日志。',
+  },
+
   errors: {
     dm: '请在你家族的 Discord 服务器里运行 —— 版面命令需要知道是哪个家族在问。',
     wrongGuild: '这个机器人连接的服务器和 **{clan}** 的 Anvil 不是同一个。请管理员到 Integrations 里核对服务器 ID。',

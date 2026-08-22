@@ -184,6 +184,33 @@ const ja: PartialDiscordDict = {
     optionTeamName: 'チーム名（空欄なら自分のチーム）',
   },
 
+  rolePanel: {
+    modalTitle:
+      'あと一つだけ',
+    modalLabel:
+      'あなたの RuneScape 名',
+    modalPlaceholder:
+      'ゲーム内と完全に同じ表記で',
+    granted:
+      '✅ **{label}** として設定しました。',
+    optionGone:
+      'このボタンは古くなっています —— 運営にパネルの貼り直しを頼んでください。',
+    grantFailed:
+      '⚠️ ロールが付きませんでした。Anvil のボットロールは、配るロールより**上**にある必要があります —— 管理者に確認を頼んでください。',
+    rsnSaved:
+      '📋 **{rsn}** をあなたの RuneScape 名として保存しました。',
+    rsnSavedRenamed:
+      '📋 **{rsn}** をあなたの RuneScape 名として保存し、ニックネームも合わせました。',
+    rsnPending:
+      '-# イベントに反映されるには、そのアカウントがあなたのものだとモデレーターが確認する必要があります。',
+    rsnInvalid:
+      'RuneScape 名には見えません —— 1〜12 文字、ゲーム内と完全に同じ表記で。',
+    rsnTaken:
+      '**{rsn}** はすでに別の人に紐づいています。誤りであればモデレーターに相談してください。',
+    failed:
+      'Anvil は最後まで実行できませんでした。管理者がサイトのログを確認できます。',
+  },
+
   errors: {
     dm: 'クランの Discord サーバーで実行してください —— ボードコマンドはどのクランからの質問かを知る必要があります。',
     wrongGuild:

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { getAppPublicKey } from '@/lib/discord-roles';
-import { handleCommand, handleComponent } from '@/lib/discordCommands';
+import { handleCommand, handleComponent, handleModal } from '@/lib/discordCommands';
 import {
   INTERACTION_TYPE,
   pong,
@@ -75,17 +75,18 @@ export async function POST(req: NextRequest) {
 
   const isCommand = interaction.type === INTERACTION_TYPE.APPLICATION_COMMAND;
   const isComponent = interaction.type === INTERACTION_TYPE.MESSAGE_COMPONENT;
-  if (!isCommand && !isComponent) {
+  const isModal = interaction.type === INTERACTION_TYPE.MODAL_SUBMIT;
+  if (!isCommand && !isComponent && !isModal) {
     return NextResponse.json(textReply('That interaction type is not supported yet.'));
   }
 
   try {
-    // A component interaction is the Share button on an answer we sent. It goes through the same
-    // dispatcher — rebuilt from the button's custom_id rather than from stored state, so a share
-    // still works after a redeploy and shows the board as it stands now.
-    return NextResponse.json(
-      isComponent ? await handleComponent(interaction) : await handleCommand(interaction),
-    );
+    // Buttons and modals route on their custom_id — Discord gives them nothing else. A component
+    // is either a Share button (rebuilt from the id rather than stored state, so it survives a
+    // redeploy) or a role-panel button; a modal is the role panel's RSN form coming back.
+    if (isComponent) return NextResponse.json(await handleComponent(interaction));
+    if (isModal) return NextResponse.json(await handleModal(interaction));
+    return NextResponse.json(await handleCommand(interaction));
   } catch (e) {
     // A thrown error becomes a Discord timeout, which tells the member nothing at all. Answer in
     // words and keep the detail in the logs.

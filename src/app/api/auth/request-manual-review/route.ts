@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { clanAuditLog, clanMembers } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { normalizeRsn, verifyUser } from '@/lib/auth';
-import { onCharacterLinked } from '@/lib/identity';
+import { verifyUser } from '@/lib/auth';
+import { claimRsnForUser, isPlausibleRsn } from '@/lib/rsnClaim';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-
-const MAX_NOTE_LEN = 500;
 
 // POST /api/auth/request-manual-review { rsn, note? }
 // Last-resort path for users who can't use the plugin (no RuneLite) and can't use stat-delta
@@ -14,6 +9,9 @@ const MAX_NOTE_LEN = 500;
 // to the requesting user, marked provisional with method='manual'. The row lands in the
 // moderator approval queue alongside stat-delta entries; the mod's note column shows the
 // reason the user gave.
+//
+// The claim itself lives in lib/rsnClaim — the Discord role panel performs exactly the same
+// operation from a modal, and the ownership rules must not differ by which door someone came in.
 export async function POST(request: Request) {
   const session = await verifyUser();
   if (!session || session.userId <= 0) {
@@ -38,78 +36,20 @@ export async function POST(request: Request) {
   }
 
   const rsn = (body.rsn || '').trim();
-  if (!rsn || rsn.length < 1 || rsn.length > 12) {
+  if (!isPlausibleRsn(rsn)) {
     return NextResponse.json({ error: 'Provide a valid RSN' }, { status: 400 });
   }
-  const note = (body.note || '').trim().slice(0, MAX_NOTE_LEN);
-  const rsnNormalized = normalizeRsn(rsn);
-  const nowIso = new Date().toISOString();
 
-  const existing = await db.query.clanMembers.findFirst({
-    where: eq(clanMembers.rsnNormalized, rsnNormalized),
-  });
-
-  // Hard block: another user already owns this RSN. Surface contact path so the user
-  // doesn't keep retrying.
-  if (existing?.userId && existing.userId !== session.userId) {
-    return NextResponse.json(
-      { error: 'This account is already linked to another user. Contact a moderator if you believe this is wrong.' },
-      { status: 409 },
-    );
+  const result = await claimRsnForUser({ userId: session.userId, rsn, note: body.note });
+  if (!result.ok) {
+    if (result.reason === 'owned-by-someone-else') {
+      return NextResponse.json(
+        { error: 'This account is already linked to another user. Contact a moderator if you believe this is wrong.' },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ error: 'Provide a valid RSN' }, { status: 400 });
   }
 
-  let clanMemberId: number;
-
-  if (existing) {
-    await db
-      .update(clanMembers)
-      .set({
-        userId: session.userId,
-        verificationMethod: 'manual',
-        provisional: 1,
-        // Don't overwrite a real verifiedAt if this user is just adding context.
-        verifiedAt: existing.verifiedAt,
-        claimedAt: existing.claimedAt ?? nowIso,
-        notes: note || existing.notes,
-        // Bring soft-deleted ghosts back into the active set on claim, unless an admin
-        // had manually removed them.
-        leftAt: existing.source === 'manual' ? existing.leftAt : null,
-      })
-      .where(eq(clanMembers.id, existing.id));
-    clanMemberId = existing.id;
-  } else {
-    const inserted = await db
-      .insert(clanMembers)
-      .values({
-        rsn,
-        rsnNormalized,
-        source: 'manual',
-        // Verification proves account ownership, not clan membership. Start as a guest;
-        // clan-sync promotes to member (isGuest=0) only when the in-game roster includes them.
-        isGuest: 1,
-        lastSeenInClan: nowIso,
-        userId: session.userId,
-        verificationMethod: 'manual',
-        provisional: 1,
-        claimedAt: nowIso,
-        notes: note || null,
-      })
-      .returning({ id: clanMembers.id });
-    clanMemberId = inserted[0].id;
-  }
-
-  // Character now has an owner: adopt its guest sign-ups + advertise the membership (federation).
-  await onCharacterLinked(clanMemberId, session.userId);
-
-  db.insert(clanAuditLog)
-    .values({
-      clanMemberId,
-      eventType: 'manual_requested',
-      newValue: JSON.stringify({ userId: session.userId, rsn }),
-      actorUserId: session.userId,
-      notes: note || null,
-    })
-    .catch(() => {});
-
-  return NextResponse.json({ success: true, clanMemberId, status: 'pending_review' });
+  return NextResponse.json({ success: true, clanMemberId: result.clanMemberId, status: 'pending_review' });
 }
