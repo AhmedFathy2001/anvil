@@ -66,7 +66,12 @@ export default async function EventSurveyPage({
         <div>{header}
           <Notice title={ended ? 'Log in to share your feedback' : 'The survey isn’t open yet'}>
             {ended ? (
-              <><Link href="/login" className="text-gold hover:underline">Log in</Link> to fill out this survey.</>
+              <>
+                <Link href={`/login?return=${encodeURIComponent(`/events/${eventId}/survey`)}`} className="text-gold hover:underline">
+                  Log in
+                </Link>{' '}
+                to fill out this survey.
+              </>
             ) : (
               'It opens once the event has ended. Check back then.'
             )}

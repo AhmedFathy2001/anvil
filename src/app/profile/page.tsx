@@ -42,7 +42,7 @@ export default async function ProfilePage({
 
   const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
   if (!user) {
-    redirect('/login');
+    redirect('/login?return=/profile');
   }
 
   const welcome = (await searchParams).welcome === '1';
