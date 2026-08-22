@@ -12,6 +12,7 @@ import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { clansOfPerson } from "@/lib/myClans";
+import PlatformRail from "@/components/PlatformRail";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -97,6 +98,20 @@ export default async function RootLayout({
             It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next
             routes it, so by render time the framework's path no longer has it. */}
         <ClanPrefixProvider prefix={prefix}>
+        {/* ONE NAV PER PLACE. The apex gets a rail of what the PLATFORM has; a clan keeps the top
+            nav it always had. They were the same component until now, which is why the apex offered
+            Events and Members — clan pages that 404 there because the apex has no roster. */}
+        {!clan ? (
+          <div className="flex flex-1 flex-col md:flex-row">
+            <PlatformRail
+              clans={myClans.map((c) => ({ slug: c.slug, name: c.name }))}
+              signedIn={!!session}
+              displayName={userRow?.displayName ?? null}
+            />
+            <main className="min-w-0 flex-1">{children}</main>
+          </div>
+        ) : (
+        <>
         <nav className="border-b-2 border-gold/20 bg-gradient-to-b from-card-bg to-background sticky top-0 z-50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between relative">
             {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
@@ -122,6 +137,8 @@ export default async function RootLayout({
         <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
           {children}
         </main>
+        </>
+        )}
         {/*
           AUTHOR ATTRIBUTION — required by LICENSE (PolyForm Noncommercial 1.0.0 + Attribution).
           The "Built by Ahmed Fathy" credit and its link must remain visible in any deployment or

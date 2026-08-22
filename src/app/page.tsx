@@ -1,8 +1,13 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { currentClan, isApexHost } from '@/lib/clanContext';
-import ApexDirectory from '@/components/ApexDirectory';
-import { directoryClans } from '@/lib/apexDirectory';
+import ApexLanding from '@/components/landing/ApexLanding';
+import ApexHome from '@/components/landing/ApexHome';
+import { platformStats } from '@/lib/platformStats';
+import { apexHomeView } from '@/lib/apexHome';
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
@@ -23,14 +28,26 @@ export const dynamic = 'force-dynamic';
  * Everything here is assembled in lib/homeView from rows that already exist.
  */
 /**
- * The apex home: a directory of every clan, since the apex belongs to none of them.
+ * The apex home, which is TWO pages behind one URL.
  *
- * Counts are per clan, read the same way each clan's own pages read them.
+ * Signed out it is marketing, and it argues to the person who ORGANISES — they are who signs a clan
+ * up, and their problem is that running an event is a fortnight of data entry while everyone else
+ * enjoys the thing they built.
+ *
+ * Signed in it is your clans and what is running in them. It used to be the clan directory in both
+ * cases, which asked a signed-in member to read a list of strangers: you already know which clans
+ * are yours, and the rest are somebody else's. The directory moved to /clans, where it is a lookup
+ * you visit on purpose.
  */
-async function ApexHome() {
-  // One query, shared with /clans. Two copies of a counting query is how two pages start
-  // disagreeing about how many members a clan has.
-  return <ApexDirectory clans={await directoryClans()} />;
+async function ApexRoot() {
+  const session = await verifyUser();
+  if (!session) return <ApexLanding stats={await platformStats()} />;
+
+  const [view, userRow] = await Promise.all([
+    apexHomeView(session.playerId, session.userId),
+    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }),
+  ]);
+  return <ApexHome view={view} displayName={userRow?.displayName ?? 'there'} />;
 }
 
 export default async function HomePage() {
@@ -39,7 +56,7 @@ export default async function HomePage() {
     // No clan resolved. That is the apex if the host IS the apex, and nothing at all otherwise —
     // an unrecognised host must not land on a real page just because it failed to name a clan.
     const host = (await headers()).get('host');
-    if (isApexHost(host)) return <ApexHome />;
+    if (isApexHost(host)) return <ApexRoot />;
     notFound();
   }
   const session = await verifyUser();
