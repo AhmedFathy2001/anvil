@@ -15,7 +15,7 @@
 // be N redundant writes racing each other for no benefit, so this refuses to run on a shared token.
 // Only a clan with its own bot — self-hosted, or bring-your-own on a managed instance — registers.
 
-import { COMMAND_DEFINITIONS } from '@/lib/discordCommandDefs';
+import { buildLocalizedCommands } from '@/lib/discordCommandDefs';
 import { getBotTokenOnly, getBotTokenSource } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { db } from '@/db';
@@ -89,7 +89,9 @@ export async function syncClanCommands(): Promise<CommandSyncResult> {
     ? `/applications/${app.id}/guilds/${guildId}/commands`
     : `/applications/${app.id}/commands`;
 
-  const res = await put(resolved.token, path, COMMAND_DEFINITIONS);
+  // Descriptions carry every language we have, so Discord's own picker is localized too — the
+  // member reading a Danish answer also sees a Danish description before they run the command.
+  const res = await put(resolved.token, path, await buildLocalizedCommands());
   if (!res?.ok) {
     const detail = res ? `${res.status}: ${await res.text().catch(() => '')}`.slice(0, 300) : 'unreachable';
     log.warn('discord-commands.sync-failed', { scope, detail });

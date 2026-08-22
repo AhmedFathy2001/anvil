@@ -42,6 +42,10 @@ const EXPOSED_KEYS = [
   'discord_guild_id',
   'discord_auto_match_rank_by_name',
   'discord_nickname_sync_enabled',
+  // Which language the Discord bot answers in. Blank = follow each member's own Discord locale,
+  // which is right for nearly everyone. Set it when the clan speaks a language Discord itself has
+  // no client locale for (Arabic), or when a mixed-locale server wants one voice.
+  'discord_language',
   'discord_nickname_overwrite',
   // Discord team channels (bot-driven, see lib/discord-teams.ts): per-team roles +
   // locked voice/text channels, plus the two shared role IDs every event reuses.

@@ -29,7 +29,6 @@
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
-    "test:guides": "node --experimental-strip-types --test tests/guide-i18n.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",
     "test:startproof": "npx tsx --test tests/start-proof.test.ts",
@@ -46,7 +45,8 @@
     "test:awards": "node --experimental-strip-types --test tests/competition-awards.test.ts",
     "test:bossgen": "npx tsx --test tests/boss-tile-gen.test.ts",
     "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
-    "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts"
+    "test:history": "DATABASE_URL=file:./.test-history.db npx tsx --test tests/stat-history.test.ts",
+    "test:discord-i18n": "node --experimental-strip-types --test tests/discord-i18n.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",

@@ -23,6 +23,7 @@
 
 import { db } from '@/db';
 import { events, players, teams, clanMembers, settings, users } from '@/db/schema';
+import { en, plural, type DiscordDict } from '@/lib/discordI18n';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { getClanDisplayName, getFederationEnabled } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
@@ -38,19 +39,29 @@ export interface ClanContext {
   guildId: string;
   /** Whether this clan participates in federation at all. */
   federated: boolean;
+  /**
+   * The clan's chosen bot language, or null for "follow whoever is asking".
+   *
+   * Set, it wins over Discord's own locale detection — a clan that picks a language has said
+   * something detection cannot know, and for Arabic it is the only route in at all because Discord
+   * has no Arabic client language to detect.
+   */
+  language: string | null;
 }
 
 export async function getClanContext(): Promise<ClanContext> {
-  const [name, guildRow, federated] = await Promise.all([
+  const [name, guildRow, federated, languageRow] = await Promise.all([
     getClanDisplayName(),
     db.query.settings.findFirst({ where: eq(settings.key, 'discord_guild_id') }),
     getFederationEnabled(),
+    db.query.settings.findFirst({ where: eq(settings.key, 'discord_language') }),
   ]);
   return {
     name,
     origin: configuredOrigin(),
     guildId: guildRow?.value?.trim() || process.env.DISCORD_GUILD_ID?.trim() || '',
     federated,
+    language: languageRow?.value?.trim() || null,
   };
 }
 
@@ -243,25 +254,34 @@ export async function getCrossClanContext(eventId: number): Promise<CrossClanCon
  * answered, which board, and whether other clans are in it. This is the line that stops a
  * screenshot of a leaderboard from being ambiguous about whose leaderboard it is.
  */
-export function contextLine(clan: ClanContext, event: EventContext | null, cross?: CrossClanContext): string {
+export function contextLine(
+  clan: ClanContext,
+  event: EventContext | null,
+  cross?: CrossClanContext,
+  t: DiscordDict = en,
+): string {
   const parts: string[] = [clan.name];
   if (event) {
     parts.push(event.name);
     parts.push(
       event.phase === 'running'
-        ? 'running'
+        ? t.common.phaseRunning
         : event.phase === 'upcoming'
-          ? 'not started'
+          ? t.common.phaseUpcoming
           : event.phase === 'ended'
-            ? 'ended'
-            : 'draft',
+            ? t.common.phaseEnded
+            : t.common.phaseDraft,
     );
   }
   if (cross?.shared) {
     parts.push(
       cross.visitingTeamNames.length
-        ? `cross-clan · ${cross.visitingTeamNames.length} visiting ${cross.visitingTeamNames.length === 1 ? 'team' : 'teams'}`
-        : `${cross.visitingPlayers} visiting ${cross.visitingPlayers === 1 ? 'player' : 'players'}`,
+        ? plural(
+            cross.visitingTeamNames.length,
+            t.common.contextVisitingTeamsOne,
+            t.common.contextVisitingTeamsMany,
+          )
+        : plural(cross.visitingPlayers, t.common.contextVisitingPlayersOne, t.common.contextVisitingPlayersMany),
     );
   }
   return `-# ${parts.join(' · ')}`;

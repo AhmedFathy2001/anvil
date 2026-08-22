@@ -5,8 +5,12 @@
 // clan actually experiences: four read-only commands that put the board in the chat window.
 //
 // Design rules, learned from the notification embeds:
-//   - Every answer is EPHEMERAL by default. Someone checking their own standing shouldn't spam the
-//     channel; `/bingo leaderboard share:true` opts into a visible post.
+//   - Every answer is EPHEMERAL. Someone checking their own standing shouldn't spam the channel,
+//     so the answer comes back private with a Share button under it — one click to post it. There
+//     is no `share` option: Discord has no valueless option, so a flag has to read `share: True`,
+//     and a button is both fewer keystrokes and visible to people who never knew the option existed.
+//   - Every answer is in the reader's language. A PRIVATE answer follows the member's own Discord
+//     locale; a SHARED one follows the server's, because the channel reads it and not the sharer.
 //   - Every answer carries the same provenance subtext (lib/discordContext contextLine) naming the
 //     clan and the board, because one bot serves many clans and a screenshot has no other context.
 //   - Every answer goes through stampBrand, so these look like the rest of Anvil's posts.
@@ -53,16 +57,18 @@ import {
   type EventContext,
   type CrossClanContext,
 } from '@/lib/discordContext';
-import { COMMAND_DEFINITIONS, COMMAND_NAME } from '@/lib/discordCommandDefs';
+import { COMMAND_NAME, SUBCOMMAND_ORDER } from '@/lib/discordCommandDefs';
 import {
   embedReply,
   textReply,
   invokerId,
   invokerName,
   readSubcommand,
+  shareRow,
   type Interaction,
   type InteractionResponse,
 } from '@/lib/discordInteractions';
+import { fmt, plural, getDiscordDict, resolveLocale, type DiscordDict } from '@/lib/discordI18n';
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
@@ -95,8 +101,13 @@ function placeMark(index: number): string {
  * `visitingTeamIds` marks teams carrying players from other clans — the cross-clan tell that a
  * leaderboard otherwise hides completely.
  */
-function standingsBody(standings: TeamStanding[], cross: CrossClanContext, highlightTeamId?: number | null): string {
-  if (standings.length === 0) return '_No teams yet._';
+function standingsBody(
+  t: DiscordDict,
+  standings: TeamStanding[],
+  cross: CrossClanContext,
+  highlightTeamId?: number | null,
+): string {
+  if (standings.length === 0) return t.common.noTeams;
   const lines = standings.slice(0, 15).map((s, i) => {
     const visiting = cross.visitingTeamIds.has(s.teamId) ? ' 🤝' : '';
     const mine = highlightTeamId === s.teamId ? ' ←' : '';
@@ -105,23 +116,27 @@ function standingsBody(standings: TeamStanding[], cross: CrossClanContext, highl
     const bonus = s.bonusScore > 0 ? ` ⚡+${s.bonusScore}` : '';
     return `${placeMark(i)} **${clamp(s.name, 60)}**${visiting} — ${code(`${s.score} ${s.unit}`)}${bonus} · ${s.pct}%${mine}`;
   });
-  if (standings.length > 15) lines.push(`-# +${standings.length - 15} more on the site`);
+  if (standings.length > 15) lines.push(`-# ${fmt(t.common.moreOnSite, { n: standings.length - 15 })}`);
   return lines.join('\n');
 }
 
 /** The legend for the ⚡ marker, only when a mission has actually scored for someone. */
-function bonusNote(standings: TeamStanding[]): string | null {
+function bonusNote(t: DiscordDict, standings: TeamStanding[]): string | null {
   if (!standings.some((s) => s.bonusScore > 0)) return null;
-  return '⚡ mission bonus — earned on top of the board total, so it counts toward the score but not the percentage.';
+  return t.common.bonusLegend;
 }
 
 /** The legend for the 🤝 marker, only when something actually carries it. */
-function crossClanNote(cross: CrossClanContext): string | null {
+function crossClanNote(t: DiscordDict, cross: CrossClanContext): string | null {
   if (!cross.shared) return null;
   if (cross.visitingTeamNames.length) {
-    return `🤝 ${cross.visitingTeamNames.map((n) => `**${clamp(n, 40)}**`).join(', ')} ${cross.visitingTeamNames.length === 1 ? 'is a visiting clan' : 'are visiting clans'} — this board is shared.`;
+    const names = cross.visitingTeamNames.map((n) => `**${clamp(n, 40)}**`).join(', ');
+    return fmt(
+      cross.visitingTeamNames.length === 1 ? t.common.visitingClansOne : t.common.visitingClansMany,
+      { names },
+    );
   }
-  return `🤝 ${cross.visitingPlayers} player${cross.visitingPlayers === 1 ? '' : 's'} ${cross.visitingPlayers === 1 ? 'is' : 'are'} visiting from other clans.`;
+  return plural(cross.visitingPlayers, t.common.visitingPlayersOne, t.common.visitingPlayersMany);
 }
 
 /**
@@ -136,7 +151,12 @@ function shapeLabel(event: EventContext): string {
 
 // ── /bingo board ────────────────────────────────────────────────────────────────────────────────
 
-async function boardEmbed(clan: ClanContext, event: EventContext, cross: CrossClanContext): Promise<DiscordEmbed> {
+async function boardEmbed(
+  t: DiscordDict,
+  clan: ClanContext,
+  event: EventContext,
+  cross: CrossClanContext,
+): Promise<DiscordEmbed> {
   const [standings, eventRow, allTiles] = await Promise.all([
     getTeamStandings(event.id, event.scoringMode),
     db.query.events.findFirst({ where: eq(events.id, event.id), columns: { rules: true } }),
@@ -171,31 +191,33 @@ async function boardEmbed(clan: ClanContext, event: EventContext, cross: CrossCl
         : null;
 
   const body: string[] = [];
-  if (event.phase === 'upcoming' && when) body.push(`Starts ${when}.`);
-  else if (event.phase === 'running' && when) body.push(`Ends ${when}.`);
-  else if (event.phase === 'ended') body.push('This board has finished.');
-  else if (event.phase === 'draft') body.push('Not scheduled yet.');
+  if (event.phase === 'upcoming' && when) body.push(fmt(t.board.starts, { when }));
+  else if (event.phase === 'running' && when) body.push(fmt(t.board.ends, { when }));
+  else if (event.phase === 'ended') body.push(t.board.finished);
+  else if (event.phase === 'draft') body.push(t.board.notScheduled);
 
-  if (!event.tilesRevealed) body.push('Tiles are still hidden — the board reveals when staff open it.');
-  if (standings.length) body.push('', standingsBody(standings, cross));
-  const bonus = bonusNote(standings);
+  if (!event.tilesRevealed) body.push(t.board.hidden);
+  if (standings.length) body.push('', standingsBody(t, standings, cross));
+  const bonus = bonusNote(t, standings);
   if (bonus) body.push('', `-# ${bonus}`);
-  const note = crossClanNote(cross);
+  const note = crossClanNote(t, cross);
   if (note) body.push('', note);
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   return {
-    title: clamp(`📋 ${event.name}`, LIMIT.title),
+    title: clamp(fmt(t.board.title, { event: event.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     color: event.phase === 'running' ? EMBED_COLOR.green : event.phase === 'ended' ? EMBED_COLOR.blue : EMBED_COLOR.gold,
     author: authorOf(clan),
     fields: [
-      field('Format', shapeLabel(event)),
-      statField('Teams', event.teamCount),
-      statField('Players', event.playerCount),
+      field(t.common.fieldFormat, shapeLabel(event)),
+      statField(t.common.fieldTeams, event.teamCount),
+      statField(t.common.fieldPlayers, event.playerCount),
       // Tile progress is meaningless before a reveal, and stating it would leak the board's size.
-      ...(event.tilesRevealed ? [statField('Tiles done', `${distinctDone}/${countable.length}`)] : []),
+      ...(event.tilesRevealed
+        ? [statField(t.common.fieldTilesDone, `${distinctDone}/${countable.length}`)]
+        : []),
     ],
   };
 }
@@ -203,22 +225,23 @@ async function boardEmbed(clan: ClanContext, event: EventContext, cross: CrossCl
 // ── /bingo leaderboard ──────────────────────────────────────────────────────────────────────────
 
 async function leaderboardEmbed(
+  t: DiscordDict,
   clan: ClanContext,
   event: EventContext,
   cross: CrossClanContext,
   myTeamId: number | null,
 ): Promise<DiscordEmbed> {
   const standings = await getTeamStandings(event.id, event.scoringMode);
-  const body: string[] = [standingsBody(standings, cross, myTeamId)];
-  const bonus = bonusNote(standings);
+  const body: string[] = [standingsBody(t, standings, cross, myTeamId)];
+  const bonus = bonusNote(t, standings);
   if (bonus) body.push('', `-# ${bonus}`);
-  const note = crossClanNote(cross);
+  const note = crossClanNote(t, cross);
   if (note) body.push('', note);
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   const leader = standings[0];
   return {
-    title: clamp(`🏆 ${event.name} — standings`, LIMIT.title),
+    title: clamp(fmt(t.leaderboard.title, { event: event.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     // The leader's colour, so the embed's spine matches who's winning.
@@ -253,6 +276,7 @@ async function readHouseRules(): Promise<{ text: string | null; url: string | nu
 
 /** Sentences describing how the board scores and opens. One bullet per rule that is actually on. */
 function mechanicsLines(
+  t: DiscordDict,
   event: EventContext,
   rules: EventRules,
   pool: number,
@@ -261,93 +285,73 @@ function mechanicsLines(
 ): string[] {
   const out: string[] = [];
 
-  out.push(
-    event.scoringMode === 'points'
-      ? '• **Scoring** — each tile is worth its own points; a team\'s score is the sum of what it finished.'
-      : '• **Scoring** — one point per tile; a team\'s score is how many it finished.',
-  );
+  out.push(event.scoringMode === 'points' ? t.rules.scoringPoints : t.rules.scoringTiles);
 
-  if (event.format === 'tilerace') {
-    out.push('• **Tile race** — the board is an ordered track. You advance along it; your furthest tile is your position.');
-  }
+  if (event.format === 'tilerace') out.push(t.rules.tileRace);
 
   // Reveal policy is the single most-asked mechanic on a modern board — a player who can't see a
   // tile assumes something is broken rather than that the board is drip-feeding on purpose.
   switch (rules.revealPolicy) {
     case 'scheduled':
-      out.push('• **Reveals** — tiles open on a schedule set by staff. A tile you can\'t see yet simply hasn\'t opened.');
+      out.push(t.rules.revealScheduled);
       break;
     case 'interval':
       out.push(
-        `• **Reveals** — ${rules.revealBatchSize === 1 ? 'a tile is' : `${rules.revealBatchSize} tiles are`} drawn ${rules.revealOrder === 'random' ? 'at random' : 'in board order'} every ${rules.revealIntervalMinutes} minutes.`,
+        plural(rules.revealBatchSize, t.rules.revealIntervalOne, t.rules.revealIntervalMany, {
+          order: rules.revealOrder === 'random' ? t.rules.revealOrderRandom : t.rules.revealOrderBoard,
+          minutes: rules.revealIntervalMinutes,
+        }),
       );
       break;
     case 'bounty':
-      out.push('• **Bounty** — exactly one tile is open at a time. The first team to finish it closes it and the next is drawn.');
+      out.push(t.rules.revealBounty);
       break;
     case 'rotating':
-      out.push(
-        `• **Rotating** — ${rules.revealWindowSize} tiles stay open at once; older ones expire as new ones draw. Finish them while they're up.`,
-      );
+      out.push(fmt(t.rules.revealRotating, { n: rules.revealWindowSize }));
       break;
     default:
-      if (event.tilesRevealed) out.push('• **Reveals** — the whole board is open from the start.');
+      if (event.tilesRevealed) out.push(t.rules.revealAll);
   }
 
-  if (!event.tilesRevealed) {
-    out.push('• **Not revealed yet** — staff open the board when the event starts. Nobody can see the tiles before then.');
-  }
+  if (!event.tilesRevealed) out.push(t.rules.notRevealed);
 
-  if (rules.lockout && rules.revealPolicy !== 'bounty') {
-    out.push('• **Lockout** — the first team to finish a tile takes it. Nobody else can score it after that.');
-  }
+  if (rules.lockout && rules.revealPolicy !== 'bounty') out.push(t.rules.lockout);
   if (rules.firstBonus > 0) {
-    out.push(`• **First-finish bonus** — the first team on a tile earns ${code(`+${rules.firstBonus}`)} extra points.`);
+    out.push(fmt(t.rules.firstBonus, { amount: code(`+${rules.firstBonus}`) }));
   }
   if (rules.decay) {
     const { targetPct, hours } = rules.decay;
-    out.push(
-      targetPct < 100
-        ? `• **Decay** — a tile is worth full points when it opens and slides to ${targetPct}% over ${hours}h. Early finishes score more.`
-        : `• **Growth** — a tile starts at full value and climbs to ${targetPct}% over ${hours}h. Waiting scores more.`,
-    );
+    out.push(fmt(targetPct < 100 ? t.rules.decay : t.rules.growth, { pct: targetPct, hours }));
   }
   if (rules.mission) {
     const when =
       rules.mission.announceMode === 'interval'
-        ? `every ${rules.mission.intervalMinutes} minutes`
+        ? fmt(t.rules.missionWhenInterval, { minutes: rules.mission.intervalMinutes })
         : rules.mission.announceMode === 'scheduled'
-          ? 'on a schedule'
-          : 'when staff drop them';
-    out.push(`• **Missions** — extra objectives revealed mid-event, ${when}. Nobody sees one before it's announced.`);
+          ? t.rules.missionWhenScheduled
+          : t.rules.missionWhenManual;
+    out.push(fmt(t.rules.missions, { when }));
     // The scoring is the part that gets misread: a mission's points are ON TOP, so a team can end
     // above 100% of the board, and the board total never moves when one is announced.
-    out.push(
-      `-# Mission points are a **bonus** — added to your score but never to the board total, so the board can't get longer mid-event. ${missionCounts.total > 0 ? `${missionCounts.announced} of ${missionCounts.total} announced so far.` : ''}`.trimEnd(),
-    );
+    const counted =
+      missionCounts.total > 0
+        ? ` ${fmt(t.rules.missionAnnouncedCount, { announced: missionCounts.announced, total: missionCounts.total })}`
+        : '';
+    out.push(`${t.rules.missionBonusNote}${counted}`.trimEnd());
   }
 
   if (rules.startProof) {
-    const strict = rules.startProof.onMissing === 'reject';
-    out.push(
-      `• **Starting shot** — every player files one screenshot after the start, at a location drawn at the start moment. ${strict ? 'Until you file yours, submissions are refused.' : 'Until you file yours, anything you submit is flagged for review.'}`,
-    );
+    out.push(rules.startProof.onMissing === 'reject' ? t.rules.startProofStrict : t.rules.startProofFlag);
     if (rules.startProof.maxSessionMinutes > 0) {
-      out.push(
-        `-# Log out and back in first — hiscores only save on logout, so your shot must be within ${rules.startProof.maxSessionMinutes} minutes of a fresh login.`,
-      );
+      out.push(fmt(t.rules.startProofSession, { minutes: rules.startProof.maxSessionMinutes }));
     }
   }
 
-  if (rules.teamChoice) out.push('• **Teams** — you pick your team when you sign up; staff approve it.');
-  else if (rules.captainInvites) out.push('• **Teams** — captains hand out invite links for their own side.');
+  if (rules.teamChoice) out.push(t.rules.teamChoice);
+  else if (rules.captainInvites) out.push(t.rules.captainInvites);
 
-  if (event.playerCount > 0 && fee) {
-    out.push(`• **Entry fee** — ${code(formatGp(fee))} per entry.`);
-  }
-  if (pool > 0) {
-    out.push(`• **Prize pool** — ${code(formatGp(pool))} and rising with each approved entry.`);
-  }
+  if (event.playerCount > 0 && fee) out.push(fmt(t.rules.entryFee, { amount: code(formatGp(fee)) }));
+  if (pool > 0) out.push(fmt(t.rules.prizePool, { amount: code(formatGp(pool)) }));
 
   return out;
 }
@@ -361,28 +365,44 @@ function mechanicsLines(
  * which you can otherwise upload yourself. Saying that with the board's own numbers in it beats a
  * paragraph of general advice.
  */
-function trackingLines(clan: ClanContext, event: EventContext, boardTilesOnly: { trackedStat: string | null }[]): string[] {
+function trackingLines(
+  t: DiscordDict,
+  clan: ClanContext,
+  boardTilesOnly: { trackedStat: string | null }[],
+): string[] {
   if (boardTilesOnly.length === 0) return [];
-  const hiscores = boardTilesOnly.filter((t) => (t.trackedStat ?? '').trim().length > 0).length;
+  const hiscores = boardTilesOnly.filter((tile) => (tile.trackedStat ?? '').trim().length > 0).length;
   const proof = boardTilesOnly.length - hiscores;
 
-  const out: string[] = ['', '**Getting credit**'];
-  out.push('• **With the Anvil plugin** — it submits for you. Nothing to do but play.');
+  const out: string[] = ['', t.rules.trackingHeading];
+  out.push(t.rules.trackingPlugin);
   if (hiscores > 0) {
     out.push(
-      `• **No plugin?** ${hiscores === boardTilesOnly.length ? 'Every tile here' : `${hiscores} of these tiles`} read from the **official hiscores**, so they need no client at all — but hiscores only save when you **log out**, and refresh on the hour. Play → log out → wait for the hour.`,
+      hiscores === boardTilesOnly.length
+        ? t.rules.trackingHiscoresAll
+        : fmt(t.rules.trackingHiscoresSome, { n: hiscores }),
     );
   }
   if (proof > 0) {
+    const where = clan.origin
+      ? fmt(t.rules.trackingWhereUrl, { url: clan.origin })
+      : t.rules.trackingWhereNoUrl;
     out.push(
-      `• **Drops, kills and timed tasks** need evidence — ${proof === boardTilesOnly.length ? 'every tile here' : `${proof} of these`}. The plugin files it automatically; without it, upload a screenshot yourself${clan.origin ? ` on **My Team** at ${clan.origin}/team` : ' on the My Team page'}.`,
+      proof === boardTilesOnly.length
+        ? fmt(t.rules.trackingProofAll, { where })
+        : fmt(t.rules.trackingProofSome, { n: proof, where }),
     );
   }
-  out.push('-# Keep your own screenshot of anything big either way — it costs nothing and settles any dispute.');
+  out.push(t.rules.trackingKeepShot);
   return out;
 }
 
-async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossClanContext): Promise<DiscordEmbed[]> {
+async function rulesEmbeds(
+  t: DiscordDict,
+  clan: ClanContext,
+  event: EventContext,
+  cross: CrossClanContext,
+): Promise<DiscordEmbed[]> {
   const [row, house, allTiles] = await Promise.all([
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
     readHouseRules(),
@@ -406,21 +426,21 @@ async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossC
   };
 
   const body = [
-    ...mechanicsLines(event, rules, pool, row?.signupFee ?? null, missionCounts),
+    ...mechanicsLines(t, event, rules, pool, row?.signupFee ?? null, missionCounts),
     // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
-    ...trackingLines(clan, event, boardTiles(allTiles)),
+    ...trackingLines(t, clan, boardTiles(allTiles)),
     '',
-    contextLine(clan, event, cross),
+    contextLine(clan, event, cross, t),
   ];
 
   const embeds: DiscordEmbed[] = [
     {
-      title: clamp(`📜 ${event.name} — how it works`, LIMIT.title),
+      title: clamp(fmt(t.rules.title, { event: event.name }), LIMIT.title),
       url: eventUrl(clan, event.id),
       description: clamp(body.join('\n'), LIMIT.description),
       color: EMBED_COLOR.gold,
       author: authorOf(clan),
-      fields: [field('Format', shapeLabel(event)), statField('Teams', event.teamCount)],
+      fields: [field(t.common.fieldFormat, shapeLabel(event)), statField(t.common.fieldTeams, event.teamCount)],
     },
   ];
 
@@ -433,12 +453,12 @@ async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossC
     const truncated = full.length > LIMIT.description - 200;
     const shown = truncated ? `${full.slice(0, LIMIT.description - 200).trimEnd()}…` : full;
     const tail = house.url
-      ? `\n\n${truncated ? '**The rules continue** — read them all at' : 'Full rules:'} ${house.url}`
+      ? `\n\n${truncated ? t.rules.houseContinues : t.rules.houseFull} ${house.url}`
       : truncated
-        ? '\n\n-# Trimmed to fit Discord — ask staff for the full ruleset.'
+        ? `\n\n${t.rules.houseTrimmed}`
         : '';
     embeds.push({
-      title: `📌 ${clamp(clan.name, 80)} — house rules`,
+      title: clamp(fmt(t.rules.houseTitle, { clan: clamp(clan.name, 80) }), LIMIT.title),
       description: clamp(`${shown}${tail}`.trim(), LIMIT.description),
       color: EMBED_COLOR.blue,
     });
@@ -456,6 +476,7 @@ async function rulesEmbeds(clan: ClanContext, event: EventContext, cross: CrossC
  * took four drops from reading as four tiles.
  */
 async function meEmbed(
+  t: DiscordDict,
   clan: ClanContext,
   event: EventContext,
   cross: CrossClanContext,
@@ -470,11 +491,11 @@ async function meEmbed(
     : [];
 
   if (myPlayers.length === 0) {
-    const lines = [`You aren't entered in **${clamp(event.name, 100)}**.`];
-    if (clan.origin) lines.push(`Sign-ups and your profile live at ${clan.origin}.`);
-    lines.push('', contextLine(clan, event, cross));
+    const lines = [fmt(t.me.notEntered, { event: clamp(event.name, 100) })];
+    if (clan.origin) lines.push(fmt(t.me.notEnteredWhere, { url: clan.origin }));
+    lines.push('', contextLine(clan, event, cross, t));
     return {
-      title: '🔍 Not on this board',
+      title: t.me.notEnteredTitle,
       description: lines.join('\n'),
       color: EMBED_COLOR.blue,
       author: authorOf(clan),
@@ -500,36 +521,41 @@ async function meEmbed(
 
   const body: string[] = [];
   if (team) {
+    const name = clamp(team.name, 60);
     body.push(
-      `You're on **${clamp(team.name, 60)}**${rank ? ` — ${placeMark(rank - 1)} of ${standings.length}` : ''}.`,
+      rank
+        ? fmt(t.me.onTeamRanked, { team: name, place: placeMark(rank - 1), total: standings.length })
+        : fmt(t.me.onTeam, { team: name }),
     );
   } else {
-    body.push(`You're entered but not on a team yet.`);
+    body.push(t.me.noTeamYet);
   }
   if (credited.length && !event.tilesRevealed) {
     // Same gate as the team card: an unrevealed board doesn't name its tiles anywhere, so the count
     // stands in for the list. The field below still shows how many they've finished.
-    body.push('', `You've finished ${credited.length} tile${credited.length === 1 ? '' : 's'} — names show once the board is revealed.`);
+    body.push('', plural(credited.length, t.me.finishedHiddenOne, t.me.finishedHiddenMany));
   } else if (credited.length) {
-    body.push('', '**Tiles you finished**', ...credited.slice(0, 8).map((c) => `• ${clamp(c.label, 70)}`));
-    if (credited.length > 8) body.push(`-# +${credited.length - 8} more`);
+    body.push('', t.me.finishedHeading, ...credited.slice(0, 8).map((c) => `• ${clamp(c.label, 70)}`));
+    if (credited.length > 8) body.push(`-# ${fmt(t.common.more, { n: credited.length - 8 })}`);
   } else if (event.phase === 'running') {
-    body.push('', 'No tiles credited to you yet.');
+    body.push('', t.me.nothingYet);
   }
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   const accountNote =
-    myPlayers.length > 1 ? [field('Accounts', myPlayers.map((p) => p.name).join(', '), false)] : [];
+    myPlayers.length > 1
+      ? [field(t.common.fieldAccounts, myPlayers.map((p) => p.name).join(', '), false)]
+      : [];
 
   return {
-    title: clamp(`👤 ${who} — ${event.name}`, LIMIT.title),
+    title: clamp(fmt(t.me.title, { who, event: event.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     color: team ? teamColorToDecimal(team.color) : EMBED_COLOR.blue,
     author: authorOf(clan),
     fields: [
-      ...(mine ? [statField('Team score', `${mine.score} ${mine.unit}`)] : []),
-      statField('Your tiles', credited.length),
+      ...(mine ? [statField(t.common.fieldTeamScore, `${mine.score} ${mine.unit}`)] : []),
+      statField(t.common.fieldYourTiles, credited.length),
       ...accountNote,
     ],
   };
@@ -538,6 +564,7 @@ async function meEmbed(
 // ── /bingo team ─────────────────────────────────────────────────────────────────────────────────
 
 async function teamEmbed(
+  t: DiscordDict,
   clan: ClanContext,
   event: EventContext,
   cross: CrossClanContext,
@@ -547,8 +574,8 @@ async function teamEmbed(
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
   if (eventTeams.length === 0) {
     return {
-      title: '🔍 No teams yet',
-      description: `**${clamp(event.name, 100)}** has no teams on it yet.\n\n${contextLine(clan, event, cross)}`,
+      title: t.team.noTeamsTitle,
+      description: `${fmt(t.team.noTeamsBody, { event: clamp(event.name, 100) })}\n\n${contextLine(clan, event, cross, t)}`,
       color: EMBED_COLOR.blue,
       author: authorOf(clan),
     };
@@ -562,15 +589,15 @@ async function teamEmbed(
 
   if (!team) {
     return {
-      title: '🔍 No such team',
+      title: t.team.noMatchTitle,
       description: [
         needle
-          ? `No team on **${clamp(event.name, 80)}** matches "${clamp(wanted ?? '', 40)}".`
-          : `You're not on a team — name one to look it up.`,
+          ? fmt(t.team.noMatch, { event: clamp(event.name, 80), needle: clamp(wanted ?? '', 40) })
+          : t.team.noneOfYours,
         '',
-        `**Teams:** ${eventTeams.map((t) => clamp(t.name, 30)).join(' · ')}`,
+        fmt(t.team.teamsList, { names: eventTeams.map((row) => clamp(row.name, 30)).join(' · ') }),
         '',
-        contextLine(clan, event, cross),
+        contextLine(clan, event, cross, t),
       ].join('\n'),
       color: EMBED_COLOR.amber,
       author: authorOf(clan),
@@ -598,35 +625,44 @@ async function teamEmbed(
 
   const body: string[] = [];
   if (standing) {
-    const bonus = standing.bonusScore > 0 ? ` (⚡+${standing.bonusScore} mission bonus)` : '';
+    const bonus = standing.bonusScore > 0 ? fmt(t.team.bonusSuffix, { n: standing.bonusScore }) : '';
     body.push(
-      `${placeMark(rank - 1)} of ${standings.length} — ${code(`${standing.score} ${standing.unit}`)}${bonus} · ${standing.pct}% of the board.`,
+      fmt(t.team.standing, {
+        place: placeMark(rank - 1),
+        total: standings.length,
+        score: code(`${standing.score} ${standing.unit}`),
+        bonus,
+        pct: standing.pct,
+      }),
     );
   }
   // Name visiting members individually here: on a team card the roster is short enough that "who is
   // actually from another clan" is the useful answer, where the leaderboard only has room for a mark.
   const visitors = roster.filter((r) => r.source === 'federation');
   if (visitors.length) {
+    const names = visitors.map((v) => clamp(v.name, 20)).join(', ');
     body.push(
       '',
-      `🤝 ${visitors.length === roster.length ? 'A visiting clan' : `${visitors.length} visiting ${visitors.length === 1 ? 'player' : 'players'}`}: ${visitors.map((v) => clamp(v.name, 20)).join(', ')}`,
+      visitors.length === roster.length
+        ? fmt(t.team.visitingWholeTeam, { names })
+        : plural(visitors.length, t.team.visitingSomeOne, t.team.visitingSomeMany, { names }),
     );
   }
   if (recent.length) {
-    body.push('', '**Recent tiles**', ...recent.map((r) => `• ${clamp(r.label, 70)}`));
+    body.push('', t.team.recentHeading, ...recent.map((r) => `• ${clamp(r.label, 70)}`));
   }
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   return {
-    title: clamp(`🛡️ ${team.name}`, LIMIT.title),
+    title: clamp(fmt(t.team.title, { team: team.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     color: teamColorToDecimal(team.color),
     author: authorOf(clan),
     fields: [
-      statField('Rank', rank ? `#${rank}` : '—'),
-      statField('Roster', roster.length),
-      ...(standing ? [statField('Score', `${standing.score} ${standing.unit}`)] : []),
+      statField(t.common.fieldRank, rank ? `#${rank}` : '—'),
+      statField(t.common.fieldRoster, roster.length),
+      ...(standing ? [statField(t.common.fieldScore, `${standing.score} ${standing.unit}`)] : []),
     ],
   };
 }
@@ -642,6 +678,7 @@ async function teamEmbed(
  * door is open, which they would within a week of me re-deriving it here.
  */
 async function applyEmbed(
+  t: DiscordDict,
   clan: ClanContext,
   event: EventContext,
   cross: CrossClanContext,
@@ -666,50 +703,52 @@ async function applyEmbed(
 
   const body: string[] = [];
   if (onTeam) {
-    body.push("**You're in** — already drafted onto a team. Nothing left to do but play.");
+    body.push(t.apply.drafted);
   } else if (already === 'approved') {
-    body.push("**You're signed up and approved.** You'll be placed on a team before the event starts.");
+    body.push(t.apply.approved);
   } else if (already === 'pending') {
-    body.push('**Your sign-up is in** and waiting on staff to approve it. Nothing more to do.');
+    body.push(t.apply.pending);
   } else if (window.open) {
-    body.push('**Sign-ups are open.**');
+    body.push(t.apply.open);
   } else {
     body.push(
       window.reason === 'not_open_yet'
-        ? "**Sign-ups haven't opened yet.**"
+        ? t.apply.notOpenYet
         : window.reason === 'event_started'
-          ? '**The event has started**, so sign-ups are closed. Ask staff if there is still room.'
-          : '**Sign-ups are closed.**',
+          ? t.apply.eventStarted
+          : t.apply.closed,
     );
   }
 
   // Only pitch the door when it's actually open and they aren't already through it.
   if (!already && !onTeam && window.open) {
     const deadline = relativeTs(row?.signupDeadline ?? null);
-    if (deadline) body.push(`They close ${deadline}.`);
+    if (deadline) body.push(fmt(t.apply.closesIn, { when: deadline }));
     if (row?.signupFee) {
       body.push(
-        `Entry is ${code(formatGp(row.signupFee))}${row.feeMode === 'per-account' ? ' per account' : ''} — staff will tell you where to send it.`,
+        fmt(row.feeMode === 'per-account' ? t.apply.feePerAccount : t.apply.fee, {
+          amount: code(formatGp(row.signupFee)),
+        }),
       );
     }
-    if (clan.origin) body.push('', `**Sign up:** ${clan.origin}/events/${event.id}`);
+    if (clan.origin) body.push('', fmt(t.apply.signUpAt, { url: `${clan.origin}/events/${event.id}` }));
   } else if (!already && !onTeam && window.reason === 'not_open_yet') {
     const opens = relativeTs(row?.signupOpensAt ?? null);
-    if (opens) body.push(`They open ${opens}.`);
+    if (opens) body.push(fmt(t.apply.opensIn, { when: opens }));
   }
 
   // The roster gate is the thing that surprises people: signing up needs an account Anvil knows.
   if (memberIds.length === 0) {
     body.push(
       '',
-      `-# Anvil doesn't know your account yet. Link your RSN first${clan.origin ? ` at ${clan.origin}/profile` : ' on your profile page'} — sign-ups attach to an account, not a Discord name.`,
+      clan.origin ? fmt(t.apply.noAccountUrl, { url: clan.origin }) : t.apply.noAccountNoUrl,
     );
   }
 
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   return {
-    title: clamp(`📝 ${event.name} — getting in`, LIMIT.title),
+    title: clamp(fmt(t.apply.title, { event: event.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     color: onTeam || already === 'approved' ? EMBED_COLOR.green : window.open ? EMBED_COLOR.gold : EMBED_COLOR.blue,
@@ -725,7 +764,12 @@ async function applyEmbed(
  * relative timestamp, so it ticks by itself in whatever timezone the reader is in — the one thing a
  * static "in about 3 hours" can never do.
  */
-async function nextEmbed(clan: ClanContext, event: EventContext, cross: CrossClanContext): Promise<DiscordEmbed> {
+async function nextEmbed(
+  t: DiscordDict,
+  clan: ClanContext,
+  event: EventContext,
+  cross: CrossClanContext,
+): Promise<DiscordEmbed> {
   const [row, allTiles] = await Promise.all([
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
     db
@@ -736,26 +780,22 @@ async function nextEmbed(clan: ClanContext, event: EventContext, cross: CrossCla
   const rules = parseEventRules(row?.rules);
 
   const upcoming: { what: string; at: string }[] = [];
-  if (event.phase === 'upcoming' && row?.startDate) upcoming.push({ what: '🚩 Event starts', at: row.startDate });
-  if (event.phase === 'running' && row?.endDate) upcoming.push({ what: '🏁 Event ends', at: row.endDate });
+  if (event.phase === 'upcoming' && row?.startDate) upcoming.push({ what: t.next.eventStarts, at: row.startDate });
+  if (event.phase === 'running' && row?.endDate) upcoming.push({ what: t.next.eventEnds, at: row.endDate });
 
   const reveal = nextRevealAt({ startDate: row?.startDate ?? null, rules: row?.rules }, rules, allTiles);
-  if (reveal) upcoming.push({ what: '🎲 Next tile drawn', at: reveal });
+  if (reveal) upcoming.push({ what: t.next.nextTile, at: reveal });
 
   const mission = nextMissionAt({ startDate: row?.startDate ?? null }, rules, allTiles);
-  if (mission) upcoming.push({ what: '⚡ Next mission', at: mission });
+  if (mission) upcoming.push({ what: t.next.nextMission, at: mission });
 
   if (row?.signupDeadline && event.phase === 'upcoming') {
-    upcoming.push({ what: '📝 Sign-ups close', at: row.signupDeadline });
+    upcoming.push({ what: t.next.signupsClose, at: row.signupDeadline });
   }
 
   const body: string[] = [];
   if (upcoming.length === 0) {
-    body.push(
-      event.phase === 'ended'
-        ? 'Nothing left on the clock — this board has finished.'
-        : 'Nothing scheduled. Staff drop the next thing when they drop it.',
-    );
+    body.push(event.phase === 'ended' ? t.next.nothingEnded : t.next.nothingScheduled);
   } else {
     // Soonest first: "what's next" is a question about the top of this list.
     body.push(
@@ -768,13 +808,13 @@ async function nextEmbed(clan: ClanContext, event: EventContext, cross: CrossCla
   // A mission pool that still has entries is worth saying even when its timing is staff's call.
   const hiddenMissions = missionTiles(allTiles).filter((t) => !t.revealedAt).length;
   if (hiddenMissions > 0 && !mission) {
-    body.push('', `-# ${hiddenMissions} mission${hiddenMissions === 1 ? '' : 's'} still to come, announced when staff drop them.`);
+    body.push('', plural(hiddenMissions, t.next.hiddenMissionsOne, t.next.hiddenMissionsMany));
   }
 
-  body.push('', contextLine(clan, event, cross));
+  body.push('', contextLine(clan, event, cross, t));
 
   return {
-    title: clamp(`⏭️ ${event.name} — what's next`, LIMIT.title),
+    title: clamp(fmt(t.next.title, { event: event.name }), LIMIT.title),
     url: eventUrl(clan, event.id),
     description: clamp(body.join('\n'), LIMIT.description),
     color: EMBED_COLOR.blue,
@@ -788,20 +828,25 @@ async function nextEmbed(clan: ClanContext, event: EventContext, cross: CrossCla
  * What the bot can answer. Built from SUBCOMMAND_NAMES and the registered descriptions rather than a
  * hand-written list, so a command added to the tree can't be missing from its own help.
  */
-function helpEmbed(clan: ClanContext, event: EventContext | null, cross: CrossClanContext): DiscordEmbed {
-  const subs = (COMMAND_DEFINITIONS.find((c) => c.name === COMMAND_NAME)?.options ?? []) as readonly {
-    name: string;
-    description: string;
-  }[];
+function helpEmbed(
+  t: DiscordDict,
+  clan: ClanContext,
+  event: EventContext | null,
+  cross: CrossClanContext,
+): DiscordEmbed {
   const body = [
-    ...subs.map((o) => `${code(`/${COMMAND_NAME} ${o.name}`)} — ${o.description}`),
+    // The command NAMES come from the registered tree so help can't list one that doesn't exist;
+    // the blurbs come from the dictionary so they're in the reader's language.
+    ...SUBCOMMAND_ORDER.map(
+      (name) => `${code(`/${COMMAND_NAME} ${name}`)} — ${t.help.subs[name as keyof typeof t.help.subs] ?? ''}`,
+    ),
     '',
-    '-# Answers are only visible to you. Add `share: true` to any of them to post one in the channel.',
+    fmt(t.help.privateNote, { share: t.common.shareButton }),
     '',
-    contextLine(clan, event, cross),
+    contextLine(clan, event, cross, t),
   ];
   return {
-    title: '🔨 What Anvil can tell you',
+    title: t.help.title,
     description: clamp(body.join('\n'), LIMIT.description),
     color: EMBED_COLOR.gold,
     author: authorOf(clan),
@@ -820,8 +865,9 @@ async function myTeamId(eventId: number, memberIds: number[]): Promise<number | 
   return rows.find((r) => r.teamId != null)?.teamId ?? null;
 }
 
-/** Everything a subcommand needs, resolved once by handleCommand rather than per handler. */
+/** Everything a subcommand needs, resolved once by the dispatcher rather than per handler. */
 interface CommandContext {
+  t: DiscordDict;
   clan: ClanContext;
   event: EventContext;
   cross: CrossClanContext;
@@ -830,8 +876,16 @@ interface CommandContext {
   /** Their display name, for prose. */
   who: string;
   options: Record<string, string | number | boolean>;
-  ephemeral: boolean;
 }
+
+/**
+ * What a subcommand produces: embeds, or one sentence when there's nothing to draw.
+ *
+ * Handlers deliberately don't build the response envelope. Ephemerality, the share button and the
+ * "shared by" line are decided identically for every command, and a handler that assembled its own
+ * would be the one that eventually forgets the button.
+ */
+type SubResult = { embeds: DiscordEmbed[] } | { text: string };
 
 /**
  * The subcommands, as a lookup rather than a switch — so the set Discord advertises
@@ -839,91 +893,121 @@ interface CommandContext {
  * test. A command that autocompletes and then fails in front of a member is worse than one that
  * never existed.
  */
-const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<InteractionResponse>> = {
-  async board({ clan, event, cross, ephemeral }) {
-    return embedReply([await boardEmbed(clan, event, cross)], { ephemeral });
+const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> = {
+  async board({ t, clan, event, cross }) {
+    return { embeds: [await boardEmbed(t, clan, event, cross)] };
   },
 
-  async rules({ clan, event, cross, ephemeral }) {
-    return embedReply(await rulesEmbeds(clan, event, cross), { ephemeral });
+  async rules({ t, clan, event, cross }) {
+    return { embeds: await rulesEmbeds(t, clan, event, cross) };
   },
 
-  async leaderboard({ clan, event, cross, memberIds, ephemeral }) {
+  async leaderboard({ t, clan, event, cross, memberIds }) {
     const teamId = await myTeamId(event.id, memberIds);
-    return embedReply([await leaderboardEmbed(clan, event, cross, teamId)], { ephemeral });
+    return { embeds: [await leaderboardEmbed(t, clan, event, cross, teamId)] };
   },
 
-  async apply({ clan, event, cross, memberIds, ephemeral }) {
-    return embedReply([await applyEmbed(clan, event, cross, memberIds)], { ephemeral });
+  async apply({ t, clan, event, cross, memberIds }) {
+    return { embeds: [await applyEmbed(t, clan, event, cross, memberIds)] };
   },
 
-  async next({ clan, event, cross, ephemeral }) {
-    return embedReply([await nextEmbed(clan, event, cross)], { ephemeral });
+  async next({ t, clan, event, cross }) {
+    return { embeds: [await nextEmbed(t, clan, event, cross)] };
   },
 
-  async help({ clan, event, cross, ephemeral }) {
-    return embedReply([helpEmbed(clan, event, cross)], { ephemeral });
+  async help({ t, clan, event, cross }) {
+    return { embeds: [helpEmbed(t, clan, event, cross)] };
   },
 
-  async me({ clan, event, cross, memberIds, who, ephemeral }) {
-    return embedReply([await meEmbed(clan, event, cross, memberIds, who)], { ephemeral });
+  async me({ t, clan, event, cross, memberIds, who }) {
+    return { embeds: [await meEmbed(t, clan, event, cross, memberIds, who)] };
   },
 
-  async team({ clan, event, cross, memberIds, options, ephemeral }) {
+  async team({ t, clan, event, cross, memberIds, options }) {
     // Hidden boards stay hidden. Staff see them on the web; Discord is a member-facing surface with
     // no way to prove a staff role, so it shows what a member would see.
-    if (!event.tilesRevealed) {
-      return textReply(`Tiles on **${event.name}** aren't revealed yet — team cards open when the board does.`);
-    }
+    if (!event.tilesRevealed) return { text: fmt(t.team.hiddenBoard, { event: event.name }) };
     const wanted = typeof options.name === 'string' ? options.name : null;
     const fallback = await myTeamId(event.id, memberIds);
-    return embedReply([await teamEmbed(clan, event, cross, wanted, fallback)], { ephemeral });
+    return { embeds: [await teamEmbed(t, clan, event, cross, wanted, fallback)] };
   },
 };
 
 /** The subcommands this server answers. Asserted against COMMAND_DEFINITIONS in the tests. */
 export const SUBCOMMAND_NAMES = Object.keys(SUBCOMMANDS);
 
+// ── Share ───────────────────────────────────────────────────────────────────────────────────────
+//
+// The button carries everything needed to rebuild the answer, because there is nothing else to
+// carry it in: Discord gives a component interaction the custom_id and nothing more, and holding
+// server-side state keyed by message id would mean a share that stops working after a redeploy.
+// Rebuilding also means a leaderboard shared ten minutes later shows the standings as they are NOW,
+// which is what a channel reading it would assume anyway.
+
+const SHARE_PREFIX = 'share:';
+
+/** `share:team:Reds`. Discord caps custom_id at 100 characters, so the argument is clamped. */
+export function shareId(sub: string, options: Record<string, string | number | boolean>): string {
+  const arg = typeof options.name === 'string' ? options.name.trim() : '';
+  return arg ? `${SHARE_PREFIX}${sub}:${arg.slice(0, 80)}` : `${SHARE_PREFIX}${sub}`;
+}
+
+/** The inverse. Splits on the first two colons only — a team name may contain its own. */
+export function parseShareId(customId: string): { sub: string; options: Record<string, string> } | null {
+  if (!customId.startsWith(SHARE_PREFIX)) return null;
+  const rest = customId.slice(SHARE_PREFIX.length);
+  const cut = rest.indexOf(':');
+  if (cut === -1) return { sub: rest, options: {} };
+  return { sub: rest.slice(0, cut), options: { name: rest.slice(cut + 1) } };
+}
+
 /**
- * Turn a verified interaction into a reply.
+ * Turn a subcommand result into a reply.
  *
- * Never throws: an unhandled error here becomes a Discord timeout, which shows the member "the
- * application did not respond" and tells them nothing. Every failure path answers in words.
+ * Private answers get the share button; a shared one doesn't (it is already in the channel, and a
+ * second button would just invite a duplicate). A `text` result never gets one either — "no teams
+ * yet" is not worth a channel post.
  */
-export async function handleCommand(interaction: Interaction): Promise<InteractionResponse> {
+function reply(result: SubResult, opts: { t: DiscordDict; ephemeral: boolean; shareId?: string; sharedBy?: string }): InteractionResponse {
+  if ('text' in result) return textReply(result.text, { ephemeral: opts.ephemeral });
+  const response = embedReply(result.embeds, {
+    ephemeral: opts.ephemeral,
+    components: opts.shareId ? [shareRow(opts.t.common.shareButton, opts.shareId)] : undefined,
+  });
+  if (opts.sharedBy && response.data) {
+    response.data.content = fmt(opts.t.common.sharedBy, { who: opts.sharedBy });
+  }
+  return response;
+}
+
+// ── Entry points ────────────────────────────────────────────────────────────────────────────────
+
+/** Clan, board and identity — everything both entry points resolve the same way. */
+async function resolveContext(
+  interaction: Interaction,
+  locale: string,
+): Promise<
+  | { ok: true; ctx: Omit<CommandContext, 'options'> }
+  | { ok: false; response: InteractionResponse }
+> {
+  const t = await getDiscordDict(locale);
   const clan = await getClanContext();
+
+  // The clan's chosen language, when it has one, overrides whatever Discord detected.
+  const t2 = clan.language ? await getDiscordDict(resolveLocale(null, clan.language)) : t;
 
   // 1. WHICH CLAN — refuse anything that isn't this instance's own server (see discordContext).
   const guildCheck = checkGuild(clan, interaction.guild_id);
-  if (guildCheck === 'dm') {
-    return textReply("Run this in your clan's Discord server — a board command needs to know which clan is asking.");
-  }
+  if (guildCheck === 'dm') return { ok: false, response: textReply(t2.errors.dm) };
   if (guildCheck === 'wrong-guild') {
-    return textReply(
-      `This bot is connected to a different server than **${clan.name}**'s Anvil. Ask an admin to check the server ID under Integrations.`,
-    );
-  }
-
-  // Anvil registers exactly one command tree; anything else reaching this endpoint is a stale
-  // registration from an older deploy that the dispatcher can no longer answer.
-  if (interaction.data?.name !== COMMAND_NAME) {
-    return textReply(`Anvil doesn't answer ${code(`/${interaction.data?.name ?? '?'}`)} — try ${code('/bingo board')}.`);
-  }
-
-  const { sub, options } = readSubcommand(interaction);
-  const handler = sub ? SUBCOMMANDS[sub] : undefined;
-  if (!handler) {
-    return textReply(
-      `Unknown command. Try ${SUBCOMMAND_NAMES.map((n) => code(`/${COMMAND_NAME} ${n}`)).join(', ')}.`,
-    );
+    return { ok: false, response: textReply(fmt(t2.errors.wrongGuild, { clan: clan.name })) };
   }
 
   // 2. WHICH BOARD.
   const event = await pickEvent();
   if (!event) {
-    return textReply(
-      `**${clan.name}** has no boards yet.${clan.origin ? ` Staff can make one at ${clan.origin}/admin/events/new.` : ''}`,
-    );
+    const where = clan.origin ? ` ${fmt(t2.errors.noBoardsStaff, { url: clan.origin })}` : '';
+    return { ok: false, response: textReply(`${fmt(t2.errors.noBoards, { clan: clan.name })}${where}`) };
   }
 
   // 3. WHO ELSE IS IN IT, and who is asking.
@@ -931,13 +1015,80 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
   const discordId = invokerId(interaction);
   const identity = discordId ? await resolveInvoker(discordId) : null;
 
-  return handler({
-    clan,
-    event,
-    cross,
-    memberIds: identity?.memberIds ?? [],
-    who: invokerName(interaction),
-    options,
-    ephemeral: options.share !== true,
+  return {
+    ok: true,
+    ctx: {
+      t: t2,
+      clan,
+      event,
+      cross,
+      memberIds: identity?.memberIds ?? [],
+      who: invokerName(interaction),
+    },
+  };
+}
+
+/**
+ * Turn a verified slash command into a reply.
+ *
+ * Never throws: an unhandled error here becomes a Discord timeout, which shows the member "the
+ * application did not respond" and tells them nothing. Every failure path answers in words.
+ */
+export async function handleCommand(interaction: Interaction): Promise<InteractionResponse> {
+  // A private answer speaks the member's own language — nobody else is reading it.
+  const locale = resolveLocale(interaction.locale);
+  const t = await getDiscordDict(locale);
+
+  // Anvil registers exactly one command tree; anything else reaching this endpoint is a stale
+  // registration from an older deploy that the dispatcher can no longer answer.
+  if (interaction.data?.name !== COMMAND_NAME) {
+    return textReply(
+      fmt(t.errors.unknownCommand, {
+        command: code(`/${interaction.data?.name ?? '?'}`),
+        suggestion: code(`/${COMMAND_NAME} board`),
+      }),
+    );
+  }
+
+  const { sub, options } = readSubcommand(interaction);
+  const handler = sub ? SUBCOMMANDS[sub] : undefined;
+  if (!handler) {
+    return textReply(
+      fmt(t.errors.unknownSub, {
+        list: SUBCOMMAND_NAMES.map((n) => code(`/${COMMAND_NAME} ${n}`)).join(', '),
+      }),
+    );
+  }
+
+  const resolved = await resolveContext(interaction, locale);
+  if (!resolved.ok) return resolved.response;
+
+  const result = await handler({ ...resolved.ctx, options });
+  return reply(result, { t: resolved.ctx.t, ephemeral: true, shareId: shareId(sub!, options) });
+}
+
+/**
+ * The Share button: the same answer, rebuilt and posted to the channel.
+ *
+ * In the SERVER's language, not the sharer's — a channel post is read by everyone in it, and
+ * putting Swedish in front of an English-speaking clan because Sven pressed a button is a worse
+ * outcome than Sven reading English for one message.
+ */
+export async function handleComponent(interaction: Interaction): Promise<InteractionResponse> {
+  const locale = resolveLocale(interaction.guild_locale ?? interaction.locale);
+  const t = await getDiscordDict(locale);
+
+  const parsed = parseShareId(interaction.data?.custom_id ?? '');
+  const handler = parsed ? SUBCOMMANDS[parsed.sub] : undefined;
+  if (!parsed || !handler) return textReply(t.errors.shareExpired);
+
+  const resolved = await resolveContext(interaction, locale);
+  if (!resolved.ok) return resolved.response;
+
+  const result = await handler({ ...resolved.ctx, options: parsed.options });
+  return reply(result, {
+    t: resolved.ctx.t,
+    ephemeral: false,
+    sharedBy: invokerName(interaction),
   });
 }

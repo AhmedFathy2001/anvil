@@ -23,7 +23,7 @@
  * see the invite link builder in /api/admin/discord/bot, which now requests both.
  */
 
-import { COMMAND_DEFINITIONS } from '../src/lib/discordCommandDefs.ts';
+import { buildLocalizedCommands } from '../src/lib/discordCommandDefs.ts';
 
 const API = 'https://discord.com/api/v10';
 
@@ -56,7 +56,7 @@ if (!meRes.ok) {
 const app = (await meRes.json()) as { id: string; name: string };
 
 const path = guildId ? `/applications/${app.id}/guilds/${guildId}/commands` : `/applications/${app.id}/commands`;
-const body = clear ? [] : COMMAND_DEFINITIONS;
+const body = clear ? [] : await buildLocalizedCommands();
 
 const res = await rest(path, { method: 'PUT', body: JSON.stringify(body) });
 if (!res.ok) {

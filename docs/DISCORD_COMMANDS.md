@@ -8,12 +8,64 @@ for who typed the command, and `users.discord_id` is Anvil's identity column.
 /bingo board          the board that's running right now
 /bingo rules          how this board scores + your clan's house rules
 /bingo leaderboard    team standings
+/bingo apply          how to get in — sign-ups, the fee, where you stand
+/bingo next           what's coming — next reveal, mission or deadline
 /bingo me             your team, your tiles, your standing
 /bingo team [name]    a team card — score, roster, recent tiles
+/bingo help           what the bot can answer in here
 ```
 
-Every answer is **ephemeral** (only the person who ran it sees it) unless they pass `share: true`.
-A bot that dumps a leaderboard into general every time someone is curious gets muted.
+Every answer is **ephemeral** — only the person who ran it sees it. A bot that dumps a leaderboard
+into general every time someone is curious gets muted.
+
+---
+
+## Sharing
+
+Each private answer carries a **Share to channel** button. One click reposts it publicly, credited
+to whoever pressed it.
+
+There used to be a `share: true` option instead. It went because Discord has no valueless
+option — every option carries a value, so the flag rendered as `share: True` in the picker, cost
+two extra interactions to set, and essentially nobody found it. A button is one click and, unlike
+an option, it's visible to people who never knew sharing was possible.
+
+The button carries everything needed to rebuild the answer in its `custom_id` (`share:team:Reds`,
+capped at Discord's 100 characters). Nothing is stored server-side, so a share still works after a
+redeploy — and because the answer is rebuilt rather than replayed, a leaderboard shared ten minutes
+later shows the standings as they are *now*, which is what a channel reading it would assume.
+
+---
+
+## Languages
+
+The bot speaks the same fifteen languages as the [guides](../src/lib/discordI18n/): English,
+Danish, Arabic, Swedish, Norwegian, Finnish, German, Dutch, French, Italian, Polish, Spanish,
+Brazilian Portuguese, Simplified Chinese, Japanese and Korean.
+
+Nothing needs configuring. Discord sends the invoking member's own client language on every
+interaction, so a Danish member gets Danish and the Norwegian beside them gets Norwegian.
+
+| Answer | Language it uses | Why |
+| --- | --- | --- |
+| Private (the default) | `interaction.locale` — the member's own | Nobody else is reading it |
+| Shared to the channel | `interaction.guild_locale` — the server's | The channel reads it, not the sharer |
+| Either, with an override set | The clan's `discord_language` setting | Staff said something detection can't know |
+
+The override (Integrations → Discord bot → Bot language) exists for two cases. Discord has no
+Arabic client language, so an Arabic-speaking clan's members all report English and could never
+otherwise reach the Arabic translation. And a mixed-locale server that would rather have one voice
+can pick one.
+
+Command *descriptions* are localized too, via `description_localizations` built from the same
+dictionaries at registration time. Command **names** are not: a member reading a Danish answer
+still types `/bingo board`, and a translated command name is a command nobody can find. The same
+goes for `Powered by Anvil`.
+
+Adding a language is one file plus one row in `src/lib/discordI18n/index.ts`; missing keys fall
+back to English per key. `npm run test:discord-i18n` prints per-locale coverage and fails on a key
+English doesn't have, a dropped `{placeholder}`, or a description over the 100 characters Discord
+accepts.
 
 ---
 

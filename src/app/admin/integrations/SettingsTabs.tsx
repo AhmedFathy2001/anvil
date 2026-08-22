@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhookField from '@/components/WebhookField';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
+import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
@@ -104,6 +105,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               placeholder="https://discord.gg/your-invite"
               helpText="Shown as the Discord link in the top nav and on the home page. Hidden when blank."
             />
+          </div>
+          <div className="border-t border-card-border pt-5">
+            <DiscordLanguageSetting />
           </div>
         </Card>
       )}

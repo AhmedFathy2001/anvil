@@ -43,6 +43,12 @@ export const CALLBACK_TYPE = {
 /** Message flags. EPHEMERAL = only the person who ran the command sees it. */
 export const MESSAGE_FLAGS = { EPHEMERAL: 1 << 6 } as const;
 
+/** Component types (docs: Message Components). A button must sit inside an action row. */
+export const COMPONENT_TYPE = { ACTION_ROW: 1, BUTTON: 2 } as const;
+
+/** Button styles. SECONDARY is the grey one — a share button shouldn't shout. */
+export const BUTTON_STYLE = { PRIMARY: 1, SECONDARY: 2 } as const;
+
 /** Option types we declare (docs: Application Command Option Type). */
 export const OPTION_TYPE = {
   SUB_COMMAND: 1,
@@ -83,10 +89,17 @@ export interface Interaction {
   channel_id?: string;
   member?: { user: InteractionUser; nick?: string | null };
   user?: InteractionUser;
+  /** The invoking member's own client language, e.g. `da`, `pt-BR`. Absent on some payloads. */
+  locale?: string;
+  /** The server's configured language. What a message the whole channel reads should speak. */
+  guild_locale?: string;
   data?: {
     id: string;
-    name: string;
+    name?: string;
     options?: InteractionOption[];
+    /** Present on MESSAGE_COMPONENT: the id we put on the button when we sent it. */
+    custom_id?: string;
+    component_type?: number;
   };
 }
 
@@ -190,12 +203,50 @@ export async function verifyDiscordSignature(opts: {
 
 // ── Response builders ───────────────────────────────────────────────────────────────────────────
 
+export interface ActionRow {
+  type: number;
+  components: {
+    type: number;
+    style: number;
+    label: string;
+    custom_id: string;
+    emoji?: { name: string };
+  }[];
+}
+
 export interface InteractionResponse {
   type: number;
   data?: {
     content?: string;
     embeds?: unknown[];
     flags?: number;
+    components?: ActionRow[];
+  };
+}
+
+/**
+ * The one-button row that turns a private answer into a channel post.
+ *
+ * Discord has no valueless command option — every option carries a value, which is why the old
+ * `share: true` existed and why nobody used it. A button is the only shape where "share" is one
+ * click, and it has the side benefit of being visible: people who never knew the option existed
+ * can see the button.
+ *
+ * `customId` must round-trip enough to rebuild the answer (see lib/discordCommands) and Discord
+ * caps it at 100 characters.
+ */
+export function shareRow(label: string, customId: string): ActionRow {
+  return {
+    type: COMPONENT_TYPE.ACTION_ROW,
+    components: [
+      {
+        type: COMPONENT_TYPE.BUTTON,
+        style: BUTTON_STYLE.SECONDARY,
+        label,
+        custom_id: customId.slice(0, 100),
+        emoji: { name: '\u{1F4E2}' },
+      },
+    ],
   };
 }
 
@@ -213,10 +264,16 @@ export function pong(): InteractionResponse {
  * that dumps a leaderboard into general every time someone is curious gets muted. Commands opt into
  * a public post explicitly.
  */
-export function embedReply(embeds: unknown[], opts: { ephemeral?: boolean } = {}): InteractionResponse {
+export function embedReply(
+  embeds: unknown[],
+  opts: { ephemeral?: boolean; components?: ActionRow[] } = {},
+): InteractionResponse {
   return {
     type: CALLBACK_TYPE.CHANNEL_MESSAGE,
-    data: stampEmbeds({ embeds, flags: opts.ephemeral === false ? undefined : MESSAGE_FLAGS.EPHEMERAL }),
+    data: {
+      ...stampEmbeds({ embeds, flags: opts.ephemeral === false ? undefined : MESSAGE_FLAGS.EPHEMERAL }),
+      ...(opts.components ? { components: opts.components } : {}),
+    },
   };
 }
 
