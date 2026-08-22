@@ -12,7 +12,7 @@ import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { clansOfPerson } from "@/lib/myClans";
-import PlatformRail from "@/components/PlatformRail";
+import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -31,6 +31,21 @@ export const metadata: Metadata = {
   description: "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.",
   icons: { icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }] },
 };
+
+/**
+ * Which of a person's clans to show first.
+ *
+ * A member seat is the clan they belong to; the rest are places they visit. Guesting into other
+ * clans' events is meant to be ordinary, so this list can be long, and the ordering is what keeps it
+ * usable: your own clan, then staff seats, then everything else alphabetically.
+ */
+function railOrder(clans: { slug: string; name: string; seat: string | null; staff: boolean }[]): RailClan[] {
+  const rank = (c: { seat: string | null; staff: boolean }) =>
+    c.seat === 'member' ? 0 : c.staff ? 1 : 2;
+  return [...clans]
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+    .map((c) => ({ slug: c.slug, name: c.name }));
+}
 
 export default async function RootLayout({
   children,
@@ -104,11 +119,14 @@ export default async function RootLayout({
         {!clan ? (
           <div className="flex flex-1 flex-col md:flex-row">
             <PlatformRail
-              clans={myClans.map((c) => ({ slug: c.slug, name: c.name }))}
+              clans={railOrder(myClans)}
               signedIn={!!session}
               displayName={userRow?.displayName ?? null}
             />
-            <main className="min-w-0 flex-1">{children}</main>
+            {/* Padding lives HERE, not on each page. Moving it onto the pages left every apex
+                surface I did not personally touch — guides, records, profile, /u, /p — jammed
+                against the rail with no margin at all. The landing bleeds out of it deliberately. */}
+            <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
           </div>
         ) : (
         <>

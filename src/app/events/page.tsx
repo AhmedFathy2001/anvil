@@ -1,3 +1,4 @@
+import ClanLink from '@/components/ClanLink';
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
 import { requireClan } from '@/lib/clanContext';
@@ -136,7 +137,10 @@ export default async function EventsIndexPage({
               const meta = hubKind(n.kind);
               return (
                 <li key={n.key}>
-                  <a href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
+                  {/* ClanLink, not a bare anchor: n.href is built as data (`/events/<id>`) and a
+                      raw <a> takes it literally, so this one link on the whole page pointed at the
+                      APEX and 404'd — the lint rule cannot see an href that arrives in a variable. */}
+                  <ClanLink href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
                     <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.accent }} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{n.name}</span>
@@ -147,7 +151,7 @@ export default async function EventsIndexPage({
                     <span className="ml-auto shrink-0 text-[11.5px]">
                       <EventTimer startDate={n.startDate} endDate={n.endDate} className="text-[11.5px] text-text-muted" />
                     </span>
-                  </a>
+                  </ClanLink>
                 </li>
               );
             })}

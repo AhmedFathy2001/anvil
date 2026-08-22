@@ -2,6 +2,7 @@
 
 import ClanLink from '@/components/ClanLink';
 import { usePathname } from 'next/navigation';
+import ClanCrest from '@/components/ClanCrest';
 
 export interface RailClan {
   slug: string;
@@ -26,6 +27,9 @@ export interface RailClan {
  * exactly why the rule forbidding bare next/link has no exception for "I know this one is safe".
  * It caught this file when it was written with Link.
  */
+/** Above this many, the group gets a count so the length is legible at a glance. */
+const SHOWN = 6;
+
 export default function PlatformRail({
   clans,
   signedIn,
@@ -63,7 +67,7 @@ export default function PlatformRail({
   };
 
   return (
-    <nav className="flex shrink-0 flex-col gap-6 border-b border-card-border bg-brown-dark p-3 md:h-full md:w-[226px] md:border-b-0 md:border-r">
+    <nav className="flex shrink-0 flex-col gap-6 border-b border-card-border bg-brown-dark p-3 md:w-[226px] md:border-b-0 md:border-r">
       <ClanLink href="/" className="flex items-center gap-2.5 px-2.5 pt-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-48.png" alt="" width={26} height={26} className="rounded-md" />
@@ -81,17 +85,27 @@ export default function PlatformRail({
       </div>
 
       {clans.length > 0 && (
-        <div className="flex flex-col gap-px">
-          <div className="px-2.5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
-            Your clans
+        <div className="flex min-h-0 flex-col gap-px">
+          <div className="flex items-center gap-2 px-2.5 pb-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
+              Your clans
+            </span>
+            {clans.length > SHOWN && (
+              <span className="font-mono text-[10px] text-text-muted/60">{clans.length}</span>
+            )}
           </div>
+          {/* SCROLLS RATHER THAN GROWS. Guesting into other clans' events is meant to be ordinary,
+              so a dozen seats is a normal account, not an edge case — and a rail that lists all of
+              them pushes everything else off the screen. The list caps its height and scrolls; the
+              clans you actually play in are ordered first by the caller. */}
+          <div className="flex max-h-[38vh] flex-col gap-px overflow-y-auto md:max-h-[42vh]">
           {clans.map((c) => (
             <ClanLink
               key={c.slug}
               href={`/c/${c.slug}`}
               className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-text-muted transition-colors hover:bg-brown-light hover:text-foreground"
             >
-              <Crest name={c.name} />
+              <ClanCrest name={c.name} size={17} />
               <span className="truncate">{c.name}</span>
               {c.live && (
                 <span
@@ -101,6 +115,7 @@ export default function PlatformRail({
               )}
             </ClanLink>
           ))}
+          </div>
         </div>
       )}
 
@@ -113,27 +128,6 @@ export default function PlatformRail({
   );
 }
 
-/** Two letters on a coloured chip. Derived from the name so it is stable without storing anything. */
-function Crest({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase();
-  // A hue per clan, from the name. Deterministic, so a clan keeps its colour between requests.
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return (
-    <span
-      className="grid h-[17px] w-[17px] shrink-0 place-items-center rounded font-mono text-[9px] font-semibold text-brown-dark"
-      style={{ background: `hsl(${h} 34% 42%)` }}
-    >
-      {initials}
-    </span>
-  );
-}
 
 const s = { width: 15, height: 15, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 } as const;
 const HomeIcon = () => <svg {...s}><path d="M2 7l6-4.5L14 7v6.5a1 1 0 01-1 1H3a1 1 0 01-1-1V7z" /></svg>;

@@ -24,7 +24,7 @@ export interface LookupClan {
  */
 export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10 sm:px-10">
+    <div className="mx-auto w-full max-w-5xl">
       <div className="mb-7">
         <h1 className="text-[31px] font-semibold tracking-[-0.02em]">Find a clan</h1>
         <p className="mt-1.5 text-[15px] text-text-muted">

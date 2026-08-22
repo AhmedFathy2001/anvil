@@ -49,6 +49,11 @@ export default {
         'about the clan prefix, and its href is often a variable this rule cannot read — which is ' +
         'how ten bare clan paths reached a rendered page while lint reported zero. ClanLink passes ' +
         'platform paths through untouched, so it is correct everywhere Link was.',
+      opaqueHref:
+        'This href arrives in a variable, so this rule cannot tell whether it belongs to a clan — ' +
+        'and a raw <a> takes it literally. Use ClanLink, which resolves the prefix at render ' +
+        'whatever the path turns out to be. One link written this way on the events page pointed at ' +
+        'the apex and 404\'d for every member while lint reported zero problems.',
       bareFetch:
         '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
         'component or clanHref()/clanHrefs() on the server. Without it the request reaches the ' +
@@ -60,9 +65,16 @@ export default {
 
     /** Is this line (or the one above) excused? */
     function excused(node) {
-      const before = source.getCommentsBefore(node) ?? [];
-      const line = source.lines[node.loc.start.line - 1] ?? '';
-      return ESCAPE.test(line) || before.some((c) => ESCAPE.test(c.value));
+      // The node itself, and — for a JSX attribute — the element carrying it. An attribute has
+      // nowhere to hang a comment of its own: JSX has no syntax for one inside an opening tag, so an
+      // escape hatch that only reads the attribute is an escape hatch nobody can use.
+      for (const n of [node, node.parent, node.parent?.parent]) {
+        if (!n?.loc) continue;
+        const line = source.lines[n.loc.start.line - 1] ?? '';
+        if (ESCAPE.test(line)) return true;
+        if ((source.getCommentsBefore(n) ?? []).some((c) => ESCAPE.test(c.value))) return true;
+      }
+      return false;
     }
 
     function check(node, value, messageId) {
@@ -96,10 +108,50 @@ export default {
         const navigates = typeof tag === 'string' && (tag === tag.toLowerCase() || tag === 'Link');
         if (!navigates) return;
         const v = node.value;
-        if (v?.type === 'Literal') check(v, v.value, 'bareLink');
-        else if (v?.type === 'JSXExpressionContainer' && v.expression?.type === 'Literal') {
-          check(v.expression, v.expression.value, 'bareLink');
+        if (v?.type === 'Literal') return check(v, v.value, 'bareLink');
+        if (v?.type === 'JSXExpressionContainer' && v.expression?.type === 'Literal') {
+          return check(v.expression, v.expression.value, 'bareLink');
         }
+
+        // AN href THIS RULE CANNOT READ, on an element that navigates.
+        //
+        // `<a href={n.href}>` where n.href is built elsewhere as `/events/<id>`. Every check above
+        // reads the path, so a path arriving in a variable was invisible — and exactly one link on
+        // the events page was written this way, pointed at the apex, and 404'd for everybody. The
+        // literal checks had reported zero.
+        //
+        // So: on a raw <a> or a <Link>, an unreadable href is itself the violation. ClanLink is
+        // exempt (it resolves the prefix at render), and so is anything that has already said it is
+        // leaving the site — an external link has no clan to belong to.
+        if (node.name.name !== 'href') return;
+        if (v?.type !== 'JSXExpressionContainer') return;
+        if (context.filename?.endsWith('components/ClanLink.tsx')) return;
+
+        const expr = v.expression;
+
+        // READABLE ENOUGH. A template literal whose first chunk is a fragment, an absolute URL or a
+        // scheme is not a site path however the rest interpolates — `#${id}` and `https://${host}`
+        // have no clan to belong to, and flagging them would train people to excuse the rule.
+        const head =
+          expr?.type === 'TemplateLiteral' ? (expr.quasis[0]?.value?.raw ?? '') : '';
+        if (/^(#|https?:|mailto:|tel:|\/\/)/.test(head)) return;
+
+        // ALREADY RESOLVED. clanUrl()/useClanUrl() exist to answer exactly this question, so an href
+        // that came out of one is the correct spelling, not a violation.
+        if (expr?.type === 'CallExpression') {
+          const callee = expr.callee?.name ?? expr.callee?.property?.name ?? '';
+          if (/^(clanUrl|clanHref|clanHrefs|withClanPrefix)$/.test(callee)) return;
+        }
+
+        const attrs = node.parent?.attributes ?? [];
+        const external = attrs.some((a) => {
+          if (a.type !== 'JSXAttribute') return false;
+          if (a.name?.name === 'target') return true;
+          if (a.name?.name === 'rel' && String(a.value?.value ?? '').includes('noopener')) return true;
+          return false;
+        });
+        if (external || excused(node)) return;
+        context.report({ node, messageId: 'opaqueHref' });
       },
 
       // fetch('/api/admin/clan')

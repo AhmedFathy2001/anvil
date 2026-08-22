@@ -17,7 +17,7 @@ import type { PlatformStats } from '@/lib/platformStats';
  */
 export default function ApexLanding({ stats }: { stats: PlatformStats }) {
   return (
-    <div>
+    <div className="-mx-4 -my-8 sm:-mx-6 lg:-mx-8">
       <header className="relative grid items-center gap-8 overflow-hidden border-b border-card-border px-5 py-16 sm:px-10 lg:grid-cols-[minmax(320px,1fr)_minmax(300px,520px)] lg:gap-14 lg:py-20">
         {/* Forge heat. The single decorative element on the page, and it sits behind the product
             rather than in front of the words. */}

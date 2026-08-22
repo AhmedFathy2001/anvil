@@ -37,6 +37,8 @@ export default async function LoginPage({
         </div>
 
         {oauthConfigured ? (
+          // clan-prefix: platform — /api/auth/discord/start is the platform's, and this has to be a
+          // real navigation rather than a client-side route: it hands off to Discord.
           <a
             href={startHref}
             className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-medium px-4 py-2.5 rounded-lg transition-colors"
