@@ -184,6 +184,33 @@ const ko: PartialDiscordDict = {
     optionTeamName: '팀 이름 (비워 두면 내 팀)',
   },
 
+  rolePanel: {
+    modalTitle:
+      '한 가지만 더',
+    modalLabel:
+      '당신의 RuneScape 이름',
+    modalPlaceholder:
+      '게임 안 표기 그대로',
+    granted:
+      '✅ **{label}**(으)로 설정했습니다.',
+    optionGone:
+      '이 버튼은 오래된 것입니다 —— 운영진에게 패널을 다시 올려 달라고 하세요.',
+    grantFailed:
+      '⚠️ 역할이 적용되지 않았습니다. Anvil 봇 역할은 나눠 주는 역할보다 **위**에 있어야 합니다 —— 관리자에게 확인을 요청하세요.',
+    rsnSaved:
+      '📋 **{rsn}**을(를) RuneScape 이름으로 저장했습니다.',
+    rsnSavedRenamed:
+      '📋 **{rsn}**을(를) RuneScape 이름으로 저장하고, 별명도 같게 맞췄습니다.',
+    rsnPending:
+      '-# 이벤트에 반영되려면 그 계정이 당신 것임을 운영진이 확인해야 합니다.',
+    rsnInvalid:
+      'RuneScape 이름 같지 않습니다 —— 1~12자, 게임 안 표기 그대로 입력하세요.',
+    rsnTaken:
+      '**{rsn}**은(는) 이미 다른 사람에게 연결되어 있습니다. 잘못된 것이라면 운영진에게 문의하세요.',
+    failed:
+      'Anvil이 끝까지 처리하지 못했습니다. 관리자가 사이트 로그를 확인할 수 있습니다.',
+  },
+
   errors: {
     dm: '클랜의 Discord 서버에서 실행하세요 —— 보드 명령은 어느 클랜이 묻는지 알아야 합니다.',
     wrongGuild:

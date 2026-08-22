@@ -196,6 +196,33 @@ const nl: PartialDiscordDict = {
     optionTeamName: 'Teamnaam (laat leeg voor je eigen team)',
   },
 
+  rolePanel: {
+    modalTitle:
+      'Nog één ding',
+    modalLabel:
+      'Je RuneScape-naam',
+    modalPlaceholder:
+      'Precies zoals in het spel',
+    granted:
+      '✅ Je staat ingesteld als **{label}**.',
+    optionGone:
+      'Die knop is verouderd — vraag staff om het paneel opnieuw te plaatsen.',
+    grantFailed:
+      '⚠️ Je rollen zijn niet toegekend. De botrol van Anvil moet **boven** de rollen staan die hij uitdeelt — vraag een admin het na te kijken.',
+    rsnSaved:
+      '📋 **{rsn}** opgeslagen als je RuneScape-naam.',
+    rsnSavedRenamed:
+      '📋 **{rsn}** opgeslagen als je RuneScape-naam, en je bijnaam er gelijk aan gezet.',
+    rsnPending:
+      '-# Een moderator moet nog bevestigen dat het account van jou is voordat het meetelt voor events.',
+    rsnInvalid:
+      'Dat ziet er niet uit als een RuneScape-naam — 1 tot 12 tekens, precies zoals in het spel.',
+    rsnTaken:
+      '**{rsn}** hangt al aan iemand anders. Klopt dat niet, vraag een moderator het recht te zetten.',
+    failed:
+      'Anvil kon dat niet afmaken. Een admin kan de logs van de site bekijken.',
+  },
+
   errors: {
     dm: 'Voer dit uit in de Discord-server van je clan — een bordcommando moet weten welke clan het vraagt.',
     wrongGuild:
