@@ -54,7 +54,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -310,6 +310,10 @@ export async function PUT(
     trackedStat: trackedStat !== undefined ? (trackedStat || null) : tile.trackedStat,
     statType: statType !== undefined ? (statType || null) : tile.statType,
     statGoal: statGoal !== undefined ? (statGoal || null) : tile.statGoal,
+    // Whether statGoal is an in-event gain or a lifetime threshold. Anything but the explicit
+    // opt-in falls back to 'gain', so a malformed value can never silently re-interpret a live
+    // tile's scoring.
+    statBasis: statBasis !== undefined ? (statBasis === 'milestone' ? 'milestone' : 'gain') : tile.statBasis,
     trackingMode: trackingMode !== undefined ? trackingMode : tile.trackingMode,
     // optional is always editable
     optional: optional !== undefined ? (optional ? 1 : 0) : tile.optional,

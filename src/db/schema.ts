@@ -129,6 +129,17 @@ export const tiles = sqliteTable('tiles', {
   trackedStat: text('tracked_stat'),
   statType: text('stat_type'),
   statGoal: integer('stat_goal'),
+  // What `statGoal` is measured against.
+  //   'gain'      (default) — progress made DURING the event: current − baseline. Every stat tile
+  //               worked this way before milestones existed, so the default keeps them identical.
+  //   'milestone' — a LIFETIME total reached during the event: complete when the member's baseline
+  //               was below the goal AND their absolute total is now at or above it. That gate is
+  //               what makes "get your first Quiver" expressible — a member who already had one has
+  //               baseline >= goal and can never complete it, while a teammate who hasn't still can.
+  //               Always evaluated PER MEMBER whatever `trackingMode` says: summing lifetime totals
+  //               across a team is meaningless (0 + 5 + 200 clears a goal of 1 for the wrong
+  //               reason). See lib/statTracking.milestoneState.
+  statBasis: text('stat_basis').default('gain').notNull(),
   // 'team' (default) = every member's progress sums toward the goal; 'individual' ('solo' is the
   // legacy spelling of the same thing) = ONE member has to reach it alone. Honoured for hiscores
   // stat tiles (lib/statTracking) and for submission-backed count tiles (lib/countProgress), which

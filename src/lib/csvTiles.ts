@@ -17,6 +17,7 @@
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
 //   statGoal            integer XP/KC goal
+//   statBasis           'gain' (default) | 'milestone' — a lifetime total reached during the event
 //   targetNpcs          kill tiles — NPC name(s) to count, pipe-separated (e.g. "Cow|Cow calf");
 //                       lap tiles — agility course name(s) EXACTLY as the game's lap-counter line
 //                       spells them (see AGILITY_COURSES in lib/constants), pipe-separated
@@ -63,6 +64,7 @@ export const TILE_CSV_COLUMNS = [
   'trackedStat',
   'statType',
   'statGoal',
+  'statBasis',
   'targetNpcs',
   'timedActivity',
   'timeThresholdSeconds',
@@ -101,6 +103,7 @@ export interface TileCsvRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  statBasis?: string | null;
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
@@ -326,6 +329,7 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     trackedStat: idx('trackedstat'),
     statType: idx('stattype'),
     statGoal: idx('statgoal'),
+    statBasis: idx('statbasis'),
     targetNpcs: idx('targetnpcs'),
     timedActivity: idx('timedactivity'),
     timeThresholdSeconds: idx('timethresholdseconds'),
@@ -365,6 +369,11 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       if (resolved && !row.statType) row.statType = resolved.type;
     }
     if (col.statGoal >= 0) row.statGoal = toNumberLoose(get(cells, col.statGoal));
+    // Anything but the explicit opt-in is a gain tile, so a stray value can't silently re-interpret
+    // a board's scoring on import.
+    if (col.statBasis >= 0) {
+      row.statBasis = get(cells, col.statBasis).trim().toLowerCase() === 'milestone' ? 'milestone' : 'gain';
+    }
     if (col.targetNpcs >= 0) {
       // Comma or pipe separated within the cell (comma works when the cell is quoted). CA rows
       // split on pipes ONLY — task names legitimately contain commas ("Nylocas, On the Rocks").
@@ -497,6 +506,8 @@ export function tileToCsvCells(t: Tile): string[] {
     t.trackedStat ?? '',
     t.statType ?? '',
     t.statGoal != null ? String(t.statGoal) : '',
+    // Only emitted when it's not the default, so an ordinary board's sheet is unchanged.
+    t.statBasis === 'milestone' ? 'milestone' : '',
     jsonNamesToPipes(t.targetNpcs),
     t.timedActivity ?? '',
     t.timeThresholdSeconds != null ? String(t.timeThresholdSeconds) : '',
