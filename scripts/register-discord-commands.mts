@@ -4,6 +4,11 @@
  *   npx tsx scripts/register-discord-commands.mts                 # global (every server, ~1h to appear)
  *   npx tsx scripts/register-discord-commands.mts --guild 1234…   # one server, instantly
  *   npx tsx scripts/register-discord-commands.mts --clear         # remove them again
+ *   npx tsx scripts/register-discord-commands.mts --list          # what is registered, in BOTH scopes
+ *
+ * `--list` is the one to reach for when a server shows two of every command. Discord serves guild
+ * and global commands separately and shows both, so an application registered in both scopes
+ * duplicates its whole tree. Pass --guild with --list to check a specific server alongside global.
  *
  * Token comes from DISCORD_BOT_TOKEN, or ANVIL_SHARED_BOT_TOKEN for the managed shared app.
  *
@@ -40,6 +45,7 @@ if (!token) {
 
 const guildId = arg('--guild');
 const clear = process.argv.includes('--clear');
+const list = process.argv.includes('--list');
 
 async function rest(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API}${path}`, {
@@ -55,7 +61,34 @@ if (!meRes.ok) {
 }
 const app = (await meRes.json()) as { id: string; name: string };
 
-const path = guildId ? `/applications/${app.id}/guilds/${guildId}/commands` : `/applications/${app.id}/commands`;
+const globalPath = `/applications/${app.id}/commands`;
+const guildPath = guildId ? `/applications/${app.id}/guilds/${guildId}/commands` : null;
+const path = guildPath ?? globalPath;
+
+if (list) {
+  for (const [label, where] of [['global', globalPath], ...(guildPath ? [[`guild ${guildId}`, guildPath]] : [])] as [string, string][]) {
+    const res = await rest(where);
+    if (!res.ok) {
+      console.log(`${label}: could not read (${res.status})`);
+      continue;
+    }
+    const cmds = (await res.json()) as { name: string; options?: { name: string }[] }[];
+    console.log(`${label}: ${cmds.length} command(s)`);
+    for (const c of cmds) {
+      console.log(`  /${c.name}${c.options?.length ? ` — ${c.options.map((o) => o.name).join(', ')}` : ''}`);
+    }
+  }
+  if (guildPath) {
+    console.log(
+      '\nIf BOTH scopes list the same command, that is your duplicate: Discord serves them separately.',
+    );
+    console.log(`Clear the global copy with:  npx tsx ${process.argv[1]?.split('/').pop()} --clear`);
+  } else {
+    console.log('\nPass --guild <id> as well to compare against a specific server.');
+  }
+  process.exit(0);
+}
+
 const body = clear ? [] : await buildLocalizedCommands();
 
 const res = await rest(path, { method: 'PUT', body: JSON.stringify(body) });

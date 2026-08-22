@@ -376,3 +376,38 @@ test('fmt: leaves an unsupplied placeholder alone rather than blanking it', asyn
   assert.equal(fmt('{a} and {b}', { a: 'x' }), 'x and {b}');
   assert.equal(fmt('{n} left', { n: 0 }), '0 left');
 });
+
+// ── Registration scopes ─────────────────────────────────────────────────────────────────────────
+
+test('staleScopes: moving to a guild clears the global copy, or the picker shows two of everything', async () => {
+  const { staleScopes } = await import('../src/lib/discordCommandSync.ts');
+  const GLOBAL = '/applications/app1/commands';
+
+  // The path that actually bites: a bot connected before a server ID was set registers globally,
+  // then registers guild-scoped once the ID arrives. Discord serves BOTH scopes, so every command
+  // appears twice until the global set is emptied.
+  assert.deepEqual(staleScopes('app1', '123', 'global'), [GLOBAL]);
+
+  // `previous` is a hint, not the authority — an instance registered by hand with the script has no
+  // record at all, and the duplicate is just as real.
+  assert.deepEqual(staleScopes('app1', '123', null), [GLOBAL]);
+
+  // Steady state on a guild-scoped clan: still worth the check, because nothing else would ever
+  // notice a global set arriving from a manual run.
+  assert.deepEqual(staleScopes('app1', '123', 'guild:123'), [GLOBAL]);
+});
+
+test('staleScopes: a clan that moved servers leaves the old one behind', async () => {
+  const { staleScopes } = await import('../src/lib/discordCommandSync.ts');
+
+  // Old guild AND global, because the target is a guild.
+  assert.deepEqual(staleScopes('app1', '999', 'guild:123'), [
+    '/applications/app1/commands',
+    '/applications/app1/guilds/123/commands',
+  ]);
+
+  // Falling back to global: only the abandoned guild needs emptying — there is no other global.
+  assert.deepEqual(staleScopes('app1', '', 'guild:123'), ['/applications/app1/guilds/123/commands']);
+  assert.deepEqual(staleScopes('app1', '', 'global'), []);
+  assert.deepEqual(staleScopes('app1', '', null), []);
+});

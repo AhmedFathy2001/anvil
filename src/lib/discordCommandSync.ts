@@ -46,6 +46,16 @@ async function writeSetting(key: string, value: string | null): Promise<void> {
   else await db.insert(settings).values({ key, value });
 }
 
+async function listCommands(token: string, path: string): Promise<unknown[] | null> {
+  const res = await fetch(`${API}${path}`, {
+    headers: { Authorization: `Bot ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  const body = await res.json().catch(() => null);
+  return Array.isArray(body) ? body : null;
+}
+
 async function put(token: string, path: string, body: unknown): Promise<Response | null> {
   return fetch(`${API}${path}`, {
     method: 'PUT',
@@ -53,6 +63,36 @@ async function put(token: string, path: string, body: unknown): Promise<Response
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
+}
+
+/**
+ * Every registration scope that must be EMPTIED so the target scope is the only one serving.
+ *
+ * Discord stores guild commands and global commands separately and serves BOTH: an application
+ * registered in both scopes shows every command twice in the picker, which is exactly what a clan
+ * sees after connecting a bot before setting a server ID —
+ *
+ *   1. no server ID yet  → registered globally
+ *   2. admin sets one    → registered guild-scoped
+ *   3. the global copy was never removed, so now there are two of everything.
+ *
+ * That was the old bug: cleanup only ever looked for a stale GUILD, so the global→guild move (the
+ * common one, since the server ID usually arrives after the bot) left a duplicate set behind
+ * forever. `previous` is a hint, not the authority — it can be missing entirely on an instance
+ * that registered by hand with scripts/register-discord-commands.mts — so the global scope is
+ * always checked when targeting a guild rather than trusted to be clean.
+ */
+export function staleScopes(appId: string, guildId: string, previous: string | null): string[] {
+  const out: string[] = [];
+  // Targeting a guild: the global set, if any, is a duplicate of it.
+  if (guildId) out.push(`/applications/${appId}/commands`);
+  // Either target: a server we used to be bound to still has our commands, now answering about a
+  // clan that isn't there.
+  if (previous?.startsWith('guild:')) {
+    const stale = previous.slice('guild:'.length);
+    if (stale && stale !== guildId) out.push(`/applications/${appId}/guilds/${stale}/commands`);
+  }
+  return out;
 }
 
 /**
@@ -98,12 +138,15 @@ export async function syncClanCommands(): Promise<CommandSyncResult> {
     return { ok: false, scope, reason: detail };
   }
 
-  // A clan that moved servers leaves its commands behind in the old one, still listed and now
-  // answering about a clan that isn't there. Clearing is a PUT of an empty set — same call, no body.
+  // Empty every other scope that could still be serving a copy (see staleScopes). Read before
+  // writing: the common case is nothing to do, and a GET that comes back empty costs one request
+  // where an unconditional PUT would rewrite state on every boot.
   const previous = await readSetting(SYNCED_SCOPE_KEY);
-  if (previous && previous !== `guild:${guildId}` && previous.startsWith('guild:')) {
-    const staleGuild = previous.slice('guild:'.length);
-    await put(resolved.token, `/applications/${app.id}/guilds/${staleGuild}/commands`, []);
+  for (const stalePath of staleScopes(app.id, guildId, previous)) {
+    const existing = await listCommands(resolved.token, stalePath);
+    if (!existing?.length) continue;
+    await put(resolved.token, stalePath, []);
+    log.info('discord-commands.cleared-duplicate-scope', { path: stalePath, count: existing.length });
   }
   await writeSetting(SYNCED_SCOPE_KEY, guildId ? `guild:${guildId}` : 'global');
 

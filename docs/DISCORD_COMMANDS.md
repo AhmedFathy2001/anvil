@@ -37,6 +37,30 @@ later shows the standings as they are *now*, which is what a channel reading it 
 
 ---
 
+## Two of every command
+
+Discord stores **guild** commands and **global** commands separately, and serves both. An
+application registered in both scopes shows its whole tree twice in the picker.
+
+The usual way in: a clan connects a bot before setting a server ID, so registration goes global;
+the server ID arrives later and registration moves to guild scope; the global copy is still there.
+
+```bash
+# what is actually registered, in both scopes
+npx tsx scripts/register-discord-commands.mts --list --guild <server-id>
+
+# drop the global copy (guild-scoped registration is unaffected)
+npx tsx scripts/register-discord-commands.mts --clear
+```
+
+`syncClanCommands` now empties the other scope on every run (`staleScopes`), so this heals itself
+on the next boot. It reads before writing, so the normal case costs one GET that comes back empty.
+
+If `--list` shows the command in **one** scope only and the picker still doubles it, the duplicate
+is a second *application*: a clan on the managed shared bot that also invited its own bot named
+Anvil sees both. Remove whichever bot you don't want from the server — the command lists are
+per-application and neither one can clear the other.
+
 ## Languages
 
 The bot speaks the same fifteen languages as the [guides](../src/lib/discordI18n/): English,
