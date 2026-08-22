@@ -661,10 +661,10 @@ export function ClanWeek({ view }: { view: HomeView }) {
 
         <div className="rounded-2xl border border-card-border bg-card-bg p-5">
           <h3 className="text-sm font-bold">Milestones</h3>
-          <p className="mt-0.5 text-[11.5px] text-text-muted">levels and thresholds crossed this week</p>
+          <p className="mt-0.5 text-[11.5px] text-text-muted">levels, thresholds and drops from this week</p>
           <div className="mt-2.5">
             {milestones.length === 0 ? (
-              <p className="py-4 text-center text-xs text-text-muted">Nothing crossed yet this week.</p>
+              <p className="py-4 text-center text-xs text-text-muted">Nothing crossed or dropped yet this week.</p>
             ) : (
               milestones.map((m, i) => (
                 <div key={i} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">
