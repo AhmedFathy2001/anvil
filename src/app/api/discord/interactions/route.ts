@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { getAppPublicKey } from '@/lib/discord-roles';
-import { handleCommand } from '@/lib/discordCommands';
+import { handleCommand, handleComponent } from '@/lib/discordCommands';
 import {
   INTERACTION_TYPE,
   pong,
@@ -73,17 +73,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(pong());
   }
 
-  if (interaction.type !== INTERACTION_TYPE.APPLICATION_COMMAND) {
+  const isCommand = interaction.type === INTERACTION_TYPE.APPLICATION_COMMAND;
+  const isComponent = interaction.type === INTERACTION_TYPE.MESSAGE_COMPONENT;
+  if (!isCommand && !isComponent) {
     return NextResponse.json(textReply('That interaction type is not supported yet.'));
   }
 
   try {
-    return NextResponse.json(await handleCommand(interaction));
+    // A component interaction is the Share button on an answer we sent. It goes through the same
+    // dispatcher — rebuilt from the button's custom_id rather than from stored state, so a share
+    // still works after a redeploy and shows the board as it stands now.
+    return NextResponse.json(
+      isComponent ? await handleComponent(interaction) : await handleCommand(interaction),
+    );
   } catch (e) {
     // A thrown error becomes a Discord timeout, which tells the member nothing at all. Answer in
     // words and keep the detail in the logs.
     log.error('discord interaction failed', {
-      command: interaction.data?.name,
+      command: interaction.data?.name ?? interaction.data?.custom_id,
       guildId: interaction.guild_id,
       error: (e as Error).message,
     });

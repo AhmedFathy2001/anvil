@@ -202,7 +202,7 @@ test('COMMAND_DEFINITIONS: every subcommand the tree advertises is one the dispa
 
 // ── Guild guard + provenance ────────────────────────────────────────────────────────────────────
 
-const clan: ClanContext = { name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', federated: true };
+const clan: ClanContext = { name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', federated: true, language: null };
 
 test('checkGuild: only this clan\'s own server is served', () => {
   assert.equal(checkGuild(clan, '111'), 'ok');
@@ -285,4 +285,94 @@ test('the control plane\'s copy of the command tree matches this one', async (t)
   for (const sub of ourSubs) {
     assert.ok(theirSubs.includes(sub), `Anvil.Admin is missing /${COMMAND_NAME} ${sub} — update its SHARED_COMMANDS`);
   }
+});
+
+// ── Sharing ─────────────────────────────────────────────────────────────────────────────────────
+
+test('share ids round-trip, including team names that contain a colon', async () => {
+  const { shareId, parseShareId } = await import('../src/lib/discordCommands.ts');
+
+  assert.deepEqual(parseShareId(shareId('board', {})), { sub: 'board', options: {} });
+  assert.deepEqual(parseShareId(shareId('team', { name: 'Reds' })), { sub: 'team', options: { name: 'Reds' } });
+
+  // A team called "Ironforge: B Team" is legal, and splitting on every colon would lose half of it.
+  const awkward = 'Ironforge: B Team';
+  assert.deepEqual(parseShareId(shareId('team', { name: awkward })), { sub: 'team', options: { name: awkward } });
+
+  // Anything that isn't ours is refused rather than guessed at.
+  assert.equal(parseShareId('something-else'), null);
+});
+
+test('a share id fits inside the 100 characters Discord allows on a custom_id', async () => {
+  const { shareId } = await import('../src/lib/discordCommands.ts');
+  assert.ok(shareId('team', { name: 'x'.repeat(400) }).length <= 100);
+});
+
+test('shareRow: one grey button carrying the id, inside an action row', async () => {
+  const { shareRow, COMPONENT_TYPE, BUTTON_STYLE } = await import('../src/lib/discordInteractions.ts');
+  const row = shareRow('Share to channel', 'share:board');
+  assert.equal(row.type, COMPONENT_TYPE.ACTION_ROW);
+  assert.equal(row.components.length, 1);
+  assert.equal(row.components[0].type, COMPONENT_TYPE.BUTTON);
+  assert.equal(row.components[0].style, BUTTON_STYLE.SECONDARY);
+  assert.equal(row.components[0].custom_id, 'share:board');
+});
+
+test('embedReply: a share button rides along, and the answer stays ephemeral', async () => {
+  const { embedReply, shareRow, MESSAGE_FLAGS } = await import('../src/lib/discordInteractions.ts');
+  const res = embedReply([{ title: 'Standings' }], { components: [shareRow('Share', 'share:leaderboard')] });
+  assert.equal(res.data?.flags, MESSAGE_FLAGS.EPHEMERAL);
+  assert.equal(res.data?.components?.length, 1);
+  // The stamp still happens — components must not bypass the branding choke point.
+  const [embed] = res.data?.embeds as { footer?: { text: string } }[];
+  assert.equal(embed.footer?.text, 'Powered by Anvil');
+});
+
+// ── Language ────────────────────────────────────────────────────────────────────────────────────
+
+test('resolveLocale: Discord\'s codes map onto ours, and anything unknown lands on English', async () => {
+  const { resolveLocale } = await import('../src/lib/discordI18n/index.ts');
+
+  assert.equal(resolveLocale('da'), 'da');
+  assert.equal(resolveLocale('pt-BR'), 'pt-br');
+  assert.equal(resolveLocale('sv-SE'), 'sv');
+  assert.equal(resolveLocale('es-419'), 'es');
+  assert.equal(resolveLocale('zh-CN'), 'zh-hans');
+  assert.equal(resolveLocale('en-GB'), 'en');
+
+  // Not a language we have — English rather than a broken half-translated page.
+  assert.equal(resolveLocale('vi'), 'en');
+  assert.equal(resolveLocale(null), 'en');
+
+  // A regional code we don't list still finds its base language.
+  assert.equal(resolveLocale('de-AT'), 'de');
+});
+
+test('resolveLocale: a clan that picked a language overrides detection', async () => {
+  const { resolveLocale } = await import('../src/lib/discordI18n/index.ts');
+
+  // Arabic is the reason this exists: Discord has no Arabic client locale, so detection can never
+  // reach it and every member of an Arabic clan reports English.
+  assert.equal(resolveLocale('en-US', 'ar'), 'ar');
+  assert.equal(resolveLocale('da', 'de'), 'de');
+
+  // A junk override is ignored rather than trusted — it would silently English the whole bot.
+  assert.equal(resolveLocale('da', 'not-a-language'), 'da');
+});
+
+test('the dictionary falls back to English per key, not per file', async () => {
+  const { getDiscordDict } = await import('../src/lib/discordI18n/index.ts');
+  const da = await getDiscordDict('da');
+
+  assert.equal(da.common.shareButton, 'Del i kanalen');
+  // board.title is emoji plus an interpolation — nothing to translate, so Danish omits it and gets
+  // English. That is the fallback working, not a gap.
+  assert.equal(da.board.title, '📋 {event}');
+});
+
+test('fmt: leaves an unsupplied placeholder alone rather than blanking it', async () => {
+  const { fmt } = await import('../src/lib/discordI18n/index.ts');
+  assert.equal(fmt('Starts {when}.', { when: 'soon' }), 'Starts soon.');
+  assert.equal(fmt('{a} and {b}', { a: 'x' }), 'x and {b}');
+  assert.equal(fmt('{n} left', { n: 0 }), '0 left');
 });
