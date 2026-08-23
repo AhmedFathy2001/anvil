@@ -53,6 +53,14 @@ const eslintConfig = defineConfig([
       "react-hooks/preserve-manual-memoization": "warn",
     },
   },
+  {
+    // `useTestDatabase()` is not a React hook — it stands a Postgres database up for one suite. The
+    // rules-of-hooks check goes by the `use` prefix alone, so it fired once per DB-backed suite:
+    // every error `npm run lint` reported was this same false positive, twenty-one of them, which
+    // made the error count useless for spotting a real one. There is no React in tests/.
+    files: ["tests/**"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
 ]);
 
 export default eslintConfig;

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -128,6 +128,12 @@ export async function apexHomeView(
  *
  * Withdrawn sign-ups deliberately come back: withdrawing is not the same as declining forever, and
  * while the window is open they can change their mind.
+ *
+ * NO VISIBILITY FILTER, and that is not an oversight. `clanIds` is the person's own clans — every
+ * one of them is somewhere they hold a seat or a grant — and `canSeeEvent` grants the host clan's
+ * own people sight of every event it runs, whatever the visibility says. An `invited` event in a
+ * clan you belong to is already yours to see. Adding a redundant filter here would suggest the
+ * opposite rule applies and invite somebody to "fix" it in the wrong direction.
  */
 export async function openSignups(
   playerId: number | null | undefined,
@@ -172,11 +178,15 @@ export async function openSignups(
       and(
         inArray(events.clanId, clanIds),
         isNull(events.forceEndedAt),
-        // The window: opened (or always open) and not yet shut.
-        or(isNull(events.signupOpensAt), lte(events.signupOpensAt, nowIso)),
+        // THE WINDOW IS `signupWindowState`, TRANSLATED — not a rule invented here. That helper is
+        // what the sign-up form itself obeys, and the first cut of this query diverged from it in a
+        // way that mattered: it closed on `endDate`, so an event that had already STARTED but not
+        // finished was offered with a "Sign up" button that lands on a locked form.
+        //
+        // Closes on START, not end. A null startDate is still open, which is the helper's rule too.
+        or(isNull(events.startDate), gt(events.startDate, nowIso)),
         or(isNull(events.signupDeadline), gt(events.signupDeadline, nowIso)),
-        // Still worth entering — an event that has already ended is not.
-        or(isNull(events.endDate), gt(events.endDate, nowIso)),
+        or(isNull(events.signupOpensAt), lte(events.signupOpensAt, nowIso)),
         entered ? notInArray(events.id, entered) : sql`true`,
       ),
     )
@@ -197,32 +207,53 @@ export async function characterList(playerId: number | null | undefined): Promis
   if (playerId == null) return [];
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
-  // clan-scope: global -- a person's characters are theirs. The clan column below is derived from
-  // each account's own member seat, not from a clan filter on the query.
+  // clan-scope: global -- a person's characters are theirs. The clan named per account below comes
+  // from that account's OWN member seat, not from a clan filter over the query.
   const rows = await db
-    .select({
-      id: accounts.id,
-      rsn: accounts.rsn,
-      xpThisWeek: sql<number>`coalesce((
-        select sum(${memberDailyStats.xpGained}) from ${memberDailyStats}
-        where ${memberDailyStats.accountId} = ${accounts.id} and ${memberDailyStats.day} >= ${weekAgo}
-      ), 0)`,
-      clanName: sql<string | null>`(
-        select ${clans.name} from ${clanMemberships}
-        join ${clans} on ${clans.id} = ${clanMemberships.clanId}
-        where ${clanMemberships.accountId} = ${accounts.id}
-          and ${clanMemberships.kind} = 'member' and ${clanMemberships.leftAt} is null
-        limit 1
-      )`,
-    })
+    .select({ id: accounts.id, rsn: accounts.rsn })
     .from(accounts)
-    .where(eq(accounts.playerId, playerId))
-    .orderBy(desc(sql`coalesce((
-      select sum(${memberDailyStats.xpGained}) from ${memberDailyStats}
-      where ${memberDailyStats.accountId} = ${accounts.id} and ${memberDailyStats.day} >= ${weekAgo}
-    ), 0)`));
+    .where(eq(accounts.playerId, playerId));
+  if (rows.length === 0) return [];
 
-  return rows.map((r) => ({ ...r, xpThisWeek: Number(r.xpThisWeek ?? 0) }));
+  // THREE PLAIN QUERIES, not one clever correlated select. The first attempt put the week's total
+  // and the clan name in `sql` templates inside the select list, and Drizzle emitted the interpolated
+  // columns UNQUALIFIED there — `where "account_id" = "id"` — which is ambiguous against the outer
+  // row and simply fails. A join in JavaScript over a handful of accounts costs nothing and is
+  // readable, which the subquery version was not.
+  const ids = rows.map((r) => r.id);
+
+  const [weeks, seats] = await Promise.all([
+    db
+      .select({ accountId: memberDailyStats.accountId, n: sql<number>`sum(${memberDailyStats.xpGained})` })
+      .from(memberDailyStats)
+      .where(and(inArray(memberDailyStats.accountId, ids), sql`${memberDailyStats.day} >= ${weekAgo}`))
+      .groupBy(memberDailyStats.accountId),
+    db
+      .select({ accountId: clanMemberships.accountId, name: clans.name })
+      .from(clanMemberships)
+      .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+      .where(
+        and(
+          inArray(clanMemberships.accountId, ids),
+          // A MEMBER seat only. Guesting in a clan is playing there, not belonging to it, and an
+          // account holds at most one member seat — which is what makes this single-valued.
+          eq(clanMemberships.kind, 'member'),
+          isNull(clanMemberships.leftAt),
+        ),
+      ),
+  ]);
+
+  const xpBy = new Map(weeks.map((w) => [w.accountId, Number(w.n ?? 0)]));
+  const clanBy = new Map(seats.map((c) => [c.accountId, c.name]));
+
+  return rows
+    .map((r) => ({
+      id: r.id,
+      rsn: r.rsn,
+      xpThisWeek: xpBy.get(r.id) ?? 0,
+      clanName: clanBy.get(r.id) ?? null,
+    }))
+    .sort((a, b) => b.xpThisWeek - a.xpThisWeek || a.rsn.localeCompare(b.rsn));
 }
 
 /** Live seats a clan has, for the "x of y playing" line. Cheap enough to ask per view. */
