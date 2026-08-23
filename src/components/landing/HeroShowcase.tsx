@@ -99,7 +99,9 @@ export default function HeroShowcase() {
       {format === 'bingo' && (
         <>
           <Head title="Summer Bingo — Team Molten" meta={`${DONE.length} / 25`} />
-          <BingoBoard tiles={TILES} boardSize={25} completions={COMPLETIONS} teams={TEAMS} activeTeamId={1} />
+          {/* boardSize is N, the grid's EDGE — not the tile count. Passing 25 laid the board out as
+              one 25-wide strip with its own scrollbar, which is what the hero was showing. */}
+          <BingoBoard tiles={TILES} boardSize={5} completions={COMPLETIONS} teams={TEAMS} activeTeamId={1} />
           <Foot>Every one of those was submitted by the plugin, with the screenshot attached.</Foot>
         </>
       )}

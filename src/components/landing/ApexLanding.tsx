@@ -35,17 +35,21 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
     // The landing bleeds out of the shell's padding on purpose: it is the one page whose bands and
     // hero should touch the rail rather than sit in a column.
     <div className="-mx-4 -my-8 sm:-mx-6 lg:-mx-8">
-      <header className="relative grid items-center gap-10 overflow-hidden border-b border-card-border px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-[minmax(320px,1fr)_minmax(300px,540px)] lg:gap-14 lg:py-20">
+      {/* The band bleeds; its CONTENTS sit in the same column as every section below. Letting the
+          hero span an ultrawide monitor put a third of a metre of empty ground between the headline
+          and the board, and the two stopped reading as one thought. */}
+      <header className="relative overflow-hidden border-b border-card-border">
         {/* Forge heat. The single decorative element on the page, and it sits behind the product
             rather than in front of the words. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-[20%] -top-[25%] h-[560px] w-[85%] opacity-90"
+          className="pointer-events-none absolute -left-[10%] -top-[35%] h-[620px] w-[70%] opacity-90"
           style={{
             background:
               'radial-gradient(ellipse at 45% 45%, rgba(212,160,23,0.14), rgba(212,160,23,0.03) 45%, transparent 70%)',
           }}
         />
+        <div className="mx-auto grid max-w-[1180px] items-center gap-10 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:gap-12 lg:py-20">
         <div className="relative min-w-0">
           <div className="mb-5 flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-gold-dark">
             For Old School RuneScape clans
@@ -83,16 +87,19 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
         <div className="relative min-w-0">
           <HeroShowcase />
         </div>
+        </div>
       </header>
 
       {/* The molten rule: the boundary between the pitch and the platform under it. */}
       <div className="h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
 
-      <div className="grid grid-cols-2 border-b border-card-border sm:grid-cols-4">
-        <Figure n={String(EVENT_MODES.length)} k="Event formats" />
-        <Figure n={String(TILE_KIND_COUNT)} k="Things a tile can track" />
-        <Figure n={compact(stats.xpThisWeek)} k="XP counted this week" />
-        <Figure n={String(DISCORD_LOCALES.length)} k="Bot languages" />
+      <div className="border-b border-card-border">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-2 sm:grid-cols-4">
+          <Figure n={String(EVENT_MODES.length)} k="Event formats" />
+          <Figure n={String(TILE_KIND_COUNT)} k="Things a tile can track" />
+          <Figure n={compact(stats.xpThisWeek)} k="XP counted this week" />
+          <Figure n={String(DISCORD_LOCALES.length)} k="Bot languages" />
+        </div>
       </div>
 
       <div className="mx-auto max-w-[1180px] px-5 pb-20 sm:px-8">
@@ -277,6 +284,8 @@ function Section({
 
 function Figure({ n, k }: { n: string; k: string }) {
   return (
+    // Its own padding, matching the sections' — so the band's numbers sit on the same left edge as
+    // every heading below it.
     <div className="border-b border-r border-card-border px-5 py-5 last:border-r-0 sm:border-b-0 sm:px-8 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r">
       <div className="font-mono text-[clamp(1.4rem,2.6vw,1.9rem)] font-medium tabular-nums tracking-tight">
         {n}
